@@ -42,6 +42,12 @@ public class DigestDispatchJobConsentRecheckTests(WorkerTestFixture fixture)
         SoftDelete,
     }
 
+    public enum MatchMailPause
+    {
+        AllNotificationMail,
+        Summary,
+    }
+
     private readonly WorkerTestFixture _fixture = fixture;
 
     private static readonly DateTimeOffset Now = new(2026, 6, 1, 6, 0, 0, TimeSpan.Zero);
@@ -210,6 +216,121 @@ public class DigestDispatchJobConsentRecheckTests(WorkerTestFixture fixture)
             .Preferences.FollowedCompanyNotificationConsentWithdrawnAt.ShouldNotBeNull();
     }
 
+    // ADR 0164 (#2107) — the check before the claim is the mail gate, so a pause committed after the due
+    // set stops that user as a withdrawal does, while the consent stays standing.
+    [Theory]
+    [InlineData(MatchMailPause.AllNotificationMail)]
+    [InlineData(MatchMailPause.Summary)]
+    public async Task RunAsync_MatchPass_WhenAPauseCommitsAfterTheDueSet_ThatUserIsNeitherClaimedNorEmailed(
+        MatchMailPause pause)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adId = await SeedActiveAdAsync(ct);
+        var a = await SeedSeekerAsync(matchConsent: true, followConsent: false, ct);
+        var b = await SeedSeekerAsync(matchConsent: true, followConsent: false, ct);
+        await SeedStrongPendingMatchAsync(a.UserId, adId, ct);
+        await SeedStrongPendingMatchAsync(b.UserId, adId, ct);
+
+        var pair = new FirstOfThePair(a, b, other => PauseMail(other.UserId, seeker =>
+        {
+            if (pause == MatchMailPause.AllNotificationMail)
+                seeker.SetNotificationMail(on: false, new FixedClock(Now));
+            else
+                seeker.SetMatchSummaryMail(on: false, new FixedClock(Now));
+        }));
+        var emailSender = Substitute.For<IEmailSender>();
+        emailSender.SendMatchNotificationEmailAsync(
+                Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                pair.Reached(ci.ArgAt<string>(0));
+                return Task.CompletedTask;
+            });
+
+        await RunJobAsync(emailSender, profileBuilder: null, ct);
+
+        var (first, other) = pair.Resolved();
+        await emailSender.Received(1).SendMatchNotificationEmailAsync(
+            first.Email, Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+        await emailSender.DidNotReceive().SendMatchNotificationEmailAsync(
+            other.Email, Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+        (await MatchStatusAsync(first.UserId, adId, ct)).ShouldBe(NotificationStatus.Sent);
+        (await MatchStatusAsync(other.UserId, adId, ct)).ShouldBe(NotificationStatus.Pending);
+
+        var stored = await ReadSeekerIgnoringTheQueryFilterAsync(other.UserId, ct);
+        (pause == MatchMailPause.AllNotificationMail
+                ? stored.Preferences.NotificationMailOffAt
+                : stored.Preferences.MatchSummaryMailOffAt)
+            .ShouldBe(Now);
+        stored.Preferences.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
+        stored.Preferences.NotificationConsentWithdrawnAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_FollowPass_WhenEveryNotificationMailIsPausedAfterTheDueSet_ThatUserIsNeitherClaimedNorEmailed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var a = await SeedSeekerAsync(matchConsent: false, followConsent: true, ct);
+        var b = await SeedSeekerAsync(matchConsent: false, followConsent: true, ct);
+        var hitA = await SeedFollowHitAsync(a.UserId, onlyMatched: false, ct);
+        var hitB = await SeedFollowHitAsync(b.UserId, onlyMatched: false, ct);
+
+        var pair = new FirstOfThePair(a, b, other => PauseMail(
+            other.UserId, seeker => seeker.SetNotificationMail(on: false, new FixedClock(Now))));
+        var emailSender = Substitute.For<IEmailSender>();
+        emailSender.SendFollowedCompanyNotificationEmailAsync(
+                Arg.Any<string>(), Arg.Any<FollowedCompanyNotificationEmail>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                pair.Reached(ci.ArgAt<string>(0));
+                return Task.CompletedTask;
+            });
+
+        await RunJobAsync(emailSender, profileBuilder: null, ct);
+
+        var (first, other) = pair.Resolved();
+        await emailSender.Received(1).SendFollowedCompanyNotificationEmailAsync(
+            first.Email, Arg.Any<FollowedCompanyNotificationEmail>(), Arg.Any<CancellationToken>());
+        await emailSender.DidNotReceive().SendFollowedCompanyNotificationEmailAsync(
+            other.Email, Arg.Any<FollowedCompanyNotificationEmail>(), Arg.Any<CancellationToken>());
+        (await HitStatusAsync(first == a ? hitA : hitB, ct)).ShouldBe(FollowedCompanyAdHitStatus.Sent);
+        (await HitStatusAsync(other == a ? hitA : hitB, ct)).ShouldBe(FollowedCompanyAdHitStatus.Pending);
+
+        var stored = await ReadSeekerIgnoringTheQueryFilterAsync(other.UserId, ct);
+        stored.Preferences.NotificationMailOffAt.ShouldBe(Now);
+        stored.Preferences.FollowedCompanyNotificationsEnabled.ShouldBeTrue();
+        stored.Preferences.FollowedCompanyNotificationConsentWithdrawnAt.ShouldBeNull();
+    }
+
+    // The profile is CV-derived, so the follow mail gate is read again before it is built, and a pause
+    // committed after the due set stops the build.
+    [Fact]
+    public async Task RunAsync_FollowPass_WhenEveryNotificationMailIsPausedAfterTheDueSet_ThatUsersProfileIsNeverBuilt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var a = await SeedSeekerAsync(matchConsent: false, followConsent: true, ct);
+        var b = await SeedSeekerAsync(matchConsent: false, followConsent: true, ct);
+        var hitA = await SeedFollowHitAsync(a.UserId, onlyMatched: true, ct);
+        var hitB = await SeedFollowHitAsync(b.UserId, onlyMatched: true, ct);
+
+        var pair = new FirstOfThePair(a, b, other => PauseMail(
+            other.UserId, seeker => seeker.SetNotificationMail(on: false, new FixedClock(Now))));
+        RecordingProfileBuilder? profileBuilder = null;
+        var emailSender = Substitute.For<IEmailSender>();
+
+        await RunJobAsync(
+            emailSender,
+            real => profileBuilder = new RecordingProfileBuilder(real, pair.Reached),
+            ct);
+
+        var (first, other) = pair.Resolved();
+        profileBuilder.ShouldNotBeNull();
+        profileBuilder.BuiltFor.Where(id => id == a.UserId || id == b.UserId).ShouldBe([first.UserId]);
+        await emailSender.DidNotReceive().SendFollowedCompanyNotificationEmailAsync(
+            other.Email, Arg.Any<FollowedCompanyNotificationEmail>(), Arg.Any<CancellationToken>());
+        (await HitStatusAsync(other == a ? hitA : hitB, ct)).ShouldBe(FollowedCompanyAdHitStatus.Pending);
+    }
+
     // ─────────────────────────── SUT ───────────────────────────
 
     private async Task RunJobAsync(
@@ -302,6 +423,17 @@ public class DigestDispatchJobConsentRecheckTests(WorkerTestFixture fixture)
             withdraw(seeker);
         else
             seeker.SoftDelete(new FixedClock(Now));
+        db.SaveChanges();
+    }
+
+    // A pause by the aggregate's own method, in a context of its own. Synchronous for the same reason as
+    // EndConsent.
+    private void PauseMail(Guid userId, Action<JobSeeker> pause)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var seeker = db.JobSeekers.Single(js => js.UserId == userId);
+        pause(seeker);
         db.SaveChanges();
     }
 

@@ -24,9 +24,9 @@ namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 /// RecurringJobs (~06:00 UTC).
 /// NO AI/LLM (ADR 0071).
 /// <para>
-/// <b>Consent is the query gate (GDPR Art. 6/7) for the STRONG-match pass:</b> opt-in ON and not
-/// withdrawn — identical to the background-match scan (NOT the company-follow scan, which under 7C
-/// creates hits for every active follower — see the follow-pass section below).
+/// <b>The mail gate is the query gate for the STRONG-match pass:</b>
+/// <see cref="NotificationMail.MatchSummary"/> — the background-match consent the scan also reads (GDPR
+/// Art. 6/7), with neither all notification mail nor the summary paused (ADR 0164).
 /// </para>
 /// <para>
 /// <b>Idempotent claim-then-send:</b> HTTP is not transactional, so per user the sequence is
@@ -50,8 +50,10 @@ namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 /// <para>
 /// <b>ADR 0087 D5 (#311 PR-4) — company-follow digest pass.</b> This job ALSO dispatches
 /// <c>FollowedCompanyAdHit</c> rows (new ads from employers a user follows) via the SEPARATE
-/// <see cref="IEmailSender.SendFollowedCompanyNotificationEmailAsync"/> contract, gated by the
-/// SEPARATE <c>FollowedCompanyNotificationsEnabled</c> consent flag on the SHARED cadence. The
+/// <see cref="IEmailSender.SendFollowedCompanyNotificationEmailAsync"/> contract, gated by
+/// <see cref="NotificationMail.FollowedCompany"/> (the SEPARATE follow consent, with all notification
+/// mail not paused) on the SHARED cadence. The company-follow scan itself creates hits for every active
+/// follower (7C); only this mail is gated. The
 /// follow pass is a fully INDEPENDENT second pass (its own due-set query, per-user loop, and failure
 /// isolation) — fetching/dispatching follow hits never shares state with the Strong-match pass (the
 /// SoC ADR 0087 D5 mandates). A user consenting to both at this cadence honestly gets two emails.
@@ -75,11 +77,10 @@ public sealed partial class DigestDispatchJob(
 
     public async Task RunAsync(DigestCadence cadence, CancellationToken cancellationToken)
     {
-        // The DUE set: consenting users whose chosen cadence is the one this run dispatches (the
-        // cron IS the window). Consent filter parity the scan — enabled AND not withdrawn. Default
-        // OFF → the set is small; a per-user loop is fine for the $16-VPS MVP.
-        var dueUserIds = await db.JobSeekers
-            .Where(NotificationConsent.BackgroundMatch.Criteria)
+        // The DUE set: users the summary's mail gate admits, whose chosen cadence is the one this run
+        // dispatches (the cron IS the window). The consent defaults OFF → the set is small; a per-user
+        // loop is fine for the $16-VPS MVP.
+        var dueUserIds = await NotificationMail.MatchSummary.Apply(db.JobSeekers)
             .Where(js => js.Preferences.DigestCadence == cadence)
             .Select(js => js.UserId)
             .ToListAsync(cancellationToken);
@@ -116,7 +117,7 @@ public sealed partial class DigestDispatchJob(
         LogComplete(logger, cadence, processed, sent);
 
         // ─── Company-follow digest pass (ADR 0087 D5) — INDEPENDENT of the Strong-match pass above.
-        // A SEPARATE consent flag (FollowedCompanyNotificationsEnabled) gates a SEPARATE source
+        // A SEPARATE consent (FollowedCompanyNotificationsEnabled) gates a SEPARATE source
         // aggregate (FollowedCompanyAdHit) sent via a SEPARATE email contract. Its own due-set query
         // + per-user loop + failure isolation → the two sources never share fetch/dispatch state (the
         // SoC ADR 0087 D5 mandates). The digest CADENCE is shared (ADR 0087 D2), so a user consenting
@@ -127,8 +128,7 @@ public sealed partial class DigestDispatchJob(
     private async Task DispatchFollowedCompanyDigestsAsync(
         DigestCadence cadence, CancellationToken cancellationToken)
     {
-        var dueUserIds = await db.JobSeekers
-            .Where(NotificationConsent.FollowedCompany.Criteria)
+        var dueUserIds = await NotificationMail.FollowedCompany.Apply(db.JobSeekers)
             .Where(js => js.Preferences.DigestCadence == cadence)
             .Select(js => js.UserId)
             .ToListAsync(cancellationToken);
@@ -217,8 +217,8 @@ public sealed partial class DigestDispatchJob(
             .Take(_options.MaxItemsPerDigest)
             .ToList();
 
-        // The consent is read again before the claim, not taken from the due set (ADR 0146).
-        if (!await ConsentStillGrantedAsync(NotificationConsent.BackgroundMatch, userId, ct))
+        // The mail gate is read again before the claim, not taken from the due set (ADR 0146).
+        if (!await StillMailableAsync(NotificationMail.MatchSummary, userId, ct))
             return false;
 
         // Claim ALL pending Strong rows (Pending → Queued) and commit BEFORE the send — the
@@ -266,7 +266,7 @@ public sealed partial class DigestDispatchJob(
         // Scaleway arm registers no resilience handler (#183).
         try
         {
-            if (!await ConsentStillGrantedAsync(NotificationConsent.BackgroundMatch, userId, ct))
+            if (!await StillMailableAsync(NotificationMail.MatchSummary, userId, ct))
                 return false;
             await emailSender.SendMatchNotificationEmailAsync(toEmail, content, ct);
         }
@@ -299,13 +299,11 @@ public sealed partial class DigestDispatchJob(
             match.MarkSent(clock);
     }
 
-    // An EXISTS through the JobSeeker query filter: a soft-deleted account reads as not consenting,
-    // and nothing is tracked.
-    private Task<bool> ConsentStillGrantedAsync(
-        Specification<JobSeeker> consent, Guid userId, CancellationToken ct) =>
-        db.JobSeekers
+    // An EXISTS through the JobSeeker query filter: a soft-deleted account reads as shut out, and
+    // nothing is tracked.
+    private Task<bool> StillMailableAsync(NotificationMailGate gate, Guid userId, CancellationToken ct) =>
+        gate.Apply(db.JobSeekers)
             .Where(js => js.UserId == userId)
-            .Where(consent.Criteria)
             .AnyAsync(ct);
 
     // ─── Company-follow digest (ADR 0087 D5) — the SHAPE of DispatchUserDigestAsync above, but over
@@ -405,8 +403,8 @@ public sealed partial class DigestDispatchJob(
         FullCandidateMatchProfile? assessableProfile = null;
         if (filterByWatchId.Values.Any(f => f is { OnlyMatched: true }))
         {
-            // The profile is derived from the CV, so the consent is read again before it is built.
-            if (!await ConsentStillGrantedAsync(NotificationConsent.FollowedCompany, userId, ct))
+            // The profile is derived from the CV, so the mail gate is read again before it is built.
+            if (!await StillMailableAsync(NotificationMail.FollowedCompany, userId, ct))
                 return false;
 
             var profile = await profileBuilder.BuildFullForUserIdAsync(userId, ct);
@@ -509,9 +507,9 @@ public sealed partial class DigestDispatchJob(
             .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
             .ToList();
 
-        // The consent is read again before the claim, not taken from the due set (parity the match
+        // The mail gate is read again before the claim, not taken from the due set (parity the match
         // pass).
-        if (!await ConsentStillGrantedAsync(NotificationConsent.FollowedCompany, userId, ct))
+        if (!await StillMailableAsync(NotificationMail.FollowedCompany, userId, ct))
             return false;
 
         // Claim the EFFECTIVE follow rows (Pending → Queued) and commit BEFORE the send — the
@@ -551,7 +549,7 @@ public sealed partial class DigestDispatchJob(
         // dedupe, and a claimed hit set is never re-sent.
         try
         {
-            if (!await ConsentStillGrantedAsync(NotificationConsent.FollowedCompany, userId, ct))
+            if (!await StillMailableAsync(NotificationMail.FollowedCompany, userId, ct))
                 return false;
             await emailSender.SendFollowedCompanyNotificationEmailAsync(toEmail, content, ct);
         }
@@ -620,7 +618,7 @@ public sealed partial class DigestDispatchJob(
     }
 
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "DigestDispatchJob: {Cadence} — {Count} consenting users due")]
+        Message = "DigestDispatchJob: {Cadence} — {Count} users due")]
     private static partial void LogDue(ILogger logger, DigestCadence cadence, int count);
 
     [LoggerMessage(Level = LogLevel.Warning,
@@ -657,7 +655,7 @@ public sealed partial class DigestDispatchJob(
     // ─── Company-follow digest pass log messages (ADR 0087 D5). NEVER carry an org.nr (D8/§5) —
     // only counts + opaque user ids (parity the match pass).
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "DigestDispatchJob (follow): {Cadence} — {Count} consenting users due")]
+        Message = "DigestDispatchJob (follow): {Cadence} — {Count} users due")]
     private static partial void LogFollowDue(ILogger logger, DigestCadence cadence, int count);
 
     [LoggerMessage(Level = LogLevel.Warning,

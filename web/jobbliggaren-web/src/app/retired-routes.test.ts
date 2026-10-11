@@ -3,10 +3,12 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  API_ROUTE,
   LOGIN_LINK_ROUTE,
   LOGIN_LINK_ROUTE_HEADERS,
   OAUTH_CALLBACK_ROUTE,
   OAUTH_CALLBACK_ROUTE_HEADERS,
+  buildApiRouteHeaders,
 } from "@/lib/security/security-headers";
 import nextConfig from "../../next.config";
 
@@ -173,8 +175,11 @@ describe("the route entries after the global block in next.config", () => {
     const entries = await nextConfig.headers!();
     const sources = entries.map((entry) => entry.source);
 
-    expect(sources).toEqual(["/(.*)", LOGIN_LINK_ROUTE, OAUTH_CALLBACK_ROUTE]);
-    expect(entries[1]!.headers).toEqual(LOGIN_LINK_ROUTE_HEADERS.map((header) => ({ ...header })));
-    expect(entries[2]!.headers).toEqual(OAUTH_CALLBACK_ROUTE_HEADERS.map((header) => ({ ...header })));
+    expect(sources).toEqual(["/(.*)", API_ROUTE, LOGIN_LINK_ROUTE, OAUTH_CALLBACK_ROUTE]);
+    // The static /api/* CSP (ADR 0163) sits before the OAuth callback entry, which lives under /api/ and
+    // sets other keys: the two merge, they do not compete.
+    expect(entries[1]!.headers).toEqual(buildApiRouteHeaders(false).map((header) => ({ ...header })));
+    expect(entries[2]!.headers).toEqual(LOGIN_LINK_ROUTE_HEADERS.map((header) => ({ ...header })));
+    expect(entries[3]!.headers).toEqual(OAUTH_CALLBACK_ROUTE_HEADERS.map((header) => ({ ...header })));
   });
 });

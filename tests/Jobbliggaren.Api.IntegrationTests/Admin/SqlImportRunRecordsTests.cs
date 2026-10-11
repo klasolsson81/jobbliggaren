@@ -24,14 +24,18 @@ namespace Jobbliggaren.Api.IntegrationTests.Admin;
 /// depends on the key names and casing the serialiser emits (<c>Source</c>, <c>JobType</c>, <c>Errors</c>) and on
 /// <c>occurred_at</c> being the run's completion, and a rename in the record or the query is caught here (AGENTS.md §5,
 /// Tests). The session runs under <c>Europe/Berlin</c>, so a reader that mixed up local and UTC time would be an hour or
-/// two off. The out-of-window, other-source, other-job-type and snapshot rows are the counterfactuals: each one is the
-/// row a mutant of the corresponding filter would return.
+/// two off. The out-of-window, other-job-type and snapshot rows are the counterfactuals: each one is the row a mutant of
+/// the corresponding filter would return. The stream, snapshot and backfill rows are the ones the jobs write through the
+/// auditor (the backfill token is the one <c>BackfillJobAdExtractedTermsJob</c> emits); there is no row of another
+/// source, because no writer records one.
 /// </para>
 /// </summary>
 [Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class SqlImportRunRecordsTests : IAsyncLifetime
 {
-    private static readonly DateTimeOffset Now = new(2026, 10, 10, 12, 0, 0, TimeSpan.Zero);
+    // A date well before any run of this suite: the database's own now() is then always later than the caller's "now" by
+    // more than the 24 h window, so a query that bounded itself by now() instead of by the parameter would find nothing.
+    private static readonly DateTimeOffset Now = new(2025, 1, 15, 12, 0, 0, TimeSpan.Zero);
 
     private readonly SharedPostgresFixture _postgres;
     private string _connectionString = string.Empty;
@@ -110,13 +114,12 @@ public sealed class SqlImportRunRecordsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Latest_NewerRowsThatAreNotAStreamRunOfThisSource_AreNotReturned()
+    public async Task Latest_NewerRowsThatAreNotAStreamRun_AreNotReturned()
     {
         // The older stream run is the answer; every newer row below is one a mutant of a filter would return.
         await RecordAsync(Run(Now.AddMinutes(-20), errors: 1));
         await RecordAsync(Run(Now.AddMinutes(-2), JobAdsSynced.SnapshotJobType, errors: 7));
-        await RecordAsync(Run(Now.AddMinutes(-3), "backfill-extracted-terms", errors: 6));
-        await RecordAsync(Run(Now.AddMinutes(-4), source: "LinkedIn", errors: 5));
+        await RecordAsync(Run(Now.AddMinutes(-3), "backfill-extraction", errors: 6));
 
         var run = await Sut().LatestStreamRunAsync(JobSource.Platsbanken, Now - ServiceObservationLimits.ImportWindow, Ct);
 
@@ -138,7 +141,7 @@ public sealed class SqlImportRunRecordsTests : IAsyncLifetime
     [Fact]
     public async Task Latest_TheBoundComesFromTheCallersClock_NotTheDatabases()
     {
-        // The run is 3 minutes before the injected "now" and a year before the database's real one: a query
+        // The run is 3 minutes before the injected "now" and some two years before the database's real one: a query
         // that used now() would find nothing.
         await RecordAsync(Run(Now.AddMinutes(-3)));
 

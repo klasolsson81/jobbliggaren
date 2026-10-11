@@ -33,26 +33,26 @@ public static class ServiceStatusEvaluator
     private static WorkerServiceDto Worker(ServiceObservationSnapshot snapshot, DateTimeOffset readAt, TimeSpan staleAfter)
     {
         var sample = snapshot.Worker;
-        if (!Judgeable(sample, readAt, staleAfter, out var sampledAt))
+        if (!Judgeable(sample, readAt, staleAfter, out var sampledAt) || sample.Value is not { } observation)
         {
             return WorkerServiceDto.Unknown;
         }
 
-        var observation = sample.Value!;
         var alive = ServiceObservationLimits.WorkerAliveWithin;
+
+        // "No server" is a statement about an absence, so it needs a sampler that had been reading the storage for as
+        // long as the alive window when it looked: until then a release in progress reads the same.
+        var watchedLongEnough = sampledAt - observation.WatchedSince >= alive;
 
         if (observation.NewestHeartbeat is not { } heartbeat)
         {
-            // A record without a time says nothing. No record and no earlier sign of life is "no server" only once
-            // the sampler has watched for as long as the alive window: until then a release in progress reads the same.
+            // A record without a time says nothing.
             if (observation.HasRecords)
             {
                 return WorkerServiceDto.Unknown;
             }
 
-            return readAt - snapshot.ObservedSince >= alive
-                ? WorkerServiceDto.NoServer(sampledAt)
-                : WorkerServiceDto.Unknown;
+            return watchedLongEnough ? WorkerServiceDto.NoServer(sampledAt) : WorkerServiceDto.Unknown;
         }
 
         var age = readAt - heartbeat;
@@ -66,9 +66,12 @@ public static class ServiceStatusEvaluator
             return WorkerServiceDto.Alive(sampledAt, heartbeat);
         }
 
-        return observation.HasRecords
-            ? WorkerServiceDto.Silent(sampledAt, heartbeat)
-            : WorkerServiceDto.NoServer(sampledAt);
+        if (observation.HasRecords)
+        {
+            return WorkerServiceDto.Silent(sampledAt, heartbeat);
+        }
+
+        return watchedLongEnough ? WorkerServiceDto.NoServer(sampledAt) : WorkerServiceDto.Unknown;
     }
 
     private static VolatileStoreServiceDto VolatileStore(
@@ -88,12 +91,12 @@ public static class ServiceStatusEvaluator
     private static JobImportServiceDto Import(ServiceObservationSnapshot snapshot, DateTimeOffset readAt, TimeSpan staleAfter)
     {
         var sample = snapshot.Import;
-        if (!Judgeable(sample, readAt, staleAfter, out var sampledAt))
+        if (!Judgeable(sample, readAt, staleAfter, out var sampledAt) || sample.Value is not { } observation)
         {
             return JobImportServiceDto.Unknown;
         }
 
-        if (sample.Value!.Latest is not { } run)
+        if (observation.Latest is not { } run)
         {
             return JobImportServiceDto.NoneRecorded(sampledAt);
         }

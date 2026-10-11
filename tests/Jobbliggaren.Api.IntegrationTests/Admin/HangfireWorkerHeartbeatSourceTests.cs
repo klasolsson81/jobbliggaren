@@ -62,7 +62,10 @@ public sealed class HangfireWorkerHeartbeatSourceTests : IAsyncLifetime
 
     // Hangfire keeps ONE process-wide log provider, and every ApiFactory host in this run sets it to its own
     // LoggerFactory, which is disposed with the host. A server or storage built after such a host would log through a
-    // disposed factory and throw in its constructor. This class owns no host, so it logs nowhere.
+    // disposed factory and throw in its constructor. This class owns no host, so it logs nowhere. It holds only while
+    // collections run one at a time (xunit.runner.json: parallelizeTestCollections false); a concurrent host could swap
+    // the provider in again after this reset. The hazard covers the whole assembly: every ApiFactory host now resolves
+    // JobStorage at start, through the hosted sampler.
     private static void QuietHangfireLogs() => LogProvider.SetCurrentLogProvider(new SilentLogProvider());
 
     private BackgroundJobServer StartServer()
@@ -107,27 +110,44 @@ public sealed class HangfireWorkerHeartbeatSourceTests : IAsyncLifetime
     {
         StartServer();
 
-        var before = DateTimeOffset.UtcNow.AddSeconds(-5);
+        var before = DateTimeOffset.UtcNow;
         var reading = await EventuallyAsync(r => r.HasRecords, "the server never announced itself");
 
-        // Under a Berlin session an hour-or-two error would put this far outside the bound: the reading is UTC.
+        // Under a Berlin session an hour-or-two error would put this far outside the bound: the reading is UTC. The
+        // bound is minutes, not seconds, because the container's clock and this machine's drift apart (Docker Desktop
+        // on WSL2 after sleep) and the error being guarded is a time-zone shift of an hour or more.
         var heartbeat = reading.NewestHeartbeat.ShouldNotBeNull();
         heartbeat.Offset.ShouldBe(TimeSpan.Zero);
-        heartbeat.ShouldBeGreaterThan(before);
-        heartbeat.ShouldBeLessThan(DateTimeOffset.UtcNow.AddSeconds(5));
+        heartbeat.ShouldBeGreaterThan(before.AddMinutes(-5));
+        heartbeat.ShouldBeLessThan(DateTimeOffset.UtcNow.AddMinutes(5));
     }
 
+    // Actor: a Worker that was killed and restarted. The killed one leaves its record behind until a live server's
+    // watchdog removes it (up to ServerTimeout, five minutes), so a stale record and a fresh one coexist. Two running
+    // servers started apart stand for that pair: their heartbeats differ, and the reading must be the newest.
     [Fact]
-    public async Task Read_TwoServers_ReportOneFlagAndTheNewestHeartbeat_NeverACount()
+    public async Task Read_TwoServers_ReportOneFlagAndTheNewestHeartbeat_NeverTheOldestOrACount()
     {
         StartServer();
+        await Task.Delay(TimeSpan.FromSeconds(1.5), Ct);
         StartServer();
-        await EventuallyAsync(r => r.HasRecords, "no server announced itself");
-        await Task.Delay(TimeSpan.FromSeconds(1), Ct);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (_storage.GetMonitoringApi().Servers().Count < 2)
+        {
+            DateTimeOffset.UtcNow.ShouldBeLessThan(deadline, "the second server never announced itself");
+            await Task.Delay(100, Ct);
+        }
+
+        var servers = _storage.GetMonitoringApi().Servers();
+        var oracleNewest = servers.Select(server => server.Heartbeat!.Value).Max();
+        var oracleOldest = servers.Select(server => server.Heartbeat!.Value).Min();
+        oracleNewest.ShouldBeGreaterThan(oracleOldest, "the two servers must have announced themselves at different times");
 
         var reading = Sut().Read();
 
         reading.HasRecords.ShouldBeTrue();
+        reading.NewestHeartbeat.ShouldNotBeNull().UtcDateTime.ShouldBeGreaterThanOrEqualTo(
+            DateTime.SpecifyKind(oracleNewest, DateTimeKind.Utc), "the reading kept the oldest heartbeat");
         // The port has no field that could hold a count: the shape is the guard.
         typeof(WorkerHeartbeatReading).GetProperties().Select(p => p.Name).ShouldBe(["HasRecords", "NewestHeartbeat"]);
     }
@@ -151,8 +171,7 @@ public sealed class HangfireWorkerHeartbeatSourceTests : IAsyncLifetime
         var reading = await EventuallyAsync(r => r.HasRecords, "the server never announced itself");
         var sampledAt = DateTimeOffset.UtcNow;
         var snapshot = new ServiceObservationSnapshot(
-            sampledAt.AddHours(-1),
-            SourceSample.Of(sampledAt, new WorkerObservation(reading.HasRecords, reading.NewestHeartbeat)),
+            SourceSample.Of(sampledAt, new WorkerObservation(reading.HasRecords, reading.NewestHeartbeat, sampledAt.AddHours(-1))),
             SourceSample.Missing<bool>(),
             SourceSample.Missing<ImportObservation>());
         var options = new ServiceObservationOptions();
@@ -163,8 +182,7 @@ public sealed class HangfireWorkerHeartbeatSourceTests : IAsyncLifetime
         // Ten minutes on, with the process killed and the sampler still running: the record stays, its heartbeat does not move.
         var killedSampledAt = sampledAt.AddMinutes(10);
         var later = new ServiceObservationSnapshot(
-            snapshot.ObservedSince,
-            SourceSample.Of(killedSampledAt, new WorkerObservation(reading.HasRecords, reading.NewestHeartbeat)),
+            SourceSample.Of(killedSampledAt, new WorkerObservation(reading.HasRecords, reading.NewestHeartbeat, sampledAt.AddHours(-1))),
             SourceSample.Missing<bool>(),
             SourceSample.Missing<ImportObservation>());
         var verdict = ServiceStatusEvaluator.Evaluate(later, killedSampledAt, options).BackgroundJobs;

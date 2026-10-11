@@ -15,25 +15,25 @@ public static class SourceSample
     public static SourceSample<T> Of<T>(DateTimeOffset sampledAt, T value) => new(true, sampledAt, value);
 }
 
-/// <summary>What the Worker row stands on: whether a record exists now, and the newest sign of life this process has seen.</summary>
-public sealed record WorkerObservation(bool HasRecords, DateTimeOffset? NewestHeartbeat);
+/// <summary>
+/// What the Worker row stands on: whether a record exists now, the newest sign of life this process has seen, and when
+/// the Worker source was first READ successfully. "No server" needs a sampler that has read the storage for as long as the alive
+/// window, counted from that first successful read and not from the process start: a storage that could not be read
+/// has shown nothing, and a release in progress reads the same as a missing Worker until the window has passed.
+/// </summary>
+public sealed record WorkerObservation(bool HasRecords, DateTimeOffset? NewestHeartbeat, DateTimeOffset WatchedSince);
 
 /// <summary>What the import row stands on: the newest recorded stream run inside the window, or none.</summary>
 public sealed record ImportObservation(StreamImportRun? Latest);
 
-/// <summary>
-/// The newest tick, immutable. <c>ObservedSince</c> is when the sampler started: "no server" needs a sampler that
-/// has watched for as long as the alive window, or a release would show it for the seconds the Worker takes to start.
-/// </summary>
+/// <summary>The newest tick, immutable.</summary>
 public sealed record ServiceObservationSnapshot(
-    DateTimeOffset ObservedSince,
     SourceSample<WorkerObservation> Worker,
     SourceSample<bool> VolatileStore,
     SourceSample<ImportObservation> Import)
 {
-    /// <summary>Before the first tick has finished: nothing is known, and the clock is already running.</summary>
-    public static ServiceObservationSnapshot NotSampled(DateTimeOffset startedAt) => new(
-        startedAt,
+    /// <summary>Before the first tick has finished: nothing is known.</summary>
+    public static ServiceObservationSnapshot NotSampled() => new(
         SourceSample.Missing<WorkerObservation>(),
         SourceSample.Missing<bool>(),
         SourceSample.Missing<ImportObservation>());

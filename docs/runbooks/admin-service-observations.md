@@ -9,10 +9,10 @@ change.
 ## 1. Mechanism in one paragraph
 
 A `BackgroundService` inside the API process (`ServiceObservationService`) calls the sampler once at start and then every
-`ServiceObservation:SampleIntervalSeconds` (default 30 s). Each tick reads three sources, each inside its own deadline
-(`ProbeTimeoutSeconds`, default 5 s): the Hangfire server records through `JobStorage` (`HangfireWorkerHeartbeatSource`), the
-registered readiness check `redis-volatile` through `HealthCheckService` (`ReadinessVolatileStoreProbe`), and the newest stream
-run in the audit log by one parameterised SQL query (`SqlImportRunRecords`). The newest outcome of each is held in memory as an
+`ServiceObservation:SampleIntervalSeconds` (default 30 s). Each tick reads three sources: the Hangfire server records through `JobStorage` (`HangfireWorkerHeartbeatSource`,
+synchronous), the registered readiness check `redis-volatile` through `HealthCheckService` (`ReadinessVolatileStoreProbe`), and the
+newest stream run in the audit log by one parameterised SQL query (`SqlImportRunRecords`); the two asynchronous reads are each
+inside their own deadline (`ProbeTimeoutSeconds`, default 5 s). The newest outcome of each is held in memory as an
 immutable snapshot. `GET /api/v1/admin/overview/services` never touches a source: it reads that snapshot, judges it against the
 API's clock, stamps the read time and answers. The browser asks for nothing; it never supplies a path, a command or an interval,
 and the check name and the audit event type are code constants.
@@ -28,13 +28,14 @@ No row is ever "ok" or "fungerar". A positive state is an observation with its t
 | **Annonsimport** (`jobImport`) | The audit log holds a stream run of Platsbanken that finished at most 25 minutes ago. | That JobTech answered. A failed request ends the stream quietly and is recorded as an empty, successful run (ADR 0159 s1, issue #2103). |
 
 **Worker states.** Alive (newest sign of life ≤ 120 s old), Silent (a record exists and its newest heartbeat is older), NoServer (no
-record, no sign of life inside the window, and the sampler has watched for as long as the window), Unknown (the source could not be
-read; the sample is too old; a record carries no time; a time is more than 5 s in the future; or the sampler is younger than the
-window and there is nothing to see). The verdict is the age of the **newest** heartbeat, **never** a count of servers: after a
+record, no sign of life inside the window, and the sampler has read the storage successfully for as long as the window, counted
+from its first successful read at the sample's own time), Unknown (the source could not be
+read; the sample is too old; a time is more than 5 s in the future; or the sampler has read the storage for less than the window and
+there is nothing to see). The verdict is the age of the **newest** heartbeat, **never** a count of servers: after a
 SIGKILL a stale record and a fresh one coexist until a live server's watchdog removes the old one. A graceful stop removes the
 record at once, and the last sign of life it gave stays true: the sampler keeps the newest heartbeat it has seen, so a release
 reads "last sign of life 20 s ago" and not a warning. A release's few seconds without a server read as Unknown until the sampler
-has watched for 120 s.
+has read the storage for 120 s.
 
 **Import states.** Recorded (≤ 25 min), Overdue (older, inside 24 h), NoneRecorded (nothing inside 24 h: ingestion off, or the job
 has not run for a day), Unknown. NoneRecorded is a warning, worded as a fact; it is also what the shipped default (ingestion off,
@@ -56,7 +57,7 @@ registered cron `*/10 * * * *` (two missed runs and five minutes); the 24 h wind
 - `sampledAt` is the injected wall clock read once after the source answered; `X-Admin-Sampled-At` is the API read instant. They are
   different instants: a row can be old although it was just read. A sample older than `StaleAfterSeconds` (120 s) when read, or dated
   more than 5 s ahead of the read, is Unknown.
-- Every response, errors and rate-limit refusals included, is `private, no-store`. The endpoint shares the per-user `admin-read`
+- The endpoint shares the per-user `admin-read`
   bucket (30 per 10 s).
 - The page ages a row it keeps (after a refresh that failed) by the same `staleAfterSeconds` and marks it.
 
@@ -64,12 +65,12 @@ registered cron `*/10 * * * *` (two missed runs and five minutes); the 24 h wind
 
 | Setting | Default | Notes |
 |---|---|---|
-| `ServiceObservation:SampleIntervalSeconds` | 30 | 5–300. The browser polls the overview every 60 s while visible. |
+| `ServiceObservation:SampleIntervalSeconds` | 30 | 5–30: the alive window (120 s) holds a heartbeat interval and a sampling interval, twice. The browser polls the overview every 60 s while visible. |
 | `ServiceObservation:StaleAfterSeconds` | 120 | More than three times the interval, validated at start. |
 | `ServiceObservation:ProbeTimeoutSeconds` | 5 | 1–30. The volatile check bounds itself at 1.5 s; this catches a hung connection. |
 
 Per tick: one synchronous read of the Hangfire server table, one Redis PING, one indexed range read of the audit log. The synchronous
-Hangfire read is bounded by the storage connection's command timeout and is the same kind of read as `AdminBackgroundJobsEndpoints`
+Hangfire read is bounded by the storage connection's timeout and is the same kind of read as `AdminBackgroundJobsEndpoints`
 already makes per request. The read endpoint does no I/O.
 
 ## 5. Local development
@@ -98,8 +99,7 @@ application, no log lines. The signed-in card is Klas's.
 3. Import: `SELECT extract(epoch FROM now() - max(occurred_at))::int FROM audit_log WHERE event_type = 'System.JobAdsSynced' AND
    occurred_at >= now() - interval '24 hours' AND payload->>'JobType' = 'stream';` should be under 25 minutes while ingestion is on,
    and the card's "senaste körning" should match it.
-4. Klas opens `/admin` signed in and reads the card. After a deploy the API restarts: the Worker row reads Unknown for about two
-   minutes, then Alive.
+4. Klas opens `/admin` signed in and reads the card.
 
 ## 8. Measured cost
 

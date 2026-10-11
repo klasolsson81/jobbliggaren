@@ -24,8 +24,7 @@ public sealed class GetServiceObservationQueryHandlerTests
     }
 
     private static ServiceObservationSnapshot Healthy() => new(
-        Now.AddHours(-1),
-        SourceSample.Of(Now.AddSeconds(-4), new WorkerObservation(true, Now.AddSeconds(-9))),
+        SourceSample.Of(Now.AddSeconds(-4), new WorkerObservation(true, Now.AddSeconds(-9), Now.AddHours(-1))),
         SourceSample.Of(Now.AddSeconds(-4), true),
         SourceSample.Of(Now.AddSeconds(-4), new ImportObservation(new StreamImportRun(Now.AddMinutes(-6), 1))));
 
@@ -101,7 +100,7 @@ public sealed class GetServiceObservationQueryHandlerTests
     [Fact]
     public async Task Wire_AnUnknownRow_CarriesNoInstantAndNoCount()
     {
-        var body = await WireAsync(ServiceObservationSnapshot.NotSampled(Now.AddSeconds(-1)));
+        var body = await WireAsync(ServiceObservationSnapshot.NotSampled());
 
         foreach (var row in new[] { "backgroundJobs", "volatileStore", "jobImport" })
         {

@@ -39,8 +39,9 @@ internal sealed class HangfireWorkerHeartbeatSource(JobStorage storage) : IWorke
         return new WorkerHeartbeatReading(servers.Count > 0, newest);
     }
 
-    // Hangfire hands back a DateTime whose Kind depends on the storage; an Unspecified one is stamped as UTC,
-    // which a test proves against real storage under a non-UTC session time zone.
+    // Hangfire hands back a DateTime whose Kind depends on the storage. Hangfire.PostgreSql 1.21.1's timestamptz column
+    // returns Kind=Utc under any session time zone (measured), so only the first arm runs today; the others keep a
+    // different storage from being read as local time.
     private static DateTime Utc(DateTime value) => value.Kind switch
     {
         DateTimeKind.Utc => value,

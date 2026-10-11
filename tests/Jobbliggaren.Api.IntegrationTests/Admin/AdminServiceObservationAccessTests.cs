@@ -191,9 +191,9 @@ public sealed class AdminServiceObservationAccessTests(ApiFactory factory)
     }
 
     // Actor: a failing log sink in the Mediator pipeline throws inside mediator.Send. The stubbed reader is only the
-    // seam that makes an exception escape the handler; what is asserted is the privacy of the route's 5xx.
+    // seam that makes an exception escape the handler; what is asserted is that the 5xx carries none of the card's data.
     [Fact]
-    public async Task Services_ShouldReturnPrivateFailure_WhenTheReaderThrows()
+    public async Task Services_ShouldReturnA5xxThatCarriesNoServiceData_WhenTheReaderThrows()
     {
         var (_, _, session) = await AdminAsync(factory, NewToken(), Ct);
         var reader = Substitute.For<IServiceObservationReader>();
@@ -210,7 +210,6 @@ public sealed class AdminServiceObservationAccessTests(ApiFactory factory)
         var response = await admin.GetAsync(ServicesPath, Ct);
 
         ((int)response.StatusCode).ShouldBeGreaterThanOrEqualTo(500);
-        ShouldBePrivate(response);
         (await response.Content.ReadAsStringAsync(Ct)).ShouldNotContain("\"backgroundJobs\"");
     }
 

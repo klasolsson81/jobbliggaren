@@ -38,16 +38,15 @@ public sealed partial class ServiceObservationSampler(
     private const string VolatileStoreSource = "volatile-store";
     private const string ImportSource = "import-run";
 
-    private ServiceObservationSnapshot _current = ServiceObservationSnapshot.NotSampled(clock.UtcNow);
+    private ServiceObservationSnapshot _current = ServiceObservationSnapshot.NotSampled();
     private DateTimeOffset? _newestHeartbeat;
+    private DateTimeOffset? _workerWatchedSince;
 
     public ServiceObservationSnapshot Current => Volatile.Read(ref _current);
 
     /// <summary>Takes one sample of every source and publishes the result.</summary>
     public async Task SampleAsync(CancellationToken cancellationToken)
     {
-        var observedSince = _current.ObservedSince;
-
         var workerSample = TakeWorker();
         var storeSample = await TakeAsync(
             VolatileStoreSource, volatileStore.IsReachableAsync, cancellationToken);
@@ -60,7 +59,7 @@ public sealed partial class ServiceObservationSampler(
             },
             cancellationToken);
 
-        Volatile.Write(ref _current, new ServiceObservationSnapshot(observedSince, workerSample, storeSample, importSample));
+        Volatile.Write(ref _current, new ServiceObservationSnapshot(workerSample, storeSample, importSample));
     }
 
     private SourceSample<WorkerObservation> TakeWorker()
@@ -81,7 +80,8 @@ public sealed partial class ServiceObservationSampler(
             var newest = reading.NewestHeartbeat is { } raw && raw > at + ServiceObservationLimits.FutureTolerance
                 ? raw
                 : _newestHeartbeat;
-            return SourceSample.Of(at, new WorkerObservation(reading.HasRecords, newest));
+            _workerWatchedSince ??= at;
+            return SourceSample.Of(at, new WorkerObservation(reading.HasRecords, newest, _workerWatchedSince.Value));
         }
         catch (Exception ex)
         {

@@ -8,6 +8,13 @@ namespace Jobbliggaren.Application.UnitTests.Admin.ServiceObservations;
 /// #1982 (ADR 0159) — what each service row may claim, as a function of the snapshot and of "now". The
 /// evaluator is pure, so every case states the clock it is judged at. The limits are written as numbers in the
 /// boundary tests on purpose: they are the contract the page words its text from.
+///
+/// <para>
+/// Which states a real system can produce, per AGENTS.md §5 (Tests). A heartbeat or a sample dated later than the
+/// API's own clock: the actor is a backward step of the host's wall clock between the write and the read (the one
+/// <see cref="ServiceObservationLimits.FutureTolerance"/> names); inside the tolerance it is read as young, beyond it
+/// as nothing.
+/// </para>
 /// </summary>
 public sealed class ServiceStatusEvaluatorTests
 {
@@ -17,17 +24,26 @@ public sealed class ServiceStatusEvaluatorTests
     private static ServiceObservationSnapshot Snapshot(
         SourceSample<WorkerObservation>? worker = null,
         SourceSample<bool>? store = null,
-        SourceSample<ImportObservation>? import = null,
-        TimeSpan? watchedFor = null) => new(
-            Now - (watchedFor ?? TimeSpan.FromHours(1)),
+        SourceSample<ImportObservation>? import = null) => new(
             worker ?? SourceSample.Missing<WorkerObservation>(),
             store ?? SourceSample.Missing<bool>(),
             import ?? SourceSample.Missing<ImportObservation>());
 
+    /// <summary>
+    /// A Worker sample taken <paramref name="sampleAge"/> before "now", by a sampler whose first successful read of the
+    /// Worker source was <paramref name="watchedFor"/> before that sample.
+    /// </summary>
     private static SourceSample<WorkerObservation> Worker(
-        bool hasRecords, TimeSpan? heartbeatAge, TimeSpan? sampleAge = null) => SourceSample.Of(
-            Now - (sampleAge ?? TimeSpan.FromSeconds(10)),
-            new WorkerObservation(hasRecords, heartbeatAge is { } age ? Now - age : null));
+        bool hasRecords, TimeSpan? heartbeatAge, TimeSpan? sampleAge = null, TimeSpan? watchedFor = null)
+    {
+        var sampledAt = Now - (sampleAge ?? TimeSpan.FromSeconds(10));
+        return SourceSample.Of(
+            sampledAt,
+            new WorkerObservation(
+                hasRecords,
+                heartbeatAge is { } age ? Now - age : null,
+                sampledAt - (watchedFor ?? TimeSpan.FromHours(1))));
+    }
 
     private static SourceSample<ImportObservation> Import(TimeSpan? runAge, int errors = 0, TimeSpan? sampleAge = null) =>
         SourceSample.Of(
@@ -81,27 +97,45 @@ public sealed class ServiceStatusEvaluatorTests
     }
 
     [Fact]
-    public void Worker_NoRecordAndOnlyOldEvidence_IsNoServer()
+    public void Worker_ASilentRecord_NeedsNoWatching_BecauseARecordIsSeenNotInferred()
+    {
+        // The sampler read the storage once, a moment ago, and the record it saw is old: that is Silent at once.
+        var dto = Evaluate(Snapshot(worker: Worker(hasRecords: true, TimeSpan.FromMinutes(7), watchedFor: TimeSpan.Zero)));
+
+        dto.BackgroundJobs.State.ShouldBe(WorkerProcessState.Silent);
+    }
+
+    [Fact]
+    public void Worker_NoRecordAndOnlyOldEvidence_IsNoServerOnceTheSamplerHasWatchedAsLongAsTheWindow()
     {
         // The record is gone (a graceful stop removes it) and the last sign of life is older than the window.
-        var dto = Evaluate(Snapshot(worker: Worker(hasRecords: false, TimeSpan.FromMinutes(3)), watchedFor: TimeSpan.FromSeconds(30)));
+        var dto = Evaluate(Snapshot(worker: Worker(hasRecords: false, TimeSpan.FromMinutes(3), watchedFor: TimeSpan.FromMinutes(5))));
 
         dto.BackgroundJobs.State.ShouldBe(WorkerProcessState.NoServer);
         dto.BackgroundJobs.HeartbeatAt.ShouldBeNull();
     }
 
     [Fact]
+    public void Worker_NoRecordAndOnlyOldEvidence_IsUnknownBeforeTheSamplerHasWatchedAsLongAsTheWindow()
+    {
+        // The same absence, thirty seconds into watching: a release in progress reads the same, so nothing is claimed.
+        var dto = Evaluate(Snapshot(worker: Worker(hasRecords: false, TimeSpan.FromMinutes(3), watchedFor: TimeSpan.FromSeconds(30))));
+
+        dto.BackgroundJobs.State.ShouldBe(WorkerProcessState.Unknown);
+    }
+
+    [Fact]
     public void Worker_NoRecordButARecentSignOfLife_IsStillAliveBecauseItIsTheLastSignAndSaysWhen()
     {
         // The record was removed by a graceful stop 20 s ago: "last sign of life 20 s ago" is true, and no more is claimed.
-        var dto = Evaluate(Snapshot(worker: Worker(hasRecords: false, TimeSpan.FromSeconds(20))));
+        var dto = Evaluate(Snapshot(worker: Worker(hasRecords: false, TimeSpan.FromSeconds(20), watchedFor: TimeSpan.FromSeconds(25))));
 
         dto.BackgroundJobs.State.ShouldBe(WorkerProcessState.Alive);
         dto.BackgroundJobs.HeartbeatAt.ShouldBe(Now.AddSeconds(-20));
     }
 
     [Theory]
-    [InlineData(60, WorkerProcessState.Unknown)] // a release in progress reads the same: not watched long enough
+    [InlineData(60, WorkerProcessState.Unknown)]
     [InlineData(119, WorkerProcessState.Unknown)]
     [InlineData(120, WorkerProcessState.NoServer)]
     [InlineData(3600, WorkerProcessState.NoServer)]
@@ -109,21 +143,24 @@ public sealed class ServiceStatusEvaluatorTests
         int watchedForSeconds, WorkerProcessState expected)
     {
         var dto = Evaluate(Snapshot(
-            worker: Worker(hasRecords: false, heartbeatAge: null),
-            watchedFor: TimeSpan.FromSeconds(watchedForSeconds)));
+            worker: Worker(hasRecords: false, heartbeatAge: null, watchedFor: TimeSpan.FromSeconds(watchedForSeconds))));
 
         dto.BackgroundJobs.State.ShouldBe(expected);
     }
 
     [Fact]
-    public void Worker_ARecordThatCarriesNoTime_IsUnknownNotSilent()
+    public void Worker_TheWatchedWindowIsMeasuredAtTheSampleNotAtTheRead()
     {
-        var dto = Evaluate(Snapshot(worker: Worker(hasRecords: true, heartbeatAge: null)));
+        // A sample taken when the sampler had watched for 90 s, read 30 s later (the next tick not yet published):
+        // at the read 120 s have passed, but the sample was taken before the window was full.
+        var dto = Evaluate(Snapshot(worker: Worker(
+            hasRecords: false, heartbeatAge: null, sampleAge: TimeSpan.FromSeconds(30), watchedFor: TimeSpan.FromSeconds(90))));
 
         dto.BackgroundJobs.State.ShouldBe(WorkerProcessState.Unknown);
     }
 
-    // Unreachable on one clock (the heartbeat and the API share the host's); this asserts safe degradation only.
+    // Actor: a backward step of the host's wall clock between the heartbeat's write and this read. Inside the five-second
+    // tolerance the heartbeat is young; beyond it, it is not evidence.
     [Theory]
     [InlineData(-4, WorkerProcessState.Alive)]
     [InlineData(-6, WorkerProcessState.Unknown)]
@@ -164,16 +201,37 @@ public sealed class ServiceStatusEvaluatorTests
         }
     }
 
+    [Theory]
+    [InlineData(40, true)]
+    [InlineData(46, false)]
+    public void AnySource_TheStaleLimitIsTheConfiguredOne_NotTheDefault(int sampleAgeSeconds, bool judged)
+    {
+        var age = TimeSpan.FromSeconds(sampleAgeSeconds);
+        var snapshot = Snapshot(
+            worker: Worker(hasRecords: true, TimeSpan.FromSeconds(30), age),
+            store: SourceSample.Of(Now - age, true),
+            import: Import(TimeSpan.FromMinutes(2), sampleAge: age));
+
+        var dto = ServiceStatusEvaluator.Evaluate(
+            snapshot, Now, new ServiceObservationOptions { SampleIntervalSeconds = 10, StaleAfterSeconds = 45 });
+
+        dto.StaleAfterSeconds.ShouldBe(45);
+        (dto.BackgroundJobs.State != WorkerProcessState.Unknown).ShouldBe(judged);
+        (dto.VolatileStore.State != VolatileStoreState.Unknown).ShouldBe(judged);
+        (dto.JobImport.State != StreamImportState.Unknown).ShouldBe(judged);
+    }
+
     [Fact]
     public void AnySource_NotSampledYet_IsUnknownInAllThreeRows()
     {
-        var dto = Evaluate(ServiceObservationSnapshot.NotSampled(Now - TimeSpan.FromSeconds(2)));
+        var dto = Evaluate(ServiceObservationSnapshot.NotSampled());
 
         dto.BackgroundJobs.State.ShouldBe(WorkerProcessState.Unknown);
         dto.VolatileStore.State.ShouldBe(VolatileStoreState.Unknown);
         dto.JobImport.State.ShouldBe(StreamImportState.Unknown);
     }
 
+    // Actor: a backward step of the host's wall clock between the sample's stamp and this read.
     [Fact]
     public void AnySource_ASampleFromTheFuture_IsUnknown()
     {
@@ -237,7 +295,7 @@ public sealed class ServiceStatusEvaluatorTests
         dto.JobImport.Errors.ShouldBe(0);
     }
 
-    // Unreachable on one clock: the run's end is the Worker's clock and the API shares the box.
+    // Actor: a backward step of the host's wall clock between the run's audit row and this read.
     [Fact]
     public void Import_ARunThatFinishedInTheFuture_IsUnknown()
     {
@@ -269,7 +327,23 @@ public sealed class ServiceStatusEvaluatorTests
 
         ServiceObservationLimits.ImportOverdueAfter.ShouldBe(TimeSpan.FromMinutes((2 * cadenceMinutes) + 5));
         ServiceObservationLimits.ImportWindow.ShouldBe(TimeSpan.FromHours(24));
-        // Hangfire's default heartbeat is 30 s (pinned in the Api tests) and the sampler adds one interval: doubled.
-        ServiceObservationLimits.WorkerAliveWithin.ShouldBe(TimeSpan.FromSeconds(2 * (30 + new ServiceObservationOptions().SampleIntervalSeconds)));
+    }
+
+    [Fact]
+    public void Evaluate_TheAliveWindowHoldsAHeartbeatAndTheLongestAcceptedSamplingInterval_Twice()
+    {
+        // Hangfire's default heartbeat is 30 s (pinned in the Api tests). The window is judged at read time, when the
+        // newest heartbeat is up to one heartbeat interval plus one sampling interval old, so it must hold both, doubled,
+        // for the longest interval the options accept. The ceiling is read from the attribute, not from the default.
+        const int hangfireHeartbeatSeconds = 30;
+        var ceiling = (int)typeof(ServiceObservationOptions)
+            .GetProperty(nameof(ServiceObservationOptions.SampleIntervalSeconds))!
+            .GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.RangeAttribute), inherit: false)
+            .Cast<System.ComponentModel.DataAnnotations.RangeAttribute>()
+            .Single()
+            .Maximum;
+
+        ServiceObservationLimits.WorkerAliveWithin.ShouldBeGreaterThanOrEqualTo(
+            TimeSpan.FromSeconds(2 * (hangfireHeartbeatSeconds + ceiling)));
     }
 }

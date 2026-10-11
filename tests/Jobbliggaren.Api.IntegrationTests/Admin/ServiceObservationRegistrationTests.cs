@@ -61,7 +61,7 @@ public sealed class ServiceObservationRegistrationTests
     [Theory]
     [InlineData("30", "90", "5")] // not above three intervals
     [InlineData("4", "120", "5")] // under the shipped floor
-    [InlineData("301", "2000", "5")] // over the shipped ceiling
+    [InlineData("31", "2000", "5")] // over the shipped ceiling: the alive window would show a live Worker as silent
     [InlineData("30", "9", "5")]
     [InlineData("30", "3601", "5")] // over the shipped ceiling of the stale limit
     [InlineData("30", "120", "0")] // a probe that may take no time

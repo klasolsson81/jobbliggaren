@@ -54,6 +54,24 @@ public sealed class ReadinessVolatileStoreProbeTests
     }
 
     [Fact]
+    public async Task IsReachable_RunsOnlyTheVolatileCheck_NeverThePostgresOrTheSessionRedisCheck()
+    {
+        // Every tick would otherwise also run the checks that /api/ready runs for the other stores.
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var otherCalls = 0;
+        services.AddHealthChecks()
+            .AddCheck("postgres", () => { otherCalls++; return HealthCheckResult.Healthy(); })
+            .AddCheck("redis", () => { otherCalls++; return HealthCheckResult.Healthy(); })
+            .AddCheck(VolatileRedisHealthCheckExtensions.HealthCheckName, () => HealthCheckResult.Healthy());
+        var probe = new ReadinessVolatileStoreProbe(services.BuildServiceProvider().GetRequiredService<HealthCheckService>());
+
+        (await probe.IsReachableAsync(Ct)).ShouldBeTrue();
+
+        otherCalls.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task IsReachable_ACheckThatIsNotRegistered_IsNotAMeasurement()
     {
         var probe = Probe(("postgres", HealthStatus.Healthy));

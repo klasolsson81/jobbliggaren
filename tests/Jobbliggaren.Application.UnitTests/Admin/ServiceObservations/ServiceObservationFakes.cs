@@ -14,7 +14,8 @@ internal sealed class MutableClock(DateTimeOffset start) : IDateTimeProvider
 
 /// <summary>
 /// Stands in for <c>HangfireWorkerHeartbeatSource</c>, which is tested against real Hangfire storage in the Api
-/// integration tests. The default is a Worker with one record that gave a sign of life a moment ago.
+/// integration tests. The default reading is a storage with no server record and no heartbeat; a test sets the one
+/// it needs. <see cref="Throws"/> stands for the storage driver failing (a Postgres that is down or has no schema).
 /// </summary>
 internal sealed class ScriptedWorkerSource : IWorkerHeartbeatSource
 {
@@ -32,8 +33,9 @@ internal sealed class ScriptedWorkerSource : IWorkerHeartbeatSource
 }
 
 /// <summary>
-/// Stands in for <c>ReadinessVolatileStoreProbe</c>. <see cref="Hangs"/> never completes and ignores its token, which
-/// is the case the sampler's own deadline exists for.
+/// Stands in for <c>ReadinessVolatileStoreProbe</c>. <see cref="Hangs"/> never completes and ignores its token, the way
+/// StackExchange.Redis's <c>PingAsync</c> (which takes none) does, and is the case the sampler's own deadline exists for.
+/// It records the token it was handed, so a test can prove that shutdown reaches the source.
 /// </summary>
 internal sealed class ScriptedStoreProbe : IVolatileStoreProbe
 {
@@ -43,8 +45,14 @@ internal sealed class ScriptedStoreProbe : IVolatileStoreProbe
 
     public bool Hangs { get; set; }
 
+    public Action? OnRead { get; set; }
+
+    public CancellationToken ReceivedToken { get; private set; }
+
     public Task<bool> IsReachableAsync(CancellationToken cancellationToken)
     {
+        ReceivedToken = cancellationToken;
+        OnRead?.Invoke();
         if (Hangs)
         {
             return new TaskCompletionSource<bool>().Task;
@@ -64,6 +72,8 @@ internal sealed class ScriptedImportRecords : IImportRunRecords
 
     public Exception? Throws { get; set; }
 
+    public Action? OnRead { get; set; }
+
     public JobSource? AskedSource { get; private set; }
 
     public DateTimeOffset? AskedNotBefore { get; private set; }
@@ -73,6 +83,7 @@ internal sealed class ScriptedImportRecords : IImportRunRecords
     {
         AskedSource = source;
         AskedNotBefore = notBefore;
+        OnRead?.Invoke();
         return Throws is { } ex ? throw ex : Task.FromResult(Latest);
     }
 }

@@ -27,10 +27,10 @@ public sealed class ServiceObservationServiceTests
     [Fact]
     public async Task Start_TheFirstSampleIsNotDelayedByAnInterval()
     {
-        // An interval no test deadline can wait out, in the range the shipped validation accepts: only the
-        // immediate first tick can satisfy this.
+        // The longest interval the shipped validation accepts, in a pair it accepts: the test's own wait is shorter, so
+        // only the immediate first tick can satisfy this.
         var sampler = Substitute.For<IServiceObservationSampler>();
-        var options = new ServiceObservationOptions { SampleIntervalSeconds = 300, StaleAfterSeconds = 3600 };
+        var options = new ServiceObservationOptions { SampleIntervalSeconds = 30, StaleAfterSeconds = 3600 };
         Validator.TryValidateObject(options, new ValidationContext(options), [], validateAllProperties: true)
             .ShouldBeTrue("the pair is one the shipped validation accepts");
         using var service = Service(sampler, options: options);

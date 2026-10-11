@@ -353,9 +353,10 @@ This Amendment owns only the surface contract of the services card. The mechanis
 - **No row is "ok".** A positive state is an observation with its time, in normal ink; a bad state is one warning form, bold in the
   warning ink, and the words carry the meaning. The import row never prints "0 fel" and never names the health of Platsbanken or
   JobTech.
-- The region carries the newest row's `sampledAt` and whether a kept row has aged past the limit the API names, as D2 lets a loaded
-  region do. `X-Admin-Sampled-At` is the API's read instant.
-- The attention card names the services and backup states that need attention, each linking to its own card, and an Unknown or failed
+- A row the page has kept past the limit the API names is withdrawn as the API's would be: an en-dash and a quiet line, never an
+  old verdict. The region still carries the newest row's `sampledAt` and the old-data note, as D2 lets a loaded region do.
+  `X-Admin-Sampled-At` is the API's read instant.
+- The attention card names the services and backup states that need attention, an import run's failed events included, each linking to its own card, and an Unknown or failed
   source never reads as clear (ADR 0159 D7; closes #2084).
 - D4's #1982 row is flipped in full: Backup (ADR 0157), Server (ADR 0158) and the services card (ADR 0159) are real. What stays
   outside it has an owner: the offsite copy, retention and restore drill (#197), mail outcomes (#1981).

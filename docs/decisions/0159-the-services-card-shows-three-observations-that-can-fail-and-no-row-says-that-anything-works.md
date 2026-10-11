@@ -82,19 +82,19 @@ default; `design-reviewer` may require one if "Tjänster" reads as complete.
 ### D2 — Mechanism: an in-API sampler, the pattern of ADR 0158
 
 `ServiceObservationService`, a `BackgroundService` in the Api (`PeriodicTimer`), takes the first sample at once and then one
-every `ServiceObservation:SampleIntervalSeconds` (default 30; validated 5–300), inside the same nested `StopHost` guard as
+every `ServiceObservation:SampleIntervalSeconds` (default 30; validated 5–30, because the alive window of D3 must hold a heartbeat and a sampling interval, twice), inside the same nested `StopHost` guard as
 `HostObservationService` (a throwing sampler never faults the host). `ServiceObservationSampler` (Application) reads the three
 sources through ports and keeps the newest outcome of each as an immutable snapshot. `GET /api/v1/admin/overview/services`
 (`AdminServiceObservationEndpoints`, its own file) reads the snapshot and does no I/O.
 
-- Each source is read inside its own deadline (`ProbeTimeoutSeconds`, default 5) with a `WaitAsync` backstop for a source that
-  ignores its token. A source that throws or times out becomes missing for that tick and **only** that row reads Unknown; the
+- Each asynchronous source is read inside its own deadline (`ProbeTimeoutSeconds`, default 5) with a `WaitAsync` backstop for a
+  source that ignores its token. A source that throws or times out becomes missing for that tick and **only** that row reads Unknown; the
   previous value is never carried forward as new. Only the exception's type name reaches a log line (a driver message can embed
   a connection string).
 - **Why a sampler and not a probe per request.** `IMonitoringApi.Servers()` is synchronous, so a request that called it would
   be sync I/O in the request pipeline (AGENTS.md §5) or `Task.Run` around I/O (§3). The endpoint does no I/O, so probe load is
   one tick per interval and not one per poll times open tab.
-- The synchronous Hangfire read is bounded by the storage connection's command timeout, which this ADR does not set; it is a
+- The synchronous Hangfire read is bounded by the storage connection's timeout, which this ADR does not set; it is a
   residual of the existing `AdminBackgroundJobsEndpoints` precedent (reviewed in #204), which this ADR refuses to grow.
 - **The two Api samplers are not merged into one loop.** Their ticks differ (one synchronous, one asynchronous); the third
   sampler is what would justify the extraction.
@@ -113,7 +113,7 @@ sources through ports and keeps the newest outcome of each as an immutable snaps
 - **Alive** when the newest sign of life is at most 120 s old (Hangfire's default heartbeat of 30 s plus one sampling interval,
   doubled, and under its 5-minute server timeout; a test pins `new BackgroundJobServerOptions()` and that the Worker's
   `Program.cs` sets none of the timings). **Silent**: records exist and the newest heartbeat is older. **NoServer**: no record,
-  and no sign of life inside the window, once the sampler has watched for as long as the window; until then the row is Unknown,
+  and no sign of life inside the window, once the sampler has read the storage successfully for as long as the window (counted from its first successful read, at the sample's own time); until then the row is Unknown,
   so a release shows no false warning whichever container restarts first. A graceful stop removes the record, and the last sign
   of life it gave stays true, which is why that carried evidence is kept.
 - A null or future heartbeat is Unknown. On one clock that is unreachable; the test asserts safe degradation only. Time zone
@@ -163,13 +163,13 @@ old one. The three limits are numbers, so the page words "över 25 minuter" from
 receives** a server name, queue or worker count, a health-check description, data or exception, a latency, an audit payload,
 aggregate id, source or fetched count, a reason code or any free text; a test pins the serialised key set per state.
 `X-Admin-Sampled-At` is the API read instant; each row's own `sampledAt` is in the body. The endpoint carries the Admin policy,
-`IAdminRequest`, the `admin-read` bucket and `private, no-store` on every path; the BFF read goes through `gated` (#2064).
+`IAdminRequest`, the `admin-read` bucket and `private, no-store`; the BFF read goes through `gated` (#2064).
 
 ### D7 — The attention card (folds in #2084)
 
 CTO ruling Q6. This change adds warning states, so the attention card must not read as a general all-clear next to a silent Worker
 or a backup that is off. Backup and services lines go into the card together (the card changes whenever a warning-bearing source
-joins the overview), each linking to its own card, reusing the existing words; an Unknown or failed source never reads as clear.
+joins the overview), an import run's failed events included, each linking to its own card, reusing the existing words; an Unknown or failed source never reads as clear.
 This closes #2084.
 
 ### D8 — Operations and authority

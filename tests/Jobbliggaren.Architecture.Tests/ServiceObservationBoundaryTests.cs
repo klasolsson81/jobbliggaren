@@ -14,7 +14,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// pins three more things: Application's <c>ServiceObservations</c> knows nothing of Hangfire, a driver or the
 /// readiness-check framework (the adapters for those live in the Api, where the types already do); the sampler and its
 /// Api adapters are composed in the Api and nowhere else (the Worker has no admin surface and must not watch itself,
-/// and <c>AddInfrastructure</c>/<c>AddPersistence</c> are loaded by it); and the Worker sets none of the Hangfire
+/// and <c>AddPersistence</c> is loaded by it); and the Worker sets none of the Hangfire
 /// server timings the 120 s alive window is derived from. The adapters are internal, so they are named by string.
 /// </summary>
 public class ServiceObservationBoundaryTests
@@ -30,7 +30,8 @@ public class ServiceObservationBoundaryTests
         var result = Types.InAssembly(typeof(ServiceObservationSampler).Assembly)
             .That().ResideInNamespaceStartingWith(typeof(ServiceObservationSampler).Namespace!)
             .ShouldNot().HaveDependencyOnAny(
-                "Hangfire", "Npgsql", "Microsoft.EntityFrameworkCore", "Microsoft.Extensions.Diagnostics.HealthChecks")
+                "Hangfire", "Npgsql", "Microsoft.EntityFrameworkCore", "Microsoft.Extensions.Diagnostics.HealthChecks",
+                "StackExchange.Redis", "Microsoft.AspNetCore")
             .GetResult();
 
         result.IsSuccessful.ShouldBeTrue(
@@ -56,7 +57,7 @@ public class ServiceObservationBoundaryTests
             .GetResult();
 
         result.IsSuccessful.ShouldBeTrue(
-            $"AddInfrastructure and AddPersistence are loaded by the Worker too: {string.Join(", ", result.FailingTypeNames ?? [])}");
+            $"AddPersistence is loaded by the Worker too: {string.Join(", ", result.FailingTypeNames ?? [])}");
     }
 
     [Fact]

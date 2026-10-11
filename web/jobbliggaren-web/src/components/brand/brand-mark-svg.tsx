@@ -4,7 +4,8 @@
 // 2026-06-13; ADR 0068-amendment — kompassens navy+guldprick utgår).
 // Konsumeras av brand-logo.tsx, apple-icon.tsx, opengraph-image.tsx, twitter-image.tsx.
 // `app/icon.svg` är file-convention-mirror (Next.js auto-favicon) —
-// synka manuellt vid geometri-justering.
+// synka manuellt vid geometri-justering och kör sedan scripts/generate-brand-icons.mjs
+// (favicon.ico + public/icons/*.png genereras ur icon.svg).
 //
 // Tre färgroller (utökar tidigare 2-fill-kontrakt → 3):
 //   primaryFill  grön skiva + bock   (--jp-mark-primary → --jp-accent-800 #15603F)

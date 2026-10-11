@@ -38,6 +38,22 @@ function icoFrames(ico: Buffer) {
   });
 }
 
+describe("the rasters follow icon.svg", () => {
+  // favicon.ico and public/icons/*.png are rendered from icon.svg by scripts/generate-brand-icons.mjs. Nothing else
+  // notices an icon.svg edit that skipped the generator, so the SVG's hash is pinned: a changed mark fails here
+  // until the rasters are regenerated and committed. Line endings are stripped because a Windows checkout turns
+  // the committed LF into CRLF.
+  const ICON_SVG_SHA256 = "3b7cc5ef56e15acc9281698aa95e1c9ed7776216606445f46e592230c0354321";
+
+  it("is the icon.svg the committed rasters were generated from", () => {
+    const hash = createHash("sha256").update(read("src/app/icon.svg").toString("utf8").replace(/\r/g, "")).digest("hex");
+    expect(
+      hash,
+      "icon.svg changed: run `node scripts/generate-brand-icons.mjs`, commit src/app/favicon.ico and public/icons/*.png, then update ICON_SVG_SHA256"
+    ).toBe(ICON_SVG_SHA256);
+  });
+});
+
 describe("favicon.ico", () => {
   // Written by: the create-next-app scaffold (commit 6acf85f45), a white triangle on a black circle, which is
   // Vercel's mark. It stayed in the tree for months while icon.svg carried the real mark, so a browser that

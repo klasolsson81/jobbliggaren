@@ -14,7 +14,9 @@ import { chromium } from "@playwright/test";
 
 const root = resolve(import.meta.dirname, "..");
 const svg = readFileSync(resolve(root, "src/app/icon.svg"), "utf8");
-const BRAND_GREEN = "#15603F";
+// The maskable background is the mark's own disc colour, read from the SVG so the two cannot drift apart.
+const BRAND_GREEN = svg.match(/<circle[^>]*\br="45"[^>]*\bfill="(#[0-9A-Fa-f]{6})"/)?.[1];
+if (!BRAND_GREEN) throw new Error("icon.svg has no disc circle (r=45) with a hex fill");
 
 async function render(page, size, background) {
   await page.setViewportSize({ width: size, height: size });

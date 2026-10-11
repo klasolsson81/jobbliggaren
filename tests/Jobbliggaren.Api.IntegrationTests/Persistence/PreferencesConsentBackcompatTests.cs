@@ -56,6 +56,15 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
         return reloaded.Preferences;
     }
 
+    private async Task<List<string>> StoredKeysAsync(Guid jobSeekerId, CancellationToken ct)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Database.SqlQuery<string>(
+                $"""SELECT jsonb_object_keys(preferences) AS "Value" FROM job_seekers WHERE id = {jobSeekerId}""")
+            .ToListAsync(ct);
+    }
+
     [Fact]
     public async Task LegacyRow_WithoutConsentKeys_DeserializesToConsentOff()
     {
@@ -123,13 +132,21 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
     }
 
     // ADR 0164 (#2107) — the actor is every row written before migration AddNotificationMailPauses: its
-    // writer's Preferences had no pause keys, so a consenting row carries none. All three stamps must read
-    // as null, which is "on", and the consents beside them must survive.
+    // writer's Preferences had no pause keys, which the current writer emits
+    // (CurrentWriter_EmitsEveryPreferencesParameterAsAKey). All three stamps must read as null, which is
+    // "on", and the consents beside them must survive.
     [Fact]
     public async Task LegacyRow_WrittenBeforeAddNotificationMailPauses_ReadsEveryMailSwitchOn()
     {
         var ct = TestContext.Current.CancellationToken;
         var seeker = await SeedSeekerAsync(ct);
+        string[] pauseKeys =
+        [
+            nameof(Preferences.NotificationMailOffAt),
+            nameof(Preferences.TopMatchMailOffAt),
+            nameof(Preferences.MatchSummaryMailOffAt),
+        ];
+        pauseKeys.ShouldBeSubsetOf(await StoredKeysAsync(seeker.Id.Value, ct));
 
         var beforePausesJson = """
             {"Language":"sv","BackgroundMatchNotificationsEnabled":true,"DigestCadence":1,"NotificationConsentAt":"2026-09-01T08:00:00+00:00","NotificationConsentWithdrawnAt":null,"FollowedCompanyNotificationsEnabled":true,"FollowedCompanyNotificationConsentAt":"2026-09-02T08:00:00+00:00","FollowedCompanyNotificationConsentWithdrawnAt":null}
@@ -147,13 +164,15 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
     }
 
     // architect Nice-to-have 2 (#2107): a missing key reads as its type's CLR default, never as the
-    // record's parameter default. The actor is a row written before ADR 0080 added DigestCadence, the
-    // shape of LegacyRow_WithoutConsentKeys_DeserializesToConsentOff above.
+    // record's parameter default. The actor is a row written before ADR 0080 added DigestCadence, which
+    // the current writer emits (CurrentWriter_EmitsEveryPreferencesParameterAsAKey), the shape of
+    // LegacyRow_WithoutConsentKeys_DeserializesToConsentOff above.
     [Fact]
     public async Task LegacyRow_WithoutDigestCadenceKey_ReadsDaily_TheClrDefault_NotTheRecordDefaultWeekly()
     {
         var ct = TestContext.Current.CancellationToken;
         var seeker = await SeedSeekerAsync(ct);
+        (await StoredKeysAsync(seeker.Id.Value, ct)).ShouldContain(nameof(Preferences.DigestCadence));
         new Preferences().DigestCadence.ShouldBe(DigestCadence.Weekly);
         default(DigestCadence).ShouldBe(DigestCadence.Daily);
 
@@ -183,5 +202,17 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
         prefs.DigestCadence.ShouldBe(DigestCadence.Daily);
         prefs.NotificationConsentAt.ShouldNotBeNull();
         prefs.NotificationConsentWithdrawnAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task CurrentWriter_EmitsEveryPreferencesParameterAsAKey()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(ct);
+        var parameterNames = typeof(Preferences).GetConstructors().Single().GetParameters()
+            .Select(parameter => parameter.Name!)
+            .ToList();
+
+        parameterNames.ShouldBeSubsetOf(await StoredKeysAsync(seeker.Id.Value, ct));
     }
 }

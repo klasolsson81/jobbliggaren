@@ -166,7 +166,7 @@ export function NotificationsSection({
         unitRef={mailUnit}
         errorId={ids.mailError}
         label={t("notices.mailLabel")}
-        className="jp-settings-group jp-settings-control"
+        className="jp-settings-group jp-settings-control jp-settings-control--master"
       />
 
       <section className="jp-settings-group" aria-labelledby={ids.matchesTitle}>

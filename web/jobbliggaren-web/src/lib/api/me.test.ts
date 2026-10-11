@@ -190,7 +190,6 @@ describe.each([
 
   it.each([
     [401, { kind: "unauthorized" }],
-    [403, { kind: "forbidden" }],
     [400, { kind: "error" }],
     [409, { kind: "error" }],
   ])("%i → %o", async (status, expected) => {

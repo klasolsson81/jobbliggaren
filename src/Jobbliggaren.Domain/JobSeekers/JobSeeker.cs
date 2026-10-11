@@ -180,11 +180,12 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     /// </summary>
     public void SetNotificationMail(bool on, IDateTimeProvider clock)
     {
-        var offAt = Pause(Preferences.NotificationMailOffAt, on, clock);
+        var now = clock.UtcNow;
+        var offAt = PauseStamp(Preferences.NotificationMailOffAt, on, now);
         if (offAt == Preferences.NotificationMailOffAt)
             return;
         Preferences = Preferences with { NotificationMailOffAt = offAt };
-        UpdatedAt = clock.UtcNow;
+        UpdatedAt = now;
     }
 
     /// <summary>
@@ -193,11 +194,12 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     /// </summary>
     public void SetTopMatchMail(bool on, IDateTimeProvider clock)
     {
-        var offAt = Pause(Preferences.TopMatchMailOffAt, on, clock);
+        var now = clock.UtcNow;
+        var offAt = PauseStamp(Preferences.TopMatchMailOffAt, on, now);
         if (offAt == Preferences.TopMatchMailOffAt)
             return;
         Preferences = Preferences with { TopMatchMailOffAt = offAt };
-        UpdatedAt = clock.UtcNow;
+        UpdatedAt = now;
     }
 
     /// <summary>
@@ -206,16 +208,17 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     /// </summary>
     public void SetMatchSummaryMail(bool on, IDateTimeProvider clock)
     {
-        var offAt = Pause(Preferences.MatchSummaryMailOffAt, on, clock);
+        var now = clock.UtcNow;
+        var offAt = PauseStamp(Preferences.MatchSummaryMailOffAt, on, now);
         if (offAt == Preferences.MatchSummaryMailOffAt)
             return;
         Preferences = Preferences with { MatchSummaryMailOffAt = offAt };
-        UpdatedAt = clock.UtcNow;
+        UpdatedAt = now;
     }
 
     // On clears the stamp; off keeps the first stamp, or takes one now.
-    private static DateTimeOffset? Pause(DateTimeOffset? offAt, bool on, IDateTimeProvider clock) =>
-        on ? null : offAt ?? clock.UtcNow;
+    private static DateTimeOffset? PauseStamp(DateTimeOffset? offAt, bool on, DateTimeOffset now) =>
+        on ? null : offAt ?? now;
 
     /// <summary>
     /// ADR 0087 D5 (#311 PR-4) — sets the SEPARATE company-follow notification consent (opt-in,

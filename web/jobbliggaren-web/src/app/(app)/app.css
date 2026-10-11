@@ -175,6 +175,9 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 .jp-settings-control .jp-togglerow__desc {
   color: var(--jp-ink-1);
 }
+.jp-settings-control--master .jp-togglerow__label {
+  font-weight: var(--jp-fw-semibold);
+}
 .jp-settings-control__status {
   margin: 8px 0 0;
   font-size: var(--text-body-sm);

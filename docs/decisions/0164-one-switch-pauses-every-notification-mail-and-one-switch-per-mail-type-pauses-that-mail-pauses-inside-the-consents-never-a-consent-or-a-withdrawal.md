@@ -19,7 +19,7 @@ one question the round left him, D7, "Ja, i #2107 (Rek.)".
 D10) · #1666 (the bell, ADR 0162) · ADR 0080 Beslut 5 (local-only) · ADR 0087 D2, D5 · ADR 0120 · ADR 0144 (rows 7, 8, 14) · ADR 0146
 (replay on a concurrency conflict) · ADR 0154 (every merge is a deploy) · ADR 0161 · CLAUDE.md §9.2, §9.6 · AGENTS.md §5
 **Measured against:** the #2107 worktree (branch `feat/email-notices-switch`): the form-round reports on `11750988b`, the delivered
-code at `7ee4fc98a` and its working tree on 2026-10-11; `origin/main` at `eb4099abb` for the merged state of ADR 0162 and #2125.
+code at `02f174c89` (PR #2135) and its working tree on 2026-10-11; `origin/main` at `eb4099abb` for the merged state of ADR 0162 and #2125.
 
 > **Provenance.** Written by `adr-keeper` for the driving session from the CTO's ruling and the delivered code (CLAUDE.md §9.2, §13).
 > The approach, the pause semantics, the stamps, the gate, the page form, the rule for accumulated rows and the policy version are the
@@ -150,7 +150,7 @@ reflection guard that every `Preferences` constructor default equals `default(T)
 
 ### D4 — The gate points per sender (CTO D3c; architect Q5; security V1)
 
-Every mail gate point goes through `StillMailableAsync(gate, userId, ct)` (renamed from `ConsentStillGrantedAsync`, now taking a gate),
+The digest's gate points go through `StillMailableAsync(gate, userId, ct)` (renamed from `ConsentStillGrantedAsync`, now taking a gate),
 the due sets through `gate.Apply(db.JobSeekers)`.
 
 | Sender | Gate | Due set | Read again before the claim | After the claim, before the send |
@@ -350,7 +350,9 @@ CTO's "In-block-fixar" lists them; the reports hold their wording.
 - **Rolling back to a pre-#2107 image drops the three keys on that user's next preference write, which lifts a pause.** An older image's
   `Preferences` type maps none of them, and a changed owned-JSON entry is written whole from the writer's own CLR type (the mechanics
   `Preferences.cs` records for the retired TD-115 keys, there on the read side). The older senders also read no pause at all. This is the
-  architect's reading and is not measured as a rollback.
+  architect's reading and is not measured as a rollback. Such a rollback also meets ADR 0130's schema-ahead gate in
+  `Jobbliggaren.Migrate`, which refuses the database until `MIGRATE_ALLOW_SCHEMA_AHEAD` names this migration; the migration carries no
+  DDL, so naming it changes no schema.
 - **A backlog can reach the inbox after a long pause** (D7). It is counted truthfully with "och N till", but a user who paused for weeks
   can receive a list of everything still Active on the first run after the pause lifts. No age bound exists for Strong or follow rows.
 - **A Top match found while the Toppmatch mail is off is not mailed once it is older than `W` = 24 hours** (ADR 0161 D6). Switched back

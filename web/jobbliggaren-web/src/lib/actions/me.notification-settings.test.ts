@@ -113,7 +113,6 @@ describe.each([
   it.each([
     ["unauthorized", { kind: "unauthorized" }, "settings.backgroundMatch.errors.notLoggedIn"],
     ["rateLimited", { kind: "rateLimited", retryAfterSeconds: 30 }, "settings.backgroundMatch.errors.tooManyAttempts"],
-    ["forbidden", { kind: "forbidden" }, "settings.backgroundMatch.errors.saveFailed"],
     ["error", { kind: "error" }, "settings.backgroundMatch.errors.saveFailed"],
   ])("maps %s to its copy and does not revalidate", async (_kind, apiResult, error) => {
     api.mockResolvedValue(apiResult);

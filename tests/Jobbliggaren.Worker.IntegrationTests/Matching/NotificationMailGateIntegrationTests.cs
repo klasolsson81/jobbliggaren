@@ -61,6 +61,7 @@ public sealed class NotificationMailGateIntegrationTests(WorkerTestFixture fixtu
     {
         var at = Occurrence(new DateTimeOffset(2032, 1, 12, 10, 0, 0, TimeSpan.Zero));
         var user = await RegisterAsync(at, followConsent: true);
+        (await HasAnyPauseKeyAsync(user)).ShouldBeTrue();
         await WriteAsBeforeThePauseKeysAsync(user);
         (await HasAnyPauseKeyAsync(user)).ShouldBeFalse();
         var ads = await SeedAdsAsync(at, user);
@@ -103,6 +104,30 @@ public sealed class NotificationMailGateIntegrationTests(WorkerTestFixture fixtu
         var stored = (await ReadSeekerAsync(paused)).Preferences;
         stored.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
         stored.FollowedCompanyNotificationsEnabled.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task EveryNotificationMailPaused_ThenLiftedAfterTheToppmatchWindow_MailsTheHeldSummaryAndFollowRows_NotTheToppmatch()
+    {
+        var at = Occurrence(new DateTimeOffset(2032, 6, 14, 10, 0, 0, TimeSpan.Zero));
+        var user = await RegisterAsync(at, followConsent: true,
+            (seeker, clock) => seeker.SetNotificationMail(on: false, clock));
+        var ads = await SeedAdsAsync(at, user);
+        var whilePaused = Substitute.For<IEmailSender>();
+        await RunMatchingAsync(at, whilePaused);
+        await RunDigestAsync(at, whilePaused);
+        MailsTo(whilePaused, user).ShouldBe(new Mails(0, 0, 0));
+
+        var later = Occurrence(at + TopMatchMailDispatcher.DirectMailWindow + TimeSpan.FromDays(1));
+        await SwitchAsync(user, later, (seeker, clock) => seeker.SetNotificationMail(on: true, clock));
+        var afterLift = Substitute.For<IEmailSender>();
+        await RunMatchingAsync(later, afterLift);
+        await RunDigestAsync(later, afterLift);
+
+        MailsTo(afterLift, user).ShouldBe(new Mails(TopMatch: 0, Summary: 1, FollowedCompany: 1));
+        (await MatchAsync(user, ads.Strong)).NotificationStatus.ShouldBe(NotificationStatus.Sent);
+        (await HitStatusAsync(user, ads.FollowedCompany)).ShouldBe(FollowedCompanyAdHitStatus.Sent);
+        (await MatchAsync(user, ads.Top)).NotificationStatus.ShouldBe(NotificationStatus.Pending);
     }
 
     // Klas's case (#2107): the Toppmatch mail on, the summary off. The Toppmatch goes, the summary does not,
@@ -243,6 +268,15 @@ public sealed class NotificationMailGateIntegrationTests(WorkerTestFixture fixtu
         return new Recipient(user.Id, email);
     }
 
+    private async Task SwitchAsync(Recipient recipient, DateTimeOffset at, Action<JobSeeker, IDateTimeProvider> switches)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var seeker = await db.JobSeekers.SingleAsync(stored => stored.UserId == recipient.UserId, Ct);
+        switches(seeker, new FixedClock(at));
+        await db.SaveChangesAsync(Ct);
+    }
+
     // A Top ad and a Strong ad for this test's profile, and an ad of a company each recipient follows with a
     // Pending hit on it. Strong is Top without the skill signal: the must-have is met and both secondaries
     // are confirmed, but the ad names the skill only as a requirement.
@@ -329,8 +363,10 @@ public sealed class NotificationMailGateIntegrationTests(WorkerTestFixture fixtu
         return ad.Id;
     }
 
-    // The actor: every row written before migration AddNotificationMailPauses. Its writer's Preferences
-    // had no pause keys, so that row is this one without them.
+    // The actor: every row written before migration AddNotificationMailPauses, whose writer's Preferences
+    // had no pause keys. The current writer emits them (pinned by
+    // PreferencesConsentBackcompatTests.CurrentWriter_EmitsEveryPreferencesParameterAsAKey), so that row is
+    // this one without them.
     private async Task WriteAsBeforeThePauseKeysAsync(Recipient recipient)
     {
         using var scope = fixture.Services.CreateScope();

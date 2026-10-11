@@ -47,6 +47,7 @@ const TOP = "Toppmatchningar via e-post";
 const SUMMARY = "Sammanfattning via e-post";
 const FOLLOW = "Nya annonser via e-post";
 const PAUSED = "Skickas inte medan e-postnotiser är av.";
+const CADENCE = "Hur ofta";
 
 const switchNamed = (page: Page, name: string) => page.getByRole("switch", { name, exact: true });
 const refusal = (page: Page) =>
@@ -65,17 +66,35 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: join(dir, `${name}.png`), fullPage: true });
 }
 
-const STATES: ReadonlyArray<{ name: string; settings: Partial<NotificationSettings> }> = [
-  { name: "new-account", settings: {} },
+const STATES: ReadonlyArray<{
+  name: string;
+  settings: Partial<NotificationSettings>;
+  mailTypeSwitches: 0 | 1;
+  cadence: boolean;
+  paused: boolean;
+}> = [
+  { name: "new-account", settings: {}, mailTypeSwitches: 0, cadence: false, paused: false },
   {
     name: "all-on",
     settings: { backgroundMatchNotificationsEnabled: true, followedCompanyNotificationsEnabled: true },
+    mailTypeSwitches: 1,
+    cadence: true,
+    paused: false,
   },
   {
     name: "toppmatch-on-summary-off",
     settings: { backgroundMatchNotificationsEnabled: true, matchSummaryMailEnabled: false },
+    mailTypeSwitches: 1,
+    cadence: false,
+    paused: false,
   },
-  { name: "cadence-via-follow-only", settings: { followedCompanyNotificationsEnabled: true } },
+  {
+    name: "cadence-via-follow-only",
+    settings: { followedCompanyNotificationsEnabled: true },
+    mailTypeSwitches: 0,
+    cadence: true,
+    paused: false,
+  },
   {
     name: "email-off-with-saved-choices",
     settings: {
@@ -84,6 +103,9 @@ const STATES: ReadonlyArray<{ name: string; settings: Partial<NotificationSettin
       followedCompanyNotificationsEnabled: true,
       matchSummaryMailEnabled: false,
     },
+    mailTypeSwitches: 0,
+    cadence: false,
+    paused: true,
   },
 ];
 
@@ -92,6 +114,11 @@ for (const width of [1280, 375] as const) {
     test(`renders ${state.name} at ${width} px`, async ({ page }) => {
       await page.setViewportSize({ width, height: width === 375 ? 667 : 900 });
       await open(page, state.settings);
+
+      await expect(switchNamed(page, TOP)).toHaveCount(state.mailTypeSwitches);
+      await expect(switchNamed(page, SUMMARY)).toHaveCount(state.mailTypeSwitches);
+      await expect(page.getByRole("radiogroup", { name: CADENCE })).toHaveCount(state.cadence ? 1 : 0);
+      await expect(page.getByText(PAUSED, { exact: true })).toHaveCount(state.paused ? 1 : 0);
       await shot(page, `${state.name}-${width}`);
     });
   }
@@ -193,10 +220,16 @@ test("a refused e-mail-on that hides the focused switch leaves focus on the e-ma
   await expect(switchNamed(page, MAIL)).toBeFocused();
 });
 
-test("the dark theme renders the card in its tokens", async ({ page }) => {
+test("captures the card in the dark theme, with a background other than the light theme's", async ({ page }) => {
   await open(page, { backgroundMatchNotificationsEnabled: true, followedCompanyNotificationsEnabled: true });
+  const card = page.locator("section.jp-card").filter({ has: switchNamed(page, MAIL) });
+  const background = () => card.evaluate((element) => getComputedStyle(element).backgroundColor);
+  const light = await background();
+
   await page.evaluate(() => {
     document.documentElement.dataset.theme = "dark";
   });
+
+  await expect.poll(background).not.toBe(light);
   await shot(page, "dark-1280");
 });

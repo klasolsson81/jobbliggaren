@@ -606,7 +606,7 @@ describe("NotificationsSection — an outcome that lands while its control is hi
 // Each control writes only its own value, so none waits for another: a control is locked while its
 // own write is pending, and only then (V2 for the consent switches).
 describe("NotificationsSection — each control locks only itself", () => {
-  it("a pending pause leaves every other control free", async () => {
+  it("a pending e-mail switch write leaves every other control free", async () => {
     const save = held();
     mailMock.mockReturnValue(save.promise);
     const user = userEvent.setup();
@@ -644,6 +644,7 @@ describe("NotificationsSection — each control locks only itself", () => {
     summaryMock.mockReturnValue(save.promise);
     await user.click(toggle(SUMMARY));
 
+    expect(topReceipt).toBeInTheDocument();
     expect(topReceipt).toHaveTextContent(SAVED);
     await act(async () => save.settle({ success: true }));
   });

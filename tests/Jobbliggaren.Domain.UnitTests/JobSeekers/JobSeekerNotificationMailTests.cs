@@ -2,7 +2,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.UnitTests.JobAds;
 using Shouldly;
-using Lifecycle = Jobbliggaren.Domain.UnitTests.JobSeekers.NotificationConsentTests.Lifecycle;
+using static Jobbliggaren.Domain.UnitTests.JobSeekers.ConsentLifecycleDriver;
 
 namespace Jobbliggaren.Domain.UnitTests.JobSeekers;
 
@@ -254,20 +254,4 @@ public class JobSeekerNotificationMailTests
         Setter.SetMatchSummaryMail => preferences with { MatchSummaryMailOffAt = stamp },
         _ => throw new ArgumentOutOfRangeException(nameof(setter), setter, null),
     };
-
-    private static void Apply(Lifecycle lifecycle, Action<bool, IDateTimeProvider> setConsent, int fromHour)
-    {
-        if (lifecycle == Lifecycle.NeverGranted)
-            return;
-
-        setConsent(true, Later(fromHour));
-        if (lifecycle == Lifecycle.Granted)
-            return;
-
-        setConsent(false, Later(fromHour + 1));
-        if (lifecycle == Lifecycle.Withdrawn)
-            return;
-
-        setConsent(true, Later(fromHour + 2));
-    }
 }

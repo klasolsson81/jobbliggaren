@@ -90,8 +90,8 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ScbCompanyRegisterSyncWor
 // contract of this host.
 builder.Services.AddScoped<CompanyWatchCriterionMaterialisationWorker>();
 builder.Services.AddScoped<OccupationDivisionProfileWorker>();
-// The match digest (ADR 0080): daily and weekly cron entries; each run sends to the consenting
-// users who chose that cadence. Its cap comes from the validated Digest options.
+// The match digest (ADR 0080): daily and weekly cron entries; each run sends to the users its mail
+// gates admit who chose that cadence. Its cap comes from the validated Digest options.
 builder.Services.AddOptions<Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchOptions>()
     .Bind(builder.Configuration.GetSection(
         Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchOptions.SectionName))

@@ -14,8 +14,8 @@ using Microsoft.Extensions.Options;
 namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 
 /// <summary>
-/// ADR 0080 Vag 4 PR-4b (Beslut 4) — the Strong-match digest dispatch. For every CONSENTING user
-/// whose chosen <see cref="DigestCadence"/> matches the run (the cron IS the window: a Daily cron
+/// ADR 0080 Vag 4 PR-4b (Beslut 4) — the Strong-match digest dispatch. For every user
+/// <see cref="NotificationMail.MatchSummary"/> admits whose chosen <see cref="DigestCadence"/> matches the run (the cron IS the window: a Daily cron
 /// dispatches Daily users, a Weekly cron the Weekly users), it composes ONE email summarising the
 /// user's accumulated Pending <see cref="NotifiableMatchGrade.Strong"/> matches and marks them
 /// Sent. <see cref="NotifiableMatchGrade.Good"/> is in-app only (never emailed) and

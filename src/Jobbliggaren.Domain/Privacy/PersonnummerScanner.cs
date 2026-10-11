@@ -75,8 +75,15 @@ public static partial class PersonnummerScanner
     //     gap therefore stays unbridged on this path — the accepted residual #427 V3), and/or
     //   * at most ONE separator per side, ADJACENT to the space run on either side
     //     ((?:[SEP]\p{Cf}*)? before AND after) where SEP is ASCII '-'/'+', any Unicode dash
-    //     (\p{Pd}) or U+2212 MINUS (#497): a realistic OCR/Word rendering of a legitimate
-    //     separator, e.g. "811218- 9876" / "811218 -9876" (#427 R2) / a Unicode-dash pnr (#497), and/or
+    //     (\p{Pd}), U+2212 MINUS (#497) or, since #2123, '.', '/' or '_': a realistic OCR/Word
+    //     rendering of a legitimate separator, e.g. "811218- 9876" / "811218 -9876" (#427 R2) /
+    //     a Unicode-dash pnr (#497) / "811218.9876" as an employer types it into an ad, and/or
+    //   * ONE separator BETWEEN two single visible columns ([\p{Zs}\t]\p{Cf}*, SEP, [\p{Zs}\t]\p{Cf}*
+    //     — the second alternative of the gap group), "811218 - 9876" (#2123, ADR 0134 R2
+    //     superseded on this path). It spends the same two-column budget as "811218  9876":
+    //     the first alternative cannot reach it because it admits a separator only
+    //     digit-adjacent, so the form needs its own arm. A third column on either side stays
+    //     unbridged (ADR 0134 D1), and so does a line break, and/or
     //   * any number of invisible zero-width format characters (\p{Cf}: U+200B, U+FEFF, ...)
     //     that PDF/DOCX extraction emits, freely INTERLEAVED anywhere in the gap (\p{Cf}* at
     //     each position) — so "811218<sp><ZWSP><sp>9876" bridges even though the \p{Cf} breaks
@@ -85,19 +92,26 @@ public static partial class PersonnummerScanner
     // Unlike the import guard's Normalize→Scan path (which joins digits on a transient copy
     // and discards offsets), the redactor must mask IN PLACE, so this match must span the
     // ORIGINAL text INCLUDING the gap. The digit (\d), space (\p{Zs}\t), zero-width (\p{Cf})
-    // and separator (ASCII '-'/'+', \p{Pd}, U+2212) classes are pairwise DISJOINT with bounded
-    // quantifiers, so the pattern is ReDoS-linear. The separator + \p{Cf} class is shared with
-    // PersonnummerTextNormalizer AND Personnummer.TryParse; the UNCHANGED Personnummer.TryParse
-    // date+Luhn gate stays the ONLY authority, so a wider candidate SHAPE can never manufacture
-    // a valid false positive out of two unrelated numbers.
-    [GeneratedRegex(@"(?<!\d)(?:(?:\d\p{Cf}*){8}|(?:\d\p{Cf}*){6})(?:[-+\p{Pd}\u2212]\p{Cf}*)?(?:[\p{Zs}\t]\p{Cf}*){0,2}(?:[-+\p{Pd}\u2212]\p{Cf}*)?(?:\d\p{Cf}*){4}(?!\d)", RegexOptions.CultureInvariant)]
+    // and separator (ASCII '-'/'+', \p{Pd}, U+2212, '.', '/', '_') classes are pairwise DISJOINT
+    // with bounded quantifiers, so the pattern is ReDoS-linear (the two gap alternatives share
+    // only a fixed-length prefix, so the alternation costs a constant factor, not a polynomial
+    // one). The '-'/'+'/\p{Pd}/U+2212 core of the separator class and the \p{Cf} class are shared
+    // with PersonnummerTextNormalizer; '.', '/' and '_' are NOT \u2014 they are a deliberate widening of
+    // THIS path only (#2123, ADR 0134 amendment), the safe direction of the superset invariant
+    // (the redactor masks everything the flag path flags, plus these), so the flag path and with it
+    // every CV import stay byte-identical. The UNCHANGED Personnummer.TryParse date+Luhn gate stays
+    // the ONLY authority, so a wider candidate SHAPE can never manufacture a valid false positive
+    // out of two unrelated numbers; PersonnummerBridgeCollisionRateTests pins that a new form
+    // collides exactly as often as the same digits written contiguously.
+    [GeneratedRegex(@"(?<!\d)(?:(?:\d\p{Cf}*){8}|(?:\d\p{Cf}*){6})(?:(?:[-+\p{Pd}\u2212./_]\p{Cf}*)?(?:[\p{Zs}\t]\p{Cf}*){0,2}(?:[-+\p{Pd}\u2212./_]\p{Cf}*)?|[\p{Zs}\t]\p{Cf}*[-+\p{Pd}\u2212./_]\p{Cf}*[\p{Zs}\t]\p{Cf}*)(?:\d\p{Cf}*){4}(?!\d)", RegexOptions.CultureInvariant)]
     private static partial Regex GapAwareCandidateRegex();
 
     /// <summary>
     /// Gap-aware sibling of <see cref="Scan"/> for the REDACTION path
     /// (<see cref="PersonnummerRedactor"/>). Detects the same personnummer/
-    /// samordningsnummer shapes PLUS spaced/OCR-gapped, zero-width-gapped, Unicode-dash (#497)
-    /// and zero-width-inside-a-digit-group / dash-space-dash (#498) forms, returning each
+    /// samordningsnummer shapes PLUS spaced/OCR-gapped, zero-width-gapped, Unicode-dash (#497),
+    /// zero-width-inside-a-digit-group / dash-space-dash (#498) and, since #2123, space-separator-space
+    /// ("811218 - 9876") and '.' / '/' / '_' separated forms, returning each
     /// match's offset + length into the ORIGINAL
     /// <paramref name="text"/> — the gap characters are part of the span — so a redactor
     /// can mask the raw digits IN PLACE without any offset translation. Each match's

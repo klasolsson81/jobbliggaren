@@ -317,7 +317,8 @@ public sealed class JobAd : AggregateRoot<JobAdId>
             + RecruiterContactRedactor.Redact(Description).Found.Count
             + RecruiterContactRedactor.Redact(RawPayload).Found.Count
             + PersonnummerScanner.ScanWithGaps(Title).Count
-            + PersonnummerScanner.ScanWithGaps(Description).Count;
+            + PersonnummerScanner.ScanWithGaps(Description).Count
+            + PersonnummerScanner.ScanWithGaps(Company.Name).Count;
         if (detections == 0)
             return Result.Success(false);
 
@@ -532,6 +533,17 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         var title = RecruiterContactRedactor.Redact(PersonnummerRedactor.Redact(Title));
         var description = RecruiterContactRedactor.Redact(PersonnummerRedactor.Redact(Description));
         var payload = RecruiterContactRedactor.Redact(RawPayload);
+
+        // #2123 — the company name is the third value the public job page prints from this row, and an
+        // enskild firma's name IS a person's name. A personnummer typed into it is masked like one in
+        // the text, and by the same detector (ADR 0087 D8 refused to reshape or exclude a value on
+        // IsPersonnummerShaped; masking one validated token inside a name is a different act, recorded
+        // in ADR 0087). Only the PersonnummerRedactor runs: a name carries no recruiter contact to
+        // promote. Length-preserving, so Company.Create's bounds cannot be crossed, and a NEW instance
+        // only when something was masked (an owned type is never shared between owners, see Company.Erased).
+        var companyName = PersonnummerRedactor.Redact(Company.Name);
+        if (companyName != Company.Name)
+            Company = Company.Create(companyName).Value;
 
         Title = title.Scrubbed.Length <= 300 ? title.Scrubbed : title.Scrubbed[..300];
         Description = description.Scrubbed;

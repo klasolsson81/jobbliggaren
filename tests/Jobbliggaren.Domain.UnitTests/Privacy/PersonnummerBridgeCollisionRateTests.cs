@@ -95,6 +95,62 @@ public sealed class PersonnummerBridgeCollisionRateTests
         dateColumn.ShouldBeInRange(0.05, 0.20);
     }
 
+    /// <summary>
+    /// The same two populations as above, run through the REDACTION path's candidate grammar with
+    /// <paramref name="form"/> between the leading eight digits and the trailing four, and counted
+    /// by whether <see cref="PersonnummerScanner.ScanWithGaps"/> reports a match. The random
+    /// stream is consumed exactly as the two probes above consume it, so the digits are the same
+    /// digits and the comparison is exact rather than statistical.
+    /// </summary>
+    private static double ScanWithGapsHitRate(string form, bool dateColumn)
+    {
+        var rng = new Random(Seed);
+        var origin = new DateOnly(1900, 1, 1);
+        var span = new DateOnly(2010, 12, 31).DayNumber - origin.DayNumber;
+        var hits = 0;
+        for (var i = 0; i < Trials; i++)
+        {
+            string leading, trailing;
+            if (dateColumn)
+            {
+                leading = origin.AddDays(rng.Next(span))
+                    .ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);
+                trailing = rng.Next(10_000).ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
+            }
+            else
+            {
+                var digits = string.Create(12, rng, static (chars, r) =>
+                {
+                    for (var k = 0; k < chars.Length; k++) chars[k] = (char)('0' + r.Next(10));
+                });
+                (leading, trailing) = (digits[..8], digits[8..]);
+            }
+
+            if (PersonnummerScanner.ScanWithGaps(leading + form + trailing).Count > 0) hits++;
+        }
+        return (double)hits / Trials;
+    }
+
+    [Theory]
+    [InlineData(" - ")]
+    [InlineData(" – ")]
+    [InlineData(".")]
+    [InlineData("/")]
+    [InlineData("_")]
+    public void TheIssue2123Forms_CollideExactlyAsOftenAsTheContiguousDigits_BecauseTryParseIsTheOnlyAuthority(
+        string form)
+    {
+        // #2123 widened the candidate SHAPE of the redaction path (a separator between two gap
+        // columns; '.', '/', '_' as separators), not the validation. So a new form must collide
+        // with exactly the frequency of the same twelve digits written contiguously: 1 in 133 for
+        // arbitrary digits, 1 in 9.9 for a real date column. Before #2123 these forms were not
+        // candidates at all (0 hits), so the exposure the change adds is bounded by the two numbers
+        // ADR 0134 already priced, never a new one. Any extra filter or any extra leniency in the
+        // grammar breaks the equality, which is the point.
+        ScanWithGapsHitRate(form, dateColumn: false).ShouldBe(ArbitraryEightPlusFourCollisionRate());
+        ScanWithGapsHitRate(form, dateColumn: true).ShouldBe(DateColumnPlusFourCollisionRate());
+    }
+
     [Fact]
     public void TheMeasurementIsDeterministic_SameSeedSameAnswer()
     {

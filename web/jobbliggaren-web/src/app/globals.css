@@ -4590,37 +4590,178 @@ a.jp-adminnav__link[aria-current="page"]::after {
   width: 232px;
 }
 
-/* Notifications dropdown */
+/* Notifications bell (#1666). Lives in globals.css, not (app)/app.css: the shell is mounted under
+   (admin) too, which does not load app.css. Existing tokens only. */
+.jp-notif-anchor { position: relative; }
+.jp-notif-anchor .jp-icon-btn { position: relative; }
+/* The count pill (DESIGN.md §6): ink-1 fill and on-fill digits, both pinned in the always-light
+   header, so the pill reads the same in both themes; the surface ring separates it from the glyph.
+   Never green (the header's market figure beside it is green) and never a status colour. Inside the
+   button's box, so the focus ring stays whole at 38 and 44 px; it grows to the left. */
+.jp-notif-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  box-sizing: border-box;
+  min-width: 20px;
+  height: 20px;
+  padding-inline: 4px;
+  border: 2px solid var(--jp-surface);
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-ink-1);
+  color: var(--jp-on-fill);
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-bold);
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+/* A source refused to count (ADR 0120): unread items exist, but no number may be shown. */
+.jp-notif-badge--unknown {
+  min-width: 14px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  top: 5px;
+  right: 3px;
+}
+
 .jp-notif {
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
-  width: 320px;
+  width: 360px;
+  max-height: calc(100dvh - var(--jp-header-inner-h) - 24px);
+  display: flex;
+  flex-direction: column;
   background: var(--jp-surface);
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
   box-shadow: var(--jp-shadow-pop);
   z-index: 50;
 }
+/* The match grades and the followed tag keep their light values on the white panel in dark theme;
+   the header pins the surface and ink tokens but not these ramps. Structural only (Klas 2026-06-28:
+   dark mode is off and never verified rendered). */
+[data-theme="dark"] .jp-notif {
+  --jp-leaf-100: #BFE6CC;
+  --jp-leaf-600: #1C7530;
+  --jp-leaf-700: #0B3D1B;
+  --jp-leaf-900: #0B2A1E;
+  --jp-follow: #3E6C74;
+  --jp-follow-bg: #E2EEF0;
+}
+[data-theme="dark"] .jp-notif .jp-matchchip--high {
+  color: var(--jp-on-fill);
+}
 .jp-notif__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--jp-border-soft);
-  font-size: var(--text-caption);
+}
+.jp-notif__titles { min-width: 0; }
+.jp-notif__title {
+  font-size: var(--text-body);
   font-weight: var(--jp-fw-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--jp-ink-1);
+}
+.jp-notif__count {
+  margin: 2px 0 0;
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
 }
-.jp-notif__list { padding: 4px; max-height: 320px; overflow: auto; }
-.jp-notif__item {
+.jp-notif__notice {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-notif__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.jp-notif__list { margin: 0; padding: 0; list-style: none; }
+.jp-notif__row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-notif__row:last-child { border-bottom: 0; }
+.jp-notif__row:not(.jp-notif__row--skeleton):hover { background: var(--jp-surface-3); }
+.jp-notif__signal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.jp-notif__time {
+  margin-left: auto;
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.jp-notif__title-link {
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-regular);
+  color: var(--jp-ink-1);
+}
+.jp-notif__row--unread .jp-notif__title-link { font-weight: var(--jp-fw-semibold); }
+.jp-notif__company {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-notif__skel-signal { display: block; width: 72px; height: 18px; }
+.jp-notif__skel-title { display: block; width: 70%; height: 16px; }
+.jp-notif__skel-company { display: block; width: 40%; height: 14px; }
+.jp-notif__message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px 14px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-notif__message p { margin: 0; }
+.jp-notif__message-title { font-weight: var(--jp-fw-semibold); }
+.jp-notif__foot {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 12px 12px;
-  border-radius: var(--jp-r-sm);
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-notif__footlink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
   font-size: var(--text-body-sm);
 }
-.jp-notif__item:hover { background: var(--jp-surface-3); }
+@media (max-width: 768px) {
+  .jp-notif__footlink { min-height: 44px; }
+}
+/* Narrow screens: the bell sits right of centre, so a 360 px panel anchored to it runs off the left
+   edge below about 480 px. There it becomes a sheet with 8 px insets under the header. */
+@media (max-width: 480px) {
+  .jp-notif {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    top: calc(var(--jp-header-inner-h) + 9px);
+    width: auto;
+  }
+}
 
 /* Toast */
 .jp-toast {

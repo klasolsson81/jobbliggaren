@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
-  Bell,
   Bookmark,
   Briefcase,
   Building2,
@@ -24,6 +23,7 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { LogoutForm } from "@/components/auth/logout-form";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { HeaderStats } from "@/components/shell/header-stats";
+import { NotificationsBell } from "@/components/shell/notifications-bell";
 import { HeaderStrip } from "@/components/site/header-strip";
 import type { LandingStatsDto } from "@/lib/dto/landing";
 import { onPlainNav } from "@/lib/nav/modified-click";
@@ -64,45 +64,6 @@ const PRIMARY_NAV: NavItem[] = [
 
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
-}
-
-function NotificationsBell() {
-  const t = useTranslations("common");
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const ref = useDismissable(open, () => setOpen(false), triggerRef);
-  const titleId = useId();
-
-  return (
-    <div className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        className="jp-icon-btn"
-        aria-label={t("notifications.buttonAriaLabel")}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Bell size={18} aria-hidden="true" />
-      </button>
-      {open && (
-        <div
-          ref={ref}
-          role="dialog"
-          aria-labelledby={titleId}
-          className="jp-notif"
-        >
-          <div id={titleId} className="jp-notif__head">
-            {t("notifications.heading")}
-          </div>
-          <div className="jp-notif__list">
-            <p className="jp-notif__item">{t("notifications.empty")}</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 function UserMenu({ email }: { email: string }) {

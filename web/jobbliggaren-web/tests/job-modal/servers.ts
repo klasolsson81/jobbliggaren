@@ -77,6 +77,10 @@ export type Harness = {
   /** #1979 — closed by default, so every other spec renders its pages without the feedback row. */
   readonly feedback: { open: boolean; answeredPages: string[]; answer: FeedbackAnswer };
   readonly feedbackReceipts: FeedbackReceipt[];
+  /** #1666 — what the bell's feed answers; quiet by default, so every other spec renders a bell with no badge. */
+  notificationFeed: unknown;
+  /** #1666 — the bodies the two existing /seen endpoints received, in order. */
+  readonly seenReceipts: { route: string; body: Record<string, unknown> }[];
   reset(): void;
   stop(): Promise<void>;
 };
@@ -169,11 +173,21 @@ const application = (applicationId: string, ad: HarnessAd, withContacts = false)
   preservedAd: withContacts ? { jobAdId: ad.id, title: ad.title, company: ad.company, location: null, url: summary(ad).url, source: "Platsbanken", publishedAt: PUBLISHED_AT, expiresAt: EXPIRES_AT, description: DESCRIPTION, contacts: [{ name: "Testkontakt", role: "Rekryterare", email: "contact@example.test", phone: null, isDerived: false }], capturedAt: PUBLISHED_AT } : null,
 });
 
+/** #1666 — the bell with nothing to say: both sources answer, nothing is unread. */
+export const QUIET_NOTIFICATION_FEED = {
+  items: [],
+  sources: [
+    { kind: "Match", unreadCount: 0, acknowledgedThrough: null },
+    { kind: "FollowedCompanyAd", unreadCount: 0, acknowledgedThrough: null },
+  ],
+} as const;
+
 export async function startHarness(informationFlows = false, applicationCopies = 0, ports: { proxy: number; next: number; backend: number } = HARNESS_PORTS): Promise<Harness> {
   const misses: string[] = [];
   const requests: string[] = [];
   const syntheticUploadReceipts: boolean[] = [];
   const feedbackReceipts: FeedbackReceipt[] = [];
+  const seenReceipts: { route: string; body: Record<string, unknown> }[] = [];
   const ads = [...ALL_ADS, ...Array.from({ length: applicationCopies }, (_, index) => ({
     ...ALL_ADS[1]!,
     id: `19860000-0000-4000-8000-${String(index + 1000).padStart(12, "0")}`,
@@ -196,11 +210,15 @@ export async function startHarness(informationFlows = false, applicationCopies =
     rejectNextImport: false,
     feedback: { open: false, answeredPages: [], answer: "saved" },
     feedbackReceipts,
+    notificationFeed: QUIET_NOTIFICATION_FEED,
+    seenReceipts,
     reset() {
       misses.length = 0;
       requests.length = 0;
       syntheticUploadReceipts.length = 0;
       feedbackReceipts.length = 0;
+      seenReceipts.length = 0;
+      harness.notificationFeed = QUIET_NOTIFICATION_FEED;
       harness.feedback.open = false;
       harness.feedback.answeredPages = [];
       harness.feedback.answer = "saved";
@@ -285,6 +303,12 @@ export async function startHarness(informationFlows = false, applicationCopies =
           return problem(500, "Internal Server Error");
       }
     }
+    // #1666 — the shell's bell polls its feed on every signed-in page.
+    if (route === "GET /api/v1/me/notification-feed") return json(200, harness.notificationFeed);
+    if (route === "POST /api/v1/me/matches/seen" || route === "POST /api/v1/me/followed-company-ads/seen") {
+      seenReceipts.push({ route, body: await bodyOf(request) });
+      return json(204);
+    }
     switch (route) {
       case "GET /api/v1/me/feedback/prompt-state":
         return json(200, { open: harness.feedback.open, answeredPages: harness.feedback.answeredPages });
@@ -343,8 +367,6 @@ export async function startHarness(informationFlows = false, applicationCopies =
         return json(200, { countsByJobAdId: {} });
       case "GET /api/v1/me/matches":
         return json(200, MATCHES);
-      case "POST /api/v1/me/matches/seen":
-        return json(204);
       case "GET /api/v1/me/saved-job-ads":
         return json(200, [...saved].flatMap((adId) => {
           const savedAd = adById(adId);

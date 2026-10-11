@@ -13,7 +13,7 @@ const tokenSchema = z.iso.datetime({ offset: true });
  * #1666 — "Markera alla som lästa" in the bell: acknowledges each source's whole counted set through
  * its EXISTING `/seen` endpoint, with the token the feed returned for it. An explicit act over a
  * number the user has seen; the #1576 window rule binds the implicit acknowledgement a visit makes,
- * not this one (CTO, #1666 form round).
+ * not this one (ADR 0162).
  *
  * The token is sent as the original string: the API stores microseconds and a JS `Date` keeps
  * milliseconds, so a re-serialised token would land just below its own row and the badge would never

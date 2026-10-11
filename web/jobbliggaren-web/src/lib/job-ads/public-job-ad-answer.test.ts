@@ -5,6 +5,7 @@ import {
   PUBLIC_JOB_AD_MISSING_PATH,
   RETRY_AFTER_DEFAULT_SECONDS,
   RETRY_AFTER_MAX_SECONDS,
+  answerForPublicJobAdAction,
   answerForPublicJobAdProbe,
   boundedRetryAfter,
   classifyPublicJobAdProbe,
@@ -99,6 +100,12 @@ describe("classifyPublicJobAdProbe", () => {
       expect(classifyPublicJobAdProbe(status, "5")).toEqual({ kind: "unavailable" });
     }
   );
+});
+
+describe("answerForPublicJobAdAction", () => {
+  it("is the internal page, with no status and no noindex: an action reads no ad", () => {
+    expect(answerForPublicJobAdAction(ID)).toEqual({ path: `/publik/jobb/${ID}`, noindex: false });
+  });
 });
 
 describe("answerForPublicJobAdProbe", () => {

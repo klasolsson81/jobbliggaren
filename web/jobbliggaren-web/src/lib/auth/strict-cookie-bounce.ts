@@ -10,9 +10,6 @@ import { hasControlCharacterOrBackslash } from "./safe-redirect";
 import { returnPathFor } from "./return-path";
 import { BOUNCE_MARKER } from "./bounce-marker";
 
-// Re-exported: the marker lives in its own module so a client island can read it without this file's server imports.
-export { BOUNCE_MARKER };
-
 const PARSE_BASE = new URL("https://jobbliggaren.invalid");
 
 const MAX_TARGET_LENGTH = 2048;

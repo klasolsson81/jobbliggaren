@@ -2920,9 +2920,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   animation: none;
 }
 /* The public job page (ADR 0165): the same envelope on the public frame, whose canvas is the same white, so the
-   envelope needs its own edge. `--jp-border` has a visible value in forced-colors and a dark value. */
+   envelope needs its own edge. Title and company are the advertiser's text, so a single long word breaks (#1727)
+   instead of scrolling the document sideways; both rules are inert when the word fits. */
 .jp-modal.jp-modal--public {
   border: 1px solid var(--jp-border);
+}
+.jp-modal--public .jp-modal__title,
+.jp-modal--public .jp-modal__company {
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 .jp-modal__head {
   display: flex;

@@ -187,6 +187,49 @@ describe("publicJobAdRoute — what the probe sends to the API", () => {
   });
 });
 
+describe("publicJobAdRoute — a Server Action posted to the page's own address (the language switch)", () => {
+  const ACTION = { "next-action": "4000deadbeef", "content-type": "text/plain;charset=UTF-8" };
+
+  it("rewrites a cookieless POST that carries next-action to the internal page, with no probe and no status of its own", async () => {
+    const res = await route(request(`/jobb/${ID}`, { method: "POST", headers: ACTION }));
+
+    expect(res?.headers.get("x-middleware-rewrite")).toBe(`https://app.test/publik/jobb/${ID}`);
+    expect(res?.status).toBe(200);
+    expect(res?.headers.get("cache-control")).toBe("no-store");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("carries exactly the headers it was given, so the nonce reaches the action's page", async () => {
+    const res = await route(request(`/jobb/${ID}`, { method: "POST", headers: ACTION }));
+    expect(res?.headers.get("x-middleware-request-x-nonce")).toBe("NONCE-1");
+  });
+
+  it("lower-cases the id it rewrites to", async () => {
+    const res = await route(request(`/jobb/${ID.toUpperCase()}`, { method: "POST", headers: ACTION }));
+    expect(res?.headers.get("x-middleware-rewrite")).toBe(`https://app.test/publik/jobb/${ID}`);
+  });
+
+  it.each([
+    ["a POST without next-action", { method: "POST" }],
+    ["a PUT with next-action", { method: "PUT", headers: ACTION }],
+    ["a DELETE with next-action", { method: "DELETE", headers: ACTION }],
+  ])("leaves %s to today's route", async (_label, opts) => {
+    expect(await route(request(`/jobb/${ID}`, opts))).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves a POST with next-action and a session cookie to today's route", async () => {
+    const res = await route(request(`/jobb/${ID}`, { method: "POST", headers: ACTION, cookie: true }), true);
+    expect(res).toBeNull();
+  });
+
+  it("does not take an action posted anywhere but exactly /jobb/<uuid>", async () => {
+    for (const path of ["/jobb", `/jobb/${ID}/extra`, "/jobb/not-a-guid", "/oversikt", "/logga-in"]) {
+      expect(await route(request(path, { method: "POST", headers: ACTION }))).toBeNull();
+    }
+  });
+});
+
 describe("publicJobAdRoute — everything that is not the anonymous detail", () => {
   it("leaves a request with a session cookie alone, and never asks the API", async () => {
     const res = await route(request(`/jobb/${ID}`, { cookie: true }), true);

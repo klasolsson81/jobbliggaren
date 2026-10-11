@@ -19,8 +19,4 @@ describe("stripBounceMarker", () => {
     expect(stripBounceMarker(`https://jobbliggaren.se/jobb/${ID}`)).toBeNull();
     expect(stripBounceMarker(`https://jobbliggaren.se/jobb/${ID}?a=1`)).toBeNull();
   });
-
-  it("reads the marker's name from the bounce, not from a literal of its own", () => {
-    expect(BOUNCE_MARKER).toBe("vidare");
-  });
 });

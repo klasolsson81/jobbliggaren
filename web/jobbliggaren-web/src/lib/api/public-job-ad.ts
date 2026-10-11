@@ -11,8 +11,7 @@ const PUBLIC_JOB_AD_TIMEOUT_MS = 5_000;
 /**
  * What the render needs from the public read (ADR 0160, ADR 0165). Three outcomes, because the page can
  * answer three ways: render, a 404, or a 5xx. `unavailable` is a throw at the page and never a `notFound()`:
- * Google drops a URL that answers 404 and only slows down on 429 and 5xx, so a budget or an outage must not
- * read as a removal (D9.5).
+ * Google drops a URL that answers 404, so a budget or an outage must not read as a removal (D9.5).
  */
 export type PublicJobAdResult =
   | { readonly kind: "ok"; readonly jobAd: PublicJobAdDto }
@@ -25,8 +24,8 @@ export type PublicJobAdResult =
  * visitor (D5); and `no-store` keeps an erased ad from being served stale (D6, ADR 0106).
  *
  * A 404 or a 410 here can only be the race after the edge's probe answered 200 (the ad ended in between), and
- * both are a 404 for the page. Nothing in this module logs a title, a company or a description: the only
- * log line is `parseResponse`'s shape-mismatch line, which carries the schema path and no value.
+ * both are a 404 for the page. Nothing in this module logs a title, a company or a description; the lines
+ * `parseResponse` writes carry the schema path and the error class, never a value.
  */
 export const getPublicJobAd = cache(async (id: string): Promise<PublicJobAdResult> => {
   if (!isValidId(id)) return { kind: "notFound" };

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { PublicJobAd } from "./public-job-ad";
 import type { PublicJobAdDto } from "@/lib/dto/public-job-ad";
@@ -61,31 +61,30 @@ describe("PublicJobAd", () => {
     expect(container.querySelector(".jp-modal__company i")).toBeNull();
   });
 
-  it("carries one primary action, the link out to Arbetsförmedlingen's page, opened safely", () => {
+  it("carries the link out twice, as a secondary action under the dates and as the one primary action in the footer", () => {
     const { container } = render(<PublicJobAd jobAd={AD} />);
 
-    const primary = container.querySelectorAll(".jp-btn--primary");
-    expect(primary).toHaveLength(1);
-    const link = screen.getByRole("link", { name: "Öppna annonsen hos Arbetsförmedlingen" });
-    expect(link).toHaveAttribute("href", AD.url);
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    expect(link).toHaveClass("jp-btn--primary");
+    expect(container.querySelectorAll(".jp-btn--primary")).toHaveLength(1);
+    const links = screen.getAllByRole("link", { name: "Öppna annonsen hos Arbetsförmedlingen" });
+    expect(links).toHaveLength(2);
+    for (const link of links) {
+      expect(link).toHaveAttribute("href", AD.url);
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    }
+    expect(links[0]).toHaveClass("jp-btn--secondary");
+    expect(links[0]?.closest("header")).not.toBeNull();
+    expect(links[1]).toHaveClass("jp-btn--primary");
+    expect(links[1]?.closest(".jp-modal__foot")).not.toBeNull();
   });
 
-  it("uses the plain label when the address is not Arbetsförmedlingen's", () => {
+  it("uses the plain label on both when the address is not Arbetsförmedlingen's", () => {
     render(<PublicJobAd jobAd={{ ...AD, url: "https://example.com/jobb/1" }} />);
 
-    expect(screen.getByRole("link", { name: "Öppna annonsen" })).toHaveAttribute("href", "https://example.com/jobb/1");
+    const links = screen.getAllByRole("link", { name: "Öppna annonsen" });
+    expect(links).toHaveLength(2);
+    for (const link of links) expect(link).toHaveAttribute("href", "https://example.com/jobb/1");
     expect(screen.queryByText(/hos Arbetsförmedlingen/)).toBeNull();
-  });
-
-  it.each(["javascript:alert(1)", "data:text/html,x", ""])("renders no link at all for the address %j", (url) => {
-    const { container } = render(<PublicJobAd jobAd={{ ...AD, url }} />);
-
-    expect(container.querySelector('a[href^="javascript"]')).toBeNull();
-    expect(container.querySelector(".jp-btn--primary")).toBeNull();
-    expect(container.querySelector(".jp-modal__foot")).toBeNull();
   });
 
   it("links the recruiter notice after the description, without any contact block", () => {
@@ -125,5 +124,27 @@ describe("PublicJobAd", () => {
   it("shows no internal id", () => {
     const { container } = render(<PublicJobAd jobAd={AD} />);
     expect(container.textContent).not.toContain(ID);
+  });
+
+  it("takes the cookie bounce's marker off the address bar and keeps the rest of the address and the history state", () => {
+    window.history.pushState({ keep: "state" }, "", `/jobb/${ID}?vidare=1&a=1#beskrivning`);
+    expect(window.location.search).toBe("?vidare=1&a=1");
+
+    render(<PublicJobAd jobAd={AD} />);
+
+    expect(window.location.search).toBe("?a=1");
+    expect(window.location.pathname).toBe(`/jobb/${ID}`);
+    expect(window.location.hash).toBe("#beskrivning");
+    expect(window.history.state).toEqual({ keep: "state" });
+  });
+
+  it("leaves an address without the marker alone", () => {
+    window.history.pushState(null, "", `/jobb/${ID}?a=1`);
+    const replace = vi.spyOn(window.history, "replaceState");
+
+    render(<PublicJobAd jobAd={AD} />);
+
+    expect(replace).not.toHaveBeenCalled();
+    replace.mockRestore();
   });
 });

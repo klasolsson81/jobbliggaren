@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import { PublicJobAd } from "@/components/job-ads/public-job-ad";
 import { getPublicJobAd } from "@/lib/api/public-job-ad";
@@ -12,17 +12,15 @@ interface PageProps {
 }
 
 /**
- * Den publika jobbsidan (ADR 0165): intern sida bakom `proxy.ts`, som skriver om en cookielös `/jobb/<uuid>` hit
- * efter att ha frågat den publika läsningen om annonsen är listad. URL:en förblir `/jobb/<uuid>`.
+ * The public job page (ADR 0165): an internal page behind `proxy.ts`, which rewrites a cookieless `/jobb/<uuid>` here
+ * after asking the public read whether the ad is listed. The address in the browser stays `/jobb/<uuid>`.
  *
- * Läsningen sker en gång per rendering (`getPublicJobAd` är `cache()`-lindad och delas med `generateMetadata`,
- * ADR 0160 D9.4), per request med klientens IP vidarebefordrad och utan cache. Svaret avgör bara om sidan
- * renderas: 404 och 410 (annonsen hann upphöra efter kantens 200) blir en riktig 404, och allt annat, alltså 429,
- * 5xx, timeout och ett svar som inte går att läsa, kastar och blir ett 5xx. Ett avbrott får aldrig läsas som en
- * borttagning (D9.5): Google tappar en URL som svarar 404 och saktar bara ned vid 429 och 5xx.
+ * One read per render (`getPublicJobAd` is wrapped in `cache()` and shared with `generateMetadata`; ADR 0160 D9.4).
+ * A 404 or 410 (the ad ended after the edge's 200) is a real 404; every other outcome throws and is a 5xx, so an
+ * outage never reads as a removal (D9.5).
  *
- * Titel, beskrivning och OG byggs av strukturerade fält (titel, företag, datum), aldrig ur annonstexten:
- * en länkförhandsvisning är en kopia hos tredje part som Art. 17(2)-steget inte når, och fritexten kan bära namn.
+ * Title, description and OpenGraph are built from structured fields only, never from the ad text: a link preview is
+ * a copy held by a third party, and the free text can name a person.
  */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
@@ -33,6 +31,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const t = await getTranslations("publicjob");
   const tMeta = await getTranslations("metadata");
   const format = await getFormatter();
+  const locale = await getLocale();
   const published = formatDate(format, jobAd.publishedAt) ?? "";
   const deadline = formatDate(format, jobAd.expiresAt);
 
@@ -41,7 +40,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     deadline === null
       ? t("meta.description", { company: jobAd.companyName, title: jobAd.title, published })
       : t("meta.descriptionWithDeadline", { company: jobAd.companyName, title: jobAd.title, published, deadline });
-  const url = absoluteUrl(`/jobb/${jobAd.id.toLowerCase()}`);
+  const url = absoluteUrl(`/jobb/${jobAd.id}`);
 
   return {
     title: documentTitle,
@@ -50,13 +49,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     robots: { index: true, follow: true },
     openGraph: {
       type: "website",
+      locale: locale === "sv" ? "sv_SE" : "en_US",
       siteName: tMeta("applicationName"),
       title: documentTitle,
       description,
       url,
-      // A page that sets its own `openGraph` replaces the root's wholesale, file-based image included (measured
-      // in the production build, `public-job-smoke.mjs`), so the shared image is named here. It is the one
-      // `app/opengraph-image.tsx` renders; a per-ad image is out of scope (epic #2090).
+      // A page's own `openGraph` replaces the root's wholesale, file-based image and locale included (measured in
+      // the production build), so both are named here. The image is the one `app/opengraph-image.tsx` renders.
       images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
     },
   };

@@ -7,9 +7,9 @@ import { isValidId } from "@/lib/validation/guid";
  */
 
 /** The internal route group's prefix. Only the proxy rewrites into it; a direct request is a 404 (ADR 0165). */
-export const PUBLIC_JOB_AD_INTERNAL_PREFIX = "/publik";
+const PUBLIC_JOB_AD_INTERNAL_PREFIX = "/publik";
 
-export const PUBLIC_JOB_AD_PAGE_PATH = (id: string): string => `${PUBLIC_JOB_AD_INTERNAL_PREFIX}/jobb/${id}`;
+const PUBLIC_JOB_AD_PAGE_PATH = (id: string): string => `${PUBLIC_JOB_AD_INTERNAL_PREFIX}/jobb/${id}`;
 export const PUBLIC_JOB_AD_GONE_PATH = `${PUBLIC_JOB_AD_INTERNAL_PREFIX}/borttagen`;
 export const PUBLIC_JOB_AD_BUSY_PATH = `${PUBLIC_JOB_AD_INTERNAL_PREFIX}/overbelastad`;
 /** No route matches this path, so the root not-found answers it with a real 404. */
@@ -78,8 +78,7 @@ export function boundedRetryAfter(headerValue: string | null): number {
  *
  * 410 is an ended or an erased ad, one answer. 404 and 400 are deterministic client answers, so the page is a
  * 404 (a 503 would make a crawler retry a URL that will never exist). 429 is the budget. Every other status,
- * a redirect included, is an outage and can never read as a removal: Google drops a URL that answers 404 or
- * 410 and only slows down on 429 and 5xx.
+ * a redirect included, is an outage and can never read as a removal: Google drops a URL that answers 404 or 410.
  */
 export function classifyPublicJobAdProbe(status: number, retryAfterHeader: string | null): PublicJobAdProbe {
   if (status === 200) return { kind: "listed" };
@@ -96,6 +95,11 @@ export type PublicJobAdAnswer = {
   readonly retryAfterSeconds?: number;
   readonly noindex: boolean;
 };
+
+/** A Server Action posted to the page's own address: the internal page, with no status of its own. */
+export function answerForPublicJobAdAction(id: string): PublicJobAdAnswer {
+  return { path: PUBLIC_JOB_AD_PAGE_PATH(id), noindex: false };
+}
 
 export function answerForPublicJobAdProbe(id: string, probe: PublicJobAdProbe): PublicJobAdAnswer {
   switch (probe.kind) {

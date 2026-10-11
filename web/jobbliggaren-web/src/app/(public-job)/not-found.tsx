@@ -8,16 +8,20 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * (public-job)/not-found — 404-gränsen för den publika jobbsidan (ADR 0165). Sidan anropar `notFound()` när dess
- * egen läsning visar att annonsen inte längre är listad efter att kanten svarat 200 (annonsen hann upphöra
- * emellan). Ett okänt eller aldrig publicerat id når inte hit: kanten skriver om det till en path ingen route
- * matchar, och rotens `not-found` svarar. Renderas som layoutens barn, så ramen överlever.
+ * (public-job)/not-found: the 404 boundary of the public job page (ADR 0165). The page calls `notFound()` when its own
+ * read finds the ad no longer listed after the edge answered 200. An unknown or never-published id does not reach here:
+ * the edge rewrites it to a path no route matches, and the root `not-found` answers. Rendered as the layout's children,
+ * so the frame survives.
  */
 export default async function PublicJobNotFound() {
   const t = await getTranslations("fallback");
 
   return (
-    <main id="main" tabIndex={-1} className="jp-container jp-page flex flex-col gap-4 focus:outline-none">
+    <main
+      id="main"
+      tabIndex={-1}
+      className="jp-container jp-page flex min-h-[60vh] flex-col justify-center gap-4 focus:outline-none"
+    >
       <h1 className="jp-h1">{t("notFound.title")}</h1>
       <p className="jp-lede">{t("notFound.body")}</p>
       <div>

@@ -125,6 +125,7 @@ async function get(origin, path, init = {}) {
     signal: AbortSignal.timeout(20_000),
     headers: { "x-forwarded-for": CLIENT_IP, "x-forwarded-proto": "https", ...init.headers },
     method: init.method ?? "GET",
+    body: init.body,
   });
   const body = init.method === "HEAD" ? "" : await res.text();
   return { status: res.status, headers: res.headers, body };
@@ -239,6 +240,7 @@ try {
     const res = await get(origin, `/jobb/${ID.unknown}`);
     assert.equal(res.status, 404);
     assert.match(res.body, /<main[^>]*id="main"/);
+    assert.match(res.headers.get("cache-control") ?? "", /no-store/);
     assert.equal(callsFor(ID.unknown).length, 1);
   });
 
@@ -249,12 +251,14 @@ try {
     assert.equal(res.headers.get("x-robots-tag"), "noindex");
     assert.match(res.body, /Annonsen kan inte visas just nu/);
     assert.match(res.body, /<main[^>]*id="main"/);
+    assert.match(res.headers.get("cache-control") ?? "", /no-store/);
   });
 
   await check("an outage (an upstream 500) is a 503, never a 404 or a 410", async () => {
     const res = await get(origin, `/jobb/${ID.outage}`);
     assert.equal(res.status, 503);
     assert.ok(res.headers.get("retry-after"));
+    assert.match(res.body, /<main[^>]*id="main"/);
   });
 
   await check("a read that fails after the probe answered 200 is a 5xx, never a 404", async () => {
@@ -265,6 +269,9 @@ try {
   await check("an ad that ends between the probe and the render is a real 404", async () => {
     const res = await get(origin, `/jobb/${ID.raceEnded}`);
     assert.equal(res.status, 404);
+    // Next answers a page's own notFound() here with its error shell, which the browser renders into the frame, so
+    // the raw HTML carries no <main>; the contract is the status and the noindex.
+    assert.match(res.body, /<meta name="robots" content="noindex"/);
   });
 
   await check("the internal pages are not URLs: a direct request is a 404", async () => {
@@ -272,8 +279,27 @@ try {
     for (const path of [`/publik/jobb/${ID.listed}`, "/publik/borttagen", "/publik/overbelastad", "/%70ublik/borttagen"]) {
       const res = await get(origin, path);
       assert.equal(res.status, 404, path);
+      assert.match(res.body, /<main[^>]*id="main"/, path);
     }
     assert.equal(publicCalls().length, 0);
+  });
+
+  await check("a Server Action posted to the page's own address (the language switch) is not sent to the login page and reads no ad", async () => {
+    seen.length = 0;
+    const res = await get(origin, `/jobb/${ID.listed}`, {
+      method: "POST",
+      headers: { "next-action": "4000deadbeefdeadbeefdeadbeefdeadbeefdead", "content-type": "text/plain;charset=UTF-8" },
+      body: "[]",
+    });
+    assert.notEqual(res.status, 307, "an action POST must not meet the login redirect");
+    assert.ok(!(res.headers.get("location") ?? "").includes("/logga-in"));
+    assert.equal(publicCalls().length, 0);
+  });
+
+  await check("a POST to the page's address without next-action still meets the login page", async () => {
+    const res = await get(origin, `/jobb/${ID.listed}`, { method: "POST", headers: { "content-type": "text/plain" }, body: "x" });
+    assert.equal(res.status, 307);
+    assert.match(res.headers.get("location") ?? "", /\/logga-in/);
   });
 
   await check("a request with a session cookie keeps today's route: the refresh driver, never the public read", async () => {

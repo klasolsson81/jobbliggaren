@@ -99,7 +99,7 @@ to e-mail recruiters), and the time from publication to a request is a window in
 **W2 — A sole trader's company name is a personal name, and it is indexed.**
 `company_name` is in the page title, the company line and the link preview. The organization number is never published
 (ADR 0087 D8(c)). The register treats the name as public metadata because Arbetsförmedlingen published it. *What is done:*
-Tier B applies to a sole trader as to anyone; the S2-P3 count covers `company_name` (D11). *What is left:* the name is
+Tier B applies to a sole trader as to anyone; the S2-P3 count covers `company_name` and `url` (D11). *What is left:* the name is
 findable by search, and a preview of title and company can sit in a cache we can not reach (W4).
 
 **W3 — A personnummer in the text: the #2123 residue, in new imports too.**
@@ -116,7 +116,7 @@ nothing in this ADR measures that continuously. Closing it is #2123's fix.
 Search-engine caches, link previews and web archives hold copies that an erasure on our side does not remove. *What is done:*
 the 410 and the Search Console and Bing steps in the runbook (Art. 17(2): reasonable steps toward those who hold the address),
 `no-store` on our side so an erased ad is never served stale, and metadata built from title, company and dates only, so a
-preview carries no free text and no name that is not the company's. *What is left:* what is in those copies, and for how long.
+preview carries no free text. *What is left:* what is in those copies, and for how long.
 
 **Beside the four.** The ad is published by the employer, in a source whose terms tell advertisers that its data may be shown
 at other actors, and the person named is, in the usual case, named in a role to be contacted about a job. Those facts speak
@@ -232,8 +232,8 @@ affected scope only, until Klas has taken it again. It withdraws no finding and 
 ### D11 — The S2-P3 gate, and where it stands
 
 S2-P3 is a hard gate before go-live and is not waived (Klas waived only the backfill, ADR 0160 amendment). It is two counts
-over listed `job_ads` (Active, `expires_at` null or not past, imported from Platsbanken), in the title, the description **and**
-`company_name`. The first is a superset pattern over both families of forms: #2098's plain and 12-digit forms and #2123's
+over listed `job_ads` (Active, `expires_at` null or not past, imported from Platsbanken), in the title, the description,
+`company_name` **and** `url` (the four values the page prints; the last two are never masked at import). The first is a superset pattern over both families of forms: #2098's plain and 12-digit forms and #2123's
 spaced-hyphen and `.`, `/`, `_` forms. The second is a date- and check-digit-validated count in SQL, by the same predicate as
 `Personnummer.TryParse`. **The gate is the validated count: 0.** The SQL is written so that no cast can fail on a data value
 (a cast error echoes the value, which would be an unintended read, CLAUDE.md §9.2 (e)), and only counts are written down. It is

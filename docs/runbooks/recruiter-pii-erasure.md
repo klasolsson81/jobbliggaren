@@ -348,7 +348,8 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
    treats like a 404 and drops from the index when it next crawls the URL. The tool needs a
    property you own, and blocking the address in `robots.txt` is the wrong tool, so we do
    not.
-4. **Bing Webmaster Tools**, if the property is verified there: the same, with *Block URLs*.
+4. **Bing Webmaster Tools**: the same, with *Block URLs*. Both properties are verified before the public page goes live
+   (the date of each is recorded on #2090), because the notice tells recruiters that we ask the search engines.
 5. **Record in the case file, not in the repo:** the date, how many addresses, and who did
    it. Do not write the addresses or the names into an issue, a commit or a PR.
 6. **Say what cannot be reached**, in the reply: a link-preview cache, another search

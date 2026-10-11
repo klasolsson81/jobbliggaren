@@ -902,6 +902,32 @@ describe("proxy: the public job page", () => {
     expect(new URL(res.headers.get("location") ?? "", "https://app.test").pathname).toBe("/logga-in");
   });
 
+  it("rewrites an anonymous Server Action posted to /jobb/<uuid> (the language switch) to the internal page, without asking the API", async () => {
+    const res = await proxy(
+      makeRequest(`/jobb/${ID}`, { method: "POST", headers: { "next-action": "4000deadbeef" } })
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-middleware-rewrite")).toBe(`https://app.test/publik/jobb/${ID}`);
+    expect(res.headers.get("x-middleware-next")).toBeNull();
+    expect(res.headers.get("x-middleware-request-x-nonce")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("still sends a Server Action posted with a session cookie down today's route", async () => {
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: false, sessionId: null, expiresAt: "2026-12-31T00:00:00Z" }));
+    const res = await proxy(
+      makeRequest(`/jobb/${ID}`, {
+        method: "POST",
+        headers: { "next-action": "4000deadbeef" },
+        cookies: { [SESSION_COOKIE_NAME]: "sess-1" },
+      })
+    );
+
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain(PUBLIC_URL);
+  });
+
   it("gives an anonymous cross-site browser navigation the continuation document first, without asking the API (#2094)", async () => {
     const res = await proxy(makeRequest(`/jobb/${ID}`, { headers: CROSS_SITE }));
 

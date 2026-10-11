@@ -8,12 +8,11 @@ import { useFocusMainOnUnmount } from "@/lib/hooks/use-focus-main-on-unmount";
 import { useReloadOnStaleBuild } from "@/lib/hooks/use-reload-on-stale-build";
 
 /**
- * (public-job)/error — felgränsen för den publika jobbsidan (ADR 0165). Samma form som
- * `(marketing-inner)/error.tsx`: layoutens SiteHeader och SiteFooter överlever, eftersom Next renderar den här
- * som layoutens barn, och ytan bär ett eget `<main id="main">` för hoppa-över-länken (#1477).
- *
- * Ett serverfel före första byte blir ett riktigt 500 från Next och når inte hit; den här fångar klientfel.
- * `error` läses bara av `useReloadOnStaleBuild` (ADR 0148) och visas eller loggas aldrig.
+ * (public-job)/error: the error boundary of the public job page (ADR 0165), shaped like
+ * `(marketing-inner)/error.tsx`. The layout's header and footer survive, because Next renders this as the layout's
+ * children, and the surface carries its own `<main id="main">` for the skip link (#1477). A server error before the
+ * first byte is a real 500 from Next and does not reach here; this catches client errors. `error` is read only by
+ * `useReloadOnStaleBuild` (ADR 0148) and is never shown or logged.
  */
 function PublicJobErrorSurface({ retry }: Pick<ErrorInfo, "retry">) {
   const t = useTranslations("fallback");

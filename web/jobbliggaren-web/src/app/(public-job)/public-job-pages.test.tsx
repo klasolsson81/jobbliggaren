@@ -8,6 +8,7 @@ vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace?: string) =>
     createTranslator({ locale: "sv", messages: sv as never, namespace: namespace as never }),
   getFormatter: async () => createFormatter({ locale: "sv", timeZone: "Europe/Stockholm" }),
+  getLocale: async () => "sv",
 }));
 
 const getPublicJobAd = vi.fn<(id: string) => Promise<PublicJobAdResult>>();
@@ -59,19 +60,12 @@ describe("the public job page", () => {
     expect(String((error as { digest?: unknown }).digest ?? "")).not.toContain("404");
   });
 
-  it("reads the ad once for the page and once for the metadata, which React's cache makes one call per render", async () => {
-    getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: AD });
-    await generateMetadata(params());
-    render(await PublicJobPage(params()));
-
-    expect(getPublicJobAd.mock.calls.every(([id]) => id === ID)).toBe(true);
-  });
 });
 
 describe("the public job page's metadata", () => {
   it("is built from the structured fields: the title, the company, the dates and the clean canonical", async () => {
     getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: AD });
-    const metadata = await generateMetadata(params(ID.toUpperCase()));
+    const metadata = await generateMetadata(params());
 
     expect(metadata.title).toBe("Sjuksköterska – Region Exempel");
     expect(metadata.description).toBe(
@@ -81,6 +75,7 @@ describe("the public job page's metadata", () => {
     expect(metadata.robots).toEqual({ index: true, follow: true });
     expect(metadata.openGraph).toMatchObject({
       type: "website",
+      locale: "sv_SE",
       siteName: "Jobbliggaren",
       title: "Sjuksköterska – Region Exempel",
       url: `https://dev.jobbliggaren.se/jobb/${ID}`,

@@ -6,7 +6,7 @@ import {
 } from "@/lib/job-ads/public-job-ad-answer";
 
 /** Short, because the probe sits in front of the render: a stalled API must become a 503 quickly. */
-export const PUBLIC_JOB_AD_PROBE_TIMEOUT_MS = 2_500;
+const PUBLIC_JOB_AD_PROBE_TIMEOUT_MS = 2_500;
 
 /**
  * Asks the public endpoint for a status and nothing else (ADR 0165): the proxy needs it before the first byte,

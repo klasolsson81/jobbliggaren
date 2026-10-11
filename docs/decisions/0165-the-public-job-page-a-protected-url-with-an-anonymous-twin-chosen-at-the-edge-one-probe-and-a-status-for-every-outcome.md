@@ -56,10 +56,18 @@ endpoint once and maps the answer to a page and a status, so every outcome has t
 - **The signed-in route is untouched.** `(app)/jobb/[id]`, the `@modal` slot, `PROTECTED_PREFIXES` and the #2094 bounce do not
   change. A request with a cookie takes today's path byte for byte (pinned). The two pages change for different reasons (SRP,
   CCP), and "the modal and Back/Forward are unchanged" holds by construction (OCP).
-- **The branch.** It sits after `strictCookieBounce` and before the login redirect. It handles only `GET` and `HEAD` with a
+- **The branch.** It sits after `strictCookieBounce` and before the login redirect. It handles `GET` and `HEAD` with a
   path that is one segment and a well-formed GUID (`isValidId`, no encoding). An upper-case GUID gets a 308 to its lower-case
-  form, so the page has one URL. Everything else (`/jobb`, `/jobb/not-a-guid`, `/jobb/<uuid>/extra`, a `POST`) keeps today's
-  path and meets the login redirect.
+  form, so the page has one URL. Everything else (`/jobb`, `/jobb/not-a-guid`, `/jobb/<uuid>/extra`, a `PUT`, a `POST` without
+  `next-action`) keeps today's path and meets the login redirect.
+- **A Server Action posted to the page's own address** (amended 2026-10-11, CTO ruling, after the browser measurement below).
+  The language switch in the shared header is a Server Action, and a browser posts it to the URL of the page it is on. A
+  cookieless `POST` to exactly `/jobb/<uuid>` that carries `next-action` is rewritten to `/publik/jobb/<id>`, with no probe
+  (an action reads no ad) and the same forwarded headers. Before this, that POST met the login redirect, the browser
+  re-posted it to `/logga-in`, and the page ended on its error surface with the language unchanged (measured 2026-10-11 against
+  the production build). The safety property is not that the group holds only that action: Next forwards an action id it
+  cannot find to a worker that has it. It is that every Server Action authorizes itself, and an anonymous action POST already
+  reaches that handler on every public page (`/`, `/om`, the rest), so the branch adds no new kind of reachability.
 - **It never calls `next()`**, not even for a prefetch. A cookieless request that reached the `(app)` route could reach its
   intercepting modal with a forged `Next-Url`.
 - **The internal prefix is not a URL.** A direct request to `/publik/**` is a 404 from the proxy, for everyone. The match is
@@ -104,8 +112,9 @@ The proxy makes **one** `GET /api/v1/public/job-ads/{id}`, whatever the method o
   `BACKEND_URL`, starts the standalone server the image runs (`HOSTNAME=0.0.0.0`, `X-Forwarded-Proto: https`), and asserts
   over HTTP: 200 with its text and a clean canonical; one 410 page for an ended and an erased ad with byte-identical `<main>`;
   503 with `Retry-After` for a stub 429 and for a stub 5xx; a 5xx (never a 404) when the probe says 200 and the render fails;
-  a 404 when the ad ends in between; `/publik/**` and its encoded form a 404 with no API call; the cookie path unchanged; and
-  a `<main>` landmark in every body, so every state is framed. **The run on `next start -H 127.0.0.1` is not representative:** Next
+  a 404 (with `noindex`) when the ad ends in between; `/publik/**` and its encoded form a 404 with no API call; the cookie path
+  unchanged; a Server Action posted to the page's address not sent to the login page; and a `<main>` landmark in the body of
+  every state the proxy answers except that race 404. **The run on `next start -H 127.0.0.1` is not representative:** Next
   compared the rewrite's origin with the one it derived for itself and treated a same-origin rewrite as external, so it hung.
 - **If a later Next stops carrying the status,** the build fails. The way out is not a quiet switch to an unframed document:
   that needs Klas's decision (see the 410 and 503 pages in D4).
@@ -228,6 +237,8 @@ The proxy makes **one** `GET /api/v1/public/job-ads/{id}`, whatever the method o
   crawler does not (D5).
 - **A render failure after a 200 probe shows Next's own 500 page,** which is unframed. It needs the API to fail between the
   probe and the render, which is rare.
+- **An ad that ends between the probe and the render is a real 404 whose HTML is Next's error shell** (`__next_error__`, with
+  `noindex`), which the browser renders into the frame (header, `main`, footer; measured). The raw HTML carries no `<main>`.
 - **No per-ad OpenGraph image.**
 - **The mechanism rests on an undocumented Next feature.** The pin makes a Next upgrade that breaks it fail the build, which
   is the intent, and the fallback needs a decision (D2).
@@ -247,8 +258,8 @@ Ships under #2090 S2 in one PR with this ADR, ADR 0164 and the three amendments 
   `src/lib/job-ads/ad-source-link.ts` · `messages/{sv,en}/publicjob.json`
 - `src/app/robots.ts` and its emulation in `seo-metadata-routes.test.ts`
 - `scripts/public-job-smoke.mjs` and its step in the `frontend` job of `.github/workflows/build.yml`
-- Fitness tests: no `loading.tsx` and no `dangerouslySetInnerHTML` in the group, the group in the client-namespace payload and
-  the canonical test lists, and a title for the dynamic pages.
+- Fitness tests: no `loading.tsx` and no `dangerouslySetInnerHTML` in the group, the group in the client-namespace payload
+  boundaries and the error-boundary tables, and a title for the dynamic pages.
 
 ## References
 

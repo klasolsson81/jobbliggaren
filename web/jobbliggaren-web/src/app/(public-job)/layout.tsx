@@ -7,16 +7,14 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { ReloadedAfterUpdateNotice } from "@/components/site/reloaded-after-update-notice";
 
 /**
- * Layout för den publika jobbsidan och dess lägen (ADR 0165). Gruppen når ingen URL på egen hand: `proxy.ts`
- * skriver om en cookielös `/jobb/<uuid>` hit, och en direkt träff på `/publik/**` är ett 404 därifrån.
+ * Layout for the public job page and its states (ADR 0165). The group is no URL of its own: `proxy.ts` rewrites a
+ * cookieless `/jobb/<uuid>` into it, and a direct request for `/publik/**` is a 404.
  *
- * Samma ram som `(marketing-inner)` (SiteHeader, SiteFooter, uppdateringsnotisen), så en besökare som kommer
- * från en sökträff eller en delad länk aldrig hamnar utanför Jobbliggarens ramverk. Varje sida äger sitt eget
- * `<main id="main">`, som SiteHeaders enda hoppa-över-länk pekar på.
+ * The `(marketing-inner)` frame, so a visitor from a search result or a shared link is never outside the site's
+ * frame. Each page owns its `<main id="main">`, which the header's skip link points at.
  *
- * Ingen `loading.tsx` i gruppen, och det är avsiktligt: ett Suspense-fall committar 200 innan kroppen, och då kan
- * en `notFound()` eller ett kastat fel inte längre bli en riktig 404 eller 5xx (Next streaming-guiden, "Status
- * codes"). `public-job-group.test.ts` fäster det.
+ * No `loading.tsx` in the group, on purpose: a Suspense fallback commits a 200 before the body, and a later
+ * `notFound()` or throw can no longer become a real 404 or 5xx. `public-job-group.test.ts` pins it.
  */
 export default async function PublicJobLayout({ children }: { children: ReactNode }) {
   const locale = await getLocale();

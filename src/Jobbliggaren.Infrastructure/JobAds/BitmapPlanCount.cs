@@ -36,6 +36,9 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// </summary>
 internal static class BitmapPlanCount
 {
+    private const string SeqScanOff = "SET LOCAL enable_seqscan = off";
+    private const string SeqScanAndNestLoopOff = SeqScanOff + "; SET LOCAL enable_nestloop = off";
+
     public static async Task<TResult> CountWithBitmapPlanAsync<TResult>(
         AppDbContext db,
         ResolvedSearchText text,
@@ -47,14 +50,35 @@ internal static class BitmapPlanCount
         if (!text.HasFreeTextPredicate)
             return await count(cancellationToken);
 
+        return await RunUnderAsync(
+            db, text.Excluded.Count > 0 ? SeqScanAndNestLoopOff : SeqScanOff, count, cancellationToken);
+    }
+
+    /// <summary>
+    /// #2143 (ADR 0167 D6) — an item read with minus-words runs under the same pair as their count. Under
+    /// its LIMIT the planner picks the nested loop anti join, expecting survivors early; a minus-word that
+    /// hides nearly every ad makes it probe, and detoast, every row. Without minus-words the read runs
+    /// bare, as before.
+    /// </summary>
+    public static async Task<TResult> ReadWithExclusionPlanAsync<TResult>(
+        AppDbContext db,
+        ResolvedSearchText text,
+        Func<CancellationToken, Task<TResult>> read,
+        CancellationToken cancellationToken) =>
+        text.Excluded.Count == 0
+            ? await read(cancellationToken)
+            : await RunUnderAsync(db, SeqScanAndNestLoopOff, read, cancellationToken);
+
+    private static async Task<TResult> RunUnderAsync<TResult>(
+        AppDbContext db,
+        string setLocal,
+        Func<CancellationToken, Task<TResult>> run,
+        CancellationToken cancellationToken)
+    {
         await using var transaction =
             await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.Database.ExecuteSqlRawAsync(
-            text.Excluded.Count > 0
-                ? "SET LOCAL enable_seqscan = off; SET LOCAL enable_nestloop = off"
-                : "SET LOCAL enable_seqscan = off",
-            cancellationToken);
-        var result = await count(cancellationToken);
+        await db.Database.ExecuteSqlRawAsync(setLocal, cancellationToken);
+        var result = await run(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
     }

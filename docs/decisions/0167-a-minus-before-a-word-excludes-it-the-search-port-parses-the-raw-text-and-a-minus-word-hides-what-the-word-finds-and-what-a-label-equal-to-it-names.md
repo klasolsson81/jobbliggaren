@@ -55,9 +55,10 @@ D1–D10 are this ADR's numbering.
 After the existing normalisation (whitespace collapsed, control and format characters stripped, length bounded), the text is split on
 whitespace and comma. A token whose first rune after any leading `+` is dash punctuation (Unicode `Pd`) or U+2212 is an **excluded term**.
 
-- **The term never starts with an operator.** Its leading run of `+`, `"` and dashes and its trailing quotes are stripped. Without that,
-  `-"-deltid"` would become the term `-deltid`, which inside the `EXISTS` reads as `!'deltid'` and inverts the set (the architect's Viktigt 1).
-- **Bounds.** A term under `SearchCriteria.QMinLength` is dropped. Duplicates are dropped case-insensitively and the first casing wins. At most
+- **The term never starts with an operator.** Its leading run of `+`, `"`, dashes and the operators `websearch_to_tsquery` skips while it
+  waits for an operand (`! & | ( ) <`) and its trailing quotes are stripped. Without that, `-"-deltid"` would become the term `-deltid`, and
+  `-(-deltid` the term `(-deltid`, each of which inside the `EXISTS` reads as `!'deltid'` and inverts the set.
+- **Bounds.** A term under `SearchCriteria.QMinLength`, or with no letter or digit, is dropped, so it takes none of the five places. Duplicates are dropped case-insensitively and the first casing wins. At most
   five are kept (`ParsedSearchQuery.MaxExcludedTerms`; the frontend mirrors it as `Q_MAX_EXCLUDED_TERMS`). A bare operator token, a lone dash
   included, is dropped.
 - **A dash inside a word stays positive** (`e-handel`); only a token-initial dash excludes.
@@ -70,8 +71,8 @@ whitespace and comma. A token whose first rune after any leading `+` is dash pun
 
 Two things, joined by OR:
 
-- **Text.** Every ad the same word would find as a plus-word: the title and employer substrings (from three characters, as for a plus-word,
-  ADR 0062 Amendment 2026-06-13), the SSYK arm through the synonym expansion, and the full-text arm.
+- **Text.** Every ad the same word would find as a plus-word: the title and employer substrings (for a word with a run of three letters or
+  digits, the run pg_trgm can serve, as for a plus-word), the SSYK arm through the synonym expansion, and the full-text arm.
 - **Labels.** Every ad whose kommun, yrkesområde (through its yrkesgrupper), yrkesgrupp, yrke, anställningsform or omfattning label equals the
   word: trimmed, whitespace-collapsed, case-insensitive, **never a prefix** (`-deltidsjobb` does not name Deltid).
 
@@ -129,16 +130,23 @@ row and detoast `search_vector` at every probe, the same cost the planner cannot
 count 458 ms at p95. With the nested loop prohibited each minus-word is a hash anti join over the GIN bitmap, built once, and the count took
 45 ms.
 
+**An item read with minus-words runs under the same pair** (`BitmapPlanCount.ReadWithExclusionPlanAsync`); without minus-words it still runs
+bare. Under its `LIMIT` the planner picks the nested loop anti join, expecting twenty survivors early. Measured 2026-10-11 at 32 000 active ads,
+`EXPLAIN ANALYZE` of the item read: for `-svenska`, a word in every active ad, it probed and detoasted every row, 253 ms; under the pair, 15 ms.
+The price falls on the common case: `-stockholm`'s item read went from 0.3 ms to 12 ms, and `lärare -deltid`'s from 2 ms to 5 ms.
+
 ### D7 — The full-text arm is evaluated last
 
-In `MatchesText` the substring arms (title, employer) and the SSYK arm come first and the full-text arm last. Postgres evaluates an `OR` in
-order and stops at the first true, so a row already matched by title, employer or SSYK never has its `search_vector` detoasted in a recheck or
+In `MatchesText` the substring arms (title, employer) and the SSYK arm come first and the full-text arm last. PostgreSQL 18's executor
+evaluates the arms as written and stops at the first true (measured, not guaranteed: docs §4.2.14), so a row already matched by title, employer or SSYK never has its `search_vector` detoasted in a recheck or
 a filter. `-are`, which matches every title, went from 663 ms to 84 ms at p95. The order also applies to the plus-word path: the same rows
 and the same index eligibility, so no result changes.
 
 ### D8 — LIKE patterns are escaped
 
-`LikePatterns.Contains` escapes `%`, `_` and `\` (the escape in `EmployerDisambiguationQuery` moved there). **Rows change** for a q containing
+`LikePatterns.Contains` escapes `%`, `_` and `\` (the escape in `EmployerDisambiguationQuery` moved there), and every
+LIKE passes `LikePatterns.EscapeCharacter`: EF Npgsql emits `ESCAPE ''` for the two-argument `EF.Functions.Like`, which had turned the escape
+off in the employer typeahead since #1546. **Rows change** for a q containing
 one of them: "100%" now matches literally instead of as a wildcard. This applies to the plus-word path too, and ADR 0062's amendment records it.
 
 ### D9 — Recent-search capture
@@ -212,16 +220,24 @@ and count together, against ADR 0045 class (a), read and list: p95 300 ms.
 
 | q | p50 | p95 | |
 |---|---|---|---|
-| (none) | 7.5 ms | 8.5 ms | |
-| `stockholm` | 197 ms | 228 ms | plus-word baseline |
-| `-stockholm` | 18 ms | 24 ms | |
-| `lärare -deltid` | 199 ms | 266 ms | the plus-word `lärare` dominates |
-| `-are` | 72 ms | 84 ms | excludes every ad |
-| five minus-words | 37 ms | 45 ms | |
+| (none) | 5.6 ms | 7.0 ms | |
+| `stockholm` | 5.6 ms | 6.1 ms | plus-word baseline |
+| `-stockholm` | 26 ms | 27 ms | |
+| `lärare -deltid` | 14 ms | 15 ms | |
+| `-are` | 55 ms | 67 ms | excludes every ad |
+| `svenska` | 8.6 ms | 9.0 ms | plus-word baseline |
+| `-svenska` | 27 ms | 32 ms | a word in every active ad |
+| five minus-words | 38 ms | 43 ms | |
+| `-c++` | 18 ms | 19 ms | no trigram, so no substring arm |
+| five minus-words with no letter | 4.9 ms | 5.7 ms | dropped by the grammar (D1) |
+| new-results count, `-svenska` | 14 ms | 14 ms | `CountNewSinceAsync`, last hour |
 
-The corpus sizes the descriptions to be stored out of line, as production's are, so the detoast cost is in the number. Two changes in this PR
-made these numbers: D6 (five minus-words 458 ms p95 without it) and D7 (`-are` 663 ms p95 with the full-text arm first). The planner-usability
-oracle pins that the anti join's inner side is servable by all three GIN indexes (D5).
+The corpus sizes the descriptions to be stored out of line, as production's are, so the detoast cost is in the number, and it seeds the
+taxonomy so the label arm runs. It is vacuumed after seeding, as production's autovacuumed table is; before that, the plus-word `svenska`
+read 10 ms in one run and 170 ms in another. Three changes in this PR made
+these numbers, each read before against the unvacuumed corpus: D6's count (five minus-words 458 ms p95 without it) and item read (`-svenska`
+253 ms without it), and D7 (`-are` 663 ms p95 with the full-text arm first). The planner-usability oracle pins that the anti join's inner
+side is servable by all three GIN indexes (D5).
 
 ## References
 

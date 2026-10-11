@@ -25,7 +25,6 @@ public sealed class TaxonomyReadModelExactLabelTests
         Concept("grp_fsk", TaxonomyConceptKind.OccupationGroup, "Förskollärare", "fld_ped"),
         Concept("grp_ako", TaxonomyConceptKind.OccupationGroup, "Åklagare"),
         Concept("occ_ako", TaxonomyConceptKind.Occupation, "Åklagare"),
-        Concept("occ_two", TaxonomyConceptKind.Occupation, "Lärare  i   dans"),
     ];
 
     private static readonly Dictionary<string, IReadOnlyList<TaxonomyReadModel.ExactLabelHit>> Index =
@@ -77,7 +76,6 @@ public sealed class TaxonomyReadModelExactLabelTests
     [Fact]
     public void ARegion_IsNotIndexed()
     {
-        Hits("stockholms län").ShouldBeEmpty();
         Index.Values.SelectMany(h => h).ShouldNotContain(h => h.Kind == TaxonomyConceptKind.Region);
     }
 
@@ -88,9 +86,15 @@ public sealed class TaxonomyReadModelExactLabelTests
         Hits("behovsanställning").ShouldBe([new(TaxonomyConceptKind.EmploymentType, "et_beh")]);
     }
 
+    // The index is built inside the read model's load: a kind it does not classify would fail every
+    // taxonomy read, not only the minus-words.
     [Fact]
-    public void ALabelKey_IsWhitespaceCollapsed()
+    public void EveryConceptKind_IsClassifiedByTheIndex()
     {
-        Hits("lärare i dans").ShouldBe([new(TaxonomyConceptKind.Occupation, "occ_two")]);
+        var oneOfEach = Enum.GetValues<TaxonomyConceptKind>()
+            .Select(kind => Concept($"id_{kind}", kind, $"Label {kind}"))
+            .ToList();
+
+        Should.NotThrow(() => TaxonomyReadModel.BuildExactLabelIndex(oneOfEach));
     }
 }

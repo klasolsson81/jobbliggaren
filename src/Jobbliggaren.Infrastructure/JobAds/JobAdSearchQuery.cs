@@ -42,7 +42,8 @@ internal sealed class JobAdSearchQuery(
         // och lider av identisk TOAST-detoast-seqscan. #744 — hygienen gatas på q:
         // utan fritext finns ingen detoast att undvika. Den efterföljande items-
         // queryn (ts_rank-ordering + paginering) körs UTANFÖR transaktionen och
-        // är medvetet orörd (enable_seqscan=off vore fel för ts_rank-vägen).
+        // utan GUC (enable_seqscan=off vore fel för ts_rank-vägen) — utom med
+        // minus-ord (#2143, BitmapPlanCount.ReadWithExclusionPlanAsync).
         var totalCount = await BitmapPlanCount.CountWithBitmapPlanAsync(
             db, filter.Text,
             baseQuery.CountAsync, cancellationToken);
@@ -51,11 +52,12 @@ internal sealed class JobAdSearchQuery(
         // så den per-användar-vägen kan återbruka samma rena sort under grad-filter.
         var ordered = JobAdSearchComposition.ApplySort(baseQuery, criteria.SortBy, filter.Text);
 
-        var items = await ordered
+        var pageQuery = ordered
             .Skip((criteria.Page - 1) * criteria.PageSize)
             .Take(criteria.PageSize)
-            .Select(JobAdSearchComposition.ToDto())
-            .ToListAsync(cancellationToken);
+            .Select(JobAdSearchComposition.ToDto());
+        var items = await BitmapPlanCount.ReadWithExclusionPlanAsync(
+            db, filter.Text, pageQuery.ToListAsync, cancellationToken);
 
         return new PagedResult<JobAdDto>(items, totalCount, criteria.Page, criteria.PageSize);
     }

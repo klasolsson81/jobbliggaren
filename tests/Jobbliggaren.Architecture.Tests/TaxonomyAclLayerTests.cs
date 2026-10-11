@@ -198,10 +198,13 @@ public class TaxonomyAclLayerTests
     public void Only_the_search_text_resolver_injects_ITaxonomyLabelMatcher()
     {
         var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyLabelMatcher);
+        // Every assembly that can resolve the port (precedent: ErasurePortInjectionRadiusTests).
         var assemblies = new[]
         {
             typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
             typeof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver).Assembly,
+            typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
+            typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
         };
 
         var consumers = assemblies
@@ -210,7 +213,7 @@ public class TaxonomyAclLayerTests
             .Where(t => t.GetConstructors(
                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
                     | System.Reflection.BindingFlags.Instance)
-                .Any(c => c.GetParameters().Any(p => p.ParameterType == port)))
+                .Any(c => c.GetParameters().Any(p => port.IsAssignableFrom(p.ParameterType))))
             .Select(t => t.Name)
             .ToList();
 

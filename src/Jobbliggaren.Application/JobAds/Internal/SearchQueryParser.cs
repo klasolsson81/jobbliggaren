@@ -46,11 +46,13 @@ namespace Jobbliggaren.Application.JobAds.Internal;
 /// <para>
 /// <b>Minus-words (#2143, ADR 0167).</b> After that pass the text is split on whitespace and
 /// comma. A token whose first rune — after any leading <c>+</c> — is dash punctuation or U+2212
-/// is an excluded term: its leading run of <c>+</c>, quotes and dashes and its trailing quotes are
-/// stripped, so the term never starts with an operator websearch would read; terms shorter than
-/// <see cref="SearchCriteria.QMinLength"/> or beyond <see cref="ParsedSearchQuery.MaxExcludedTerms"/>
-/// are dropped. Only a token-initial dash excludes: <c>e-handel</c> stays a positive word. When no
-/// token is excluded the result is exactly the pre-#2143 residual, commas included.
+/// is an excluded term: its leading run of <c>+</c>, quotes, dashes and the operators websearch skips
+/// while it waits for an operand (<c>! &amp; | ( ) &lt;</c>) and its trailing quotes are stripped, so the
+/// term never starts with an operator websearch would read; terms shorter than
+/// <see cref="SearchCriteria.QMinLength"/>, terms with no letter or digit, and terms beyond
+/// <see cref="ParsedSearchQuery.MaxExcludedTerms"/> are dropped. Only a token-initial dash excludes:
+/// <c>e-handel</c> stays a positive word. When no token is excluded the result is exactly the
+/// pre-#2143 residual, commas included.
 /// </para>
 /// </summary>
 internal sealed class SearchQueryParser : ISearchQueryParser
@@ -80,6 +82,7 @@ internal sealed class SearchQueryParser : ISearchQueryParser
 
             var term = StripExclusionPrefix(token);
             if (term.Length >= SearchCriteria.QMinLength
+                && HasLetterOrDigit(term)
                 && excluded.Count < ParsedSearchQuery.MaxExcludedTerms
                 && !excluded.Contains(term, StringComparer.OrdinalIgnoreCase))
             {
@@ -112,18 +115,25 @@ internal sealed class SearchQueryParser : ISearchQueryParser
         return true;
     }
 
+    // websearch_to_tsquery skips ! & | ( ) < while it waits for an operand and reads a dash right
+    // after them as NOT, so "-(-deltid" must not leave "(-deltid".
     private static string StripExclusionPrefix(string token)
     {
         var start = 0;
         foreach (var rune in token.EnumerateRunes())
         {
-            if (rune.Value is not ('+' or '"') && !IsDash(rune))
+            if (rune.Value is not ('+' or '"' or '!' or '&' or '|' or '(' or ')' or '<') && !IsDash(rune))
                 break;
             start += rune.Utf16SequenceLength;
         }
 
         return token[start..].TrimEnd('"');
     }
+
+    // A term with no letter or digit yields no lexeme, no trigram and no label: it would exclude
+    // nothing and still cost an anti join.
+    private static bool HasLetterOrDigit(string term) =>
+        term.EnumerateRunes().Any(Rune.IsLetterOrDigit);
 
     // U+2212 MINUS SIGN is a math symbol (Sm), not dash punctuation, but it is what a "minus"
     // key or an autocorrect produces as often as the hyphen-minus.

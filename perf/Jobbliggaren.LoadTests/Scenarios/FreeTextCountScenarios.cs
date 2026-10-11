@@ -40,8 +40,8 @@
 //   Termer roteras round-robin i scenariot — jämnt fördelade samples per plan.
 //
 // LAST-KALIBRERING (CTO-disciplin: kalibrera mot fakta, ej gissning):
-//   ListReadPolicy 60/min per UserId. En total-rate på 1 RPS (cycling över de
-//   3 termerna) = 60 req/min = exakt i takets överkant. VALT: 0,5 RPS total
+//   ListReadPolicy 60/min per UserId. En total-rate på 1 RPS
+//   = 60 req/min = exakt i takets överkant. VALT: 0,5 RPS total
 //   (1 request var 2:a sekund) = 30 req/min = 50 % av taket → headroom mot
 //   rate-limit-kollision när scenariot körs parallellt med andra scenarier
 //   inom samma "all"-selector (delar user-bucket med samma token).

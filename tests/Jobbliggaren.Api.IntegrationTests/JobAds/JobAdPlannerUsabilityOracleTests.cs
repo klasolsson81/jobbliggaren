@@ -91,8 +91,8 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
     // production (same operators, same form) and isolating it proves exactly the #821 property this file
     // owns — keeping the orthogonal conjunct would only let the oracle go green via a different index.
     private const string QSearchSql =
-        "SELECT id FROM job_ads WHERE (lower(title) LIKE '%lärare%' " +
-        "OR lower(company_name) LIKE '%lärare%' " +
+        "SELECT id FROM job_ads WHERE (lower(title) LIKE '%lärare%' ESCAPE '\\' " +
+        "OR lower(company_name) LIKE '%lärare%' ESCAPE '\\' " +
         "OR search_vector @@ websearch_to_tsquery('swedish', 'lärare'))";
 
     // #2143 (ADR 0167) — a minus-word is a correlated NOT EXISTS whose inner side is the q disjunction
@@ -103,8 +103,8 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
     private const string QExclusionSql =
         "SELECT j.id FROM job_ads AS j WHERE j.status = 'Active' AND NOT EXISTS (" +
         "SELECT 1 FROM job_ads AS x WHERE x.id = j.id AND " +
-        "(lower(x.title) LIKE '%deltid%' " +
-        "OR lower(x.company_name) LIKE '%deltid%' " +
+        "(lower(x.title) LIKE '%deltid%' ESCAPE '\\' " +
+        "OR lower(x.company_name) LIKE '%deltid%' ESCAPE '\\' " +
         "OR x.search_vector @@ websearch_to_tsquery('swedish', 'deltid')))";
 
     // SuggestJobAdTermsQueryHandler's title branch — left-anchored LIKE with an explicit ESCAPE. WITHOUT
@@ -129,7 +129,7 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
     // reads the SQL EF actually generates from production's own expression tree and fails if it stops
     // being `lower(company_name) LIKE`. Neither fact is sufficient alone; the pair is.
     private const string EmployerSuggestSql =
-        "SELECT company_name FROM job_ads WHERE lower(company_name) LIKE '%volvo%'";
+        "SELECT company_name FROM job_ads WHERE lower(company_name) LIKE '%volvo%' ESCAPE '\\'";
 
     // #743 — the default no-facet /jobb browse ITEMS query production emits: status = 'Active'
     // (JobAdSearchComposition.ApplyFilter SPOT) + PublishedAtDesc sort (ApplySort:263 —

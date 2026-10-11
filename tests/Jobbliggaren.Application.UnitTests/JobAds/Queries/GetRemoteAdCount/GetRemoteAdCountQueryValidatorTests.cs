@@ -66,9 +66,6 @@ public class GetRemoteAdCountQueryValidatorTests
     public void Single_char_q_passes_parser_owns_the_minimum()
     {
         // #831 — symmetriskt med list-/facet-vägen: minimum bor i ISearchQueryParser.
-        // Nollnings-grenen på DENNA väg saknade täckning före #831 och har den nu
-        // (GetRemoteAdCountQueryHandlerTests.Handle_SubMinLengthQ_NormalizesToNull) —
-        // parsern blev enda vakten här, så den grenen måste vara testad.
         _validator.Validate(new GetRemoteAdCountQuery(Q: "a")).IsValid.ShouldBeTrue();
     }
 

@@ -425,7 +425,7 @@ public class ListJobAdsQueryValidatorTests
         // first, so relevance-sort never saw a sub-minimum q. Now it does.
         //
         // The relevance rule is `.NotEmpty()` on RAW q, so "a" satisfies it and the query
-        // is valid. The handler then nulls the residual and `ApplyRelevanceSort` falls back
+        // is valid. `ApplyRelevanceSort` then falls back
         // to PublishedAt desc — a deliberate degradation, not a 400, because refusing is
         // exactly what #831 removes. Pinning it here so the promoted fallback path has
         // coverage: it used to be described as defense-in-depth and is now the ordinary

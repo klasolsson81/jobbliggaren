@@ -27,11 +27,11 @@ internal sealed class JobAdSearchTextResolver(
         return new ResolvedJobAdFilter(criteria, new ResolvedSearchText(positive, excluded, labels));
     }
 
-    // TD-94 / ADR 0062-amendment 2026-06-13: the substring arms need a term of at least three
-    // characters, because the trigram indexes cannot serve a shorter LIKE.
+    // The substring arms need a trigram the index can serve (TD-94 / ADR 0062-amendment 2026-06-13;
+    // #2143): without one, the LIKE scans the whole index and the recheck detoasts every row.
     private TextTerm ToTerm(string term) => new(
         term,
-        term.Length >= 3 ? LikePatterns.Contains(term) : null,
+        LikePatterns.HasIndexableTrigram(term) ? LikePatterns.Contains(term) : null,
         synonymExpander.Expand(term));
 }
 
@@ -39,7 +39,12 @@ internal sealed class JobAdSearchTextResolver(
 /// A filter whose search text has been resolved. <see cref="JobAdSearchComposition.ApplyFilter"/> takes
 /// only this, so it cannot compose a text that was resolved from another criteria.
 /// </summary>
-internal sealed record ResolvedJobAdFilter(JobAdFilterCriteria Criteria, ResolvedSearchText Text);
+internal sealed class ResolvedJobAdFilter(JobAdFilterCriteria criteria, ResolvedSearchText text)
+{
+    public JobAdFilterCriteria Criteria { get; } = criteria;
+
+    public ResolvedSearchText Text { get; } = text;
+}
 
 /// <summary>The positive residual, the minus-words, and the concepts the minus-words name exactly.</summary>
 internal sealed record ResolvedSearchText(
@@ -56,6 +61,7 @@ internal sealed record ResolvedSearchText(
 
 /// <summary>
 /// One word or residual phrase of the search text, with what each match arm needs: the term for
-/// the full-text arm, the escaped LIKE pattern (null under three characters) and the expanded SSYK ids.
+/// the full-text arm, the escaped LIKE pattern (null without an indexable trigram) and the expanded
+/// SSYK ids.
 /// </summary>
 internal sealed record TextTerm(string Term, string? ContainsPattern, IReadOnlyCollection<string> Ssyks);

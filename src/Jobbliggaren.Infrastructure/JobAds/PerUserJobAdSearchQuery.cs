@@ -209,11 +209,12 @@ internal sealed class PerUserJobAdSearchQuery(
                 .ThenBy(j => j.Id)
             : JobAdSearchComposition.ApplySort(graded, sort, resolved.Text);
 
-        var items = await ordered
+        var pageQuery = ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(JobAdSearchComposition.ToDto())
-            .ToListAsync(cancellationToken);
+            .Select(JobAdSearchComposition.ToDto());
+        var items = await BitmapPlanCount.ReadWithExclusionPlanAsync(
+            db, resolved.Text, pageQuery.ToListAsync, cancellationToken);
 
         return new PagedResult<JobAdDto>(items, totalCount, page, pageSize);
     }
@@ -425,11 +426,12 @@ internal sealed class PerUserJobAdSearchQuery(
             db, resolved.Text,
             filtered.CountAsync, cancellationToken);
 
-        var items = await JobAdSearchComposition.ApplySort(filtered, sort, resolved.Text)
+        var pageQuery = JobAdSearchComposition.ApplySort(filtered, sort, resolved.Text)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(JobAdSearchComposition.ToDto())
-            .ToListAsync(cancellationToken);
+            .Select(JobAdSearchComposition.ToDto());
+        var items = await BitmapPlanCount.ReadWithExclusionPlanAsync(
+            db, resolved.Text, pageQuery.ToListAsync, cancellationToken);
 
         return new PagedResult<JobAdDto>(items, totalCount, page, pageSize);
     }

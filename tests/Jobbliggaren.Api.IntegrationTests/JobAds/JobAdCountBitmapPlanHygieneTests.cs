@@ -159,7 +159,47 @@ public sealed class JobAdCountBitmapPlanHygieneTests(ApiFactory factory)
         recorder.Records.ShouldContain(
             r => r.CommandText.Contains(SeqScanGuc, StringComparison.OrdinalIgnoreCase),
             "the status-only count must apply hygiene when q is present (the issue-missed site).");
+
+        recorder.Clear();
+        _ = await perUser.SearchByStatusAsync(
+            EmptyFilter(q: "-deltid"), seeker, savedOnly, JobAdSortBy.PublishedAtDesc, page: 1, pageSize: 20, ct);
+        recorder.Records
+            .Count(r => r.CommandText.Contains(SeqScanGuc, StringComparison.OrdinalIgnoreCase)
+                        && r.CommandText.Contains(NestLoopGuc, StringComparison.OrdinalIgnoreCase))
+            .ShouldBe(2, "the status-only count of only minus-words and its item read each read search_vector "
+                         + "inside the NOT EXISTS.");
     }
+
+    // #2143 (ADR 0167 D6) — the item read joins the count under the GUC pair only with minus-words.
+    [Fact]
+    public async Task SearchAsync_ReadsItsItemsUnderTheGucs_OnlyWithMinusWords()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _factory.Services.CreateScope();
+        var expander = scope.ServiceProvider.GetRequiredService<IOccupationSynonymExpander>();
+        var recorder = new RecordingCommandInterceptor();
+        await using var db = NewRecordingContext(scope, recorder);
+        var query = new JobAdSearchQuery(db, SearchTextResolvers.For(scope, expander));
+
+        recorder.Clear();
+        _ = await query.SearchAsync(FirstPage("lärare"), ct);
+        recorder.Records.Count(r => r.CommandText.Contains(SeqScanGuc, StringComparison.OrdinalIgnoreCase))
+            .ShouldBe(1, "without minus-words only the count runs under the GUC.");
+        recorder.Records[^1].Transaction.ShouldBeNull("without minus-words the item read runs bare.");
+
+        recorder.Clear();
+        _ = await query.SearchAsync(FirstPage("lärare -deltid"), ct);
+        var setLocals = recorder.Records
+            .Where(r => r.CommandText.Contains(NestLoopGuc, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        setLocals.Count.ShouldBe(2, "the count and the item read each prohibit the nested loop.");
+        recorder.Records[^1].Transaction.ShouldNotBeNull();
+        recorder.Records[^1].Transaction.ShouldBe(setLocals[1].Transaction,
+            "the SET LOCAL and the item read must run in the SAME transaction/connection.");
+    }
+
+    private static JobAdSearchCriteria FirstPage(string q) =>
+        new(EmptyFilter(q), JobAdSortBy.PublishedAtDesc, Page: 1, PageSize: 20);
 
     private static JobAdFilterCriteria EmptyFilter(string? q) =>
         new([], [], [], [], [], [], Remote: false, Q: q);

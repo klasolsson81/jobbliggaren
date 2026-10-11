@@ -29,6 +29,15 @@ public class ListJobAdsExcludedTermsTests(ApiFactory factory)
     private const string DeltidConceptId = "947z_JGS_Uk2"; // klass2-taxonomy.json, WorktimeExtent "Deltid"
     private const string HeltidConceptId = "6YE1_gAC_R2G"; // klass2-taxonomy.json, WorktimeExtent "Heltid"
     private const string PedagogikGroupConceptId = "2x2V_UeL_6ke"; // a yrkesgrupp under yrkesområdet Pedagogik
+    private const string StockholmKommunConceptId = "AvNB_uwa_6n6";     // taxonomy-snapshot.json, kommun "Stockholm"
+    private const string StockholmsLanConceptId = "CifL_Rzy_Mku";       // its län
+    private const string GoteborgKommunConceptId = "PVZL_BQT_XtL";      // taxonomy-snapshot.json, kommun "Göteborg"
+    private const string VastraGotalandsLanConceptId = "zdoY_6u5_Krt";  // its län
+    private const string VikariatConceptId = "gro4_cWF_6D7";            // klass2-taxonomy.json, EmploymentType "Vikariat"
+    private const string BehovsanstallningConceptId = "1paU_aCR_nGn";   // klass2-taxonomy.json, EmploymentType "Behovsanställning"
+    private const string YrkeslarareConceptId = "sETD_6ca_PbW";         // taxonomy-snapshot.json, yrke "Yrkeslärare", grupp 2x2V_UeL_6ke
+    private const string SkogslarareConceptId = "g7NJ_ZHN_MPB";         // taxonomy-snapshot.json, yrke in the same grupp
+    private const string GymnasielarareGroupConceptId = "4KhP_FxL_uZ5"; // taxonomy-snapshot.json, yrkesgrupp "Gymnasielärare"
 
     private readonly ApiFactory _factory = factory;
 
@@ -41,7 +50,10 @@ public class ListJobAdsExcludedTermsTests(ApiFactory factory)
         string company = "Test Company AB",
         string? worktimeExtent = null,
         string? occupationGroup = null,
-        string? ssyk = null)
+        string? ssyk = null,
+        string? municipality = null,
+        string? region = null,
+        string? employmentType = null)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -49,11 +61,17 @@ public class ListJobAdsExcludedTermsTests(ApiFactory factory)
         var externalId = $"ext-{Guid.NewGuid():N}";
 
         static string Concept(string? id) => id is null ? "null" : $"{{\"concept_id\":\"{id}\"}}";
+        static string Str(string? value) => value is null ? "null" : $"\"{value}\"";
+        var workplace = municipality is null && region is null
+            ? "null"
+            : $"{{\"municipality_concept_id\":{Str(municipality)},\"region_concept_id\":{Str(region)}}}";
         var rawPayload =
             $"{{\"id\":\"{externalId}\"," +
             $"\"working_hours_type\":{Concept(worktimeExtent)}," +
+            $"\"employment_type\":{Concept(employmentType)}," +
             $"\"occupation_group\":{Concept(occupationGroup)}," +
-            $"\"occupation\":{Concept(ssyk)}}}";
+            $"\"occupation\":{Concept(ssyk)}," +
+            $"\"workplace_address\":{workplace}}}";
 
         var jobAd = JobAd.Import(
             title: title,
@@ -224,12 +242,76 @@ public class ListJobAdsExcludedTermsTests(ApiFactory factory)
         sql.ShouldContain("worktime_extent_concept_id IS NULL OR", Case.Insensitive);
         // The full-text arm comes after the substring arms, so a title match spares the detoast.
         var exclusion = sql[sql.IndexOf("NOT EXISTS", StringComparison.OrdinalIgnoreCase)..];
-        exclusion.IndexOf("@@", StringComparison.Ordinal)
-            .ShouldBeGreaterThan(exclusion.IndexOf(" LIKE ", StringComparison.OrdinalIgnoreCase));
+        var likeAt = exclusion.IndexOf(" LIKE ", StringComparison.OrdinalIgnoreCase);
+        likeAt.ShouldBeGreaterThanOrEqualTo(0, $"the exclusion carries no substring arm. SQL:\n{sql}");
+        exclusion.IndexOf("@@", StringComparison.Ordinal).ShouldBeGreaterThan(likeAt, $"SQL:\n{sql}");
+
+        // The escaped pattern needs '\' as its escape; EF's two-argument Like would emit ESCAPE ''.
+        sql.ShouldContain("ESCAPE '\\'", Case.Insensitive);
+        sql.ShouldNotContain("ESCAPE ''", Case.Insensitive);
+
+        // A word without an indexable trigram gets no substring arm (security-auditor round 1).
+        var noTrigram = await resolver.ResolveAsync(Filter("lärare -c++"), ct);
+        var noTrigramSql = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), noTrigram).ToQueryString();
+        noTrigramSql[noTrigramSql.IndexOf("NOT EXISTS", StringComparison.OrdinalIgnoreCase)..]
+            .ShouldNotContain(" LIKE ", Case.Insensitive);
 
         var minusFree = await resolver.ResolveAsync(Filter("lärare deltid"), ct);
         JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), minusFree).ToQueryString()
             .ShouldNotContain("EXISTS", Case.Insensitive);
+    }
+
+    // The synonym arm too precedes the full-text arm (ADR 0167 D7), here through the host's own
+    // configuration, which expands "systemutvecklare".
+    [Fact]
+    public async Task TheExclusionsSsykArm_PrecedesItsFullTextArm()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var resolver = SearchTextResolvers.For(scope, scope.ServiceProvider.GetRequiredService<IOccupationSynonymExpander>());
+
+        var resolved = await resolver.ResolveAsync(Filter("-systemutvecklare"), ct);
+        resolved.Text.Excluded.ShouldHaveSingleItem().Ssyks.ShouldNotBeEmpty("premise: the host's config expands the word");
+        var sql = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), resolved).ToQueryString();
+        var exclusion = sql[sql.IndexOf("NOT EXISTS", StringComparison.OrdinalIgnoreCase)..];
+
+        var ssykAt = exclusion.IndexOf("ssyk_concept_id", StringComparison.OrdinalIgnoreCase);
+        ssykAt.ShouldBeGreaterThanOrEqualTo(0, $"SQL:\n{sql}");
+        exclusion.IndexOf("@@", StringComparison.Ordinal).ShouldBeGreaterThan(ssykAt, $"SQL:\n{sql}");
+    }
+
+    // Every label column the arm reads, each against a row that is non-null and does not match.
+    [Fact]
+    public async Task AMinusWord_HidesByEachLabelColumn_AndKeepsANonMatchingValue()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var token = RunToken();
+
+        var survivor = await SeedAsync($"{token} Kock", "Ingen mer text.", ct,
+            municipality: GoteborgKommunConceptId, region: VastraGotalandsLanConceptId,
+            employmentType: BehovsanstallningConceptId, worktimeExtent: HeltidConceptId,
+            occupationGroup: PedagogikGroupConceptId, ssyk: SkogslarareConceptId);
+        var byKommun = await SeedAsync($"{token} Kock", "Ingen mer text.", ct,
+            municipality: StockholmKommunConceptId, region: StockholmsLanConceptId);
+        var byAnstallningsform = await SeedAsync($"{token} Kock", "Ingen mer text.", ct,
+            employmentType: VikariatConceptId);
+        // Only the yrke is named "Yrkeslärare"; its grupp is "Lärare i yrkesämnen".
+        var byYrke = await SeedAsync($"{token} Kock", "Ingen mer text.", ct,
+            occupationGroup: PedagogikGroupConceptId, ssyk: YrkeslarareConceptId);
+        var byYrkesgrupp = await SeedAsync($"{token} Kock", "Ingen mer text.", ct,
+            occupationGroup: GymnasielarareGroupConceptId);
+
+        using var scope = _factory.Services.CreateScope();
+        var sut = CreateSut(scope);
+
+        var all = await IdsAsync(sut, Filter(token), ct);
+        all.ShouldBe([survivor, byKommun, byAnstallningsform, byYrke, byYrkesgrupp], ignoreOrder: true);
+
+        (await IdsAsync(sut, Filter($"{token} -stockholm"), ct)).ShouldBe(all.Except([byKommun]), ignoreOrder: true);
+        (await IdsAsync(sut, Filter($"{token} -vikariat"), ct)).ShouldBe(all.Except([byAnstallningsform]), ignoreOrder: true);
+        (await IdsAsync(sut, Filter($"{token} -yrkeslärare"), ct)).ShouldBe(all.Except([byYrke]), ignoreOrder: true);
+        (await IdsAsync(sut, Filter($"{token} -gymnasielärare"), ct)).ShouldBe(all.Except([byYrkesgrupp]), ignoreOrder: true);
     }
 
     // One cache behind both taxonomy ports: two instances would read the snapshot twice and could

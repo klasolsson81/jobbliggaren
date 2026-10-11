@@ -183,7 +183,7 @@ internal static class JobAdSearchComposition
         if (text.Positive is { } positive)
             source = source.Where(MatchesText(positive));
 
-        // #2143 (ADR 0167) — a minus-word hides exactly the ads the same word would find as a plus-word.
+        // #2143 (ADR 0167) — a minus-word's text arm hides exactly the ads the same word would find as a plus-word.
         // A correlated NOT EXISTS, never an inline NOT: inline, the full-text arm would detoast
         // search_vector for every row the outer scan reaches (TD-94), and NOT over a NULL ssyk arm is
         // NULL, which would drop the row. Inside EXISTS the predicate stays positive and GIN-served.
@@ -215,10 +215,10 @@ internal static class JobAdSearchComposition
     // architect-rond 2026-05-24).
     //
     // TD-94 (perf-ratchet, ADR 0045) / ADR 0062-amendment 2026-06-13 —
-    // title-LIKE-grenen körs ENDAST för en term på ≥ 3 tecken (TextTerm.ContainsPattern
-    // är null under det). GIN-trigram kan fysiskt inte serva en <3-teckens LIKE '%q%'
-    // (trigram = 3-grams) → för korta q tvingas en btree-prefix-/seq-scan över hela
-    // korpusen trots att FTS-grenen ensam är selektiv. FTS-lexem-matchningen täcker
+    // title-LIKE-grenen körs ENDAST för en term med en följd av ≥ 3 bokstäver/siffror
+    // (TextTerm.ContainsPattern är null annars, #2143). GIN-trigram kan fysiskt inte serva
+    // en LIKE '%q%' utan ett helt trigram → hela indexet läses och rechecken detoastar
+    // varje rad, trots att FTS-grenen ensam är selektiv. FTS-lexem-matchningen täcker
     // korta vanliga termer ändå (search_vector spänner title+description). Marginell
     // trade-off: <3-teckens mitt-i-ord-substring i titel matchas inte längre; UI-
     // kontraktet (`systemut` → `systemutvecklare`, ADR 0062 Beslut 1) är ≥3 tecken och
@@ -233,37 +233,37 @@ internal static class JobAdSearchComposition
     // redefining it rewrites the whole table under ACCESS EXCLUSIVE on a continuously
     // ingested table, where this branch costs one CONCURRENTLY-built index.
     //
-    // #2143 — the full-text arm comes LAST, and the order is load-bearing: Postgres evaluates an OR in
-    // order and stops at the first true, so a row whose title, employer or SSYK already matches never
-    // has its search_vector detoasted in a recheck or a filter. Measured by ExcludedTermLatencyMeasurement.
+    // #2143 — the full-text arm comes LAST, and the order is load-bearing: PostgreSQL 18's executor
+    // evaluates the arms as written and stops at the first true (measured, not guaranteed: docs
+    // §4.2.14), so a row whose title, employer or SSYK already matches never has its search_vector
+    // detoasted in a recheck or a filter. Measured by ExcludedTermLatencyMeasurement.
     private static Expression<Func<JobAd, bool>> MatchesText(TextTerm term)
     {
         var q = term.Term;
-        var pattern = term.ContainsPattern;
         var expandedSsyks = term.Ssyks;
+        var hasSsyks = expandedSsyks.Count > 0;
 
 #pragma warning disable CA1304, CA1311
-        return (includeSubstringLike: pattern is not null, hasSsyks: expandedSsyks.Count > 0) switch
+        if (term.ContainsPattern is { } pattern)
         {
-            (true, true) => j =>
-                EF.Functions.Like(j.Title.ToLower(), pattern!)
-                || EF.Functions.Like(j.Company.Name.ToLower(), pattern!)
-                || expandedSsyks.Contains(j.SsykConceptId)
-                || EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                    .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q)),
-            (true, false) => j =>
-                EF.Functions.Like(j.Title.ToLower(), pattern!)
-                || EF.Functions.Like(j.Company.Name.ToLower(), pattern!)
-                || EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                    .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q)),
-            (false, true) => j =>
-                expandedSsyks.Contains(j.SsykConceptId)
-                || EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                    .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q)),
-            (false, false) => j =>
-                EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                    .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q)),
-        };
+            return hasSsyks
+                ? j => EF.Functions.Like(j.Title.ToLower(), pattern, LikePatterns.EscapeCharacter)
+                       || EF.Functions.Like(j.Company.Name.ToLower(), pattern, LikePatterns.EscapeCharacter)
+                       || expandedSsyks.Contains(j.SsykConceptId)
+                       || EF.Property<NpgsqlTsVector>(j, "SearchVector")
+                           .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
+                : j => EF.Functions.Like(j.Title.ToLower(), pattern, LikePatterns.EscapeCharacter)
+                       || EF.Functions.Like(j.Company.Name.ToLower(), pattern, LikePatterns.EscapeCharacter)
+                       || EF.Property<NpgsqlTsVector>(j, "SearchVector")
+                           .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q));
+        }
+
+        return hasSsyks
+            ? j => expandedSsyks.Contains(j.SsykConceptId)
+                   || EF.Property<NpgsqlTsVector>(j, "SearchVector")
+                       .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
+            : j => EF.Property<NpgsqlTsVector>(j, "SearchVector")
+                .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q));
 #pragma warning restore CA1304, CA1311
     }
 

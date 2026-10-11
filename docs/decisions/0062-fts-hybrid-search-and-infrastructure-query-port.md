@@ -429,14 +429,16 @@ list↔count divergence is structurally impossible.
 **Status:** Accepted 2026-10-11. **Source:** [ADR 0167](./0167-a-minus-before-a-word-excludes-it-the-search-port-parses-the-raw-text-and-a-minus-word-hides-what-the-word-finds-and-what-a-label-equal-to-it-names.md) D5–D8. Beslut 1–5 and the Amendments 2026-05-23, 2026-06-13 and 2026-08-30 are untouched
 in their text; this amendment records what became different in them.
 
-- **The rows `ApplyFilter` matches change in two ways.** (1) A q may now carry minus-words, each hiding the ads the same word finds as a
+- **The rows `ApplyFilter` matches change in three ways.** (1) A q may now carry minus-words, each hiding the ads the same word finds as a
   plus-word plus the ads whose taxonomy label equals it (ADR 0167 D2, D5). (2) LIKE metacharacters are escaped, so a q containing `%`, `_` or
-  `\` matches literally where it was a wildcard before (D8).
+  `\` matches literally where it was a wildcard before (D8). (3) The title and employer arms need a run of three letters or digits, the
+  run pg_trgm can serve, where the 2026-06-13 amendment gated on three characters: `c++` now reaches only the full-text and SSYK arms (D2).
 - **The q arms are reordered: the full-text arm comes last.** Beslut 1 and the 2026-08-30 amendment enumerate the disjunction with
-  `search_vector @@ websearch_to_tsquery(…)` first. The row set and the index eligibility are unchanged. What changed is that Postgres evaluates an
-  `OR` in order and stops at the first true, so a row already matched by title, employer or SSYK no longer has its `search_vector` detoasted (D7).
+  `search_vector @@ websearch_to_tsquery(…)` first. The row set and the index eligibility are unchanged. What changed is that PostgreSQL 18's executor
+  evaluates the arms as written and stops at the first true (measured, not guaranteed: docs §4.2.14), so a row already matched by title, employer or SSYK no longer has its `search_vector` detoasted (D7).
 - **The count hygiene's gate widens.** The 2026-06-13 amendment's `SET LOCAL enable_seqscan = off` runs when the query has a q predicate. It now
-  runs whenever the query reads `search_vector`, which a minus-word does too, and with minus-words it adds `SET LOCAL enable_nestloop = off` (D6).
+  runs whenever the query reads `search_vector`, which a minus-word does too, and with minus-words it adds `SET LOCAL enable_nestloop = off`. An
+  item read with minus-words runs under the same pair; without them it still runs bare (D6).
 - **The hand-written mirrors follow.** `JobAdPlannerUsabilityOracleTests` and the explain-search mode of `Jobbliggaren.Migrate` are updated to the
   new arm order and gained the exclusion shape (`COUNT-EXCL` and `ITEMS-EXCL` through `EXPLAIN_SEARCH_EXCLUDE`, run under the count's GUCs). A
   mirror left behind would measure a shape production no longer emits, the reason the 2026-08-30 amendment gave for updating them in the same PR.

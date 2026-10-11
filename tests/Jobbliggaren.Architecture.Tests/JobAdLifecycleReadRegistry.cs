@@ -179,8 +179,11 @@ public static class JobAdLifecycleReadRegistry
                     + "selecting a suggestion navigates to ?employer=, which ApplyFilter scopes to Active, so an "
                     + "employer with only archived ads would be a chip with no target and an ad count the chip then "
                     + "contradicts.")),
-            ["Jobbliggaren.Application.Matching.Queries.GetMyNewMatchCount.GetMyNewMatchCountQueryHandler.Handle"] =
-                One(Active("join JobAds where j.Status == Active — the Översikt new-match badge (#913 B3 witness).")),
+            ["Jobbliggaren.Application.Matching.Queries.NewMatchSet.Matches"] =
+                One(Active("join JobAds where j.Status == Active — the single definition of the user's new "
+                    + "matches, shared by the uncapped new-match count (#913 B3 witness) and the notification "
+                    + "bell's match source (#1666). The count handler no longer holds this read; it composes "
+                    + "this one.")),
             ["Jobbliggaren.Application.Matching.Queries.GetMyMatches.GetMyMatchesQueryHandler.Handle"] =
                 One(Active("join JobAds where j.Status == Active — the /matchningar list (#864 PR-A gate).")),
             ["Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchJob.DispatchUserDigestAsync"] =

@@ -1,5 +1,4 @@
 using Jobbliggaren.Application.Common.Abstractions;
-using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,8 +7,8 @@ namespace Jobbliggaren.Application.Matching.Queries.GetMyNewMatchCount;
 /// <summary>
 /// ADR 0080 Vag 4 PR-5 — counts the authenticated user's background matches created since their
 /// last-seen watermark. Owner-scoped (reads only the current user's matches + watermark). No
-/// authenticated user / no JobSeeker → honest 0. The soft-delete query filter on
-/// <c>UserJobAdMatch</c> excludes erased rows automatically. NO AI/LLM.
+/// authenticated user / no JobSeeker → honest 0. The set is <see cref="NewMatchSet"/>, shared with
+/// the notification bell (#1666). NO AI/LLM.
 /// <para>
 /// Deliberately status-AGNOSTIC: counts a match regardless of its <c>NotificationStatus</c>
 /// (Pending/Queued/Sent/Failed) — match visibility is independent of notification delivery
@@ -53,32 +52,7 @@ public sealed class GetMyNewMatchCountQueryHandler(
             .Select(js => js.LastSeenMatchesAt)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var matches = db.UserJobAdMatches.Where(m => m.UserId == userId);
-        if (lastSeen is { } seen)
-            matches = matches.Where(m => m.CreatedAt > seen);
-
-        // LIFECYCLE (#864) — count only matches whose ad the product may still present. Before this,
-        // the badge counted rows and joined NOTHING, so it counted matches for ARCHIVED ads. That is
-        // the same defect as the list (GetMyMatchesQueryHandler) but sharper: this number is rendered
-        // as a bare integer on Översikten, and gating the list WITHOUT gating the badge would produce
-        // "3 nya matchningar" over a view that renders zero rows — a count that promises more than its
-        // set can deliver, manufactured by the fix for #864 rather than by the bug.
-        //
-        // This does NOT clamp the #273 contract. The count may still legitimately EXCEED the list's
-        // 50-row cap: that divergence is bounded, documented, and the remainder is reachable via the
-        // /jobb grade-filter. A lifecycle divergence is neither — those ads are reachable from no
-        // surface at all. Only the second kind is removed.
-        // Query syntax + `j.Status == JobAdStatus.Active` is the ONE translation form this repo has
-        // proven against Npgsql (13 sibling sites; GetMyMatchesQueryHandler writes it identically).
-        // Projecting the value-converted Status and comparing it afterwards is not the same thing —
-        // that is the shape that dies at runtime and is invisible under InMemory. Testcontainers
-        // (MyMatchesSurfaceTests) is the oracle that proves this one translates.
-        var count = await (
-                from m in matches
-                join j in db.JobAds.AsNoTracking() on m.JobAdId equals j.Id
-                where j.Status == JobAdStatus.Active
-                select m.Id)
-            .CountAsync(cancellationToken);
+        var count = await NewMatchSet.Matches(db, userId, lastSeen).CountAsync(cancellationToken);
         return new MyNewMatchCountDto(count);
     }
 }

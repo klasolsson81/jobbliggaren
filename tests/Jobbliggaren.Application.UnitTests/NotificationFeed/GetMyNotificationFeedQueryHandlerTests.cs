@@ -110,10 +110,27 @@ public class GetMyNotificationFeedQueryHandlerTests
         ]);
     }
 
-    // A windowed source may be missing rows at or before its horizon, so nothing that old is shown
-    // from any source — an older match must not stand where a followed ad the window never read belongs.
+    // A windowed source may be missing READ rows at or before its horizon, so no read row that old is
+    // shown from any source — an older read match must not stand where a followed ad the window never
+    // read belongs. An UNREAD row is never cut: it is selected because it is unread (#2130, ADR 0162 D4).
     [Fact]
-    public void Merge_CutsEverySourceAtTheNewestHorizon()
+    public void Merge_StillClipsAReadRowAtTheHorizon()
+    {
+        var match = Read(NotificationFeedSourceKind.Match, 0, null,
+            Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(5), unread: false),
+            Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(1), unread: false));
+        var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 70, horizon: T0.AddHours(2),
+            Item(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid(), T0.AddHours(3), unread: false),
+            Item(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid(), T0.AddHours(2), unread: false));
+
+        var feed = GetMyNotificationFeedQueryHandler.Merge([match, followed], maxItems: 20);
+
+        feed.Items.Select(i => i.OccurredAt).ShouldBe([T0.AddHours(5), T0.AddHours(3)]);
+        feed.Sources.Single(s => s.Kind == NotificationFeedSourceKind.FollowedCompanyAd).UnreadCount.ShouldBe(70);
+    }
+
+    [Fact]
+    public void Merge_NeverClipsAnUnreadRowAtTheHorizon()
     {
         var match = Read(NotificationFeedSourceKind.Match, 2, null,
             Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(5)),
@@ -124,8 +141,119 @@ public class GetMyNotificationFeedQueryHandlerTests
 
         var feed = GetMyNotificationFeedQueryHandler.Merge([match, followed], maxItems: 20);
 
-        feed.Items.Select(i => i.OccurredAt).ShouldBe([T0.AddHours(5), T0.AddHours(3)]);
-        feed.Sources.Single(s => s.Kind == NotificationFeedSourceKind.FollowedCompanyAd).UnreadCount.ShouldBe(70);
+        feed.Items.Select(i => i.OccurredAt).ShouldBe(
+            [T0.AddHours(5), T0.AddHours(3), T0.AddHours(2), T0.AddHours(1)]);
+        feed.Items.ShouldAllBe(i => i.IsUnread);
+    }
+
+    // The badge counts the three older unread follow rows, so the panel must show them: twenty newer
+    // read matches cannot take their places (the fixed footer links were the only way out before).
+    [Fact]
+    public void Merge_TakesUnreadFirst_SoTwentyNewerReadMatchesNeverHideThreeOlderUnreadFollowRows()
+    {
+        var readMatches = Enumerable.Range(1, 25)
+            .Select(i => Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(10).AddMinutes(i), unread: false))
+            .ToArray();
+        var unreadFollows = Enumerable.Range(1, 3)
+            .Select(i => Item(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid(), T0.AddHours(1).AddMinutes(i)))
+            .ToArray();
+        var match = Read(NotificationFeedSourceKind.Match, 0, null, readMatches);
+        var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 3, null, unreadFollows);
+
+        var feed = GetMyNotificationFeedQueryHandler.Merge([match, followed], maxItems: 20);
+
+        feed.Items.Count.ShouldBe(20);
+        feed.Items.Where(i => i.IsUnread).Select(i => i.JobAdId)
+            .ShouldBe(unreadFollows.OrderByDescending(i => i.OccurredAt).Select(i => i.JobAdId));
+        feed.Items.Count(i => !i.IsUnread).ShouldBe(17);
+    }
+
+    [Fact]
+    public void Merge_WithMoreUnreadThanTheCap_ShowsTheNewestUnreadAndNoReadRow()
+    {
+        var unread = Enumerable.Range(1, 25)
+            .Select(i => Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddMinutes(i)))
+            .ToArray();
+        var read = Enumerable.Range(1, 5)
+            .Select(i => Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(5).AddMinutes(i), unread: false))
+            .ToArray();
+        var match = Read(NotificationFeedSourceKind.Match, 25, null, [.. unread, .. read]);
+
+        var feed = GetMyNotificationFeedQueryHandler.Merge([match], maxItems: 20);
+
+        feed.Items.Count.ShouldBe(20);
+        feed.Items.ShouldAllBe(i => i.IsUnread);
+        feed.Items.Select(i => i.OccurredAt).ShouldBe(
+            unread.OrderByDescending(i => i.OccurredAt).Take(20).Select(i => i.OccurredAt));
+        feed.Sources.ShouldHaveSingleItem().UnreadCount.ShouldBe(25);
+    }
+
+    [Fact]
+    public void Merge_FillsTheRestWithTheNewestReadRows()
+    {
+        var unread = Enumerable.Range(1, 3)
+            .Select(i => Item(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid(), T0.AddHours(1).AddMinutes(i)))
+            .ToArray();
+        var read = Enumerable.Range(1, 30)
+            .Select(i => Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(10).AddMinutes(i), unread: false))
+            .ToArray();
+
+        var feed = GetMyNotificationFeedQueryHandler.Merge(
+            [Read(NotificationFeedSourceKind.Match, 0, null, read),
+             Read(NotificationFeedSourceKind.FollowedCompanyAd, 3, null, unread)],
+            maxItems: 20);
+
+        feed.Items.Count(i => i.IsUnread).ShouldBe(3);
+        feed.Items.Where(i => !i.IsUnread).Select(i => i.OccurredAt).ShouldBe(
+            read.OrderByDescending(i => i.OccurredAt).Take(17).Select(i => i.OccurredAt));
+    }
+
+    // The selection is displayed by time, never regrouped: a row does not move when its state changes.
+    [Fact]
+    public void Merge_DisplaysTheSelectionByTime_TiesByKindThenAdId()
+    {
+        var low = new Guid("00000000-0000-0000-0000-000000000001");
+        var high = new Guid("00000000-0000-0000-0000-000000000002");
+        var at = T0.AddHours(1);
+        var match = Read(NotificationFeedSourceKind.Match, 1, null,
+            Item(NotificationFeedSourceKind.Match, high, at),
+            Item(NotificationFeedSourceKind.Match, low, at, unread: false),
+            Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), at.AddHours(1), unread: false));
+        var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 1, null,
+            Item(NotificationFeedSourceKind.FollowedCompanyAd, low, at));
+
+        var feed = GetMyNotificationFeedQueryHandler.Merge([followed, match], maxItems: 20);
+
+        feed.Items.Select(i => (i.Kind, i.IsUnread)).ShouldBe(
+        [
+            (NotificationFeedSourceKind.Match, false),
+            (NotificationFeedSourceKind.Match, false),
+            (NotificationFeedSourceKind.Match, true),
+            (NotificationFeedSourceKind.FollowedCompanyAd, true),
+        ]);
+        feed.Items.Skip(1).Select(i => i.JobAdId).ShouldBe([low, high, low]);
+    }
+
+    // A source that refused to count still returned its rows; the preference for unread rows does not
+    // depend on the number, which is only the badge's.
+    [Fact]
+    public void Merge_InTheRefusedState_StillPrefersUnreadRows()
+    {
+        var readMatches = Enumerable.Range(1, 25)
+            .Select(i => Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(10).AddMinutes(i), unread: false))
+            .ToArray();
+        var unreadFollows = Enumerable.Range(1, 2)
+            .Select(i => Item(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid(), T0.AddHours(1).AddMinutes(i)))
+            .ToArray();
+
+        var feed = GetMyNotificationFeedQueryHandler.Merge(
+            [Read(NotificationFeedSourceKind.Match, 0, null, readMatches),
+             Read(NotificationFeedSourceKind.FollowedCompanyAd, unread: null, null, unreadFollows)],
+            maxItems: 20);
+
+        feed.Items.Count(i => i.IsUnread).ShouldBe(2);
+        feed.Items.Count.ShouldBe(20);
+        feed.Sources.Single(s => s.Kind == NotificationFeedSourceKind.FollowedCompanyAd).UnreadCount.ShouldBeNull();
     }
 
     [Fact]

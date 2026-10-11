@@ -24,7 +24,14 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// <para>
 /// <b>Window and horizon:</b> the list reads the newest <see cref="HitsPerRow"/> hits per shown row and
 /// filters them after reading, so an ad whose included hits all lie beyond the window can be missing. When the window
-/// is full, the hit just past it is the horizon, and the merge shows nothing at or before it.
+/// is full, the hit just past it is the horizon, and the merge shows no read row at or before it.
+/// </para>
+///
+/// <para>
+/// <b>Unread ads beyond the window (#2130):</b> on the grade path an "endast matchade" watch's excluded
+/// hits can fill the window while older included ads are still unread and counted. The source then lists
+/// the newest of those from the counted hits, which are already graded, so the number never counts rows
+/// the panel cannot show. The common path needs no such step: every hit is included there.
 /// </para>
 /// </summary>
 internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource
@@ -122,8 +129,65 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource
                 Grade: null))
             .ToList();
 
+        // Grade path only (#2130): the counted hits ARE the unread hits up to the token, and `resolution`
+        // graded every one of them, so the newest included unread ads the window never reached can be named
+        // without a second grading call. Their display columns come from one more read of the same hits-to-ads
+        // join the window uses, bounded by time; no id list goes to the database (Contains over the strongly
+        // typed id is a known translation trap). The common path needs none of this: every hit is included.
+        if (countInput.Exact is null && unreadCount is { } counted && token is { } upTo)
+        {
+            var shownUnread = items.Where(i => i.IsUnread).Select(i => i.JobAdId).ToHashSet();
+            if (shownUnread.Count < Math.Min(counted, context.MaxItems))
+            {
+                var missing = NewestIncludedUnreadAds(countInput, scope.GradeWatchIds, resolution.Matching, context.MaxItems)
+                    .Where(x => !shownUnread.Contains(x.AdId.Value))
+                    .ToList();
+                if (missing.Count > 0)
+                {
+                    var oldestWanted = missing.Min(x => x.At);
+                    var rows = await (
+                            from h in NewFollowedCompanyAdSet.NewHits(db, userId, scope.LastSeen)
+                            where h.CreatedAt >= oldestWanted && h.CreatedAt <= upTo
+                            join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
+                            orderby h.CreatedAt descending
+                            select new WindowRow(h.JobAdId, h.CompanyWatchId, h.CreatedAt, j.Title, j.Company.Name))
+                        .ToListAsync(cancellationToken);
+                    var display = rows.GroupBy(r => r.JobAdId).ToDictionary(g => g.Key, g => g.First());
+
+                    items =
+                    [
+                        .. items,
+                        .. missing
+                            .Where(x => display.ContainsKey(x.AdId))
+                            .Select(x => new NotificationFeedItemDto(
+                                Kind, x.AdId.Value, display[x.AdId].Title, display[x.AdId].CompanyName, x.At,
+                                IsUnread: true, Grade: null)),
+                    ];
+                    items = [.. items.OrderByDescending(i => i.OccurredAt)];
+                }
+            }
+        }
+
         return new NotificationSourceRead(Kind, unreadCount, token, items, horizon);
     }
+
+    /// <summary>
+    /// The newest <paramref name="maxItems"/> ads the inclusion rule admits among the counted (unread) hits,
+    /// each at its newest INCLUDED hit, the same moment the window assigns it. Pure: no database access.
+    /// </summary>
+    private static List<(JobAdId AdId, DateTimeOffset At)> NewestIncludedUnreadAds(
+        NewFollowedCompanyAdSet.CountInput countInput,
+        IReadOnlySet<CompanyWatchId> gradeWatchIds,
+        IReadOnlySet<JobAdId> matching,
+        int maxItems) =>
+        countInput.GradeHits
+            .Where(h => NewFollowedCompanyAdSet.Includes(h, gradeWatchIds, matching))
+            .GroupBy(h => h.JobAdId)
+            .Select(g => (AdId: g.Key, At: g.Max(h => h.CreatedAt)))
+            .OrderByDescending(x => x.At)
+            .ThenBy(x => x.AdId.Value)
+            .Take(maxItems)
+            .ToList();
 
     /// <summary>One hit joined to its ad's display columns. Named because an anonymous type cannot cross the projection.</summary>
     private sealed record WindowRow(

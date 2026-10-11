@@ -45,8 +45,8 @@ internal sealed record NotificationFeedReadContext(
 /// <summary>
 /// One source's answer. <see cref="Horizon"/> is set when the source read a WINDOW of rows that it
 /// filters after reading: rows at or before it may be missing from <see cref="Items"/>, so the merge
-/// never shows anything that old from any source. <c>null</c> when <see cref="Items"/> is exactly the
-/// source's newest rows.
+/// shows no READ row that old from any source. An unread row is never cut by it: it is selected because
+/// it is unread. <c>null</c> when <see cref="Items"/> is exactly the source's newest rows.
 /// </summary>
 internal sealed record NotificationSourceRead(
     NotificationFeedSourceKind Kind,

@@ -226,6 +226,83 @@ public class FollowedCompanyAdFeedSourceTests
         read.UnreadCount.ShouldBe(hits);
     }
 
+    // #2130 (architect finding 2): the window is the newest hits, and an "endast matchade" watch's
+    // excluded hits can fill it, so ads the count included were never listed. The grade path lists them
+    // from the counted hits, which are already graded, so the badge never counts rows the panel cannot show.
+    [Fact]
+    public async Task ReadAsync_OnTheGradePath_WhenTheWindowsNewestHitsAreAllExcluded_StillListsTheNewestIncludedUnreadAds()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var onlyMatched = _seed.Watch(db, userId, onlyMatched: true);
+        var older = Enumerable.Range(1, 3).Select(i => _seed.ActiveAd(db, $"Äldre {i}", "Följt AB")).ToArray();
+        for (var i = 0; i < older.Length; i++)
+            _seed.Hit(db, userId, older[i], onlyMatched, T0.AddMinutes(i + 1));
+        var window = 20 * FollowedCompanyAdFeedSource.HitsPerRow;
+        for (var i = 1; i <= window + 1; i++)
+            _seed.Hit(db, userId, _seed.ActiveAd(db, $"Utesluten {i}", "Annat AB"), onlyMatched, T0.AddHours(1).AddMinutes(i));
+        GradeAsMatching(older);
+
+        var read = await ReadAsync(db, userId);
+
+        read.UnreadCount.ShouldBe(3);
+        read.Items.ShouldAllBe(i => i.IsUnread);
+        read.Items.Select(i => i.Title).ShouldBe(["Äldre 3", "Äldre 2", "Äldre 1"]);
+        read.Items.ShouldAllBe(i => i.CompanyName == "Följt AB");
+        read.AcknowledgedThrough.ShouldBe(T0.AddHours(1).AddMinutes(window + 1));
+    }
+
+    [Fact]
+    public async Task ReadAsync_OnTheGradePath_ListsMinOfCountAndMaxItemsUnreadRows()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var onlyMatched = _seed.Watch(db, userId, onlyMatched: true);
+        var older = Enumerable.Range(1, 25).Select(i => _seed.ActiveAd(db, $"Äldre {i}", "Följt AB")).ToArray();
+        for (var i = 0; i < older.Length; i++)
+            _seed.Hit(db, userId, older[i], onlyMatched, T0.AddMinutes(i + 1));
+        var window = 20 * FollowedCompanyAdFeedSource.HitsPerRow;
+        for (var i = 1; i <= window + 1; i++)
+            _seed.Hit(db, userId, _seed.ActiveAd(db, $"Utesluten {i}", "Annat AB"), onlyMatched, T0.AddHours(1).AddMinutes(i));
+        GradeAsMatching(older);
+
+        var read = await ReadAsync(db, userId);
+
+        read.UnreadCount.ShouldBe(25);
+        read.Items.Count(i => i.IsUnread).ShouldBe(20);
+        read.Items.Select(i => i.Title).ShouldBe(Enumerable.Range(6, 20).Reverse().Select(n => $"Äldre {n}"));
+    }
+
+    // The window and the counted hits overlap on the newest included ads; the ones the window already
+    // holds must not be listed a second time when the older ones are added.
+    [Fact]
+    public async Task ReadAsync_OnTheGradePath_NeverListsAnAdTwice_WhenTheWindowAlreadyHoldsSomeOfThem()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var onlyMatched = _seed.Watch(db, userId, onlyMatched: true);
+        var older = Enumerable.Range(1, 3).Select(i => _seed.ActiveAd(db, $"Äldre {i}", "Följt AB")).ToArray();
+        for (var i = 0; i < older.Length; i++)
+            _seed.Hit(db, userId, older[i], onlyMatched, T0.AddMinutes(i + 1));
+        var window = 20 * FollowedCompanyAdFeedSource.HitsPerRow;
+        for (var i = 1; i <= window + 1; i++)
+            _seed.Hit(db, userId, _seed.ActiveAd(db, $"Utesluten {i}", "Annat AB"), onlyMatched, T0.AddHours(1).AddMinutes(i));
+        var newest = Enumerable.Range(1, 2).Select(i => _seed.ActiveAd(db, $"Nyast {i}", "Följt AB")).ToArray();
+        for (var i = 0; i < newest.Length; i++)
+            _seed.Hit(db, userId, newest[i], onlyMatched, T0.AddHours(3).AddMinutes(i));
+        GradeAsMatching([.. older, .. newest]);
+
+        var read = await ReadAsync(db, userId);
+
+        read.UnreadCount.ShouldBe(5);
+        read.Items.Select(i => i.JobAdId).Distinct().Count().ShouldBe(read.Items.Count);
+        read.Items.Count(i => i.IsUnread).ShouldBe(5);
+        read.Items.Select(i => i.Title).ShouldBe(["Nyast 2", "Nyast 1", "Äldre 3", "Äldre 2", "Äldre 1"]);
+    }
+
     [Fact]
     // Every excluded row is OLDER than this user's token, so the token bound does not hide it from the
     // list: only the list's own gates do (lifecycle, the active-watch join, the owner filter).

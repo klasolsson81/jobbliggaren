@@ -432,6 +432,100 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
         (await new FollowedCompanyAdFeedSource().ReadAsync(Context(fresh, userId), ct)).UnreadCount.ShouldBe(2);
     }
 
+    // ── an unread row is never pushed out of the panel (#2130, ADR 0162 D4 as amended) ──────
+
+    // The badge counts three older unread follows, so the panel lists them: twenty-five newer READ matches
+    // cannot take their places. Before the unread-first selection the footer links were the only way out.
+    [Fact]
+    public async Task An_older_unread_followed_ad_is_listed_beside_twenty_newer_read_matches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, userId) = await RegisterUserAsync("feed-unread-first", ct);
+        await SetBackgroundMatchConsentAsync(userId, enabled: true, ct);
+        var watch = await SeedWatchAsync(userId, onlyMatched: false, ct);
+        var followed = new List<JobAdId>();
+        for (var i = 1; i <= 3; i++)
+        {
+            var ad = await SeedAdAsync($"Följd {i}", "Följt AB", ct);
+            followed.Add(ad);
+            await SeedHitAsync(userId, ad, watch, Base.AddMinutes(i), ct);
+        }
+        for (var i = 1; i <= 25; i++)
+            await SeedMatchAsync(userId, await SeedAdAsync($"Match {i}", "Match AB", ct),
+                NotifiableMatchGrade.Good, Base.AddHours(2).AddMinutes(i), ct);
+        // The user has looked at the matches: they are read, the follows are not.
+        var matchToken = Source(await GetFeedAsync(client, ct), "Match").AcknowledgedThrough!.Value;
+        (await client.PostAsJsonAsync("/api/v1/me/matches/seen", new { seenThrough = matchToken }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var feed = await GetFeedAsync(client, ct);
+
+        Source(feed, "Match").UnreadCount.ShouldBe(0);
+        Source(feed, "FollowedCompanyAd").UnreadCount.ShouldBe(3);
+        feed.Items.Count.ShouldBe(20);
+        feed.Items.Where(i => i.IsUnread).Select(i => i.JobAdId).Order()
+            .ShouldBe(followed.Select(a => a.Value).Order());
+    }
+
+    // The follow source's window reads its newest hits, READ ONES INCLUDED, so a horizon exists for every
+    // user with enough hits. It used to cut an unread match older than the horizon out of the panel too.
+    [Fact]
+    public async Task An_unread_match_older_than_the_follow_horizon_is_listed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, userId) = await RegisterUserAsync("feed-horizon", ct);
+        await SetBackgroundMatchConsentAsync(userId, enabled: true, ct);
+        var unreadMatch = await SeedAdAsync("Äldre oläst match", "Match AB", ct);
+        await SeedMatchAsync(userId, unreadMatch, NotifiableMatchGrade.Strong, Base.AddMinutes(1), ct);
+        var watch = await SeedWatchAsync(userId, onlyMatched: false, ct);
+        var window = GetMyNotificationFeedQueryHandler.MaxItems * FollowedCompanyAdFeedSource.HitsPerRow;
+        for (var i = 1; i <= window + 2; i++)
+            await SeedHitAsync(userId, await SeedAdAsync($"Följd {i}", "Följt AB", ct), watch,
+                Base.AddHours(1).AddMinutes(i), ct);
+        // The follows are read; the match is not.
+        var followToken = Source(await GetFeedAsync(client, ct), "FollowedCompanyAd").AcknowledgedThrough!.Value;
+        (await client.PostAsJsonAsync("/api/v1/me/followed-company-ads/seen", new { seenThrough = followToken }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var feed = await GetFeedAsync(client, ct);
+
+        Source(feed, "Match").UnreadCount.ShouldBe(1);
+        feed.Items.ShouldContain(i => i.JobAdId == unreadMatch.Value && i.IsUnread);
+        feed.Items.Count.ShouldBe(20);
+    }
+
+    // The grade path's window is the newest 60 hits. Four hits per ad make that fewer than twenty ads while
+    // twenty-one are unread, so the missing ones are listed from the counted hits through one more
+    // hits-to-ads read. Only a real provider proves that read translates (this user states no occupation,
+    // so the "endast matchade" filter is inert and every hit is included).
+    [Fact]
+    public async Task The_grade_path_lists_an_unread_ad_beyond_a_window_that_four_hits_per_ad_fill()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, userId) = await RegisterUserAsync("feed-grade-window", ct);
+        CompanyWatchId[] watches =
+        [
+            await SeedWatchAsync(userId, onlyMatched: true, ct),
+            await SeedWatchAsync(userId, onlyMatched: false, ct),
+            await SeedWatchAsync(userId, onlyMatched: false, ct),
+            await SeedWatchAsync(userId, onlyMatched: false, ct),
+        ];
+        for (var ad = 1; ad <= 21; ad++)
+        {
+            var adId = await SeedAdAsync($"Annons {ad}", "Följt AB", ct);
+            for (var w = 0; w < watches.Length; w++)
+                await SeedHitAsync(userId, adId, watches[w], Base.AddMinutes(ad * 10).AddSeconds(w), ct);
+        }
+
+        var feed = await GetFeedAsync(client, ct);
+
+        Source(feed, "FollowedCompanyAd").UnreadCount.ShouldBe(21);
+        feed.Items.Count.ShouldBe(20);
+        feed.Items.ShouldAllBe(i => i.IsUnread);
+        // The window's 60 newest hits cover ads 21..7; ads 6..2 come from the extra read; ad 1 is past the cap.
+        feed.Items.Select(i => i.Title).ShouldBe(Enumerable.Range(2, 20).Reverse().Select(n => $"Annons {n}"));
+    }
+
     // The per-request cost the rate-limit bucket was sized on (RateLimitingOptions.NotificationFeedRead):
     // with no "endast matchade" watch nothing is graded, and both sources run their full read.
     [Fact]

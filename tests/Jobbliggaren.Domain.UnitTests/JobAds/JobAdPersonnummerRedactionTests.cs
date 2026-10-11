@@ -109,12 +109,13 @@ public class JobAdPersonnummerRedactionTests
     }
 
     [Fact]
-    public void A_personnummer_pushed_past_the_title_clamp_by_a_contact_marker_leaves_no_digits()
+    public void A_personnummer_the_contact_marker_pushes_across_the_title_clamp_leaves_no_digits()
     {
-        // 300 chars in: the phone near the start grows to the marker and pushes the personnummer
-        // across position 300. Masking runs BEFORE the clamp, so the cut can only remove asterisks;
-        // clamped first, "811218-98" would survive and the four-digit tail the scanner needs is gone.
-        var title = "Ring 070-123 45 67 " + new string('x', 269) + " " + Personnummer;
+        // The phone near the start (13 chars) becomes the 62-char marker, so the personnummer at
+        // index 242 moves to 291 and straddles position 300. Masking runs BEFORE the clamp, so the
+        // cut only removes asterisks. Clamped first, "811218-98" would survive: the scanner needs
+        // four trailing digits, so the truncated remainder is no longer detected.
+        var title = "Ring 070-123 45 67 " + new string('x', 222) + " " + Personnummer + " " + new string('x', 46);
         title.Length.ShouldBe(300);
 
         var ad = Import(title, "Neutral text.");

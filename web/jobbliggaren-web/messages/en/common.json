@@ -39,6 +39,7 @@
     "stale": "The list could not be updated and is from {time}.",
     "emptyTitle": "No notifications yet",
     "emptyBody": "New matches and new ads from companies you follow appear here.",
+    "unreadElsewhere": "The unread notifications do not fit in this list. You will find them under My matches and New ads from followed companies.",
     "listLabel": "Latest notifications",
     "timeToday": "today, {time}",
     "timeYesterday": "yesterday, {time}",

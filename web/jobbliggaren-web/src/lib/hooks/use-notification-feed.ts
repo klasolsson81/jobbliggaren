@@ -29,15 +29,18 @@ export type NotificationFeedState =
  */
 export function useNotificationFeed(): {
   readonly state: NotificationFeedState;
-  /** A read now if the throttle allows it (`force` skips the throttle, e.g. after acknowledging). */
-  readonly refresh: (force?: boolean) => void;
+  /**
+   * A read now if the throttle allows it. `force` skips the throttle and replaces a read already in
+   * flight, whose answer may predate an acknowledgement; the promise settles when the read has.
+   */
+  readonly refresh: (force?: boolean) => Promise<void>;
   /** The new unread total when a read found more than the one before it; `null` otherwise. Never the first read. */
   readonly increasedTo: number | null;
 } {
   const [state, setState] = useState<NotificationFeedState>({ status: "loading" });
   const [increasedTo, setIncreasedTo] = useState<number | null>(null);
   // The effect owns the poll; callers reach it through this ref.
-  const refreshRef = useRef<(force: boolean) => void>(() => {});
+  const refreshRef = useRef<(force: boolean) => Promise<void>>(() => Promise.resolve());
 
   useEffect(() => {
     let inFlight: AbortController | null = null;
@@ -52,8 +55,13 @@ export function useNotificationFeed(): {
         current.status === "ready" ? { ...current, stale: true } : current.status === "stopped" ? current : { status: "failed" },
       );
 
-    async function read() {
-      if (stopped || inFlight !== null || Date.now() < notBefore) return;
+    async function read(force: boolean) {
+      if (stopped || Date.now() < notBefore) return;
+      if (inFlight !== null) {
+        if (!force) return;
+        inFlight.abort();
+        inFlight = null;
+      }
       const controller = new AbortController();
       inFlight = controller;
       lastStartedAt = Date.now();
@@ -89,9 +97,9 @@ export function useNotificationFeed(): {
       }
     }
 
-    function refresh(force: boolean) {
-      if (!force && Date.now() - lastStartedAt < NOTIFICATION_FEED_THROTTLE_MS) return;
-      void read();
+    function refresh(force: boolean): Promise<void> {
+      if (!force && Date.now() - lastStartedAt < NOTIFICATION_FEED_THROTTLE_MS) return Promise.resolve();
+      return read(force);
     }
     refreshRef.current = refresh;
 
@@ -99,14 +107,16 @@ export function useNotificationFeed(): {
       if (document.hidden) {
         inFlight?.abort();
         inFlight = null;
+        // An abandoned read must not hold the throttle shut when the tab comes back.
+        lastStartedAt = 0;
       } else {
-        refresh(false);
+        void refresh(false);
       }
     }
 
-    const first = setTimeout(() => void read(), 0);
+    const first = setTimeout(() => void read(false), 0);
     const timer = setInterval(() => {
-      if (!document.hidden) void read();
+      if (!document.hidden) void read(false);
     }, NOTIFICATION_FEED_POLL_MS);
     document.addEventListener("visibilitychange", visibilityChanged);
     return () => {
@@ -115,7 +125,7 @@ export function useNotificationFeed(): {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", visibilityChanged);
       inFlight?.abort();
-      refreshRef.current = () => {};
+      refreshRef.current = () => Promise.resolve();
     };
   }, []);
 

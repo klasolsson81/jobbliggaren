@@ -103,6 +103,8 @@ test("opening the bell writes nothing", async ({ page }) => {
   await page.goto("/sparade");
   await page.getByRole("button", { name: "Aviseringar, 2 olästa" }).click();
   await expect(page.getByRole("dialog", { name: "Aviseringar" }).getByText("2 olästa")).toBeVisible();
+  // A write the click started would still be in flight here; wait for the network to settle first.
+  await page.waitForLoadState("networkidle");
 
   expect(harness.seenReceipts).toEqual([]);
   expect(harness.requests.filter((route) => route.startsWith("POST ") && route.includes("/seen"))).toEqual([]);

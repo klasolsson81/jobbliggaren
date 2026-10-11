@@ -309,4 +309,136 @@ describe("NotificationsBell (#1666)", () => {
     );
     expect(within(dialog).getByRole("button", { name: "Markera alla som lästa" })).toBeInTheDocument();
   });
+
+  // ADR 0162: nothing is acknowledged by opening or reading; the Server Action runs on a click only.
+  it("never acknowledges by opening the panel or polling with it open", async () => {
+    fetchMock.mockReturnValue(ok(feed()));
+    await renderBell();
+
+    open();
+    await settle();
+    expect(markNotificationsReadAction).not.toHaveBeenCalled();
+    await poll();
+    expect(markNotificationsReadAction).not.toHaveBeenCalled();
+  });
+
+  it("reads again when the tab comes back or the panel opens, at most every 30 seconds", async () => {
+    fetchMock.mockReturnValue(ok(feed()));
+    await renderBell();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const visible = async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await settle();
+    };
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    await visible();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(21_000);
+    });
+    await visible();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31_000);
+    });
+    fireEvent.click(bell());
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops polling on 403 as on 401", async () => {
+    fetchMock.mockReturnValue(status(403));
+    await renderBell();
+    await poll();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  // ADR 0120 / design-reviewer: the header's exact number must never sit over "Inga aviseringar än".
+  it("says where the unread notifications are when none of them is in the list", async () => {
+    fetchMock.mockReturnValue(ok({ items: [], sources: counts(0, 3) }));
+    await renderBell();
+
+    const dialog = open();
+    expect(within(dialog).getByText("3 olästa")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/^De olästa aviseringarna ryms inte i den här listan\./),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText("Inga aviseringar än")).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Markera alla som lästa" })).toBeInTheDocument();
+  });
+
+  it("puts that line above a list of read rows, and says it for a refused count too", async () => {
+    const readRows = feed().items.map((i) => ({ ...i, isUnread: false }));
+    fetchMock.mockReturnValueOnce(ok({ items: readRows, sources: counts(0, 2) }));
+    await renderBell();
+    let dialog = open();
+    expect(within(dialog).getByText(/^De olästa aviseringarna ryms inte/)).toBeInTheDocument();
+    expect(within(dialog).getAllByRole("listitem")).toHaveLength(2);
+    fireEvent.click(bell());
+
+    fetchMock.mockReturnValueOnce(ok({ items: [], sources: counts(0, null) }));
+    await poll();
+    dialog = open();
+    expect(within(dialog).getByText(/^De olästa aviseringarna ryms inte/)).toBeInTheDocument();
+    expect(within(dialog).queryByText("Inga aviseringar än")).toBeNull();
+  });
+
+  it("shows no count line when there has never been a notification", async () => {
+    fetchMock.mockReturnValue(ok({ items: [], sources: counts(0, 0) }));
+    await renderBell();
+
+    const dialog = open();
+    expect(within(dialog).queryByText("Inga olästa")).toBeNull();
+    expect(within(dialog).getByText("Inga aviseringar än")).toBeInTheDocument();
+  });
+
+  it("keeps Markerar… until the read after acknowledging has landed", async () => {
+    fetchMock.mockReturnValueOnce(ok(feed()));
+    await renderBell();
+    markNotificationsReadAction.mockResolvedValue({ success: true });
+    let land: (value: Response) => void = () => {};
+    fetchMock.mockReturnValueOnce(new Promise<Response>((resolve) => (land = resolve)));
+
+    const dialog = open();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Markera alla som lästa" }));
+    await settle();
+    expect(within(dialog).getByRole("button", { name: "Markerar…" })).toHaveAttribute("aria-disabled", "true");
+
+    await act(async () => {
+      land(Response.json(feed({ items: feed().items.map((i) => ({ ...i, isUnread: false })), sources: counts(0, 0) })));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(within(dialog).queryByRole("button", { name: /Markera/ })).toBeNull();
+    expect(within(dialog).getByText("Inga olästa")).toBeInTheDocument();
+  });
+
+  // A poll whose answer was read before /seen must not be the answer the bell keeps afterwards.
+  it("replaces a read already in flight when acknowledging", async () => {
+    fetchMock.mockReturnValueOnce(ok(feed()));
+    await renderBell();
+    const signals: AbortSignal[] = [];
+    fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+      signals.push(init.signal!);
+      return new Promise<Response>(() => {});
+    });
+    await poll();
+    markNotificationsReadAction.mockResolvedValue({ success: true });
+    fetchMock.mockReturnValueOnce(
+      ok(feed({ items: feed().items.map((i) => ({ ...i, isUnread: false })), sources: counts(0, 0) })),
+    );
+
+    const dialog = open();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Markera alla som lästa" }));
+    await settle();
+
+    expect(signals[0]?.aborted).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(within(dialog).getByText("Inga olästa")).toBeInTheDocument();
+  });
 });

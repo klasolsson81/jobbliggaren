@@ -4596,12 +4596,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-notif-anchor .jp-icon-btn { position: relative; }
 /* The count pill (DESIGN.md §6): ink-1 fill and on-fill digits, both pinned in the always-light
    header, so the pill reads the same in both themes; the surface ring separates it from the glyph.
-   Never green (the header's market figure beside it is green) and never a status colour. Inside the
-   button's box, so the focus ring stays whole at 38 and 44 px; it grows to the left. */
+   Never green (the header's market figure beside it is green) and never a status colour. On the
+   glyph's shoulder, so a two- or three-character count leaves the bell recognisable; it grows left. */
 .jp-notif-badge {
   position: absolute;
-  top: 2px;
-  right: 0;
+  top: -6px;
+  right: -2px;
   box-sizing: border-box;
   min-width: 20px;
   height: 20px;

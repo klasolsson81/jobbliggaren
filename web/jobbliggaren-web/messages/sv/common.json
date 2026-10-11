@@ -39,6 +39,7 @@
     "stale": "Listan kunde inte uppdateras och är från kl. {time}.",
     "emptyTitle": "Inga aviseringar än",
     "emptyBody": "Nya matchningar och nya annonser från företag du bevakar visas här.",
+    "unreadElsewhere": "De olästa aviseringarna ryms inte i den här listan. Du hittar dem under Mina matchningar och Nya annonser från bevakade företag.",
     "listLabel": "Senaste aviseringarna",
     "timeToday": "idag, kl. {time}",
     "timeYesterday": "igår, kl. {time}",

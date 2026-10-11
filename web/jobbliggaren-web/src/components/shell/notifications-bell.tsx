@@ -45,9 +45,11 @@ export function NotificationsBell() {
   const feed = state.status === "ready" ? state.feed : null;
   const total = feed ? unreadTotal(feed) : undefined;
   const canMarkRead = typeof total === "number" && total > 0;
+  // The never-anything state carries its status alone, so the header says nothing then.
+  const countLine = typeof total === "number" && feed !== null && (feed.items.length > 0 || total > 0) ? total : null;
 
   function toggle() {
-    if (!open) refresh();
+    if (!open) void refresh();
     setMarkFailed(false);
     setOpen((value) => !value);
   }
@@ -61,12 +63,13 @@ export function NotificationsBell() {
     setMarkFailed(false);
     startMarking(async () => {
       const result = await markNotificationsReadAction(tokens);
+      // "Markerar…" stays until the new state has been read, so the old number never flashes back.
+      await refresh(true);
       if (result.success) {
         headingRef.current?.focus();
       } else {
         setMarkFailed(true);
       }
-      refresh(true);
     });
   }
 
@@ -102,7 +105,7 @@ export function NotificationsBell() {
               <div id={titleId} ref={headingRef} tabIndex={-1} className="jp-notif__title">
                 {t("heading")}
               </div>
-              {typeof total === "number" && <p className="jp-notif__count">{t("unreadCount", { count: total })}</p>}
+              {countLine !== null && <p className="jp-notif__count">{t("unreadCount", { count: countLine })}</p>}
             </div>
             {canMarkRead && (
               <button
@@ -123,7 +126,7 @@ export function NotificationsBell() {
           {state.status === "ready" && state.stale && (
             <p className="jp-notif__notice">{t("stale", { time: formatTime(format, new Date(state.fetchedAt)) })}</p>
           )}
-          <PanelBody state={state} t={t} format={format} onRetry={() => refresh(true)} onNavigate={onNavigate} />
+          <PanelBody state={state} t={t} format={format} onRetry={() => void refresh(true)} onNavigate={onNavigate} />
           <div className="jp-notif__foot">
             <Link href="/matchningar" className="jp-notif__footlink" onClick={onNavigate}>
               {t("matchesLink")}
@@ -181,8 +184,18 @@ function PanelBody({
     );
   }
 
-  if (state.feed.items.length === 0) {
-    return (
+  const { items } = state.feed;
+  const total = unreadTotal(state.feed);
+  // A source can count unread notifications the window does not show (an "endast matchade" watch's
+  // newest hits all filtered out): then the panel says where they are rather than contradict its count.
+  const unreadElsewhere = total !== 0 && !items.some((item) => item.isUnread);
+
+  if (items.length === 0) {
+    return unreadElsewhere ? (
+      <div className="jp-notif__body jp-notif__message">
+        <p>{t("unreadElsewhere")}</p>
+      </div>
+    ) : (
       <div className="jp-notif__body jp-notif__message">
         <p className="jp-notif__message-title">{t("emptyTitle")}</p>
         <p>{t("emptyBody")}</p>
@@ -193,8 +206,9 @@ function PanelBody({
   const now = new Date();
   return (
     <div className="jp-notif__body">
+      {unreadElsewhere && <p className="jp-notif__notice">{t("unreadElsewhere")}</p>}
       <ul className="jp-notif__list" aria-label={t("listLabel")}>
-        {state.feed.items.map((item) => (
+        {items.map((item) => (
           <NotificationRow
             key={`${item.kind}:${item.jobAdId}`}
             item={item}

@@ -5,7 +5,7 @@
       "description": "How Jobbliggaren processes your personal data: purposes, legal basis, retention periods, your rights and security. No tracking and no AI."
     },
     "title": "Privacy policy",
-    "updated": "Last updated: 2026-10-10",
+    "updated": "Last updated: 2026-10-11",
     "intro": "This privacy policy describes how Jobbliggaren processes your personal data, why, on what legal basis and for how long. It also covers your rights and how to exercise them. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open data about job openings from Arbetsförmedlingen JobTech (Platsbanken).",
     "sections": [
       {
@@ -85,8 +85,8 @@
       {
         "heading": "Background watch notifications (legal basis: consent)",
         "paragraphs": [
-          "If you want, you can turn on notifications about new jobs that match your preferences. That processing only takes place if you actively turn it on yourself. The legal basis is your consent (Article 6(1)(a)). The feature is off by default. If you turn it on, we store a record that you gave your consent and when, so that we can demonstrate that the processing is lawful.",
-          "The notifications are planned to be sent by email to the address on your account, and will then be delivered by Scaleway SAS in France, which processes the email in the provider's fr-par region. The provider undertakes in the data processing agreement that the processing takes place within the EU. What that means for your data is described in the section Recipients of data below. This is planned and not yet in operation.",
+          "If you want, you can turn on notifications about new jobs that match your preferences and, as a separate choice, about new ads from companies you follow. The processing only takes place for what you actively turn on yourself. The legal basis is your consent (Article 6(1)(a)). Both are off by default. If you turn either of them on, we store a record that you gave your consent to it and when, so that we can demonstrate that the processing is lawful.",
+          "The notifications are sent by email to the address on your account and delivered by Scaleway SAS in France, which processes the email in the provider's fr-par region. The provider undertakes in the data processing agreement that the processing takes place within the EU. What that means for your data is described in the section Recipients of data below.",
           "You can withdraw your consent at any time by turning off the notifications in your settings. We then stop sending them. Withdrawing your consent does not affect the fact that the processing was lawful before you withdrew it."
         ]
       },

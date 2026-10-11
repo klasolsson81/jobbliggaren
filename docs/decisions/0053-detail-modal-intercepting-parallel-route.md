@@ -186,3 +186,14 @@ SEO-kanonikalisering (samma annons nås via två icke-ekvivalenta URL-former).
   obligatorisk per AGENTS.md innan commit.
 - Befintliga `/ansokningar|cv|sokningar/[id]`-routes lämnas orörda som
   djuplänk-target.
+
+## Amendment 2026-10-11 — the job route gains an anonymous twin (ADR 0165, #2090 S2)
+
+> **Amendment 2026-10-11 (#2090 S2; `senior-cto-advisor`'s ruling on fork F1, 2026-10-11; Klas's epic directive of 2026-10-10):** The decisions and the earlier amendments stand. This one records that the address Beslut 2 calls "the real URL" now has a second page behind it.
+>
+> - **What is added.** Beslut 2 says a hard navigation, a refresh or a share renders the presentation component full-screen on the real URL, and the Konsekvenser say the deep link and the SEO are kept. For a visitor with no session cookie that was not true in practice: `/jobb/<uuid>` is a protected URL and sent them to `/logga-in`. ADR 0165 gives it an anonymous twin. With no session cookie, `proxy.ts` rewrites a `GET` or `HEAD` of exactly `/jobb/<uuid>` to the internal route group `(public-job)`, a composition of its own (`PublicJobAd`, reading `PublicJobAdDto`, ADR 0160), at the same address. The address, and so the canonical, stays `/jobb/<uuid>`.
+> - **What does not change.** Beslut 1–4 and the modal paradigm. `(app)/jobb/[id]` and the `@modal` slot are untouched. A request with a session cookie takes the path it took before, byte for byte, and soft navigation and Back/Forward are as they were. The anonymous page is not an interception target: the proxy never calls `next()` for it, so a cookieless request can not reach the intercepting route.
+> - **Beslut 2's "one presentation component, two rendering contexts" holds for the signed-in contexts.** The anonymous twin is a third rendering of the URL with a component of its own, on purpose: the PII boundary of a public page is held in the type of its one input and not in a prop on `JobAdDetail` (ADR 0165 D4).
+> - **Amendment 2026-10-04's rule** (a missing record renders in the modal's own shell and never calls `notFound()`) concerns the `@modal` slot and is not touched. The anonymous page is a document: its group's `not-found.tsx` and the proxy's statuses answer a missing or an ended ad (ADR 0165 D2).
+>
+> **Amendment provenance:** ADR 0165, which has the mechanism, the statuses and the reasons. ADR 0053 remains **Accepted**: an additive layer, the original text and the six earlier amendments preserved unchanged.

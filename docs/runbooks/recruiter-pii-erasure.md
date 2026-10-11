@@ -327,7 +327,45 @@ her request than before it.)*
 
 `applications.job_ad_id` FKs still point at the row, so applicants keep their own
 records. The ad detail endpoint returns **410 Gone**, not 404: it existed, and it
-is deliberately gone.
+is deliberately gone. The public job page answers the same 410 (ADR 0160 D3, with an
+ended ad: one answer, no title, no company).
+
+### 2.4a Search engines — Art. 17(2), after the erasure (ADR 0160 D9.3)
+
+Since the public job page went live, a listed ad has a public address,
+`https://jobbliggaren.se/jobb/<our uuid>`, that search engines index and that link
+previews copy. The ad was made public by us, so Art. 17(2) asks for reasonable steps
+towards those who hold the address. After 2.3, for **every** confirmed ad:
+
+1. **Build the address from `confirmedJobAdIds`** (our uuid). Never from
+   `erasedExternalIds`: that is Arbetsförmedlingen's id, and it is not our URL.
+2. **Check, anonymously, that the page answers 410:**
+   `curl -s -o /dev/null -w "%{http_code}\n" https://jobbliggaren.se/jobb/<uuid>`.
+   Anything but 410 is a stop: the erasure did not take, go back to 2.3.
+3. **Search Console** (the Domain property): *Removals → New request → Temporary
+   removal → Remove this URL only*, for each address. Per Google it takes effect within
+   about a day and lasts about six months; the permanent removal is the 410, which Google
+   treats like a 404 and drops from the index when it next crawls the URL. The tool needs a
+   property you own, and blocking the address in `robots.txt` is the wrong tool, so we do
+   not.
+4. **Bing Webmaster Tools**, if the property is verified there: the same, with *Block URLs*.
+5. **Record in the case file, not in the repo:** the date, how many addresses, and who did
+   it. Do not write the addresses or the names into an issue, a commit or a PR.
+6. **Say what cannot be reached**, in the reply: a link-preview cache, another search
+   engine, an archive and a copy someone else made are outside our reach, and
+   Arbetsförmedlingen keeps the original until the ad's own deadline. The reply templates
+   in section 4 are Klas-approved; a sentence about this step is added only with his
+   approval, and only once the step is done.
+
+*Sources (read 2026-10-11): Google Search Console help, "Removals tool"
+(https://support.google.com/webmasters/answer/9689846): temporary, about six months, a
+property you own, 404/410 for permanent; Google Search Central, "Remove information from
+Google" (https://developers.google.com/search/docs/crawling-indexing/remove-information,
+updated 2025-12-10): "within a day", pair a request with a permanent fix, do not use
+`robots.txt`; Google Search Central, "HTTP status codes"
+(https://developers.google.com/search/docs/crawling-indexing/http-network-errors, updated
+2026-02-04): a 404 and a 410 are treated alike, and an indexed URL that answers one is
+dropped.*
 
 ### 2.5 The audit trail
 
@@ -513,6 +551,9 @@ human-handled surfaces). Pick the sentence that is true for the case at hand:
   listed only `raw_payload` and never `job_ads.description`. **The registry is now
   code** — `ErasureCascadeRegistry`, enforced by `ErasureCascadeRegistryTests`: a
   new persisted surface that is not classified **breaks the build**.
+- **ADR 0160 D9.3, ADR 0164 and ADR 0165** — the public job page: why step 2.4a exists
+  (Art. 17(2)), the legal basis for publishing the text, and how the page answers an
+  erased ad (the same 410 as an ended one).
 - **ADR 0086** — the applicant's ad snapshot (why erasure does not cascade into it).
 - **ADR 0090 D5** — HMAC-SHA256 over the server pepper. Bound there, **built in
   #842** (it had never existed).

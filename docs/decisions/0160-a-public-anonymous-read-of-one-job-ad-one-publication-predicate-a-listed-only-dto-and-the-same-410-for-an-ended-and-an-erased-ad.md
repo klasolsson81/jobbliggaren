@@ -302,3 +302,37 @@ tests; removing the `/api/v1/public` prefix kills four `no-store` tests.
 - ADR 0064 (Amendment 2026-10-10), 0106 (Amendment 2026-10-10), 0087, 0071, 0053, 0043, 0042, 0154
 - Epic #2090 · #2091 · #2092 · #2098 · #841 · #734 · #1537
 - The licence sources are listed in D8.
+
+## Amendment 2026-10-11 (#2090 S2) — D9 is carried out by ADR 0165 and ADR 0164; the backfill clause of D9.1 is waived; D9.4 is read with the edge probe; D2's recorded window is closed
+
+D1–D9 stand and nothing above is rewritten. This amendment records four things the S2 PR settles.
+
+**1. D9 is carried out in these places.**
+
+- D9.4 to D9.7 (a per-request render with `forwardedHeaders()`, an API 429 as a page 503 with `Retry-After`, a failure as a 5xx,
+  the description as plain text, and an ended ad on the same 410 page as an erased one) are decided and built in
+  **ADR 0165** (D2, D3, D4).
+- D9.2 (the disclosure, the legitimate-interest assessment, the Art. 6(4) reasoning, the register row) is in **ADR 0164**, the
+  revised `recruiterNotice` (sv, en) and the privacy-policy paragraph, all in the S2 PR. **D9.2 is met when ADR 0164 reads
+  Accepted.** It is written as Proposed: its conclusion is for Klas to approve as controller and for `security-auditor` to sign.
+- D9.3 (the Art. 17(2) step) is `docs/runbooks/recruiter-pii-erasure.md` §2.4a, in the S2 PR.
+
+**2. D9.1: Klas waived the backfill clause on 2026-10-11** (comment on #2090). The measured scope was one ad of 41 539 (#2098),
+and that number is already public on Platsbanken. The release carrying #2120 is live on the box (the api and worker image
+digests equal `sha-8bc108d`, 2026-10-11), so a listed ad is masked at its next nightly sync, and the de-listed tail is not
+backfilled. **The measurement stays, and it is not waived:** S2-P3 is two counts over listed ads, in the title, the description
+and `company_name`, one a superset over the forms #2098 and #2123 name and one validated by date and check digit, taken after
+the first nightly sync since #2120. The gate is the validated count: 0. This replaces D9.1's "count of personnummer-shaped
+tokens in the title and the description" as the form of the measurement. Its definition and its status are in ADR 0164 D11.
+
+**3. D9.4 is read together with the edge probe.** "One API call per render" holds for the render: `getPublicJobAd` is wrapped
+in `cache()`, so `generateMetadata` and the page share one call. The proxy makes one more call, a probe, before the render,
+because the status has to be known before the first byte and a Server Component can not set a 410 or a 503 with `Retry-After`.
+A 200 view therefore costs two reads, and a 404, 410 or 503 one, against D5's 60 per 60 s per IP. The client address is relayed
+on both calls, which is the relay D5 said was needed. This is accepted for phase 1, and S4 measures again (ADR 0165 D3).
+
+**4. D2's recorded window is closed as accepted.** An ad can be Active in signed-in search and Ended publicly until
+`ExpireJobAdsJob` runs. S2's overlay fork is decided: there is no personal overlay, and a signed-in person gets the unchanged
+`(app)` page (ADR 0165 D7).
+
+ADR 0160 remains **Accepted**.

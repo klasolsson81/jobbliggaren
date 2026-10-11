@@ -192,7 +192,9 @@ describe("admin overview visible refresh", () => {
     // Only the Server and Tjänster crossed a limit in the second refresh, each its own; the other sources keep their
     // five minutes.
     expect(status).toHaveTextContent("Serverns mätvärden: Uppdateringen misslyckades. Senaste uppgiften visas. Mätningen är äldre än 2 minuter.");
-    expect(status).toHaveTextContent("Tjänster: Uppdateringen misslyckades. Senaste uppgiften visas. Uppgiften är äldre än 2 minuter.");
+    // Every services row has been withdrawn, so no last value is shown, and the live region says what the card says.
+    expect(status).toHaveTextContent("Tjänster: Uppgifterna kunde inte hämtas. Försök igen om en stund. Uppgiften är äldre än 2 minuter.");
+    expect(status.textContent).not.toMatch(/Tjänster: Uppdateringen misslyckades/);
     expect(status).not.toHaveTextContent("Kontostatistik");
     expect(status).not.toHaveTextContent("fem minuter");
     expect(screen.getByRole("region", { name: "Server" })).toHaveTextContent("Mätningen är äldre än 2 minuter.");
@@ -201,6 +203,8 @@ describe("admin overview visible refresh", () => {
     expect(services).toHaveTextContent("Uppgiften är äldre än 2 minuter.");
     expect(services).toHaveTextContent("Worker– Kunde inte avgörasTillfälligt lager– Kunde inte avgörasAnnonsimport– Kunde inte avgöras");
     expect(services).not.toHaveTextContent(/Senaste livstecken|Senaste körning|Svarar/);
+    expect(services).not.toHaveTextContent("Senaste uppgiften visas");
+    expect(services).toHaveTextContent("Uppgifterna kunde inte hämtas. Försök igen om en stund.");
   });
   it("keeps the last services rows when a refresh fails, marks the failure at once and announces it (#1982)", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...sampledNow(overviewSnapshotFixture()), services: { kind: "failed" } })));

@@ -477,7 +477,11 @@ test("a refresh keeps the last services rows within the limit and marks the fail
   for (const label of ["Worker", "Tillfälligt lager", "Annonsimport"])
     await expect(serviceRow(page, label)).toHaveText("– Kunde inte avgöras");
   await expect(services).not.toContainText(/Senaste livstecken|Senaste körning|Svarar/);
-  await expect(page.getByRole("status").filter({ hasText: "Tjänster:" })).toContainText("Uppgiften är äldre än 2 minuter.");
+  // No row is left to show, so the card never says that the last data is shown: it says it could not be fetched.
+  await expect(services).not.toContainText("Senaste uppgiften visas");
+  await expect(services.getByText("Uppgifterna kunde inte hämtas. Försök igen om en stund.")).toBeVisible();
+  const announced = page.getByRole("status").filter({ hasText: "Tjänster:" });
+  await expect(announced).toContainText("Tjänster: Uppgifterna kunde inte hämtas. Försök igen om en stund. Uppgiften är äldre än 2 minuter.");
   // The attention card reads the rows as the card does: withdrawn, so undetermined there too.
   await expect(card(page, "Kräver uppmärksamhet")).toContainText("WorkerKunde inte avgöras");
   await verify(page, "services-retained-old");

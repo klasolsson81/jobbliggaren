@@ -137,7 +137,7 @@ describe("admin overview observed data", () => {
       expect(services()).toHaveTextContent("WorkerSenaste livstecken 2026-10-08 11:59");
     });
 
-    it("withdraws the kept rows once they pass the API's own limit, and keeps the note's time, failure and age", () => {
+    it("withdraws the kept rows once they pass the API's own limit: the note keeps its time and age, and says nothing is shown", () => {
       const snapshot = overviewSnapshotFixture();
       if (snapshot.services.kind !== "loaded") throw new Error("Expected observed services");
       render(<AdminOverview observations={{ ...snapshot, services: { ...snapshot.services, refreshFailed: true } }} now={NOW + 91_000} />);
@@ -145,7 +145,8 @@ describe("admin overview observed data", () => {
       expect(services()).toHaveTextContent("Worker– Kunde inte avgörasTillfälligt lager– Kunde inte avgörasAnnonsimport– Kunde inte avgöras");
       expect(services()).not.toHaveTextContent(/Senaste livstecken|Senaste körning|Svarar/);
       expect(services()).toHaveTextContent("Uppgift från 2026-10-08 11:59");
-      expect(services()).toHaveTextContent("Uppdateringen misslyckades. Senaste uppgiften visas.");
+      expect(services()).not.toHaveTextContent("Senaste uppgiften visas");
+      expect(services()).toHaveTextContent("Uppgifterna kunde inte hämtas. Försök igen om en stund.");
       expect(services()).toHaveTextContent("Uppgiften är äldre än 2 minuter.");
     });
 

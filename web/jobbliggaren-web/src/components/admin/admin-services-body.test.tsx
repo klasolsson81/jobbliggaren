@@ -205,6 +205,23 @@ describe("AdminServicesBody and age", () => {
     expect(container).toHaveTextContent("Uppgiften är äldre än 2 minuter.");
   });
 
+  it("after a failed refresh that left no row to show, says the data could not be fetched, never that the last is shown", () => {
+    const { container } = renderBody(undefined, T0 + 121_000, true);
+
+    for (const label of ["Worker", "Tillfälligt lager", "Annonsimport"]) {
+      expect(row(label)).toHaveTextContent(/^– Kunde inte avgöras$/);
+    }
+    expect(container).not.toHaveTextContent("Senaste uppgiften visas");
+    const failed = screen.getByText("Uppgifterna kunde inte hämtas. Försök igen om en stund.");
+    expect(failed).toHaveClass("jp-adminsoon");
+    expect(failed).not.toHaveAttribute("role");
+    expect(screen.queryByRole("alert")).toBeNull();
+    // The note keeps when the rows were sampled and that the sample is old.
+    const notes = container.querySelectorAll("p.jp-adminkpi__sub");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toHaveTextContent(/^Uppgift från 2026-10-10 14:00Uppgiften är äldre än 2 minuter\.$/);
+  });
+
   it("judges each row by its own sample: at T+121 s the Worker (T) is withdrawn and the import (T+8 s) keeps its age", () => {
     // One tick stamps each source after its own read, so the three samples can lie seconds apart.
     const { container } = renderBody({
@@ -220,14 +237,23 @@ describe("AdminServicesBody and age", () => {
     expect(container).toHaveTextContent("Uppgiften är äldre än 2 minuter.");
   });
 
-  it("puts a failed refresh in the same note, between the sample time and the age", () => {
-    const { container } = renderBody(undefined, T0 + 150_000, true);
+  it("puts a failed refresh in the same note, between the sample time and the age, while some kept row is still shown", () => {
+    // A partial withdrawal: at T+121 s the Worker (T) is withdrawn and the store (T+3 s) and the import (T+8 s) stay,
+    // so "Senaste uppgiften visas" is true of the rows still shown.
+    const { container } = renderBody({
+      backgroundJobs: { state: "Alive", sampledAt: "2026-10-10T12:00:00+00:00", heartbeatAt: HEARTBEAT },
+      volatileStore: { state: "Reachable", sampledAt: "2026-10-10T12:00:03+00:00" },
+      jobImport: { state: "Recorded", sampledAt: "2026-10-10T12:00:08+00:00", lastRunAt: RUN, errors: 0 },
+    }, T0 + 121_000, true);
 
+    expect(row("Worker")).toHaveTextContent(/^– Kunde inte avgöras$/);
+    expect(row("Tillfälligt lager")).toHaveTextContent(/^Svarar$/);
     const notes = container.querySelectorAll("p.jp-adminkpi__sub");
     expect(notes).toHaveLength(1);
     expect(notes[0]).toHaveTextContent(
       /^Uppgift från 2026-10-10 14:00Uppdateringen misslyckades\. Senaste uppgiften visas\.Uppgiften är äldre än 2 minuter\.$/,
     );
+    expect(container).not.toHaveTextContent("Uppgifterna kunde inte hämtas");
   });
 
   it("says a refresh failed even when no row has a sample time to print", () => {

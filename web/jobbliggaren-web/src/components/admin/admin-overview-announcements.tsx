@@ -55,9 +55,12 @@ export function AdminOverviewAnnouncements({ observations, now }: {
       const stale = own === null
         ? t("overview.observation.stale")
         : t(own.sentence, { limit: formatStaleLimit(format, own.seconds) });
+      // A kept services observation whose newest sample is past its limit has had every row withdrawn, so no last value
+      // is shown: the live region says what the card says, that the data could not be fetched.
+      const failedAndOld = source === "services" ? t("regions.failed") : t("overview.observation.refreshFailed");
       const text = state === "failed" || state === "loading" || state === "awaiting" ? t(`regions.${state}`)
         : state === "retainedStale"
-          ? `${t("overview.observation.refreshFailed")} ${stale}`
+          ? `${failedAndOld} ${stale}`
           : state === "stale"
             ? stale
             : t(`overview.observation.${state === "retained" ? "refreshFailed" : state}`);

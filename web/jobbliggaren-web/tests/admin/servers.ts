@@ -59,7 +59,7 @@ export type BackupScenario = "observed" | "switchedOff" | "notObserved" | "faile
 
 const HOUR = 3_600_000;
 function backupAnswer(scenario: BackupScenario): unknown {
-  // The API's wire form for a DateTimeOffset in UTC: whole seconds and an offset, never a Z.
+  // The API's wire form for a DateTimeOffset in UTC: an offset, never a Z.
   const at = (offset: number) => new Date(Date.now() + offset).toISOString().replace(/\.\d{3}Z$/, "+00:00");
   const nothing = { stale: null, lastSuccess: null, timer: null };
   const recorded = (hoursAgo: number, overdue: boolean) =>

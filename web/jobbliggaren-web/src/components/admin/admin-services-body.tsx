@@ -38,6 +38,10 @@ export function AdminServicesBody({ region, refreshFailed = false, now }: {
   const unavailable = useTranslations("admin.unavailable");
   const format = useFormatter();
   const services = region.kind === "loaded" ? region.data : null;
+  // The region was sampled, yet no row is left to show: the page withdrew every one as too old. "Senaste uppgiften
+  // visas" would then be false, so a failed refresh says that the data could not be fetched instead.
+  const allWithdrawn = region.kind === "loaded" && region.sampledAt !== undefined && services !== null
+    && [services.backgroundJobs, services.volatileStore, services.jobImport].every((row) => row.kind === "unknown");
 
   const warn = (text: ReactNode) => <span className="jp-admin-warning">{text}</span>;
   // The visible words say it, so the dash is not also spoken as "Uppgift saknas".
@@ -122,10 +126,11 @@ export function AdminServicesBody({ region, refreshFailed = false, now }: {
         </Row>
       </dl>
       {region.kind !== "loaded" ? <AdminRegionLine quiet kind={region.kind} /> : null}
+      {refreshFailed && allWithdrawn ? <AdminRegionLine quiet kind="failed" /> : null}
       {region.kind === "loaded" && region.sampledAt ? (
         <p className="jp-adminkpi__sub">
           {observed("sampledAt")} <time dateTime={region.sampledAt}>{formatDateTime(format, region.sampledAt)}</time>
-          {refreshFailed ? <><br />{observed("refreshFailed")}</> : null}
+          {refreshFailed && !allWithdrawn ? <><br />{observed("refreshFailed")}</> : null}
           {region.stale && services ? (
             <>
               <br />

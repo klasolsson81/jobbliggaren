@@ -173,7 +173,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     }
 
     /// <summary>
-    /// ADR 0163 (#2107) — turns every notification mail on or off. Off is a pause: it stamps
+    /// ADR 0164 (#2107) — turns every notification mail on or off. Off is a pause: it stamps
     /// <see cref="Preferences.NotificationMailOffAt"/> once and keeps the first stamp while it stays off; on
     /// clears it. It never writes a consent, a mail type or the cadence (GDPR Art. 7(3): a pause is not a
     /// withdrawal), and it is not refused while the consents are off. The same state is a no-op.
@@ -188,7 +188,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     }
 
     /// <summary>
-    /// ADR 0163 (#2107) — turns the Toppmatch mail on or off, with <see cref="SetNotificationMail"/>'s
+    /// ADR 0164 (#2107) — turns the Toppmatch mail on or off, with <see cref="SetNotificationMail"/>'s
     /// semantics, on <see cref="Preferences.TopMatchMailOffAt"/> only.
     /// </summary>
     public void SetTopMatchMail(bool on, IDateTimeProvider clock)
@@ -201,7 +201,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     }
 
     /// <summary>
-    /// ADR 0163 (#2107) — turns the summary mail on or off, with <see cref="SetNotificationMail"/>'s
+    /// ADR 0164 (#2107) — turns the summary mail on or off, with <see cref="SetNotificationMail"/>'s
     /// semantics, on <see cref="Preferences.MatchSummaryMailOffAt"/> only.
     /// </summary>
     public void SetMatchSummaryMail(bool on, IDateTimeProvider clock)

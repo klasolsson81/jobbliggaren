@@ -7,7 +7,7 @@ using Lifecycle = Jobbliggaren.Domain.UnitTests.JobSeekers.NotificationConsentTe
 namespace Jobbliggaren.Domain.UnitTests.JobSeekers;
 
 /// <summary>
-/// The three mail gates (ADR 0163) over every state the aggregate's own methods produce: both consent
+/// The three mail gates (ADR 0164) over every state the aggregate's own methods produce: both consent
 /// lifecycles × the all-mail switch × both mail-type switches. A gate admits a seeker exactly when its own
 /// consent is granted, all mail is on and, for Toppmatch and the summary, its own type is on; it reads no
 /// other dimension. The query form and the instance form agree in LINQ to objects.

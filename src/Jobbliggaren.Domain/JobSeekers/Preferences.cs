@@ -28,7 +28,7 @@ namespace Jobbliggaren.Domain.JobSeekers;
 /// deserializes the missing keys to OFF (no data migration; the back-compat test covers it).
 /// </para>
 /// <para>
-/// <b>ADR 0163 (#2107) — the e-mail pauses.</b> <see cref="NotificationMailOffAt"/> pauses every
+/// <b>ADR 0164 (#2107) — the e-mail pauses.</b> <see cref="NotificationMailOffAt"/> pauses every
 /// notification mail; <see cref="TopMatchMailOffAt"/> and <see cref="MatchSummaryMailOffAt"/> pause one
 /// mail type each. They are delivery choices inside the consents above, never a consent or a withdrawal:
 /// a pause leaves both consents, the matching and the in-app surfaces untouched. Each is a stamp whose

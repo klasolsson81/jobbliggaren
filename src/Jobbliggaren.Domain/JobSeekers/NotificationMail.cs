@@ -3,7 +3,7 @@ using Jobbliggaren.Domain.Common;
 namespace Jobbliggaren.Domain.JobSeekers;
 
 /// <summary>
-/// Whether a notification mail may be sent to a job seeker (ADR 0163): its consent, the pause of every
+/// Whether a notification mail may be sent to a job seeker (ADR 0164): its consent, the pause of every
 /// notification mail, and its own mail type's pause. The consent is held by reference to
 /// <see cref="NotificationConsent"/>, never copied, and the all-mail pause is part of every gate, so no
 /// sender can check one half of the condition.
@@ -42,7 +42,7 @@ public sealed class NotificationMailGate
         && (_mailTypeOn?.IsSatisfiedBy(seeker) ?? true);
 }
 
-/// <summary>The gate of each notification mail (ADR 0163).</summary>
+/// <summary>The gate of each notification mail (ADR 0164).</summary>
 public static class NotificationMail
 {
     /// <summary>The Toppmatch mail: the background-match consent and the Toppmatch mail switched on.</summary>

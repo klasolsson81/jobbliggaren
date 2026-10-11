@@ -48,7 +48,7 @@ public class PreferencesTests
             $"{string.Join(", ", offenders)}: a Preferences parameter must default to default(T) of its type. "
             + "A row written before that key existed has no such key in the preferences jsonb, and a missing key "
             + "reads as the CLR default, never as the record default, so a non-default record default is silently "
-            + "ignored on every such row (ADR 0163; DigestCadence.cs:17-20). Choose a shape whose default(T) is the "
+            + "ignored on every such row (ADR 0164; DigestCadence.cs:17-20). Choose a shape whose default(T) is the "
             + "intended value, as the nullable mail pause stamps do, where null means on.");
     }
 

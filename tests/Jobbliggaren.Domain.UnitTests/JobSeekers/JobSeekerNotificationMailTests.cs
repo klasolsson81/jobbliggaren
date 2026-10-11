@@ -7,7 +7,7 @@ using Lifecycle = Jobbliggaren.Domain.UnitTests.JobSeekers.NotificationConsentTe
 namespace Jobbliggaren.Domain.UnitTests.JobSeekers;
 
 /// <summary>
-/// ADR 0163 (#2107) — the three mail switches on <see cref="JobSeeker"/>. Off is a pause stamped once and
+/// ADR 0164 (#2107) — the three mail switches on <see cref="JobSeeker"/>. Off is a pause stamped once and
 /// kept while it stays off, on clears it, and the same state is a no-op. Each switch writes its own stamp
 /// and nothing else: never a consent, a withdrawal, the cadence or another switch (security V3).
 /// </summary>

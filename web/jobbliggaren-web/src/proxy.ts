@@ -363,11 +363,12 @@ function rewriteCookieHeader(
   return rewritten.join("; ");
 }
 
-// Only Next's own static assets are excluded, and `/api/` (its policy is the static one in
-// next.config.ts, ADR 0163). NOT excluded: any path by file extension — a dynamic route answers to
-// `/jobb/abc.png` too, and an HTML document on a path the visitor chose must carry the policy. Nor
-// Next's `missing:` prefetch filter: the refresh driver has its own prefetch rule and skipping the
-// proxy for a prefetch would skip the auth gate.
+// Only Next's own static assets are excluded, anchored so that a look-alike (`/favicon.icoX`,
+// `/_next/imageX`) is not, and `/api/` (its policy is the static one in next.config.ts, ADR 0163).
+// NOT excluded: any path by file extension — a dynamic route answers to `/jobb/abc.png` too, and an
+// HTML document on a path the visitor chose must carry the policy. Nor Next's `missing:` prefetch
+// filter: the refresh driver has its own prefetch rule and skipping the proxy for a prefetch would
+// skip the auth gate.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/).*)"],
+  matcher: ["/((?!_next/static/|_next/image$|favicon\\.ico$|api/).*)"],
 };

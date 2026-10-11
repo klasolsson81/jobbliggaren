@@ -835,6 +835,12 @@ describe("proxy — the matcher", () => {
     "/admin/x.svg",
     "/finns-inte.png",
     "/finns-inte.ico",
+    "/favicon.icoX",
+    "/favicon.ico/x",
+    "/faviconXico",
+    "/_next/staticX",
+    "/_next/imageX",
+    "/_next/image/x",
   ])("runs on the page route %s, whatever its extension", (path) => expect(matches(path)).toBe(true));
 
   it.each(["/_next/static/chunks/a.js", "/_next/image", "/favicon.ico", "/api/auth/oauth/google/callback", "/api/cv/import"])(

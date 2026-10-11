@@ -122,9 +122,8 @@ for (const path of ["/", "/logga-in", "/vanliga-fragor"]) {
   });
 }
 
-// The matcher must not skip a page route because of its suffix: these paths render HTML (the not-found
-// page, and a dynamic route whose layout redirects), and the HTML must carry the policy (#2128).
-for (const path of ["/finns-inte.png", "/finns-inte.svg", `/jobb/abc.png`]) {
+// The matcher must not skip a page route because of its suffix or a look-alike prefix (#2128).
+for (const path of ["/finns-inte.png", "/finns-inte.svg", "/jobb/abc.png", "/favicon.icoX", "/_next/imageX"]) {
   test(`${path} carries exactly one nonce CSP`, async ({ request }) => {
     const res = await request.get(path, { maxRedirects: 0 });
     const csp = res.headers()["content-security-policy"] ?? "";

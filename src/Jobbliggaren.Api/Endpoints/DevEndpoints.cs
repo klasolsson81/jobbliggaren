@@ -7,8 +7,7 @@ namespace Jobbliggaren.Api.Endpoints;
 
 /// <summary>
 /// DEV-ONLY endpoints — remove before launch (Klas), together with everything they gate
-/// (<c>docs/runbooks/release-checklist.md</c>). These exist solely so onboarding flows can be
-/// re-tested.
+/// (<c>docs/runbooks/release-checklist.md</c>).
 ///
 /// <para><b>The routes are ENVIRONMENT-gated and nothing widens them.</b> Unauthenticated, the
 /// <c>accounts</c> and <c>login-code</c> seams open an account and hand out a login code for a reserved
@@ -21,8 +20,7 @@ public static class DevEndpoints
     /// <summary>
     /// DEV-ONLY, ENVIRONMENT-gated and NOT configurable. The caller (<c>Program.cs</c>) MUST guard
     /// this with <c>app.Environment.IsDevelopment()</c> and nothing else — no flag may widen it.
-    /// <c>ProductionStartupSmokeTests</c> measures that route table, because "no flag widens it" is exactly
-    /// the kind of claim that stays true only while someone is measuring it.
+    /// <c>ProductionStartupSmokeTests</c> measures that route table.
     /// </summary>
     public static void MapDevEnvironmentOnlyEndpoints(this IEndpointRouteBuilder app)
     {

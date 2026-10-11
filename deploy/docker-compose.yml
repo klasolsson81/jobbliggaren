@@ -509,7 +509,7 @@ services:
       # The ingestion gate, and it is deliberately NOT flipped in the shipped Production overlay.
       # That overlay keeps IngestEnabled=false and JobSourceIngestGateConfigurationTests pins it,
       # so an image that reaches any box ingests nothing until an operator says otherwise HERE.
-      # The default is false for the same reason the Auth gates above default closed: an absent
+      # The default is false: an absent
       # key must mean OFF here rather than fall through. What it falls through TO is two layers,
       # not one - the Production overlay's own false (loaded because DOTNET_ENVIRONMENT is set
       # above), and only if that vanishes too, the code default, which is true. The lower layer

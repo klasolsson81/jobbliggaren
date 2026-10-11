@@ -916,6 +916,20 @@ ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger tog
            [#1768](https://github.com/klasolsson81/jobbliggaren/issues/1768#issuecomment-6009264278) (d);
            härledning: ADR 0133, Amendment 2026-10-05 och 2026-10-06
            (lokala).
+           ⚠ **Klas-beslut 2026-10-11 om flippen (trigger (a)):** på `security-auditor`s Major mot PR
+           [#2121](https://github.com/klasolsson81/jobbliggaren/pull/2121) — compose-defaulten
+           `AUTH_REGISTRATIONS_OPEN:-true`, där merge = deploy (ADR 0154) — valde Klas
+           *"A: öppna ändå, mitt beslut"*. Det är hans beslut som personuppgiftsansvarig (Art. 24(1)),
+           inte en §9.6-acceptans, och det bär ingen signatur av `security-auditor`. Det betyder
+           uttryckligen: (1) registreringen öppnas **med [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)
+           (M-4) ouppfyllt** — krypterad backup utanför lådan och återläsningsövning, som han 2026-10-05
+           beslutade skulle finnas före första användare som inte är han — och #197 **står kvar som
+           Major**, graden oförändrad; (2) ADR 0133:s beslut om benen (b) och (c) och Art. 7.4
+           **förfaller som skrivet** vid (a) och är inte omtagna; (3) (b) och (d) fyrar som skrivet vid
+           första konto respektive utskick till annan än Klas, och beslutet tar inte bort dem;
+           (4) ommätningen av (a) och (c) ligger kvar hos flippen och är inte gjord. Lapsvillkor: hemmet
+           är den här raden, läsaren är Klas, och beslutet gäller en öppen registrering — det lapsar
+           om grinden stängs och öppnas på nytt, då ska det tas om.
            ⚠ **Mätningarna förfaller: ommät (a) och (c) VID flippen, ärv dem inte ur den här raden.**
            ⚠ **Basic-auth-credentialen på `dev` bär EN GDPR-slutsats, och det här är hemmet för
            GRADERINGEN av den.** (1) Sätts `SITE_ADMISSION=open` — eller tas direktivet bort eller
@@ -2402,27 +2416,15 @@ overksamt inom en omstart; en halvriven kodbas är inte.
    `/oversikt`. Det är hela skyddet, redan innan någon kod tas bort.
 2. **Riv koden**, i en egen PR:
    - `src/Jobbliggaren.Api/Endpoints/DevEndpoints.cs` (hela filen)
-   - de två map-grindarna och boot-annonseringen i `src/Jobbliggaren.Api/Program.cs`
-   - `src/Jobbliggaren.Api/Observability/DevToolsLog.cs`
-   - `src/Jobbliggaren.Application/Dev/` (hela katalogen: `Configuration/DevToolsOptions.cs`,
-     `Commands/ResetMyData/`, `Commands/SeedAccount/`, `Commands/TakeLoginCode/`,
-     `Abstractions/`)
+   - map-grinden i `src/Jobbliggaren.Api/Program.cs`
+   - `src/Jobbliggaren.Application/Dev/` (hela katalogen: `Commands/SeedAccount/`,
+     `Commands/TakeLoginCode/`, `Abstractions/`)
    - `src/Jobbliggaren.Infrastructure/Auth/DevSeedableAddressPolicy.cs` och
      `src/Jobbliggaren.Infrastructure/Auth/DevLoginCodeCapture.cs`; att katalogen ovan rivs
      bryter bygget i båda, så de kan inte bli kvar
-   - `DevToolsOptions`-bindningen i `src/Jobbliggaren.Infrastructure/DependencyInjection.cs`
-     och `AddDevOnlyTestingSupport` + `AddDevLoginCodeCapture` i samma fil, och anropet av
+   - `AddDevOnlyTestingSupport` + `AddDevLoginCodeCapture` i `src/Jobbliggaren.Infrastructure/DependencyInjection.cs`, och anropet av
      `AddDevLoginCodeCapture` i `tests/Jobbliggaren.Api.IntegrationTests/Infrastructure/ApiFactory.cs`
-   - `"DevTools"`-sektionen i `src/Jobbliggaren.Api/appsettings.Development.json`
-   - `deploy/docker-compose.yml` (`DevTools__EnableResetMyData` på `api`,
-     `DEV_TOOLS_RESET_ENABLED` på `web`), `deploy/.env.example`-blocket, och
-     `tests/Jobbliggaren.Migrate.UnitTests/DeployComposeDevToolsGateTests.cs`
-   - `web/jobbliggaren-web/src/components/dev/`, `src/lib/dev/`,
-     `DEV_TOOLS_RESET_ENABLED` i `src/lib/env.ts`, och renderingen i
-     `src/app/(app)/oversikt/page.tsx`
-   - `dev.*`-nycklarna i `messages/{sv,en}/common.json`
    - `tests/Jobbliggaren.Application.UnitTests/Dev/`,
-     `web/jobbliggaren-web/src/lib/env.test.ts`,
      `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevAccountSeedEndpointTests.cs`,
      `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevLoginCodeEndpointTests.cs`,
      `tests/Jobbliggaren.Api.IntegrationTests/Configuration/DevLoginCodeCaptureCompositionTests.cs`,

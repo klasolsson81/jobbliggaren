@@ -223,8 +223,6 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     {
         // Universally quantified over the route table rather than enumerated: a seam added under the
         // group fails here on arrival instead of on someone remembering to add a case.
-        _ = _client; // the host is built by the factory's first client, so the route table exists
-
         var devRoutes = _factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .OfType<RouteEndpoint>()
             .Select(e => e.RoutePattern.RawText ?? string.Empty)

@@ -117,7 +117,7 @@ Ordered, and the order is load-bearing at steps 0 and 7.
 ⚠ **The list below does two jobs, and a visit may need only one of them.** Steps 0–4 and 10
 open the gate and close it again. Steps 5–9 create **the two accounts this procedure itself
 registers** — precondition 3's pair — and assign the operator Admin. A visit whose purpose is to let other people
-register themselves therefore runs 0–4 and 10, and nothing between them. Each step that differs
+register themselves therefore runs 0–4, and nothing between them. Each step that differs
 between the two says so where it stands.
 
 **0. Confirm the box runs one release, whole.**

@@ -64,12 +64,14 @@ describe("the attention card beside the Backup and Tjänster cards (#2084)", () 
     expect(within(attention()).getByRole("link", { name })).toHaveAttribute("href", "#admin-overview-backup");
   });
 
+  // The instants and the limit are kept whole with a no-break space, as the Tjänster card keeps them.
   it.each([
-    [{ backgroundJobs: { state: "Silent", sampledAt: SAMPLED, heartbeatAt: "2026-10-08T09:50:00Z" } }, "Worker: Inget livstecken sedan 2026-10-08 11:50"],
+    [{ backgroundJobs: { state: "Silent", sampledAt: SAMPLED, heartbeatAt: "2026-10-08T09:50:00Z" } }, "Worker: Inget livstecken sedan 2026-10-08\u00A011:50"],
     [{ backgroundJobs: { state: "NoServer", sampledAt: SAMPLED, heartbeatAt: null } }, "Worker: Inget livstecken registrerat"],
     [{ volatileStore: { state: "Unreachable", sampledAt: SAMPLED } }, "Tillfälligt lager: Svarar inte"],
-    [{ jobImport: { state: "Overdue", sampledAt: SAMPLED, lastRunAt: "2026-10-08T09:20:00Z", errors: 0 } }, "Annonsimport: Senaste körning 2026-10-08 11:20, äldre än 25 minuter"],
+    [{ jobImport: { state: "Overdue", sampledAt: SAMPLED, lastRunAt: "2026-10-08T09:20:00Z", errors: 0 } }, "Annonsimport: Senaste körning 2026-10-08\u00A011:20, äldre än 25\u00A0minuter"],
     [{ jobImport: { state: "NoneRecorded", sampledAt: SAMPLED, lastRunAt: null, errors: null } }, "Annonsimport: Ingen körning registrerad"],
+    [{ jobImport: { state: "Recorded", sampledAt: SAMPLED, lastRunAt: "2026-10-08T09:50:00Z", errors: 3 } }, "Annonsimport: 3 fel i körningen"],
   ] as const)("raises the edge and words %j as the Tjänster card does", (patch, name) => {
     show(withServices(patch));
 
@@ -78,11 +80,31 @@ describe("the attention card beside the Backup and Tjänster cards (#2084)", () 
     expect(document.getElementById("admin-overview-services")).toHaveTextContent("Tjänster");
   });
 
-  it("does not raise the edge for errors in a recorded run, which the Tjänster card itself marks", () => {
-    show(withServices({ jobImport: { state: "Recorded", sampledAt: SAMPLED, lastRunAt: "2026-10-08T09:50:00Z", errors: 3 } }));
+  it("lists both lines of an overdue run with errors, each linked to the Tjänster card", () => {
+    show(withServices({ jobImport: { state: "Overdue", sampledAt: SAMPLED, lastRunAt: "2026-10-08T09:20:00Z", errors: 2 } }));
 
+    expect(attention()).toHaveAttribute("data-state", "raised");
+    const lines = within(attention()).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")]);
+    expect(lines).toEqual([
+      ["Annonsimport: Senaste körning 2026-10-08\u00A011:20, äldre än 25\u00A0minuter", "#admin-overview-services"],
+      ["Annonsimport: 2 fel i körningen", "#admin-overview-services"],
+    ]);
+    // The instant never breaks inside itself, as on the card.
+    expect(within(attention()).getAllByRole("link")[0]?.querySelector(".jp-adminusers__date")?.textContent).toBe("2026-10-08\u00A011:20");
+  });
+
+  it("raises nothing from a warning the page has withdrawn as too old, and names the row undetermined instead", () => {
+    const stale = withServices({ jobImport: { state: "Overdue", sampledAt: SAMPLED, lastRunAt: "2026-10-08T09:20:00Z", errors: 2 } });
+    const { unmount } = render(<AdminOverview observations={stale} now={Date.parse(SAMPLED) + 120_000} />);
+    expect(attention()).toHaveAttribute("data-state", "raised");
+    unmount();
+
+    render(<AdminOverview observations={stale} now={Date.parse(SAMPLED) + 121_000} />);
     expect(attention()).toHaveAttribute("data-state", "unknown");
     expect(within(attention()).queryAllByRole("link")).toEqual([]);
+    expect(attention()).toHaveTextContent("AnnonsimportKunde inte avgöras");
+    expect(within(screen.getByRole("region", { name: "Tjänster" })).getByText("Annonsimport", { selector: "dt" }).nextElementSibling)
+      .toHaveTextContent(/^– Kunde inte avgöras$/);
   });
 
   it("says an undetermined row could not be determined, without a link, a warning or a raised edge", () => {

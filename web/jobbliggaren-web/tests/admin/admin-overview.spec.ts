@@ -387,9 +387,9 @@ for (const width of [1280, 1920, 3440, 390]) {
     await page.goto("/admin");
     const services = card(page, "Tjänster");
     await expect(services.getByRole("term")).toHaveText(["Worker", "Tillfälligt lager", "Annonsimport"]);
-    await expect(serviceRow(page, "Worker")).toContainText(/^Senaste livstecken \d{4}-\d\d-\d\d \d\d:\d\d \(för \d+ sekunder sedan\)$/);
+    await expect(serviceRow(page, "Worker")).toContainText(/^Senaste livstecken \d{4}-\d\d-\d\d\u00A0\d\d:\d\d \(för \d+ sekunder sedan\)$/);
     await expect(serviceRow(page, "Tillfälligt lager")).toHaveText("Svarar");
-    await expect(serviceRow(page, "Annonsimport")).toContainText(/^Senaste körning \d{4}-\d\d-\d\d \d\d:\d\d \(för \d+ minuter sedan\)$/);
+    await expect(serviceRow(page, "Annonsimport")).toContainText(/^Senaste körning \d{4}-\d\d-\d\d\u00A0\d\d:\d\d \(för \d+ minuter sedan\)$/);
     await expect(services).toContainText("Uppgift från");
     await expect(services.locator(".jp-admin-warning")).toHaveCount(0);
     await expect(services).not.toContainText(/Fungerar|Kommer snart|0 fel|Platsbanken|JobTech/);
@@ -399,10 +399,10 @@ for (const width of [1280, 1920, 3440, 390]) {
 }
 
 for (const [scenario, label, words] of [
-  ["silent", "Worker", /^Inget livstecken sedan \d{4}-\d\d-\d\d \d\d:\d\d$/],
+  ["silent", "Worker", /^Inget livstecken sedan \d{4}-\d\d-\d\d\u00A0\d\d:\d\d$/],
   ["noServer", "Worker", "Inget livstecken registrerat"],
   ["unreachable", "Tillfälligt lager", "Svarar inte"],
-  ["overdue", "Annonsimport", /^Senaste körning \d{4}-\d\d-\d\d \d\d:\d\d, äldre än 25 minuter$/],
+  ["overdue", "Annonsimport", /^Senaste körning \d{4}-\d\d-\d\d\u00A0\d\d:\d\d, äldre än 25\u00A0minuter$/],
   ["noneRecorded", "Annonsimport", "Ingen körning registrerad"],
   ["errors", "Annonsimport", "3 fel i körningen"],
 ] as const) for (const width of [1280, 390]) {
@@ -421,7 +421,7 @@ test("the Tjänster card with every row in need of attention, in both themes", a
   harness.overviewServices = "warnings";
   await page.goto("/admin");
   await expect(card(page, "Tjänster").locator(".jp-admin-warning")).toHaveText([
-    /^Inget livstecken sedan /, "Svarar inte", /, äldre än 25 minuter$/, "2 fel i körningen",
+    /^Inget livstecken sedan /, "Svarar inte", /, äldre än 25\u00A0minuter$/, "2 fel i körningen",
   ]);
   await verify(page, "services-warnings");
   await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
@@ -434,7 +434,7 @@ for (const width of [1280, 390]) {
     harness.overviewServices = "unknown";
     await page.goto("/admin");
     for (const label of ["Worker", "Tillfälligt lager", "Annonsimport"])
-      await expect(serviceRow(page, label)).toHaveText("–Uppgift saknas Kunde inte avgöras");
+      await expect(serviceRow(page, label)).toHaveText("– Kunde inte avgöras");
     await expect(card(page, "Tjänster")).not.toContainText("Uppgift från");
     await expect(card(page, "Tjänster").locator(".jp-admin-warning")).toHaveCount(0);
     await verify(page, "services-unknown");
@@ -454,7 +454,7 @@ for (const width of [1280, 390]) {
   });
 }
 
-test("a refresh keeps the last services rows, marks the failure at once, then marks them old and drops their ages", async ({ page }) => {
+test("a refresh keeps the last services rows within the limit and marks the failure, then withdraws them once older", async ({ page }) => {
   await page.clock.install();
   await page.goto("/admin");
   const services = card(page, "Tjänster");
@@ -473,9 +473,30 @@ test("a refresh keeps the last services rows, marks the failure at once, then ma
   await page.clock.runFor(60_000);
   await second;
   await expect(services).toContainText("Uppgiften är äldre än 2 minuter.");
-  await expect(serviceRow(page, "Worker")).toContainText(/^Senaste livstecken \d{4}-\d\d-\d\d \d\d:\d\d$/);
+  await expect(services).toContainText("Uppgift från");
+  for (const label of ["Worker", "Tillfälligt lager", "Annonsimport"])
+    await expect(serviceRow(page, label)).toHaveText("– Kunde inte avgöras");
+  await expect(services).not.toContainText(/Senaste livstecken|Senaste körning|Svarar/);
   await expect(page.getByRole("status").filter({ hasText: "Tjänster:" })).toContainText("Uppgiften är äldre än 2 minuter.");
+  // The attention card reads the rows as the card does: withdrawn, so undetermined there too.
+  await expect(card(page, "Kräver uppmärksamhet")).toContainText("WorkerKunde inte avgöras");
   await verify(page, "services-retained-old");
+});
+
+test("an import run with errors raises the attention card's edge with its own line, in both themes (#2084)", async ({ page }) => {
+  harness.overviewEmpty = true;
+  harness.overviewServices = "errors";
+  await page.goto("/admin");
+  await expect(serviceRow(page, "Annonsimport").locator(".jp-admin-warning")).toHaveText("3 fel i körningen");
+  const attention = card(page, "Kräver uppmärksamhet");
+  // Nothing else needs attention here: no failed job, no pending deletion, a backup that ran.
+  await expect(attention).toHaveAttribute("data-state", "raised");
+  await expect(attention.getByRole("link", { name: "Annonsimport: 3 fel i körningen", exact: true }))
+    .toHaveAttribute("href", "#admin-overview-services");
+  await expect(alerts(page)).toHaveCount(0);
+  await verify(page, "services-errors-attention");
+  await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+  await verify(page, "services-errors-attention-dark");
 });
 
 test("a refresh that finds the services source refused clears every privileged value", async ({ page }) => {
@@ -515,11 +536,16 @@ for (const width of [1280, 390]) {
     await expect(attention).toHaveAttribute("data-state", "raised");
     const services = attention.getByRole("link").filter({ hasText: /^(Worker|Tillfälligt lager|Annonsimport): / });
     await expect(services).toHaveText([
-      /^Worker: Inget livstecken sedan \d{4}-\d\d-\d\d \d\d:\d\d$/,
+      /^Worker: Inget livstecken sedan \d{4}-\d\d-\d\d\s\d\d:\d\d$/,
       "Tillfälligt lager: Svarar inte",
-      /^Annonsimport: Senaste körning \d{4}-\d\d-\d\d \d\d:\d\d, äldre än 25 minuter$/,
+      /^Annonsimport: Senaste körning \d{4}-\d\d-\d\d\s\d\d:\d\d, äldre än 25\sminuter$/,
+      "Annonsimport: 2 fel i körningen",
     ]);
-    for (const link of await services.all()) await expect(link).toHaveAttribute("href", "#admin-overview-services");
+    for (const link of await services.all()) {
+      await expect(link).toHaveAttribute("href", "#admin-overview-services");
+      // The link is a flex box: its words are one item, so a line with an unbroken instant flows as one sentence.
+      expect(await link.evaluate((anchor) => anchor.childNodes.length)).toBe(1);
+    }
     // Every line a hit target of its own, none on top of another.
     const targets = await attention.getByRole("link").evaluateAll(links => links.map(link => {
       const rect = link.getBoundingClientRect();

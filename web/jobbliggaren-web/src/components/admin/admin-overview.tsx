@@ -215,7 +215,7 @@ export function AdminOverview({
           title={t("attention.title")}
           span={5}
           list
-          attention={observations ? overviewAttentionState(observations) : attentionState(regions.attention)}
+          attention={observations ? overviewAttentionState(observations, now) : attentionState(regions.attention)}
         >
           {observations ? <ObservedAttention observations={observations} now={now} basePath={basePath} />
             : <AttentionBody region={regions.attention} basePath={basePath} />}
@@ -459,10 +459,10 @@ function AccountStatusLinks({ basePath, counts }: {
     <span key={key}>{index ? " · " : ""}<Link href={accountsHref(basePath, undefined, statuses[key])} className="jp-adminoverview__link">{t(key, { count: counts[key] })}</Link></span>)}</>;
 }
 
-function overviewAttentionState(snapshot: AdminOverviewSnapshot): "unknown" | "raised" {
+function overviewAttentionState(snapshot: AdminOverviewSnapshot, now: number): "unknown" | "raised" {
   const pending = snapshot.accounts.kind === "loaded" && snapshot.accounts.data.counts.pendingDeletion > 0;
   const failed = snapshot.jobs.kind === "loaded" && snapshot.jobs.data.totalCount > 0;
-  return pending || failed || backupOrServicesRaised(snapshot.backup, snapshot.services) ? "raised" : "unknown";
+  return pending || failed || backupOrServicesRaised(snapshot.backup, snapshot.services, now) ? "raised" : "unknown";
 }
 
 function ObservedAttention({ observations, now, basePath }: {
@@ -482,7 +482,7 @@ function ObservedAttention({ observations, now, basePath }: {
       : t("noPendingDeletions")}</p> : <div><p>{t("deletionsSource")}</p><AdminRegionLine kind={accounts.kind} quiet /></div>}
     <AdminObservationNote observation={accounts} now={now} />
     <BackupAttentionLines observation={backup} />
-    <ServicesAttentionLines observation={services} />
+    <ServicesAttentionLines observation={services} now={now} />
     <p>{t("emailUnknown")}</p>
   </div>;
 }

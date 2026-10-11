@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { ServicesObservationDto } from "@/lib/dto/admin-services";
+import type { JpFormatter } from "@/lib/i18n/format";
 import {
-  ageServicesReading,
-  hasStaleServiceRow,
+  formatServiceLimit,
+  hasOldServiceRow,
   newestServiceSample,
+  servicesAt,
   servicesRegion,
   toServicesReading,
+  withdrawOldServiceRows,
 } from "./service-observation";
 
 const SAMPLED = "2026-10-10T12:00:00+00:00";
@@ -30,12 +33,12 @@ const allUnknown = (): Partial<ServicesObservationDto> => ({
 });
 
 describe("toServicesReading", () => {
-  it("keeps each row's verdict, the instants it rests on and its sample time, young", () => {
+  it("keeps each row's verdict, the instants it rests on and its sample time", () => {
     const services = toServicesReading(dto());
 
-    expect(services.backgroundJobs).toEqual({ kind: "alive", heartbeatAt: HEARTBEAT, sampledAt: SAMPLED, stale: false });
-    expect(services.volatileStore).toEqual({ kind: "reachable", sampledAt: SAMPLED, stale: false });
-    expect(services.jobImport).toEqual({ kind: "recorded", lastRunAt: RUN, errors: 0, sampledAt: SAMPLED, stale: false });
+    expect(services.backgroundJobs).toEqual({ kind: "alive", heartbeatAt: HEARTBEAT, sampledAt: SAMPLED });
+    expect(services.volatileStore).toEqual({ kind: "reachable", sampledAt: SAMPLED });
+    expect(services.jobImport).toEqual({ kind: "recorded", lastRunAt: RUN, errors: 0, sampledAt: SAMPLED });
     expect(services.staleAfterMs).toBe(120_000);
     expect(services.importOverdueAfterSeconds).toBe(1500);
   });
@@ -82,54 +85,111 @@ describe("toServicesReading", () => {
   });
 });
 
-describe("ageServicesReading", () => {
-  it("leaves a sample young enough as it is", () => {
-    const aged = ageServicesReading(toServicesReading(dto()), T0 + 120_000);
+/**
+ * Three rows sampled 3 s and 8 s apart, as one tick can stamp them (each source is stamped after its own read, up to
+ * about twice the probe timeout apart): the Worker at T, the store at T+3 s, the import at T+8 s.
+ */
+const spread = () => toServicesReading(dto({
+  backgroundJobs: { state: "Alive", sampledAt: "2026-10-10T12:00:00+00:00", heartbeatAt: HEARTBEAT },
+  volatileStore: { state: "Reachable", sampledAt: "2026-10-10T12:00:03+00:00" },
+  jobImport: { state: "Recorded", sampledAt: "2026-10-10T12:00:08+00:00", lastRunAt: RUN, errors: 0 },
+}));
 
-    expect(aged.backgroundJobs).toMatchObject({ stale: false });
-    expect(aged.jobImport).toMatchObject({ stale: false });
+describe("withdrawOldServiceRows", () => {
+  it("keeps a row whose own sample is exactly the API's limit old", () => {
+    const rows = withdrawOldServiceRows(toServicesReading(dto()), T0 + 120_000);
+
+    expect(rows.backgroundJobs).toEqual({ kind: "alive", heartbeatAt: HEARTBEAT, sampledAt: SAMPLED });
+    expect(rows.volatileStore).toEqual({ kind: "reachable", sampledAt: SAMPLED });
+    expect(rows.jobImport).toEqual({ kind: "recorded", lastRunAt: RUN, errors: 0, sampledAt: SAMPLED });
   });
 
-  it("marks a kept sample old once it passes the limit the API applied, and keeps its verdict", () => {
-    const aged = ageServicesReading(toServicesReading(dto()), T0 + 120_001);
+  it("withdraws every row one second past the limit: unknown, with no verdict and no time", () => {
+    const rows = withdrawOldServiceRows(toServicesReading(dto()), T0 + 121_000);
 
-    expect(aged.backgroundJobs).toMatchObject({ kind: "alive", stale: true, heartbeatAt: HEARTBEAT });
-    expect(aged.volatileStore).toMatchObject({ kind: "reachable", stale: true });
-    expect(aged.jobImport).toMatchObject({ kind: "recorded", stale: true });
+    expect(rows.backgroundJobs).toEqual({ kind: "unknown" });
+    expect(rows.volatileStore).toEqual({ kind: "unknown" });
+    expect(rows.jobImport).toEqual({ kind: "unknown" });
+    expect(rows.staleAfterMs).toBe(120_000);
+  });
+
+  it.each([
+    ["a silent Worker", { backgroundJobs: { state: "Silent", sampledAt: SAMPLED, heartbeatAt: HEARTBEAT } }, "backgroundJobs"],
+    ["a store that does not answer", { volatileStore: { state: "Unreachable", sampledAt: SAMPLED } }, "volatileStore"],
+    ["an overdue run with errors", { jobImport: { state: "Overdue", sampledAt: SAMPLED, lastRunAt: RUN, errors: 3 } }, "jobImport"],
+  ] as const)("withdraws %s as well: an old warning is no more a verdict than an old positive", (_label, patch, row) => {
+    expect(withdrawOldServiceRows(toServicesReading(dto(patch)), T0 + 121_000)[row]).toEqual({ kind: "unknown" });
+  });
+
+  it("judges each row by its own sample: at T+121 s the Worker (T) goes, the store (T+3 s) and the import (T+8 s) stay", () => {
+    const rows = withdrawOldServiceRows(spread(), T0 + 121_000);
+
+    expect(rows.backgroundJobs).toEqual({ kind: "unknown" });
+    expect(rows.volatileStore).toMatchObject({ kind: "reachable" });
+    expect(rows.jobImport).toMatchObject({ kind: "recorded", sampledAt: "2026-10-10T12:00:08+00:00" });
   });
 
   it("leaves an undetermined row undetermined however long the page keeps it", () => {
-    const aged = ageServicesReading(toServicesReading(dto(allUnknown())), T0 + 1e9);
+    const rows = withdrawOldServiceRows(toServicesReading(dto(allUnknown())), T0 + 1e9);
 
-    expect(aged.backgroundJobs).toEqual({ kind: "unknown" });
-    expect(aged.volatileStore).toEqual({ kind: "unknown" });
-    expect(aged.jobImport).toEqual({ kind: "unknown" });
+    expect(rows.backgroundJobs).toEqual({ kind: "unknown" });
+    expect(rows.volatileStore).toEqual({ kind: "unknown" });
+    expect(rows.jobImport).toEqual({ kind: "unknown" });
   });
 });
 
-describe("newestServiceSample and hasStaleServiceRow", () => {
-  it("reports no sample time when every row is unknown", () => {
+describe("newestServiceSample and hasOldServiceRow", () => {
+  it("reports no sample time and no old row when every row is unknown", () => {
     const none = toServicesReading(dto(allUnknown()));
 
     expect(newestServiceSample(none)).toBeNull();
-    expect(hasStaleServiceRow(none)).toBe(false);
+    expect(hasOldServiceRow(none, T0 + 1e9)).toBe(false);
   });
 
   it("reports the newest of the rows that have one", () => {
-    const later = "2026-10-10T12:00:30+00:00";
-    const services = toServicesReading(dto({ volatileStore: { state: "Reachable", sampledAt: later } }));
+    expect(newestServiceSample(spread())).toBe("2026-10-10T12:00:08+00:00");
+  });
 
-    expect(newestServiceSample(services)).toBe(later);
+  it("finds an old row by its own sample, not by the newest", () => {
+    expect(hasOldServiceRow(spread(), T0 + 120_000)).toBe(false);
+    expect(hasOldServiceRow(spread(), T0 + 121_000)).toBe(true);
   });
 });
 
 describe("servicesRegion", () => {
-  it("is loaded, dated by the newest sample, and young without a clock (the preview)", () => {
-    expect(servicesRegion(toServicesReading(dto()))).toMatchObject({ kind: "loaded", sampledAt: SAMPLED, stale: false });
+  it("is loaded, dated by the newest sample, and young without a clock (the preview), which withdraws nothing", () => {
+    const region = servicesRegion(toServicesReading(dto()));
+
+    expect(region).toMatchObject({ kind: "loaded", sampledAt: SAMPLED, stale: false });
+    if (region.kind !== "loaded") throw new Error("Expected a loaded region");
+    expect(region.data.backgroundJobs.kind).toBe("alive");
   });
 
-  it("is old once the page's clock passes the limit", () => {
-    expect(servicesRegion(toServicesReading(dto()), T0 + 120_001)).toMatchObject({ kind: "loaded", stale: true });
+  it("keeps its rows and is young at exactly the limit", () => {
+    const region = servicesRegion(toServicesReading(dto()), T0 + 120_000);
+
+    expect(region).toMatchObject({ kind: "loaded", sampledAt: SAMPLED, stale: false });
+    if (region.kind !== "loaded") throw new Error("Expected a loaded region");
+    expect(region.data.jobImport.kind).toBe("recorded");
+  });
+
+  it("one second past the limit withdraws every row and still says when they were sampled and that it is old", () => {
+    const region = servicesRegion(toServicesReading(dto()), T0 + 121_000);
+
+    expect(region).toMatchObject({ kind: "loaded", sampledAt: SAMPLED, stale: true });
+    if (region.kind !== "loaded") throw new Error("Expected a loaded region");
+    expect([region.data.backgroundJobs, region.data.volatileStore, region.data.jobImport]).toEqual([
+      { kind: "unknown" }, { kind: "unknown" }, { kind: "unknown" },
+    ]);
+  });
+
+  it("reads its time and its age from the rows before the withdrawal: newest T+8 s, old because the Worker is", () => {
+    const region = servicesRegion(spread(), T0 + 121_000);
+
+    expect(region).toMatchObject({ kind: "loaded", sampledAt: "2026-10-10T12:00:08+00:00", stale: true });
+    if (region.kind !== "loaded") throw new Error("Expected a loaded region");
+    expect(region.data.backgroundJobs).toEqual({ kind: "unknown" });
+    expect(region.data.jobImport.kind).toBe("recorded");
   });
 
   it("carries no sample time when no row has one", () => {
@@ -137,5 +197,29 @@ describe("servicesRegion", () => {
 
     expect(region.kind).toBe("loaded");
     expect(region).not.toHaveProperty("sampledAt");
+  });
+});
+
+describe("servicesAt", () => {
+  it("withdraws as the card does when there is a clock, and not without one", () => {
+    expect(servicesAt(dto(), T0 + 121_000).backgroundJobs).toEqual({ kind: "unknown" });
+    expect(servicesAt(dto(), T0 + 120_000).backgroundJobs.kind).toBe("alive");
+    expect(servicesAt(dto(), undefined).backgroundJobs.kind).toBe("alive");
+  });
+});
+
+describe("formatServiceLimit", () => {
+  // The next-intl formatter, with the Swedish locale it resolves in production.
+  const sv = {
+    number: (value: number, options?: Intl.NumberFormatOptions) => new Intl.NumberFormat("sv-SE", options).format(value),
+    dateTime: () => "",
+  } as unknown as JpFormatter;
+
+  it.each([
+    [1500, "25\u00A0minuter"],
+    [120, "2\u00A0minuter"],
+    [90, "1,5\u00A0minuter"],
+  ])("words %d s with the number and its unit on one line", (seconds, text) => {
+    expect(formatServiceLimit(sv, seconds)).toBe(text);
   });
 });

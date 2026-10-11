@@ -1,4 +1,6 @@
 import type { ServicesObservationDto } from "@/lib/dto/admin-services";
+import type { JpFormatter } from "@/lib/i18n/format";
+import { formatStaleLimit } from "./host-observation";
 import type { AdminValueRegion } from "./view-models";
 
 /**
@@ -9,8 +11,6 @@ import type { AdminValueRegion } from "./view-models";
  */
 interface Sampled {
   readonly sampledAt: string;
-  /** True once the page holds the sample longer than the limit the API applied. */
-  readonly stale: boolean;
 }
 
 type Unknown = { readonly kind: "unknown" };
@@ -36,7 +36,7 @@ export interface AdminServicesReading {
   readonly backgroundJobs: AdminWorkerReading;
   readonly volatileStore: AdminVolatileStoreReading;
   readonly jobImport: AdminJobImportReading;
-  /** The limit the API applied, so a row the page keeps ages by the same rule. */
+  /** The limit the API applied, so a row the page keeps is withdrawn by the same rule. */
   readonly staleAfterMs: number;
   /** The age past which the API calls the import overdue; the overdue row words it. */
   readonly importOverdueAfterSeconds: number;
@@ -48,21 +48,21 @@ const UNKNOWN: Unknown = { kind: "unknown" };
 // the schema; it is read as unknown, so the page never invents a time.
 function worker({ state, sampledAt, heartbeatAt }: ServicesObservationDto["backgroundJobs"]): AdminWorkerReading {
   if (state === "Unknown" || sampledAt === null) return UNKNOWN;
-  if (state === "NoServer") return { kind: "noServer", sampledAt, stale: false };
+  if (state === "NoServer") return { kind: "noServer", sampledAt };
   if (heartbeatAt === null) return UNKNOWN;
-  return { kind: state === "Alive" ? "alive" : "silent", heartbeatAt, sampledAt, stale: false };
+  return { kind: state === "Alive" ? "alive" : "silent", heartbeatAt, sampledAt };
 }
 
 function volatileStore({ state, sampledAt }: ServicesObservationDto["volatileStore"]): AdminVolatileStoreReading {
   if (state === "Unknown" || sampledAt === null) return UNKNOWN;
-  return { kind: state === "Reachable" ? "reachable" : "unreachable", sampledAt, stale: false };
+  return { kind: state === "Reachable" ? "reachable" : "unreachable", sampledAt };
 }
 
 function jobImport({ state, sampledAt, lastRunAt, errors }: ServicesObservationDto["jobImport"]): AdminJobImportReading {
   if (state === "Unknown" || sampledAt === null) return UNKNOWN;
-  if (state === "NoneRecorded") return { kind: "noneRecorded", sampledAt, stale: false };
+  if (state === "NoneRecorded") return { kind: "noneRecorded", sampledAt };
   if (lastRunAt === null || errors === null) return UNKNOWN;
-  return { kind: state === "Recorded" ? "recorded" : "overdue", lastRunAt, errors, sampledAt, stale: false };
+  return { kind: state === "Recorded" ? "recorded" : "overdue", lastRunAt, errors, sampledAt };
 }
 
 export function toServicesReading(dto: ServicesObservationDto): AdminServicesReading {
@@ -80,19 +80,24 @@ function sampledRows(services: AdminServicesReading): ReadonlyArray<Sampled> {
     .flatMap((row) => (row.kind === "unknown" ? [] : [row]));
 }
 
+/** True when the page holds `row` longer than the limit the API applied, judged by the row's own sample. */
+function isOld(row: Sampled, staleAfterMs: number, now: number): boolean {
+  return now - Date.parse(row.sampledAt) > staleAfterMs;
+}
+
 /**
- * The same rows aged to `now`: a sample the page has kept past the API's limit is old although the API judged it
- * young when it answered. The verdict itself is kept: it is what was observed, and the card marks it old.
+ * The rows as they may be shown at `now`. A row the page has kept longer than the API's limit is withdrawn: it
+ * becomes unknown, as the API itself would answer for a sample that old, and is never shown as an old verdict.
+ * Each row is judged by its own sample, so a young row beside an old one keeps its verdict and its age.
  */
-export function ageServicesReading(services: AdminServicesReading, now: number): AdminServicesReading {
-  const age = <R extends Sampled>(row: R): R =>
-    !row.stale && now - Date.parse(row.sampledAt) > services.staleAfterMs ? { ...row, stale: true } : row;
-  const { backgroundJobs, volatileStore: store, jobImport: run } = services;
+export function withdrawOldServiceRows(services: AdminServicesReading, now: number): AdminServicesReading {
+  const old = (row: Sampled) => isOld(row, services.staleAfterMs, now);
+  const { backgroundJobs: heartbeat, volatileStore: store, jobImport: run } = services;
   return {
     ...services,
-    backgroundJobs: backgroundJobs.kind === "unknown" ? backgroundJobs : age(backgroundJobs),
-    volatileStore: store.kind === "unknown" ? store : age(store),
-    jobImport: run.kind === "unknown" ? run : age(run),
+    backgroundJobs: heartbeat.kind !== "unknown" && old(heartbeat) ? UNKNOWN : heartbeat,
+    volatileStore: store.kind !== "unknown" && old(store) ? UNKNOWN : store,
+    jobImport: run.kind !== "unknown" && old(run) ? UNKNOWN : run,
   };
 }
 
@@ -102,17 +107,34 @@ export function newestServiceSample(services: AdminServicesReading): string | nu
   return times.length === 0 ? null : times.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b));
 }
 
-export function hasStaleServiceRow(services: AdminServicesReading): boolean {
-  return sampledRows(services).some((row) => row.stale);
+/** True when any row's own sample is older than the API's limit at `now`. */
+export function hasOldServiceRow(services: AdminServicesReading, now: number): boolean {
+  return sampledRows(services).some((row) => isOld(row, services.staleAfterMs, now));
 }
 
 /**
- * The Tjänster region for a set of rows, aged to `now` when the page has a clock (the preview has none). It carries
- * the newest sample time and whether any row is old, which the card prints once, as ADR 0150 D2 lets a loaded
- * region do.
+ * The Tjänster region at `now` (the preview has no clock and withdraws nothing). The newest sample time and whether
+ * any row is old are read from the rows as the API sent them, before the old ones are withdrawn, so a card whose rows
+ * have all been withdrawn still says when it was sampled and that the sample is old (ADR 0150 D2).
  */
 export function servicesRegion(services: AdminServicesReading, now?: number): AdminValueRegion<AdminServicesReading> {
-  const aged = now ? ageServicesReading(services, now) : services;
-  const sampledAt = newestServiceSample(aged);
-  return { kind: "loaded", data: aged, ...(sampledAt ? { sampledAt } : {}), stale: hasStaleServiceRow(aged) };
+  const sampledAt = newestServiceSample(services);
+  const clocked = now !== undefined && now > 0;
+  return {
+    kind: "loaded",
+    data: clocked ? withdrawOldServiceRows(services, now) : services,
+    ...(sampledAt ? { sampledAt } : {}),
+    stale: clocked && hasOldServiceRow(services, now),
+  };
+}
+
+/** The rows as the attention card may read them at `now`: the same withdrawal as the card's (`servicesRegion`). */
+export function servicesAt(dto: ServicesObservationDto, now: number | undefined): AdminServicesReading {
+  const services = toServicesReading(dto);
+  return now !== undefined && now > 0 ? withdrawOldServiceRows(services, now) : services;
+}
+
+/** A limit as the card words it, with the number and its unit kept on one line ("25 minuter"). */
+export function formatServiceLimit(format: JpFormatter, seconds: number): string {
+  return formatStaleLimit(format, seconds).replaceAll(" ", "\u00A0");
 }

@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { backupAttention, servicesAttention, type ServiceRaised, type ServiceRow } from "@/lib/admin/attention";
-import { formatStaleLimit } from "@/lib/admin/host-observation";
 import type { AwaitingObservation, OverviewObservation } from "@/lib/admin/overview";
+import { formatServiceLimit } from "@/lib/admin/service-observation";
 import type { BackupObservationData } from "@/lib/dto/admin-overview";
 import type { ServicesObservationDto } from "@/lib/dto/admin-services";
 import { formatDateTime } from "@/lib/i18n/format";
 import { AdminRegionLine } from "./admin-region-line";
+import { withWholeInstant } from "./admin-services-body";
 
 /**
  * The attention card's lines for the Backup card (#2084): each state it shows in the warning form, in the card's own
@@ -43,37 +44,46 @@ export function BackupAttentionLines({ observation }: { readonly observation: Aw
 }
 
 /**
- * The attention card's lines for the Tjänster card (#2084): each row it shows in the warning form, named by its row
- * and in the card's own words, or the rows and the source it could not determine.
+ * The attention card's lines for the Tjänster card (#2084): each warning it shows, named by its row and in the card's
+ * own words, or the rows and the source it could not determine. It reads the rows at the page's clock as the card
+ * does, so a row the card has withdrawn as too old is undetermined here too.
  */
-export function ServicesAttentionLines({ observation }: { readonly observation: OverviewObservation<ServicesObservationDto> }) {
+export function ServicesAttentionLines({ observation, now }: {
+  readonly observation: OverviewObservation<ServicesObservationDto>;
+  readonly now: number;
+}) {
   const t = useTranslations("admin.overview");
   const format = useFormatter();
-  const attention = servicesAttention(observation);
+  const attention = servicesAttention(observation, now);
 
   if (attention.kind === "unread") {
     return <Unread label={t("services.title")}><AdminRegionLine kind={attention.why} quiet /></Unread>;
   }
 
-  const limit = formatStaleLimit(format, attention.importOverdueAfterSeconds);
+  const limit = formatServiceLimit(format, attention.importOverdueAfterSeconds);
 
-  /** The row's warning as its card words it; null when its time cannot be read, which the card shows as undetermined. */
-  function words({ reading }: ServiceRaised): string | null {
-    switch (reading.kind) {
+  /**
+   * The warning as its card words it, with the instant it carries, which the line keeps whole as the card does; null
+   * when that instant cannot be read, which the card shows as undetermined.
+   */
+  function words(line: ServiceRaised): { readonly state: string; readonly time?: string } | null {
+    switch (line.kind) {
       case "silent": {
-        const time = formatDateTime(format, reading.heartbeatAt);
-        return time === null ? null : t("services.worker.silent", { time });
+        const time = formatDateTime(format, line.heartbeatAt, "\u00A0");
+        return time === null ? null : { state: t("services.worker.silent", { time }), time };
       }
       case "noServer":
-        return t("services.worker.noServer");
+        return { state: t("services.worker.noServer") };
       case "unreachable":
-        return t("services.store.unreachable");
+        return { state: t("services.store.unreachable") };
       case "overdue": {
-        const time = formatDateTime(format, reading.lastRunAt);
-        return time === null ? null : t("services.import.overdue", { time, limit });
+        const time = formatDateTime(format, line.lastRunAt, "\u00A0");
+        return time === null ? null : { state: t("services.import.overdue", { time, limit }), time };
       }
       case "noneRecorded":
-        return t("services.import.noneRecorded");
+        return { state: t("services.import.noneRecorded") };
+      case "errors":
+        return { state: t("services.import.errors", { count: line.count }) };
     }
   }
 
@@ -84,10 +94,12 @@ export function ServicesAttentionLines({ observation }: { readonly observation: 
   return (
     <>
       {attention.raised.map((line) => {
-        const state = words(line);
-        return state === null ? undetermined(line.row) : (
-          <Raised key={line.row} href="#admin-overview-services">
-            {t("attention.sourceState", { source: t(`services.${line.row}`), state })}
+        const said = words(line);
+        if (said === null) return undetermined(line.row);
+        const text = t("attention.sourceState", { source: t(`services.${line.row}`), state: said.state });
+        return (
+          <Raised key={`${line.row}.${line.kind}`} href="#admin-overview-services">
+            {said.time === undefined ? text : withWholeInstant(text, said.time)}
           </Raised>
         );
       })}
@@ -96,9 +108,12 @@ export function ServicesAttentionLines({ observation }: { readonly observation: 
   );
 }
 
-/** A state that needs attention, linked to the card that shows it. */
+/**
+ * A state that needs attention, linked to the card that shows it. The words sit in one span: the link is a flex box,
+ * and a line with an unbroken instant in it would otherwise be laid out as separate items side by side.
+ */
 function Raised({ href, children }: { readonly href: string; readonly children: ReactNode }) {
-  return <p><a href={href} className="jp-adminoverview__link">{children}</a></p>;
+  return <p><a href={href} className="jp-adminoverview__link"><span>{children}</span></a></p>;
 }
 
 /** What could not be read, in the form the attention card already uses for its other sources. */

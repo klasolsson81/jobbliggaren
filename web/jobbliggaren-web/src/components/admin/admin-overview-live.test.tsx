@@ -196,7 +196,11 @@ describe("admin overview visible refresh", () => {
     expect(status).not.toHaveTextContent("Kontostatistik");
     expect(status).not.toHaveTextContent("fem minuter");
     expect(screen.getByRole("region", { name: "Server" })).toHaveTextContent("Mätningen är äldre än 2 minuter.");
-    expect(screen.getByRole("region", { name: "Tjänster" })).toHaveTextContent("Uppgiften är äldre än 2 minuter.");
+    // A kept services row past the limit is withdrawn, never shown as an old verdict; the note still dates it.
+    const services = screen.getByRole("region", { name: "Tjänster" });
+    expect(services).toHaveTextContent("Uppgiften är äldre än 2 minuter.");
+    expect(services).toHaveTextContent("Worker– Kunde inte avgörasTillfälligt lager– Kunde inte avgörasAnnonsimport– Kunde inte avgöras");
+    expect(services).not.toHaveTextContent(/Senaste livstecken|Senaste körning|Svarar/);
   });
   it("keeps the last services rows when a refresh fails, marks the failure at once and announces it (#1982)", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ...sampledNow(overviewSnapshotFixture()), services: { kind: "failed" } })));

@@ -126,15 +126,27 @@ describe("admin overview observed data", () => {
       expect(within(services()).getByRole("link", { name: "Loggar" })).toHaveAttribute("href", "/admin/loggar");
     });
 
-    it("keeps the last rows when a refresh failed, marks it at once, and ages them by the API's own limit", () => {
+    it("keeps the last rows when a refresh failed, within the API's own limit, and marks the failure at once", () => {
       const snapshot = overviewSnapshotFixture();
       if (snapshot.services.kind !== "loaded") throw new Error("Expected observed services");
-      render(<AdminOverview observations={{ ...snapshot, services: { ...snapshot.services, refreshFailed: true } }} now={NOW + 150_000} />);
+      // The fixture's rows were sampled 30 s before NOW: at NOW + 90 s they are exactly 120 s old.
+      render(<AdminOverview observations={{ ...snapshot, services: { ...snapshot.services, refreshFailed: true } }} now={NOW + 90_000} />);
 
       expect(services()).toHaveTextContent("Uppdateringen misslyckades. Senaste uppgiften visas.");
+      expect(services()).not.toHaveTextContent("äldre än");
+      expect(services()).toHaveTextContent("WorkerSenaste livstecken 2026-10-08 11:59");
+    });
+
+    it("withdraws the kept rows once they pass the API's own limit, and keeps the note's time, failure and age", () => {
+      const snapshot = overviewSnapshotFixture();
+      if (snapshot.services.kind !== "loaded") throw new Error("Expected observed services");
+      render(<AdminOverview observations={{ ...snapshot, services: { ...snapshot.services, refreshFailed: true } }} now={NOW + 91_000} />);
+
+      expect(services()).toHaveTextContent("Worker– Kunde inte avgörasTillfälligt lager– Kunde inte avgörasAnnonsimport– Kunde inte avgöras");
+      expect(services()).not.toHaveTextContent(/Senaste livstecken|Senaste körning|Svarar/);
+      expect(services()).toHaveTextContent("Uppgift från 2026-10-08 11:59");
+      expect(services()).toHaveTextContent("Uppdateringen misslyckades. Senaste uppgiften visas.");
       expect(services()).toHaveTextContent("Uppgiften är äldre än 2 minuter.");
-      expect(services()).toHaveTextContent("WorkerSenaste livstecken 2026-10-08 11:59Tillfälligt lager");
-      expect(services()).not.toHaveTextContent("sedan)");
     });
 
     it("says a failed source failed without a row value, and a source still loading as loading", () => {

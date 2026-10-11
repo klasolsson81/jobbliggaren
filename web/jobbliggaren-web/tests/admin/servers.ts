@@ -118,7 +118,7 @@ export type ServicesScenario =
   | "observed" | "silent" | "noServer" | "unreachable" | "overdue" | "noneRecorded" | "errors" | "unknown" | "warnings";
 
 function servicesAnswer(scenario: ServicesScenario): unknown {
-  // The API's wire form for a DateTimeOffset in UTC: whole seconds and an offset, never a Z.
+  // The API's wire form for a DateTimeOffset in UTC: an offset, never a Z.
   const at = (offset: number) => new Date(Date.now() + offset).toISOString().replace(/\.\d{3}Z$/, "+00:00");
   const sampledAt = at(-20_000);
   const turns = (row: ServicesScenario) =>

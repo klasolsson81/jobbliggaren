@@ -2,7 +2,7 @@ import type { BackupObservationData } from "@/lib/dto/admin-overview";
 import type { ServicesObservationDto } from "@/lib/dto/admin-services";
 import type { AwaitingObservation, OverviewObservation } from "./overview";
 import {
-  toServicesReading,
+  servicesAt,
   type AdminJobImportReading,
   type AdminVolatileStoreReading,
   type AdminWorkerReading,
@@ -38,10 +38,19 @@ export function backupAttention(observation: AwaitingObservation<BackupObservati
 
 export type ServiceRow = "backgroundJobs" | "volatileStore" | "jobImport";
 
+const SERVICE_ROWS: ReadonlyArray<ServiceRow> = ["backgroundJobs", "volatileStore", "jobImport"];
+
+/**
+ * One line per warning the Tjänster card shows, keyed by its row and kind: an overdue import run with errors raises
+ * both its overdue line and its errors line, as the card shows both.
+ */
 export type ServiceRaised =
-  | { readonly row: "backgroundJobs"; readonly reading: Extract<AdminWorkerReading, { readonly kind: "silent" | "noServer" }> }
-  | { readonly row: "volatileStore"; readonly reading: Extract<AdminVolatileStoreReading, { readonly kind: "unreachable" }> }
-  | { readonly row: "jobImport"; readonly reading: Extract<AdminJobImportReading, { readonly kind: "overdue" | "noneRecorded" }> };
+  | { readonly row: "backgroundJobs"; readonly kind: "silent"; readonly heartbeatAt: string }
+  | { readonly row: "backgroundJobs"; readonly kind: "noServer" }
+  | { readonly row: "volatileStore"; readonly kind: "unreachable" }
+  | { readonly row: "jobImport"; readonly kind: "overdue"; readonly lastRunAt: string }
+  | { readonly row: "jobImport"; readonly kind: "noneRecorded" }
+  | { readonly row: "jobImport"; readonly kind: "errors"; readonly count: number };
 
 export type ServicesAttention =
   | { readonly kind: "unread"; readonly why: "failed" | "loading" }
@@ -53,27 +62,48 @@ export type ServicesAttention =
       readonly importOverdueAfterSeconds: number;
     };
 
-export function servicesAttention(observation: OverviewObservation<ServicesObservationDto>): ServicesAttention {
-  if (observation.kind !== "loaded" && observation.kind !== "empty") return { kind: "unread", why: observation.kind };
-  const { backgroundJobs, volatileStore, jobImport, importOverdueAfterSeconds } = toServicesReading(observation.data);
-  const raised: ServiceRaised[] = [];
-  const undetermined: ServiceRow[] = [];
-  if (backgroundJobs.kind === "silent" || backgroundJobs.kind === "noServer") raised.push({ row: "backgroundJobs", reading: backgroundJobs });
-  if (backgroundJobs.kind === "unknown") undetermined.push("backgroundJobs");
-  if (volatileStore.kind === "unreachable") raised.push({ row: "volatileStore", reading: volatileStore });
-  if (volatileStore.kind === "unknown") undetermined.push("volatileStore");
-  if (jobImport.kind === "overdue" || jobImport.kind === "noneRecorded") raised.push({ row: "jobImport", reading: jobImport });
-  if (jobImport.kind === "unknown") undetermined.push("jobImport");
-  return { kind: "read", raised, undetermined, importOverdueAfterSeconds };
+function workerRaised(row: AdminWorkerReading): ReadonlyArray<ServiceRaised> {
+  if (row.kind === "silent") return [{ row: "backgroundJobs", kind: "silent", heartbeatAt: row.heartbeatAt }];
+  return row.kind === "noServer" ? [{ row: "backgroundJobs", kind: "noServer" }] : [];
 }
 
-/** True when the Backup or Tjänster card shows a state in the warning form. An unread source raises nothing. */
+function storeRaised(row: AdminVolatileStoreReading): ReadonlyArray<ServiceRaised> {
+  return row.kind === "unreachable" ? [{ row: "volatileStore", kind: "unreachable" }] : [];
+}
+
+function importRaised(row: AdminJobImportReading): ReadonlyArray<ServiceRaised> {
+  if (row.kind === "noneRecorded") return [{ row: "jobImport", kind: "noneRecorded" }];
+  if (row.kind !== "recorded" && row.kind !== "overdue") return [];
+  const errors: ReadonlyArray<ServiceRaised> = row.errors > 0 ? [{ row: "jobImport", kind: "errors", count: row.errors }] : [];
+  return row.kind === "overdue" ? [{ row: "jobImport", kind: "overdue", lastRunAt: row.lastRunAt }, ...errors] : errors;
+}
+
+/**
+ * The Tjänster card's warnings at `now`, read as the card reads them: a row the page has kept past the API's limit is
+ * withdrawn (`servicesAt`), so it is undetermined here too and never raises a line from an old verdict.
+ */
+export function servicesAttention(observation: OverviewObservation<ServicesObservationDto>, now: number | undefined): ServicesAttention {
+  if (observation.kind !== "loaded" && observation.kind !== "empty") return { kind: "unread", why: observation.kind };
+  const services = servicesAt(observation.data, now);
+  return {
+    kind: "read",
+    raised: [...workerRaised(services.backgroundJobs), ...storeRaised(services.volatileStore), ...importRaised(services.jobImport)],
+    undetermined: SERVICE_ROWS.filter((row) => services[row].kind === "unknown"),
+    importOverdueAfterSeconds: services.importOverdueAfterSeconds,
+  };
+}
+
+/**
+ * True when the Backup or Tjänster card shows a state in the warning form at `now`. An unread source, or a row
+ * withdrawn as too old, raises nothing.
+ */
 export function backupOrServicesRaised(
   backup: AwaitingObservation<BackupObservationData>,
   services: OverviewObservation<ServicesObservationDto>,
+  now: number | undefined,
 ): boolean {
   const fromBackup = backupAttention(backup);
-  const fromServices = servicesAttention(services);
+  const fromServices = servicesAttention(services, now);
   return (fromBackup.kind === "read" && fromBackup.raised.length > 0)
     || (fromServices.kind === "read" && fromServices.raised.length > 0);
 }

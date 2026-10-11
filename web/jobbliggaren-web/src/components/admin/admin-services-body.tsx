@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { formatStaleLimit } from "@/lib/admin/host-observation";
 import type { OverviewObservation } from "@/lib/admin/overview";
 import {
+  formatServiceLimit,
   servicesRegion,
   toServicesReading,
   type AdminJobImportReading,
@@ -13,6 +13,7 @@ import {
 import type { AdminValueRegion } from "@/lib/admin/view-models";
 import type { ServicesObservationDto } from "@/lib/dto/admin-services";
 import { formatDateTime } from "@/lib/i18n/format";
+import { unbroken } from "./admin-account-status";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminUnknown } from "./admin-unknown";
 
@@ -22,8 +23,8 @@ import { AdminUnknown } from "./admin-unknown";
  * function: a positive state is a plain observation with its time, a state that needs attention reads in the
  * warning form with its words carrying it, and an undetermined row is an en-dash with one quiet line.
  *
- * The region carries the newest sample time and whether any row is old (`servicesRegion` builds it, aged to the
- * page's clock); the card prints them once, in the same note as the Server card.
+ * The region carries the newest sample time and whether any row is old (`servicesRegion` builds it at the page's
+ * clock and withdraws an old row as undetermined); the card prints them once, in the same note as the Server card.
  */
 export function AdminServicesBody({ region, refreshFailed = false, now }: {
   readonly region: AdminValueRegion<AdminServicesReading>;
@@ -34,24 +35,31 @@ export function AdminServicesBody({ region, refreshFailed = false, now }: {
 }) {
   const t = useTranslations("admin.overview.services");
   const observed = useTranslations("admin.overview.observation");
+  const unavailable = useTranslations("admin.unavailable");
   const format = useFormatter();
   const services = region.kind === "loaded" ? region.data : null;
 
-  const warn = (text: string) => <span className="jp-admin-warning">{text}</span>;
-  const undetermined = <><AdminUnknown /> <span className="jp-admindl__aside">{t("unknown")}</span></>;
+  const warn = (text: ReactNode) => <span className="jp-admin-warning">{text}</span>;
+  // The visible words say it, so the dash is not also spoken as "Uppgift saknas".
+  const undetermined = (
+    <><span aria-hidden="true">{unavailable("unknownValue")}</span> <span className="jp-admindl__aside">{t("unknown")}</span></>
+  );
 
-  /** A row whose sentence carries a time; an instant the formatter cannot read is undetermined, never guessed. */
+  /**
+   * A row whose sentence carries a time, kept whole on one line; an instant the formatter cannot read is undetermined,
+   * never guessed.
+   */
   function at(instant: string, render: (time: string) => ReactNode): ReactNode {
-    const time = formatDateTime(format, instant);
+    const time = formatDateTime(format, instant, "\u00A0");
     return time === null ? undetermined : render(time);
   }
 
   /**
-   * How long ago `instant` was, while the sample behind it is young. An old sample keeps its own time and loses its
-   * age, which would otherwise read as current; an instant ahead of the page's clock gets none either.
+   * How long ago `instant` was. A row shown here is young (`servicesRegion` withdraws an old one); an instant ahead of
+   * the page's clock gets no age.
    */
-  function age(instant: string, stale: boolean): ReactNode {
-    if (now === undefined || now <= 0 || stale || Date.parse(instant) > now) return null;
+  function age(instant: string): ReactNode {
+    if (now === undefined || now <= 0 || Date.parse(instant) > now) return null;
     return (
       <>
         {" "}
@@ -63,9 +71,9 @@ export function AdminServicesBody({ region, refreshFailed = false, now }: {
   function worker(row: AdminWorkerReading): ReactNode {
     switch (row.kind) {
       case "alive":
-        return at(row.heartbeatAt, (time) => <>{t("worker.alive", { time })}{age(row.heartbeatAt, row.stale)}</>);
+        return at(row.heartbeatAt, (time) => <>{withWholeInstant(t("worker.alive", { time }), time)}{age(row.heartbeatAt)}</>);
       case "silent":
-        return at(row.heartbeatAt, (time) => warn(t("worker.silent", { time })));
+        return at(row.heartbeatAt, (time) => warn(withWholeInstant(t("worker.silent", { time }), time)));
       case "noServer":
         return warn(t("worker.noServer"));
       case "unknown":
@@ -90,12 +98,13 @@ export function AdminServicesBody({ region, refreshFailed = false, now }: {
     switch (row.kind) {
       case "recorded":
         return at(row.lastRunAt, (time) => (
-          <>{t("import.recorded", { time })}{age(row.lastRunAt, row.stale)}{errors(row.errors)}</>
+          <>{withWholeInstant(t("import.recorded", { time }), time)}{age(row.lastRunAt)}{errors(row.errors)}</>
         ));
       case "overdue":
-        return at(row.lastRunAt, (time) => (
-          <>{warn(t("import.overdue", { time, limit: formatStaleLimit(format, overdueAfterSeconds) }))}{errors(row.errors)}</>
-        ));
+        return at(row.lastRunAt, (time) => {
+          const limit = formatServiceLimit(format, overdueAfterSeconds);
+          return <>{warn(withWholeInstant(t("import.overdue", { time, limit }), time))}{errors(row.errors)}</>;
+        });
       case "noneRecorded":
         return warn(t("import.noneRecorded"));
       case "unknown":
@@ -120,7 +129,7 @@ export function AdminServicesBody({ region, refreshFailed = false, now }: {
           {region.stale && services ? (
             <>
               <br />
-              {t("stale", { limit: formatStaleLimit(format, services.staleAfterMs / 1000) })}
+              {t("stale", { limit: formatServiceLimit(format, services.staleAfterMs / 1000) })}
             </>
           ) : null}
         </p>
@@ -132,8 +141,8 @@ export function AdminServicesBody({ region, refreshFailed = false, now }: {
 }
 
 /**
- * The card from the overview's services observation. The rows keep the time their sources were sampled and age by
- * the limit the API applied, so a row kept after a failed refresh goes old on the page's clock.
+ * The card from the overview's services observation. A row kept after a failed refresh stays while its own sample is
+ * within the limit the API applied, and is withdrawn as undetermined once it is older on the page's clock.
  */
 export function AdminObservedServices({ observation, now }: {
   readonly observation: OverviewObservation<ServicesObservationDto>;
@@ -149,6 +158,16 @@ export function AdminObservedServices({ observation, now }: {
     );
   }
   return <AdminServicesBody region={{ kind: observation.kind }} />;
+}
+
+/**
+ * `text` with the instant `time` kept on one line wherever the sentence places it (the house `unbroken`). The no-break
+ * space keeps the time with its date, but a line could still break after a hyphen inside the date.
+ */
+export function withWholeInstant(text: string, time: string): ReactNode {
+  const start = text.indexOf(time);
+  if (start < 0) return text;
+  return <>{text.slice(0, start)}{unbroken(time)}{text.slice(start + time.length)}</>;
 }
 
 function Row({ label, children }: { readonly label: string; readonly children: ReactNode }) {

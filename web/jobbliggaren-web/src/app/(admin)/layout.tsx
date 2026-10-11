@@ -35,7 +35,7 @@ export default async function AdminLayout({
   const initialStats = (await statsPromise) ?? LANDING_STATS_UNKNOWN_DTO;
 
   const locale = await getLocale();
-  const messages = pickClientMessages(await getMessages(), ["admin", "common", "fallback", "feedback.pages", "jobads.ui.match", "jobads.ui.tags", "landing"]);
+  const messages = pickClientMessages(await getMessages(), ["admin", "common", "fallback", "feedback.pages", "jobads.ui.match.grade", "jobads.ui.tags", "landing"]);
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>

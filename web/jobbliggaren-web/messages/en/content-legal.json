@@ -5,7 +5,7 @@
       "description": "How Jobbliggaren processes your personal data: purposes, legal basis, retention periods, your rights and security. No tracking and no AI."
     },
     "title": "Privacy policy",
-    "updated": "Last updated: 2026-10-11",
+    "updated": "Last updated: 2026-10-12",
     "intro": "This privacy policy describes how Jobbliggaren processes your personal data, why, on what legal basis and for how long. It also covers your rights and how to exercise them. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open data about job openings from Arbetsförmedlingen JobTech (Platsbanken).",
     "sections": [
       {
@@ -78,7 +78,7 @@
       {
         "heading": "Contact details in job ads (legal basis: legitimate interest)",
         "paragraphs": [
-          "Job ads from Platsbanken can contain details of a contact person at the employer, for example a name, a work email address and a work phone number. Before an ad is stored, we automatically remove email addresses and phone numbers from the ad text. The contact person's details are instead stored in a structured, separate field outside the free-text search, so that you can follow up an application with the right person. The removal from the text is rule-based and can miss details written in unusual ways or embedded in an image.",
+          "Job ads from Platsbanken can contain details of a contact person at the employer, for example a name, a work email address and a work phone number. Before an ad is stored, we automatically remove email addresses and phone numbers from the ad text. The contact person's details are instead stored in a structured, separate field outside the free-text search, so that you can follow up an application with the right person. The removal from the text is rule-based and can miss details written in unusual ways or embedded in an image, and it does not remove names in the running text. The ads are also shown on a public page that search engines can index. The page never shows the contact details, but a name in the ad's running text is visible there.",
           "The contact details are deleted when the ad can no longer be found in the service. If you are a contact person in an ad, more information and your rights are described on the page Are you a contact person in a job ad, linked below under related pages."
         ]
       },
@@ -543,7 +543,7 @@
       {
         "heading": "No public API in this version",
         "paragraphs": [
-          "Jobbliggaren does not yet offer a public API to build integrations against. The service's own interface is for signed-in users. If you need job data to build on, Arbetsförmedlingen's JobTech is the right source.",
+          "Jobbliggaren does not yet offer a public API to build integrations against. The service's interface is for Jobbliggaren's own pages. If you need job data to build on, Arbetsförmedlingen's JobTech is the right source.",
           "Should a public API become relevant later, we will describe it here."
         ]
       }
@@ -561,27 +561,28 @@
       "description": "Information for contact persons named in job ads: what Jobbliggaren processes, where the data comes from, how long it is kept and your rights."
     },
     "title": "Are you a contact person in a job ad?",
-    "updated": "Last updated: 2026-07-16",
-    "intro": "Jobbliggaren retrieves job ads as open data from Arbetsförmedlingen's Platsbanken. If you are named as a contact person in an ad, we therefore process some data about you even though you are not a user of the service. This page describes what we process, why, for how long and which rights you have.",
+    "updated": "Last updated: 2026-10-12",
+    "intro": "Jobbliggaren retrieves job ads as open data from Arbetsförmedlingen's Platsbanken and shows them, both to jobseekers and on a public page that search engines can index. If you are named as a contact person in an ad, we therefore process some data about you even though you are not a user of the service. This page describes what we process, why, for how long and which rights you have.",
     "sections": [
       {
         "heading": "What we process and where the data comes from",
         "paragraphs": [
           "We retrieve ads from Arbetsförmedlingen's open JobTech API. If the ad names a contact person, we process the name, role, work email address and work phone number as published in the ad. The data comes from the ad at Arbetsförmedlingen, not from you.",
-          "Before the ad text is stored, we automatically remove email addresses and phone numbers from the running text. The contact details are instead stored in a structured, separate field outside the free-text search. The removal is rule-based and can miss details written in unusual ways or embedded in an image."
+          "Before the ad text is stored, we automatically remove email addresses, phone numbers and personal identity numbers from the running text. The contact details are instead stored in a structured, separate field outside the free-text search. The removal is rule-based. It can miss details written in unusual ways or embedded in an image, and it does not remove names: a name in the ad's running text stays in the text.",
+          "The ad is also shown on a public page at jobbliggaren.se for as long as the ad is open. Anyone can open the page without logging in, and search engines can index it. The page shows the ad's title, the employer's name and the whole ad text as we have stored it. It never shows the separate contact block, but a name in the ad's running text is visible there and can be found through a search engine. The recipients are therefore the public and search engines."
         ]
       },
       {
         "heading": "Why we process the data (legal basis)",
         "paragraphs": [
-          "The legal basis is legitimate interest (Article 6(1)(f)). The interest is the user's: a jobseeker needs to be able to follow up their own application with the right person at the employer. Arbetsförmedlingen's advertising terms require the advertiser to have the contact person's consent to the publication, and state that ad data may be shown by other actors retrieving ads via the API.",
+          "The legal basis is legitimate interest (Article 6(1)(f)). There are two interests. A jobseeker needs to be able to find the ad and follow up their own application with the right person at the employer, and Jobbliggaren has its own interest in making the ads findable by the public. We weighed those interests against your rights before we began showing the ads publicly. Arbetsförmedlingen's advertising terms require the advertiser to have the contact person's consent to the publication, and state that ad data may be shown by other actors retrieving ads via the API.",
           "We never use your contact details for marketing, profiling or mailings of our own, and we never sell them."
         ]
       },
       {
         "heading": "How long the data is kept",
         "paragraphs": [
-          "The contact details on an ad are deleted when the ad can no longer be found in the service, for example when it has been archived or has left the Platsbanken feed.",
+          "The contact details on an ad are deleted when the ad can no longer be found in the service, for example when it has been archived or has left the Platsbanken feed. The public page then answers that the ad is no longer available. A name in the ad's running text is not deleted by that: it stays in the ad text with us until you request erasure.",
           "If a user has registered an application for the ad, the ad data is frozen in that user's own application history. The frozen copy's contact details are deleted when the application is closed."
         ]
       },
@@ -589,7 +590,7 @@
         "heading": "Your rights",
         "paragraphs": [
           "You have the right to object to the processing (Article 21). We do not attempt to balance our interest against yours; we honour the objection in full.",
-          "You also have the right to request erasure (Article 17). Because your name can appear in the ad's running text, we then erase our entire copy of the ad and block it from being retrieved again. We cannot remove the ad at Arbetsförmedlingen, which is the publisher.",
+          "You also have the right to request erasure (Article 17). Because your name can appear in the ad's running text, we then erase our entire copy of the ad and block it from being retrieved again. We then ask search engines to remove the ad's address on our site. We cannot remove the ad at Arbetsförmedlingen, which is the publisher, nor copies that search engines, link previews or others have made.",
           "You can reach the data controller at kontakt@jobbliggaren.se. We respond without undue delay and normally within one month. You also have the right to lodge a complaint with the Swedish Authority for Privacy Protection (imy.se)."
         ]
       }

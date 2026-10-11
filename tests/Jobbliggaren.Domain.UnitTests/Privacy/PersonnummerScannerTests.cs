@@ -356,17 +356,20 @@ public class PersonnummerScannerTests
     }
 
     [Fact]
-    public void ScanWithGaps_SeparatorFlankedBySpaces_NotBridged_TheGrammarAdmitsNoMidGapSeparator()
+    public void Scan_FlagPath_StillDoesNotBridgeASeparatorFlankedBySpaces_ADR0134R2StandsThere()
     {
-        // "811218 - 9876" is not bridged, and the REASON is the grammar, not the width bound.
-        // Both bridging regexes are `sep? gap-run sep?`, so a separator is admitted only
-        // DIGIT-ADJACENT: the gap run stops at the '-', the trailing sep? consumes it, and
-        // \d{4} is then required at a position holding a space. The form therefore stays
-        // unbridged at ANY bound: the argument is structural, and this test asserts it across
-        // BOTH bounds that exist in production rather than asserting it in prose (ADR 0134 R2).
+        // "811218 - 9876" stays unbridged on the FLAG path, and the REASON is the grammar, not
+        // the width bound. Both flag-path bridges are `sep? gap-run sep?`, so a separator is
+        // admitted only DIGIT-ADJACENT: the gap run stops at the '-', the trailing sep? consumes
+        // it, and \d{4} is then required at a position holding a space. The form is therefore
+        // unbridged at ANY bound, and this test asserts it across BOTH profiles that exist in
+        // production rather than in prose (ADR 0134 R2).
+        //
+        // #2123 closed R2 on the REDACTION path only (the next test group). The flag path is
+        // deliberately untouched: ADR 0134 D1 keeps ExtractedDocumentText byte-identical, so the
+        // CV import guard behaves exactly as before and a wider redactor can only mask more than
+        // the guard flags, never less (the safe direction of the superset invariant).
         const string text = "Pnr 811218 - 9876 i CV.";
-
-        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
 
         PersonnummerScanner.Scan(
             PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
@@ -374,6 +377,366 @@ public class PersonnummerScannerTests
         PersonnummerScanner.Scan(
             PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.SingleLineUserInput))
             .ShouldBeEmpty("a {0,8} bound does not reach a separator the grammar admits only digit-adjacent");
+    }
+
+    // ===============================================================
+    // #2123 (ADR 0134 amendment 2026-10-11): the redaction path's separator forms. An imported
+    // job ad's text is typed by an employer and delivered by the nightly snapshot upsert and the
+    // 10-minute stream (Platsbanken -> JobAd.Import / UpdateFromSource -> PersonnummerRedactor), so
+    // "811218 - 9876" and "811218.9876" are forms the importer WILL see; none of them was masked.
+    //   * a separator may now sit BETWEEN two visible gap columns (one on each side),
+    //   * '.', '/' and '_' are separators alongside '-', '+', \p{Pd} and U+2212.
+    // The visible-column budget is unchanged (<= 2 in total, ADR 0134 D1), line breaks are still
+    // not bridged, and the unchanged TryParse date+Luhn gate stays the only authority.
+    // Code points other than ASCII are \u escapes (project rule).
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218 - 9876")] // the form the issue measured: spaces on both sides of the hyphen
+    [InlineData("811218 \u2013 9876")] // EN DASH
+    [InlineData("811218 \u2014 9876")] // EM DASH (\p{Pd})
+    [InlineData("811218 \u2212 9876")] // MINUS SIGN
+    [InlineData("811218 \uFF0D 9876")] // FULLWIDTH HYPHEN-MINUS (\p{Pd})
+    [InlineData("811218 + 9876")] // century separator
+    [InlineData("811218\u00A0-\u00A09876")] // NO-BREAK SPACE on both sides (this product emits U+00A0)
+    [InlineData("811218\u2009\u2013\u20099876")] // THIN SPACE around an EN DASH
+    [InlineData("811218\t-\t9876")] // TAB on both sides
+    [InlineData("811218 \u200B-\u200B 9876")] // zero-width noise next to the separator
+    [InlineData("19811218 - 9876")] // 12-digit form
+    [InlineData("811278 - 9873")] // samordningsnummer (day + 60)
+    [InlineData("811218.9876")]
+    [InlineData("811218/9876")]
+    [InlineData("811218_9876")]
+    [InlineData("19811218/9876")]
+    [InlineData("811278_9873")]
+    [InlineData("811218 / 9876")]
+    [InlineData("811218 . 9876")]
+    [InlineData("811218. 9876")] // separator then one space: the pre-existing sep-gap shape, new separator
+    [InlineData("811218 _9876")] // one space then separator
+    [InlineData("811218._9876")] // two adjacent separators, no space (parity #665 for '-')
+    [InlineData("811218. _9876")] // separator, space, separator (parity #498 for '-')
+    [InlineData("811218 -- 9876")] // two separators beside a column (security-auditor Minor 1)
+    [InlineData("811218 - -9876")]
+    [InlineData("811218-- 9876")]
+    public void ScanWithGaps_SeparatorFormsOfIssue2123_AreMaskedWholeInPlace(string form)
+    {
+        var text = $"Personnummer {form} i annonsen.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        match.Kind.ShouldBe(form.StartsWith("811278", StringComparison.Ordinal)
+            ? PersonnummerKind.Samordningsnummer
+            : PersonnummerKind.Personnummer);
+        // The span covers the whole token in the ORIGINAL text, so the redactor masks in place.
+        text.Substring(match.StartOffset, match.Length).ShouldBe(form);
+        match.Masked.ShouldBe(string.Concat(form.Select(c => char.IsAsciiDigit(c) ? '*' : c)));
+    }
+
+    [Theory]
+    [InlineData("Ref 811218 - 9877")] // Luhn-invalid check digit
+    [InlineData("Ref 811218.9877")]
+    [InlineData("Ref 811218/9877")]
+    [InlineData("Ref 811218_9877")]
+    [InlineData("Org.nr 556677 - 0001")] // an organisation number: month 66 fails the date gate
+    [InlineData("Org.nr 556677/0001")]
+    [InlineData("Org.nr 556677.0001")]
+    [InlineData("Ring 070-123 45 67 eller 070.123.45.67")] // phone numbers
+    [InlineData("Växel 08 - 123 456 78")]
+    [InlineData("Utlysning 20261011 - 20261130")] // two compact dates: the tail must be exactly four digits
+    [InlineData("Ärende 12345678 - 0000")] // two unrelated numbers: month 34 fails the date gate
+    [InlineData("Ärende 12345678/0000")]
+    [InlineData("Ärende 12345678.1234567")] // a longer digit run is never a tail
+    public void ScanWithGaps_SeparatorFormsOfIssue2123_NeverManufactureAMatch(string text)
+    {
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("811218  - 9876")] // two columns before + one after = three
+    [InlineData("811218 -  9876")]
+    [InlineData("811218  -  9876")]
+    [InlineData("811218   9876")] // three columns, no separator: ADR 0134 D1/R1, unchanged
+    [InlineData("811218   -9876")]
+    public void ScanWithGaps_ThreeVisibleColumnsAroundASeparator_StayUnbridged_TheDeclaredResidual(string form)
+    {
+        // The budget is two visible columns IN TOTAL (ADR 0134 D1), so the separator may sit between
+        // them (one each side, pinned above) but a third column stays the accepted residual. This pins
+        // BOTH sides of the bound: a bound nothing is tested against is indistinguishable from none.
+        PersonnummerScanner.ScanWithGaps($"Pnr {form} i annonsen.").ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("811218 -\n9876")]
+    [InlineData("811218\n- 9876")]
+    [InlineData("811218 -\r\n9876")]
+    [InlineData("811218.\n9876")]
+    public void ScanWithGaps_ALineBreakBetweenTheGroups_StaysUnbridged_TheDeclaredResidual(string form)
+    {
+        // A line break is a field boundary, not a gap (PersonnummerGapProfile.ExtractedDocumentText,
+        // ADR 0134 D1): a date column stacked above four digits satisfies the date gate with
+        // certainty. #2123 widens the separator, never the break.
+        PersonnummerScanner.ScanWithGaps($"Pnr {form} i annonsen.").ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("81 12 18-9876")] // split groups
+    [InlineData("811218-98 76")]
+    [InlineData("19 81 12 18 9876")]
+    public void ScanWithGaps_SplitDigitGroups_StayUnbridged_TheDeclaredResidual(string form)
+    {
+        // #2123 is "separator forms only". A digit group split by a space is a different shape; the
+        // issue lists it as unmasked and ADR 0134 does not bridge it. Pinned so that closing it later
+        // is a decision recorded in an ADR, not a side effect of a regex edit.
+        PersonnummerScanner.ScanWithGaps($"Pnr {form} i annonsen.").ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Ref 7811218 - 9876")] // a seven-digit run before the separator is no personnummer
+    [InlineData("Ref 7811218.9876")]
+    [InlineData("Ref 119811218/9876")] // a nine-digit run
+    [InlineData("Ref 811218 - 98765")] // a five-digit run after it
+    [InlineData("Ref 811218_98765")]
+    public void ScanWithGaps_SeparatorFormsOfIssue2123_RespectTheDigitRunBoundariesOnBothSides(string text)
+    {
+        PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("81\u200B1218 - 98\u200B76")] // zero-width characters inside both digit groups
+    [InlineData("8112\uFEFF18.9876")]
+    [InlineData("811218\u200B.\u200B9876")] // and around the separator
+    public void ScanWithGaps_ZeroWidthCharactersInsideTheDigitGroups_DoNotStopASeparatorFormFromBeingMasked(
+        string form)
+    {
+        var text = $"Pnr {form} i annonsen.";
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        text.Substring(match.StartOffset, match.Length).ShouldBe(form);
+    }
+
+    [Theory]
+    [InlineData(" - ")]
+    [InlineData(".")]
+    public void ScanWithGaps_FullwidthDigitsWithTheSeparatorFormsOfIssue2123_LeaveNoDecimalDigitBehind(
+        string separator)
+    {
+        // Built at runtime so the source stays ASCII-only (project rule).
+        var token = ToFullwidthDigits("811218") + separator + ToFullwidthDigits("9876");
+
+        var redacted = PersonnummerRedactor.Redact($"Pnr {token} i annonsen.");
+
+        redacted.ShouldNotBe($"Pnr {token} i annonsen.");
+        redacted.Any(c => CharUnicodeInfo.GetDecimalDigitValue(c) >= 0).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ScanWithGaps_TwoSeparatorFormsInOneText_AreBothMasked_EachWithItsOwnKind()
+    {
+        const string text = "811218 - 9876/811278.9873";
+
+        var matches = PersonnummerScanner.ScanWithGaps(text);
+
+        matches.Count.ShouldBe(2);
+        (matches[0].StartOffset, matches[0].Length, matches[0].Kind)
+            .ShouldBe((0, 13, PersonnummerKind.Personnummer));
+        (matches[1].StartOffset, matches[1].Length, matches[1].Kind)
+            .ShouldBe((14, 11, PersonnummerKind.Samordningsnummer));
+    }
+
+    [Theory]
+    [InlineData("811218 - 9876")]
+    [InlineData("811218.9876")]
+    [InlineData("811218/9876")]
+    [InlineData("811218_9876")]
+    [InlineData("811218 . 9876")]
+    [InlineData("19811218/9876")]
+    public void Scan_FlagPath_StillDoesNotFlagTheSeparatorFormsOfIssue2123_ButTheRedactorMasksThem(string form)
+    {
+        // The asymmetry is the decision (ADR 0134 amendment 2026-10-11 (2)): the flag path, and so the
+        // CV import guard and the ?q= box, behave exactly as before; only the redactor widened. A bare
+        // token, a file name ('_' and '.' now belong to the separator class right where a file name
+        // carries them) and a sentence are the three contexts a CV surface sees. If the flag path
+        // is widened one day, this fails and the ADR is what gets edited.
+        foreach (var text in new[] { form, $"CV_{form}.pdf", $"Pnr {form} i CV." })
+        {
+            PersonnummerScanner.Scan(
+                PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
+                .ShouldBeEmpty(text);
+            PersonnummerScanner.Scan(
+                PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.SingleLineUserInput))
+                .ShouldBeEmpty(text);
+            PersonnummerRedactor.Redact(text).Any(c => CharUnicodeInfo.GetDecimalDigitValue(c) >= 0)
+                .ShouldBeFalse(text);
+        }
+    }
+
+    [Fact]
+    public void ScanWithGaps_OverTheS2P3GapGrammar_MasksExactlyTheSpellingsWithinTheTwoColumnBudget()
+    {
+        // The S2-P3 count query (it rides PR #2131: docs/runbooks/public-job-page-publication-count.sql
+        // on that branch) counts a token of the form `digits gap{0,3} sep? gap{0,3} digits{4}`
+        // (gap = visible spaces and zero-width characters, sep = a dash, '.', '/' or '_'). That is a
+        // SUPERSET of what the scanner masks, on purpose: the count is a tripwire. This pins the exact difference, in BOTH directions, so a reading above
+        // zero can be attributed: the scanner masks a spelling of that grammar if and only if it holds
+        // at most TWO visible columns in total (ADR 0134 D1), zero-width characters being free. A
+        // narrowing fails the first assertion, a widening past the budget fails the second.
+        string[] visible = [" ", "\t", "\u00A0", "\u2009"];
+        string[] zeroWidth = ["\u200B", "\uFEFF"];
+        string[] separators = ["", "-", "\u2013", "+", "\u2212", "\uFF0D", ".", "/", "_"];
+        string[] gapChars = [.. visible, .. zeroWidth];
+
+        var sides = new List<string> { "" };
+        var frontier = new List<string> { "" };
+        for (var length = 1; length <= 2; length++)
+        {
+            frontier = [.. frontier.SelectMany(prefix => gapChars, (prefix, c) => prefix + c)];
+            sides.AddRange(frontier);
+        }
+
+        static int Visible(string side) => side.Count(c => c is ' ' or '\t' or '\u00A0' or '\u2009');
+
+        var withinBudget = 0;
+        var beyondBudget = 0;
+        var failures = new List<string>();
+        foreach (var (lead, tail) in new[] { ("811218", "9876"), ("19811218", "9876") })
+            foreach (var left in sides)
+                foreach (var separator in separators)
+                    foreach (var right in sides)
+                    {
+                        var form = lead + left + separator + right + tail;
+                        var masked = PersonnummerScanner.ScanWithGaps(form) is [{ StartOffset: 0 } only] && only.Length == form.Length;
+                        var inBudget = Visible(left) + Visible(right) <= 2;
+
+                        if (inBudget) withinBudget++; else beyondBudget++;
+                        if (masked != inBudget)
+                            failures.Add(string.Concat(form.Select(c => c is >= ' ' and <= '~' ? c.ToString() : $"\\u{(int)c:X4}")));
+                    }
+
+        // Anti-vacuous: both populations must be large, or an empty side would pass either direction.
+        withinBudget.ShouldBeGreaterThan(1000);
+        beyondBudget.ShouldBeGreaterThan(1000);
+        failures.Take(20).ShouldBeEmpty(
+            $"{failures.Count} spelling(s) of the S2-P3 grammar disagree with the two-column budget; first: " +
+            string.Join(" | ", failures.Take(20)));
+    }
+
+    // The pre-#2123 grammar, frozen as an oracle (no anchors: it is run over a text, not a token), with
+    // the old loop's semantics: non-overlapping matches, each gated by TryParse. The new scanner must
+    // mask every digit the old one masked, in any CONTEXT (a prefix and a suffix around the form),
+    // because a context is where a widened grammar can lose a detection: a candidate it accepts
+    // shape-wise but TryParse rejects may no longer swallow a real personnummer that starts inside it.
+    private const string PreIssue2123GapAwarePattern =
+        @"(?<!\d)(?:(?:\d\p{Cf}*){8}|(?:\d\p{Cf}*){6})(?:[-+\p{Pd}\u2212]\p{Cf}*)?(?:[\p{Zs}\t]\p{Cf}*){0,2}(?:[-+\p{Pd}\u2212]\p{Cf}*)?(?:\d\p{Cf}*){4}(?!\d)";
+
+    private static readonly System.Text.RegularExpressions.Regex PreIssue2123Grammar = new(
+        PreIssue2123GapAwarePattern, System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private static List<(int Index, int Length)> PreIssue2123MaskedSpans(string text)
+    {
+        var spans = new List<(int Index, int Length)>();
+        foreach (System.Text.RegularExpressions.Match match in PreIssue2123Grammar.Matches(text))
+        {
+            var digits = new string([.. match.Value
+                .Select(CharUnicodeInfo.GetDecimalDigitValue)
+                .Where(value => value >= 0)
+                .Select(value => (char)('0' + value))]);
+            if (Personnummer.TryParse(digits, out _))
+                spans.Add((match.Index, match.Length));
+        }
+
+        return spans;
+    }
+
+    [Fact]
+    public void ScanWithGaps_EveryDigitTheOldGrammarMasked_IsStillMaskedInAnyContext()
+    {
+        (string Lead, string Tail)[] bases = [("811218", "9876"), ("19811218", "9876"), ("811278", "9873")];
+        string[] separators = ["", "-", "+", "\u2013", "\u2212", "\u2010", "\uFF0D", ".", "_"];
+        string[] gaps = ["", " ", "  ", "   ", "\u00A0", "\t", " \u200B ", "\u200B", "\n", " \n"];
+        // Where a zero-width character sits inside the lead: nowhere, after two digits, after four. The
+        // fourth digit is the one a rejected candidate ends on, so that position is the shadowing case.
+        int[] noiseAfter = [0, 2, 4];
+        (string Prefix, string Suffix)[] contexts =
+        [
+            ("", ""),
+            ("Pnr ", " tack"),
+            ("556677.", ""), // a rejected candidate that ends inside the personnummer's first digit group
+            ("556677 - ", ""),
+            ("556677-", ""),
+            ("12345678/", ""),
+            ("", "\u200B5"), // a zero-width character, then a digit: the old grammar still masked the ten digits
+            ("x ", "\u200B5 y"),
+        ];
+
+        var corpus = 0;
+        var maskedByOld = 0;
+        var failures = new List<string>();
+        foreach (var (lead, tail) in bases)
+            foreach (var after in noiseAfter)
+                foreach (var first in separators)
+                    foreach (var gap in gaps)
+                        foreach (var second in separators)
+                            foreach (var (prefix, suffix) in contexts)
+                            {
+                                var leadText = after == 0 ? lead : lead[..after] + "\u200B" + lead[after..];
+                                var text = prefix + leadText + first + gap + second + tail + suffix;
+                                corpus++;
+
+                                var oldSpans = PreIssue2123MaskedSpans(text);
+                                if (oldSpans.Count > 0)
+                                    maskedByOld++;
+
+                                var matches = PersonnummerScanner.ScanWithGaps(text);
+                                var covered = new bool[text.Length];
+                                foreach (var match in matches)
+                                    for (var i = match.StartOffset; i < match.StartOffset + match.Length; i++)
+                                        covered[i] = true;
+
+                                var lost = oldSpans.Any(span =>
+                                    Enumerable.Range(span.Index, span.Length)
+                                        .Any(i => CharUnicodeInfo.GetDecimalDigitValue(text[i]) >= 0 && !covered[i]));
+                                var overlapping = matches.Zip(matches.Skip(1)).Any(pair => pair.First.StartOffset + pair.First.Length > pair.Second.StartOffset);
+                                if (lost || overlapping)
+                                    failures.Add(string.Concat(text.Select(c => c is >= ' ' and <= '~' ? c.ToString() : $"\\u{(int)c:X4}")));
+                            }
+
+        // Anti-vacuous: the oracle must really split the corpus. A good share of it lies OUTSIDE the old
+        // language (three columns, a line break, runs the old grammar never matched), and a good share
+        // INSIDE it, or the implication "old masked, so new masks" is being tested against nothing.
+        maskedByOld.ShouldBeGreaterThan(1000);
+        (corpus - maskedByOld).ShouldBeGreaterThan(1000);
+        failures.Take(20).ShouldBeEmpty(
+            $"{failures.Count} text(s) lost a digit the old grammar masked, or overlap: " + string.Join(" | ", failures.Take(20)));
+    }
+
+    [Theory]
+    [InlineData("556677.8112\u200B18-9876")] // a rejected candidate "556677.8112" must not swallow the real one
+    [InlineData("556677 - 8112\u200B18-9876")]
+    [InlineData("556677-8112\u200B18-9876")] // the same mechanism existed for '-' before #2123
+    public void ScanWithGaps_ARejectedCandidate_NeverHidesARealPersonnummerThatStartsInsideIt(string text)
+    {
+        // The real personnummer is "8112<ZWSP>18-9876": the flag path strips the zero-width character
+        // first and flags it, so the redactor has to mask it too (flagged-but-unmasked is the break
+        // #465/#498 closed).
+        var realStart = text.IndexOf("8112" + "\u200B", StringComparison.Ordinal);
+        var realEnd = text.Length;
+
+        var match = PersonnummerScanner.ScanWithGaps(text).ShouldHaveSingleItem();
+
+        (match.StartOffset, match.StartOffset + match.Length).ShouldBe((realStart, realEnd));
+    }
+
+    [Fact]
+    public void ScanWithGaps_ATenDigitPersonnummerFollowedByAZeroWidthCharacterAndADigit_IsStillMasked()
+    {
+        // Base masked the ten digits of "8112189876<ZWSP>5" although the flag path (which strips the
+        // zero-width character and then sees an eleven-digit run) does not flag it. Resuming after a
+        // rejected candidate must not turn that into a narrowing.
+        var match = PersonnummerScanner.ScanWithGaps("Nr 8112189876\u200B5 x").ShouldHaveSingleItem();
+
+        match.StartOffset.ShouldBe(3);
+        match.Length.ShouldBe(10); // the ten digits; the zero-width character backs out of the candidate
     }
 
     // ===============================================================

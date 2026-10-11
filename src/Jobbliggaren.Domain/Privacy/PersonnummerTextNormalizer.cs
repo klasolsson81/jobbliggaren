@@ -28,8 +28,10 @@ public static partial class PersonnummerTextNormalizer
     // nothing else, and that is now structural rather than a convention anyone has to keep.
     // ADR 0134 owns the policy; this block owns the shape.
     private const string Lead = @"(?<!\d)(\d{8}|\d{6})";
-    // This class is duplicated verbatim in PersonnummerScanner's two GeneratedRegex patterns
-    // (three homes for one literal) and must stay in lockstep with them.
+    // This class is duplicated verbatim in PersonnummerScanner's CandidateRegex (two homes for one
+    // literal) and must stay in lockstep with it. GapAwareCandidateRegex carries it as a deliberate
+    // SUPERSET since #2123 (it adds '.', '/' and '_', and a separator between two gap columns): the
+    // redaction path may mask more than this path flags, never less, so this class does not follow it.
     //
     // The two directions are NOT equally guarded, and the unguarded one is the dangerous one.
     // NARROWING is caught: dropping \p{Pd} fails the equivalence suite on its own anti-vacuity

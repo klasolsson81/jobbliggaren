@@ -37,7 +37,8 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// <see cref="PlatsbankenJobSource"/> (hence the REAL <see cref="JobTechPayloadSanitizer"/>) → the
 /// REAL <see cref="UpsertExternalJobAdCommandHandler"/> (hence the real aggregate scrub + real
 /// keyword extractor) → REAL Postgres 18 with the real migrations, generated columns and GIN index.
-/// Not one column is hand-seeded.
+/// The one hand-written state is a named retired-actor seam: the row the importer wrote before #2123
+/// (<c>A_company_name_stored_before_2123_is_masked_by_the_next_nightly_resync</c>).
 /// </summary>
 /// <remarks>
 /// This class is where the design's FTS locks <b>L2</b> (the address never enters
@@ -100,6 +101,13 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
     //    (Luhn-valid synthetic vector). It must reach neither title, description nor the FTS index. ──
     private const string PersonnummerExternalId = "personnummer-6";
     private const string PersonnummerInAd = "811218-9876";
+
+    // ── Ad G — #2123: the separator forms an employer types, and a personnummer in the company name
+    //    (the importer stored employer.name verbatim before #2123). Same Luhn-valid synthetic vector. ──
+    private const string SpacedFormsExternalId = "spaced-forms-7";
+    private const string SpacedHyphen = "811218 - 9876";
+    private const string DottedForm = "811218.9876";
+    private const string CompanyNameWithPersonnummer = "Svensson 811218 - 9876";
 
     private readonly SharedPostgresFixture _postgres;
     private string _connectionString = string.Empty;
@@ -216,6 +224,14 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
           "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{PersonnummerExternalId}}",
           "publication_date": "2026-07-06T10:00:00Z",
           "application_contacts": []
+        },{
+          "id": "{{SpacedFormsExternalId}}",
+          "headline": "Städare {{SpacedHyphen}}",
+          "description": { "text": "Enskild firma {{SpacedHyphen}} eller {{DottedForm}} söker städare till kontor i Lund." },
+          "employer": { "name": "{{CompanyNameWithPersonnummer}}", "organization_number": "8112189876" },
+          "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{SpacedFormsExternalId}}",
+          "publication_date": "2026-07-07T10:00:00Z",
+          "application_contacts": []
         }]
         """;
 
@@ -271,6 +287,73 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
             (await ColumnsStillContainingAsync(db, PersonnummerInAd, ct)).ShouldBe(["raw_payload"], $"pass {pass}");
             (await ColumnValueAsync(db, PersonnummerExternalId, "extracted_terms", ct) ?? string.Empty)
                 .ShouldNotContain("9876", customMessage: $"pass {pass}: extracted terms derive from the masked text.");
+        }
+    }
+
+    // ================================================================================
+    // #2123 — the separator forms and the company name, through the production write path.
+    // ================================================================================
+
+    [Fact]
+    public async Task The_separator_forms_and_a_personnummer_in_the_company_name_are_masked_after_import_and_resync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        for (var pass = 1; pass <= 2; pass++) // 1 = Import, 2 = UpdateFromSource (the nightly sync)
+        {
+            await IngestThroughProductionPathAsync(ct);
+
+            using var scope = _provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var ad = await db.JobAds.AsNoTracking()
+                .SingleAsync(j => j.External!.ExternalId == SpacedFormsExternalId, ct);
+
+            ad.Title.ShouldBe("Städare ****** - ****", $"pass {pass}");
+            ad.Description.ShouldBe(
+                "Enskild firma ****** - **** eller ******.**** söker städare till kontor i Lund.", $"pass {pass}");
+            ad.Company.Name.ShouldBe("Svensson ****** - ****", $"pass {pass}");
+
+            // Parity with ad F: the sweep over every text/jsonb column. raw_payload is the one column
+            // that deliberately keeps the source's text (ADR 0106 D5 amendment 2026-10-11).
+            (await ColumnsStillContainingAsync(db, SpacedHyphen, ct)).ShouldBe(["raw_payload"], $"pass {pass}");
+            (await ColumnsStillContainingAsync(db, DottedForm, ct)).ShouldBe(["raw_payload"], $"pass {pass}");
+            (await ColumnValueAsync(db, SpacedFormsExternalId, "extracted_terms", ct) ?? string.Empty)
+                .ShouldNotContain("9876", customMessage: $"pass {pass}: extracted terms derive from the masked text.");
+        }
+    }
+
+    [Fact]
+    public async Task A_company_name_stored_before_2123_is_masked_by_the_next_nightly_resync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        // The state of every row the importer wrote before #2123: it stored employer.name verbatim, so
+        // the name still carries the number. The importer can no longer produce this row (the current
+        // writer's masking is pinned by The_separator_forms_and_a_personnummer_in_the_company_name_are_
+        // masked_after_import_and_resync), so the retired actor, "the importer before #2123", is named
+        // here and its row is written by the raw UPDATE below. What is asserted is the heal for a row
+        // that is still LISTED: the next upsert of the record, which is what the 02:00 UTC snapshot is.
+        // A row that has left the feed is not upserted again; that tail is the backfill probe's
+        // (BackfillRecruiterContactScrubJobTests).
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var rows = await db.Database.ExecuteSqlRawAsync(
+                "UPDATE job_ads SET company_name = {0} WHERE external_id = {1}",
+                [CompanyNameWithPersonnummer, SpacedFormsExternalId], ct);
+            rows.ShouldBe(1);
+            (await ColumnValueAsync(db, SpacedFormsExternalId, "company_name", ct))
+                .ShouldBe(CompanyNameWithPersonnummer);
+        }
+
+        await IngestThroughProductionPathAsync(ct);
+
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await ColumnValueAsync(db, SpacedFormsExternalId, "company_name", ct))
+                .ShouldBe("Svensson ****** - ****");
         }
     }
 

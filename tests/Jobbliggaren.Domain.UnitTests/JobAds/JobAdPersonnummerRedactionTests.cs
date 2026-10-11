@@ -22,10 +22,10 @@ public class JobAdPersonnummerRedactionTests
     private const string LuhnInvalid = "811218-9877";
     private const string UnmaskedDigits = "9876";
 
-    private static JobAd Import(string title, string description) =>
+    private static JobAd Import(string title, string description, string companyName = "Enskild Firma") =>
         JobAd.Import(
             title: title,
-            company: Company.Create("Enskild Firma").Value,
+            company: Company.Create(companyName).Value,
             description: description,
             url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
             external: ExternalReference.Create(JobSource.Platsbanken, "ext-1").Value,
@@ -163,6 +163,143 @@ public class JobAdPersonnummerRedactionTests
             "no digit of the number, date part or check part, may survive the mask.");
         ad.ApplyContactScrubBackfill().Value.ShouldBeFalse(
             "the backfill probe and the write path use one detector — masked text is a fixed point.");
+    }
+
+    // ===============================================================
+    // #2123 (ADR 0134 amendment 2026-10-11) — the separator forms an employer types into an ad,
+    // exercised through the real factories. Platsbanken's nightly snapshot and the 10-minute
+    // stream deliver the text; Import / UpdateFromSource is the only writer of it.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("811218 - 9876")]
+    [InlineData("811218 \u2013 9876")]
+    [InlineData("19811218 - 9876")]
+    [InlineData("811278 - 9873")]
+    [InlineData("811218.9876")]
+    [InlineData("811218/9876")]
+    [InlineData("811218_9876")]
+    [InlineData("811218 / 9876")]
+    public void The_separator_forms_of_2123_are_masked_in_title_and_description_on_import_and_on_resync(
+        string spelling)
+    {
+        var imported = Import(title: $"Städare {spelling}", description: $"Firma {spelling} söker städare.");
+
+        imported.Title.Any(char.IsDigit).ShouldBeFalse();
+        imported.Description.Any(char.IsDigit).ShouldBeFalse();
+        imported.Title.ShouldContain("Städare");
+        imported.Description.ShouldContain("söker städare");
+
+        var resynced = Import(title: "Städare", description: "Neutral text.");
+        Resync(resynced, title: $"Städare {spelling}", description: $"Firma {spelling} söker städare.");
+
+        resynced.Title.Any(char.IsDigit).ShouldBeFalse();
+        resynced.Description.Any(char.IsDigit).ShouldBeFalse();
+        resynced.ApplyContactScrubBackfill().Value.ShouldBeFalse(
+            "the backfill probe and the write path use one detector — masked text is a fixed point.");
+    }
+
+    [Theory]
+    [InlineData("050505 - 1235")]
+    [InlineData("050505\t-\t1235")]
+    [InlineData("050505\u00A0-\u00A01235")]
+    [InlineData("050505 -\u00A01235")]
+    [InlineData("050505 \u2013 1235")]
+    [InlineData("050505.1235")]
+    [InlineData("050505/1235")]
+    [InlineData("050505_1235")]
+    public void A_zero_leading_personnummer_in_a_2123_form_is_masked_and_never_promoted_into_contacts(
+        string spelling)
+    {
+        // The arm the issue names: before #2123 a spaced form starting with 0 was not matched by the
+        // scanner, so the phone detector (anchored on a leading 0, separators space/tab/NBSP/hyphen)
+        // took it, the body got the marker, and the number was PROMOTED into Contacts. Both arms are
+        // asserted, for the two visible surfaces and for both writers: the text AND the contact list.
+        foreach (var viaResync in new[] { false, true })
+        {
+            var title = $"Städare {spelling}";
+            var description = $"Enskild firma {spelling} söker städare.";
+            JobAd ad;
+            if (viaResync)
+            {
+                ad = Import(title: "Städare", description: "Neutral text.");
+                Resync(ad, title, description);
+            }
+            else
+            {
+                ad = Import(title, description);
+            }
+
+            ad.Title.Any(char.IsDigit).ShouldBeFalse($"title, viaResync={viaResync}");
+            ad.Description.Any(char.IsDigit).ShouldBeFalse($"description, viaResync={viaResync}");
+            (ad.Contacts is null || ad.Contacts.IsEmpty).ShouldBeTrue(
+                $"a personnummer is removed, never moved into contacts under a recruiter-phone label (viaResync={viaResync}).");
+        }
+    }
+
+    [Theory]
+    [InlineData("811218  - 9876")] // three visible columns: ADR 0134 D1/R1, the declared residual
+    [InlineData("811218 -\n9876")] // a line break between the groups: deliberately not bridged
+    public void The_declared_residuals_are_left_alone_rather_than_half_masked(string spelling)
+    {
+        var ad = Import(title: "Städare", description: $"Firma {spelling} söker städare.");
+
+        ad.Description.ShouldContain(spelling);
+    }
+
+    [Theory]
+    [InlineData("Anna Svensson 811218-9876", "Anna Svensson ******-****")]
+    [InlineData("Svensson 811218 - 9876 Städ", "Svensson ****** - **** Städ")]
+    [InlineData("Svensson 19811218.9876", "Svensson ********.****")]
+    public void A_personnummer_in_the_company_name_is_masked_in_place_on_import(string name, string expected)
+    {
+        // The name is printed on the public job page, and an enskild firma's name IS a person's name,
+        // so a number typed into it is that person's personnummer. Length-preserving, so the
+        // Company.Create bounds (non-blank, <= 200) cannot be crossed by the mask.
+        var ad = Import(title: "Städare", description: "Neutral text.", companyName: name);
+
+        ad.Company.Name.ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("Enskild Firma")]
+    [InlineData("Kontor 24 AB")] // digits that are not a personnummer
+    [InlineData("Städ 556677-0001 AB")] // an organisation number: month 66 fails the date gate
+    [InlineData("Byggfirman 811218-9877")] // Luhn-invalid
+    public void A_company_name_without_a_personnummer_is_left_exactly_as_it_was(string name)
+    {
+        var ad = Import(title: "Städare", description: "Neutral text.", companyName: name);
+
+        ad.Company.Name.ShouldBe(name);
+    }
+
+    [Fact]
+    public void A_masked_company_name_is_a_fixed_point_across_the_nightly_resync()
+    {
+        var ad = Import(title: "Städare", description: "Neutral text.", companyName: "Svensson 811218-9876");
+        var masked = ad.Company.Name;
+
+        Resync(ad, title: "Städare", description: "Neutral text.");
+
+        ad.Company.Name.ShouldBe(masked);
+        masked.Any(char.IsDigit).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void The_company_name_of_a_manually_created_ad_is_never_rewritten()
+    {
+        // CLAUDE.md §5: a rule engine never rewrites user-typed text silently. Same scope as the title.
+        var manual = JobAd.Create(
+            title: "Eget spår",
+            company: Company.Create($"Min firma {Personnummer}").Value,
+            description: "Min egen anteckning.",
+            url: "https://example.com/jobb",
+            source: JobSource.Manual,
+            publishedAt: Clock.UtcNow,
+            expiresAt: null,
+            clock: Clock).Value;
+
+        manual.Company.Name.ShouldContain(Personnummer);
     }
 
     [Fact]

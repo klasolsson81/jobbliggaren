@@ -95,6 +95,104 @@ public sealed class PersonnummerBridgeCollisionRateTests
         dateColumn.ShouldBeInRange(0.05, 0.20);
     }
 
+    /// <summary>
+    /// The same two populations as above, run through the REDACTION path's candidate grammar with
+    /// <paramref name="form"/> between the leading eight digits and the trailing four, and counted
+    /// by whether <see cref="PersonnummerScanner.ScanWithGaps"/> reports a match. The random
+    /// stream is consumed exactly as the two probes above consume it, so the digits are the same
+    /// digits and the comparison is exact rather than statistical.
+    /// </summary>
+    private static double ScanWithGapsHitRate(string form, bool dateColumn)
+    {
+        var rng = new Random(Seed);
+        var origin = new DateOnly(1900, 1, 1);
+        var span = new DateOnly(2010, 12, 31).DayNumber - origin.DayNumber;
+        var hits = 0;
+        for (var i = 0; i < Trials; i++)
+        {
+            string leading, trailing;
+            if (dateColumn)
+            {
+                leading = origin.AddDays(rng.Next(span))
+                    .ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);
+                trailing = rng.Next(10_000).ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
+            }
+            else
+            {
+                var digits = string.Create(12, rng, static (chars, r) =>
+                {
+                    for (var k = 0; k < chars.Length; k++) chars[k] = (char)('0' + r.Next(10));
+                });
+                (leading, trailing) = (digits[..8], digits[8..]);
+            }
+
+            if (PersonnummerScanner.ScanWithGaps(leading + form + trailing).Count > 0) hits++;
+        }
+        return (double)hits / Trials;
+    }
+
+    [Theory]
+    [InlineData(" - ")]
+    [InlineData(" \u2013 ")]
+    [InlineData(".")]
+    [InlineData("/")]
+    [InlineData("_")]
+    [InlineData(" -- ")]
+    [InlineData(" - -")]
+    [InlineData("-- ")]
+    public void TheIssue2123Forms_CollideExactlyAsOftenAsTheContiguousDigits_BecauseTryParseIsTheOnlyAuthority(
+        string form)
+    {
+        // #2123 widened the candidate SHAPE of the redaction path (a separator between two gap
+        // columns; '.', '/', '_' as separators), not the validation. So a new form must collide
+        // with exactly the frequency of the same digits written contiguously, for both leading
+        // widths a personnummer has (12 digits as 8+4, 10 digits as 6+4) and for a real date
+        // column. Before #2123 these forms were not candidates at all (0 hits); ADR 0134 holds the
+        // dated numbers. The equality catches a NARROWER grammar (the hits fall below the
+        // contiguous rate). It cannot catch a wider one on an isolated token, which has no extra
+        // candidate to find; that direction is pinned by the negatives in PersonnummerScannerTests.
+        ScanWithGapsHitRate(form, dateColumn: false).ShouldBe(ArbitraryEightPlusFourBaseline.Value);
+        ScanWithGapsHitRate(form, dateColumn: true).ShouldBe(DateColumnPlusFourBaseline.Value);
+        ScanWithGapsSixPlusFourHitRate(form).ShouldBe(ArbitrarySixPlusFourBaseline.Value);
+    }
+
+    // The contiguous baselines do not depend on the form under test, so each is computed once.
+    private static readonly Lazy<double> ArbitraryEightPlusFourBaseline = new(ArbitraryEightPlusFourCollisionRate);
+    private static readonly Lazy<double> DateColumnPlusFourBaseline = new(DateColumnPlusFourCollisionRate);
+    private static readonly Lazy<double> ArbitrarySixPlusFourBaseline = new(ArbitrarySixPlusFourCollisionRate);
+
+    /// <summary>Ten arbitrary digits judged as one contiguous 6+4 personnummer candidate.</summary>
+    private static double ArbitrarySixPlusFourCollisionRate()
+    {
+        var rng = new Random(Seed);
+        var hits = 0;
+        for (var i = 0; i < Trials; i++)
+        {
+            var candidate = string.Create(10, rng, static (span, r) =>
+            {
+                for (var k = 0; k < span.Length; k++) span[k] = (char)('0' + r.Next(10));
+            });
+            if (Personnummer.TryParse(candidate, out _)) hits++;
+        }
+        return (double)hits / Trials;
+    }
+
+    /// <summary>The same ten digits split 6+4 around <paramref name="form"/>, counted through the scanner.</summary>
+    private static double ScanWithGapsSixPlusFourHitRate(string form)
+    {
+        var rng = new Random(Seed);
+        var hits = 0;
+        for (var i = 0; i < Trials; i++)
+        {
+            var digits = string.Create(10, rng, static (span, r) =>
+            {
+                for (var k = 0; k < span.Length; k++) span[k] = (char)('0' + r.Next(10));
+            });
+            if (PersonnummerScanner.ScanWithGaps(digits[..6] + form + digits[6..]).Count > 0) hits++;
+        }
+        return (double)hits / Trials;
+    }
+
     [Fact]
     public void TheMeasurementIsDeterministic_SameSeedSameAnswer()
     {

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowRight } from "lucide-react";
@@ -11,6 +12,7 @@ import type { SectionNoticeData } from "./notice-types";
 interface RecentEventsCardProps {
   /** The `info` notices — matching, followed-company ads, the latest search. */
   readonly notices: ReadonlyArray<SectionNoticeData>;
+  readonly headAction?: ReactNode;
 }
 
 /**
@@ -25,13 +27,14 @@ interface RecentEventsCardProps {
  * A Client Component only because `renderRow` is a function prop into `NoticeListCard`, and a
  * function cannot cross the RSC boundary — the card holds no state of its own.
  */
-export function RecentEventsCard({ notices }: RecentEventsCardProps) {
+export function RecentEventsCard({ notices, headAction }: RecentEventsCardProps) {
   const t = useTranslations("oversikt.cards");
   return (
     <NoticeListCard
       id="oversikt-card-events"
       title={t("events")}
       notices={notices}
+      headAction={headAction}
       emptyText={t("eventsEmpty")}
       span={12}
       listAs="ul"

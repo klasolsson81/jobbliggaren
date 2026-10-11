@@ -262,16 +262,13 @@ describe("OversiktPage — kompositionen (ADR 0140)", () => {
     ]);
   });
 
-  it("'Markera alla' ligger EFTER rutnätet i DOM-ordning (#1557)", () => {
+  it("'Markera alla' ligger i Senaste händelser-kortets rubrikrad", () => {
     const { container } = renderOversikt(true, { matchCount: 42 });
     const row = container.querySelector<HTMLElement>(".jp-notice-bulk");
     expect(row).not.toBeNull();
     expect(screen.getByRole("button", { name: /Markera alla som lästa/ })).toBeInTheDocument();
-    const grid = container.querySelector<HTMLElement>(".jp-ov-grid")!;
-    expect(grid.compareDocumentPosition(row!) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
-    expect(grid.contains(row!)).toBe(false);
+    const head = container.querySelector<HTMLElement>("#oversikt-card-events")!.parentElement!;
+    expect(head.contains(row!)).toBe(true);
   });
 });
 

@@ -47,11 +47,9 @@ describe("MarkAllReadRow — hinten följer id:ns rotation (#1572)", () => {
     );
 
     const button = screen.getByRole("button", { name: /Markera alla som lästa/ });
-    const hint = container.querySelector(`#${button.getAttribute("aria-describedby")}`);
 
-    expect(hint).not.toBeNull();
-    expect(hint).not.toHaveTextContent(/till i morgon/);
-    expect(hint).toHaveTextContent(/Notiserna döljs/);
+    expect(button.getAttribute("title")).not.toMatch(/till i morgon/);
+    expect(button).toHaveAttribute("title", expect.stringMatching(/Notiserna döljs/));
     // Kvittot gör inget dygnspåstående och delas därför oförändrat mellan ytorna.
     expect(within(container).getByRole("status")).toBeInTheDocument();
   });
@@ -147,17 +145,11 @@ describe("MarkAllReadRow", () => {
     expect(container.querySelector(".jp-notice-bulk")).toBeNull();
   });
 
-  it("kopplar hinten till knappen med aria-describedby (DESIGN.md §9)", () => {
-    // En visuellt intilliggande hjälptext som inte är programmatiskt kopplad finns
-    // inte för en skärmläsare — och hinten är hela skälet att våga klicka.
-    const { container } = render(<MarkAllReadRow notices={[notice({ id: "a" })]} />);
+  it("bär konsekvensen som knappens title (tooltip)", () => {
+    render(<MarkAllReadRow notices={[notice({ id: "a" })]} />);
     const button = screen.getByRole("button", { name: /Markera alla som lästa/ });
-    const hintId = button.getAttribute("aria-describedby");
 
-    expect(hintId).not.toBeNull();
-    const hint = container.querySelector(`#${hintId}`);
-    expect(hint).not.toBeNull();
-    expect(hint).toHaveTextContent(/till i morgon/);
+    expect(button).toHaveAttribute("title", expect.stringMatching(/till i morgon/));
   });
 
   it("namnger antalet i live-regionen efter klicket (WCAG 4.1.3)", async () => {
@@ -185,9 +177,7 @@ describe("MarkAllReadRow", () => {
     );
   });
 
-  it("bär knapp, hint och kvitto i EN rad, i den ordningen", () => {
-    // Strukturell, inte närvaro: hinten hör under knappen den beskriver, och kvittot
-    // sist. Ett närvarotest hade inte sett att de hamnat i skilda containrar.
+  it("bär knapp och kvitto i EN rad, i den ordningen", () => {
     const { container } = render(<MarkAllReadRow notices={[notice({ id: "a" })]} />);
     const row = container.querySelector<HTMLElement>(".jp-notice-bulk");
     expect(row).not.toBeNull();
@@ -196,11 +186,9 @@ describe("MarkAllReadRow", () => {
       within(row!).getByRole("button", { name: /Markera alla som lästa/ }),
     ).toBeInTheDocument();
     expect(within(row!).getByRole("status")).toBeInTheDocument();
-    expect(row!.querySelector(".jp-notice-bulk__hint")).not.toBeNull();
 
     const kids = [...row!.children].map((c) => c.className);
     expect(kids[0]).toContain("jp-btn");
-    expect(kids[1]).toContain("jp-notice-bulk__hint");
-    expect(kids[2]).toContain("jp-notice-bulk__receipt");
+    expect(kids[1]).toContain("jp-notice-bulk__receipt");
   });
 });

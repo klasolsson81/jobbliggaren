@@ -21,6 +21,11 @@ public sealed record JobSeekerProfileDto(
     // are deliberately NOT projected (parity BackgroundMatchNotificationsEnabled) — the UI needs
     // only the enabled flag. The digest cadence is shared (DigestCadence above, ADR 0087 D2).
     bool FollowedCompanyNotificationsEnabled,
+    // ADR 0164 (#2107) — the e-mail pauses as on/off, never their stamps (data-minimal, parity the
+    // consent flags).
+    bool NotificationMailEnabled,
+    bool TopMatchMailEnabled,
+    bool MatchSummaryMailEnabled,
     DateTimeOffset CreatedAt,
     // F4-12 (ADR 0076) — derived signal for the setup nudge: true once the user
     // has stated at least one desired occupation-group. Drives the "ange vilka
@@ -41,6 +46,9 @@ public sealed record JobSeekerProfileDto(
         js.Preferences.BackgroundMatchNotificationsEnabled,
         js.Preferences.DigestCadence,
         js.Preferences.FollowedCompanyNotificationsEnabled,
+        js.Preferences.NotificationMailOffAt is null,
+        js.Preferences.TopMatchMailOffAt is null,
+        js.Preferences.MatchSummaryMailOffAt is null,
         js.CreatedAt,
         js.MatchPreferences.PreferredOccupationGroups.Count > 0,
         js.MatchPreferences.PreferredOccupationGroups,

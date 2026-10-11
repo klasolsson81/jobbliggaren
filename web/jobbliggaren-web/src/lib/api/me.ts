@@ -95,6 +95,36 @@ export function updateFollowedCompanyNotificationConsent(input: {
 }
 
 /**
+ * ADR 0164 (#2107) — pauses or resumes every notification mail. Writes no consent:
+ * switching it on lifts only the pause. The body carries only `{ enabled }`.
+ */
+export function updateNotificationMail(input: {
+  enabled: boolean;
+}): Promise<ApiResult<void>> {
+  return putNotificationSetting("/api/v1/me/notification-mail", {
+    enabled: input.enabled,
+  });
+}
+
+/** ADR 0164 (#2107) — the Toppmatch mail on or off, inside the background-match consent. */
+export function updateTopMatchMail(input: {
+  enabled: boolean;
+}): Promise<ApiResult<void>> {
+  return putNotificationSetting("/api/v1/me/top-match-mail", {
+    enabled: input.enabled,
+  });
+}
+
+/** ADR 0164 (#2107) — the summary mail on or off, inside the background-match consent. */
+export function updateMatchSummaryMail(input: {
+  enabled: boolean;
+}): Promise<ApiResult<void>> {
+  return putNotificationSetting("/api/v1/me/match-summary-mail", {
+    enabled: input.enabled,
+  });
+}
+
+/**
  * ADR 0087 D2 — sets the digest cadence the two notification consents share and
  * neither owns. The body carries only `{ cadence }`, never a consent value.
  */

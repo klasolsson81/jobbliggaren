@@ -83,6 +83,91 @@ public class EmailTemplatesMatchNotificationTests
         email.PlainTextBody.ShouldNotContain("se//mina-sidor");
     }
 
+    // --- Row 14 of ADR 0144 Decision 4, as security-auditor signed it per mail type (#2107, V6) ---
+    // The plain part is hard-wrapped, so both parts are compared paragraph by paragraph with whitespace
+    // collapsed (MailText); the words and the punctuation stay verbatim.
+
+    private const string DirectReasonPlain =
+        "Du får detta för att du har slagit på matchningen och ”Toppmatchningar via e-post” är på. "
+        + "Du kan stänga av mejlen i dina inställningar:";
+
+    private const string DirectReasonHtml =
+        "Du får detta för att du har slagit på matchningen och ”Toppmatchningar via e-post” är på. "
+        + "Du kan stänga av mejlen:";
+
+    private const string DigestReasonPlain =
+        "Du får detta för att du har slagit på matchningen och ”Sammanfattning via e-post” är på. "
+        + "Du kan ändra hur ofta du får den, eller stänga av den, i dina inställningar:";
+
+    private const string DigestReasonHtml =
+        "Du får detta för att du har slagit på matchningen och ”Sammanfattning via e-post” är på. "
+        + "Du kan ändra hur ofta du får den, eller stänga av den:";
+
+    private const string SettingsLinkText = "Ändra dina inställningar";
+
+    [Fact]
+    public void MatchNotification_ForADirectMail_CarriesTheSignedReasonVerbatimInBothParts()
+    {
+        var email = EmailTemplates.MatchNotification(BaseUrl, Direct(Item()));
+
+        MailText.PlainParagraphs(email.PlainTextBody)
+            .ShouldContain($"{DirectReasonPlain} {BaseUrl}/mina-sidor/notiser");
+        MailText.HtmlParagraphs(email.HtmlBody).ShouldContain($"{DirectReasonHtml} {SettingsLinkText}");
+        email.HtmlBody.ShouldContain(
+            EmailHtml.LinkParagraph(DirectReasonHtml, $"{BaseUrl}/mina-sidor/notiser", SettingsLinkText).ToString());
+    }
+
+    [Fact]
+    public void MatchNotification_ForADigest_CarriesTheSignedReasonVerbatimInBothParts()
+    {
+        var email = EmailTemplates.MatchNotification(
+            BaseUrl, Digest(2, DigestCadence.Weekly, Item(), Item("Frontend", "Beta AB", "Stark match")));
+
+        MailText.PlainParagraphs(email.PlainTextBody)
+            .ShouldContain($"{DigestReasonPlain} {BaseUrl}/mina-sidor/notiser");
+        MailText.HtmlParagraphs(email.HtmlBody).ShouldContain($"{DigestReasonHtml} {SettingsLinkText}");
+        email.HtmlBody.ShouldContain(
+            EmailHtml.LinkParagraph(DigestReasonHtml, $"{BaseUrl}/mina-sidor/notiser", SettingsLinkText).ToString());
+    }
+
+    // No cadence applies to a Toppmatch mail, so it never offers to change how often it comes.
+    [Fact]
+    public void MatchNotification_ForADirectMail_NeverMentionsHowOften()
+    {
+        foreach (var email in new[]
+                 {
+                     EmailTemplates.MatchNotification(BaseUrl, Direct(Item())),
+                     EmailTemplates.MatchNotification(BaseUrl, BundledDirect()),
+                 })
+        {
+            MailText.Unwrapped(email.PlainTextBody).ShouldNotContain("hur ofta");
+            MailText.Unwrapped(email.HtmlBody).ShouldNotContain("hur ofta");
+        }
+    }
+
+    [Theory]
+    [InlineData(MatchNotificationKind.Direct, "Toppmatchningar via e-post")]
+    [InlineData(MatchNotificationKind.Digest, "Sammanfattning via e-post")]
+    public void MatchNotification_QuotesTheSwitchLabelWithU201DOnBothSidesInBothParts(
+        MatchNotificationKind kind, string label)
+    {
+        var email = EmailTemplates.MatchNotification(
+            BaseUrl, kind == MatchNotificationKind.Direct ? Direct(Item()) : Digest(1, DigestCadence.Daily, Item()));
+
+        var reasons = new[]
+        {
+            MailText.PlainParagraphs(email.PlainTextBody).Single(paragraph => paragraph.StartsWith("Du får detta", StringComparison.Ordinal)),
+            MailText.HtmlParagraphs(email.HtmlBody).Single(paragraph => paragraph.StartsWith("Du får detta", StringComparison.Ordinal)),
+        };
+        foreach (var reason in reasons)
+        {
+            reason.ShouldContain("\u201D" + label + "\u201D");
+            string.Concat(reason.Where(IsQuotationMark)).ShouldBe("\u201D\u201D");
+        }
+    }
+
+    private static bool IsQuotationMark(char c) => c is '"' or '\u201C' or '\u201D' or '\u201E' or '\u00AB' or '\u00BB';
+
     // --- The action link: a direct mail opens its ad, a digest the list (#2094) ---
 
     [Fact]

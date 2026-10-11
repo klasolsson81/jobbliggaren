@@ -81,6 +81,14 @@ export type Harness = {
   notificationFeed: unknown;
   /** #1666 — the bodies the two existing /seen endpoints received, in order. */
   readonly seenReceipts: { route: string; body: Record<string, unknown> }[];
+  /** #2107 — the notification settings the profile reports; each settings PUT writes its own value. */
+  notificationSettings: NotificationSettings;
+  /** #2107 — the next settings PUT answers 500 and changes nothing. */
+  refuseNextSettingsWrite: boolean;
+  /** #2107 — how long a settings PUT waits before it answers, so a test can act while it is pending. */
+  settingsWriteDelayMs: number;
+  /** #2107 — the settings PUTs received, in order. */
+  readonly settingsWrites: { route: string; body: Record<string, unknown> }[];
   reset(): void;
   stop(): Promise<void>;
 };
@@ -182,12 +190,42 @@ export const QUIET_NOTIFICATION_FEED = {
   ],
 } as const;
 
+/** #2107 — the six values /mina-sidor/notiser reads from the profile. */
+export type NotificationSettings = {
+  notificationMailEnabled: boolean;
+  backgroundMatchNotificationsEnabled: boolean;
+  topMatchMailEnabled: boolean;
+  matchSummaryMailEnabled: boolean;
+  followedCompanyNotificationsEnabled: boolean;
+  digestCadence: "Daily" | "Weekly";
+};
+
+/** A new account: e-mail and both mail types on, both consents off, the weekly cadence. */
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  notificationMailEnabled: true,
+  backgroundMatchNotificationsEnabled: false,
+  topMatchMailEnabled: true,
+  matchSummaryMailEnabled: true,
+  followedCompanyNotificationsEnabled: false,
+  digestCadence: "Weekly",
+};
+
+const SETTINGS_WRITES: Record<string, keyof NotificationSettings> = {
+  "PUT /api/v1/me/notification-mail": "notificationMailEnabled",
+  "PUT /api/v1/me/background-match-notification-consent": "backgroundMatchNotificationsEnabled",
+  "PUT /api/v1/me/top-match-mail": "topMatchMailEnabled",
+  "PUT /api/v1/me/match-summary-mail": "matchSummaryMailEnabled",
+  "PUT /api/v1/me/followed-company-notification-consent": "followedCompanyNotificationsEnabled",
+  "PUT /api/v1/me/digest-cadence": "digestCadence",
+};
+
 export async function startHarness(informationFlows = false, applicationCopies = 0, ports: { proxy: number; next: number; backend: number } = HARNESS_PORTS): Promise<Harness> {
   const misses: string[] = [];
   const requests: string[] = [];
   const syntheticUploadReceipts: boolean[] = [];
   const feedbackReceipts: FeedbackReceipt[] = [];
   const seenReceipts: { route: string; body: Record<string, unknown> }[] = [];
+  const settingsWrites: { route: string; body: Record<string, unknown> }[] = [];
   const ads = [...ALL_ADS, ...Array.from({ length: applicationCopies }, (_, index) => ({
     ...ALL_ADS[1]!,
     id: `19860000-0000-4000-8000-${String(index + 1000).padStart(12, "0")}`,
@@ -212,12 +250,20 @@ export async function startHarness(informationFlows = false, applicationCopies =
     feedbackReceipts,
     notificationFeed: QUIET_NOTIFICATION_FEED,
     seenReceipts,
+    notificationSettings: { ...DEFAULT_NOTIFICATION_SETTINGS },
+    refuseNextSettingsWrite: false,
+    settingsWriteDelayMs: 0,
+    settingsWrites,
     reset() {
       misses.length = 0;
       requests.length = 0;
       syntheticUploadReceipts.length = 0;
       feedbackReceipts.length = 0;
       seenReceipts.length = 0;
+      settingsWrites.length = 0;
+      harness.notificationSettings = { ...DEFAULT_NOTIFICATION_SETTINGS };
+      harness.refuseNextSettingsWrite = false;
+      harness.settingsWriteDelayMs = 0;
       harness.notificationFeed = QUIET_NOTIFICATION_FEED;
       harness.feedback.open = false;
       harness.feedback.answeredPages = [];
@@ -309,6 +355,20 @@ export async function startHarness(informationFlows = false, applicationCopies =
       seenReceipts.push({ route, body: await bodyOf(request) });
       return json(204);
     }
+    const setting = SETTINGS_WRITES[route];
+    if (setting) {
+      const body = await bodyOf(request);
+      settingsWrites.push({ route, body });
+      if (harness.settingsWriteDelayMs > 0)
+        await new Promise((resolve) => setTimeout(resolve, harness.settingsWriteDelayMs));
+      if (harness.refuseNextSettingsWrite) {
+        harness.refuseNextSettingsWrite = false;
+        return json(500, { title: "Internal Server Error", status: 500 });
+      }
+      const value = setting === "digestCadence" ? body.cadence : body.enabled;
+      harness.notificationSettings = { ...harness.notificationSettings, [setting]: value };
+      return json(204);
+    }
     switch (route) {
       case "GET /api/v1/me/feedback/prompt-state":
         return json(200, { open: harness.feedback.open, answeredPages: harness.feedback.answeredPages });
@@ -333,7 +393,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
       case "GET /api/v1/job-ads/suggest":
         return json(200, []);
       case "GET /api/v1/me/profile":
-        return json(200, profile(harness.occupationStated));
+        return json(200, { ...profile(harness.occupationStated), ...harness.notificationSettings });
       case "GET /api/v1/job-ads": {
         const items = ads.map(summary);
         return json(200, { items, totalCount: items.length, page: 1, pageSize: 20 });

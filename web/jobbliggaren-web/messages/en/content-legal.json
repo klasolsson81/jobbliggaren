@@ -87,7 +87,7 @@
         "paragraphs": [
           "If you want, you can turn on notifications about new jobs that match your preferences and, as a separate choice, email notifications about new ads from companies you follow. The processing only takes place for what you actively turn on yourself. The legal basis is your consent (Article 6(1)(a)). Both are off by default. If you turn either of them on, we store a record that you gave your consent to it and when, so that we can demonstrate that the processing is lawful.",
           "The notifications are sent by email to the address on your account and delivered by Scaleway SAS in France, which processes the email in the provider's fr-par region. The provider undertakes in the data processing agreement that the processing takes place within the EU. What that means for your data is described in the section Recipients of data below.",
-          "You can withdraw your consent at any time by turning off the notifications in your settings. We then stop sending them. Withdrawing your consent does not affect the fact that the processing was lawful before you withdrew it."
+          "You can withdraw a consent at any time by turning it off in your settings. If you withdraw your consent to matching, we stop matching new job ads against your profile and emailing you matches. If you withdraw your consent to emails about companies you follow, we stop emailing them to you. If you instead turn off all email notifications, or only the emails about top matches or the summary, we stop sending those emails, but your consents remain and matching continues in the app. Withdrawing a consent does not affect the lawfulness of the processing before you withdrew it."
         ]
       },
       {
@@ -141,7 +141,7 @@
           "Restriction. You have the right to request that the processing be restricted in certain cases, for example while an objection or a question about accuracy is being investigated.",
           "Objection. You have the right to object to processing based on legitimate interest. We then stop that processing unless we have compelling legitimate grounds that override your interest.",
           "Data portability. For data you have provided yourself and that is processed on the basis of a contract or consent, you have the right to receive it in a structured, commonly used and machine-readable format, and to have it transferred to another party where technically possible.",
-          "Withdraw consent. Where the processing is based on your consent, you can withdraw your consent at any time, without it affecting the lawfulness of the processing carried out beforehand. You turn off notifications in your settings. If you have included technical information with feedback, contact us at the email address above and we will delete it."
+          "Withdraw consent. Where the processing is based on your consent, you can withdraw your consent at any time, without it affecting the lawfulness of the processing carried out beforehand. You withdraw your consent to matching and your consent to emails about companies you follow by turning them off in your settings. If you have included technical information with feedback, contact us at the email address above and we will delete it."
         ]
       },
       {

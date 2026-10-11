@@ -5,6 +5,9 @@ using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.JobSeekers.Commands.SetMatchSummaryMail;
+using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationMail;
+using Jobbliggaren.Application.JobSeekers.Commands.SetTopMatchMail;
 using Jobbliggaren.Application.JobSeekers.Commands.UpdateNotificationConsent;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
@@ -42,6 +45,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.Matching;
 public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
 {
     public enum MailArm { TopDirect, MatchDigest, FollowDigest }
+    public enum Pause { AllNotificationMail, OwnMailType }
 
     private static readonly DateTimeOffset Now = new(2025, 4, 7, 6, 0, 0, TimeSpan.Zero);
     // The tracked taxonomy snapshot's software/system-development occupation group.
@@ -137,6 +141,43 @@ public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
         withdrawal.Fired.ShouldBe(1);
         withdrawal.SawPersistedQueued.ShouldBeTrue();
         withdrawal.Outcome.ShouldBeTrue();
+        SendsFor(sender, scenario.Target).ShouldBe(0);
+        SendsFor(sender, scenario.Control).ShouldBe(1);
+        (await StatusAsync(scenario, scenario.Target, Ct)).ShouldBe("Queued");
+        (await StatusAsync(scenario, scenario.Control, Ct)).ShouldBe("Sent");
+        transportTransactions.ShouldAllBe(active => !active);
+
+        await RunAsync(scenario, sender, interceptor: null);
+
+        SendsFor(sender, scenario.Target).ShouldBe(0);
+        (await StatusAsync(scenario, scenario.Target, Ct)).ShouldBe("Queued");
+    }
+
+    // security-auditor V1 (ADR 0164, #2107): the fence after the claim is each mail's gate, so a pause of
+    // every notification mail, or of the mail's own type, committed after the claim stops the send. The
+    // follow mail has no type switch of its own. The pause is the real command's handler, in its own context.
+    [Theory]
+    [InlineData(MailArm.TopDirect, Pause.AllNotificationMail)]
+    [InlineData(MailArm.TopDirect, Pause.OwnMailType)]
+    [InlineData(MailArm.MatchDigest, Pause.AllNotificationMail)]
+    [InlineData(MailArm.MatchDigest, Pause.OwnMailType)]
+    [InlineData(MailArm.FollowDigest, Pause.AllNotificationMail)]
+    public async Task RunAsync_ShouldLeaveTheClaimQueuedAndSendOnlyToLiveControl_WhenAPauseCommitsAfterTheClaim(
+        MailArm arm, Pause pause)
+    {
+        var scenario = await SeedAsync(arm);
+        var pausing = new InterleaveAfterThePersistedClaim<bool>(scenario.Target.UserId, async ct =>
+        {
+            var queued = await StatusAsync(scenario, scenario.Target, ct) == "Queued";
+            return (queued, await PauseAsync(scenario, pause, ct));
+        });
+        var sender = Substitute.For<IEmailSender>();
+
+        var transportTransactions = await RunAsync(scenario, sender, pausing);
+
+        pausing.Fired.ShouldBe(1);
+        pausing.SawPersistedQueued.ShouldBeTrue();
+        pausing.Outcome.ShouldBeTrue();
         SendsFor(sender, scenario.Target).ShouldBe(0);
         SendsFor(sender, scenario.Control).ShouldBe(1);
         (await StatusAsync(scenario, scenario.Target, Ct)).ShouldBe("Queued");
@@ -289,6 +330,41 @@ public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
         var stored = await db.JobSeekers.AsNoTracking().SingleAsync(value => value.UserId == target.UserId, ct);
         return !stored.Preferences.BackgroundMatchNotificationsEnabled
             && stored.Preferences.NotificationConsentWithdrawnAt == Now;
+    }
+
+    // True when the pause is stored at the run's clock and the arm's consent still stands: a pause is never a
+    // withdrawal (security-auditor V3).
+    private async Task<bool> PauseAsync(Scenario scenario, Pause pause, CancellationToken ct)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var owner = Substitute.For<ICurrentUser>();
+        owner.UserId.Returns(scenario.Target.UserId);
+        owner.IsAuthenticated.Returns(true);
+        var clock = new FixedClock(Now);
+        var handled = (pause, scenario.Arm) switch
+        {
+            (Pause.AllNotificationMail, _) => await new SetNotificationMailCommandHandler(db, owner, clock)
+                .Handle(new SetNotificationMailCommand(Enabled: false), ct),
+            (Pause.OwnMailType, MailArm.TopDirect) => await new SetTopMatchMailCommandHandler(db, owner, clock)
+                .Handle(new SetTopMatchMailCommand(Enabled: false), ct),
+            (Pause.OwnMailType, MailArm.MatchDigest) => await new SetMatchSummaryMailCommandHandler(db, owner, clock)
+                .Handle(new SetMatchSummaryMailCommand(Enabled: false), ct),
+            _ => throw new ArgumentOutOfRangeException(nameof(pause), "The follow mail has no type switch."),
+        };
+        handled.IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+
+        var stored = await db.JobSeekers.AsNoTracking().SingleAsync(value => value.UserId == scenario.Target.UserId, ct);
+        var stamp = pause == Pause.AllNotificationMail
+            ? stored.Preferences.NotificationMailOffAt
+            : scenario.Arm == MailArm.TopDirect
+                ? stored.Preferences.TopMatchMailOffAt
+                : stored.Preferences.MatchSummaryMailOffAt;
+        var consent = scenario.Arm == MailArm.FollowDigest
+            ? NotificationConsent.FollowedCompany
+            : NotificationConsent.BackgroundMatch;
+        return stamp == Now && consent.IsSatisfiedBy(stored);
     }
 
     private async Task<AccountDeletionScheduled> ScheduleAsync(Seeker target, CancellationToken ct)

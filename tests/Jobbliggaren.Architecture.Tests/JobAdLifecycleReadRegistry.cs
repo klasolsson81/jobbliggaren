@@ -201,7 +201,8 @@ public static class JobAdLifecycleReadRegistry
             ["Jobbliggaren.Application.Matching.Queries.GetMyMatches.GetMyMatchesQueryHandler.Handle"] =
                 One(Active("join JobAds where j.Status == Active — the /matchningar list (#864 PR-A gate).")),
             ["Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchJob.DispatchUserDigestAsync"] =
-                One(Active("join JobAds where j.Status == Active — the Strong-match digest EMAIL rows (#864 PR-A A2).")),
+                One(Any("left join JobAds — the Strong digest's claim set drains every status; its display set is Active, decided in the projection (#2118).",
+                    reason: "an archived or erased row must still be drained or it re-processes every run (#864); only the display is Active-gated")),
             ["Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchJob.DispatchUserFollowedCompanyDigestAsync"] =
                 One(Active("join JobAds where j.Status == Active — the followed-company digest EMAIL rows (#864 PR-A A3).")),
             ["Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.BackgroundMatchingJob.ReadCandidatesAsync"] =

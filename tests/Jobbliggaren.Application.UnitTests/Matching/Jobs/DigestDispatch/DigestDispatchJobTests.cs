@@ -381,21 +381,17 @@ public class DigestDispatchJobTests
             Arg.Any<CancellationToken>());
     }
 
-    // ───────────────────────────── 8b. All matched ads retracted → drain (Sent), no email
+    // ───────────────────────────── 8b. Unreachable: the matched ad's row is missing
 
-    // pending.Count > 0 but the inner JOIN to JobAds yields nothing (every matched ad gone since
-    // detection) → DigestDispatchJob drains ALL rows Sent and sends NO email (an empty digest is
-    // noise). Without the drain the retracted-ad rows would re-process every digest run forever;
-    // without the empty-guard an empty digest would be sent. Both halves are pinned here.
+    // Declared unreachable: no path in src/ deletes a job_ads row (DigestDispatchJob's LEFT-join comment).
     [Fact]
-    public async Task RunAsync_AllMatchedAdsRetracted_DrainsAllRowsSent_AndDoesNotEmail()
+    public async Task RunAsync_UnreachableMissingAdRow_DegradesSafely_NoMailAndNotLeftPending()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
         var userId = await SeedConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
 
-        // A Strong Pending match whose ad does NOT exist (no JobAd row) — the inner join drops it,
-        // so displayRows is empty even though the tracked pending set is not. (No FK — ADR 0058/59.)
+        // A Strong Pending match whose ad row does not exist (no FK — ADR 0058/59).
         var orphanAdId = JobAdId.New();
         var match = UserJobAdMatch.Create(userId, orphanAdId, NotifiableMatchGrade.Strong, [], NowClock).Value;
         db.UserJobAdMatches.Add(match);
@@ -408,8 +404,7 @@ public class DigestDispatchJobTests
             Arg.Any<CancellationToken>());
 
         (await ReloadMatchAsync(db, userId, orphanAdId, ct))!.NotificationStatus
-            .ShouldBe(NotificationStatus.Sent,
-                "den dränerade raden ska markeras Sent så det tomma fönstret inte om-processas varje körning");
+            .ShouldNotBe(NotificationStatus.Pending);
     }
 
     // ───────────────────────────── 9. Per-user isolation — one user throws, the other still served
@@ -1022,9 +1017,7 @@ public class DigestDispatchJobTests
 
         await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
 
-        // Nothing presentable → no email at all. An empty digest is noise, not a notification. (Parity
-        // RunAsync_AllMatchedAdsRetracted_* — an archived ad now reaches the SAME drain branch as an ad
-        // whose row is gone, which is why that branch's comment names both.)
+        // Nothing presentable → no email at all. An empty digest is noise, not a notification.
         await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
             Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
             Arg.Any<CancellationToken>());

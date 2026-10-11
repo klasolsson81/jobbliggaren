@@ -36,6 +36,7 @@ public class BackgroundMatchingJobConsentRecheckTests(WorkerTestFixture fixture)
     private readonly WorkerTestFixture _fixture = fixture;
 
     private static readonly DateTimeOffset Now = new(2026, 6, 1, 3, 20, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset ScannedThrough = Now - BackgroundMatchingJob.IngestSettleWindow;
 
     private static readonly FullCandidateMatchProfile TopProfile = new(
         new CandidateMatchProfile("Top", ["ssyk-recheck"], [], [], []), []);
@@ -100,7 +101,7 @@ public class BackgroundMatchingJobConsentRecheckTests(WorkerTestFixture fixture)
         builds.ShouldBe(2);
         (await CountMatchesAsync(userId, ct)).ShouldBe(1);
         var stored = await ReadSeekerAsync(userId, ct);
-        stored.LastMatchScanAt.ShouldBe(Now);
+        stored.LastMatchScanAt.ShouldBe(ScannedThrough);
         stored.LastSeenMatchesAt.ShouldBe(Now);
         await emailSender.Received(1).SendMatchNotificationEmailAsync(
             AddressOf(userId), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
@@ -137,7 +138,7 @@ public class BackgroundMatchingJobConsentRecheckTests(WorkerTestFixture fixture)
 
         scannedFirst.ShouldNotBe(Guid.Empty);
         (await CountMatchesAsync(scannedFirst, ct)).ShouldBe(1);
-        (await ReadSeekerAsync(scannedFirst, ct)).LastMatchScanAt.ShouldBe(Now);
+        (await ReadSeekerAsync(scannedFirst, ct)).LastMatchScanAt.ShouldBe(ScannedThrough);
         await emailSender.Received(1).SendMatchNotificationEmailAsync(
             AddressOf(scannedFirst), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
 
@@ -164,11 +165,13 @@ public class BackgroundMatchingJobConsentRecheckTests(WorkerTestFixture fixture)
                 [typeof(IMatchScorer)] = scorer,
                 [typeof(IUserAccountService)] = userAccounts,
             });
+        var clock = new FixedClock(Now);
+        var loggers = _fixture.Services.GetRequiredService<ILoggerFactory>();
         var job = new BackgroundMatchingJob(
             scopeFactory,
-            emailSender,
-            new FixedClock(Now),
-            _fixture.Services.GetRequiredService<ILoggerFactory>().CreateLogger<BackgroundMatchingJob>());
+            new TopMatchMailDispatcher(scopeFactory, emailSender, clock, loggers.CreateLogger<TopMatchMailDispatcher>()),
+            clock,
+            loggers.CreateLogger<BackgroundMatchingJob>());
 
         await job.RunAsync(ct);
     }

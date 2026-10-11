@@ -4,7 +4,7 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 
 /// <summary>
 /// Vad en bakgrundsmatchnings-notis gäller (ADR 0080 Vag 4 PR-4): <c>Direct</c> =
-/// en Topp-matchning skickad direkt i scan-runden; <c>Digest</c> = en kadens-cap:ad
+/// Topp-matchningar skickade direkt i matchningskörningen, en eller flera per mejl; <c>Digest</c> = en kadens-cap:ad
 /// sammanfattning av Stark-matchningar.
 /// </summary>
 public enum MatchNotificationKind

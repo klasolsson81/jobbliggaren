@@ -5,17 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Jobbliggaren.Application.UnitTests.Matching.Jobs.BackgroundMatching;
 
 /// <summary>
-/// Konkret fake för DI-scope-kedjan (#751 — child scope per user). Jobbet anropar
-/// <c>scopeFactory.CreateAsyncScope()</c>, som via <see cref="IServiceScopeFactory.CreateScope"/>
-/// wrappar resultatet i en <c>AsyncServiceScope</c>. Varje scope returnerar SAMMA
-/// AppDbContext/collaborators — testerna seedar och asserterar mot EN context, precis som före
-/// refactorn, så alla befintliga testkroppar är orörda (konstruktions-only-migration).
-/// Delad av <see cref="BackgroundMatchingJobTests"/> och
-/// <see cref="BackgroundMatchingJobTopDirectTests"/> (CTO-ruling 2026-07-18: en delad fil för två
-/// syskon-konsumenter, ej promotad till TestSupport). Antal skapade scopes räknas via
-/// <see cref="ScopesCreated"/> (regressions-assertion — paritet
-/// <c>SyncPlatsbankenSnapshotJobTests.FakeScopeFactory</c>). "En liten konkret fake är mer läsbar
-/// än en djup NSubstitute-kedja" (CLAUDE.md §2.4).
+/// A concrete fake for the DI scope chain of <c>BackgroundMatchingJob</c> (#751, a child scope per
+/// user) and <c>TopMatchMailDispatcher</c>. Every scope hands out the SAME context and collaborators,
+/// so a test seeds and asserts against one context. <see cref="ScopesCreated"/> and
+/// <see cref="Resolutions{T}"/> make the scope structure observable (parity
+/// <c>SyncPlatsbankenSnapshotJobTests.FakeScopeFactory</c>).
 /// </summary>
 internal sealed class FakeMatchingScopeFactory(
     Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
@@ -24,7 +18,11 @@ internal sealed class FakeMatchingScopeFactory(
     IUserAccountService userAccounts)
     : IServiceScopeFactory, IServiceScope, IServiceProvider
 {
+    private readonly Dictionary<Type, int> _resolutions = [];
+
     public int ScopesCreated { get; private set; }
+
+    public int Resolutions<T>() => _resolutions.GetValueOrDefault(typeof(T));
 
     public IServiceScope CreateScope()
     {
@@ -34,14 +32,20 @@ internal sealed class FakeMatchingScopeFactory(
 
     public IServiceProvider ServiceProvider => this;
 
-    public object? GetService(Type serviceType) =>
-        serviceType == typeof(IAppDbContext) ? db
-        : serviceType == typeof(IMatchProfileBuilder) ? profileBuilder
-        : serviceType == typeof(IMatchScorer) ? scorer
-        : serviceType == typeof(IUserAccountService) ? userAccounts
-        : null;
+    public object? GetService(Type serviceType)
+    {
+        object? service =
+            serviceType == typeof(IAppDbContext) ? db
+            : serviceType == typeof(IMatchProfileBuilder) ? profileBuilder
+            : serviceType == typeof(IMatchScorer) ? scorer
+            : serviceType == typeof(IUserAccountService) ? userAccounts
+            : null;
+        if (service is not null)
+            _resolutions[serviceType] = _resolutions.GetValueOrDefault(serviceType) + 1;
+        return service;
+    }
 
-    // Delade instanser — livslängden ägs av testet (db disposas där), inte av scopen.
+    // Shared instances: the test owns their lifetime, not the scope.
     public void Dispose()
     {
     }

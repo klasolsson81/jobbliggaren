@@ -6,7 +6,7 @@ namespace Jobbliggaren.Domain.Matching;
 /// <summary>
 /// ADR 0080 Vag 4 — a persisted background-match between a user and a job ad. A standalone
 /// aggregate root (independent lifecycle + its own notification state machine), keyed by
-/// <c>(UserId, JobAdId)</c> UNIQUE — the dedup spine that lets the nightly Worker scan be
+/// <c>(UserId, JobAdId)</c> UNIQUE — the dedup spine that lets the Worker's matching run be
 /// idempotent (a re-run never re-notifies, because the row already exists in a non-Pending
 /// status). References the <see cref="JobAds.JobAdId"/> by identity, never an FK (ADR
 /// 0058/0059 soft-delete isolation — the join is handler-managed).

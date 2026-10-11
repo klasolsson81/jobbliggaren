@@ -33,9 +33,9 @@ namespace Jobbliggaren.Application.Dev.Commands.ResetMyData;
 /// <para><b>Known limitation, measured rather than assumed.</b> The lifecycle watermarks on
 /// <c>JobSeeker</c> are left set. A reset account that has opted IN to background matching
 /// does not regain a new registration's cold-start window, because <c>BackgroundMatchingJob</c>
-/// reads <c>LastMatchScanAt ?? now.AddDays(-ColdStartDays)</c>. Nulling it would require
+/// reads the later of <c>LastMatchScanAt</c> and <c>now − ColdStartDays</c>. Nulling it would require
 /// weakening <c>AdvanceMatchScan</c>'s monotonic-and-clamped invariant — a live affordance to
-/// corrupt a watermark that would outlive this throwaway tool — and the next nightly run's
+/// corrupt a watermark that would outlive this throwaway tool — and the next run's
 /// SSYK gate would advance it again regardless. A newly registered account is opted OUT by
 /// default, so it is unaffected.</para>
 ///

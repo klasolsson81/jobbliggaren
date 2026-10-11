@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Microsoft.EntityFrameworkCore;
@@ -13,30 +14,22 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Matching.Jobs.BackgroundMatching;
 
 /// <summary>
-/// ADR 0080 Vag 4 PR-3 — UNIT cover for the load-bearing OPERATIONAL invariants of the
-/// background-matching scan that the 7 integration tests (happy paths) do not pin:
-/// per-user failure ISOLATION (one user's exception must not abort the batch and must NOT
-/// advance that user's watermark) and that the per-user catch EXCLUDES cancellation
-/// (OperationCanceledException propagates — host shutdown / cron-timeout stops the scan
-/// promptly, never mis-logged as a user failure). Mirrors <c>HardDeleteAccountsJobTests</c>
-/// (the TD-25 resilient-loop precedent). The collaborators (IMatchProfileBuilder, IMatchScorer)
-/// are NSubstitute mocks; the IAppDbContext is the established real-AppDbContext-over-EF-InMemory
-/// fake (TestAppDbContextFactory) so the multi-set async query (db.JobSeekers.Where(consent)
-/// .Select(UserId).ToListAsync + the per-user FirstOrDefaultAsync + the watermark read-back) runs
-/// as a genuine IQueryable — parity <c>HardDeleteAccountsJobTests</c>.
+/// ADR 0080 Vag 4, ADR 0161 (#2106) — UNIT cover for the scan phase of the background-matching run:
+/// per-user failure isolation, cancellation, the consent filter, the SSYK gate, the watermark
+/// (trailing the run clock by <see cref="BackgroundMatchingJob.IngestSettleWindow"/>, floored at
+/// <see cref="BackgroundMatchingJob.ColdStartDays"/>), the empty-slice skip, the scan budget, the user
+/// order and the scope per user. The send phase is <see cref="TopMatchMailDispatcherTests"/>; the scan
+/// and send together are <see cref="BackgroundMatchingJobTopDirectTests"/>. The profile builder and
+/// scorer are NSubstitute mocks; the context is a real AppDbContext over EF InMemory
+/// (TestAppDbContextFactory), parity <c>HardDeleteAccountsJobTests</c>.
 /// </summary>
 public class BackgroundMatchingJobTests
 {
-    private static readonly FakeDateTimeProvider NowClock =
-        new(new DateTimeOffset(2026, 6, 24, 3, 20, 0, TimeSpan.Zero));
+    private static readonly DateTimeOffset Now = new(2026, 6, 24, 3, 22, 0, TimeSpan.Zero);
+    private static readonly FakeDateTimeProvider NowClock = new(Now);
 
     private readonly IMatchProfileBuilder _profileBuilder = Substitute.For<IMatchProfileBuilder>();
     private readonly IMatchScorer _scorer = Substitute.For<IMatchScorer>();
-
-    // PR-4b added two ctor params (IEmailSender + IUserAccountService) for the Top-direct hook.
-    // These existing scan-invariant tests do not seed Top matches (the builder is mocked to gate or
-    // produce no ads), so the email collaborators are never exercised — a default IUserAccountService
-    // whose GetEmailAsync returns a non-blank address keeps the (unreached) dispatch path benign.
     private readonly IEmailSender _emailSender = Substitute.For<IEmailSender>();
     private readonly IUserAccountService _userAccounts = Substitute.For<IUserAccountService>();
 
@@ -44,31 +37,70 @@ public class BackgroundMatchingJobTests
     {
         _userAccounts.GetEmailAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns("seeker@example.com");
+        _scorer.ScoreFullBatchAsync(
+                Arg.Any<IReadOnlyList<JobAdId>>(), Arg.Any<FullCandidateMatchProfile>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<JobAdId, FullScoredMatch>());
     }
 
-    // #751 konstruktions-only-migration: jobbet tar nu en IServiceScopeFactory; faken ger SAMMA
-    // db/collaborators per scope så varje testkropp är orörd.
-    private BackgroundMatchingJob CreateJob(
-        Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
-        IMatchProfileBuilder profileBuilder,
-        IMatchScorer scorer) =>
-        new(new FakeMatchingScopeFactory(db, profileBuilder, scorer, _userAccounts),
-            _emailSender, NowClock, NullLogger<BackgroundMatchingJob>.Instance);
+    private (BackgroundMatchingJob Job, FakeMatchingScopeFactory Scopes) Compose(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, IDateTimeProvider? clock = null)
+    {
+        clock ??= NowClock;
+        var scopes = new FakeMatchingScopeFactory(db, _profileBuilder, _scorer, _userAccounts);
+        var dispatcher = new TopMatchMailDispatcher(
+            scopes, _emailSender, clock, NullLogger<TopMatchMailDispatcher>.Instance);
+        return (new BackgroundMatchingJob(scopes, dispatcher, clock, NullLogger<BackgroundMatchingJob>.Instance),
+            scopes);
+    }
 
-    // Seeds a CONSENTING JobSeeker (opt-in ON, not withdrawn) and returns its UserId. The
-    // produced profile is mocked per-test, so the seeker's MatchPreferences are irrelevant to
-    // the SSYK gate — what matters here is only that the consent filter selects this row.
+    private BackgroundMatchingJob CreateJob(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, IDateTimeProvider? clock = null) =>
+        Compose(db, clock).Job;
+
+    // A CONSENTING JobSeeker (opt-in ON, never withdrawn). The profile is mocked per test, so the
+    // seeker's MatchPreferences do not matter here; only that the consent filter selects the row.
     private static async Task<Guid> SeedConsentingSeekerAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct)
     {
         var userId = Guid.NewGuid();
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
-        // Opt-in ON, never withdrawn → inside the consenting set.
         seeker.UpdateNotificationConsent(enabled: true, NowClock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return userId;
     }
+
+    // A consenting seeker an earlier run already scanned: the watermark is the one that run's own
+    // AdvanceMatchScan call wrote (its run clock minus IngestSettleWindow).
+    private static async Task<Guid> SeedSeekerScannedAtAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, DateTimeOffset earlierRunAt, CancellationToken ct)
+    {
+        var earlierRun = new FakeDateTimeProvider(earlierRunAt);
+        var userId = Guid.NewGuid();
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(earlierRun), earlierRun).Value;
+        seeker.UpdateNotificationConsent(enabled: true, earlierRun);
+        seeker.AdvanceMatchScan(earlierRunAt - BackgroundMatchingJob.IngestSettleWindow, earlierRun);
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+        return userId;
+    }
+
+    // An Active ad ingested at `ingestedAt` (JobAd stamps CreatedAt from its clock).
+    private static async Task<JobAdId> SeedActiveAdAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, DateTimeOffset ingestedAt, CancellationToken ct)
+    {
+        var ingestClock = new FakeDateTimeProvider(ingestedAt);
+        var jobAd = JobAd.Create(
+            "Systemutvecklare", Company.Create("Acme AB").Value, "Beskrivning", "https://example.com/jobb",
+            JobSource.Platsbanken, ingestClock.UtcNow, ingestClock.UtcNow.AddDays(30), ingestClock).Value;
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(ct);
+        return jobAd.Id;
+    }
+
+    private static Task<JobAdId> SeedActiveAdAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct) =>
+        SeedActiveAdAsync(db, Now.AddHours(-1), ct);
 
     // A valid FULL profile with a STATED occupation (non-empty SSYK) → passes the SSYK gate.
     private static FullCandidateMatchProfile ProfileWithOccupation() =>
@@ -80,8 +112,7 @@ public class BackgroundMatchingJobTests
                 PreferredMunicipalityConceptIds: []),
             CvSkillConceptIds: []);
 
-    // The honest EMPTY-SSYK profile → hits the SSYK gate (advance watermark, 0 matches, no
-    // scorer call).
+    // The honest EMPTY-SSYK profile → hits the SSYK gate (advance watermark, 0 matches, no scorer call).
     private static FullCandidateMatchProfile ProfileWithoutOccupation() =>
         new(new CandidateMatchProfile(
                 Title: "",
@@ -95,10 +126,13 @@ public class BackgroundMatchingJobTests
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId, CancellationToken ct) =>
         await db.JobSeekers.AsNoTracking().FirstAsync(js => js.UserId == userId, ct);
 
-    // 1. FAILURE ISOLATION (the Major). Two consenting users; userA's profile build THROWS a
-    // non-cancellation exception. The batch must NOT abort: userB is still processed (its build
-    // ran + its watermark advanced) and userA's watermark must NOT advance (the throw happens
-    // before the per-user SaveChanges, so nothing commits for the failed scan).
+    private static DateTimeOffset ScannedThrough(DateTimeOffset runAt) =>
+        runAt - BackgroundMatchingJob.IngestSettleWindow;
+
+    // ───────────────────────────── Isolation and cancellation
+
+    // One user's build throws: the run does not abort, the next user is still scanned, and only the
+    // failed user's watermark stays where it was.
     [Fact]
     public async Task RunAsync_OneUserThrows_IsolatesFailureAndContinuesBatch()
     {
@@ -106,118 +140,90 @@ public class BackgroundMatchingJobTests
         var db = TestAppDbContextFactory.Create();
         var userA = await SeedConsentingSeekerAsync(db, ct);
         var userB = await SeedConsentingSeekerAsync(db, ct);
+        await SeedActiveAdAsync(db, ct);
 
         _profileBuilder.BuildFullForUserIdAsync(userA, Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("byggfel för userA"));
         _profileBuilder.BuildFullForUserIdAsync(userB, Arg.Any<CancellationToken>())
-            .Returns(ProfileWithoutOccupation()); // userB hits the SSYK gate → advances, 0 matches
+            .Returns(ProfileWithoutOccupation());
 
-        var job = CreateJob(db, _profileBuilder, _scorer);
+        await Should.NotThrowAsync(() => CreateJob(db).RunAsync(ct));
 
-        // The batch must not throw — userA's failure is caught + logged, not propagated.
-        await Should.NotThrowAsync(() => job.RunAsync(ct));
-
-        // userB was still processed past the failing userA.
-        await _profileBuilder.Received(1)
-            .BuildFullForUserIdAsync(userB, Arg.Any<CancellationToken>());
-
-        // userA's watermark did NOT advance (throw before the per-user SaveChanges → rollback).
-        var reloadedA = await ReloadSeekerAsync(db, userA, ct);
-        reloadedA.LastMatchScanAt.ShouldBeNull();
-
-        // userB's watermark DID advance (its scan committed independently of userA's failure).
-        var reloadedB = await ReloadSeekerAsync(db, userB, ct);
-        reloadedB.LastMatchScanAt.ShouldBe(NowClock.UtcNow);
+        await _profileBuilder.Received(1).BuildFullForUserIdAsync(userB, Arg.Any<CancellationToken>());
+        (await ReloadSeekerAsync(db, userA, ct)).LastMatchScanAt.ShouldBeNull();
+        (await ReloadSeekerAsync(db, userB, ct)).LastMatchScanAt.ShouldBe(ScannedThrough(Now));
     }
 
-    // 1b. The failing user's scan does NOT commit (state-level restatement of the isolation
-    // invariant): a single failing consenting user leaves its watermark null and the batch
-    // completes cleanly.
     [Fact]
     public async Task RunAsync_SoleUserThrows_DoesNotCommitWatermarkAndDoesNotThrow()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
         var userA = await SeedConsentingSeekerAsync(db, ct);
+        await SeedActiveAdAsync(db, ct);
 
         _profileBuilder.BuildFullForUserIdAsync(userA, Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("byggfel"));
 
-        var job = CreateJob(db, _profileBuilder, _scorer);
+        await Should.NotThrowAsync(() => CreateJob(db).RunAsync(ct));
 
-        await Should.NotThrowAsync(() => job.RunAsync(ct));
-
-        var reloaded = await ReloadSeekerAsync(db, userA, ct);
-        reloaded.LastMatchScanAt.ShouldBeNull();
+        (await ReloadSeekerAsync(db, userA, ct)).LastMatchScanAt.ShouldBeNull();
     }
 
-    // 2. The per-user catch EXCLUDES cancellation: an OperationCanceledException from the build
-    // is NOT swallowed (catch ... when (ex is not OperationCanceledException)) — it propagates so
-    // host shutdown / cron-timeout stops the scan promptly.
+    // The per-user catch excludes cancellation, so a host shutdown stops the run promptly.
     [Fact]
     public async Task RunAsync_BuildThrowsOperationCanceled_PropagatesNotSwallowed()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
         var userA = await SeedConsentingSeekerAsync(db, ct);
+        await SeedActiveAdAsync(db, ct);
 
         _profileBuilder.BuildFullForUserIdAsync(userA, Arg.Any<CancellationToken>())
             .ThrowsAsync(new OperationCanceledException());
 
-        var job = CreateJob(db, _profileBuilder, _scorer);
+        await Should.ThrowAsync<OperationCanceledException>(() => CreateJob(db).RunAsync(ct));
 
-        await Should.ThrowAsync<OperationCanceledException>(() => job.RunAsync(ct));
-
-        // The cancellation aborted the scan before any commit → watermark unchanged.
-        var reloaded = await ReloadSeekerAsync(db, userA, ct);
-        reloaded.LastMatchScanAt.ShouldBeNull();
+        (await ReloadSeekerAsync(db, userA, ct)).LastMatchScanAt.ShouldBeNull();
     }
 
-    // 2b. A pre-cancelled token aborts the batch at the per-user ThrowIfCancellationRequested
-    // before any profile is built — parity HardDeleteAccountsJobTests cancellation cover.
     [Fact]
     public async Task RunAsync_PreCancelledToken_ThrowsAndBuildsNoProfile()
     {
         var db = TestAppDbContextFactory.Create();
         await SeedConsentingSeekerAsync(db, CancellationToken.None);
+        await SeedActiveAdAsync(db, CancellationToken.None);
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var job = CreateJob(db, _profileBuilder, _scorer);
-
-        await Should.ThrowAsync<OperationCanceledException>(() => job.RunAsync(cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => CreateJob(db).RunAsync(cts.Token));
 
         await _profileBuilder.DidNotReceiveWithAnyArgs()
             .BuildFullForUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
-    // 3. EMPTY consenting set: no opt-in users → the scan completes, builds no profile, and
-    // never touches the scorer. (A non-consenting seeker is seeded to prove the consent filter
-    // excludes it.)
+    // ───────────────────────────── Consent
+
+    // A non-consenting seeker is excluded, so nothing is built or scored even with a new ad present.
     [Fact]
     public async Task RunAsync_NoConsentingUsers_CompletesWithoutBuildOrScore()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
-        // Default Preferences → BackgroundMatchNotificationsEnabled == false → excluded.
         var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
+        await SeedActiveAdAsync(db, ct);
 
-        var job = CreateJob(db, _profileBuilder, _scorer);
-
-        await Should.NotThrowAsync(() => job.RunAsync(ct));
+        await Should.NotThrowAsync(() => CreateJob(db).RunAsync(ct));
 
         await _profileBuilder.DidNotReceiveWithAnyArgs()
             .BuildFullForUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         await _scorer.DidNotReceiveWithAnyArgs().ScoreFullBatchAsync(
-            Arg.Any<IReadOnlyList<JobAdId>>(),
-            Arg.Any<FullCandidateMatchProfile>(),
-            Arg.Any<CancellationToken>());
+            Arg.Any<IReadOnlyList<JobAdId>>(), Arg.Any<FullCandidateMatchProfile>(), Arg.Any<CancellationToken>());
     }
 
-    // 3b. A WITHDRAWN consent (opt-in toggled off → NotificationConsentWithdrawnAt stamped) is
-    // excluded by the consent filter even though it was once enabled (GDPR Art. 7(3)).
+    // A withdrawn consent (on, then off) is excluded although it was once enabled (GDPR Art. 7(3)).
     [Fact]
     public async Task RunAsync_WithdrawnConsent_IsExcludedFromScan()
     {
@@ -228,80 +234,206 @@ public class BackgroundMatchingJobTests
         seeker.UpdateNotificationConsent(enabled: false, NowClock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
+        await SeedActiveAdAsync(db, ct);
 
-        var job = CreateJob(db, _profileBuilder, _scorer);
-
-        await Should.NotThrowAsync(() => job.RunAsync(ct));
+        await Should.NotThrowAsync(() => CreateJob(db).RunAsync(ct));
 
         await _profileBuilder.DidNotReceiveWithAnyArgs()
             .BuildFullForUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
-    // 4. SSYK GATE: a consenting user whose profile has an EMPTY SSYK set is gated BEFORE
-    // scoring — the scorer is never called, yet the watermark still advances (one SaveChanges,
-    // 0 matches) so the user is not re-scanned next run.
+    // ───────────────────────────── The watermark
+
+    // SSYK gate: no stated occupation, so the scorer is never reached, yet the watermark advances in
+    // the gate branch too, to the run clock minus the settle window.
     [Fact]
-    public async Task RunAsync_EmptySsyk_SkipsScorerButAdvancesWatermark()
+    public async Task RunAsync_EmptySsyk_SkipsScorerButAdvancesWatermarkToNowMinusTheSettleWindow()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
         var userId = await SeedConsentingSeekerAsync(db, ct);
+        await SeedActiveAdAsync(db, ct);
 
         _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
             .Returns(ProfileWithoutOccupation());
 
-        var job = CreateJob(db, _profileBuilder, _scorer);
+        await Should.NotThrowAsync(() => CreateJob(db).RunAsync(ct));
 
-        await Should.NotThrowAsync(() => job.RunAsync(ct));
-
-        // Gated before scoring — the scorer is never reached.
         await _scorer.DidNotReceiveWithAnyArgs().ScoreFullBatchAsync(
-            Arg.Any<IReadOnlyList<JobAdId>>(),
-            Arg.Any<FullCandidateMatchProfile>(),
-            Arg.Any<CancellationToken>());
-
-        // But the watermark advances (scanned through now, 0 matches) so we do not re-scan.
-        var reloaded = await ReloadSeekerAsync(db, userId, ct);
-        reloaded.LastMatchScanAt.ShouldBe(NowClock.UtcNow);
+            Arg.Any<IReadOnlyList<JobAdId>>(), Arg.Any<FullCandidateMatchProfile>(), Arg.Any<CancellationToken>());
+        (await ReloadSeekerAsync(db, userId, ct)).LastMatchScanAt.ShouldBe(ScannedThrough(Now));
     }
 
-    // 4b. A stated-occupation user with no NEW ads (cold-start window yields an empty ad set)
-    // still advances the watermark without invoking the scorer — proving the advance is
-    // unconditional on a successful scan, the idempotency spine the integration happy-paths lean
-    // on. (No JobAds are seeded → the CreatedAt > since filter returns empty → newAdIds.Count ==
-    // 0 → scorer skipped, watermark advanced in the same SaveChanges.)
+    // The scored branch advances to the same point: never to "now", which would skip an ad stamped
+    // before this run's read and committed after it.
     [Fact]
-    public async Task RunAsync_StatedOccupationNoNewAds_AdvancesWatermarkWithoutScoring()
+    public async Task RunAsync_ScoredUser_AdvancesWatermarkToNowMinusTheSettleWindow()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
         var userId = await SeedConsentingSeekerAsync(db, ct);
+        await SeedActiveAdAsync(db, ct);
 
         _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
             .Returns(ProfileWithOccupation());
 
-        var job = CreateJob(db, _profileBuilder, _scorer);
+        await CreateJob(db).RunAsync(ct);
 
-        await Should.NotThrowAsync(() => job.RunAsync(ct));
-
-        await _scorer.DidNotReceiveWithAnyArgs().ScoreFullBatchAsync(
-            Arg.Any<IReadOnlyList<JobAdId>>(),
-            Arg.Any<FullCandidateMatchProfile>(),
-            Arg.Any<CancellationToken>());
-
-        var reloaded = await ReloadSeekerAsync(db, userId, ct);
-        reloaded.LastMatchScanAt.ShouldBe(NowClock.UtcNow);
+        await _scorer.Received(1).ScoreFullBatchAsync(
+            Arg.Any<IReadOnlyList<JobAdId>>(), Arg.Any<FullCandidateMatchProfile>(), Arg.Any<CancellationToken>());
+        (await ReloadSeekerAsync(db, userId, ct)).LastMatchScanAt.ShouldBe(ScannedThrough(Now));
     }
 
-    // 5. SCOPE-PER-USER regression pin (#751). Two consenting users, both mocked to hit the SSYK
-    // gate (the cheap advance-and-return path — no scoring), so the ONLY scope activity is the
-    // structural per-user scoping the fix introduced. The job opens ONE short scope for the
-    // opted-in due-set query BEFORE the loop, then a FRESH child scope PER USER inside the loop
-    // (own IAppDbContext → the change tracker lives and dies with one user, so a poisoned
-    // Added/Modified entity dies with its scope instead of riding into the next user's
-    // SaveChanges). 1 due-set scope + 1 per user (2 users) = 3. Hoisting the per-user scope out of
-    // the loop to a single shared scope for the whole batch drops this to 2 → RED. The fake is
-    // constructed EXPLICITLY (not via CreateJob) so the test can read its ScopesCreated counter.
+    // No ad is newer than the user's floor: the user is skipped entirely. No profile build, no score,
+    // no write, and the watermark stays unset (security-auditor V6).
+    [Fact]
+    public async Task RunAsync_NoNewAds_SkipsTheUserWithoutAProfileBuildOrAWrite()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, ct);
+        var saves = 0;
+        db.SavingChanges += (_, _) => saves++;
+
+        await CreateJob(db).RunAsync(ct);
+
+        await _profileBuilder.DidNotReceiveWithAnyArgs()
+            .BuildFullForUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _scorer.DidNotReceiveWithAnyArgs().ScoreFullBatchAsync(
+            Arg.Any<IReadOnlyList<JobAdId>>(), Arg.Any<FullCandidateMatchProfile>(), Arg.Any<CancellationToken>());
+        saves.ShouldBe(0, "a run with nothing new for anyone writes nothing");
+        (await ReloadSeekerAsync(db, userId, ct)).LastMatchScanAt.ShouldBeNull();
+    }
+
+    // The run's candidate read is not empty (another user has an ad in their slice), but nothing is
+    // newer than THIS user's watermark: this user is skipped, their row untouched.
+    [Fact]
+    public async Task RunAsync_UserWhoseSliceIsEmpty_IsNotScanned_AndTheirRowIsNotWritten()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        await SeedActiveAdAsync(db, Now.AddHours(-1), ct);
+        var steady = await SeedSeekerScannedAtAsync(db, Now.AddMinutes(-10), ct);
+        var neverScanned = await SeedConsentingSeekerAsync(db, ct);
+        var before = await ReloadSeekerAsync(db, steady, ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+
+        await CreateJob(db).RunAsync(ct);
+
+        await _profileBuilder.DidNotReceive().BuildFullForUserIdAsync(steady, Arg.Any<CancellationToken>());
+        await _profileBuilder.Received(1).BuildFullForUserIdAsync(neverScanned, Arg.Any<CancellationToken>());
+        var after = await ReloadSeekerAsync(db, steady, ct);
+        after.LastMatchScanAt.ShouldBe(before.LastMatchScanAt);
+        after.UpdatedAt.ShouldBe(before.UpdatedAt);
+    }
+
+    // D11: a user who withdrew and re-consented after more than ColdStartDays is scanned from the
+    // cold-start floor, never from the old watermark. The watermark is written by an earlier real run;
+    // the pause and the re-consent go through JobSeeker.UpdateNotificationConsent and the clock.
+    [Fact]
+    public async Task RunAsync_ReConsentAfterMoreThanColdStartDays_ScansOnlyTheColdStartWindow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var t0 = Now;
+        var clock = new MutableClock(t0);
+        var userId = await SeedConsentingSeekerAsync(db, ct);
+        await SeedActiveAdAsync(db, t0.AddHours(-1), ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ProfileWithoutOccupation());
+        await CreateJob(db, clock).RunAsync(ct);
+        (await ReloadSeekerAsync(db, userId, ct)).LastMatchScanAt.ShouldBe(ScannedThrough(t0));
+
+        var seeker = await db.JobSeekers.FirstAsync(js => js.UserId == userId, ct);
+        seeker.UpdateNotificationConsent(enabled: false, new FakeDateTimeProvider(t0.AddDays(1)));
+        await db.SaveChangesAsync(ct);
+
+        var outsideWindow = await SeedActiveAdAsync(db, t0.AddDays(2), ct);
+        var insideWindow = await SeedActiveAdAsync(db, t0.AddDays(9), ct);
+
+        var reConsentAt = t0.AddDays(BackgroundMatchingJob.ColdStartDays + 3);
+        seeker.UpdateNotificationConsent(enabled: true, new FakeDateTimeProvider(reConsentAt));
+        await db.SaveChangesAsync(ct);
+
+        IReadOnlyList<JobAdId>? scored = null;
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        _scorer.ScoreFullBatchAsync(
+                Arg.Do<IReadOnlyList<JobAdId>>(ids => scored = ids),
+                Arg.Any<FullCandidateMatchProfile>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<JobAdId, FullScoredMatch>());
+
+        clock.UtcNow = reConsentAt;
+        await CreateJob(db, clock).RunAsync(ct);
+
+        scored.ShouldNotBeNull();
+        scored.ShouldBe([insideWindow],
+            "the scan after a re-consent reaches back ColdStartDays, not to the watermark of the old consent");
+        scored.ShouldNotContain(outsideWindow);
+        (await ReloadSeekerAsync(db, userId, ct)).LastMatchScanAt.ShouldBe(ScannedThrough(reConsentAt));
+    }
+
+    // ───────────────────────────── Budget and order
+
+    // The first user's scan outlasts ScanBudget (the clock moves while the profile is built): the run
+    // starts no further user, and that user's watermark stays for the next run.
+    [Fact]
+    public async Task RunAsync_ScanBudgetSpent_StopsStartingUsers_AndLeavesTheirWatermark()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var clock = new MutableClock(Now);
+        await SeedActiveAdAsync(db, Now.AddMinutes(-1), ct);
+        var first = await SeedSeekerScannedAtAsync(db, Now.AddMinutes(-30), ct);
+        var second = await SeedSeekerScannedAtAsync(db, Now.AddMinutes(-10), ct);
+        var secondBefore = await ReloadSeekerAsync(db, second, ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(first, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                clock.Advance(BackgroundMatchingJob.ScanBudget);
+                return ProfileWithoutOccupation();
+            });
+
+        await CreateJob(db, clock).RunAsync(ct);
+
+        (await ReloadSeekerAsync(db, first, ct)).LastMatchScanAt.ShouldBe(ScannedThrough(Now));
+        await _profileBuilder.DidNotReceive().BuildFullForUserIdAsync(second, Arg.Any<CancellationToken>());
+        (await ReloadSeekerAsync(db, second, ct)).LastMatchScanAt.ShouldBe(secondBefore.LastMatchScanAt);
+    }
+
+    // Steady users first, oldest watermark first; never-scanned users last. Seeded in the reverse
+    // order, so an unordered read, or an order that sorts nulls first, fails.
+    [Fact]
+    public async Task RunAsync_OrdersSteadyUsersByWatermark_AndNeverScannedUsersLast()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        await SeedActiveAdAsync(db, Now.AddMinutes(-1), ct);
+        var neverScanned = await SeedConsentingSeekerAsync(db, ct);
+        var recent = await SeedSeekerScannedAtAsync(db, Now.AddMinutes(-10), ct);
+        var oldest = await SeedSeekerScannedAtAsync(db, Now.AddMinutes(-30), ct);
+
+        var order = new List<Guid>();
+        _profileBuilder.BuildFullForUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                order.Add(call.Arg<Guid>());
+                return ProfileWithoutOccupation();
+            });
+
+        await CreateJob(db).RunAsync(ct);
+
+        order.ShouldBe([oldest, recent, neverScanned]);
+    }
+
+    // ───────────────────────────── Scopes
+
+    // #751: one short scope for the run's reads, a FRESH child scope per scanned user (its own change
+    // tracker), and one scope for the send phase. Hoisting the per-user scope out of the loop gives 3.
     [Fact]
     public async Task RunAsync_CreatesOneChildScopePerUser()
     {
@@ -309,23 +441,19 @@ public class BackgroundMatchingJobTests
         var db = TestAppDbContextFactory.Create();
         var userA = await SeedConsentingSeekerAsync(db, ct);
         var userB = await SeedConsentingSeekerAsync(db, ct);
+        await SeedActiveAdAsync(db, ct);
 
-        // Both hit the SSYK gate (empty occupation) → no scoring; the scope count reflects ONLY the
-        // structural per-user scoping, not any scan work.
         _profileBuilder.BuildFullForUserIdAsync(userA, Arg.Any<CancellationToken>())
             .Returns(ProfileWithoutOccupation());
         _profileBuilder.BuildFullForUserIdAsync(userB, Arg.Any<CancellationToken>())
             .Returns(ProfileWithoutOccupation());
 
-        // Constructed explicitly (not via CreateJob) so ScopesCreated is readable after the run.
-        var scopeFactory = new FakeMatchingScopeFactory(db, _profileBuilder, _scorer, _userAccounts);
-        var job = new BackgroundMatchingJob(
-            scopeFactory, _emailSender, NowClock, NullLogger<BackgroundMatchingJob>.Instance);
+        var (job, scopes) = Compose(db);
 
         await Should.NotThrowAsync(() => job.RunAsync(ct));
 
-        scopeFactory.ScopesCreated.ShouldBe(3,
-            "1 scope för opt-in-frågan (due-set) + 1 child scope PER user (2 users) = 3; att hissa " +
-            "per-user-scopen ut ur loopen till en delad scope ger 2 → RED (#751 poison-isolering).");
+        scopes.ScopesCreated.ShouldBe(4,
+            "1 scope for the run's reads + 1 child scope per scanned user (2) + 1 for the send phase = 4; "
+            + "one shared scope for every user gives 3 (#751 poison isolation)");
     }
 }

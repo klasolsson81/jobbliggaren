@@ -21,10 +21,10 @@ namespace Jobbliggaren.Worker.Hosting;
 /// Cron-tider är UTC (Hangfire-default). Schedule (CTO-rond 2026-05-13 punkt 8
 /// + architect-design 2026-05-23 retention):
 ///   */10 *  — sync-platsbanken-stream (10-min cron, overlap-window 15 min)
+///   2-59/5  — background-matching (per-user matchnings-scan + Toppmatch-mejl, ADR 0080 Vag 4, ADR 0161)
 ///   02:00   — sync-platsbanken-snapshot (daglig fullbackfill mot stream-drift)
 ///   03:00   — audit-log-retention (atomisk partition-DDL, &lt; 100ms typiskt)
 ///   03:15   — retain-platsbanken-job-ads (snapshot-miss-retention, ADR 0032-amend 2026-05-23)
-///   03:20   — background-matching (per-user matchnings-scan: läser JobAds → skriver UserJobAdMatch, ADR 0080 Vag 4 PR-3)
 ///   03:25   — company-watch-scan (per-user följnings-scan: JobAds IN watched org.nr → FollowedCompanyAdHit, ADR 0087 D5)
 ///   03:45   — expire-job-ads (ExpiresAt-cron, defense-in-depth, ADR 0032-amend 2026-05-23)
 ///   04:00   — hard-delete-accounts (1h efter retention)
@@ -78,12 +78,12 @@ public sealed partial class RecurringJobRegistrar(
         manager.AddOrUpdate<BackgroundMatchingWorker>(
             RecurringJobIds.BackgroundMatching,
             job => job.RunAsync(CancellationToken.None),
-            "20 3 * * *");  // 03:20 UTC — efter retain (03:15), före company-watch-scan (03:25). Per-user matchnings-scan: läser JobAds (Active) → skriver UserJobAdMatch + JobSeeker.LastMatchScanAt (ortogonalt mot retain). ADR 0080 Vag 4 PR-3.
+            BackgroundMatchingWorker.Cron);  // Var 5:e min (:02, :07, …) — per-user matchnings-scan + Toppmatch-mejl i samma körning, så en Toppmatch mejlas inom minuter efter att annonsen kom in. ADR 0161.
 
         manager.AddOrUpdate<CompanyWatchScanWorker>(
             RecurringJobIds.CompanyWatchScan,
             job => job.RunAsync(CancellationToken.None),
-            "25 3 * * *");  // 03:25 UTC — samma nattfönster som background-matching (03:20), egen
+            "25 3 * * *");  // 03:25 UTC — nattfönstret, egen
                             // watermark. Företagsföljnings-scan: läser JobAds (Active) IN watched org.nr
                             // → skriver FollowedCompanyAdHit + JobSeeker.LastCompanyWatchScanAt (ortogonalt
                             // mot background-matching; ingen scorer). Före digest (06:00). ADR 0087 D5.
@@ -125,9 +125,9 @@ public sealed partial class RecurringJobRegistrar(
                             // digest (06:00); DEK-fritt (rör ingen interaktiv yta). DisableConcurrentExecution-skyddad.
 
         // ADR 0080 Vag 4 PR-4b — Strong-digest-dispatch. Två kadenser, en cron var (cron = fönstret):
-        // Daglig 06:00 UTC och Veckovis måndag 06:00 UTC. MEDVETET på morgonen, EFTER nattscannen
-        // (03:20) och klar av hard-delete-klustret (04:00/04:30) — en Stark-match från i natt hamnar
-        // i denna morgons digest, och digesten racear inte 03:xx/04:xx-jobben.
+        // Daglig 06:00 UTC och Veckovis måndag 06:00 UTC. MEDVETET på morgonen, klar av
+        // hard-delete-klustret (04:00/04:30), så digesten racear inte 03:xx/04:xx-jobben. Matchningen
+        // går var femte minut (ADR 0161), så en Stark-match fram till 06:00 hamnar i den här digesten.
         manager.AddOrUpdate<DigestDispatchWorker>(
             RecurringJobIds.DigestDispatchDaily,
             job => job.RunDailyAsync(CancellationToken.None),

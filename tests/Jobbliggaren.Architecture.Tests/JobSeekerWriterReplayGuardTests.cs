@@ -30,7 +30,7 @@ public class JobSeekerWriterReplayGuardTests
 {
     private const string JobSeekerTypeName = "Jobbliggaren.Domain.JobSeekers.JobSeeker";
 
-    // The nightly scans re-run a user's scan in a fresh scope themselves (ADR 0146 D5).
+    // Both per-user scans re-run a user's scan in a fresh scope themselves (ADR 0146 D5).
     private static readonly Type[] ScansWithTheirOwnRetry =
     [
         typeof(BackgroundMatchingJob),

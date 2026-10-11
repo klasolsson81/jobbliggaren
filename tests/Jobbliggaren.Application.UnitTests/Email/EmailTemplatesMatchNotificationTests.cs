@@ -111,26 +111,15 @@ public class EmailTemplatesMatchNotificationTests
     }
 
     [Fact]
-    public void MatchNotification_ForADirectMailWithMoreThanOneItem_FallsBackToTheMatchesList()
-    {
-        // BackgroundMatchingJob sends one match per direct mail; a contract that ever carries two gets the
-        // list rather than one of them chosen silently.
-        var email = EmailTemplates.MatchNotification(
-            BaseUrl, Direct(Item(), Item("Frontend", "Beta AB", jobAdId: Guid.NewGuid())));
-
-        email.HtmlBody.ShouldContain($"href=\"{BaseUrl}/matchningar\"");
-        email.HtmlBody.ShouldNotContain($"{BaseUrl}/jobb/");
-    }
-
-    [Fact]
     public void MatchNotification_ForADirectMatch_LeadsTheBodyAndThePreviewWithTheMatchItself()
     {
-        // A direct mail carries one match (BackgroundMatchingJob), so the match is its first line and its
-        // preheader, with no intro repeating the subject (design-reviewer, #1825 form round, Major 3).
+        // A direct mail with one match leads with the match: its first line and its preheader, with no
+        // intro repeating the subject (design-reviewer, #1825 form round, Major 3).
         const string Line = "Systemutvecklare, Volvo Cars (Toppmatch)";
         var email = EmailTemplates.MatchNotification(BaseUrl, Direct(Item("Systemutvecklare", "Volvo Cars", "Toppmatch")));
 
         email.PlainTextBody.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n')[0].ShouldBe(Line);
+        email.HtmlBody.ShouldContain(">" + Line + EmailHtml.PreheaderFiller + "</div>");
         email.HtmlBody.Split(Line).Length.ShouldBe(3, "the line is both the preheader and the first paragraph");
         email.HtmlBody[email.HtmlBody.IndexOf("<p ", StringComparison.Ordinal)..].ShouldStartWith(EmailHtml.P(Line).ToString());
         email.PlainTextBody.ShouldNotContain("Bakgrundsmatchningen");
@@ -151,6 +140,56 @@ public class EmailTemplatesMatchNotificationTests
 
         email.PlainTextBody.ShouldContain("- Backend-utvecklare, Acme AB (Stark match)");
         email.PlainTextBody.ShouldContain("- DevOps-ingenjör, Beta AB (Stark match)");
+    }
+
+    // --- A direct mail bundling several Top matches of one run (ADR 0161) ---
+
+    private static MatchNotificationEmail BundledDirect() =>
+        Direct(
+            Item("Systemutvecklare", "Volvo Cars", "Toppmatch"),
+            Item("Backend-utvecklare", "Acme AB", "Toppmatch", Guid.Parse("5c2e8d41-7b3a-4f9e-a1d6-3e8b2c7f4a90")));
+
+    private const string BundledLead = "2 nya toppmatchningar:";
+
+    [Fact]
+    public void MatchNotification_ForABundledDirectMail_UsesThePluralSubject()
+    {
+        EmailTemplates.MatchNotification(BaseUrl, BundledDirect()).Subject
+            .ShouldBe("Nya toppmatchningar på Jobbliggaren");
+    }
+
+    [Fact]
+    public void MatchNotification_ForABundledDirectMail_LeadsWithTheCountAndBulletsEveryItem()
+    {
+        var email = EmailTemplates.MatchNotification(BaseUrl, BundledDirect());
+
+        email.PlainTextBody.Replace("\r\n", "\n", StringComparison.Ordinal).ShouldStartWith(
+            $"{BundledLead}\n\n- Systemutvecklare, Volvo Cars (Toppmatch)\n- Backend-utvecklare, Acme AB (Toppmatch)\n");
+        email.HtmlBody[email.HtmlBody.IndexOf("<p ", StringComparison.Ordinal)..]
+            .ShouldStartWith(EmailHtml.P(BundledLead).ToString());
+        email.HtmlBody.ShouldContain(">Systemutvecklare, Volvo Cars (Toppmatch)</li>");
+        email.HtmlBody.ShouldContain(">Backend-utvecklare, Acme AB (Toppmatch)</li>");
+    }
+
+    [Fact]
+    public void MatchNotification_ForABundledDirectMail_PreviewsTheLead()
+    {
+        var email = EmailTemplates.MatchNotification(BaseUrl, BundledDirect());
+
+        email.HtmlBody.ShouldContain(">" + BundledLead + EmailHtml.PreheaderFiller + "</div>");
+    }
+
+    [Fact]
+    public void MatchNotification_ForABundledDirectMail_LinksTheMatchesListAndNoSingleAd()
+    {
+        var email = EmailTemplates.MatchNotification(BaseUrl, BundledDirect());
+
+        email.PlainTextBody.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .ShouldContain($"Öppna dina matchningar:\n{BaseUrl}/matchningar");
+        email.HtmlBody.ShouldContain($"href=\"{BaseUrl}/matchningar\"");
+        email.HtmlBody.ShouldContain(">Öppna dina matchningar<");
+        email.PlainTextBody.ShouldNotContain($"{BaseUrl}/jobb/");
+        email.HtmlBody.ShouldNotContain($"{BaseUrl}/jobb/");
     }
 
     // --- Subject lines: Direct vs Digest ---

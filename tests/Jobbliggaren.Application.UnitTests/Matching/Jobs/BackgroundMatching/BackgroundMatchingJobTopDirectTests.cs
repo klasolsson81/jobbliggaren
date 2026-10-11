@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -14,19 +15,21 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Matching.Jobs.BackgroundMatching;
 
 /// <summary>
-/// ADR 0080 Vag 4 PR-4b — UNIT cover for the Top-DIRECT email hook the scan runs AFTER the atomic
-/// commit. The scan-loop invariants (consent filter, isolation, watermark) live in
-/// <see cref="BackgroundMatchingJobTests"/>; THIS class pins only the dispatch contract:
+/// ADR 0080 Vag 4 PR-4b, ADR 0161 (#2106) — UNIT cover for the scan and the send phase TOGETHER: the
+/// scan persists, then <see cref="TopMatchMailDispatcher"/> mails in the same run. The scan-loop
+/// invariants live in <see cref="BackgroundMatchingJobTests"/>, the send phase's own in
+/// <see cref="TopMatchMailDispatcherTests"/>; THIS class pins what only the two together show:
 /// <list type="bullet">
-/// <item>a new <see cref="NotifiableMatchGrade.Top"/> match sends EXACTLY ONE focused Direct email
-///   (Kind=Direct, one item carrying the ad's Title/Company + "Toppmatch", TotalCount=1) and the row
-///   ends <see cref="NotificationStatus.Sent"/>;</item>
-/// <item><see cref="NotifiableMatchGrade.Strong"/> is NEVER emailed here (it accumulates into the
-///   digest) — the row persists Pending;</item>
-/// <item>no account email → no send, the Top row stays Pending, the scan still completes;</item>
-/// <item>a send failure leaves THAT row Queued (claimed but not Sent), the match still persists, and
-///   RunAsync does not throw (per-match isolation);</item>
-/// <item>two Top matches → two separate Direct emails (one per match).</item>
+/// <item>a new <see cref="NotifiableMatchGrade.Top"/> match sends ONE Direct email (one item, the
+///   ad's Title/Company + "Toppmatch", TotalCount=1) and the row ends
+///   <see cref="NotificationStatus.Sent"/>; two Top matches of one run go in ONE email;</item>
+/// <item><see cref="NotifiableMatchGrade.Strong"/> is NEVER emailed here (digest) — the row persists
+///   Pending;</item>
+/// <item>no account email, or a send failure: the rows are claimed and stay Queued, the matches
+///   persist, RunAsync does not throw, and no later run sends them;</item>
+/// <item>every user's scan commits before the first send, and the send phase runs once per run;</item>
+/// <item>an ad re-read inside the settle window is not matched twice, so it is mailed once;</item>
+/// <item>a fresh Top match for an ad older than the direct-mail window is persisted, not mailed.</item>
 /// </list>
 /// The collaborators are NSubstitute mocks; the <see cref="IMatchScorer"/> returns a hand-built
 /// <see cref="FullMatchScore"/> (no real engine), and the IAppDbContext is the real-AppDbContext-over
@@ -53,11 +56,27 @@ public class BackgroundMatchingJobTopDirectTests
             .Returns(ToEmail);
     }
 
-    // #751 konstruktions-only-migration: jobbet tar nu en IServiceScopeFactory; faken ger SAMMA
-    // db/collaborators per scope så varje testkropp är orörd.
-    private BackgroundMatchingJob CreateJob(Jobbliggaren.Infrastructure.Persistence.AppDbContext db) =>
-        new(new FakeMatchingScopeFactory(db, _profileBuilder, _scorer, _userAccounts),
-            _emailSender, NowClock, NullLogger<BackgroundMatchingJob>.Instance);
+    private (BackgroundMatchingJob Job, FakeMatchingScopeFactory Scopes) Compose(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, IDateTimeProvider? clock = null)
+    {
+        clock ??= NowClock;
+        var scopes = new FakeMatchingScopeFactory(db, _profileBuilder, _scorer, _userAccounts);
+        var dispatcher = new TopMatchMailDispatcher(
+            scopes, _emailSender, clock, NullLogger<TopMatchMailDispatcher>.Instance);
+        return (new BackgroundMatchingJob(scopes, dispatcher, clock, NullLogger<BackgroundMatchingJob>.Instance),
+            scopes);
+    }
+
+    private BackgroundMatchingJob CreateJob(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, IDateTimeProvider? clock = null) =>
+        Compose(db, clock).Job;
+
+    // A run's clock that moves between reads, as a real one does, so the rows one run writes carry
+    // distinct CreatedAt. The send phase orders by CreatedAt and then by id, and EF InMemory cannot
+    // compare the strongly-typed id on a tie. The run reads its own "now" first, so the watermark is
+    // still start minus IngestSettleWindow.
+    private static AdvancingFakeDateTimeProvider RunClock(DateTimeOffset start) =>
+        new(start, TimeSpan.FromMilliseconds(1));
 
     // ───────────────────────────── Score recipes (against MatchGradeCalculator.Grade(FullMatchScore))
 
@@ -102,15 +121,17 @@ public class BackgroundMatchingJobTopDirectTests
         return userId;
     }
 
-    // An Active JobAd created at `now` → CreatedAt > since (since = now - 7d for a never-scanned
-    // user) → inside the cold-start window the scan queries. Title + Company.Name feed the email item.
+    // An Active JobAd ingested at `now` (or at `ingestedAt`) → CreatedAt > since (since = now - 7d
+    // for a never-scanned user) → inside the cold-start window the scan reads. Title + Company.Name
+    // feed the email item.
     private static async Task<JobAdId> SeedActiveAdAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
-        string title, string company, CancellationToken ct)
+        string title, string company, CancellationToken ct, DateTimeOffset? ingestedAt = null)
     {
+        var ingestClock = ingestedAt is { } at ? new FakeDateTimeProvider(at) : NowClock;
         var jobAd = JobAd.Create(
             title, Company.Create(company).Value, "Beskrivning", "https://example.com/jobb",
-            JobSource.Platsbanken, NowClock.UtcNow, NowClock.UtcNow.AddDays(30), NowClock).Value;
+            JobSource.Platsbanken, ingestClock.UtcNow, ingestClock.UtcNow.AddDays(30), ingestClock).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id;
@@ -141,6 +162,15 @@ public class BackgroundMatchingJobTopDirectTests
             {
                 [jobAdId] = new FullScoredMatch(score, SsykIsRelated: false, matchedSkills ?? [], MatchDimensionCauses.None, new FullMatchConceptEvidence(new([], []), new([], []), new([], []))),
             });
+
+    private void StubScorer(IReadOnlyDictionary<JobAdId, FullMatchScore> scores) =>
+        _scorer.ScoreFullBatchAsync(
+                Arg.Any<IReadOnlyList<JobAdId>>(),
+                Arg.Any<FullCandidateMatchProfile>(),
+                Arg.Any<CancellationToken>())
+            .Returns(scores.ToDictionary(
+                pair => pair.Key,
+                pair => new FullScoredMatch(pair.Value, SsykIsRelated: false, [], MatchDimensionCauses.None, new FullMatchConceptEvidence(new([], []), new([], []), new([], [])))));
 
     // PR-4 (#300): stub the carrier with SsykIsRelated:true → the Worker grades Related (flat cap)
     // → ToNotifiable(Related) == null → the match is scored but NOT persisted.
@@ -346,10 +376,12 @@ public class BackgroundMatchingJobTopDirectTests
             Arg.Any<CancellationToken>());
     }
 
-    // ───────────────────────────── 3. No account email → no send, Top stays Pending
+    // ───────────────────────────── 3. No account email → no send, Top left Queued
 
+    // The send phase claims before it reads the address (ADR 0161 D5(c)), so an address-less account's
+    // row is claimed and left Queued for the reaper, never sent by a later run.
     [Fact]
-    public async Task RunAsync_TopMatchButNoAccountEmail_DoesNotEmail_AndRowStaysPending()
+    public async Task RunAsync_TopMatchButNoAccountEmail_DoesNotEmail_AndRowIsLeftQueued()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
@@ -359,7 +391,7 @@ public class BackgroundMatchingJobTopDirectTests
         _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
             .Returns(ProfileWithOccupation());
         StubScorer(jobAdId, TopScore());
-        // Orphan consent row without an account email → the dispatch skips (rows stay Pending).
+        // Orphan consent row without an account email.
         _userAccounts.GetEmailAsync(userId, Arg.Any<CancellationToken>())
             .Returns((string?)null);
 
@@ -372,8 +404,8 @@ public class BackgroundMatchingJobTopDirectTests
 
         var match = await ReloadMatchAsync(db, userId, jobAdId, ct);
         match.ShouldNotBeNull("matchen ska persisteras även utan mottagaradress");
-        match.NotificationStatus.ShouldBe(NotificationStatus.Pending,
-            "utan mottagaradress claim:as raden inte — den ligger kvar Pending");
+        match.NotificationStatus.ShouldBe(NotificationStatus.Queued,
+            "raden claim:as före adressläsningen och ligger kvar Queued, aldrig skickad");
     }
 
     // ───────────────────────────── 4. Send throws → row left Queued, match persists, no throw
@@ -394,7 +426,7 @@ public class BackgroundMatchingJobTopDirectTests
             Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("mejlleverans nere"));
 
-        // Per-match isolation: a send failure is caught + logged, never propagated.
+        // A send failure is caught and logged, never propagated out of the run.
         await Should.NotThrowAsync(() => CreateJob(db).RunAsync(ct));
 
         var match = await ReloadMatchAsync(db, userId, jobAdId, ct);
@@ -404,10 +436,10 @@ public class BackgroundMatchingJobTopDirectTests
         match.SentAt.ShouldBeNull("en misslyckad sändning ska inte stämpla SentAt");
     }
 
-    // ───────────────────────────── 5. Two Top matches → two Direct emails
+    // ───────────────────────────── 5. Two Top matches → one Direct email listing both
 
     [Fact]
-    public async Task RunAsync_TwoTopMatches_SendsTwoDirectEmails_OnePerMatch()
+    public async Task RunAsync_TwoTopMatches_SendsOneDirectEmailListingBoth()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
@@ -427,12 +459,20 @@ public class BackgroundMatchingJobTopDirectTests
                 [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None, new FullMatchConceptEvidence(new([], []), new([], []), new([], []))),
             });
 
-        await CreateJob(db).RunAsync(ct);
+        MatchNotificationEmail? captured = null;
+        await _emailSender.SendMatchNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Do<MatchNotificationEmail>(c => captured = c), Arg.Any<CancellationToken>());
 
-        // One focused Direct email PER Top match (not one batched email for both).
-        await _emailSender.Received(2).SendMatchNotificationEmailAsync(
+        await CreateJob(db, RunClock(NowClock.UtcNow)).RunAsync(ct);
+
+        // One recipient, one mail per run, bundling every due Top match (ADR 0161 D5).
+        await _emailSender.Received(1).SendMatchNotificationEmailAsync(
             ToEmail, Arg.Any<MatchNotificationEmail>(),
             Arg.Any<CancellationToken>());
+        captured.ShouldNotBeNull();
+        captured.Kind.ShouldBe(MatchNotificationKind.Direct);
+        captured.Items.Select(item => item.JobAdId).ShouldBe([adA.Value, adB.Value], ignoreOrder: true);
+        captured.TotalCount.ShouldBe(2);
 
         (await ReloadMatchAsync(db, userId, adA, ct))!.NotificationStatus
             .ShouldBe(NotificationStatus.Sent);
@@ -440,14 +480,12 @@ public class BackgroundMatchingJobTopDirectTests
             .ShouldBe(NotificationStatus.Sent);
     }
 
-    // ───────────────────────────── 6. Two Top matches, first send throws → second STILL attempted
+    // ───────────────────────────── 6. Two Top matches, the one send throws → both Queued, never re-sent
 
-    // Per-match isolation WITHIN a user: the dispatch loop's per-iteration try/catch must keep
-    // attempting the remaining Top matches after one send fails (the "never miss" half of the
-    // trade-off). A regression hoisting the try/catch outside the loop would swallow every Top
-    // after the first failure yet still pass tests 4 and 5.
+    // The two rows travel in one mail, so one failed send leaves both claimed. The next run does not
+    // send them again ("never twice" over "never miss"; the reaper fails them later).
     [Fact]
-    public async Task RunAsync_TwoTopMatches_FirstSendThrows_SecondStillAttempted()
+    public async Task RunAsync_TwoTopMatches_SendThrows_LeavesBothRowsQueued_AndTheNextRunDoesNotResend()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
@@ -457,40 +495,117 @@ public class BackgroundMatchingJobTopDirectTests
 
         _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
             .Returns(ProfileWithOccupation());
-        _scorer.ScoreFullBatchAsync(
-                Arg.Any<IReadOnlyList<JobAdId>>(),
-                Arg.Any<FullCandidateMatchProfile>(),
-                Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<JobAdId, FullScoredMatch>
-            {
-                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None, new FullMatchConceptEvidence(new([], []), new([], []), new([], []))),
-                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None, new FullMatchConceptEvidence(new([], []), new([], []), new([], []))),
-            });
-
-        // First send throws, the second succeeds (dispatch order over the score dict is not
-        // asserted — only that BOTH were attempted and exactly one of each outcome resulted).
+        StubScorer(new Dictionary<JobAdId, FullMatchScore> { [adA] = TopScore(), [adB] = TopScore() });
         _emailSender.SendMatchNotificationEmailAsync(
                 Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
             Arg.Any<CancellationToken>())
-            .Returns(
-                _ => throw new InvalidOperationException("första sändningen faller"),
-                _ => Task.CompletedTask);
+            .ThrowsAsync(new InvalidOperationException("mejlleverans nere"));
 
-        await Should.NotThrowAsync(() => CreateJob(db).RunAsync(ct));
+        await Should.NotThrowAsync(() => CreateJob(db, RunClock(NowClock.UtcNow)).RunAsync(ct));
+        await CreateJob(db, RunClock(NowClock.UtcNow.AddMinutes(5))).RunAsync(ct);
 
-        // BOTH Top matches were attempted — the first failure did not abort the second.
-        await _emailSender.Received(2).SendMatchNotificationEmailAsync(
-            ToEmail, Arg.Any<MatchNotificationEmail>(),
-            Arg.Any<CancellationToken>());
-
-        var statuses = new[]
-        {
-            (await ReloadMatchAsync(db, userId, adA, ct))!.NotificationStatus,
-            (await ReloadMatchAsync(db, userId, adB, ct))!.NotificationStatus,
-        };
-        statuses.ShouldContain(NotificationStatus.Sent, "den lyckade sändningen markeras Sent");
-        statuses.ShouldContain(NotificationStatus.Queued,
-            "den misslyckade ligger kvar Queued (per-match-isolering, aldrig dubbel-mejlad)");
+        await _emailSender.Received(1).SendMatchNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+        (await ReloadMatchAsync(db, userId, adA, ct))!.NotificationStatus.ShouldBe(NotificationStatus.Queued);
+        (await ReloadMatchAsync(db, userId, adB, ct))!.NotificationStatus.ShouldBe(NotificationStatus.Queued);
     }
 
+    // ───────────────────────────── 7. The scan persists, then the send phase runs once
+
+    // Two users with a Top match each. When the first mail goes out, BOTH users' scans have committed:
+    // the scan never sends, and the send phase starts after the whole scan. The send phase opens one
+    // scope per run, the only one that resolves the account service.
+    [Fact]
+    public async Task RunAsync_EveryScanCommitsBeforeTheFirstSend_AndTheSendPhaseRunsOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userA = await SeedConsentingSeekerAsync(db, ct);
+        var userB = await SeedConsentingSeekerAsync(db, ct);
+        var ad = await SeedActiveAdAsync(db, "Backend-utvecklare", "Acme AB", ct);
+
+        _profileBuilder.BuildFullForUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        StubScorer(ad, TopScore());
+
+        var watermarksAtEachSend = new List<DateTimeOffset?[]>();
+        _emailSender
+            .When(sender => sender.SendMatchNotificationEmailAsync(
+                Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>()))
+            .Do(_ => watermarksAtEachSend.Add(
+            [
+                .. db.JobSeekers.AsNoTracking()
+                    .Where(js => js.UserId == userA || js.UserId == userB)
+                    .Select(js => js.LastMatchScanAt)
+                    .ToList(),
+            ]));
+
+        var (job, scopes) = Compose(db, RunClock(NowClock.UtcNow));
+        await job.RunAsync(ct);
+
+        watermarksAtEachSend.Count.ShouldBe(2);
+        var scannedThrough = NowClock.UtcNow - BackgroundMatchingJob.IngestSettleWindow;
+        foreach (var watermarks in watermarksAtEachSend)
+            watermarks.ShouldAllBe(watermark => watermark == scannedThrough,
+                "every user's scan committed before any mail went out");
+        scopes.Resolutions<IUserAccountService>().ShouldBe(1, "the send phase runs once per run");
+    }
+
+    // ───────────────────────────── 8. Never twice across runs
+
+    // Run 1 matches an ad ingested inside the settle window; run 2 re-reads it (the watermark trails
+    // the clock by IngestSettleWindow) and re-scores it, and the existing-pair check keeps it from a
+    // second row and a second mail. EF InMemory enforces no unique index, so a second row would show.
+    [Fact]
+    public async Task RunAsync_AdReReadInsideTheSettleWindow_IsNotMatchedTwice_AndIsMailedOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var clock = new MutableClock(NowClock.UtcNow);
+        var userId = await SeedConsentingSeekerAsync(db, ct);
+        var ad = await SeedActiveAdAsync(db, "Backend-utvecklare", "Acme AB", ct,
+            NowClock.UtcNow.AddMinutes(-1));
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        StubScorer(ad, TopScore());
+
+        await CreateJob(db, clock).RunAsync(ct);
+        clock.Advance(TimeSpan.FromMinutes(1));
+        await CreateJob(db, clock).RunAsync(ct);
+
+        await _scorer.Received(2).ScoreFullBatchAsync(
+            Arg.Is<IReadOnlyList<JobAdId>>(ids => ids.Contains(ad)),
+            Arg.Any<FullCandidateMatchProfile>(), Arg.Any<CancellationToken>());
+        (await db.UserJobAdMatches.CountAsync(m => m.UserId == userId && m.JobAdId == ad, ct)).ShouldBe(1);
+        await _emailSender.Received(1).SendMatchNotificationEmailAsync(
+            ToEmail, Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+    }
+
+    // ───────────────────────────── 9. An old ad's fresh Top match is not mailed
+
+    // security-auditor V2: a never-scanned user's first scan reaches ColdStartDays back and writes a
+    // fresh Top row for an ad ingested three days ago. The match persists; it is not mailed as news.
+    [Fact]
+    public async Task RunAsync_TopMatchForAnAdOlderThanTheDirectMailWindow_IsPersistedButNotMailed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedConsentingSeekerAsync(db, ct);
+        var oldAd = await SeedActiveAdAsync(db, "Backend-utvecklare", "Acme AB", ct,
+            NowClock.UtcNow.AddDays(-3));
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ProfileWithOccupation());
+        StubScorer(oldAd, TopScore());
+
+        await CreateJob(db).RunAsync(ct);
+
+        var match = await ReloadMatchAsync(db, userId, oldAd, ct);
+        match.ShouldNotBeNull();
+        match.Grade.ShouldBe(NotifiableMatchGrade.Top);
+        match.NotificationStatus.ShouldBe(NotificationStatus.Pending);
+        await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
+            Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>());
+    }
 }

@@ -39,7 +39,7 @@ public class DigestDispatchJobIntegrationTests(WorkerTestFixture fixture)
 {
     private readonly WorkerTestFixture _fixture = fixture;
 
-    // A fixed digest run instant (the cadence run time; ~06:00 UTC after the 03:20 scan).
+    // A fixed digest run instant (the cadence run time; ~06:00 UTC).
     private static readonly DateTimeOffset Now = new(2026, 6, 1, 6, 0, 0, TimeSpan.Zero);
 
     [Fact]

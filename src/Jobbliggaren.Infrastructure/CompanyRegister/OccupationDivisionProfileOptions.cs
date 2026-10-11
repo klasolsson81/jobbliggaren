@@ -13,8 +13,8 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 /// <see cref="CadenceCron"/> is clock-padded after the daily snapshot ingest, not chained to it:
 /// the snapshot starts 02:00 UTC and its measured runtime is tens of minutes, so it is clear well
 /// before 03:00, and
-/// 03:35 sits inside the existing ingest-consumer cluster (retain 03:15, matching 03:20, watch-scan
-/// 03:25, expire 03:45) with ten minutes' padding either side. A level-triggered watermark on the
+/// 03:35 sits inside the existing ingest-consumer cluster (retain 03:15, watch-scan 03:25, expire
+/// 03:45) with ten minutes' padding either side. A level-triggered watermark on the
 /// snapshot's audit row was measured out: <c>job_ads</c> has TWO writers, the stream job on
 /// <c>*/10</c> being the other, so a "once per completed snapshot" trigger would fire exactly as
 /// often as this cron while claiming to track ingest (senior-cto-advisor D1). ⚠ If the snapshot

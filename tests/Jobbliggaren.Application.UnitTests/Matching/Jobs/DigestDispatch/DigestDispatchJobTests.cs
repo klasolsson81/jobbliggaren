@@ -915,8 +915,8 @@ public class DigestDispatchJobTests
 
     // ═══════════════════════ #864 — an ARCHIVED ad must never be emailed
     //
-    // The scan gates Status == Active (BackgroundMatchingJob.ScanUserAsync's windowed candidate
-    // query, CompanyWatchScanJob:156), so a match
+    // The scan gates Status == Active (BackgroundMatchingJob's and CompanyWatchScanJob's candidate
+    // reads), so a match
     // is only ever RECORDED for a live ad. But that gate proves the ad was Active AT SCAN TIME — and
     // this digest runs days or weeks later. Archiving is every ad's normal end of life
     // (ExpireJobAdsJob). Before #864 neither display join carried a Status predicate, so the digest

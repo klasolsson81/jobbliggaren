@@ -17,7 +17,7 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// <para>
 /// <b>Token (#1576):</b> the newest of ALL new hits, including those the grade filter excludes, so an
 /// excluded older hit cannot hold the watermark down and re-show the same ads. Acknowledging the whole
-/// counted set is the explicit "Markera alla som lästa" over a number the user has seen; a visit to
+/// counted set is the explicit "Markera alla som lästa" over a number the user has seen (ADR 0162); a visit to
 /// <c>/foretag/bevakade/nya</c> still acknowledges only the window it showed.
 /// </para>
 ///

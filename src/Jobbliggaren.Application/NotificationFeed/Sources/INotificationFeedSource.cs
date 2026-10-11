@@ -6,7 +6,7 @@ using Jobbliggaren.Application.NotificationFeed.Queries.GetMyNotificationFeed;
 namespace Jobbliggaren.Application.NotificationFeed.Sources;
 
 /// <summary>
-/// One reason the bell can ring (#1666). A source answers, under the single definition its own context
+/// One reason the bell can ring (#1666, ADR 0162). A source answers, under the single definition its own context
 /// already owns, three things for one user: the exact unread count, the token that acknowledges exactly
 /// that count, and its newest rows.
 ///

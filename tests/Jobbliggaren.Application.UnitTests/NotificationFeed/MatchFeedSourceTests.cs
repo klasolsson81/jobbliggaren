@@ -118,25 +118,65 @@ public class MatchFeedSourceTests
     }
 
     [Fact]
+    // The archived ad's match is the OLDEST, so the token bound (the newest live match) does not hide
+    // it from the list: only the list's own lifecycle gate does.
     public async Task ReadAsync_SkipsAMatchWhoseAdWasArchived_InTheCountAndTheList()
     {
         using var db = TestAppDbContextFactory.Create();
         var userId = Guid.NewGuid();
         _seed.Seeker(db, userId, backgroundMatchConsent: true);
+        var archived = _seed.ActiveAd(db);
         var live = _seed.ActiveAd(db);
         var secondLive = _seed.ActiveAd(db);
-        var archived = _seed.ActiveAd(db);
-        _seed.Match(db, userId, live, NotifiableMatchGrade.Good, T0.AddHours(1));
-        _seed.Match(db, userId, secondLive, NotifiableMatchGrade.Good, T0.AddHours(2));
-        _seed.Match(db, userId, archived, NotifiableMatchGrade.Strong, T0.AddHours(3));
+        _seed.Match(db, userId, archived, NotifiableMatchGrade.Strong, T0.AddHours(1));
+        _seed.Match(db, userId, live, NotifiableMatchGrade.Good, T0.AddHours(2));
+        _seed.Match(db, userId, secondLive, NotifiableMatchGrade.Good, T0.AddHours(3));
         _seed.Archive(db, archived);
 
         var read = await ReadAsync(db, userId);
 
         read.UnreadCount.ShouldBe(2);
-        read.AcknowledgedThrough.ShouldBe(T0.AddHours(2));
-        read.Items.Select(i => i.JobAdId).ShouldNotContain(archived.Value);
-        read.Items.Count.ShouldBe(2);
+        read.AcknowledgedThrough.ShouldBe(T0.AddHours(3));
+        read.Items.Select(i => i.JobAdId).ShouldBe([secondLive.Value, live.Value]);
+    }
+
+    // The other user is seeded FIRST, so a consent read that lost its owner filter would find them.
+    [Fact]
+    public async Task ReadAsync_GatesOnTheSignedInUsersOwnConsent()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var other = Guid.NewGuid();
+        var me = Guid.NewGuid();
+        _seed.Seeker(db, other, backgroundMatchConsent: true);
+        var mine = _seed.Seeker(db, me, backgroundMatchConsent: true);
+        _seed.Match(db, me, _seed.ActiveAd(db), NotifiableMatchGrade.Top, T0.AddHours(1));
+        _seed.SetConsent(db, mine, enabled: false, T0.AddHours(2));
+
+        var read = await ReadAsync(db, me);
+
+        read.ShouldBe(NotificationSourceRead.Nothing(NotificationFeedSourceKind.Match));
+    }
+
+    [Fact]
+    public async Task ReadAsync_FlagsUnreadAgainstTheSignedInUsersOwnWatermark()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var other = Guid.NewGuid();
+        var me = Guid.NewGuid();
+        var theirs = _seed.Seeker(db, other, backgroundMatchConsent: true);
+        var mine = _seed.Seeker(db, me, backgroundMatchConsent: true);
+        var seen = _seed.ActiveAd(db);
+        var fresh = _seed.ActiveAd(db);
+        _seed.Match(db, me, seen, NotifiableMatchGrade.Good, T0.AddHours(1));
+        _seed.Match(db, me, fresh, NotifiableMatchGrade.Good, T0.AddHours(3));
+        _seed.SeeMatchesThrough(db, theirs, T0.AddHours(4));
+        _seed.SeeMatchesThrough(db, mine, T0.AddHours(2));
+
+        var read = await ReadAsync(db, me);
+
+        read.UnreadCount.ShouldBe(1);
+        read.Items.Single(i => i.JobAdId == fresh.Value).IsUnread.ShouldBeTrue();
+        read.Items.Single(i => i.JobAdId == seen.Value).IsUnread.ShouldBeFalse();
     }
 
     [Fact]

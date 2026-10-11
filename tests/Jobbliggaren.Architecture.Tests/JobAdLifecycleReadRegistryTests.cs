@@ -14,10 +14,9 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <remarks>
 /// The enumerator is a Mono.Cecil IL scan — the same harness <c>ConnectionStringLeakageTests</c>
 /// already ships — with the <c>Ldstr</c> predicate replaced by a <c>call</c>/<c>callvirt</c> to a
-/// <c>get_JobAds</c> getter. It is fail-CLOSED (every property access emits a getter call; a new
-/// read cannot exist without a new instruction) and shape-based (a <c>MethodReference</c> to
+/// <c>get_JobAds</c> getter. It is shape-based (a <c>MethodReference</c> to
 /// <c>get_JobAds</c> is invariant under formatting and local renames — NOT a source-string scan,
-/// which #864 D5/G4 forbids). See <see cref="JobAdLifecycleReadRegistry"/> for the five things this
+/// which #864 D5/G4 forbids). See <see cref="JobAdLifecycleReadRegistry"/> for the things this
 /// control deliberately does NOT reach.
 /// </remarks>
 public class JobAdLifecycleReadRegistryTests

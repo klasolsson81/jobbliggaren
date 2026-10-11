@@ -108,6 +108,14 @@ internal sealed class NotificationFeedSeed
         return watch.Id;
     }
 
+    /// <summary>Unfollows a watch the way the user does (soft delete); its hits stay, as in production.</summary>
+    public void Unfollow(AppDbContext db, CompanyWatchId watchId)
+    {
+        _clock.UtcNow.Returns(T0.AddDays(30));
+        db.CompanyWatches.Single(w => w.Id == watchId).SoftDelete(_clock);
+        db.SaveChanges();
+    }
+
     public void Hit(AppDbContext db, Guid userId, JobAdId adId, CompanyWatchId watchId, DateTimeOffset at)
     {
         _clock.UtcNow.Returns(at);

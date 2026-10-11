@@ -23,7 +23,7 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// <item>it is stateless: one instance serves every request, and anything per request travels in
 ///   <see cref="NotificationFeedReadContext"/>.</item>
 /// </list>
-/// A new source is one class plus one line in <see cref="NotificationFeedSources.All"/>, and a new
+/// A new source is a new
 /// data flow into a per-user surface — security-auditor reviews it before it ships.
 /// </para>
 /// </summary>

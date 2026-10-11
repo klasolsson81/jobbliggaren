@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
@@ -137,6 +138,15 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
         return watch.Id;
     }
 
+    private async Task UnfollowAsync(CompanyWatchId watchId, CancellationToken ct)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var watch = await db.CompanyWatches.SingleAsync(w => w.Id == watchId, ct);
+        watch.SoftDelete(scope.ServiceProvider.GetRequiredService<IDateTimeProvider>());
+        await db.SaveChangesAsync(ct);
+    }
+
     private async Task SeedHitAsync(
         Guid userId, JobAdId adId, CompanyWatchId watchId, DateTimeOffset at, CancellationToken ct)
     {
@@ -160,6 +170,9 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
     }
 
     private static FeedSource Source(Feed feed, string kind) => feed.Sources.Single(s => s.Kind == kind);
+
+    private static string[] Names(JsonElement element) =>
+        [.. element.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal)];
 
     private static async Task<int> GetCountAsync(HttpClient client, string path, CancellationToken ct)
     {
@@ -211,7 +224,15 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Headers.CacheControl!.Private.ShouldBeTrue();
         response.Headers.CacheControl.NoStore.ShouldBeTrue();
-        var feed = (await response.Content.ReadFromJsonAsync<Feed>(ct))!;
+        var body = await response.Content.ReadAsStringAsync(ct);
+        var feed = JsonSerializer.Deserialize<Feed>(body, JsonSerializerOptions.Web)!;
+
+        // The wire is an allow-list: nothing beyond these names leaves the API (no org.nr, watch id or URL).
+        using var json = JsonDocument.Parse(body);
+        Names(json.RootElement).ShouldBe(["items", "sources"]);
+        Names(json.RootElement.GetProperty("items")[0])
+            .ShouldBe(["companyName", "grade", "isUnread", "jobAdId", "kind", "occurredAt", "title"]);
+        Names(json.RootElement.GetProperty("sources")[0]).ShouldBe(["acknowledgedThrough", "kind", "unreadCount"]);
 
         feed.Items.Select(i => (i.Kind, i.JobAdId)).ShouldBe(
         [
@@ -240,14 +261,17 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
         var theirFollow = await SeedAdAsync("Deras följda", "Annan AB", ct);
         await SeedMatchAsync(other, theirMatch, NotifiableMatchGrade.Strong, Base.AddMinutes(1), ct);
         await SeedHitAsync(other, theirFollow, await SeedWatchAsync(other, onlyMatched: false, ct), Base.AddMinutes(2), ct);
+        // My rows are newer than theirs, so theirs fall inside my list bound: only the owner filters keep them out.
         var myAd = await SeedAdAsync("Min", "Mitt AB", ct);
+        var myFollow = await SeedAdAsync("Min följda", "Mitt AB", ct);
         await SeedMatchAsync(me, myAd, NotifiableMatchGrade.Good, Base.AddMinutes(3), ct);
+        await SeedHitAsync(me, myFollow, await SeedWatchAsync(me, onlyMatched: false, ct), Base.AddMinutes(4), ct);
 
         var feed = await GetFeedAsync(mine, ct);
 
-        feed.Items.Select(i => i.JobAdId).ShouldBe([myAd.Value]);
+        feed.Items.Select(i => i.JobAdId).ShouldBe([myFollow.Value, myAd.Value]);
         Source(feed, "Match").ShouldBe(new FeedSource("Match", 1, Base.AddMinutes(3)));
-        Source(feed, "FollowedCompanyAd").ShouldBe(new FeedSource("FollowedCompanyAd", 0, null));
+        Source(feed, "FollowedCompanyAd").ShouldBe(new FeedSource("FollowedCompanyAd", 1, Base.AddMinutes(4)));
     }
 
     // B1 (security-auditor, #1666 form round; ADR 0080 Beslut 5): the bell is a notification surface,
@@ -284,21 +308,26 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterUserAsync("feed-parity", ct);
         await SetBackgroundMatchConsentAsync(userId, enabled: true, ct);
+        // Every excluded row is OLDER than the live ones, so the token bound cannot hide it from the list.
         var archivedMatch = await SeedAdAsync("Arkiverad", "Bolag AB", ct);
-        await SeedMatchAsync(userId, await SeedAdAsync("A", "Bolag AB", ct), NotifiableMatchGrade.Good, Base.AddMinutes(1), ct);
-        await SeedMatchAsync(userId, await SeedAdAsync("B", "Bolag AB", ct), NotifiableMatchGrade.Strong, Base.AddMinutes(2), ct);
-        await SeedMatchAsync(userId, archivedMatch, NotifiableMatchGrade.Top, Base.AddMinutes(3), ct);
+        await SeedMatchAsync(userId, archivedMatch, NotifiableMatchGrade.Top, Base.AddMinutes(1), ct);
+        await SeedMatchAsync(userId, await SeedAdAsync("A", "Bolag AB", ct), NotifiableMatchGrade.Good, Base.AddMinutes(2), ct);
+        await SeedMatchAsync(userId, await SeedAdAsync("B", "Bolag AB", ct), NotifiableMatchGrade.Strong, Base.AddMinutes(3), ct);
         await ArchiveAsync(archivedMatch, ct);
 
         var plain = await SeedWatchAsync(userId, onlyMatched: false, ct);
         var onlyMatched = await SeedWatchAsync(userId, onlyMatched: true, ct);
+        var unfollowed = await SeedWatchAsync(userId, onlyMatched: false, ct);
         var twice = await SeedAdAsync("Två vägar", "Följt AB", ct);
         var archivedHit = await SeedAdAsync("Arkiverad följd", "Följt AB", ct);
-        await SeedHitAsync(userId, twice, plain, Base.AddMinutes(4), ct);
-        await SeedHitAsync(userId, twice, onlyMatched, Base.AddMinutes(5), ct);
-        await SeedHitAsync(userId, await SeedAdAsync("Endast matchade", "Följt AB", ct), onlyMatched, Base.AddMinutes(6), ct);
-        await SeedHitAsync(userId, archivedHit, plain, Base.AddMinutes(7), ct);
+        var ofUnfollowed = await SeedAdAsync("Avföljd", "Följt AB", ct);
+        await SeedHitAsync(userId, archivedHit, plain, Base.AddMinutes(4), ct);
+        await SeedHitAsync(userId, ofUnfollowed, unfollowed, Base.AddMinutes(5), ct);
+        await SeedHitAsync(userId, twice, plain, Base.AddMinutes(6), ct);
+        await SeedHitAsync(userId, twice, onlyMatched, Base.AddMinutes(7), ct);
+        await SeedHitAsync(userId, await SeedAdAsync("Endast matchade", "Följt AB", ct), onlyMatched, Base.AddMinutes(8), ct);
         await ArchiveAsync(archivedHit, ct);
+        await UnfollowAsync(unfollowed, ct);
 
         var feed = await GetFeedAsync(client, ct);
 
@@ -308,7 +337,8 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
             .ShouldBe(await GetCountAsync(client, "/api/v1/me/followed-company-ads/new-count", ct));
         Source(feed, "FollowedCompanyAd").UnreadCount.ShouldBe(2);
         feed.Items.Count(i => i.IsUnread).ShouldBe(4);
-        feed.Items.ShouldNotContain(i => i.JobAdId == archivedMatch.Value || i.JobAdId == archivedHit.Value);
+        feed.Items.ShouldNotContain(i =>
+            i.JobAdId == archivedMatch.Value || i.JobAdId == archivedHit.Value || i.JobAdId == ofUnfollowed.Value);
     }
 
     // The tokens are what "Markera alla som lästa" sends to the existing /seen endpoints, unchanged.

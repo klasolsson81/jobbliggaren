@@ -22,8 +22,8 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// </para>
 ///
 /// <para>
-/// <b>Window and horizon:</b> the list reads the newest <see cref="WindowHits"/> hits and filters them
-/// after reading, so an ad whose included hits all lie beyond the window can be missing. When the window
+/// <b>Window and horizon:</b> the list reads the newest <see cref="HitsPerRow"/> hits per shown row and
+/// filters them after reading, so an ad whose included hits all lie beyond the window can be missing. When the window
 /// is full, the hit just past it is the horizon, and the merge shows nothing at or before it.
 /// </para>
 /// </summary>
@@ -40,8 +40,8 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource
     /// </summary>
     internal const int MaxCountedHits = 10_000;
 
-    /// <summary>Hits read for the list: room for one hit per row three times over before collapsing.</summary>
-    internal const int WindowHits = 60;
+    /// <summary>Hits read for the list per row it can show, so collapsing and filtering still fill the panel.</summary>
+    internal const int HitsPerRow = 3;
 
     public NotificationFeedSourceKind Kind => NotificationFeedSourceKind.FollowedCompanyAd;
 
@@ -68,6 +68,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource
                 db, userId, scope, upperBound: through, maxGradeHits: maxCountedHits, cancellationToken)
             : NewFollowedCompanyAdSet.CountInput.Common(0);
 
+        var windowHits = context.MaxItems * HitsPerRow;
         List<WindowRow> window = [];
         DateTimeOffset? horizon = null;
         if ((token ?? scope.LastSeen) is { } listBound)
@@ -78,23 +79,23 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource
                     join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
                     orderby h.CreatedAt descending
                     select new WindowRow(h.JobAdId, h.CompanyWatchId, h.CreatedAt, j.Title, j.Company.Name))
-                .Take(WindowHits + 1)
+                .Take(windowHits + 1)
                 .ToListAsync(cancellationToken);
 
-            if (window.Count > WindowHits)
+            if (window.Count > windowHits)
             {
-                horizon = window[WindowHits].CreatedAt;
-                window.RemoveRange(WindowHits, window.Count - WindowHits);
+                horizon = window[windowHits].CreatedAt;
+                window.RemoveRange(windowHits, window.Count - windowHits);
             }
         }
 
-        var windowHits = window
+        var shownHits = window
             .Select(r => new NewFollowedCompanyAdSet.Hit(r.JobAdId, r.CompanyWatchId, r.CreatedAt))
             .ToList();
 
         // One grading call per request, over the counted and the displayed candidates together.
         var candidates = NewFollowedCompanyAdSet.GradeCandidates(countInput.GradeHits, scope.GradeWatchIds)
-            .Concat(NewFollowedCompanyAdSet.GradeCandidates(windowHits, scope.GradeWatchIds))
+            .Concat(NewFollowedCompanyAdSet.GradeCandidates(shownHits, scope.GradeWatchIds))
             .Distinct()
             .ToList();
         var resolution = await NewFollowedCompanyAdSet.ResolveMatchingAsync(
@@ -110,7 +111,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource
                 scope.GradeWatchIds,
                 resolution.Matching))
             .GroupBy(r => r.JobAdId)
-            .Select(g => g.MaxBy(r => r.CreatedAt)!)
+            .Select(g => g.OrderByDescending(r => r.CreatedAt).First())
             .Select(r => new NotificationFeedItemDto(
                 Kind,
                 r.JobAdId.Value,

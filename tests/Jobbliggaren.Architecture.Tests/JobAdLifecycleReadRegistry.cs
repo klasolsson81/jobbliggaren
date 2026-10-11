@@ -100,6 +100,11 @@ public sealed record RawSqlNonReach(string TypeFullName, string Method, string W
 /// unchanged), nor does it prove a site's declared decision matches its actual predicate.</item>
 /// <item><b>The control pins SITES, not the TRUTH of each reason.</b> The machine guarantees "no
 /// unclassified read exists"; the written reason is prose a reviewer reads.</item>
+/// <item><b>A read reached only inside an expression tree.</b> <c>db.JobAds</c> inside an expression lambda
+/// (a correlated <c>.Any()</c>, a <c>from j in db.JobAds</c> in a <c>SelectMany</c>) compiles to <c>ldtoken</c> and
+/// <c>Expression.Property</c>, not a <c>get_JobAds</c> call, so the scan does not see it. Measured 2026-10-11 (#1666):
+/// a throwaway <c>Expression&lt;Func&lt;IAppDbContext, bool&gt;&gt;</c> reading <c>db.JobAds.Any(...)</c> in Application
+/// left the registry test green. Write a <c>JobAds</c> read at statement level.</item>
 /// </list>
 /// </para>
 /// </remarks>

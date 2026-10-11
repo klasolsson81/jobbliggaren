@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyAdCount;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
@@ -212,7 +213,8 @@ public class FollowedCompanyAdFeedSourceTests
         var userId = Guid.NewGuid();
         _seed.Seeker(db, userId, backgroundMatchConsent: false);
         var plain = _seed.Watch(db, userId, onlyMatched: false);
-        var hits = FollowedCompanyAdFeedSource.WindowHits + 2;
+        var window = 20 * FollowedCompanyAdFeedSource.HitsPerRow;
+        var hits = window + 2;
         for (var i = 1; i <= hits; i++)
             _seed.Hit(db, userId, _seed.ActiveAd(db), plain, T0.AddMinutes(i));
 
@@ -220,12 +222,14 @@ public class FollowedCompanyAdFeedSourceTests
 
         // Newest first: the window holds minutes hits..3, so the first hit past it is minute 2.
         read.Horizon.ShouldBe(T0.AddMinutes(2));
-        read.Items.Count.ShouldBe(FollowedCompanyAdFeedSource.WindowHits);
+        read.Items.Count.ShouldBe(window);
         read.UnreadCount.ShouldBe(hits);
     }
 
     [Fact]
-    public async Task ReadAsync_SkipsAnArchivedAd_AndAnotherUsersHits()
+    // Every excluded row is OLDER than this user's token, so the token bound does not hide it from the
+    // list: only the list's own gates do (lifecycle, the active-watch join, the owner filter).
+    public async Task ReadAsync_SkipsAnArchivedAd_AnUnfollowedWatch_AndAnotherUsersHits()
     {
         using var db = TestAppDbContextFactory.Create();
         var me = Guid.NewGuid();
@@ -233,21 +237,48 @@ public class FollowedCompanyAdFeedSourceTests
         _seed.Seeker(db, me, backgroundMatchConsent: false);
         _seed.Seeker(db, other, backgroundMatchConsent: false);
         var mine = _seed.Watch(db, me, onlyMatched: false);
+        var unfollowed = _seed.Watch(db, me, onlyMatched: false);
         var theirs = _seed.Watch(db, other, onlyMatched: false);
+        var archived = _seed.ActiveAd(db);
+        var ofUnfollowed = _seed.ActiveAd(db);
+        var ofOther = _seed.ActiveAd(db);
         var live = _seed.ActiveAd(db);
         var secondLive = _seed.ActiveAd(db);
-        var archived = _seed.ActiveAd(db);
-        _seed.Hit(db, me, live, mine, T0.AddHours(1));
-        _seed.Hit(db, me, secondLive, mine, T0.AddHours(2));
-        _seed.Hit(db, me, archived, mine, T0.AddHours(3));
-        _seed.Hit(db, other, _seed.ActiveAd(db), theirs, T0.AddHours(4));
+        _seed.Hit(db, me, archived, mine, T0.AddHours(1));
+        _seed.Hit(db, me, ofUnfollowed, unfollowed, T0.AddHours(2));
+        _seed.Hit(db, other, ofOther, theirs, T0.AddHours(3));
+        _seed.Hit(db, me, live, mine, T0.AddHours(4));
+        _seed.Hit(db, me, secondLive, mine, T0.AddHours(5));
         _seed.Archive(db, archived);
+        _seed.Unfollow(db, unfollowed);
 
         var read = await ReadAsync(db, me);
 
         read.UnreadCount.ShouldBe(2);
-        read.AcknowledgedThrough.ShouldBe(T0.AddHours(2));
+        read.AcknowledgedThrough.ShouldBe(T0.AddHours(5));
         read.Items.Select(i => i.JobAdId).ShouldBe([secondLive.Value, live.Value]);
+    }
+
+    // The grade path's count is bounded by the token like the common path's, so a hit committed after
+    // the token is neither counted nor acknowledged (the number stays what "Markera alla" clears).
+    [Fact]
+    public async Task LoadCountInput_OnTheGradePath_ReadsOnlyHitsUpToTheToken()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var onlyMatched = _seed.Watch(db, userId, onlyMatched: true);
+        _seed.Hit(db, userId, _seed.ActiveAd(db), onlyMatched, T0.AddHours(1));
+        _seed.Hit(db, userId, _seed.ActiveAd(db), onlyMatched, T0.AddHours(2));
+        _seed.Hit(db, userId, _seed.ActiveAd(db), onlyMatched, T0.AddHours(3));
+        var ct = TestContext.Current.CancellationToken;
+        var scope = await NewFollowedCompanyAdSet.LoadScopeAsync(db, userId, ct);
+
+        var input = await NewFollowedCompanyAdSet.LoadCountInputAsync(
+            db, userId, scope!, upperBound: T0.AddHours(2), maxGradeHits: 10, ct);
+
+        input.Refused.ShouldBeFalse();
+        input.GradeHits.Select(h => h.CreatedAt).OrderBy(c => c).ShouldBe([T0.AddHours(1), T0.AddHours(2)]);
     }
 
     // The bell's number is Översikt's "nya annonser från bevakade företag", not a second definition.

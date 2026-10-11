@@ -137,6 +137,18 @@ public class JobAdPersonnummerRedactionTests
             "a personnummer is removed, never moved into contacts under a recruiter-phone label.");
     }
 
+    [Fact]
+    public void A_contiguous_phone_number_that_is_also_a_valid_personnummer_is_masked_not_promoted()
+    {
+        // The two are indistinguishable: 0701234569 is a valid date plus a passing check digit. The
+        // fail-safe direction is chosen on purpose — the number is removed and no contact is made.
+        var ad = Import(title: "Städare", description: "Ring 0701234569 för frågor.");
+
+        ad.Description.ShouldNotContain("0701234569");
+        ad.Description.Any(char.IsDigit).ShouldBeFalse();
+        (ad.Contacts is null || ad.Contacts.IsEmpty).ShouldBeTrue();
+    }
+
     [Theory]
     [InlineData("8112189876")]
     [InlineData("811218 9876")]

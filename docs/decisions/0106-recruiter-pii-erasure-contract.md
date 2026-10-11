@@ -1321,8 +1321,8 @@ trader's org.nr written into an ad's text is the holder's personnummer, and the 
 
 - **What changes.** `JobAd.ApplyContactRedaction` (D4's one placement) runs `PersonnummerRedactor` over `Title` and
   `Description` before the contact scrub: a personnummer born 2000-2009 starts with `0` and is phone-shaped, so run after it
-  would have been promoted into `contacts` instead of removed. It is the existing Luhn- and date-gated detector, so only a real personnummer or
-  samordningsnummer is touched; a match is replaced by its length-preserving mask (every digit `*`, separators kept), which
+  would have been promoted into `contacts` instead of removed. It is the existing Luhn- and date-gated detector, so only a number that is a valid
+  date with a passing check digit is touched (a contiguous phone number that satisfies both is masked, not promoted); a match is replaced by its length-preserving mask (every digit `*`, separators kept), which
   leaves the title clamp unaffected. It is not a contact: nothing is promoted into `contacts`.
 - **Same durability as Tier A.** `Import` and `UpdateFromSource` both reach it, so the nightly sync and the stream cannot
   restore it. `extracted_terms` and the stored `search_vector` derive from the masked text.

@@ -266,9 +266,11 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
             ad.Title.ShouldBe("Städare ******-****", $"pass {pass}");
             ad.Description.ShouldBe("Enskild firma ******-**** söker städare till kontor i Uppsala.", $"pass {pass}");
             // ADR 0106 D5 amendment 2026-10-11: raw_payload is deliberately NOT scrubbed for a
-            // personnummer (not a read surface, purged by retention). Any other column holding it
-            // is a new leak this line catches.
+            // personnummer (not a read surface, purged by retention). This sweep reads the whole
+            // dashed string in text/jsonb columns only; the derived tokens are checked below.
             (await ColumnsStillContainingAsync(db, PersonnummerInAd, ct)).ShouldBe(["raw_payload"], $"pass {pass}");
+            (await ColumnValueAsync(db, PersonnummerExternalId, "extracted_terms", ct) ?? string.Empty)
+                .ShouldNotContain("9876", customMessage: $"pass {pass}: extracted terms derive from the masked text.");
         }
     }
 

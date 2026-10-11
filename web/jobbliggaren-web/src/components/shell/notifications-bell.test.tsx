@@ -179,6 +179,10 @@ describe("NotificationsBell (#1666)", () => {
     ["unread rows", () => ok(feed({ sources: counts(5, 0) }))],
     ["read rows", () => ok(feed({ items: feed().items.map((i) => ({ ...i, isUnread: false })), sources: counts(0, 0) }))],
     ["a refused count beside rows", () => ok(feed({ sources: counts(1, null) }))],
+    [
+      "a refused count beside read rows only",
+      () => ok(feed({ items: feed().items.map((i) => ({ ...i, isUnread: false })), sources: counts(0, null) })),
+    ],
     ["a refused count without rows", () => ok({ items: [], sources: counts(0, null) })],
     ["unread counted but not listed", () => ok({ items: [], sources: counts(0, 3) })],
   ])("holds no link but the rows' own when %s", async (_state, answer) => {
@@ -189,6 +193,7 @@ describe("NotificationsBell (#1666)", () => {
     for (const link of within(dialog).queryAllByRole("link")) {
       expect(link.getAttribute("href")).toMatch(/^\/jobb\/[0-9a-f-]{36}$/);
     }
+    expect(within(dialog).queryAllByRole("link")).toHaveLength(within(dialog).queryAllByRole("listitem").length);
     expect(dialog.querySelector(".jp-notif__foot")).toBeNull();
     expect(dialog.querySelector(".jp-notif__footlink")).toBeNull();
   });
@@ -431,6 +436,7 @@ describe("NotificationsBell (#1666)", () => {
     const dialog = open();
     expect(within(dialog).getByText("3 olästa")).toBeInTheDocument();
     expect(within(dialog).getByText("3 olästa visas inte i listan.")).toBeInTheDocument();
+    expect(within(dialog).getByText("3 olästa visas inte i listan.").closest(".jp-notif__message")).not.toBeNull();
     expect(within(dialog).queryByText("Du har inga notiser.")).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Markera alla som lästa" })).toBeInTheDocument();
     expect(within(dialog).queryAllByRole("link")).toHaveLength(0);
@@ -445,6 +451,8 @@ describe("NotificationsBell (#1666)", () => {
     expect(within(dialog).getByRole("list").compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
     expect(note.closest("a")).toBeNull();
+    expect(note.closest(".jp-notif__body")).not.toBeNull();
+    expect(note.closest("ul")).toBeNull();
     expect(note).not.toHaveAttribute("role");
     fireEvent.click(bell());
 
@@ -461,9 +469,9 @@ describe("NotificationsBell (#1666)", () => {
     expect(within(open()).queryByText(/visas inte i listan/)).toBeNull();
   });
 
-  // ADR 0120 clause 3: a refused count has no number, so no line carries one. Beside rows there is no
-  // line at all; without rows a number-less line stands alone, never "Du har inga notiser." under an empty pill.
-  it("shows a number-less line for a refused count without rows, and none beside rows", async () => {
+  // ADR 0120 clause 3: a refused count has no number, so no line carries one. Without rows a number-less
+  // line stands alone, never "Du har inga notiser." under an empty pill.
+  it("shows a number-less line for a refused count without rows, and none beside an unread row", async () => {
     fetchMock.mockReturnValueOnce(ok(feed({ sources: counts(1, null) })));
     await renderBell();
     let dialog = open();
@@ -476,6 +484,25 @@ describe("NotificationsBell (#1666)", () => {
     expect(within(dialog).getByText("Olästa notiser visas inte i listan.")).toBeInTheDocument();
     expect(within(dialog).queryByText("Du har inga notiser.")).toBeNull();
     expect(document.querySelector(".jp-notif-badge")).toHaveClass("jp-notif-badge--unknown");
+  });
+
+  // With read rows only, the empty pill is the panel's only sign that unread notifications exist (ADR 0120).
+  it("puts the number-less line after the rows when a refused count leaves only read rows in the list", async () => {
+    fetchMock.mockReturnValue(
+      ok(feed({ items: feed().items.map((i) => ({ ...i, isUnread: false })), sources: counts(0, null) })),
+    );
+    await renderBell();
+
+    expect(document.querySelector(".jp-notif-badge")).toHaveClass("jp-notif-badge--unknown");
+    const dialog = open();
+    const note = within(dialog).getByText("Olästa notiser visas inte i listan.");
+    expect(within(dialog).getByRole("list").compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(note.closest(".jp-notif__body")).not.toBeNull();
+    expect(note.closest("ul")).toBeNull();
+    expect(note.closest("a")).toBeNull();
+    expect(within(dialog).queryByText("Du har inga notiser.")).toBeNull();
+    expect(within(dialog).getAllByRole("listitem")).toHaveLength(2);
   });
 
   it("shows no count line when there has never been a notification", async () => {

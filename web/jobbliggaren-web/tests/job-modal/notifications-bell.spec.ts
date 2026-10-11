@@ -102,7 +102,7 @@ test("Markera alla som lästa sends each token unchanged to its own seen endpoin
   await expect(page.getByRole("button", { name: "Notiser" })).toBeVisible();
 });
 
-// The sheet at phone width: inside the window, nothing scrolls sideways, and only the list scrolls.
+// The sheet at phone width: inside the window, nothing scrolls sideways.
 test("the panel fits a 375 px screen and the page does not scroll sideways", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/sparade");

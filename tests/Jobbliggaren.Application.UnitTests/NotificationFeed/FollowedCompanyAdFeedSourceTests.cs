@@ -228,7 +228,7 @@ public class FollowedCompanyAdFeedSourceTests
 
     // #2130 (architect finding 2): the window is the newest hits, and an "endast matchade" watch's
     // excluded hits can fill it, so ads the count included were never listed. The grade path lists them
-    // from the counted hits, which are already graded, so the badge never counts rows the panel cannot show.
+    // from the counted hits, which are already graded.
     [Fact]
     public async Task ReadAsync_OnTheGradePath_WhenTheWindowsNewestHitsAreAllExcluded_StillListsTheNewestIncludedUnreadAds()
     {

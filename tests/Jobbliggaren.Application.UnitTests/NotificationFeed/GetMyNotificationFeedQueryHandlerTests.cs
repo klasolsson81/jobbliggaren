@@ -13,7 +13,7 @@ namespace Jobbliggaren.Application.UnitTests.NotificationFeed;
 
 /// <summary>
 /// #1666 — the bell's handler: no user gives an empty feed, every source answers once, and the merge
-/// keeps one row per (source, ad), newest first, cut at the newest horizon and capped.
+/// keeps one row per (source, ad), newest first, capped.
 /// </summary>
 public class GetMyNotificationFeedQueryHandlerTests
 {
@@ -119,14 +119,13 @@ public class GetMyNotificationFeedQueryHandlerTests
         var match = Read(NotificationFeedSourceKind.Match, 0, null,
             Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(5), unread: false),
             Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(1), unread: false));
-        var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 70, horizon: T0.AddHours(2),
+        var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 0, horizon: T0.AddHours(2),
             Item(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid(), T0.AddHours(3), unread: false),
             Item(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid(), T0.AddHours(2), unread: false));
 
         var feed = GetMyNotificationFeedQueryHandler.Merge([match, followed], maxItems: 20);
 
         feed.Items.Select(i => i.OccurredAt).ShouldBe([T0.AddHours(5), T0.AddHours(3)]);
-        feed.Sources.Single(s => s.Kind == NotificationFeedSourceKind.FollowedCompanyAd).UnreadCount.ShouldBe(70);
     }
 
     [Fact]
@@ -135,7 +134,7 @@ public class GetMyNotificationFeedQueryHandlerTests
         var match = Read(NotificationFeedSourceKind.Match, 2, null,
             Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(5)),
             Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(1)));
-        var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 70, horizon: T0.AddHours(2),
+        var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 2, horizon: T0.AddHours(2),
             Item(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid(), T0.AddHours(3)),
             Item(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid(), T0.AddHours(2)));
 
@@ -151,7 +150,7 @@ public class GetMyNotificationFeedQueryHandlerTests
     [Fact]
     public void Merge_TakesUnreadFirst_SoTwentyNewerReadMatchesNeverHideThreeOlderUnreadFollowRows()
     {
-        var readMatches = Enumerable.Range(1, 25)
+        var readMatches = Enumerable.Range(1, 20)
             .Select(i => Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(10).AddMinutes(i), unread: false))
             .ToArray();
         var unreadFollows = Enumerable.Range(1, 3)
@@ -172,20 +171,22 @@ public class GetMyNotificationFeedQueryHandlerTests
     public void Merge_WithMoreUnreadThanTheCap_ShowsTheNewestUnreadAndNoReadRow()
     {
         var unread = Enumerable.Range(1, 25)
-            .Select(i => Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddMinutes(i)))
+            .Select(i => Item(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid(), T0.AddMinutes(i)))
             .ToArray();
         var read = Enumerable.Range(1, 5)
             .Select(i => Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(5).AddMinutes(i), unread: false))
             .ToArray();
-        var match = Read(NotificationFeedSourceKind.Match, 25, null, [.. unread, .. read]);
 
-        var feed = GetMyNotificationFeedQueryHandler.Merge([match], maxItems: 20);
+        var feed = GetMyNotificationFeedQueryHandler.Merge(
+            [Read(NotificationFeedSourceKind.Match, 0, null, read),
+             Read(NotificationFeedSourceKind.FollowedCompanyAd, 25, null, unread)],
+            maxItems: 20);
 
         feed.Items.Count.ShouldBe(20);
         feed.Items.ShouldAllBe(i => i.IsUnread);
         feed.Items.Select(i => i.OccurredAt).ShouldBe(
             unread.OrderByDescending(i => i.OccurredAt).Take(20).Select(i => i.OccurredAt));
-        feed.Sources.ShouldHaveSingleItem().UnreadCount.ShouldBe(25);
+        feed.Sources.Single(s => s.Kind == NotificationFeedSourceKind.FollowedCompanyAd).UnreadCount.ShouldBe(25);
     }
 
     [Fact]
@@ -194,7 +195,7 @@ public class GetMyNotificationFeedQueryHandlerTests
         var unread = Enumerable.Range(1, 3)
             .Select(i => Item(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid(), T0.AddHours(1).AddMinutes(i)))
             .ToArray();
-        var read = Enumerable.Range(1, 30)
+        var read = Enumerable.Range(1, 20)
             .Select(i => Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(10).AddMinutes(i), unread: false))
             .ToArray();
 
@@ -215,8 +216,8 @@ public class GetMyNotificationFeedQueryHandlerTests
         var low = new Guid("00000000-0000-0000-0000-000000000001");
         var high = new Guid("00000000-0000-0000-0000-000000000002");
         var at = T0.AddHours(1);
-        var match = Read(NotificationFeedSourceKind.Match, 1, null,
-            Item(NotificationFeedSourceKind.Match, high, at),
+        var match = Read(NotificationFeedSourceKind.Match, 0, null,
+            Item(NotificationFeedSourceKind.Match, high, at, unread: false),
             Item(NotificationFeedSourceKind.Match, low, at, unread: false),
             Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), at.AddHours(1), unread: false));
         var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 1, null,
@@ -228,7 +229,7 @@ public class GetMyNotificationFeedQueryHandlerTests
         [
             (NotificationFeedSourceKind.Match, false),
             (NotificationFeedSourceKind.Match, false),
-            (NotificationFeedSourceKind.Match, true),
+            (NotificationFeedSourceKind.Match, false),
             (NotificationFeedSourceKind.FollowedCompanyAd, true),
         ]);
         feed.Items.Skip(1).Select(i => i.JobAdId).ShouldBe([low, high, low]);
@@ -239,7 +240,7 @@ public class GetMyNotificationFeedQueryHandlerTests
     [Fact]
     public void Merge_InTheRefusedState_StillPrefersUnreadRows()
     {
-        var readMatches = Enumerable.Range(1, 25)
+        var readMatches = Enumerable.Range(1, 20)
             .Select(i => Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), T0.AddHours(10).AddMinutes(i), unread: false))
             .ToArray();
         var unreadFollows = Enumerable.Range(1, 2)

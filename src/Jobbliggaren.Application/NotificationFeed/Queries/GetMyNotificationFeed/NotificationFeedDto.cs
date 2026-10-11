@@ -3,9 +3,8 @@ using Jobbliggaren.Domain.Matching;
 namespace Jobbliggaren.Application.NotificationFeed.Queries.GetMyNotificationFeed;
 
 /// <summary>
-/// The bell's payload (#1666). <see cref="Items"/> is a capped window, newest first, read and unread
-/// alike. <see cref="Sources"/> carries one entry per source; the client's unread total is their sum,
-/// and it renders no number at all when any entry's count is <c>null</c> (ADR 0120).
+/// The bell's payload (#1666). <see cref="Sources"/> carries one entry per source; the client's unread
+/// total is their sum, and it renders no number at all when any entry's count is <c>null</c> (ADR 0120).
 /// </summary>
 public sealed record NotificationFeedDto(
     IReadOnlyList<NotificationFeedItemDto> Items,

@@ -30,8 +30,7 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// <para>
 /// <b>Unread ads beyond the window (#2130):</b> on the grade path an "endast matchade" watch's excluded
 /// hits can fill the window while older included ads are still unread and counted. The source then lists
-/// the newest of those from the counted hits, which are already graded, so the number never counts rows
-/// the panel cannot show. The common path needs no such step: every hit is included there.
+/// the newest of those from the counted hits, which are already graded.
 /// </para>
 /// </summary>
 internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource
@@ -133,14 +132,14 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource
         // graded every one of them, so the newest included unread ads the window never reached can be named
         // without a second grading call. Their display columns come from one more read of the same hits-to-ads
         // join the window uses, bounded by time; no id list goes to the database (Contains over the strongly
-        // typed id is a known translation trap). The common path needs none of this: every hit is included.
+        // typed id is a known translation trap).
         if (countInput.Exact is null && unreadCount is { } counted && token is { } upTo)
         {
-            var shownUnread = items.Where(i => i.IsUnread).Select(i => i.JobAdId).ToHashSet();
-            if (shownUnread.Count < Math.Min(counted, context.MaxItems))
+            if (items.Count(i => i.IsUnread) < Math.Min(counted, context.MaxItems))
             {
+                var shown = items.Select(i => i.JobAdId).ToHashSet();
                 var missing = NewestIncludedUnreadAds(countInput, scope.GradeWatchIds, resolution.Matching, context.MaxItems)
-                    .Where(x => !shownUnread.Contains(x.AdId.Value))
+                    .Where(x => !shown.Contains(x.AdId.Value))
                     .ToList();
                 if (missing.Count > 0)
                 {
@@ -151,6 +150,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource
                             join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
                             orderby h.CreatedAt descending
                             select new WindowRow(h.JobAdId, h.CompanyWatchId, h.CreatedAt, j.Title, j.Company.Name))
+                        .Take(countInput.GradeHits.Count)
                         .ToListAsync(cancellationToken);
                     var display = rows.GroupBy(r => r.JobAdId).ToDictionary(g => g.Key, g => g.First());
 

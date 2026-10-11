@@ -179,27 +179,22 @@ function PanelBody({
 
   const { items } = state.feed;
   const total = unreadTotal(state.feed);
-  // Unread notifications the list does not carry: more than the cap, or a row committed between the
-  // reads. The number is exact or absent (ADR 0120), so a refused count (null) has none. The line is a
-  // statement, never a link: the panel holds notifications and nothing else.
-  const notInList = typeof total === "number" ? total - items.filter((item) => item.isUnread).length : null;
+  // Unread notifications the list does not carry. The number is exact or absent (ADR 0120), so a refused
+  // count (null) has none. The line is a statement, never a link: the panel holds notifications and nothing else.
+  const unreadShown = items.filter((item) => item.isUnread).length;
+  const notInList = typeof total === "number" ? total - unreadShown : null;
+  const note =
+    notInList !== null && notInList > 0
+      ? t("notInList", { count: notInList })
+      : total === null && unreadShown === 0
+        ? t("notInListUnknown")
+        : null;
 
   if (items.length === 0) {
     // A refused count means unread notifications exist, so "Du har inga notiser." would contradict the empty pill.
-    if (total === null) {
-      return (
-        <div className="jp-notif__body jp-notif__message">
-          <p>{t("notInListUnknown")}</p>
-        </div>
-      );
-    }
-    return notInList !== null && notInList > 0 ? (
-      <div className="jp-notif__body">
-        <p className="jp-notif__notinlist">{t("notInList", { count: notInList })}</p>
-      </div>
-    ) : (
+    return (
       <div className="jp-notif__body jp-notif__message">
-        <p>{t("empty")}</p>
+        <p>{note ?? t("empty")}</p>
       </div>
     );
   }
@@ -217,9 +212,7 @@ function PanelBody({
           />
         ))}
       </ul>
-      {notInList !== null && notInList > 0 && (
-        <p className="jp-notif__notinlist">{t("notInList", { count: notInList })}</p>
-      )}
+      {note !== null && <p className="jp-notif__notinlist">{note}</p>}
     </div>
   );
 }

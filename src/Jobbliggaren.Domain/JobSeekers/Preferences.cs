@@ -4,7 +4,8 @@ namespace Jobbliggaren.Domain.JobSeekers;
 /// The job-seeker's locale + notification preferences. Stored as jsonb on
 /// <c>job_seekers.preferences</c>; the Vag 4 fields are ADDITIVE — a row written before
 /// ADR 0080 deserializes the missing keys to their safe defaults (background-match
-/// notifications OFF), so no migration is needed for the consent fields.
+/// notifications OFF), so no data migration is needed for them. A new field still moves the
+/// model snapshot, so it takes a zero-DDL migration.
 /// <para>
 /// <b>ADR 0080 Vag 4 — consent (opt-in default OFF, GDPR Art. 6/7):</b>
 /// <see cref="BackgroundMatchNotificationsEnabled"/> defaults <c>false</c> — background-match
@@ -24,7 +25,17 @@ namespace Jobbliggaren.Domain.JobSeekers;
 /// violation (ADR 0087 D5). The digest CADENCE is deliberately SHARED (<see cref="DigestCadence"/>,
 /// ADR 0087 D2) — cadence is one delivery-rhythm preference, not per-source. Mutated only via
 /// <see cref="JobSeeker.UpdateFollowedCompanyNotificationConsent"/>. Additive jsonb — a pre-PR-4 row
-/// deserializes the missing keys to OFF (no migration; the back-compat test covers it).
+/// deserializes the missing keys to OFF (no data migration; the back-compat test covers it).
+/// </para>
+/// <para>
+/// <b>ADR 0163 (#2107) — the e-mail pauses.</b> <see cref="NotificationMailOffAt"/> pauses every
+/// notification mail; <see cref="TopMatchMailOffAt"/> and <see cref="MatchSummaryMailOffAt"/> pause one
+/// mail type each. They are delivery choices inside the consents above, never a consent or a withdrawal:
+/// a pause leaves both consents, the matching and the in-app surfaces untouched. Each is a stamp whose
+/// <c>null</c> means "not paused", because <c>null</c> is the one value that a missing jsonb key, the CLR
+/// default, this record's default and SQL all read alike — a <c>bool</c> defaulting to on would read as
+/// off on every row written before these keys existed. Mutated only via <see cref="JobSeeker.SetNotificationMail"/>,
+/// <see cref="JobSeeker.SetTopMatchMail"/> and <see cref="JobSeeker.SetMatchSummaryMail"/>.
 /// </para>
 /// <para>
 /// TD-115 (2026-06-25): the legacy <c>EmailNotifications</c> (opt-OUT default, Art.
@@ -44,4 +55,7 @@ public sealed record Preferences(
     DateTimeOffset? NotificationConsentWithdrawnAt = null,
     bool FollowedCompanyNotificationsEnabled = false,
     DateTimeOffset? FollowedCompanyNotificationConsentAt = null,
-    DateTimeOffset? FollowedCompanyNotificationConsentWithdrawnAt = null);
+    DateTimeOffset? FollowedCompanyNotificationConsentWithdrawnAt = null,
+    DateTimeOffset? NotificationMailOffAt = null,
+    DateTimeOffset? TopMatchMailOffAt = null,
+    DateTimeOffset? MatchSummaryMailOffAt = null);

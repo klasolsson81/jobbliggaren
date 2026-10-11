@@ -173,6 +173,51 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     }
 
     /// <summary>
+    /// ADR 0163 (#2107) — turns every notification mail on or off. Off is a pause: it stamps
+    /// <see cref="Preferences.NotificationMailOffAt"/> once and keeps the first stamp while it stays off; on
+    /// clears it. It never writes a consent, a mail type or the cadence (GDPR Art. 7(3): a pause is not a
+    /// withdrawal), and it is not refused while the consents are off. The same state is a no-op.
+    /// </summary>
+    public void SetNotificationMail(bool on, IDateTimeProvider clock)
+    {
+        var offAt = Pause(Preferences.NotificationMailOffAt, on, clock);
+        if (offAt == Preferences.NotificationMailOffAt)
+            return;
+        Preferences = Preferences with { NotificationMailOffAt = offAt };
+        UpdatedAt = clock.UtcNow;
+    }
+
+    /// <summary>
+    /// ADR 0163 (#2107) — turns the Toppmatch mail on or off, with <see cref="SetNotificationMail"/>'s
+    /// semantics, on <see cref="Preferences.TopMatchMailOffAt"/> only.
+    /// </summary>
+    public void SetTopMatchMail(bool on, IDateTimeProvider clock)
+    {
+        var offAt = Pause(Preferences.TopMatchMailOffAt, on, clock);
+        if (offAt == Preferences.TopMatchMailOffAt)
+            return;
+        Preferences = Preferences with { TopMatchMailOffAt = offAt };
+        UpdatedAt = clock.UtcNow;
+    }
+
+    /// <summary>
+    /// ADR 0163 (#2107) — turns the summary mail on or off, with <see cref="SetNotificationMail"/>'s
+    /// semantics, on <see cref="Preferences.MatchSummaryMailOffAt"/> only.
+    /// </summary>
+    public void SetMatchSummaryMail(bool on, IDateTimeProvider clock)
+    {
+        var offAt = Pause(Preferences.MatchSummaryMailOffAt, on, clock);
+        if (offAt == Preferences.MatchSummaryMailOffAt)
+            return;
+        Preferences = Preferences with { MatchSummaryMailOffAt = offAt };
+        UpdatedAt = clock.UtcNow;
+    }
+
+    // On clears the stamp; off keeps the first stamp, or takes one now.
+    private static DateTimeOffset? Pause(DateTimeOffset? offAt, bool on, IDateTimeProvider clock) =>
+        on ? null : offAt ?? clock.UtcNow;
+
+    /// <summary>
     /// ADR 0087 D5 (#311 PR-4) — sets the SEPARATE company-follow notification consent (opt-in,
     /// GDPR Art. 6/7). A DISTINCT processing purpose from background-match notifications, so it
     /// stamps its OWN Art. 7(1)/7(3) evidence pair independently: enabling stamps
@@ -181,13 +226,6 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     /// <see cref="Preferences.FollowedCompanyNotificationConsentWithdrawnAt"/> (Art. 7(3) revocation).
     /// The digest CADENCE is shared with background-match notifications (ADR 0087
     /// D2) — this method deliberately does NOT touch <see cref="Preferences.DigestCadence"/>.
-    /// <para>
-    /// <b>Write API deferred (ADR 0087 D5, senior-cto-advisor 2026-07-01):</b> PR-4 ships this domain
-    /// method + persistence so the scan/dispatch can READ the flag; the Application command + Api
-    /// endpoint to TOGGLE it lands with the #408-blocked FE PR (mirrors PR-2b's endpoint deferral),
-    /// where the mandatory security-auditor consent gate has a real surface. Default OFF ⇒ a
-    /// not-yet-settable flag is inert (nobody silently opted in), not dishonest.
-    /// </para>
     /// </summary>
     public void UpdateFollowedCompanyNotificationConsent(bool enabled, IDateTimeProvider clock)
     {

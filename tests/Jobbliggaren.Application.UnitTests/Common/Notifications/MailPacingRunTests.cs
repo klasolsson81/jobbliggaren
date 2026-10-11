@@ -4,9 +4,8 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Common.Notifications;
 
 /// <summary>
-/// The run's own contract. The gapped rule here is the rule type's input domain, which the next sender
-/// on this rule (#1665) constructs; the only rule a sender constructs today is
-/// <see cref="MailPacingRule.TopMatch"/>, pinned in <see cref="MailPacingRuleTests"/>.
+/// The run's own contract. The gapped rule here is the rule type's input domain; the only rule a sender
+/// constructs today is <see cref="MailPacingRule.TopMatch"/>, pinned in <see cref="MailPacingRuleTests"/>.
 /// </summary>
 public class MailPacingRunTests
 {

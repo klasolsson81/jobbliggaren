@@ -32,6 +32,13 @@ public class TopMatchMailBoundTests
     }
 
     [Fact]
+    public void TopMatchMailBound_IsFifteenMinutes()
+    {
+        BackgroundMatchingJob.TopMatchMailBound.ShouldBe(TimeSpan.FromMinutes(15),
+            "the product promise, ADR 0161 D10");
+    }
+
+    [Fact]
     public void Cron_LargestGapPlusTheBudgetsAndTheSchedulingSlack_IsWithinTheTopMatchMailBound()
     {
         var largestGap = CronMinuteField.Gaps(BackgroundMatchingWorker.Cron).Max();

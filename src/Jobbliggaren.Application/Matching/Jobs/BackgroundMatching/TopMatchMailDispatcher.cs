@@ -14,7 +14,7 @@ namespace Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 /// <summary>
 /// The send phase of <see cref="BackgroundMatchingJob"/> (ADR 0161, #2106): the only sender of a
 /// Toppmatch mail. The committed Pending Top rows are its queue. Each run it mails every due recipient
-/// once, bundling all of that recipient's due rows, oldest recipient first, as far as the
+/// once, bundling that recipient's due rows, oldest recipient first, as far as the
 /// <see cref="MailPacingRule"/> it is given admits. A refused or unreached row stays Pending for the next
 /// run. Nothing here waits.
 /// <para>
@@ -154,7 +154,13 @@ public sealed partial class TopMatchMailDispatcher(
         IReadOnlyList<DueRow> rows,
         CancellationToken ct)
     {
-        var claimed = rows.Where(row => row.Match.MarkQueued().IsSuccess).ToList();
+        var claimed = new List<DueRow>();
+        foreach (var row in rows)
+        {
+            if (row.Match.MarkQueued().IsSuccess)
+                claimed.Add(row);
+        }
+
         if (claimed.Count == 0)
             return false;
         await db.SaveChangesAsync(ct);

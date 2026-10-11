@@ -39,7 +39,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <c>ChangeEmailCommandHandler</c> reported a completed action that could not occur.
 /// </para>
 /// <para>
-/// <b>VALID for</b> the three notification call sites (<c>BackgroundMatchingJob</c>,
+/// <b>VALID for</b> the three notification call sites (<c>TopMatchMailDispatcher</c>,
 /// <c>DigestDispatchJob</c> ×2).
 /// </para>
 /// <para>
@@ -70,7 +70,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// </para>
 /// <para>
 /// <b>One consequence for the notification callers, stated rather than left to be discovered.</b>
-/// All three call <c>MarkSent(clock)</c> after this sender returns — <c>BackgroundMatchingJob</c>,
+/// All three call <c>MarkSent(clock)</c> after this sender returns — <c>TopMatchMailDispatcher</c>,
 /// and <c>DigestDispatchJob</c> on both its match and its followed-company path — so
 /// the claim-then-send spine records rows as <c>Sent</c> for mail that was never sent. That is
 /// deliberate and defensible — the port call did succeed, and the state machine tracks DISPATCH,

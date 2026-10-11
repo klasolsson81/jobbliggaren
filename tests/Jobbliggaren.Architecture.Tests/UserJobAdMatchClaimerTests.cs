@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 using Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 using Jobbliggaren.Domain.Matching;
+using Jobbliggaren.Worker.Hosting;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Shouldly;
@@ -22,14 +23,14 @@ public sealed class UserJobAdMatchClaimerTests
         typeof(TopMatchMailDispatcher).Assembly.Location,
         typeof(Jobbliggaren.Infrastructure.Persistence.AppDbContext).Assembly.Location,
         typeof(Jobbliggaren.Api.Endpoints.AuthProblem).Assembly.Location,
-        typeof(Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker).Assembly.Location,
+        typeof(BackgroundMatchingWorker).Assembly.Location,
         typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly.Location,
     ];
 
     [Fact]
     public void MarkQueued_IsCalledOnlyByTheToppmatchDispatcherAndTheStrongDigest()
     {
-        var claimers = MethodsCallingMarkQueued();
+        var claimers = ReferencesTo(typeof(UserJobAdMatch), nameof(UserJobAdMatch.MarkQueued));
 
         claimers.ShouldContain($"{typeof(TopMatchMailDispatcher).FullName}.SendToRecipientAsync",
             "the sweep must see the claimer it guards");
@@ -45,23 +46,40 @@ public sealed class UserJobAdMatchClaimerTests
             + "conditional update (ADR 0161 D8). Claimers found: " + string.Join(", ", claimers));
     }
 
-    private static List<string> MethodsCallingMarkQueued()
+    [Fact]
+    public void TheToppmatchDispatcher_IsReachedOnlyThroughTheLockedWorkerRun()
     {
-        var matchType = typeof(UserJobAdMatch).FullName;
-        var claimers = new SortedSet<string>(StringComparer.Ordinal);
+        var dispatchCallers = ReferencesTo(typeof(TopMatchMailDispatcher), nameof(TopMatchMailDispatcher.DispatchAsync));
+        var runCallers = ReferencesTo(typeof(BackgroundMatchingJob), nameof(BackgroundMatchingJob.RunAsync));
+
+        dispatchCallers.ShouldBe([$"{typeof(BackgroundMatchingJob).FullName}.RunAsync"],
+            "the dispatcher claims Top rows and runs only under BackgroundMatchingWorker's lock (ADR 0161 D8). "
+            + "Callers found: " + string.Join(", ", dispatchCallers));
+        runCallers.ShouldBe([$"{typeof(BackgroundMatchingWorker).FullName}.RunAsync"],
+            "the job runs the dispatcher and runs only under BackgroundMatchingWorker's lock (ADR 0161 D8). "
+            + "Callers found: " + string.Join(", ", runCallers));
+    }
+
+    private static List<string> ReferencesTo(Type declaringType, string methodName)
+    {
+        var declaringTypeName = declaringType.FullName;
+        var referrers = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var path in ProductionAssemblyPaths)
         {
             using var assembly = AssemblyDefinition.ReadAssembly(path);
             foreach (var method in assembly.Modules.SelectMany(module => module.GetTypes()).SelectMany(type => type.Methods))
             {
                 if (method.HasBody && method.Body.Instructions.Any(instruction =>
-                        (instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt)
-                        && instruction.Operand is MethodReference { Name: nameof(UserJobAdMatch.MarkQueued) } callee
-                        && string.Equals(callee.DeclaringType.FullName, matchType, StringComparison.Ordinal)))
-                    claimers.Add(JobAdLifecycleReadRegistryTests.LogicalOwnerKey(method));
+                        (instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt
+                         || instruction.OpCode == OpCodes.Ldftn || instruction.OpCode == OpCodes.Ldvirtftn
+                         || instruction.OpCode == OpCodes.Ldtoken)
+                        && instruction.Operand is MethodReference callee
+                        && string.Equals(callee.Name, methodName, StringComparison.Ordinal)
+                        && string.Equals(callee.DeclaringType.FullName, declaringTypeName, StringComparison.Ordinal)))
+                    referrers.Add(JobAdLifecycleReadRegistryTests.LogicalOwnerKey(method));
             }
         }
 
-        return [.. claimers];
+        return [.. referrers];
     }
 }

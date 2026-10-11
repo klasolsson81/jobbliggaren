@@ -97,6 +97,9 @@ transaction and committing in a later one, or the measured maximum approaches 12
   62.3 ms, 11 725 rows. With a ten-minute window it is a Parallel Seq Scan, 42.3 ms, 0 rows. A steady-state tick reads minutes, not
   days, 288 times a day. **No index now.**
 - **Lapse trigger:** the candidate read takes over 500 ms, and an index PR follows under #1666's migration token.
+- **The send phase's due read** (D5) also runs once per run. Measured the same day: `user_job_ad_matches` held no rows, and the
+  plan was a Seq Scan, 0.06 ms; no index leads with grade or status. **Lapse trigger:** the due read takes over 500 ms, and a
+  partial index on `created_at` where `grade = 'Top' AND notification_status = 'Pending'` follows under a migration token.
 
 ### D4 — One pacing rule for every notification sender
 
@@ -144,7 +147,7 @@ due rows oldest first.
   a provider outage costs one recipient's rows per run. `SendBudget` is one minute.
 - **Bundling.** A mail lists at most `MaxItemsPerMail` = 20 matches, a constant on the dispatcher and not a shared option; the rest
   go in the next run's mail. One match gives today's mail with the `/jobb/{id}` link (#2094). More than one gives the plural subject
-  "Nya toppmatchningar på Jobbliggaren" and the lead "N nya toppmatchningar:", and links to `/matchningar`. This changes the Direct
+  "Nya toppmatchningar på Jobbliggaren", and links to `/matchningar`. This changes the Direct
   branch of `EmailTemplates.cs` and its tests; `design-reviewer` grades the copy.
 
 ### D6 — Due, and the age bound
@@ -185,7 +188,7 @@ cannot change after `Create` (pinned by `DigestDispatchJobTests.RunAsync_OnlyStr
 **Lapse trigger** (also in the dispatcher's docblock): a second claimer of Top rows shares the lock, or claims with a conditional
 update (`ExecuteUpdate … WHERE status = 'Pending'`), which bypasses the aggregate and is its own decision.
 
-**Pins:** two interleaved ticks give one mail per (user, ad); a deferral is bundled in the next tick and an empty tick follows; an
+**Pins:** two consecutive ticks give one mail per (user, ad); a deferral is bundled in the next tick and an empty tick follows; an
 ad in the settle overlap is scored again without a new row or mail; a claim committed and a send that throws leaves the row Queued.
 A Mono.Cecil test fixes the set of methods that call `UserJobAdMatch.MarkQueued` to the dispatcher's claim method and
 `DigestDispatchJob.DispatchUserDigestAsync`, mapping async state machines back to their declaring method. A reflection pin keeps
@@ -204,8 +207,8 @@ the sweep's result in the PR body.
 
 T is `JobAd.CreatedAt`. The declared bound is 15 minutes (`BackgroundMatchingJob.TopMatchMailBound`). It covers the five-minute
 interval, `ScanBudget` (three minutes), `SendBudget` (one minute) and Hangfire's scheduling slack; the architect's estimate of the
-expected latency is about ten minutes. **It holds only while** a Hangfire worker is free, no lock row is stale (D7), the per-run cap
-admits the mail (D4), and Scaleway accepts it. It does not cover a cold-start user (D3).
+expected latency is about ten minutes. **It holds only while** a Hangfire worker is free, no lock row is stale (D7), the run that
+first reads the ad reaches the user in both phases (no budget, cap or earlier send failure cuts it), and Scaleway accepts it. It does not cover a cold-start user (D3).
 
 Three pins: (1) arithmetic, in its own test file because #2105 changes the registrar parity test: the interval computed from the
 cron constant's minute field (Cronos is not referenced, and the field's form is pinned), plus the budgets and a slack, is at most 15 minutes; (2) behaviour: `JobAd.Import` with the clock at T,
@@ -283,11 +286,14 @@ scan reads only the seven-day window.
   wait (D7) bound it.
 - The settle window is a measured assumption about every ingest path, and it lapses with the trigger in D2.
 - Cold-start users wait behind steady-state users when the scan budget is spent (D3).
+- **A user whose scan fails every time** keeps the watermark, is scanned again every tick over a window that grows to seven days,
+  and logs a Warning each time; the scan budget protects the other users only while that scan stays under three minutes. Moving a
+  failing user last needs state between runs and is its own decision.
 - The bound in D10 is conditional on four things the code does not control alone.
 - The 10 000-a-month provider quota is shared with the sign-in codes; the first lapse trigger in D4 watches it.
 
-**Lapse triggers.** D2, D3, D4 and D8 each end in a lapse trigger. Their one home is this ADR. The reader of D4's two is Klas. The
-others are carried in the docblock of the code they guard (`BackgroundMatchingJob`, `TopMatchMailDispatcher`).
+**Lapse triggers.** D2, D3, D4 and D8 each end in a lapse trigger. Their one home is this ADR. The reader of D4's two is Klas. D2's
+and D8's are carried in the docblock of the code they guard (`BackgroundMatchingJob`, `TopMatchMailDispatcher`).
 
 ## Implementation
 

@@ -11,7 +11,7 @@ namespace Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper;
 /// TD-114 (ADR 0080 Vag 4) — scheduled reaper for stranded notification rows on BOTH rails: skill
 /// <see cref="UserJobAdMatch"/> rows AND (#453 audit #26) company-follow
 /// <see cref="Domain.CompanyWatches.FollowedCompanyAdHit"/> rows. The Top-direct
-/// (<c>BackgroundMatchingJob</c>), match-digest and follow-digest (<c>DigestDispatchJob</c>) dispatch
+/// (<c>TopMatchMailDispatcher</c>), match-digest and follow-digest (<c>DigestDispatchJob</c>) dispatch
 /// paths all use the same claim-then-send spine (<c>Pending → MarkQueued</c> + commit → send →
 /// <c>MarkSent</c> + commit). If the send never completes (a send failure, or the account had
 /// no email) the row stays permanently Queued with no recovery — the deliberate "never double-email

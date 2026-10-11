@@ -535,7 +535,7 @@
     "newBadgeAriaLabel": "match since your last visit",
     "matchedAt": "Matched",
     "emptyTitle": "You have no matches yet",
-    "emptyBody": "Matching runs once you have turned it on under <notiser>Notifications</notiser> and entered occupations under <matchning>Matching</matchning>.",
+    "emptyBody": "Matching runs continuously once you have turned it on under <notiser>Notifications</notiser> and entered occupations under <matchning>Matching</matchning>.",
     "boundedNote": "Showing your {count} most recent matches.",
     "boundedLink": "Find more via the match filter in the job list",
     "loadErrorTitle": "Could not load your matches",

@@ -149,7 +149,8 @@ public class EmailTemplatesMatchNotificationTests
             Item("Systemutvecklare", "Volvo Cars", "Toppmatch"),
             Item("Backend-utvecklare", "Acme AB", "Toppmatch", Guid.Parse("5c2e8d41-7b3a-4f9e-a1d6-3e8b2c7f4a90")));
 
-    private const string BundledLead = "2 nya toppmatchningar:";
+    private const string BundledFirst = "Systemutvecklare, Volvo Cars";
+    private const string BundledSecond = "Backend-utvecklare, Acme AB";
 
     [Fact]
     public void MatchNotification_ForABundledDirectMail_UsesThePluralSubject()
@@ -159,24 +160,25 @@ public class EmailTemplatesMatchNotificationTests
     }
 
     [Fact]
-    public void MatchNotification_ForABundledDirectMail_LeadsWithTheCountAndBulletsEveryItem()
+    public void MatchNotification_ForABundledDirectMail_OpensWithTheItemsAsBullets_WithNoLeadAndNoGradePerLine()
     {
         var email = EmailTemplates.MatchNotification(BaseUrl, BundledDirect());
 
-        email.PlainTextBody.Replace("\r\n", "\n", StringComparison.Ordinal).ShouldStartWith(
-            $"{BundledLead}\n\n- Systemutvecklare, Volvo Cars (Toppmatch)\n- Backend-utvecklare, Acme AB (Toppmatch)\n");
-        email.HtmlBody[email.HtmlBody.IndexOf("<p ", StringComparison.Ordinal)..]
-            .ShouldStartWith(EmailHtml.P(BundledLead).ToString());
-        email.HtmlBody.ShouldContain(">Systemutvecklare, Volvo Cars (Toppmatch)</li>");
-        email.HtmlBody.ShouldContain(">Backend-utvecklare, Acme AB (Toppmatch)</li>");
+        email.PlainTextBody.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .ShouldStartWith($"- {BundledFirst}\n- {BundledSecond}\n");
+        var list = email.HtmlBody.IndexOf("<ul", StringComparison.Ordinal);
+        list.ShouldBeLessThan(email.HtmlBody.IndexOf("<p ", StringComparison.Ordinal));
+        email.HtmlBody[list..].ShouldStartWith(EmailHtml.List([BundledFirst, BundledSecond]).ToString());
+        email.PlainTextBody.ShouldNotContain("(Toppmatch)");
+        email.HtmlBody.ShouldNotContain("(Toppmatch)");
     }
 
     [Fact]
-    public void MatchNotification_ForABundledDirectMail_PreviewsTheLead()
+    public void MatchNotification_ForABundledDirectMail_PreviewsTheItemsSeparatedBySemicolons()
     {
         var email = EmailTemplates.MatchNotification(BaseUrl, BundledDirect());
 
-        email.HtmlBody.ShouldContain(">" + BundledLead + EmailHtml.PreheaderFiller + "</div>");
+        email.HtmlBody.ShouldContain($">{BundledFirst}; {BundledSecond}{EmailHtml.PreheaderFiller}</div>");
     }
 
     [Fact]

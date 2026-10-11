@@ -179,6 +179,11 @@ public sealed class BackgroundMatchingJobTopMatchMailTests(WorkerTestFixture fix
         match.NotificationStatus.ShouldBe(NotificationStatus.Pending);
         MailsTo(sender, target).ShouldBeEmpty();
         MailsTo(sender, control).ShouldHaveSingleItem().Items.ShouldHaveSingleItem().JobAdId.ShouldBe(freshAd.Value);
+
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await db.JobAds.SingleAsync(ad => ad.Id == oldAd, Ct)).Archive(new FixedClock(now)).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(Ct);
     }
 
     private async Task RunAtAsync(DateTimeOffset at, IEmailSender sender, IServiceScopeFactory? scopes = null)

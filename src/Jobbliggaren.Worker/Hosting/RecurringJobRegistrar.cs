@@ -21,7 +21,7 @@ namespace Jobbliggaren.Worker.Hosting;
 /// Cron-tider är UTC (Hangfire-default). Schedule (CTO-rond 2026-05-13 punkt 8
 /// + architect-design 2026-05-23 retention):
 ///   */10 *  — sync-platsbanken-stream (10-min cron, overlap-window 15 min)
-///   2-59/5  — background-matching (per-user matchnings-scan + Toppmatch-mejl, ADR 0080 Vag 4, ADR 0161)
+///   2-59/5  — background-matching (per-user matching scan + Toppmatch mail, ADR 0080 Vag 4, ADR 0161)
 ///   02:00   — sync-platsbanken-snapshot (daglig fullbackfill mot stream-drift)
 ///   03:00   — audit-log-retention (atomisk partition-DDL, &lt; 100ms typiskt)
 ///   03:15   — retain-platsbanken-job-ads (snapshot-miss-retention, ADR 0032-amend 2026-05-23)
@@ -78,7 +78,7 @@ public sealed partial class RecurringJobRegistrar(
         manager.AddOrUpdate<BackgroundMatchingWorker>(
             RecurringJobIds.BackgroundMatching,
             job => job.RunAsync(CancellationToken.None),
-            BackgroundMatchingWorker.Cron);  // Var 5:e min (:02, :07, …) — per-user matchnings-scan + Toppmatch-mejl i samma körning, så en Toppmatch mejlas inom minuter efter att annonsen kom in. ADR 0161.
+            BackgroundMatchingWorker.Cron);  // Every 5 min (:02, :07, …): the per-user matching scan and the Top mail in one run, so a Toppmatch is mailed within minutes of its ad's arrival. ADR 0161.
 
         manager.AddOrUpdate<CompanyWatchScanWorker>(
             RecurringJobIds.CompanyWatchScan,
@@ -125,9 +125,9 @@ public sealed partial class RecurringJobRegistrar(
                             // digest (06:00); DEK-fritt (rör ingen interaktiv yta). DisableConcurrentExecution-skyddad.
 
         // ADR 0080 Vag 4 PR-4b — Strong-digest-dispatch. Två kadenser, en cron var (cron = fönstret):
-        // Daglig 06:00 UTC och Veckovis måndag 06:00 UTC. MEDVETET på morgonen, klar av
-        // hard-delete-klustret (04:00/04:30), så digesten racear inte 03:xx/04:xx-jobben. Matchningen
-        // går var femte minut (ADR 0161), så en Stark-match fram till 06:00 hamnar i den här digesten.
+        // Daily 06:00 UTC and weekly Monday 06:00 UTC. Deliberately in the morning, clear of the
+        // hard-delete cluster (04:00/04:30), so the digest does not race the 03:xx/04:xx jobs. Matching
+        // runs every five minutes (ADR 0161), so a Strong match made before 06:00 is in this digest.
         manager.AddOrUpdate<DigestDispatchWorker>(
             RecurringJobIds.DigestDispatchDaily,
             job => job.RunDailyAsync(CancellationToken.None),

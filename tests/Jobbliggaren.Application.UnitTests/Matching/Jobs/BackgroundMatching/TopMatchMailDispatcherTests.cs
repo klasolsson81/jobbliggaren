@@ -1,9 +1,11 @@
 using System.Reflection;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Common.Notifications;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 using Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper;
+using Jobbliggaren.Application.UnitTests.Admin.HostObservations;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -318,6 +320,10 @@ public class TopMatchMailDispatcherTests
         Sends[1].Mail.TotalCount.ShouldBe(1);
         foreach (var row in rows)
             (await StatusOfAsync(row)).ShouldBe(NotificationStatus.Sent);
+
+        (await DispatchAsync()).ShouldBe(0);
+
+        Sends.Count.ShouldBe(2);
     }
 
     // ───────────────────────────── The run cap and the order
@@ -362,7 +368,7 @@ public class TopMatchMailDispatcherTests
         var waitingRow = await SeedFreshTopMatchAsync(waiting.UserId, Now.AddMinutes(-5));
         _emailSender.SendMatchNotificationEmailAsync(
                 EmailOf(failing.UserId), Arg.Any<MatchNotificationEmail>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("leveransen nere"));
+            .ThrowsAsync(new EmailDeliveryException("match-notification", "HttpRequestException"));
 
         await Should.NotThrowAsync(() => DispatchAsync());
 
@@ -378,10 +384,14 @@ public class TopMatchMailDispatcherTests
         (await StatusOfAsync(waitingRow)).ShouldBe(NotificationStatus.Sent);
     }
 
-    // The account's Identity row is gone (GetEmailAsync answers null). Nothing is sent to it, its rows
-    // stay claimed for the reaper, and the next recipient is still mailed.
+    // UNREACHABLE, declared per AGENTS.md §5 Tests: a consenting, live JobSeeker always has an account
+    // address. A present account without one breaks the #822 invariant (IUserAccountService), and no
+    // path in src/ removes the account of a live JobSeeker: the hard delete takes soft-deleted seekers
+    // only, and AccountHardDeleter only detects a reverse orphan (#508). This asserts only that the send
+    // phase degrades safely if that ever breaks: nothing is sent to that recipient, its rows stay
+    // Queued, the next recipient is still mailed, and no later run sends them.
     [Fact]
-    public async Task DispatchAsync_RecipientWithoutAnAddress_LeavesRowsQueuedAndSendsNothing_AndTheNextIsMailed()
+    public async Task DispatchAsync_IfAConsentingRecipientEverHadNoAddress_NothingIsSentToIt_AndTheNextIsMailed()
     {
         var noAddress = await SeedConsentingSeekerAsync();
         var next = await SeedConsentingSeekerAsync();
@@ -398,7 +408,7 @@ public class TopMatchMailDispatcherTests
 
         await DispatchAsync();
 
-        Sends.Count.ShouldBe(1, "the address-less recipient's rows are claimed, so no later run sends them");
+        Sends.Count.ShouldBe(1);
     }
 
     // The user's withdrawal commits between the claim's commit and the send (GDPR Art. 7(3)).

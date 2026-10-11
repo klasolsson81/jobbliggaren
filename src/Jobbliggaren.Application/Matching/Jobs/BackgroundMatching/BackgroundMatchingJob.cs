@@ -22,9 +22,7 @@ namespace Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 /// <para>
 /// <b>DEK-free:</b> the profile comes from <see cref="IMatchProfileBuilder.BuildFullForUserIdAsync"/>
 /// (plaintext PreferredSkills + LatestRole, no per-user KMS in the hot loop), and it is built only for a
-/// user who has a new candidate ad (security-auditor V6). The Worker is the only place the FULL
-/// <see cref="MatchGradeCalculator.Grade(FullMatchScore)"/> runs, so it is the only producer of
-/// <see cref="NotifiableMatchGrade.Top"/>.
+/// user who has a new candidate ad (security-auditor V6).
 /// </para>
 /// <para>
 /// <b>One candidate read per run.</b> The run reads the Active ads ingested since the oldest due
@@ -71,13 +69,14 @@ public sealed partial class BackgroundMatchingJob(
 
     /// <summary>
     /// How long the scan phase starts new users. A user already started finishes. Users left over keep
-    /// their watermark and are first in the next run's order.
+    /// their watermark.
     /// </summary>
     public static readonly TimeSpan ScanBudget = TimeSpan.FromMinutes(3);
 
     /// <summary>
     /// How long after an ad's ingest its Top match is mailed at the latest, while a Worker slot is free,
-    /// no stale lock holds the job, the per-run cap admits the mail and the provider accepts it.
+    /// no stale lock holds the job, the run that first reads the ad reaches the user in both phases (no
+    /// budget, cap or earlier send failure cuts it) and the provider accepts the mail.
     /// </summary>
     public static readonly TimeSpan TopMatchMailBound = TimeSpan.FromMinutes(15);
 
@@ -295,7 +294,7 @@ public sealed partial class BackgroundMatchingJob(
     private static partial void LogScanned(ILogger logger, int scanned, int due, int totalMatches);
 
     [LoggerMessage(Level = LogLevel.Warning,
-        Message = "BackgroundMatchingJob: the scan budget is spent after {Scanned} of {Due} users; the rest are first next run")]
+        Message = "BackgroundMatchingJob: the scan budget is spent after {Scanned} of {Due} users; the rest wait for the next run")]
     private static partial void LogScanBudgetSpent(ILogger logger, int scanned, int due);
 
     [LoggerMessage(Level = LogLevel.Information,

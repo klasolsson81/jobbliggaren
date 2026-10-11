@@ -1,6 +1,8 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
+using Jobbliggaren.Application.UnitTests.Admin.HostObservations;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -25,7 +27,7 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Jobs.BackgroundMatching;
 ///   <see cref="NotificationStatus.Sent"/>; two Top matches of one run go in ONE email;</item>
 /// <item><see cref="NotifiableMatchGrade.Strong"/> is NEVER emailed here (digest) — the row persists
 ///   Pending;</item>
-/// <item>no account email, or a send failure: the rows are claimed and stay Queued, the matches
+/// <item>a send failure: the rows are claimed and stay Queued, the matches
 ///   persist, RunAsync does not throw, and no later run sends them;</item>
 /// <item>every user's scan commits before the first send, and the send phase runs once per run;</item>
 /// <item>an ad re-read inside the settle window is not matched twice, so it is mailed once;</item>
@@ -222,7 +224,7 @@ public class BackgroundMatchingJobTopDirectTests
         captured.Kind.ShouldBe(MatchNotificationKind.Direct);
         captured.Cadence.ShouldBeNull("Direct har ingen kadens");
         captured.TotalCount.ShouldBe(1);
-        captured.Items.Count.ShouldBe(1, "en fokuserad Direct-mejl per Top-match");
+        captured.Items.Count.ShouldBe(1);
         captured.Items[0].JobTitle.ShouldBe("Backend-utvecklare");
         captured.Items[0].CompanyName.ShouldBe("Acme AB");
         captured.Items[0].GradeLabel.ShouldBe("Toppmatch");
@@ -378,10 +380,13 @@ public class BackgroundMatchingJobTopDirectTests
 
     // ───────────────────────────── 3. No account email → no send, Top left Queued
 
-    // The send phase claims before it reads the address (ADR 0161 D5(c)), so an address-less account's
-    // row is claimed and left Queued for the reaper, never sent by a later run.
+    // UNREACHABLE, declared per AGENTS.md §5 Tests: a consenting, live JobSeeker always has an account
+    // address. A present account without one breaks the #822 invariant (IUserAccountService), and no
+    // path in src/ removes the account of a live JobSeeker: the hard delete takes soft-deleted seekers
+    // only, and AccountHardDeleter only detects a reverse orphan (#508). This asserts only that the run
+    // degrades safely if that ever breaks: it does not throw, nothing is sent, and the row stays Queued.
     [Fact]
-    public async Task RunAsync_TopMatchButNoAccountEmail_DoesNotEmail_AndRowIsLeftQueued()
+    public async Task RunAsync_IfAConsentingSeekerEverHadNoAccountEmail_NothingIsSent_AndTheRowIsLeftQueued()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
@@ -391,11 +396,9 @@ public class BackgroundMatchingJobTopDirectTests
         _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
             .Returns(ProfileWithOccupation());
         StubScorer(jobAdId, TopScore());
-        // Orphan consent row without an account email.
         _userAccounts.GetEmailAsync(userId, Arg.Any<CancellationToken>())
             .Returns((string?)null);
 
-        // The scan must not throw despite the missing recipient.
         await Should.NotThrowAsync(() => CreateJob(db).RunAsync(ct));
 
         await _emailSender.DidNotReceiveWithAnyArgs().SendMatchNotificationEmailAsync(
@@ -403,9 +406,8 @@ public class BackgroundMatchingJobTopDirectTests
             Arg.Any<CancellationToken>());
 
         var match = await ReloadMatchAsync(db, userId, jobAdId, ct);
-        match.ShouldNotBeNull("matchen ska persisteras även utan mottagaradress");
-        match.NotificationStatus.ShouldBe(NotificationStatus.Queued,
-            "raden claim:as före adressläsningen och ligger kvar Queued, aldrig skickad");
+        match.ShouldNotBeNull();
+        match.NotificationStatus.ShouldBe(NotificationStatus.Queued);
     }
 
     // ───────────────────────────── 4. Send throws → row left Queued, match persists, no throw
@@ -424,7 +426,7 @@ public class BackgroundMatchingJobTopDirectTests
         _emailSender.SendMatchNotificationEmailAsync(
                 Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
             Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("mejlleverans nere"));
+            .ThrowsAsync(new EmailDeliveryException("match-notification", "HttpRequestException"));
 
         // A send failure is caught and logged, never propagated out of the run.
         await Should.NotThrowAsync(() => CreateJob(db).RunAsync(ct));
@@ -499,7 +501,7 @@ public class BackgroundMatchingJobTopDirectTests
         _emailSender.SendMatchNotificationEmailAsync(
                 Arg.Any<string>(), Arg.Any<MatchNotificationEmail>(),
             Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("mejlleverans nere"));
+            .ThrowsAsync(new EmailDeliveryException("match-notification", "HttpRequestException"));
 
         await Should.NotThrowAsync(() => CreateJob(db, RunClock(NowClock.UtcNow)).RunAsync(ct));
         await CreateJob(db, RunClock(NowClock.UtcNow.AddMinutes(5))).RunAsync(ct);

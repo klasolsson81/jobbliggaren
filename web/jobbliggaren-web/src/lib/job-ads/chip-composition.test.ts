@@ -78,6 +78,15 @@ describe("composeSuggestionChip (ADR 0067 Fas E2d)", () => {
     expect(next.occupationGroup).toEqual(["MVqp_eS8_kDZ"]);
   });
 
+  it("#2143: ett titelord som börjar med minus läggs aldrig till som uteslutning", () => {
+    const next = composeSuggestionChip(
+      s("Title", null, "Säljare - deltid -extra"),
+      empty,
+      taxonomy,
+    );
+    expect(next.q).toBe("Säljare deltid");
+  });
+
   it("Title APPENDAR till befintlig q med ci-dedupe (E2i — ersätter aldrig)", () => {
     const next = composeSuggestionChip(
       s("Title", null, "AI Engineer"),

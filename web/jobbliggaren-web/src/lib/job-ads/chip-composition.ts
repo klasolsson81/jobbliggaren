@@ -2,6 +2,7 @@ import { Q_MAX_LENGTH, type SuggestionDto } from "@/lib/dto/job-ads";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import { splitQWords } from "./chip-models";
 import { applyMunicipalityChange } from "./ort-selection";
+import { classifyWord } from "./search-text-grammar";
 import type { JobbUrlState } from "./search-params";
 
 /**
@@ -47,8 +48,11 @@ export function composeSuggestionChip(
       // ett Title-val skulle tyst radera användarens övriga sök-taggar.
       // Q_MAX_LENGTH-guarden bryter PER ORD: ord som ryms appendas, resten
       // släpps (backend-validatorn skulle annars 400:a hela list-queryn).
+      // #2143 — only a title's positive words are appended: a title word that starts with a
+      // dash would otherwise reach q as an exclusion the user never typed.
       let q = current.q;
       for (const w of splitQWords(suggestion.label)) {
+        if (classifyWord(w).kind !== "positive") continue;
         const words = splitQWords(q);
         if (words.some((x) => x.toLowerCase() === w.toLowerCase())) continue;
         const nextQ = [...words, w].join(" ");

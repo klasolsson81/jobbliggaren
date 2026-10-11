@@ -114,10 +114,41 @@ describe("parseSearchText (E2i C′)", () => {
     expect(r.matches.map((m) => m.conceptId)).toEqual(["PVZL_BQT_XtL"]);
   });
 
-  it("ledande +/- strippas (NOT-neutralisering — minus är Klas-pending)", () => {
+  it("ledande + strippas; ett minus-ord blir ett uteslutet q-ord (#2143)", () => {
     const r = parseSearchText("+göteborg -deltid", index, null);
     expect(r.matches.map((m) => m.conceptId)).toEqual(["PVZL_BQT_XtL"]);
-    expect(r.qWords).toEqual(["deltid"]);
+    expect(r.qWords).toEqual(["-deltid"]);
+  });
+
+  it("#2143: ett uteslutet ortnamn gör aldrig anspråk på orten", () => {
+    const r = parseSearchText("systemutvecklare, göteborg -stockholm", index, null);
+    expect(r.matches.map((m) => m.conceptId)).toEqual([
+      "MVqp_eS8_kDZ",
+      "PVZL_BQT_XtL",
+    ]);
+    expect(r.qWords).toEqual(["-stockholm"]);
+  });
+
+  it("#2143: ett uteslutet ord bryter n-gram-runnen åt båda håll", () => {
+    // "-stockholms län": "län" är ett eget positivt ord, inte en del av länets label.
+    const r = parseSearchText("-stockholms län", index, null);
+    expect(r.matches).toEqual([]);
+    expect(r.qWords).toEqual(["-stockholms", "län"]);
+  });
+
+  it("#2143: varje strecktyp och komma-limmat minus utesluter; kanonisk form är '-'", () => {
+    const r = parseSearchText("lärare,−deltid –heltid +-sommar", index, null);
+    expect(r.qWords).toEqual(["lärare", "-deltid", "-heltid", "-sommar"]);
+  });
+
+  it("#2143: bindestreck inne i ett ord utesluter inte", () => {
+    const r = parseSearchText("e-handel Absolut-fjolljobb", index, null);
+    expect(r.qWords).toEqual(["e-handel", "Absolut-fjolljobb"]);
+  });
+
+  it("#2143: ett ensamt minus är en operator och skippas", () => {
+    const r = parseSearchText("lärare - deltid", index, null);
+    expect(r.qWords).toEqual(["lärare", "deltid"]);
   });
 
   it("dubbla avgränsare/tomma tokens skippas; q-ord ci-dedupe:as", () => {
@@ -277,6 +308,58 @@ describe("applyClaimsDelta (C′ regel 1 — delta, aldrig replace)", () => {
       expect(afterJava.tooShortQ).toEqual([]);
     });
   });
+
+  describe("minus-ord (#2143)", () => {
+    it("ett uteslutet ord läggs i q i formen -term", () => {
+      const claims = parseSearchText("systemutvecklare -deltid", index, null);
+      const r = applyClaimsDelta(empty, EMPTY_CLAIMS, claims, taxonomy);
+
+      expect(r.next.occupationGroup).toEqual(["MVqp_eS8_kDZ"]);
+      expect(r.next.q).toBe("-deltid");
+      expect(r.appliedClaims.qWords).toEqual(["-deltid"]);
+    });
+
+    it("minimilängden mäts på de positiva orden; uteslutna ord står kvar", () => {
+      const claims = parseSearchText("a -deltid", index, null);
+      const r = applyClaimsDelta(empty, EMPTY_CLAIMS, claims, taxonomy);
+
+      expect(r.next.q).toBe("-deltid");
+      expect(r.tooShortQ).toEqual(["a"]);
+      expect(r.appliedClaims.qWords).toEqual(["-deltid"]);
+    });
+
+    it("ett uteslutet ord under minimilängden används inte och rapporteras med sitt rena ord", () => {
+      const claims = parseSearchText("lärare -d", index, null);
+      const r = applyClaimsDelta(empty, EMPTY_CLAIMS, claims, taxonomy);
+
+      expect(r.next.q).toBe("lärare");
+      expect(r.tooShortQ).toEqual(["d"]);
+      expect(r.appliedClaims.qWords).toEqual(["lärare"]);
+    });
+
+    it("högst Q_MAX_EXCLUDED_TERMS uteslutna ord; nästa vägras och ingår EJ i appliedClaims", () => {
+      const claims = parseSearchText("-aa -bb -cc -dd -ee -ff", index, null);
+      const r = applyClaimsDelta(empty, EMPTY_CLAIMS, claims, taxonomy);
+
+      expect(r.next.q).toBe("-aa -bb -cc -dd -ee");
+      expect(r.rejectedExcluded).toEqual(["-ff"]);
+      expect(r.appliedClaims.qWords).not.toContain("-ff");
+    });
+
+    it("att radera ett uteslutet ord ur texten tar bort det ur q", () => {
+      const first = parseSearchText("lärare -deltid", index, null);
+      const added = applyClaimsDelta(empty, EMPTY_CLAIMS, first, taxonomy);
+      const r = applyClaimsDelta(
+        added.next,
+        added.appliedClaims,
+        parseSearchText("lärare", index, null),
+        taxonomy,
+      );
+
+      expect(r.next.q).toBe("lärare");
+      expect(r.removedLabels).toEqual(["-deltid"]);
+    });
+  });
 });
 
 describe("serializeSearchText + rundtripps-teoremet (C′ regel 4)", () => {
@@ -353,6 +436,23 @@ describe("isTextRepresentable", () => {
         index,
       ),
     ).toBe(false);
+  });
+
+  it("#2143: ett uteslutet ord i kanonisk form är representabelt; −-formen är det inte", () => {
+    expect(isTextRepresentable("-deltid", null, index)).toBe(true);
+    expect(isTextRepresentable("-göteborg", null, index)).toBe(true);
+    expect(isTextRepresentable("−deltid", null, index)).toBe(false);
+  });
+
+  it("#2143: uteslutna ord rundtrippar genom serializeSearchText", () => {
+    const state: JobbUrlState = {
+      ...empty,
+      municipality: ["PVZL_BQT_XtL"],
+      q: "volvo -deltid",
+    };
+    expect(serializeSearchText(state, resolve, index)).toBe(
+      "Göteborg volvo -deltid",
+    );
   });
 
   it("label med komma är inte representabel", () => {

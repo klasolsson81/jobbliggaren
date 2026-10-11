@@ -134,6 +134,18 @@ describe("removeChipFromState (E2h SPOT — fält-× = toolbar-×)", () => {
     expect(next.employmentType).toEqual(["et_vikariat"]);
   });
 
+  it("#2143: ett uteslutet q-ord bär sitt rena ord; ett vanligt gör det inte", () => {
+    const chips = buildChipModels(
+      { ...state, q: "volvo -deltid" },
+      resolve,
+      { includeQ: true },
+    ).filter((c) => c.axis === "q");
+    expect(chips).toEqual([
+      { axis: "q", value: "volvo", label: "volvo" },
+      { axis: "q", value: "-deltid", label: "-deltid", excludedTerm: "deltid" },
+    ]);
+  });
+
   it("q-chip: tar bort ordet (case-insensitivt) och joinar om", () => {
     const next = removeChipFromState(state, {
       axis: "q",

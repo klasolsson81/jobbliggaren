@@ -28,6 +28,10 @@ import {
 } from "@/lib/job-ads/search-params";
 import { composeSuggestionChip } from "@/lib/job-ads/chip-composition";
 import { buildTaxonomyLabelResolver } from "@/lib/job-ads/chip-models";
+import {
+  classifyWord,
+  Q_MAX_EXCLUDED_TERMS,
+} from "@/lib/job-ads/search-text-grammar";
 import { codedTaxonomyName } from "@/lib/i18n/coded-taxonomy";
 import {
   applyClaimsDelta,
@@ -98,11 +102,13 @@ const emptySubscribe = () => () => {};
 /**
  * The help line's notice, one at a time:
  * - `limit`: the search text is full (Q_MAX_LENGTH), so further words are not committed.
+ * - `excludeLimit`: the search already excludes Q_MAX_EXCLUDED_TERMS words (#2143).
  * - `tooShort`: the combined search text is shorter than Q_MIN_LENGTH and is not used
  *   in the search; the filters still apply, as in the backend's SearchQueryParser.
  */
 type Notice =
   | { kind: "limit" }
+  | { kind: "excludeLimit" }
   | { kind: "tooShort"; word: string }
   | null;
 
@@ -287,6 +293,7 @@ export function JobbHeroSearch({
   // limit the user loses typed text, while a short word is merely not used.
   function noticeFor(result: ClaimsDeltaResult): Notice {
     if (result.rejectedQ.length > 0) return { kind: "limit" };
+    if (result.rejectedExcluded.length > 0) return { kind: "excludeLimit" };
     const tooShort = result.tooShortQ[0];
     if (tooShort !== undefined) return { kind: "tooShort", word: tooShort };
     return null;
@@ -298,6 +305,8 @@ export function JobbHeroSearch({
   function noticeText(next: Notice): string | null {
     if (next?.kind === "limit")
       return t("heroSearch.limitNotice", { max: Q_MAX_LENGTH });
+    if (next?.kind === "excludeLimit")
+      return t("heroSearch.excludeLimitNotice", { max: Q_MAX_EXCLUDED_TERMS });
     if (next?.kind === "tooShort")
       return t("heroSearch.minNotice", {
         min: Q_MIN_LENGTH,
@@ -476,12 +485,15 @@ export function JobbHeroSearch({
     commit(delta.next, t("heroSearch.announceCleared"), true);
   }
 
-  // Suggestions are for the word under the caret, not the whole search text.
+  // Suggestions are for the word under the caret, not the whole search text. A word being
+  // excluded asks for none: every suggestion would add what the user is taking away.
   const caretToken =
     caret !== null ? getTokenRange(text, caret) : null;
-  const suggestQuery = caretToken
+  const caretWord = caretToken
     ? text.slice(caretToken.start, caretToken.end)
     : "";
+  const suggestQuery =
+    classifyWord(caretWord).kind === "positive" ? caretWord : "";
 
   const committedQ = lastCommitted.q.trim();
 

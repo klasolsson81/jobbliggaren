@@ -470,6 +470,32 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
     );
     expect(screen.getByRole("combobox")).toHaveValue("");
   });
+
+  it("#2072: en extern Distans-ändring överlever nästa textcommit", async () => {
+    const user = userEvent.setup();
+    const { rerender } = setup();
+    // Distans slås på i ort-popovern: nya props där bara `remote` skiljer.
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q=""
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        remote={true}
+        employmentType={[]}
+        worktimeExtent={[]}
+        matchGrades={[]}
+        employer={[]}
+        sortBy="PublishedAtDesc"
+        initialCommitted={false}
+      />,
+    );
+    await user.type(screen.getByRole("combobox"), "volvo ");
+    expect(replaceMock).toHaveBeenLastCalledWith("/jobb?distans=on&q=volvo", {
+      scroll: false,
+    });
+  });
 });
 
 describe("JobbHeroSearch — förslags-val skriver in label-texten", () => {

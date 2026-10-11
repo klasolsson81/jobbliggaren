@@ -169,7 +169,6 @@ public class EmployerDisambiguationQueryTests(ApiFactory factory)
         await SeedAdAsync("5566080801", $"{brand} 50% rabatt AB", $"ext-{Guid.NewGuid():N}", ct);
         await SeedAdAsync("5566080802", $"{brand} 5000 kr AB", $"ext-{Guid.NewGuid():N}", ct);
 
-        // The term carries a literal "%"; EscapeLike must neutralise it so ILIKE treats it literally —
         // only the "50%"-named row matches, NEVER the "5000" row (which % would match as a wildcard).
         var result = await RunAsync($"{brand} 50%", 50, ct);
 
@@ -393,5 +392,7 @@ public class EmployerDisambiguationQueryTests(ApiFactory factory)
 
         sql.ShouldContain("LIKE", Case.Sensitive,
             $"the company-name predicate must be a LIKE against the lowered expression. SQL:\n{sql}");
+        sql.ShouldContain("ESCAPE '\\'", Case.Insensitive);
+        sql.ShouldNotContain("ESCAPE ''", Case.Insensitive);
     }
 }

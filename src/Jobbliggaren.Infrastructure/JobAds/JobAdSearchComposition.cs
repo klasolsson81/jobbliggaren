@@ -3,6 +3,7 @@ using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Domain.JobAds;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
 using NpgsqlTypes;
 
 namespace Jobbliggaren.Infrastructure.JobAds;
@@ -183,7 +184,6 @@ internal static class JobAdSearchComposition
         if (text.Positive is { } positive)
             source = source.Where(MatchesText(positive));
 
-        // #2143 (ADR 0167) — a minus-word's text arm hides exactly the ads the same word would find as a plus-word.
         // A correlated NOT EXISTS, never an inline NOT: inline, the full-text arm would detoast
         // search_vector for every row the outer scan reaches (TD-94), and NOT over a NULL ssyk arm is
         // NULL, which would drop the row. Inside EXISTS the predicate stays positive and GIN-served.
@@ -241,31 +241,40 @@ internal static class JobAdSearchComposition
     {
         var q = term.Term;
         var expandedSsyks = term.Ssyks;
-        var hasSsyks = expandedSsyks.Count > 0;
+        var arms = new List<Expression<Func<JobAd, bool>>>(4);
 
 #pragma warning disable CA1304, CA1311
         if (term.ContainsPattern is { } pattern)
         {
-            return hasSsyks
-                ? j => EF.Functions.Like(j.Title.ToLower(), pattern, LikePatterns.EscapeCharacter)
-                       || EF.Functions.Like(j.Company.Name.ToLower(), pattern, LikePatterns.EscapeCharacter)
-                       || expandedSsyks.Contains(j.SsykConceptId)
-                       || EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                           .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
-                : j => EF.Functions.Like(j.Title.ToLower(), pattern, LikePatterns.EscapeCharacter)
-                       || EF.Functions.Like(j.Company.Name.ToLower(), pattern, LikePatterns.EscapeCharacter)
-                       || EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                           .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q));
+            arms.Add(j => EF.Functions.Like(j.Title.ToLower(), pattern, LikePatterns.EscapeCharacter));
+            arms.Add(j => EF.Functions.Like(j.Company.Name.ToLower(), pattern, LikePatterns.EscapeCharacter));
+        }
+#pragma warning restore CA1304, CA1311
+
+        if (expandedSsyks.Count > 0)
+            arms.Add(j => expandedSsyks.Contains(j.SsykConceptId));
+
+        if (term.Role == TextTermRole.Excluded)
+        {
+            arms.Add(j => EF.Property<NpgsqlTsVector>(j, "SearchVector")
+                .Matches(EF.Functions.PlainToTsQuery(TextSearchConfig, q)));
+        }
+        else
+        {
+            arms.Add(j => EF.Property<NpgsqlTsVector>(j, "SearchVector")
+                .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q)));
         }
 
-        return hasSsyks
-            ? j => expandedSsyks.Contains(j.SsykConceptId)
-                   || EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                       .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
-            : j => EF.Property<NpgsqlTsVector>(j, "SearchVector")
-                .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q));
-#pragma warning restore CA1304, CA1311
+        return arms.Aggregate(OrElse);
     }
+
+    private static Expression<Func<JobAd, bool>> OrElse(
+        Expression<Func<JobAd, bool>> left, Expression<Func<JobAd, bool>> right) =>
+        Expression.Lambda<Func<JobAd, bool>>(
+            Expression.OrElse(
+                left.Body,
+                ReplacingExpressionVisitor.Replace(right.Parameters[0], left.Parameters[0], right.Body)),
+            left.Parameters);
 
     // #2143 (ADR 0167) — the concepts a minus-word names exactly (ITaxonomyLabelMatcher). Inline, unlike
     // the text arm: these are B-tree columns with no detoast cost. Each column is nullable, and an ad

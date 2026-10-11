@@ -55,16 +55,6 @@ public sealed class SuggestJobAdTermsQueryHandler(
     /// perform worse — it forces a full-corpus evaluation, once per keystroke.
     /// </para>
     /// <para>
-    /// <b>The same number lives in two other places, deliberately duplicated.</b>
-    /// <c>JobAdSearchComposition.includeSubstringLike</c> gates the q-disjunction's two substring arms,
-    /// and <c>Program.RunExplainSearchAsync</c>'s <c>substringArms</c> mirrors it for the EXPLAIN tool.
-    /// They are named here by SYMBOL, never by line number, which rots. They are not shared through a
-    /// constant because the shared knowledge is a fact about <c>pg_trgm</c> that this repo does not own
-    /// and cannot change; the three gates have different failure semantics and are allowed to diverge.
-    /// Composition's gate drops an OR-arm from a query that still answers through FTS; this one
-    /// switches a whole block off, which is a product behaviour, not a Postgres fact.
-    /// </para>
-    /// <para>
     /// ⚠ <b>This is NOT the validator's floor and must not be reconciled with it.</b>
     /// <c>SuggestJobAdTermsQueryValidator</c> enforces <c>MinimumLength(2)</c> and carries a standing
     /// #831 instruction not to touch it. The two numbers are two different rules, so the surface

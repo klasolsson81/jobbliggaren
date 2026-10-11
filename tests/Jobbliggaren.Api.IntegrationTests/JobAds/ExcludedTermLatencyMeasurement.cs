@@ -3,6 +3,7 @@ using System.Text;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Internal;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
@@ -90,18 +91,19 @@ public class ExcludedTermLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
         var labelMatcher = new TaxonomyReadModel(scopeFactory);
         (await labelMatcher.MatchExactLabelsAsync(["deltid"], ct)).WorktimeExtent.ShouldNotBeEmpty();
 
-        var sut = new JobAdSearchQuery(
-            db,
-            new JobAdSearchTextResolver(
-                new SearchQueryParser(),
-                new OccupationSynonymExpander(Options.Create(new SearchSynonymsOptions())),
-                labelMatcher));
+        var resolver = new JobAdSearchTextResolver(
+            new SearchQueryParser(),
+            new OccupationSynonymExpander(Options.Create(new SearchSynonymsOptions())),
+            labelMatcher);
+        var sut = new JobAdSearchQuery(db, resolver);
 
         // Non-vacuity first: an exclusion that removed nothing would time a predicate that never ran.
         var active = await sut.CountAsync(Filter(null), ct);
         (await sut.CountAsync(Filter("-deltid"), ct)).ShouldBeLessThan(active);
         (await sut.CountAsync(Filter("lärare -deltid"), ct)).ShouldBeLessThan(await sut.CountAsync(Filter("lärare"), ct));
         (await sut.CountAsync(Filter("-are"), ct)).ShouldBeLessThan(active / 10);
+        (await sut.CountAsync(Filter("deltid -i(-deltid"), ct)).ShouldBe(0);
+        (await sut.CountAsync(Filter("-x(or(-deltid"), ct)).ShouldBe(active);
 
         var plan = await ExplainExclusionCountAsync(db, ct);
         _output.WriteLine("Count of \"-deltid\" under the GUCs BitmapPlanCount sets for it:");
@@ -116,6 +118,8 @@ public class ExcludedTermLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
                  {
                      null, "stockholm", "-stockholm", "lärare -deltid", "-are", "svenska", "-svenska",
                      "-deltid -stockholm -heltid -sommar -kock", "-c++", "-!!! -??? -### -&&& -***",
+                     "-i(-deltid", "-x(or(-deltid", "-x\"-deltid",
+                     "-i(-deltid -x(or(-stockholm -i!-heltid -x\"-sommar -i<-kock",
                  })
         {
             var criteria = new JobAdSearchCriteria(Filter(q), JobAdSortBy.PublishedAtDesc, Page: 1, PageSize: 20);
@@ -129,6 +133,23 @@ public class ExcludedTermLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
         var (newP50, newP95) = await MeasureAsync(
             () => sut.CountNewSinceAsync(Filter("-svenska"), since, ct).AsTask(), ct);
         _output.WriteLine($"CountNewSinceAsync, q = \"-svenska\", last hour       p50 {newP50,6:F1} ms  p95 {newP95,6:F1} ms");
+
+        var relevance = new JobAdSearchCriteria(Filter("lärare -deltid"), JobAdSortBy.Relevance, Page: 1, PageSize: 20);
+        var (relP50, relP95) = await MeasureAsync(() => sut.SearchAsync(relevance, ct).AsTask(), ct);
+        _output.WriteLine($"Relevance, q = \"lärare -deltid\"                  p50 {relP50,6:F1} ms  p95 {relP95,6:F1} ms");
+
+        // A seeker with 200 saved ads, through the status-only per-user path.
+        var seeker = new JobSeekerId(Guid.NewGuid());
+        await db.Database.ExecuteSqlAsync(
+            $"INSERT INTO saved_job_ads (id, job_seeker_id, job_ad_id, created_at) SELECT gen_random_uuid(), {seeker.Value}, id, now() FROM job_ads WHERE status = 'Active' ORDER BY id LIMIT 200",
+            ct);
+        var perUser = new PerUserJobAdSearchQuery(db, resolver, sut);
+        var savedOnly = new JobAdStatusFilter(SavedOnly: true, AppliedOnly: false, HideApplied: false);
+        var (stP50, stP95) = await MeasureAsync(
+            () => perUser.SearchByStatusAsync(
+                Filter("-deltid"), seeker, savedOnly, JobAdSortBy.PublishedAtDesc, page: 1, pageSize: 20, ct).AsTask(),
+            ct);
+        _output.WriteLine($"SearchByStatusAsync, 200 saved, q = \"-deltid\"       p50 {stP50,6:F1} ms  p95 {stP95,6:F1} ms");
     }
 
     private static JobAdFilterCriteria Filter(string? q) =>
@@ -173,7 +194,7 @@ public class ExcludedTermLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
             "EXPLAIN SELECT count(*) FROM job_ads AS j WHERE j.status = 'Active' AND NOT EXISTS ("
             + "SELECT 1 FROM job_ads AS x WHERE x.id = j.id AND "
             + "(lower(x.title) LIKE '%deltid%' OR lower(x.company_name) LIKE '%deltid%' "
-            + "OR x.search_vector @@ websearch_to_tsquery('swedish', 'deltid')))",
+            + "OR x.search_vector @@ plainto_tsquery('swedish', 'deltid')))",
             connection, tx);
         var plan = new StringBuilder();
         await using (var reader = await explain.ExecuteReaderAsync(ct))

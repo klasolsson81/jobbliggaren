@@ -245,6 +245,10 @@ public class ListJobAdsExcludedTermsTests(ApiFactory factory)
         var likeAt = exclusion.IndexOf(" LIKE ", StringComparison.OrdinalIgnoreCase);
         likeAt.ShouldBeGreaterThanOrEqualTo(0, $"the exclusion carries no substring arm. SQL:\n{sql}");
         exclusion.IndexOf("@@", StringComparison.Ordinal).ShouldBeGreaterThan(likeAt, $"SQL:\n{sql}");
+        exclusion.ShouldContain("plainto_tsquery", Case.Insensitive);
+        exclusion.ShouldNotContain("websearch_to_tsquery", Case.Insensitive);
+        sql[..sql.IndexOf("NOT EXISTS", StringComparison.OrdinalIgnoreCase)]
+            .ShouldContain("websearch_to_tsquery", Case.Insensitive);
 
         // The escaped pattern needs '\' as its escape; EF's two-argument Like would emit ESCAPE ''.
         sql.ShouldContain("ESCAPE '\\'", Case.Insensitive);
@@ -254,6 +258,10 @@ public class ListJobAdsExcludedTermsTests(ApiFactory factory)
         var noTrigram = await resolver.ResolveAsync(Filter("lärare -c++"), ct);
         var noTrigramSql = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), noTrigram).ToQueryString();
         noTrigramSql[noTrigramSql.IndexOf("NOT EXISTS", StringComparison.OrdinalIgnoreCase)..]
+            .ShouldNotContain(" LIKE ", Case.Insensitive);
+
+        var positiveNoTrigram = await resolver.ResolveAsync(Filter("c++"), ct);
+        JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), positiveNoTrigram).ToQueryString()
             .ShouldNotContain(" LIKE ", Case.Insensitive);
 
         var minusFree = await resolver.ResolveAsync(Filter("lärare deltid"), ct);

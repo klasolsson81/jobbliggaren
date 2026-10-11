@@ -451,10 +451,7 @@ static async Task<int> RunEnsureExtensionsAsync(ILogger log, CancellationToken c
 // ADR 0062 (+ amendment 2026-08-30, #1546) — speglar FTS-hybrid-filtret, nu
 // TREAXLAT: lower(title) LIKE '%term%' OR lower(company_name) LIKE '%term%'
 // OR search_vector @@ websearch_to_tsquery('swedish', term), in production's order (#2143).
-// Substrängsarmarna gatas på term.Length >= 3, exakt som produktionen gatar dem
-// (JobAdSearchComposition: includeSubstringLike) — ett trigram-index kan inte
-// serva en kortare LIKE, så ett verktyg som emitterade dem ändå hade förklarat
-// en plan produktionen aldrig kör. Post-deploy-verifiering: planen ska
+// Post-deploy-verifiering: planen ska
 // visa Bitmap Index Scan på ix_job_ads_search_vector och INGA de-TOAST:ade
 // description-läsningar (den tidigare trigram-rotorsaken, ADR 0061).
 static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
@@ -485,7 +482,7 @@ static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
         // Se (2): ett EXPLAIN-verktyg som inte kör produktionens fråga ljuger. Samma krav
         // gäller grinden, inte bara armarna.
         // #2143 — the substring arms come first, as JobAdSearchComposition.MatchesText orders them.
-        var substringArms = term.Length >= 3
+        var substringArms = HasIndexableTrigram(term)
             ? "lower(title) LIKE @p OR lower(company_name) LIKE @p OR "
             : string.Empty;
 
@@ -516,13 +513,13 @@ static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
 
     foreach (var term in excludedTerms)
     {
-        var substringArms = term.Length >= 3
+        var substringArms = HasIndexableTrigram(term)
             ? "lower(x.title) LIKE @p OR lower(x.company_name) LIKE @p OR "
             : string.Empty;
         var notExists =
             "NOT EXISTS (SELECT 1 FROM job_ads x WHERE x.id = j.id "
             + "AND (" + substringArms
-            + "x.search_vector @@ websearch_to_tsquery('swedish', @term)))";
+            + "x.search_vector @@ plainto_tsquery('swedish', @term)))";
 
         var countSql =
             "EXPLAIN (ANALYZE, BUFFERS) SELECT count(*) FROM job_ads j "
@@ -533,10 +530,23 @@ static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
             "EXPLAIN (ANALYZE, BUFFERS) SELECT j.id FROM job_ads j "
             + "WHERE j.status = 'Active' AND " + notExists + " "
             + "ORDER BY j.published_at DESC, j.id LIMIT 20;";
-        await ExplainAndLogAsync(conn, itemsSql, term, "ITEMS-EXCL", log, ct);
+        await ExplainAndLogAsync(conn, itemsSql, term, "ITEMS-EXCL", log, ct, bitmapPlanHygiene: true);
     }
 
     return 0;
+}
+
+static bool HasIndexableTrigram(string term)
+{
+    var run = 0;
+    foreach (var rune in term.EnumerateRunes())
+    {
+        run = System.Text.Rune.IsLetterOrDigit(rune) ? run + 1 : 0;
+        if (run >= 3)
+            return true;
+    }
+
+    return false;
 }
 
 static async Task ExplainAndLogAsync(
@@ -554,10 +564,9 @@ static async Task ExplainAndLogAsync(
     }
 
     await using var cmd = new NpgsqlCommand(explainSql, conn, tx);
-    // @term: rå sökterm till websearch_to_tsquery (sköter egen normalisering).
+    // @term: rå sökterm.
     // @p: lowercased %term%-pattern till substrängs-fallbackarna (title + company_name,
-    // ADR 0062 + amendment 2026-08-30). Oanvänd när term.Length < 3 — Npgsql skickar bara
-    // parametrar som faktiskt förekommer i den omskrivna SQL:en.
+    // ADR 0062 + amendment 2026-08-30).
     cmd.Parameters.Add(new NpgsqlParameter("term", term));
     // Escaped as LikePatterns.Contains escapes it (#2143), so a term with % or _ explains the
     // pattern production runs.

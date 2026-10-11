@@ -18,8 +18,8 @@ internal sealed class JobAdSearchTextResolver(
         JobAdFilterCriteria criteria, CancellationToken cancellationToken)
     {
         var parsed = parser.Parse(criteria.Q);
-        var positive = parsed.ResidualQ is { } residual ? ToTerm(residual) : null;
-        var excluded = parsed.ExcludedTerms.Select(ToTerm).ToList();
+        var positive = parsed.ResidualQ is { } residual ? ToTerm(residual, TextTermRole.Positive) : null;
+        var excluded = parsed.ExcludedTerms.Select(term => ToTerm(term, TextTermRole.Excluded)).ToList();
         var labels = excluded.Count == 0
             ? TaxonomyLabelMatchDto.Empty
             : await labelMatcher.MatchExactLabelsAsync(parsed.ExcludedTerms, cancellationToken);
@@ -29,10 +29,11 @@ internal sealed class JobAdSearchTextResolver(
 
     // The substring arms need a trigram the index can serve (TD-94 / ADR 0062-amendment 2026-06-13;
     // #2143): without one, the LIKE scans the whole index and the recheck detoasts every row.
-    private TextTerm ToTerm(string term) => new(
+    private TextTerm ToTerm(string term, TextTermRole role) => new(
         term,
         LikePatterns.HasIndexableTrigram(term) ? LikePatterns.Contains(term) : null,
-        synonymExpander.Expand(term));
+        synonymExpander.Expand(term),
+        role);
 }
 
 /// <summary>
@@ -64,4 +65,11 @@ internal sealed record ResolvedSearchText(
 /// the full-text arm, the escaped LIKE pattern (null without an indexable trigram) and the expanded
 /// SSYK ids.
 /// </summary>
-internal sealed record TextTerm(string Term, string? ContainsPattern, IReadOnlyCollection<string> Ssyks);
+internal sealed record TextTerm(
+    string Term, string? ContainsPattern, IReadOnlyCollection<string> Ssyks, TextTermRole Role);
+
+internal enum TextTermRole
+{
+    Positive,
+    Excluded,
+}

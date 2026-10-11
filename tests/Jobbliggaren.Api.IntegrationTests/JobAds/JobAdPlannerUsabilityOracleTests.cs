@@ -105,7 +105,7 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
         "SELECT 1 FROM job_ads AS x WHERE x.id = j.id AND " +
         "(lower(x.title) LIKE '%deltid%' ESCAPE '\\' " +
         "OR lower(x.company_name) LIKE '%deltid%' ESCAPE '\\' " +
-        "OR x.search_vector @@ websearch_to_tsquery('swedish', 'deltid')))";
+        "OR x.search_vector @@ plainto_tsquery('swedish', 'deltid')))";
 
     // SuggestJobAdTermsQueryHandler's title branch — left-anchored LIKE with an explicit ESCAPE. WITHOUT
     // the production `status='Active'` conjunct, same reason as QSearchSql: #743's status index would

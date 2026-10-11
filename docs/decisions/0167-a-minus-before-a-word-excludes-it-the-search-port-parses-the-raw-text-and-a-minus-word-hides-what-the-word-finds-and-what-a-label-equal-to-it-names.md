@@ -56,8 +56,7 @@ After the existing normalisation (whitespace collapsed, control and format chara
 whitespace and comma. A token whose first rune after any leading `+` is dash punctuation (Unicode `Pd`) or U+2212 is an **excluded term**.
 
 - **The term never starts with an operator.** Its leading run of `+`, `"`, dashes and the operators `websearch_to_tsquery` skips while it
-  waits for an operand (`! & | ( ) <`) and its trailing quotes are stripped. Without that, `-"-deltid"` would become the term `-deltid`, and
-  `-(-deltid` the term `(-deltid`, each of which inside the `EXISTS` reads as `!'deltid'` and inverts the set.
+  waits for an operand (`! & | ( ) <`) and its trailing quotes are stripped.
 - **Bounds.** A term under `SearchCriteria.QMinLength`, or with no letter or digit, is dropped, so it takes none of the five places. Duplicates are dropped case-insensitively and the first casing wins. At most
   five are kept (`ParsedSearchQuery.MaxExcludedTerms`; the frontend mirrors it as `Q_MAX_EXCLUDED_TERMS`). A bare operator token, a lone dash
   included, is dropped.
@@ -106,7 +105,7 @@ database hit (ADR 0043 Beslut D).
 ### D5 — The SQL form: `NOT EXISTS` for text, an explicit null test for labels
 
 Each minus-word is a correlated `NOT EXISTS` over the **unfiltered** `job_ads` root, whose inner predicate is the plus-word's own
-`MatchesText`. The exclusion is therefore the set difference of the plus-word's own match, by construction.
+`MatchesText`.
 
 - **Never an inline `NOT`.** It would detoast `search_vector` for every outer row (TD-94), and `NOT` over a `NULL` SSYK arm is `NULL`, which
   drops the row.

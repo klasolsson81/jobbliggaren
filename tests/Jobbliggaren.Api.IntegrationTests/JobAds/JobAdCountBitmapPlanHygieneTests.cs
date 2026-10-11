@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.JobAds;
@@ -39,10 +40,10 @@ public sealed class JobAdCountBitmapPlanHygieneTests(ApiFactory factory)
     private static readonly ResolvedSearchText NoText = new(null, [], TaxonomyLabelMatchDto.Empty);
 
     private static readonly ResolvedSearchText PositiveText =
-        new(new TextTerm("lärare", "%lärare%", []), [], TaxonomyLabelMatchDto.Empty);
+        new(new TextTerm("lärare", "%lärare%", [], TextTermRole.Positive), [], TaxonomyLabelMatchDto.Empty);
 
     private static readonly ResolvedSearchText ExcludingText =
-        new(null, [new TextTerm("deltid", "%deltid%", [])], TaxonomyLabelMatchDto.Empty);
+        new(null, [new TextTerm("deltid", "%deltid%", [], TextTermRole.Excluded)], TaxonomyLabelMatchDto.Empty);
 
     [Fact]
     public async Task BitmapPlanCount_AppliesSetLocalInTheCountsTransaction_OnlyWhenHygieneRequested()
@@ -196,6 +197,37 @@ public sealed class JobAdCountBitmapPlanHygieneTests(ApiFactory factory)
         recorder.Records[^1].Transaction.ShouldNotBeNull();
         recorder.Records[^1].Transaction.ShouldBe(setLocals[1].Transaction,
             "the SET LOCAL and the item read must run in the SAME transaction/connection.");
+    }
+
+    [Fact]
+    public async Task SearchPerUserAsync_ReadsItsItemsUnderTheGucs_WithMinusWords()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _factory.Services.CreateScope();
+        var expander = scope.ServiceProvider.GetRequiredService<IOccupationSynonymExpander>();
+        var recorder = new RecordingCommandInterceptor();
+        await using var db = NewRecordingContext(scope, recorder);
+        var perUser = new PerUserJobAdSearchQuery(
+            db, SearchTextResolvers.For(scope, expander), new JobAdSearchQuery(db, SearchTextResolvers.For(scope, expander)));
+        var profile = new FullCandidateMatchProfile(
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: ["grp_hygiene"],
+                PreferredRegionConceptIds: [],
+                PreferredEmploymentTypeConceptIds: [],
+                PreferredMunicipalityConceptIds: []),
+            []);
+
+        recorder.Clear();
+        _ = await perUser.SearchPerUserAsync(
+            EmptyFilter(q: "-deltid"), profile, grades: [], JobAdSortBy.PublishedAtDesc, orderByMatchRank: true,
+            JobAdStatusFilter.None, new JobSeekerId(Guid.NewGuid()), page: 1, pageSize: 20, ct);
+
+        var setLocals = recorder.Records
+            .Where(r => r.CommandText.Contains(NestLoopGuc, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        setLocals.Count.ShouldBe(2, "the count and the item read each prohibit the nested loop.");
+        recorder.Records[^1].Transaction.ShouldBe(setLocals[1].Transaction);
     }
 
     private static JobAdSearchCriteria FirstPage(string q) =>

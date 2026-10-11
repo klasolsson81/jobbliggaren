@@ -23,8 +23,6 @@ describe("classifyWord", () => {
     ["‐deltid", "deltid"], // U+2010 hyphen
     ["−deltid", "deltid"], // U+2212 minus sign
     ["－deltid", "deltid"], // U+FF0D fullwidth hyphen-minus
-    // websearch_to_tsquery skips ! & | ( ) < while it waits for an operand and reads a "-" right
-    // after them as NOT; inside the server's EXISTS that inverts the set (ADR 0167 D1).
     ["-(-deltid", "deltid"],
     ["-!-deltid", "deltid"],
     ["-&-deltid", "deltid"],

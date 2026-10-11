@@ -848,3 +848,122 @@ describe("proxy — the matcher", () => {
     (path) => expect(matches(path)).toBe(false)
   );
 });
+
+// ADR 0165: the anonymous twin of /jobb/<uuid>. The branch's own matrix is public-job-ad-route.test.ts; these pin
+// how the proxy composes it with the rest of the gate.
+describe("proxy: the public job page", () => {
+  const ID = "0b0b0b0b-1111-4222-8333-444444444444";
+  const PUBLIC_URL = `http://backend.test/api/v1/public/job-ads/${ID}`;
+  const CROSS_SITE = {
+    "sec-fetch-site": "cross-site",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-dest": "document",
+  } as const;
+
+  const listed = () => new Response("{}", { status: 200 });
+
+  it("serves an anonymous /jobb/<uuid> from the public page, where it used to meet the login redirect", async () => {
+    fetchMock.mockResolvedValue(listed());
+    const res = await proxy(makeRequest(`/jobb/${ID}`));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-middleware-rewrite")).toBe(`https://app.test/publik/jobb/${ID}`);
+    expect(res.headers.get("location")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(PUBLIC_URL);
+  });
+
+  it("leaves a request with a session cookie on today's route: the refresh driver, never the public endpoint", async () => {
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: false, sessionId: null, expiresAt: "2026-12-31T00:00:00Z" }));
+    const res = await proxy(makeRequest(`/jobb/${ID}`, { cookies: { [SESSION_COOKIE_NAME]: "sess-1" } }));
+
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(["http://backend.test/api/v1/auth/refresh"]);
+  });
+
+  it.each([
+    ["the list", "/jobb"],
+    ["a segment that is not a GUID", "/jobb/not-a-guid"],
+    ["a GUID with a tail", `/jobb/${ID}/extra`],
+    ["the list's query form", "/jobb?q=sjukskoterska"],
+  ])("still sends an anonymous request for %s to the login page", async (_label, path) => {
+    const res = await proxy(makeRequest(path));
+
+    expect(res.status).toBe(307);
+    expect(new URL(res.headers.get("location") ?? "", "https://app.test").pathname).toBe("/logga-in");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("still sends an anonymous POST to /jobb/<uuid> to the login page", async () => {
+    const res = await proxy(makeRequest(`/jobb/${ID}`, { method: "POST" }));
+
+    expect(res.status).toBe(307);
+    expect(new URL(res.headers.get("location") ?? "", "https://app.test").pathname).toBe("/logga-in");
+  });
+
+  it("gives an anonymous cross-site browser navigation the continuation document first, without asking the API (#2094)", async () => {
+    const res = await proxy(makeRequest(`/jobb/${ID}`, { headers: CROSS_SITE }));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-robots-tag")).toBe("noindex");
+    expect(await res.text()).toContain(`/jobb/${ID}?vidare=1`);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("serves the public page at the hop's address, where the bounce marker stands the bounce down", async () => {
+    fetchMock.mockResolvedValue(listed());
+    const res = await proxy(
+      makeRequest(`/jobb/${ID}?vidare=1`, {
+        headers: { ...CROSS_SITE, "sec-fetch-site": "same-origin" },
+      })
+    );
+
+    // The query stays in the browser's address, where the page's island takes the marker off; nothing a visitor put in
+    // the query reaches the internal page.
+    expect(res.headers.get("x-middleware-rewrite")).toBe(`https://app.test/publik/jobb/${ID}`);
+    expect(res.status).toBe(200);
+  });
+
+  it("does not bounce a crawler: Googlebot sends no Fetch Metadata, so it is served the page itself", async () => {
+    fetchMock.mockResolvedValue(listed());
+    const res = await proxy(makeRequest(`/jobb/${ID}`, { headers: { "user-agent": "Googlebot/2.1" } }));
+
+    expect(res.headers.get("x-middleware-rewrite")).toBe(`https://app.test/publik/jobb/${ID}`);
+    expect(res.headers.get("x-robots-tag")).toBeNull();
+  });
+
+  it("does not bounce a prefetch either, and answers it with the page's own answer, never with the signed-in route", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 410 }));
+    const res = await proxy(
+      makeRequest(`/jobb/${ID}`, { headers: { ...CROSS_SITE, "sec-purpose": "prefetch", "next-router-prefetch": "1" } })
+    );
+
+    expect(res.status).toBe(410);
+    expect(res.headers.get("x-middleware-next")).toBeNull();
+  });
+
+  it.each([`/publik/jobb/${ID}`, "/publik/borttagen", "/publik/overbelastad", "/%70ublik/borttagen"])(
+    "answers a direct request for the internal %s with a 404, whoever asks",
+    async (path) => {
+      for (const cookies of [undefined, { [SESSION_COOKIE_NAME]: "sess-1" }]) {
+        const res = await proxy(makeRequest(path, { cookies }));
+        expect(res.headers.get("x-middleware-rewrite")).toBe("https://app.test/publik/saknas");
+      }
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it("answers an upstream 410 with the one 410 page and a 503 for the budget, both uncacheable", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 410 }));
+    const gone = await proxy(makeRequest(`/jobb/${ID}`));
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 429, headers: { "Retry-After": "11" } }));
+    const busy = await proxy(makeRequest(`/jobb/${ID}`));
+
+    expect(gone.status).toBe(410);
+    expect(gone.headers.get("cache-control")).toBe("no-store");
+    expect(busy.status).toBe(503);
+    expect(busy.headers.get("retry-after")).toBe("11");
+    expect(busy.headers.get("cache-control")).toBe("no-store");
+  });
+});

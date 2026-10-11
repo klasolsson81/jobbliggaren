@@ -8,12 +8,10 @@ import { isCrossSiteDocumentNavigation } from "@/lib/http/fetch-metadata";
 import { buildContinuationDocument } from "./continuation-document";
 import { hasControlCharacterOrBackslash } from "./safe-redirect";
 import { returnPathFor } from "./return-path";
+import { BOUNCE_MARKER } from "./bounce-marker";
 
-/**
- * The query key the bounce's own hop carries, so a request that already came back is never bounced again. Its
- * value is a constant and names nothing.
- */
-export const BOUNCE_MARKER = "vidare";
+// Re-exported: the marker lives in its own module so a client island can read it without this file's server imports.
+export { BOUNCE_MARKER };
 
 const PARSE_BASE = new URL("https://jobbliggaren.invalid");
 

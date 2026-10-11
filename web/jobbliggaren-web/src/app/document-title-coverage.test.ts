@@ -41,6 +41,14 @@ const MESSAGES = resolve(APP, "..", "..", "messages", "sv");
  */
 const SHARED_NOT_FOUND_TITLE = "<notFoundMetadata()>";
 
+/**
+ * Pages whose title is the record's own, composed at request time from its fields (the public job page, ADR
+ * 0165: "<ad title> - <company>"). Exact files, never a pattern: a page that hides behind this list is a page
+ * this check can no longer compare, so each entry is a reviewed decision. Two such pages cannot collide, because
+ * their titles are different records'.
+ */
+const RECORD_TITLED_PAGES: readonly string[] = ["(public-job)/publik/jobb/[id]/page.tsx"];
+
 /** A path segment starting with `@` is a parallel-route slot: no URL, no document. */
 const isSlotSegment = (segment: string): boolean => segment.startsWith("@");
 
@@ -101,9 +109,14 @@ function message(path: string): string {
  * measured on this suite, giving `/jobb/[id]` the same title as `/ansokningar/[id]`
  * then passed.
  */
-function resolveTitle(source: string): string {
+function resolveTitle(source: string, file = ""): string {
   const block = metadataBlock(source);
   if (block === null) throw new Error("no metadata export");
+
+  if (RECORD_TITLED_PAGES.includes(file)) {
+    if (!/\btitle:/.test(block)) throw new Error(`${file} is record-titled but its metadata carries no title`);
+    return `<record title: ${file}>`;
+  }
 
   const [, key] = /title:\s*t\("([^"]+)"\)/.exec(block) ?? [];
   if (key !== undefined) {
@@ -187,7 +200,7 @@ describe("document title coverage", () => {
   it("gives no two documents with different subjects the same title", () => {
     const byTitle = new Map<string, string[]>();
     for (const file of documents) {
-      const title = resolveTitle(read(file));
+      const title = resolveTitle(read(file), file);
       byTitle.set(title, [...(byTitle.get(title) ?? []), file]);
     }
     expect(

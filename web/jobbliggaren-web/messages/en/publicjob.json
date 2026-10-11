@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "description": "Job ad from {company}: {title}. Published {published}.",
+    "descriptionWithDeadline": "Job ad from {company}: {title}. Published {published}. Application deadline {deadline}."
+  },
+  "openAd": "Open the ad",
+  "openAdAf": "Open the ad at Arbetsförmedlingen",
+  "gone": {
+    "title": "The job ad is no longer available",
+    "body": "The last application day may have passed, or the ad may have been removed."
+  },
+  "busy": {
+    "title": "The job ad can't be shown right now",
+    "body": "Try again in a moment."
+  }
+}

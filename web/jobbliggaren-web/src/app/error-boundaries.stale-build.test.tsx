@@ -23,6 +23,7 @@ import AuthError from "./(auth)/error";
 import GuestError from "./(guest)/gast/error";
 import MarketingError from "./(marketing)/error";
 import MarketingInnerError from "./(marketing-inner)/error";
+import PublicJobError from "./(public-job)/error";
 import GlobalError from "./global-error";
 
 vi.mock("@/lib/stale-build/reload-document", () => ({ reloadDocument: vi.fn() }));
@@ -61,6 +62,7 @@ const table: { path: string; Boundary: ComponentType<ErrorInfo> }[] = [
   { path: "(guest)/gast/error.tsx", Boundary: GuestError },
   { path: "(marketing)/error.tsx", Boundary: MarketingError },
   { path: "(marketing-inner)/error.tsx", Boundary: MarketingInnerError },
+  { path: "(public-job)/error.tsx", Boundary: PublicJobError },
   { path: "global-error.tsx", Boundary: GlobalError },
 ];
 

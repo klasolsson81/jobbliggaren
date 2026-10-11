@@ -954,7 +954,7 @@ put the personnummer guard at the surfacing boundary instead.
 **What this does, and why it is a different act.** `JobAd.ApplyContactRedaction`, which every Import and UpdateFromSource reaches,
 now runs `PersonnummerRedactor` over `Company.Name` as well as Title and Description. It acts on a **token that
 `Personnummer.TryParse` validates** (month, day, Luhn), never on the name or on a shape test. The rest of the name is kept and the
-mask preserves length. An ordinary name, an organisation number (its third and fourth digits form a number of 20 or more, so the
+mask preserves length. An ordinary name, an AB's organisation number (its third and fourth digits form a number of 20 or more, so the
 month check fails) and a Luhn-invalid run are left exactly as they were
 (`A_company_name_without_a_personnummer_is_left_exactly_as_it_was`). It is a masking in the sense of D8(c), applied once at the
 write instead of once per projection, because the public job page (ADR 0160, 0165) prints the stored value as it is. An enskild
@@ -965,11 +965,11 @@ firma's name is a person's name (`Company.Erased`), and a personnummer typed int
 `raw_payload` is not a read surface (ADR 0106 D5 amendment 2026-10-11). A manually created ad is user-authored text and is never
 rewritten (CLAUDE.md §5).
 
-**Stored rows heal without a backfill.** The nightly snapshot upserts every record through `UpdateFromSource`, which reaches
-`ApplyContactRedaction`, so a name stored before this change is masked on the next run. That is pinned through the production
-write path against Postgres by `A_company_name_stored_before_2123_is_masked_by_the_next_nightly_resync`, with the pre-change row
-produced by the actor that wrote it (the importer before #2123, which stored `employer.name` verbatim). The one-off
-`ApplyContactScrubBackfill` probe counts the name too, so probe and write path stay one detector.
+**Stored rows.** A name stored before this change is masked by the next upsert of its record, which the nightly snapshot makes for
+every ad still in the feed: pinned through the production write path against Postgres by
+`A_company_name_stored_before_2123_is_masked_by_the_next_nightly_resync`. An ad that has left the feed is not upserted again; for that
+tail the one-off `ApplyContactScrubBackfill` probe counts the name too, pinned by
+`Destructive_run_masks_a_personnummer_whose_only_carrier_is_the_company_name_of_a_delisted_ad`.
 
 **Cross-ref:** ADR 0134 amendment 2026-10-11 (2) (the separator forms the same detector now masks), ADR 0106 D4/D5, ADR 0160 and
 0165 (the public page), #2123, #2131, #841.

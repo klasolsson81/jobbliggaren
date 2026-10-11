@@ -133,22 +133,59 @@ public sealed class PersonnummerBridgeCollisionRateTests
 
     [Theory]
     [InlineData(" - ")]
-    [InlineData(" – ")]
+    [InlineData(" \u2013 ")]
     [InlineData(".")]
     [InlineData("/")]
     [InlineData("_")]
+    [InlineData(" -- ")]
+    [InlineData(" - -")]
+    [InlineData("-- ")]
     public void TheIssue2123Forms_CollideExactlyAsOftenAsTheContiguousDigits_BecauseTryParseIsTheOnlyAuthority(
         string form)
     {
         // #2123 widened the candidate SHAPE of the redaction path (a separator between two gap
         // columns; '.', '/', '_' as separators), not the validation. So a new form must collide
-        // with exactly the frequency of the same twelve digits written contiguously: 1 in 133 for
-        // arbitrary digits, 1 in 9.9 for a real date column. Before #2123 these forms were not
-        // candidates at all (0 hits), so the exposure the change adds is bounded by the two numbers
-        // ADR 0134 already priced, never a new one. Any extra filter or any extra leniency in the
-        // grammar breaks the equality, which is the point.
+        // with exactly the frequency of the same digits written contiguously, for both leading
+        // widths a personnummer has (12 digits as 8+4, 10 digits as 6+4) and for a real date
+        // column. Before #2123 these forms were not candidates at all (0 hits); ADR 0134 holds the
+        // dated numbers. The equality catches a NARROWER grammar (the hits fall below the
+        // contiguous rate). It cannot catch a wider one on an isolated token, which has no extra
+        // candidate to find; that direction is pinned by the negatives in PersonnummerScannerTests.
         ScanWithGapsHitRate(form, dateColumn: false).ShouldBe(ArbitraryEightPlusFourCollisionRate());
         ScanWithGapsHitRate(form, dateColumn: true).ShouldBe(DateColumnPlusFourCollisionRate());
+        ScanWithGapsSixPlusFourHitRate(form).ShouldBe(ArbitrarySixPlusFourCollisionRate());
+    }
+
+    /// <summary>Ten arbitrary digits judged as one contiguous 6+4 personnummer candidate.</summary>
+    private static double ArbitrarySixPlusFourCollisionRate()
+    {
+        var rng = new Random(Seed);
+        var hits = 0;
+        for (var i = 0; i < Trials; i++)
+        {
+            var candidate = string.Create(10, rng, static (span, r) =>
+            {
+                for (var k = 0; k < span.Length; k++) span[k] = (char)('0' + r.Next(10));
+            });
+            if (Personnummer.TryParse(candidate, out _)) hits++;
+        }
+        return (double)hits / Trials;
+    }
+
+    /// <summary>The same ten digits split 6+4 around <paramref name="form"/>, counted through the scanner.</summary>
+    private static double ScanWithGapsSixPlusFourHitRate(string form)
+    {
+        var rng = new Random(Seed);
+        var hits = 0;
+        for (var i = 0; i < Trials; i++)
+        {
+            var digits = string.Create(10, rng, static (span, r) =>
+            {
+                for (var k = 0; k < span.Length; k++) span[k] = (char)('0' + r.Next(10));
+            });
+            if (PersonnummerScanner.ScanWithGaps(digits[..6] + form + digits[6..]).Count > 0) hits++;
+        }
+        return (double)hits / Trials;
     }
 
     [Fact]

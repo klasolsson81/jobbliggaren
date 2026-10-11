@@ -65,45 +65,44 @@ public static partial class PersonnummerScanner
     //     char (\p{Cf}) INTERLEAVED between digits (#498a): the import flag path strips \p{Cf}
     //     globally before Scan, so a \p{Cf} INSIDE a digit group is flagged there; the redaction
     //     path must mask it too, so \p{Cf}* rides after every digit, and/or
-    //   * up to TWO visible Unicode space separators or tabs ((?:[\p{Zs}\t]\p{Cf}*){0,2},
-    //     bounded {0,2} in lockstep with the ExtractedDocumentText profile of
-    //     PersonnummerTextNormalizer — NOT with that type as a whole, which since #1415 also
+    //   * the GAP RULE, one rule for one piece of knowledge (the two-visible-column budget): a run of
+    //     at most TWO separators, then up to TWO visible Unicode space separators or tabs, each
+    //     followed by a run of at most TWO separators
+    //     ((?:[SEP]\p{Cf}*){0,2}(?:[\p{Zs}\t]\p{Cf}*(?:[SEP]\p{Cf}*){0,2}){0,2}). The {0,2} on the
+    //     visible columns is bounded in lockstep with the ExtractedDocumentText profile of
+    //     PersonnummerTextNormalizer, NOT with that type as a whole, which since #1415 also
     //     carries a wider SingleLineUserInput profile that this path deliberately has no
     //     counterpart for. No Redact call site redacts a search query or any other
     //     single-line user input, so there is nothing here for the wider flag profile to be a
     //     superset of (ADR 0134 D7, pinned by PersonnummerGapProfileCallSiteTests). A 3+ visible-column
-    //     gap therefore stays unbridged on this path — the accepted residual #427 V3), and/or
-    //   * at most ONE separator per side, ADJACENT to the space run on either side
-    //     ((?:[SEP]\p{Cf}*)? before AND after) where SEP is ASCII '-'/'+', any Unicode dash
-    //     (\p{Pd}), U+2212 MINUS (#497) or, since #2123, '.', '/' or '_': a realistic OCR/Word
-    //     rendering of a legitimate separator, e.g. "811218- 9876" / "811218 -9876" (#427 R2) /
-    //     a Unicode-dash pnr (#497) / "811218.9876" as an employer types it into an ad, and/or
-    //   * ONE separator BETWEEN two single visible columns ([\p{Zs}\t]\p{Cf}*, SEP, [\p{Zs}\t]\p{Cf}*
-    //     — the second alternative of the gap group), "811218 - 9876" (#2123, ADR 0134 R2
-    //     superseded on this path). It spends the same two-column budget as "811218  9876":
-    //     the first alternative cannot reach it because it admits a separator only
-    //     digit-adjacent, so the form needs its own arm. A third column on either side stays
-    //     unbridged (ADR 0134 D1), and so does a line break, and/or
+    //     gap therefore stays unbridged on this path, the accepted residual (#427 V3, ADR 0134 D1).
+    //     SEP is ASCII '-'/'+', any Unicode dash (\p{Pd}), U+2212 MINUS (#497) or, since #2123,
+    //     '.', '/' or '_'. The rule covers "811218- 9876" / "811218 -9876" (#427 R2), a dash-space-dash
+    //     form (#498), "811218--9876" (#665), a Unicode-dash pnr (#497) and, since #2123, a separator
+    //     BETWEEN the two columns ("811218 - 9876"), "811218.9876" as an employer types it into an ad,
+    //     and two separators beside a column ("811218 -- 9876"). A line break is not a column, and it
+    //     is not bridged (PersonnummerGapProfile.ExtractedDocumentText), and
     //   * any number of invisible zero-width format characters (\p{Cf}: U+200B, U+FEFF, ...)
     //     that PDF/DOCX extraction emits, freely INTERLEAVED anywhere in the gap (\p{Cf}* at
-    //     each position) — so "811218<sp><ZWSP><sp>9876" bridges even though the \p{Cf} breaks
+    //     each position), so "811218<sp><ZWSP><sp>9876" bridges even though the \p{Cf} breaks
     //     the visible-space run (#427 R1). Being invisible non-content they are unbounded; they
     //     do not count toward the {0,2} visible-column bound.
     // Unlike the import guard's Normalize→Scan path (which joins digits on a transient copy
     // and discards offsets), the redactor must mask IN PLACE, so this match must span the
     // ORIGINAL text INCLUDING the gap. The digit (\d), space (\p{Zs}\t), zero-width (\p{Cf})
     // and separator (ASCII '-'/'+', \p{Pd}, U+2212, '.', '/', '_') classes are pairwise DISJOINT
-    // with bounded quantifiers, so the pattern is ReDoS-linear (the two gap alternatives share
-    // only a fixed-length prefix, so the alternation costs a constant factor, not a polynomial
-    // one). The '-'/'+'/\p{Pd}/U+2212 core of the separator class and the \p{Cf} class are shared
-    // with PersonnummerTextNormalizer; '.', '/' and '_' are NOT \u2014 they are a deliberate widening of
-    // THIS path only (#2123, ADR 0134 amendment), the safe direction of the superset invariant
-    // (the redactor masks everything the flag path flags, plus these), so the flag path and with it
-    // every CV import stay byte-identical. The UNCHANGED Personnummer.TryParse date+Luhn gate stays
-    // the ONLY authority, so a wider candidate SHAPE can never manufacture a valid false positive
-    // out of two unrelated numbers; PersonnummerBridgeCollisionRateTests pins that a new form
-    // collides exactly as often as the same digits written contiguously.
-    [GeneratedRegex(@"(?<!\d)(?:(?:\d\p{Cf}*){8}|(?:\d\p{Cf}*){6})(?:(?:[-+\p{Pd}\u2212./_]\p{Cf}*)?(?:[\p{Zs}\t]\p{Cf}*){0,2}(?:[-+\p{Pd}\u2212./_]\p{Cf}*)?|[\p{Zs}\t]\p{Cf}*[-+\p{Pd}\u2212./_]\p{Cf}*[\p{Zs}\t]\p{Cf}*)(?:\d\p{Cf}*){4}(?!\d)", RegexOptions.CultureInvariant)]
+    // with bounded quantifiers and no alternation inside the gap, so the pattern is ReDoS-linear.
+    // The '-'/'+'/\p{Pd}/U+2212 core of the separator class and the \p{Cf} class are shared with
+    // PersonnummerTextNormalizer; '.', '/' and '_' are NOT: they are a deliberate widening of THIS
+    // path only (#2123, ADR 0134 amendment). The flag path (Normalize→Scan, the CV import guard and
+    // the ?q= box) is unchanged; the redactor also runs over CV file names, evidence and ATS text, and
+    // masks the new forms there too. That is the safe direction of the superset invariant (the
+    // redactor masks everything the flag path flags, plus these). The UNCHANGED
+    // Personnummer.TryParse date+Luhn gate stays the ONLY authority, so a wider candidate SHAPE can
+    // never manufacture a valid false positive out of two unrelated numbers;
+    // PersonnummerBridgeCollisionRateTests pins that a new form collides exactly as often as the
+    // same digits written contiguously.
+    [GeneratedRegex(@"(?<!\d)(?:(?:\d\p{Cf}*){8}|(?:\d\p{Cf}*){6})(?:[-+\p{Pd}\u2212./_]\p{Cf}*){0,2}(?:[\p{Zs}\t]\p{Cf}*(?:[-+\p{Pd}\u2212./_]\p{Cf}*){0,2}){0,2}(?:\d\p{Cf}*){4}(?!\d)", RegexOptions.CultureInvariant)]
     private static partial Regex GapAwareCandidateRegex();
 
     /// <summary>
@@ -140,8 +139,22 @@ public static partial class PersonnummerScanner
         // today). Masking still uses the ORIGINAL span (gap + separators kept), not this token.
         Span<char> token = stackalloc char[14];
 
-        foreach (var candidate in GapAwareCandidateRegex().EnumerateMatches(text))
+        // A candidate TryParse rejects must not hide a real personnummer that starts INSIDE it. The
+        // candidate shape is permissive on purpose and TryParse is the only authority, but a plain
+        // non-overlapping enumeration lets a rejected candidate consume text: "556677.8112<ZWSP>18-9876"
+        // yields the candidate "556677.8112" (rejected), and the personnummer that begins at "8112" was
+        // skipped although the flag path, which strips the zero-width character first, flags it
+        // (flagged-but-unmasked, the break #465/#498 closed). So after a rejection scanning resumes one
+        // position later; an ACCEPTED match still consumes its span. The lookbehind still forbids a
+        // start in the middle of a digit run, so the extra work is bounded by the candidate length.
+        var start = 0;
+        while (start < text.Length)
         {
+            var candidates = GapAwareCandidateRegex().EnumerateMatches(text, start);
+            if (!candidates.MoveNext())
+                break;
+
+            var candidate = candidates.Current;
             var span = text.AsSpan(candidate.Index, candidate.Length);
 
             // Build the DIGIT-ONLY token (#497/#498, Approach A): keep every decimal digit
@@ -171,7 +184,10 @@ public static partial class PersonnummerScanner
             }
 
             if (overflowed || !Personnummer.TryParse(token[..length], out var personnummer))
+            {
+                start = candidate.Index + 1;
                 continue;
+            }
 
             matches ??= [];
             matches.Add(PersonnummerMatch.Create(
@@ -179,6 +195,7 @@ public static partial class PersonnummerScanner
                 candidate.Length,
                 personnummer.Kind,
                 Personnummer.MaskSpan(span)));
+            start = candidate.Index + candidate.Length;
         }
 
         return matches is null ? [] : matches;

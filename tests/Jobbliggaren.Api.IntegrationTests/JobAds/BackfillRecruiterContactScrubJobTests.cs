@@ -281,6 +281,80 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
         again.Scrubbed.ShouldBe(0);
     }
 
+    private const string CompanyNameCarrierExternalId = "backfill-company-name-6";
+    private const string CompanyNameWithPersonnummer = "Svensson 811218 - 9876";
+
+    [Fact]
+    public async Task Destructive_run_masks_a_personnummer_whose_only_carrier_is_the_company_name_of_a_delisted_ad()
+    {
+        // #2123. The probe (JobAd.ApplyContactScrubBackfill) counts Company.Name beside Title and
+        // Description, and this is the arm that reaches the de-listed tail: an ad that has left the
+        // feed is never upserted again, so the nightly sync never re-masks its name.
+        //
+        // A RETIRED-ACTOR SEAM (CLAUDE.md §5 Tests:). The actor is "the importer before #2123", which
+        // stored employer.name verbatim; its row is written by the raw UPDATE below. The complement,
+        // that the CURRENT writer cannot produce the shape, is pinned in
+        // JobAdPersonnummerRedactionTests.A_personnummer_in_the_company_name_is_masked_in_place_on_import
+        // and in RecruiterContactIngestTests.The_separator_forms_and_a_personnummer_in_the_company_name_
+        // are_masked_after_import_and_resync (plain text: neither project is referenced from here).
+        // Title and description stay clean, so the name is the only detection in the table.
+        var ct = TestContext.Current.CancellationToken;
+        using (var seed = _provider.CreateScope())
+        {
+            var seedDb = seed.ServiceProvider.GetRequiredService<AppDbContext>();
+            var delisted = ImportClean(CompanyNameCarrierExternalId, new FixedClock(Now));
+            delisted.Archive(new FixedClock(Now)).IsSuccess.ShouldBeTrue();
+            seedDb.JobAds.Add(delisted);
+            await seedDb.SaveChangesAsync(ct);
+
+            await seedDb.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE job_ads SET company_name = {CompanyNameWithPersonnummer}
+                WHERE external_id = {CompanyNameCarrierExternalId}
+                """, ct);
+        }
+
+        ContactScrubBackfillCounts dry;
+        using (var scope = _provider.CreateScope())
+        {
+            dry = await scope.ServiceProvider.GetRequiredService<BackfillRecruiterContactScrubJob>()
+                .RunAsync(dryRun: true, ct);
+        }
+
+        dry.Scrubbed.ShouldBe(1, "the company name is the only detection, so the probe must count it.");
+        using (var untouched = _provider.CreateScope())
+        {
+            (await CompanyNameAsync(untouched.ServiceProvider.GetRequiredService<AppDbContext>(),
+                CompanyNameCarrierExternalId, ct)).ShouldBe(CompanyNameWithPersonnummer);
+        }
+
+        ContactScrubBackfillCounts live;
+        using (var scope = _provider.CreateScope())
+        {
+            live = await scope.ServiceProvider.GetRequiredService<BackfillRecruiterContactScrubJob>()
+                .RunAsync(dryRun: false, ct);
+        }
+
+        live.Scrubbed.ShouldBe(1);
+        using (var check = _provider.CreateScope())
+        {
+            var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await CompanyNameAsync(db, CompanyNameCarrierExternalId, ct)).ShouldBe("Svensson ****** - ****");
+            (await ContactsIsNullAsync(db, CompanyNameCarrierExternalId, ct)).ShouldBeTrue(
+                "an archived ad holds no contacts, and a personnummer is never promoted into one.");
+        }
+
+        using var rerun = _provider.CreateScope();
+        (await rerun.ServiceProvider.GetRequiredService<BackfillRecruiterContactScrubJob>()
+            .RunAsync(dryRun: false, ct)).Scrubbed.ShouldBe(0);
+    }
+
+    private static async Task<string?> CompanyNameAsync(
+        AppDbContext db, string externalId, CancellationToken ct) =>
+        (await db.Database
+            .SqlQueryRaw<string?>(
+                "SELECT company_name AS \"Value\" FROM job_ads WHERE external_id = {0}", externalId)
+            .ToListAsync(ct)).Single();
+
     // The retired actor: Import derived extracted_terms from the UNMASKED text with the real
     // extractor, so the seed does the same.
     private async Task SeedLegacyPersonnummerAsync(

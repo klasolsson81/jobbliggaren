@@ -90,6 +90,34 @@ public class ResumeFileTests
         result.Value.FileName.ShouldNotContain("811218");
     }
 
+    [Theory]
+    // '_' and '.' are not separators the import guard flags, so before #2123 these names reached the
+    // unencrypted file_name column unmasked; the redactor now masks them (ADR 0134 amendment (2)).
+    [InlineData("CV_811218_9876.pdf", "CV_******_****.pdf")]
+    [InlineData("CV_811218.9876.pdf", "CV_******.****.pdf")]
+    // The priced effect on CV surfaces: a date-stamped name whose digits pass date and Luhn is masked,
+    // about one in ten. The same digits with '-' were masked before #2123, so '_' adds candidate
+    // shapes, not a rate.
+    [InlineData("Scan_20231015_1432.pdf", "Scan_********_****.pdf")]
+    [InlineData("Scan-20231015-1432.pdf", "Scan-********-****.pdf")]
+    public void CaptureOriginal_FileNameWithTheSeparatorFormsOfIssue2123_IsMaskedAtRest(
+        string fileName, string expected)
+    {
+        var result = Capture(fileName: fileName);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.FileName.ShouldBe(expected);
+    }
+
+    [Fact]
+    public void CaptureOriginal_ADateStampedFileNameThatFailsLuhn_IsLeftIntact()
+    {
+        // 1433 instead of 1432 breaks the check digit: the gate, not the separator, decides.
+        var result = Capture(fileName: "Scan_20231015_1433.pdf");
+
+        result.Value.FileName.ShouldBe("Scan_20231015_1433.pdf");
+    }
+
     [Fact]
     public void CaptureOriginal_FileNameWithNonPersonnummerDigits_IsLeftIntact()
     {

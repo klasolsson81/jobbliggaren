@@ -37,7 +37,8 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// <see cref="PlatsbankenJobSource"/> (hence the REAL <see cref="JobTechPayloadSanitizer"/>) → the
 /// REAL <see cref="UpsertExternalJobAdCommandHandler"/> (hence the real aggregate scrub + real
 /// keyword extractor) → REAL Postgres 18 with the real migrations, generated columns and GIN index.
-/// Not one column is hand-seeded.
+/// The one hand-written state is a named retired-actor seam: the row the importer wrote before #2123
+/// (<c>A_company_name_stored_before_2123_is_masked_by_the_next_nightly_resync</c>).
 /// </summary>
 /// <remarks>
 /// This class is where the design's FTS locks <b>L2</b> (the address never enters
@@ -311,6 +312,13 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
             ad.Description.ShouldBe(
                 "Enskild firma ****** - **** eller ******.**** söker städare till kontor i Lund.", $"pass {pass}");
             ad.Company.Name.ShouldBe("Svensson ****** - ****", $"pass {pass}");
+
+            // Parity with ad F: the sweep over every text/jsonb column. raw_payload is the one column
+            // that deliberately keeps the source's text (ADR 0106 D5 amendment 2026-10-11).
+            (await ColumnsStillContainingAsync(db, SpacedHyphen, ct)).ShouldBe(["raw_payload"], $"pass {pass}");
+            (await ColumnsStillContainingAsync(db, DottedForm, ct)).ShouldBe(["raw_payload"], $"pass {pass}");
+            (await ColumnValueAsync(db, SpacedFormsExternalId, "extracted_terms", ct) ?? string.Empty)
+                .ShouldNotContain("9876", customMessage: $"pass {pass}: extracted terms derive from the masked text.");
         }
     }
 
@@ -321,10 +329,13 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
         await IngestThroughProductionPathAsync(ct);
 
         // The state of every row the importer wrote before #2123: it stored employer.name verbatim, so
-        // the name still carries the number. The importer cannot produce this row any more (the test
-        // above), so the actor that did is named here and written as the SQL it was: the pre-#2123
-        // importer's INSERT. What is asserted is the heal: the next upsert of the record, which is what
-        // the 02:00 UTC snapshot is, masks it without a backfill.
+        // the name still carries the number. The importer can no longer produce this row (the current
+        // writer's masking is pinned by The_separator_forms_and_a_personnummer_in_the_company_name_are_
+        // masked_after_import_and_resync), so the retired actor, "the importer before #2123", is named
+        // here and its row is written by the raw UPDATE below. What is asserted is the heal for a row
+        // that is still LISTED: the next upsert of the record, which is what the 02:00 UTC snapshot is.
+        // A row that has left the feed is not upserted again; that tail is the backfill probe's
+        // (BackfillRecruiterContactScrubJobTests).
         using (var scope = _provider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

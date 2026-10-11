@@ -173,7 +173,7 @@ public class JobAdPersonnummerRedactionTests
 
     [Theory]
     [InlineData("811218 - 9876")]
-    [InlineData("811218 – 9876")]
+    [InlineData("811218 \u2013 9876")]
     [InlineData("19811218 - 9876")]
     [InlineData("811278 - 9873")]
     [InlineData("811218.9876")]
@@ -199,18 +199,42 @@ public class JobAdPersonnummerRedactionTests
             "the backfill probe and the write path use one detector — masked text is a fixed point.");
     }
 
-    [Fact]
-    public void A_zero_leading_personnummer_with_a_spaced_hyphen_is_masked_and_never_promoted_into_contacts()
+    [Theory]
+    [InlineData("050505 - 1235")]
+    [InlineData("050505\t-\t1235")]
+    [InlineData("050505\u00A0-\u00A01235")]
+    [InlineData("050505 -\u00A01235")]
+    [InlineData("050505 \u2013 1235")]
+    [InlineData("050505.1235")]
+    [InlineData("050505/1235")]
+    [InlineData("050505_1235")]
+    public void A_zero_leading_personnummer_in_a_2123_form_is_masked_and_never_promoted_into_contacts(
+        string spelling)
     {
-        // The arm the issue names: before #2123 "050505 - 1235" was not matched by the scanner, so the
-        // phone detector (anchored on a leading 0) took it, the body got the marker, and the number
-        // was PROMOTED into Contacts. Both arms are asserted: the text AND the contact list.
-        var ad = Import(title: "Städare", description: "Enskild firma 050505 - 1235 söker städare.");
+        // The arm the issue names: before #2123 a spaced form starting with 0 was not matched by the
+        // scanner, so the phone detector (anchored on a leading 0, separators space/tab/NBSP/hyphen)
+        // took it, the body got the marker, and the number was PROMOTED into Contacts. Both arms are
+        // asserted, for the two visible surfaces and for both writers: the text AND the contact list.
+        foreach (var viaResync in new[] { false, true })
+        {
+            var title = $"Städare {spelling}";
+            var description = $"Enskild firma {spelling} söker städare.";
+            JobAd ad;
+            if (viaResync)
+            {
+                ad = Import(title: "Städare", description: "Neutral text.");
+                Resync(ad, title, description);
+            }
+            else
+            {
+                ad = Import(title, description);
+            }
 
-        ad.Description.ShouldNotContain("050505");
-        ad.Description.ShouldNotContain("1235");
-        (ad.Contacts is null || ad.Contacts.IsEmpty).ShouldBeTrue(
-            "a personnummer is removed, never moved into contacts under a recruiter-phone label.");
+            ad.Title.Any(char.IsDigit).ShouldBeFalse($"title, viaResync={viaResync}");
+            ad.Description.Any(char.IsDigit).ShouldBeFalse($"description, viaResync={viaResync}");
+            (ad.Contacts is null || ad.Contacts.IsEmpty).ShouldBeTrue(
+                $"a personnummer is removed, never moved into contacts under a recruiter-phone label (viaResync={viaResync}).");
+        }
     }
 
     [Theory]

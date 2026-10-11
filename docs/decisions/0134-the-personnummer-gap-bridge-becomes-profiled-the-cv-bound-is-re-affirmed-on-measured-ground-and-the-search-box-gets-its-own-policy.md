@@ -228,17 +228,21 @@ redactor's grammar is the CV one, whose R2 was accepted for a CV. On a public, i
 a published personnummer, and the S2-P3 count measures the stock on one day, not an ad imported after go-live
 (`senior-cto-advisor`, #2123, 2026-10-11).
 
-**What changes: `GapAwareCandidateRegex`, in two ways, and nothing else.**
+**What changes: `GapAwareCandidateRegex` and the loop of `ScanWithGaps`, in three ways.**
 
-1. A separator may sit **between two single visible columns**: `[\p{Zs}\t]` + separator + `[\p{Zs}\t]` is a second alternative of
-   the gap group. The first alternative (`sep? gap{0,2} sep?`) admits a separator only digit-adjacent and cannot reach it.
-2. `.`, `/` and `_` join the separator class (`-`, `+`, `\p{Pd}`, U+2212) in every slot of the redaction regex.
+1. The gap becomes **one rule**: a run of at most two separators, then up to two visible columns, each followed by a run of at most
+   two separators (zero-width characters free throughout). The old rule was one separator, up to two columns, one separator; the new
+   one contains it, and adds a separator between the two columns (`811218 - 9876`) and two separators beside a column (`811218 -- 9876`).
+2. `.`, `/` and `_` join the separator class (`-`, `+`, `\p{Pd}`, U+2212) in every slot.
+3. After a candidate that `TryParse` rejects, the scan resumes one position later instead of after the candidate. A rejected candidate
+   used to consume text, so a real personnummer starting inside it (`556677.8112<ZWSP>18-9876`) was skipped although the flag path flags
+   it; the mechanism already existed for `-`. An accepted match still consumes its span.
 
 **What does not change.**
 
 - **The flag path is byte-identical.** `PersonnummerTextNormalizer`, `CandidateRegex` and both profiles are untouched, so D1 holds
-  as written (`ExtractedDocumentText` is byte-identically the old policy), ADR 0074 Invariant 1 is untouched, and no CV import
-  behaves differently. The redactor can only mask more than the guard flags, never less.
+  as written (`ExtractedDocumentText` is byte-identically the old policy) and ADR 0074 Invariant 1 is untouched. The redactor can only
+  mask more than the guard flags, never less.
 - **The visible-column budget is two in total** (D1). The separator may sit between the two columns; a third column on either side
   stays unbridged. Zero-width `\p{Cf}` characters stay free.
 - **A line break is still not bridged**, and neither is a split digit group (`81 12 18-9876`, `811218-98 76`,
@@ -251,8 +255,8 @@ each side. The reason R2 gave, "the grammar, not the bound", still describes the
 grammar now has an arm for it.
 
 **D7, restated.** "`GapAwareCandidateRegex` is untouched" is no longer literally true. The property D7 protects holds: the redactor
-masks every spelling it masked before, with the same span (a frozen copy of the old pattern is the oracle:
-`ScanWithGaps_EverySpellingTheOldGrammarMatched_IsStillMatchedWithTheSameSpan`), so the flag-subset-of-redaction invariant
+masks every digit it masked before, in every one of a set of contexts (a frozen copy of the old pattern is the oracle:
+`ScanWithGaps_EveryDigitTheOldGrammarMasked_IsStillMaskedInAnyContext`), so the flag-subset-of-redaction invariant
 (`PersonnummerGuardPathEquivalenceTests`) holds unchanged, and no `Redact` call redacts single-line user input.
 `PersonnummerGapProfileCallSiteTests` re-measured: green, the set unchanged (6 files, 7 `Normalize` invocations, one allowed
 `Redact` site outside `Resumes/`: `JobAd.cs`, which now also redacts `Company.Name`, ADR 0087). The widening is the safe direction
@@ -262,18 +266,18 @@ about, and it is not made.
 **Collision measurement, before and after** (`PersonnummerBridgeCollisionRateTests`, seed `20260820`, 200 000 trials per
 population). **Before:** each new form 0 hits, because none was a candidate. **After:** exactly the rates of the same digits
 written contiguously, asserted equal rather than near: 0.7515 % (1 in 133) for two arbitrary numbers, 1 in 9.9 for a real date
-column plus four digits, for the five forms ` - `, ` – `, `.`, `/`, `_` (`TheIssue2123Forms_CollideExactlyAsOftenAsTheContiguousDigits_…`).
+column plus four digits, for the eight forms ` - `, ` – `, `.`, `/`, `_`, ` -- `, ` - -`, `-- `, at both leading widths, 8+4 and 6+4
+(`TheIssue2123Forms_CollideExactlyAsOftenAsTheContiguousDigits_…`).
 The amendment adds candidate shapes, not a collision rate; the exposure is bounded by the two numbers this ADR already priced. The
-cost is the one D2 already names: a reference written like a personnummer (`20261011/1234`) is masked when it also passes date and
+cost is that a reference written like a personnummer (`20261011/1234`) is masked when it also passes date and
 Luhn, which is over-redaction of an ad number, priced as the cheaper error.
 
-**What the S2-P3 count can still read above zero on.** `docs/runbooks/public-job-page-publication-count.sql` counts a superset of
-what the scanner masks, on purpose. Measured over its gap grammar (`gap{0,3} sep? gap{0,3}`; 2 leads × 400 gap strings per side ×
-9 separators × 400 = 2 880 000 spellings, gap characters drawn from five visible spaces and two zero-width characters), the scanner
+**What the S2-P3 count query masks and does not.** The S2-P3 count query (it rides PR #2131) counts a superset of what the scanner
+masks, on purpose. Measured over its gap grammar (`gap{0,3} sep? gap{0,3}`; 2 leads × 400 gap strings per side × 9 separators × 400 =
+2 880 000 spellings, gap characters drawn from five visible spaces and two zero-width characters), on the final grammar, the scanner
 masks a spelling **if and only if** it holds at most two visible columns in total: 274 500 masked, 2 605 500 not, every one of the
 latter with three to six visible columns, none within the budget. The committed pin is a smaller sample of the same grammar
-(`ScanWithGaps_OverTheS2P3GapGrammar_MasksExactlyTheSpellingsWithinTheTwoColumnBudget`). So a reading above zero comes from one of
-three things: three or more visible columns (R1/D1), a split digit group, or the link (`url` is not masked, by decision).
+(`ScanWithGaps_OverTheS2P3GapGrammar_MasksExactlyTheSpellingsWithinTheTwoColumnBudget`).
 
 **Reopening** is evidence-gated, as D1 and R3 are: if an ad is observed carrying a personnummer in a form outside the list above,
 reopen #2123 with the evidence. The QA corpus is the standing instrument and runs observe-only (63 of 63 green on this change).

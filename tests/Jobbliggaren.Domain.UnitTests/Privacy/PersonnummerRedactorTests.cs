@@ -401,7 +401,7 @@ public class PersonnummerRedactorTests
 
     [Theory]
     [InlineData("811218 - 9876", "****** - ****")]
-    [InlineData("811218 – 9876", "****** – ****")]
+    [InlineData("811218 \u2013 9876", "****** \u2013 ****")]
     [InlineData("19811218 / 9876", "******** / ****")]
     [InlineData("811218.9876", "******.****")]
     [InlineData("811218_9876", "******_****")]

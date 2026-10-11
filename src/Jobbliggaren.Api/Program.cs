@@ -412,6 +412,7 @@ app.MapCompanyWatchCriteriaEndpoints();
 app.MapCompaniesEndpoints();
 app.MapMeJobAdStatusEndpoints();
 app.MapMeJobAdMatchEndpoints();
+app.MapMeNotificationFeedEndpoints();
 app.MapMeFollowedCompanyAdsEndpoints();
 app.MapMeJobsEndpoints();
 app.MapLandingEndpoints();

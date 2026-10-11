@@ -46,6 +46,7 @@ public static partial class RateLimitingExtensions
     public const string AdminReadPolicy = "admin-read";
     public const string FeedbackSubmitPolicy = "feedback-submit";
     public const string FeedbackPromptStatePolicy = "feedback-prompt-state";
+    public const string NotificationFeedReadPolicy = "notification-feed-read";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -388,6 +389,27 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.MeListRead.PermitLimit / rateLimitOpts.MeListRead.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.MeListRead.WindowSeconds / (double)rateLimitOpts.MeListRead.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). #1666 — the notification bell's background poll, its own
+            // bucket (RateLimitingOptions.NotificationFeedRead carries the derivation). Auth-gated →
+            // anonymous is caught by RequireAuthorization (NoLimiter bypass). TokenBucket, QueueLimit=0.
+            options.AddPolicy(NotificationFeedReadPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-notification-feed-read");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.NotificationFeedRead.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.NotificationFeedRead.PermitLimit / rateLimitOpts.NotificationFeedRead.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.NotificationFeedRead.WindowSeconds / (double)rateLimitOpts.NotificationFeedRead.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

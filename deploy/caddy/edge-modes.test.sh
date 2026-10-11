@@ -178,7 +178,9 @@ isolated() {
   coop=$(grep -ci '^cross-origin-opener-policy:' <<<"$1" || true)
   corp=$(grep -ci '^cross-origin-resource-policy:' <<<"$1" || true)
   via=$(grep -ci '^via:' <<<"$1" || true)
-  [ "$coop" = 1 ] && [ "$corp" = 1 ] && [ "$via" = 0 ]     && grep -qx 'cross-origin-opener-policy: same-origin' <<<"$1"     && grep -qx "cross-origin-resource-policy: $want" <<<"$1" && return 0
+  [ "$coop" = 1 ] && [ "$corp" = 1 ] && [ "$via" = 0 ] \
+    && grep -qx 'cross-origin-opener-policy: same-origin' <<<"$1" \
+    && grep -qx "cross-origin-resource-policy: $want" <<<"$1" && return 0
   echo "COOP fields=$coop CORP fields=$corp Via fields=$via, expected 1, 1 and 0 with COOP same-origin and CORP $want" >&2
   return 1
 }
@@ -206,7 +208,8 @@ for value in UNSET basic_auth open Open OPEN ' open' 'open ' opne 'o*' '?pen' '*
   fi
   h=$(get "$port" "$SITE" /opengraph-image)
   if [ "$value" = open ]; then expected=200; else expected=401; fi
-  [ "$(status_of "$h")" = "$expected" ] && isolated "$h" cross-origin     && pass "[$value] /opengraph-image: $expected with one CORP, cross-origin" || fail "[$value] /opengraph-image: $(status_of "$h")"
+  [ "$(status_of "$h")" = "$expected" ] && isolated "$h" cross-origin \
+    && pass "[$value] /opengraph-image: $expected with one CORP, cross-origin" || fail "[$value] /opengraph-image: $(status_of "$h")"
   h=$(get "$port" "$SITE" /.well-known/acme-challenge/x)
   [ "$(status_of "$h")" = 404 ] && one_hsts "$h" && isolated "$h" && ! grep -qx "$MARKER" <<<"$h" \
     && pass "[$value] ACME prefix answered at the edge: 404 with HSTS and isolation" || fail "[$value] ACME prefix: $(status_of "$h")"
@@ -228,13 +231,17 @@ for path in / /api/health /oversikt; do
 done
 # CORP by route (ADR 0163 Amendment 2026-10-11): the routes that exist to be shown on other sites say
 # `cross-origin`, everything else keeps `same-origin`. Look-alikes must NOT match: the pattern is anchored.
-for path in /opengraph-image '/opengraph-image?0045498bc7eb3a85' /twitter-image /apple-icon /icon.svg   /favicon.ico /manifest.webmanifest /jobb/123/opengraph-image /jobb/123/twitter-image; do
+for path in /opengraph-image '/opengraph-image?0045498bc7eb3a85' /twitter-image /apple-icon /icon.svg \
+  /favicon.ico /manifest.webmanifest; do
   h=$(get "$port" "$SITE" "$path")
-  [ "$(status_of "$h")" = 200 ] && one_hsts "$h" && isolated "$h" cross-origin     && pass "open $path: one CORP, cross-origin" || fail "open $path: status=$(status_of "$h")"
+  [ "$(status_of "$h")" = 200 ] && one_hsts "$h" && isolated "$h" cross-origin \
+    && pass "open $path: one CORP, cross-origin" || fail "open $path: status=$(status_of "$h")"
 done
-for path in /opengraph-imagex /xopengraph-image /opengraph-image/extra /apple-icons /icon.svgx /favicon.icox   /manifest.webmanifest.json /robots.txt /sitemap.xml /jobb/123 /jobb/123/apple-icon /jobb/123/icon.svg; do
+for path in /opengraph-imagex /xopengraph-image /opengraph-image/extra /apple-icons /icon.svgx /favicon.icox \
+  /manifest.webmanifest.json /robots.txt /sitemap.xml /jobb/123 /jobb/123/opengraph-image /jobb/123/twitter-image /jobb/123/apple-icon /jobb/123/icon.svg; do
   h=$(get "$port" "$SITE" "$path")
-  [ "$(status_of "$h")" = 200 ] && isolated "$h" same-origin     && pass "open $path: one CORP, same-origin" || fail "open $path: status=$(status_of "$h")"
+  [ "$(status_of "$h")" = 200 ] && isolated "$h" same-origin \
+    && pass "open $path: one CORP, same-origin" || fail "open $path: status=$(status_of "$h")"
 done
 h=$(curl -s -D - -o "$scratch/body" --max-time 5 --connect-to "$SITE:80:127.0.0.1:$PORT_HTTP" "http://$SITE/p?q=1" | tr -d '\r' | sed 's/^\([^:]*\):/\L\1:/')
 count=$(grep -ci '^strict-transport-security:' <<<"$h" || true)

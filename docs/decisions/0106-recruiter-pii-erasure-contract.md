@@ -1282,3 +1282,32 @@ presentation binding; it does not establish an Art.14 exception or amend informa
 The typed carrier, declared/derived provenance, owner-scoped detail access, surgical snapshot
 erasure, whole-ad remedy and existing terminal minimization remain intact. Removed contacts
 are never restored from a live ad or a reopened application. Retention duration is unchanged.
+
+## Amendment 2026-10-10 — D9 read-path table: `GetPublicJobAdQueryHandler` (ADR 0160, #2091)
+
+ADR 0160 adds an anonymous read of one job ad (`GET /api/v1/public/job-ads/{id}`, #2091), a new site that projects `JobAd`
+fields. The D9 table (Amendment 2026-07-14, with its rows corrected since) gains one row. It is added here, as the
+2026-07-17 amendments added theirs, and the table is not restated.
+
+| Site | Surface | Projects | Gated on `Status != Erased`? | Issue |
+|---|---|---|---|---|
+| `GetPublicJobAdQueryHandler` | Anonymous public ad detail | Title, Description, Company (the name only), Url, PublishedAt, ExpiresAt and five concept ids (municipality, region, occupation group, employment type, worktime extent) | ✅ Yes — `JobAdPublication.Classify` (ADR 0160 D2): Erased → the shared neutral 410 (`JobAdErrors.Gone`), and an **ended** ad gets the same 410, so an erasure is not distinguishable publicly; a row never imported from the published source → the unknown-id 404 (`JobAdErrors.NotFound`) | — |
+
+- **Tier B is how an erasure is honoured on the public surface.** An Erased row never reaches a public body: `Classify`
+  returns `Gone` before it looks at the deadline, and the 410 is the same neutral answer `GetJobAdQueryHandler` gives,
+  which names no reason.
+- **Why an ended ad shares that 410.** Erased is reached only through `EraseRecruiterAdsCommand`, an Art. 17 request. On a
+  public, crawlable surface a 410 beside a 200-Ended would tell any reader that someone asked for this ad to be erased,
+  and the ad's URL joins our id to Arbetsförmedlingen's ad id in its open Historiska annonser dataset. That is the very
+  signal this ADR kept out of the 410 body. It is `security-auditor`'s veto of 2026-10-10 and Klas's acceptance of it
+  (ADR 0160 D3), which also records the one measured limitation that remains.
+- **Not reopened.** This ADR's acceptance of the 200-versus-410 difference on the **signed-in** surface stands:
+  `GET /api/v1/job-ads/{id}` still shows an ended ad and answers 410 for an erased one, because only signed-in users can
+  see the difference. `GetJobAdQueryHandler`, `GetJobAdMatchDetailQueryHandler` and
+  `CreateApplicationFromJobAdCommandHandler` now take their 410 from `JobAdErrors`; their answers are unchanged
+  and their rows stand.
+- **A duty for the erasure runbook.** Once S2 renders an ad's public URL, a search engine may hold it. ADR 0160 D9 (3)
+  adds an Art. 17(2) step to `docs/runbooks/recruiter-pii-erasure.md` before S2 goes live. This amendment does not change
+  the runbook.
+
+No supersession: ADR 0106 remains **Accepted**.

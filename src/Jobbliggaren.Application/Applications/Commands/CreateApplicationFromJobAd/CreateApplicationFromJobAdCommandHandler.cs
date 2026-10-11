@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -100,8 +101,7 @@ public sealed class CreateApplicationFromJobAdCommandHandler(
         // stale eller konstruerad request — 410 Gone speglar läsgrindens posture
         // (GetJobAdQueryHandler) och skiljer "fanns och är borta" från 404.
         if (jobAdData.Status == JobAdStatus.Erased)
-            return Result.Failure<Guid>(
-                DomainError.Gone("JobAd.Gone", "Annonsen är inte längre tillgänglig."));
+            return Result.Failure<Guid>(JobAdErrors.Gone);
 
         var snapshot = AdSnapshot.Capture(
             jobAdData.Title,

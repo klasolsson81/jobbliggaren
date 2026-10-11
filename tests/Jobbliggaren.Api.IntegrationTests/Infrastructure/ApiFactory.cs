@@ -473,6 +473,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // that polls readiness or higher parallelism could silently trip a 429 in an unrelated class.
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", "60");
+        // ADR 0160 — the anonymous job-ad detail is IP-partitioned too, so every anonymous test of it
+        // shares the 127.0.0.1 bucket.
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRead__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRead__WindowSeconds", "60");
         // #1974 — the admin account directory's reads share one bucket per admin, and a paging or sorting
         // test calls them more often than the burst allows.
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__PermitLimit", "10000");
@@ -552,6 +556,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             "RateLimiting__CompanyWatchCriteriaList__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRead__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRead__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__FeedbackSubmit__PermitLimit", null);

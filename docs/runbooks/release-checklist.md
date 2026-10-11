@@ -943,7 +943,8 @@ ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger tog
            behölls. Den står kvar därför att en läsare annars inte kan se att slutsatsen fanns:
            **`basic_auth` bar under ett dygn en transparensrisk utöver åtkomstkontroll, och den
            risken är åtgärdad vid källan.** ⚠ **Återuppstår den om en markörrad någon gång blir
-           falsk igen** — rad 87 är den enda kvarvarande kandidaten, och den är i dag sann.
+           falsk igen** — sedan notisflippen 2026-10-11 (#2106 PR A) är SCB-raderna de enda
+           kvarvarande kandidaterna, och de är i dag sanna.
            **Slutsats (1) är oförändrad och är den som gäller.**
            ⚠ **TVÅ YTOR MED OLIKA UPPGIFTER, OCH DET ÄR AVSIKTLIGT — läs inte den ena som drift.**
            Den här raden bär graderingen och dess grund. `basic_auth`-direktivet i
@@ -1344,8 +1345,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      **Regenerated 2026-10-07 (#2046): 3 + 3** (lines 54, 87, 97 in both locales).
-      Before this correction: 7 + 7 on lines 41, 54, 87, 97, 124, 125, 160.
+      **Regenerated 2026-10-11 (#2106 PR A, the notification flip): 2 + 2** (lines 54, 99 in both
+      locales, both SCB). Before the flip: 3 + 3 on lines 54, 89, 99.
+      *(Previous regeneration, dated provenance: **2026-10-07** (#2046): **3 + 3** on lines 54, 87,
+      97 in both locales. Before that correction: 7 + 7 on lines 41, 54, 87, 97, 124, 125, 160.)*
       *(Previous regeneration, dated provenance: **2026-09-04** (#183, MX move): **7 + 7**
       on lines 37, 50, 82, 92, 116, 117, 152 in both locales. The STRATO line on 95 lost
       its marker; no JSON line moved.)*
@@ -1373,7 +1376,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       nedskrivet tal. De ommäts i samma PR, **ett kommando per locale eftersom strängen skiljer
       sig** — `grep -n "Notiserna planeras att skickas med e-post" …/sv/content-legal.json` och
       `grep -n "The notifications are planned to be sent by email" …/en/content-legal.json`, båda →
-      **87**. (Ett enda svenskt kommando med slutsatsen "båda locales" ger noll på den engelska
+      **87** då och **89** före notisflippen 2026-10-11; sedan flippen ger båda noll, eftersom
+      meningen är omskriven i presens. (Ett enda svenskt kommando med slutsatsen "båda locales" ger noll på den engelska
       filen: samma halvmätning som §2.6 finns för att förbjuda.) **Egenskapen är "levande radnummer-pekare in i
       `content-legal.json`", och §2.6-mängden är bara ett av hemmen.** ⚠ Den här noten fick
       räknas om en gång: första svepet täckte bara runbooken, och `code-reviewer` mätte bredare
@@ -1409,8 +1413,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       påståenden satta i presens; 75:s förnekelsemening är **struken helt**, eftersom den inte har
       någon sann presensform; 76 fick markören struken och **avtalsreservationen struken med den**
       — se §2.5 punkt 1:s residual (i), som äger det ledet och är uppdaterad i samma ändring.
-      **Rad 87 är SANN och är INTE flippad:** bevakningsnotiserna är samtyckesgrindade med opt-in
-      default OFF och ingen notis har skickats.
+      ~~**Rad 87 är SANN och är INTE flippad:** bevakningsnotiserna är samtyckesgrindade med opt-in
+      default OFF och ingen notis har skickats.~~ **FLIPPAD 2026-10-11 (#2106 PR A, Klas GO; raden
+      låg då på 89):**
+      Ommätt på lådan samma dag före flippen, bara antal: 0 rader i `user_job_ad_matches`, och i
+      `followed_company_ad_hits` 379 `Pending` och inga i något annat tillstånd. Samma ändring lade
+      till följ-notisernas ändamål (ADR 0144 rad 8) i samtyckesavsnittet.
       ⚠ **RAD 82:s TEXT ÄR DÄREMOT RÄTTAD 2026-08-16 (#183 FU-1, `security-auditor` Major 3) — OCH
       ATT RÄTTA ÄR INTE ATT FLIPPA.** Raden sa *"behandlar e-posten i Paris inom EU"*, vilket är en
       finare kornighet än grunden ger: DPA Art. 11 utfäster **EU-nivå, inte regionsnivå**, och
@@ -1418,16 +1426,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       kornigheten** — en framtidsutsaga kan vara exakt lika över-precis som en presensutsaga, och
       mot båda står GTS Art. 10:s avtalsrangiga åtkomsträtt utan ortsklausul. Raden bär nu
       regionformen plus avtalets egen utfästelse, och **markörsatsen är ordagrant orörd**.
-      **Det skyddade i rad 87 är dess STATUSMARKÖR, inte varje ord i strängen.** Paritetssvitens
-      mörka gren binder `/planerat och ännu inte i drift/i`, som satsen fortfarande matchar; raden
-      står kvar i mängden ovan, och flippdisciplinen är oberörd. *(Sessionen lämnade först raden
+      **Det skyddade i rad 87 var dess STATUSMARKÖR, inte varje ord i strängen.** *(Sessionen lämnade först raden
       orörd och läste den som en framtidsutsaga under sin markör. Graderingen föll åt andra hållet,
-      och det var rätt: en fix på en delmängd av N är ingen fix.)* **Ommät rad 87 mot lådan före varje flipp** — dess
-      grind är en användarreglage, inte en operatörsgrind, så den kan bli falsk utan att någon gör
-      något på infrastruktursidan. ⚠ **Rad 87 har sedan 2026-08-16 en MEKANISK läsare:**
-      `content-legal-parity.test.ts` kräver markören på samtyckesavsnittets omnämnanden och
-      **förbjuder** den på mottagaravsnittets. Sviten faller alltså vid notisernas flipp, precis som
-      den föll vid den här — men den ersätter inte ommätningen, den kräver den.
+      och det var rätt: en fix på en delmängd av N är ingen fix.)* ⚠ **Rad 87 hade 2026-08-16–2026-10-11 en MEKANISK läsare:**
+      `content-legal-parity.test.ts` krävde markören på samtyckesavsnittets omnämnanden och
+      **förbjöd** den på mottagaravsnittets. Sviten föll vid notisflippen, som avsett; sedan dess
+      förbjuder den markören på varje omnämnande, och markörmönstrens positiva läsare är SCB-testet.
       **Varför "ingen läsare" inte är grunden att låta dem stå:** #1199 flippade värdraden
       2026-08-09, fyra dagar EFTER att Basic auth landade (`aef6a853`, 2026-08-05). Sajten hade
       alltså redan ingen läsare när huset valde att flippa, och commit-rubriken säger det ordagrant.
@@ -1504,7 +1508,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         flipp ändrade den; talet bor i punkt 1, med sitt grep.)*
         ⚠ **LUCKAN ÄR MÄTT, INTE HYPOTETISK: den fyrade i FU-2b.** Flippen tog rad 47 därför att
         punkt 1:s grepp namnger den, inte därför att någon svit krävde det — sviten var grön med
-        rad 47 oflippad. Nästa flipp (notiserna) möter samma lucka.
+        rad 47 oflippad.
         **Aktiveras INTE av en
         release.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
@@ -1523,8 +1527,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         igen.** Armen aktiverades utan att grinden passerades, och copyn är därefter flippad för att
         stämma (#183 FU-2b) — **inte** för att grinden passerades. `Email:Provider` är alltså inte
         längre `NullEmailSender` i drift, oavsett vad defaulten säger. **Läs bulleten som SCB-only
-        framåt**; e-postraderna har ingen kvarvarande flipp utom notisernas (rad 87), och den
-        grindas av ett användarreglage, inte av den här punkten.
+        framåt**; e-postraderna har ingen kvarvarande flipp, eftersom notisernas (rad 87) flippades
+        2026-10-11 (#2106 PR A).
         *Raderna 63/74/75/82 namngav Resend, Inc. (USA) till 2026-08-09; #1169 skrev om dem till
         Amazon Web Services EMEA SARL (Luxemburg) med behandling i `eu-north-1`. **Det var en
         korrigering av en falsk motpartsuppgift, inte en flip** — markörmeningen stod kvar i alla
@@ -1548,12 +1552,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         operatören står i det ögonblick handlingen utförs; den här bulleten **klassificerar,
         den bär inte proceduren**.
       - **Användar-aktiverad — NY KLASS 2026-08-28, i samma ändring som den tredje.** Notisernas
-        stycke, som bulleten om konfigurations-grindade ovan redan namnger och uttryckligen
-        utesluter (*"grindas av ett användarreglage, inte av den här punkten"*) utan att ge det
-        en klass. Aktiveringshändelsen är varken kod, en repo-nyckel eller en leverantörspanel:
+        stycke. Aktiveringshändelsen är varken kod, en repo-nyckel eller en leverantörspanel:
         **en användare slår på sitt eget reglage.** ⚠ **Klassen säger ingenting om styckets
         sanningsstatus** — den ägs av `security-auditor` och avgörs inte av en triage-etikett.
-        Mekanisk läsare: e-post-tripwirens mörka gren i `content-legal-parity.test.ts`.
+        Mekanisk läsare till notisflippen 2026-10-11: e-post-tripwirens mörka gren i
+        `content-legal-parity.test.ts`, som togs bort med flippen. Klassen har sedan dess inget
+        markörbärande stycke.
       ⚠ **"ARMEN ÄR FORTFARANDE MÖRK" ÄR FALSKT SEDAN 2026-08-16, OCH DET ÄR INTE EN TEMPUSFRÅGA**
       (`security-auditor` N-1, 2026-08-16). Armen aktiverades 2026-08-16 utan att §2.5-grinden
       passerades, och den publicerade copyn bär **en affirmativ presensförnekelse av en utlämning som
@@ -1570,7 +1574,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       2026-08-16 en egen, smalare mängd och skopade följd-PR:en efter den. Den utelämnade en rad som
       #183:s egen `f09755b1` införde samma dygn med motiveringen "the arm is dark" — falsk när den
       skrevs. Två trackade hemvister med olika mängd för samma faktum, och den felaktiga styrde
-      skopet: exakt det ETT HEM PER TAL finns för.)* **Rad 87 flippas INTE**, och de återstående planerat-meningarna — SCB-vägen — är fortfarande sanna; en vidare läsning skulle göra sanna påståenden
+      skopet: exakt det ETT HEM PER TAL finns för.)* **Rad 87 flippades INTE då** (den flippades 2026-10-11, #2106 PR A), och de återstående planerat-meningarna — SCB-vägen — är fortfarande sanna; en vidare läsning skulle göra sanna påståenden
       falska, vilket är den dyra riktningen.
       **The measurement covers both notification tables:** check whether any row has left `Pending`
       in `user_job_ad_matches` or `followed_company_ad_hits` — de två

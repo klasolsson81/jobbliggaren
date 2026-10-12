@@ -259,13 +259,18 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         await RunJobAsync(ct, StubProvider(("volvo", [memberOrgNr])));
         (await GetHitsAsync(userId, ct)).ShouldHaveSingleItem().CompanyWatchId.ShouldBe(directWatchId);
 
-        await SeedBrandGroupWatchAsync(userId, "volvo", ct);
+        var groupWatchId = await SeedBrandGroupWatchAsync(userId, "volvo", ct);
+        // The control: an ad ingested AFTER run N is read by run N+1 through BOTH watches, which proves that run N+1 ran and that
+        // the group watch resolves to the organisation; only then does "no second hit for the first ad" mean something.
+        var laterAdId = await SeedAdWithOrgNrAtAsync(memberOrgNr, "Volvo Cars AB", Now.AddHours(1), ct);
         await RunJobAsync(ct, StubProvider(("volvo", [memberOrgNr])));
 
         var hits = await GetHitsAsync(userId, ct);
-        hits.Count.ShouldBe(1, "a watch added after the scan does not make the scan reconsider an ad it already covered");
-        hits.Single().JobAdId.ShouldBe(adId);
-        hits.Single().CompanyWatchId.ShouldBe(directWatchId);
+        hits.Where(h => h.JobAdId == laterAdId).Select(h => h.CompanyWatchId).ToList()
+            .ShouldBe([directWatchId, groupWatchId], ignoreOrder: true);
+        var forTheCoveredAd = hits.Where(h => h.JobAdId == adId).ToList();
+        forTheCoveredAd.Count.ShouldBe(1, "a watch added after the scan does not make the scan reconsider an ad it already covered");
+        forTheCoveredAd.Single().CompanyWatchId.ShouldBe(directWatchId);
     }
 
     [Fact]

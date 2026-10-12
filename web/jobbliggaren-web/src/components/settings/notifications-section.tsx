@@ -15,6 +15,7 @@ import {
   useTransition,
 } from "react";
 import { useTranslations } from "next-intl";
+import { useRefreshNotificationFeed } from "@/components/shell/notification-feed-provider";
 import type { DigestCadence } from "@/lib/dto/me";
 import type { ActionResult } from "@/lib/actions/_action-result";
 import {
@@ -22,6 +23,8 @@ import {
   updateFollowedCompanyNotificationConsentAction,
   updateMatchSummaryMailAction,
   updateNotificationConsentAction,
+  updateNotificationFeedFollowedAdsAction,
+  updateNotificationFeedMatchesAction,
   updateNotificationMailAction,
   updateTopMatchMailAction,
 } from "@/lib/actions/me";
@@ -44,6 +47,10 @@ interface NotificationsSectionProps {
   readonly initialSummaryEnabled: boolean;
   /** The saved followed-company mail consent (default off, Art. 6(1)(a)/7). */
   readonly initialFollowEnabled: boolean;
+  /** Whether new matches reach the bell (ADR 0162). A delivery choice, never a consent. */
+  readonly initialFeedMatchesEnabled: boolean;
+  /** Whether new ads from followed companies reach the bell (ADR 0162). */
+  readonly initialFeedFollowedAdsEnabled: boolean;
   readonly initialCadence: DigestCadence;
 }
 
@@ -57,6 +64,12 @@ interface NotificationsSectionProps {
  * while the e-mail switch and the match consent are both on; hidden, they keep their saved values.
  * The cadence renders while a mail it paces can be sent.
  *
+ * #2130 (ADR 0162) - each type's group also holds ONE switch for what reaches the notification bell, before the
+ * e-mail rows. They are delivery choices, never consents: they do not depend on the e-mail switch (the bell
+ * ignores the mail pauses, ADR 0164 D1), they decide only what the bell shows (never Översikt or the lists),
+ * and the matches switch renders only while the match consent is on, keeping its saved value when it is hidden,
+ * with no line about why. A saved change asks the bell to read again at once.
+ *
  * One write per control, each carrying only its own value.
  */
 export function NotificationsSection({
@@ -65,6 +78,8 @@ export function NotificationsSection({
   initialTopMatchEnabled,
   initialSummaryEnabled,
   initialFollowEnabled,
+  initialFeedMatchesEnabled,
+  initialFeedFollowedAdsEnabled,
   initialCadence,
 }: NotificationsSectionProps) {
   const t = useTranslations("settings");
@@ -74,10 +89,12 @@ export function NotificationsSection({
     mailError: `${id}-mail-error`,
     matchesTitle: `${id}-matches`,
     matchError: `${id}-match-error`,
+    feedMatchesError: `${id}-feed-matches-error`,
     topError: `${id}-top-error`,
     summaryError: `${id}-summary-error`,
     followTitle: `${id}-follow`,
     followError: `${id}-follow-error`,
+    feedFollowedError: `${id}-feed-followed-error`,
     paused: `${id}-paused`,
     cadenceHint: `${id}-cadence-hint`,
     cadenceError: `${id}-cadence-error`,
@@ -86,9 +103,11 @@ export function NotificationsSection({
   const saves = {
     mail: useTransition(),
     match: useTransition(),
+    feedMatches: useTransition(),
     top: useTransition(),
     summary: useTransition(),
     follow: useTransition(),
+    feedFollowed: useTransition(),
     cadence: useTransition(),
   };
   const focus = useFocusKeeper(Object.values(saves).some(([saving]) => saving));
@@ -96,9 +115,11 @@ export function NotificationsSection({
   // Each unit's ref stands alone: the compiler lint reads any object holding a ref as a ref.
   const mailUnit = useRef<HTMLDivElement>(null);
   const matchUnit = useRef<HTMLDivElement>(null);
+  const feedMatchesUnit = useRef<HTMLDivElement>(null);
   const topUnit = useRef<HTMLDivElement>(null);
   const summaryUnit = useRef<HTMLDivElement>(null);
   const followUnit = useRef<HTMLDivElement>(null);
+  const feedFollowedUnit = useRef<HTMLDivElement>(null);
   const cadenceUnit = useRef<HTMLDivElement>(null);
 
   const mail = useControlWrite(
@@ -123,6 +144,33 @@ export function NotificationsSection({
     true,
     saves.follow,
     followUnit,
+    focus,
+  );
+  // A saved bell switch asks the bell to read again now, past its 30 s throttle, so its badge and rows follow the
+  // choice without a reload. Only a confirmed save does: a refused one changed nothing the bell shows.
+  const refreshBell = useRefreshNotificationFeed();
+  const feedMatches = useControlWrite(
+    initialFeedMatchesEnabled,
+    async (enabled) => {
+      const result = await updateNotificationFeedMatchesAction({ enabled });
+      if (result.success) void refreshBell();
+      return result;
+    },
+    match.value,
+    saves.feedMatches,
+    feedMatchesUnit,
+    focus,
+  );
+  const feedFollowed = useControlWrite(
+    initialFeedFollowedAdsEnabled,
+    async (enabled) => {
+      const result = await updateNotificationFeedFollowedAdsAction({ enabled });
+      if (result.success) void refreshBell();
+      return result;
+    },
+    true,
+    saves.feedFollowed,
+    feedFollowedUnit,
     focus,
   );
   const matchMailsShown = mail.value && match.value;
@@ -180,6 +228,14 @@ export function NotificationsSection({
           label={t("backgroundMatch.toggleLabel")}
           description={t("backgroundMatch.toggleDescription")}
         />
+        {match.value && (
+          <SwitchUnit
+            write={feedMatches}
+            unitRef={feedMatchesUnit}
+            errorId={ids.feedMatchesError}
+            label={t("notices.feedMatchesLabel")}
+          />
+        )}
         {matchMailsShown && (
           <>
             <SwitchUnit
@@ -204,6 +260,12 @@ export function NotificationsSection({
         <h3 id={ids.followTitle} className="jp-settings-group__title">
           {t("notices.followTitle")}
         </h3>
+        <SwitchUnit
+          write={feedFollowed}
+          unitRef={feedFollowedUnit}
+          errorId={ids.feedFollowedError}
+          label={t("notices.feedFollowedAdsLabel")}
+        />
         <SwitchUnit
           write={follow}
           unitRef={followUnit}

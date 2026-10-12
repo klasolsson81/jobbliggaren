@@ -30,7 +30,7 @@ export const notificationFeedSourceSchema = z.object({
   kind: notificationFeedSourceKindSchema,
   /** Exact, or `null` when the source refused to count past its bound (ADR 0120): no number then. */
   unreadCount: z.number().int().nonnegative().nullable(),
-  /** The newest unread row's instant, sent back to the source's `/seen` unchanged; `null` when nothing is unread. */
+  /** The newest unread row's instant, sent back to the source's read-through endpoint unchanged; `null` when nothing is unread. */
   acknowledgedThrough: readableInstantSchema.nullable(),
 });
 export type NotificationFeedSource = z.infer<typeof notificationFeedSourceSchema>;

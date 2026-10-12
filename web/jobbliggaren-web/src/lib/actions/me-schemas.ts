@@ -90,6 +90,28 @@ export type UpdateTopMatchMailInput = z.infer<
   ReturnType<typeof makeUpdateTopMatchMailSchema>
 >;
 
+/** ADR 0162 (#2130) — `updateNotificationFeedMatchesAction`: whether new matches reach the bell. */
+export function makeUpdateNotificationFeedMatchesSchema(_t: ValidationTranslator) {
+  return z.strictObject({
+    enabled: z.boolean(),
+  });
+}
+
+export type UpdateNotificationFeedMatchesInput = z.infer<
+  ReturnType<typeof makeUpdateNotificationFeedMatchesSchema>
+>;
+
+/** ADR 0162 (#2130) — `updateNotificationFeedFollowedAdsAction`: whether new followed-company ads reach the bell. */
+export function makeUpdateNotificationFeedFollowedAdsSchema(_t: ValidationTranslator) {
+  return z.strictObject({
+    enabled: z.boolean(),
+  });
+}
+
+export type UpdateNotificationFeedFollowedAdsInput = z.infer<
+  ReturnType<typeof makeUpdateNotificationFeedFollowedAdsSchema>
+>;
+
 /** ADR 0164 (#2107) — `updateMatchSummaryMailAction`: the summary mail alone. */
 export function makeUpdateMatchSummaryMailSchema(_t: ValidationTranslator) {
   return z.strictObject({

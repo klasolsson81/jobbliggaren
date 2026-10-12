@@ -30,6 +30,7 @@
     "buttonAriaLabelUnknown": "Notifications, some unread",
     "heading": "Notifications",
     "unreadCount": "{count, plural, =0 {Nothing unread} one {# unread} other {# unread}}",
+    "unread": "Unread",
     "markAllRead": "Mark all as read",
     "marking": "Marking…",
     "markReadFailed": "The notifications could not be marked as read. Try again.",

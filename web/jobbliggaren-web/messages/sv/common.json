@@ -30,6 +30,7 @@
     "buttonAriaLabelUnknown": "Notiser, olästa finns",
     "heading": "Notiser",
     "unreadCount": "{count, plural, =0 {Inga olästa} one {# oläst} other {# olästa}}",
+    "unread": "Oläst",
     "markAllRead": "Markera alla som lästa",
     "marking": "Markerar…",
     "markReadFailed": "Notiserna kunde inte markeras som lästa. Försök igen.",

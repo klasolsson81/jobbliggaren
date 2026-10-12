@@ -5,10 +5,11 @@ import Link from "next/link";
 import { Bell } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { MatchChip } from "@/components/job-ads/match-chip";
-import { markNotificationsReadAction } from "@/lib/actions/notification-feed";
+import { useNotificationFeedContext } from "@/components/shell/notification-feed-provider";
+import { markAllNotificationsReadAction } from "@/lib/actions/notification-feed";
 import type { NotificationFeed, NotificationFeedItem, NotificationFeedSourceKind } from "@/lib/dto/notification-feed";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
-import { unreadTotal, useNotificationFeed } from "@/lib/hooks/use-notification-feed";
+import { readKey, unreadTotal } from "@/lib/hooks/use-notification-feed";
 import { formatDate, formatNumber, formatTime, type JpFormatter } from "@/lib/i18n/format";
 import { onPlainNav } from "@/lib/nav/modified-click";
 import { previousSwedishDateSlug, swedishDateSlug, swedishDaysBetween } from "@/lib/time/swedish-calendar";
@@ -20,10 +21,14 @@ const BADGE_MAX = 99;
 
 /**
  * The header bell (#1666): the signed-in user's new matches and new ads from followed companies, read
- * by `useNotificationFeed` and shown in a non-modal popover. A notification is a (source, ad) pair,
- * so an ad can appear once per reason. Nothing is acknowledged by opening or reading; "Markera alla
- * som lästa" is the one write, and it acknowledges through each source's existing `/seen` endpoint.
+ * by the shell's `NotificationFeedProvider` and shown in a non-modal popover. A notification is a
+ * (source, ad) pair, so an ad can appear once per reason. Nothing is acknowledged by opening or reading.
  * The panel holds notifications and nothing else (#2130): its only links are the rows' own, to the ad.
+ *
+ * #2130 - an unread row carries a dot, and a click on it (plain, modified or middle) marks THAT row read:
+ * the dot goes at once, the count follows when the server has agreed, and nothing waits on it, because the
+ * same click opens the ad. "Markera alla som lästa" marks each source's counted set read. Both write the
+ * bell's own flags and no watermark, so Översikt and the lists keep their numbers.
  *
  * The badge is a measured number or nothing: no badge before the first answer or at zero, the exact
  * count up to 99, "99+" above, and an empty pill when a source refused to count (the user is told
@@ -39,7 +44,7 @@ export function NotificationsBell() {
   const close = () => setOpen(false);
   const ref = useDismissable(open, close, triggerRef);
   const titleId = useId();
-  const { state, refresh, increasedTo } = useNotificationFeed();
+  const { state, refresh, increasedTo, pendingRead, markRead } = useNotificationFeedContext();
   const [marking, startMarking] = useTransition();
   const [markFailed, setMarkFailed] = useState(false);
 
@@ -63,7 +68,7 @@ export function NotificationsBell() {
     };
     setMarkFailed(false);
     startMarking(async () => {
-      const result = await markNotificationsReadAction(tokens);
+      const result = await markAllNotificationsReadAction(tokens);
       // "Markerar…" stays until the new state has been read, so the old number never flashes back.
       await refresh(true);
       if (result.success) {
@@ -127,7 +132,15 @@ export function NotificationsBell() {
           {state.status === "ready" && state.stale && (
             <p className="jp-notif__notice">{t("stale", { time: formatTime(format, new Date(state.fetchedAt)) })}</p>
           )}
-          <PanelBody state={state} t={t} format={format} onRetry={() => void refresh(true)} onNavigate={onNavigate} />
+          <PanelBody
+            state={state}
+            t={t}
+            format={format}
+            pendingRead={pendingRead}
+            onRetry={() => void refresh(true)}
+            onNavigate={onNavigate}
+            onRead={(item) => markRead(item.kind, item.jobAdId)}
+          />
         </div>
       )}
     </div>
@@ -138,14 +151,18 @@ function PanelBody({
   state,
   t,
   format,
+  pendingRead,
   onRetry,
   onNavigate,
+  onRead,
 }: {
-  state: ReturnType<typeof useNotificationFeed>["state"];
+  state: ReturnType<typeof useNotificationFeedContext>["state"];
   t: NotificationsT;
   format: JpFormatter;
+  pendingRead: ReadonlySet<string>;
   onRetry: () => void;
   onNavigate: (event: MouseEvent<Element>) => void;
+  onRead: (item: NotificationFeedItem) => void;
 }) {
   if (state.status === "loading") {
     return (
@@ -181,6 +198,8 @@ function PanelBody({
   const total = unreadTotal(state.feed);
   // Unread notifications the list does not carry. The number is exact or absent (ADR 0120), so a refused
   // count (null) has none. The line is a statement, never a link: the panel holds notifications and nothing else.
+  // It counts the rows the SERVER says are unread, not the dots still on screen: a row just clicked has lost its
+  // dot but not yet the count, and both fall together when the mark is confirmed, so the line stays exact.
   const unreadShown = items.filter((item) => item.isUnread).length;
   const notInList = typeof total === "number" ? total - unreadShown : null;
   const note =
@@ -208,7 +227,9 @@ function PanelBody({
             key={`${item.kind}:${item.jobAdId}`}
             item={item}
             when={formatWhen(t, format, item.occurredAt, now)}
+            pending={pendingRead.has(readKey(item.kind, item.jobAdId))}
             onNavigate={onNavigate}
+            onRead={onRead}
           />
         ))}
       </ul>
@@ -220,22 +241,34 @@ function PanelBody({
 function NotificationRow({
   item,
   when,
+  pending,
   onNavigate,
+  onRead,
 }: {
   item: NotificationFeedItem;
   when: string;
+  /** The user clicked this row and the mark is on its way: it already reads as read. */
+  pending: boolean;
   onNavigate: (event: MouseEvent<Element>) => void;
+  onRead: (item: NotificationFeedItem) => void;
 }) {
+  const t = useTranslations("common.notifications");
   const tTags = useTranslations("jobads.ui.tags");
   const baseId = useId();
   const signalId = `${baseId}-signal`;
-  const newId = `${baseId}-new`;
+  const unreadId = `${baseId}-unread`;
   const timeId = `${baseId}-time`;
   const companyId = `${baseId}-company`;
-  const describedBy = [signalId, item.isUnread ? newId : null, timeId, companyId].filter(Boolean).join(" ");
+  const unread = item.isUnread && !pending;
+  const describedBy = [signalId, unread ? unreadId : null, timeId, companyId].filter(Boolean).join(" ");
+  // A row already read, or already marked, has nothing to mark. Every way of opening the row counts: a plain
+  // click, a modified click (new tab) and the middle button, which fires auxclick and never click.
+  const markRead = () => {
+    if (item.isUnread && !pending) onRead(item);
+  };
 
   return (
-    <li className={item.isUnread ? "jp-notif__row jp-notif__row--unread" : "jp-notif__row"}>
+    <li className={unread ? "jp-notif__row jp-notif__row--unread" : "jp-notif__row"}>
       <div className="jp-notif__signal">
         {item.kind === "Match" && item.grade !== null ? (
           <MatchChip grade={item.grade} id={signalId} />
@@ -244,20 +277,29 @@ function NotificationRow({
             {tTags("followed")}
           </span>
         )}
-        {item.isUnread && (
-          <span id={newId} className="jp-tag jp-tag--accent" data-tag="new">
-            {tTags("new")}
-          </span>
-        )}
         <time id={timeId} className="jp-notif__time" dateTime={item.occurredAt}>
           {when}
         </time>
       </div>
+      {unread && (
+        <>
+          <span className="jp-notif__dot" aria-hidden="true" />
+          <span id={unreadId} className="sr-only">
+            {t("unread")}
+          </span>
+        </>
+      )}
       <Link
         href={`/jobb/${item.jobAdId}`}
         className="jp-job__rowlink jp-notif__title-link"
         aria-describedby={describedBy}
-        onClick={onNavigate}
+        onClick={(event) => {
+          markRead();
+          onNavigate(event);
+        }}
+        onAuxClick={(event) => {
+          if (event.button === 1) markRead();
+        }}
       >
         {item.title}
       </Link>

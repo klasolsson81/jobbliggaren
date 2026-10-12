@@ -66,6 +66,8 @@ function profile(hasStatedDesiredOccupation: boolean): ApiResult<JobSeekerProfil
       notificationMailEnabled: true,
       topMatchMailEnabled: true,
       matchSummaryMailEnabled: true,
+      notificationFeedMatchesEnabled: true,
+      notificationFeedFollowedAdsEnabled: true,
       createdAt: "2026-05-01T08:00:00Z",
       hasStatedDesiredOccupation,
       preferredOccupationGroups: hasStatedDesiredOccupation ? ["grp_dev"] : [],

@@ -5,7 +5,7 @@
       "description": "Hur Jobbliggaren behandlar dina personuppgifter: ändamål, laglig grund, lagringstid, dina rättigheter och säkerhet. Ingen spårning och ingen AI."
     },
     "title": "Integritetspolicy",
-    "updated": "Senast uppdaterad: 2026-10-11",
+    "updated": "Senast uppdaterad: 2026-10-12",
     "intro": "Den här integritetspolicyn beskriver hur Jobbliggaren behandlar dina personuppgifter, varför, med vilken laglig grund och hur länge. Här finns också dina rättigheter och hur du använder dem. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att hitta och hålla ordning på dina jobbansökningar, byggd på öppna data om lediga jobb från Arbetsförmedlingens JobTech (Platsbanken).",
     "sections": [
       {
@@ -78,7 +78,7 @@
       {
         "heading": "Kontaktuppgifter i jobbannonser (laglig grund: berättigat intresse)",
         "paragraphs": [
-          "Jobbannonser från Platsbanken kan innehålla uppgifter om en kontaktperson hos arbetsgivaren, till exempel namn, e-postadress och telefonnummer för arbetet. Innan en annons sparas tar vi automatiskt bort e-postadresser och telefonnummer ur annonstexten. Kontaktpersonens uppgifter sparas i stället strukturerat och avskilt, utanför fritextsökningen, så att du kan följa upp en ansökan med rätt person. Borttagningen ur texten är regelbaserad och kan missa uppgifter som skrivits på ovanliga sätt eller som ligger i en bild.",
+          "Jobbannonser från Platsbanken kan innehålla uppgifter om en kontaktperson hos arbetsgivaren, till exempel namn, e-postadress och telefonnummer för arbetet. Innan en annons sparas tar vi automatiskt bort e-postadresser och telefonnummer ur annonstexten. Kontaktpersonens uppgifter sparas i stället strukturerat och avskilt, utanför fritextsökningen, så att du kan följa upp en ansökan med rätt person. Borttagningen ur texten är regelbaserad och kan missa uppgifter som skrivits på ovanliga sätt eller som ligger i en bild, och den tar inte bort namn i den löpande texten. Annonserna visas också på en publik sida som sökmotorer kan indexera. Sidan visar aldrig kontaktuppgifterna, men ett namn i annonsens löpande text syns där.",
           "Kontaktuppgifterna raderas när annonsen inte längre går att söka i tjänsten. Är du själv kontaktperson i en annons finns mer information och dina rättigheter beskrivna på sidan Är du kontaktperson i en annons, som är länkad nedan under relaterade sidor."
         ]
       },
@@ -543,7 +543,7 @@
       {
         "heading": "Inget publikt API i den här versionen",
         "paragraphs": [
-          "Jobbliggaren erbjuder ännu inget publikt API att bygga integrationer mot. Tjänstens egna gränssnitt är till för inloggade användare. Behöver du jobbdata att bygga på är Arbetsförmedlingens JobTech rätt källa.",
+          "Jobbliggaren erbjuder ännu inget publikt API att bygga integrationer mot. Tjänstens gränssnitt är till för Jobbliggarens egna sidor. Behöver du jobbdata att bygga på är Arbetsförmedlingens JobTech rätt källa.",
           "Skulle ett publikt API bli aktuellt längre fram beskriver vi det här."
         ]
       }
@@ -561,27 +561,28 @@
       "description": "Information till dig som står som kontaktperson i en jobbannons: vad Jobbliggaren behandlar, varifrån uppgifterna kommer, hur länge de sparas och vilka rättigheter du har."
     },
     "title": "Är du kontaktperson i en annons?",
-    "updated": "Senast uppdaterad: 2026-07-16",
-    "intro": "Jobbliggaren hämtar jobbannonser som öppna data från Arbetsförmedlingens Platsbanken. Om du står som kontaktperson i en annons behandlar vi därför vissa uppgifter om dig, trots att du inte är användare hos oss. Den här sidan beskriver vad vi behandlar, varför, hur länge och vilka rättigheter du har.",
+    "updated": "Senast uppdaterad: 2026-10-12",
+    "intro": "Jobbliggaren hämtar jobbannonser som öppna data från Arbetsförmedlingens Platsbanken och visar dem, både för dig som söker jobb och på en publik sida som sökmotorer kan indexera. Om du står som kontaktperson i en annons behandlar vi därför vissa uppgifter om dig, trots att du inte är användare hos oss. Den här sidan beskriver vad vi behandlar, varför, hur länge och vilka rättigheter du har.",
     "sections": [
       {
         "heading": "Vad vi behandlar och varifrån uppgifterna kommer",
         "paragraphs": [
           "Vi hämtar annonser från Arbetsförmedlingens öppna JobTech-API. Om annonsen anger en kontaktperson behandlar vi namn, roll, e-postadress och telefonnummer för arbetet, så som de publicerats i annonsen. Uppgifterna kommer från annonsen hos Arbetsförmedlingen, inte från dig.",
-          "Innan annonstexten sparas tar vi automatiskt bort e-postadresser och telefonnummer ur den löpande texten. Kontaktuppgifterna sparas i stället strukturerat och avskilt, utanför fritextsökningen. Borttagningen ur texten är regelbaserad och kan missa uppgifter som skrivits på ovanliga sätt eller som ligger i en bild."
+          "Innan annonstexten sparas tar vi automatiskt bort e-postadresser, telefonnummer och personnummer ur den löpande texten. Kontaktuppgifterna sparas i stället strukturerat och avskilt, utanför fritextsökningen. Borttagningen ur texten är regelbaserad. Den kan missa uppgifter som skrivits på ovanliga sätt eller som ligger i en bild, och den tar inte bort namn: ett namn i annonsens löpande text finns kvar i texten.",
+          "Annonsen visas också på en publik sida på jobbliggaren.se så länge annonsen är öppen. Vem som helst kan öppna sidan utan att logga in, och sökmotorer kan indexera den. Sidan visar annonsens titel, arbetsgivarens namn och hela annonstexten så som vi har sparat den. Den visar aldrig det avskilda kontaktblocket, men ett namn i annonsens löpande text syns där och kan hittas via en sökmotor. Mottagare är därför allmänheten och sökmotorerna."
         ]
       },
       {
         "heading": "Varför vi behandlar uppgifterna (laglig grund)",
         "paragraphs": [
-          "Den lagliga grunden är berättigat intresse (artikel 6.1 f). Intresset är användarens: den som söker ett jobb behöver kunna följa upp sin egen ansökan med rätt person hos arbetsgivaren. Arbetsförmedlingens annonsvillkor innebär att annonsören ska ha kontaktpersonens samtycke till publiceringen och att annonsdata får visas hos andra aktörer som hämtar annonser via API:t.",
+          "Den lagliga grunden är berättigat intresse (artikel 6.1 f). Intressena är två. Den som söker ett jobb behöver kunna hitta annonsen och följa upp sin egen ansökan med rätt person hos arbetsgivaren, och Jobbliggaren har ett eget intresse av att annonserna går att hitta för allmänheten. Vi har vägt de intressena mot dina rättigheter innan vi började visa annonserna publikt. Arbetsförmedlingens annonsvillkor innebär att annonsören ska ha kontaktpersonens samtycke till publiceringen och att annonsdata får visas hos andra aktörer som hämtar annonser via API:t.",
           "Vi använder aldrig dina kontaktuppgifter för marknadsföring, profilering eller egna utskick, och vi säljer dem aldrig vidare."
         ]
       },
       {
         "heading": "Hur länge uppgifterna sparas",
         "paragraphs": [
-          "Kontaktuppgifterna på en annons raderas när annonsen inte längre går att söka i tjänsten, till exempel när den har arkiverats eller försvunnit ur Platsbankens flöde.",
+          "Kontaktuppgifterna på en annons raderas när annonsen inte längre går att söka i tjänsten, till exempel när den har arkiverats eller försvunnit ur Platsbankens flöde. Den publika sidan svarar då att annonsen inte längre är tillgänglig. Ett namn i annonsens löpande text raderas inte av det: det finns kvar i annonstexten hos oss tills du begär radering.",
           "Om en användare har registrerat en ansökan till annonsen fryses annonsuppgifterna i användarens egen ansökningshistorik. Den frysta kopians kontaktuppgifter raderas när ansökan avslutas."
         ]
       },
@@ -589,7 +590,7 @@
         "heading": "Dina rättigheter",
         "paragraphs": [
           "Du har rätt att invända mot behandlingen (artikel 21). Vi gör då ingen intresseavvägning mot dig utan tillmötesgår invändningen fullt ut.",
-          "Du har också rätt att begära radering (artikel 17). Eftersom ditt namn kan förekomma i annonsens löpande text raderar vi då hela vår kopia av annonsen och hindrar att den hämtas in igen. Vi kan inte ta bort annonsen hos Arbetsförmedlingen, som är den som har publicerat den.",
+          "Du har också rätt att begära radering (artikel 17). Eftersom ditt namn kan förekomma i annonsens löpande text raderar vi då hela vår kopia av annonsen och hindrar att den hämtas in igen. Vi ber sedan sökmotorerna ta bort annonsens adress hos oss. Vi kan inte ta bort annonsen hos Arbetsförmedlingen, som är den som har publicerat den, och inte heller kopior som sökmotorer, länkförhandsvisningar eller andra har gjort.",
           "Du når personuppgiftsansvarig på kontakt@jobbliggaren.se. Vi svarar utan onödigt dröjsmål och som regel inom en månad. Du har också rätt att lämna klagomål till Integritetsskyddsmyndigheten (imy.se)."
         ]
       }

@@ -8,20 +8,56 @@ import { PROTECTED_PREFIXES } from "@/lib/auth/protected-routes";
 // the public marketing surface is indexable, the authed app + API + /gast demo are not, and
 // every emitted URL is absolute (SITE_URL-prefixed).
 
+/**
+ * Google's matching, as robots.txt documents it (developers.google.com/search/docs/crawling-indexing/robots/
+ * robots_txt): the longest matching path wins, `Allow` wins a tie, `*` is any run of characters and `$` ends the
+ * URL. The path is matched with its query, so `/jobb?q=x` is `/jobb?q=x`.
+ */
+function patternToRegExp(pattern: string): RegExp {
+  const anchored = pattern.endsWith("$");
+  const body = anchored ? pattern.slice(0, -1) : pattern;
+  const escaped = body.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*");
+  return new RegExp(`^${escaped}${anchored ? "$" : ""}`);
+}
+
+function isCrawlable(group: { allow: string[]; disallow: string[] }, pathAndQuery: string): boolean {
+  const matches = (patterns: string[]) =>
+    patterns.filter((pattern) => patternToRegExp(pattern).test(pathAndQuery)).map((pattern) => pattern.length);
+  const longestAllow = Math.max(-1, ...matches(group.allow));
+  const longestDisallow = Math.max(-1, ...matches(group.disallow));
+  return longestAllow >= longestDisallow;
+}
+
+const JOB_ID = "0b0b0b0b-1111-4222-8333-444444444444";
+
 describe("robots.ts", () => {
   const result = robots();
   const rulesRaw = result.rules;
-  // Our robots() returns a single rules object (not an array) — narrow for TS (no `!`/any).
-  if (Array.isArray(rulesRaw)) {
-    throw new Error("robots() should return a single rules object");
+  const rules = Array.isArray(rulesRaw) ? rulesRaw : [rulesRaw];
+  const everyone = rules.find((r) => r.userAgent === "*");
+  const training = rules.find((r) => Array.isArray(r.userAgent));
+  if (everyone === undefined || training === undefined) {
+    throw new Error("robots() should carry the * group and the training-crawler group");
   }
-  const rules = rulesRaw;
-  const disallow = ([] as string[]).concat(rules.disallow ?? []);
+  const disallow = ([] as string[]).concat(everyone.disallow ?? []);
+  const crawlable = (pathAndQuery: string) =>
+    isCrawlable({ allow: ([] as string[]).concat(everyone.allow ?? []), disallow }, pathAndQuery);
 
   it("allows crawling the root and points at the absolute sitemap", () => {
-    expect(rules.userAgent).toBe("*");
-    expect(rules.allow).toBe("/");
+    expect(everyone.allow).toBe("/");
     expect(result.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
+  });
+
+  it("blocks the pure AI training crawlers (GPTBot, CCBot) in a group of their own, and names no one else (Klas 2026-10-10)", () => {
+    expect(rules).toHaveLength(2);
+    expect(training.userAgent).toEqual(["GPTBot", "CCBot"]);
+    expect(training.disallow).toBe("/");
+    expect(training.allow).toBeUndefined();
+  });
+
+  it("lets Google-Extended and every search crawler in by not naming them (a crawler uses one group; * is not merged)", () => {
+    const serialised = JSON.stringify(result.rules);
+    expect(serialised).not.toMatch(/Google-Extended|Googlebot|Bingbot|OAI-SearchBot|ChatGPT-User/i);
   });
 
   it("disallows the API, the /gast demo sandbox, and the admin surface (subtree-scoped)", () => {
@@ -35,15 +71,22 @@ describe("robots.ts", () => {
     expect(disallow).not.toContain("/admin");
   });
 
-  it("disallows every authenticated app prefix at a segment boundary (#583: P$ exact + P/ subtree)", () => {
+  it("disallows every authenticated app prefix at a segment boundary (#583: P$ exact + P/ subtree), /jobb apart", () => {
     // Authed (app) areas are single-sourced from PROTECTED_PREFIXES (frozen to the (app) route
     // group by protected-routes.test.ts — #513). Each prefix is emitted as BOTH the exact anchor
     // `P$` and the subtree `P/`, mirroring the middleware isProtectedPath predicate so a bare
     // `Disallow: /cv` can never shadow the public /cv-granskning again.
-    for (const authed of PROTECTED_PREFIXES) {
+    for (const authed of PROTECTED_PREFIXES.filter((p) => p !== "/jobb")) {
       expect(disallow).toContain(`${authed}$`);
       expect(disallow).toContain(`${authed}/`);
     }
+  });
+
+  it("opens the public job page and keeps the private list closed: /jobb$ and /jobb?, never /jobb/ (ADR 0165)", () => {
+    expect(disallow).toContain("/jobb$");
+    expect(disallow).toContain("/jobb?");
+    expect(disallow).not.toContain("/jobb/");
+    expect(disallow).not.toContain("/jobb");
   });
 
   it("carries no authed (app) entry beyond the boundary-encoded PROTECTED_PREFIXES (frozen to the source of truth)", () => {
@@ -51,33 +94,44 @@ describe("robots.ts", () => {
     const seoLocal = new Set(["/api/", "/gast/", "/admin$", "/admin/"]);
     const appSlice = disallow.filter((entry) => !seoLocal.has(entry)).sort();
     const expected = [...PROTECTED_PREFIXES]
-      .flatMap((prefix) => [`${prefix}$`, `${prefix}/`])
+      .flatMap((prefix) => (prefix === "/jobb" ? ["/jobb$", "/jobb?"] : [`${prefix}$`, `${prefix}/`]))
       .sort();
 
     expect(appSlice).toEqual(expected);
   });
 
-  it("does not shadow the public /cv-granskning while still blocking /cv and its subtree (#583)", () => {
-    // Emulate a crawler's robots.txt path matching for our entries: `$` = end-anchor, else prefix.
-    // (We emit no `*`; longest-match-wins is moot because `allow` is only the root `/`.)
-    const isDisallowed = (path: string): boolean =>
-      disallow.some((entry) =>
-        entry.endsWith("$")
-          ? path === entry.slice(0, -1)
-          : path.startsWith(entry)
-      );
+  it("never lists the internal route prefix of the public job page: a blocked URL cannot show its 404 (ADR 0165)", () => {
+    expect(JSON.stringify(result.rules)).not.toContain("publik");
+  });
 
+  it("does not shadow the public /cv-granskning while still blocking /cv and its subtree (#583)", () => {
     // The #583 regression: the public CV-review explainer must stay crawlable.
-    expect(isDisallowed("/cv-granskning")).toBe(false);
+    expect(crawlable("/cv-granskning")).toBe(true);
     // The authed /cv and its subtree must stay blocked.
-    expect(isDisallowed("/cv")).toBe(true);
-    expect(isDisallowed("/cv/123")).toBe(true);
+    expect(crawlable("/cv")).toBe(false);
+    expect(crawlable("/cv/123")).toBe(false);
     // The public /matchning explainer is spared; the authed /matchningar is blocked.
-    expect(isDisallowed("/matchning")).toBe(false);
-    expect(isDisallowed("/matchningar")).toBe(true);
+    expect(crawlable("/matchning")).toBe(true);
+    expect(crawlable("/matchningar")).toBe(false);
     // Other public marketing pages are unaffected; the demo subtree is blocked.
-    expect(isDisallowed("/om")).toBe(false);
-    expect(isDisallowed("/gast/jobb")).toBe(true);
+    expect(crawlable("/om")).toBe(true);
+    expect(crawlable("/gast/jobb")).toBe(false);
+  });
+
+  it("crawls the public job page at /jobb/<uuid> with or without a query, and nothing else under /jobb", () => {
+    expect(crawlable(`/jobb/${JOB_ID}`)).toBe(true);
+    expect(crawlable(`/jobb/${JOB_ID}?vidare=1`)).toBe(true);
+    expect(crawlable(`/jobb/${JOB_ID}?relaterade=on`)).toBe(true);
+
+    expect(crawlable("/jobb")).toBe(false);
+    expect(crawlable("/jobb?q=sjukskoterska")).toBe(false);
+    expect(crawlable("/jobb?")).toBe(false);
+  });
+
+  it("keeps every signed-in surface closed", () => {
+    for (const path of ["/oversikt", "/ansokningar/abc", "/foretag", "/mina-sidor", "/sparade", "/admin", "/admin/x", "/api/v1/job-ads"]) {
+      expect(crawlable(path)).toBe(false);
+    }
   });
 });
 

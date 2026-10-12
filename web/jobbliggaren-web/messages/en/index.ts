@@ -23,6 +23,7 @@ import matchsetup from "./matchsetup.json";
 import metadata from "./metadata.json";
 import oversikt from "./oversikt.json";
 import pages from "./pages.json";
+import publicjob from "./publicjob.json";
 import resumes from "./resumes.json";
 import settings from "./settings.json";
 import statistik from "./statistik.json";
@@ -51,6 +52,7 @@ const messages = {
   metadata,
   oversikt,
   pages,
+  publicjob,
   resumes,
   settings,
   statistik,

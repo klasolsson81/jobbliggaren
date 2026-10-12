@@ -48,6 +48,7 @@ import {
   updateTextForStateChange,
   type ClaimsDeltaResult,
   type ParsedClaims,
+  withoutDisplacedWorktimeWords,
 } from "@/lib/job-ads/tokenize";
 import { JobAdTypeahead } from "./job-ad-typeahead";
 
@@ -142,7 +143,15 @@ export function JobbHeroSearch({
     () => false,
   );
 
-  const labelIndex = useMemo(() => buildLabelIndex(taxonomy), [taxonomy]);
+  // #2148 — the reader's name for heltid, deltid, vikariat … is indexed beside the source
+  // label, so what the field writes back parses to the same filter in every locale.
+  const labelIndex = useMemo(
+    () =>
+      buildLabelIndex(taxonomy, (conceptId, fallback) =>
+        codedTaxonomyName(tEnum, conceptId, fallback),
+      ),
+    [taxonomy, tEnum],
+  );
   const resolveLabel = useMemo(
     () =>
       buildTaxonomyLabelResolver(taxonomy, {
@@ -333,8 +342,23 @@ export function JobbHeroSearch({
       : t("heroSearch.announceExcluded", { label: excludedTerm });
   }
 
+  // Omfattning is a radio, so a later omfattning word displaces an earlier one (#2148): the
+  // earlier word is removed from the text, since a word that no longer means anything must not
+  // stay in the field. Anything removed puts the caret at the end, where the user is typing.
+  function dropDisplacedWords(
+    typedText: string,
+    typedCaret: number | null,
+  ): { nextText: string; caretIndex: number | null } {
+    const nextText = withoutDisplacedWorktimeWords(typedText, labelIndex, typedCaret);
+    if (nextText === typedText) return { nextText, caretIndex: typedCaret };
+    setText(nextText);
+    setCaret(null);
+    return { nextText, caretIndex: null };
+  }
+
   // Parse the text, diff it against the previous claims, and apply the difference.
-  function runDelta(nextText: string, caretIndex: number | null) {
+  function runDelta(typedText: string, typedCaret: number | null) {
+    const { nextText, caretIndex } = dropDisplacedWords(typedText, typedCaret);
     const claims = parseSearchText(nextText, labelIndex, caretIndex);
     const result = applyClaimsDelta(lastCommitted, prevClaims, claims, taxonomy);
     setPrevClaims(result.appliedClaims);
@@ -426,9 +450,10 @@ export function JobbHeroSearch({
             labelIndex,
           );
     const insert = insertable ? `${suggestion.label} ` : "";
-    const nextText = range
+    const composedText = range
       ? text.slice(0, range.start) + insert + text.slice(range.end)
       : text + (text.length > 0 && !/[ ,]$/.test(text) ? " " : "") + insert;
+    const { nextText } = dropDisplacedWords(composedText, null);
 
     const claims = parseSearchText(nextText, labelIndex, null);
     const delta = applyClaimsDelta(lastCommitted, prevClaims, claims, taxonomy);
@@ -463,7 +488,8 @@ export function JobbHeroSearch({
   // filters are unchanged, because searching again should move the search to the top of
   // the recent list.
   function onSubmitText() {
-    const claims = parseSearchText(text, labelIndex, null);
+    const { nextText: submitted } = dropDisplacedWords(text, null);
+    const claims = parseSearchText(submitted, labelIndex, null);
     const result = applyClaimsDelta(lastCommitted, prevClaims, claims, taxonomy);
     setPrevClaims(result.appliedClaims);
     const submitNotice = noticeFor(result);

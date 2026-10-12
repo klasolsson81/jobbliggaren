@@ -139,6 +139,21 @@ test.describe("/jobb — auth-gated rendering", () => {
     ).toBeVisible();
   });
 
+  // #2148 — ett ord lika med en omfattning/anställningsform blir filtertaggen, exakt som en ort;
+  // det når URL:en som filtret och aldrig som ett sökord.
+  test("ett ord lika med en omfattning blir filtertaggen, inte ett sökord (#2148)", async ({ page }) => {
+    await page.goto("/jobb");
+    await page.waitForLoadState("networkidle");
+
+    await page.getByLabel(SEARCH_FIELD_LABEL).fill("heltid backend");
+    await page.getByRole("button", { name: "Sök", exact: true }).click();
+    await page.waitForURL(/worktimeExtent=/);
+
+    expect(page.url()).not.toMatch(/q=[^&]*heltid/i);
+    await expect(page.getByRole("button", { name: "Ta bort filter Heltid" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Ta bort sökordet backend" })).toBeVisible();
+  });
+
   test("Rensa sökord och filter returnerar till /jobb", async ({ page }) => {
     await page.goto("/jobb?q=backend");
     await page

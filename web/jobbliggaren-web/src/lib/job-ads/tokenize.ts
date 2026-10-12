@@ -44,8 +44,15 @@ import {
  * (ADR 0045-hygien: ingen replace-per-keystroke).
  */
 
+/**
+ * What a text word can claim. The wire's `SuggestionKind` plus the two Klass 2 axes (#2148):
+ * the backend never suggests an omfattning or anställningsform, so they are not in that enum
+ * and are kept here rather than widening a contract the server owns.
+ */
+export type ClaimKind = SuggestionKind | "EmploymentType" | "WorktimeExtent";
+
 export interface LabelMatch {
-  kind: SuggestionKind;
+  kind: ClaimKind;
   conceptId: string;
   label: string;
 }
@@ -57,16 +64,26 @@ export interface LabelIndex {
   maxWords: number;
 }
 
-export function buildLabelIndex(taxonomy: TaxonomyTree | null): LabelIndex {
+/**
+ * `localeName` is the reader's name for a coded (Klass 2) concept. The source label, which is
+ * Swedish, is always indexed; the locale name is indexed beside it so a label written back
+ * into the field in another locale ("Full-time") parses to the same claim.
+ */
+export function buildLabelIndex(
+  taxonomy: TaxonomyTree | null,
+  localeName?: (conceptId: string, fallback: string) => string,
+): LabelIndex {
   const byText = new Map<string, LabelMatch[]>();
   let maxWords = 1;
-  const add = (kind: SuggestionKind, conceptId: string, label: string) => {
+  const add = (kind: ClaimKind, conceptId: string, label: string) => {
     const key = normalizeLabel(label);
     const words = key.split(" ").length;
     if (words > maxWords) maxWords = words;
     const list = byText.get(key);
-    if (list) list.push({ kind, conceptId, label });
-    else byText.set(key, [{ kind, conceptId, label }]);
+    if (list) {
+      if (!list.some((m) => m.kind === kind && m.conceptId === conceptId))
+        list.push({ kind, conceptId, label });
+    } else byText.set(key, [{ kind, conceptId, label }]);
   };
   for (const r of taxonomy?.regions ?? []) {
     add("Region", r.conceptId, r.label);
@@ -77,6 +94,16 @@ export function buildLabelIndex(taxonomy: TaxonomyTree | null): LabelIndex {
     add("OccupationField", f.conceptId, f.label);
     for (const g of f.occupationGroups)
       add("OccupationGroup", g.conceptId, g.label);
+  }
+  // #2148 — omfattning and anställningsform become filter tags just like an ort: "heltid"
+  // is Omfattning: Heltid, not a word that only appears in the ad text.
+  for (const e of taxonomy?.employmentTypes ?? []) {
+    add("EmploymentType", e.conceptId, e.label);
+    if (localeName) add("EmploymentType", e.conceptId, localeName(e.conceptId, e.label));
+  }
+  for (const w of taxonomy?.worktimeExtents ?? []) {
+    add("WorktimeExtent", w.conceptId, w.label);
+    if (localeName) add("WorktimeExtent", w.conceptId, localeName(w.conceptId, w.label));
   }
   // #1546 — arbetsgivarnamn läggs MEDVETET inte in här, och det är inte ett glapp.
   // Indexet avgör vad som är text-representabelt; en post här skulle göra att
@@ -126,16 +153,60 @@ export function getTokenRange(
   return null;
 }
 
+interface SpannedMatch extends LabelMatch {
+  /** Character span of the matched words in the text. */
+  start: number;
+  end: number;
+}
+
 /**
  * Ren parse: text → anspråk per axel. `caretIndex != null` exkluderar ordet
  * under caret (pågående). Greedy longest-match per run (komma/caret bryter
  * runs — n-gram spänner aldrig över dem).
+ *
+ * Omfattning is a radio (0 or 1 value, search-params.ts): when the text holds several omfattning
+ * words the LAST one claims it and the earlier ones claim nothing (#2148, CTO). They never become
+ * q-words; `withoutDisplacedWorktimeWords` removes them from the text at commit.
  */
 export function parseSearchText(
   text: string,
   index: LabelIndex,
   caretIndex: number | null,
 ): ParsedClaims {
+  const scanned = scanSearchText(text, index, caretIndex);
+  const lastWorktime = scanned.matches.findLastIndex((m) => m.kind === "WorktimeExtent");
+  const matches = scanned.matches
+    .filter((m, i) => m.kind !== "WorktimeExtent" || i === lastWorktime)
+    .map(({ kind, conceptId, label }) => ({ kind, conceptId, label }));
+  return { matches, qWords: scanned.qWords };
+}
+
+/**
+ * The text without the omfattning words a later omfattning word has displaced, so a word that no
+ * longer means anything does not stay in the field (the delta applies the replacement; this is the
+ * text half). Unchanged text is returned as the same string.
+ */
+export function withoutDisplacedWorktimeWords(
+  text: string,
+  index: LabelIndex,
+  caretIndex: number | null,
+): string {
+  const worktime = scanSearchText(text, index, caretIndex).matches.filter(
+    (m) => m.kind === "WorktimeExtent",
+  );
+  let result = text;
+  for (const m of worktime.slice(0, -1).reverse()) {
+    const tail = result.slice(m.end).replace(/^[ ,]+/, "");
+    result = result.slice(0, m.start) + tail;
+  }
+  return result;
+}
+
+function scanSearchText(
+  text: string,
+  index: LabelIndex,
+  caretIndex: number | null,
+): { matches: SpannedMatch[]; qWords: string[] } {
   const caretRange =
     caretIndex === null ? null : getTokenRange(text, caretIndex);
 
@@ -187,7 +258,7 @@ export function parseSearchText(
     });
   }
 
-  const matches: LabelMatch[] = [];
+  const matches: SpannedMatch[] = [];
   const qWords: string[] = [];
   const seenQ = new Set<string>();
 
@@ -222,7 +293,11 @@ export function parseSearchText(
         .toLowerCase();
       const found = index.byText.get(key);
       if (found && found.length === 1) {
-        matches.push(found[0]!);
+        matches.push({
+          ...found[0]!,
+          start: tokens[i]!.start,
+          end: tokens[i + len - 1]!.end,
+        });
         i += len;
         consumed = true;
         break;
@@ -302,6 +377,21 @@ export function applyClaimsDelta(
   // Adds.
   for (const m of next.matches) {
     if (prevKeys.has(matchKey(m))) continue;
+    // #2148 — the two Klass 2 axes are not suggestion kinds: the word sets its axis directly.
+    // Anställningsform is a checkbox group and appends; omfattning is a radio and replaces.
+    if (m.kind === "EmploymentType" || m.kind === "WorktimeExtent") {
+      const after: JobbUrlState =
+        m.kind === "EmploymentType"
+          ? state.employmentType.includes(m.conceptId)
+            ? state
+            : { ...state, employmentType: [...state.employmentType, m.conceptId] }
+          : sameList(state.worktimeExtent, [m.conceptId])
+            ? state
+            : { ...state, worktimeExtent: [m.conceptId] };
+      if (!sameUrlState(after, state)) addedLabels.push(m.label);
+      state = after;
+      continue;
+    }
     const after = composeSuggestionChip(
       {
         kind: m.kind,
@@ -450,7 +540,7 @@ export function enforceClaims(
 ): JobbUrlState {
   let result = state;
   const ensure = (
-    axis: "region" | "municipality" | "occupationGroup",
+    axis: "region" | "municipality" | "occupationGroup" | "employmentType",
     id: string,
   ) => {
     if (!result[axis].includes(id))
@@ -466,6 +556,14 @@ export function enforceClaims(
         break;
       case "OccupationGroup":
         ensure("occupationGroup", m.conceptId);
+        break;
+      case "EmploymentType":
+        ensure("employmentType", m.conceptId);
+        break;
+      case "WorktimeExtent":
+        // A radio: the text's single omfattning claim is the value.
+        if (!sameList(result.worktimeExtent, [m.conceptId]))
+          result = { ...result, worktimeExtent: [m.conceptId] };
         break;
       case "OccupationField": {
         const field = taxonomy?.occupationFields.find(
@@ -518,6 +616,16 @@ function removeMatch(
           (v) => v !== m.conceptId,
         ),
       };
+    case "EmploymentType":
+      return {
+        ...state,
+        employmentType: state.employmentType.filter((v) => v !== m.conceptId),
+      };
+    case "WorktimeExtent":
+      return {
+        ...state,
+        worktimeExtent: state.worktimeExtent.filter((v) => v !== m.conceptId),
+      };
     case "OccupationField": {
       // Fält-anspråket materialiserades till barn-grupper vid add (VAL 2a)
       // — borttagning speglar: släpp alla barn.
@@ -555,7 +663,7 @@ function removeMatch(
  */
 export function isTextRepresentable(
   label: string,
-  expected: { kind: SuggestionKind; conceptId: string } | null,
+  expected: { kind: ClaimKind; conceptId: string } | null,
   index: LabelIndex,
 ): boolean {
   if (label.includes(",")) return false;
@@ -577,7 +685,7 @@ export function isTextRepresentable(
 }
 
 /**
- * state → text (kanonisk ordning region → kommun → yrkesgrupp → q-ord).
+ * state → text (kanonisk ordning region → kommun → yrkesgrupp → anställningsform → omfattning → q-ord).
  * Körs ENDAST vid extern divergens (C′ regel 3) — aldrig under användarens
  * egen skrivning (texten skulle re-ordnas under caret). Best-effort-spegel:
  * icke-representabla dimensioner utelämnas och lever enbart i filter-raden
@@ -596,8 +704,13 @@ export function serializeSearchText(
   }
   const items: Item[] = [];
   const push = (
-    axis: "region" | "municipality" | "occupationGroup",
-    kind: SuggestionKind,
+    axis:
+      | "region"
+      | "municipality"
+      | "occupationGroup"
+      | "employmentType"
+      | "worktimeExtent",
+    kind: ClaimKind,
     id: string,
   ) => {
     const label = resolveLabel(axis, id);
@@ -608,6 +721,8 @@ export function serializeSearchText(
   for (const id of state.municipality) push("municipality", "Municipality", id);
   for (const id of state.occupationGroup)
     push("occupationGroup", "OccupationGroup", id);
+  for (const id of state.employmentType) push("employmentType", "EmploymentType", id);
+  for (const id of state.worktimeExtent) push("worktimeExtent", "WorktimeExtent", id);
   for (const w of splitQWords(state.q)) {
     if (isTextRepresentable(w, null, index))
       items.push({ text: w, key: `q:${w.toLowerCase()}` });
@@ -652,7 +767,12 @@ export function updateTextForStateChange(
   let hasAdditions = false;
 
   const diffAxis = (
-    axis: "region" | "municipality" | "occupationGroup",
+    axis:
+      | "region"
+      | "municipality"
+      | "occupationGroup"
+      | "employmentType"
+      | "worktimeExtent",
   ): void => {
     for (const id of prev[axis])
       if (!next[axis].includes(id)) removedTexts.push(resolveLabel(axis, id));
@@ -662,6 +782,8 @@ export function updateTextForStateChange(
   diffAxis("region");
   diffAxis("municipality");
   diffAxis("occupationGroup");
+  diffAxis("employmentType");
+  diffAxis("worktimeExtent");
 
   const prevQ = splitQWords(prev.q);
   const nextQKeys = new Set(splitQWords(next.q).map((w) => w.toLowerCase()));
@@ -708,8 +830,7 @@ export function sameUrlState(a: JobbUrlState, b: JobbUrlState): boolean {
     // builds on a stale `remote`.
     a.remote === b.remote &&
     // Klass 2 (ADR 0067 B2) — panel-dimensionerna ingår i "samma filter-state".
-    // Inte text-representabla i hero-fältet, men kanoniska komparatorn ska
-    // vara komplett så framtida skip-guards inte ger false-negative-drop.
+    // Since #2148 the field can claim them (a word equal to a label).
     sameList(a.employmentType, b.employmentType) &&
     sameList(a.worktimeExtent, b.worktimeExtent) &&
     // STEG 5 (grade-filter) — matchningsgrad-filtret ingår i "samma filter-

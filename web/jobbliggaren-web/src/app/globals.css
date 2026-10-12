@@ -2887,6 +2887,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   display: inline-flex;
 }
 .jp-filterchip__rm:hover { color: var(--jp-ink-1); }
+/* #2148 — an excluded word ("-deltid"): the warning pair, not the neutral chip. The Minus icon
+   and the leading "-" carry the meaning; the colour only reinforces it (WCAG 1.4.1). */
+.jp-filterchip--excluded {
+  background: var(--jp-warning-bg);
+  border-color: var(--jp-warning);
+  color: var(--jp-warning);
+}
+.jp-filterchip--excluded .jp-filterchip__rm { color: var(--jp-warning); }
+.jp-filterchip--excluded .jp-filterchip__rm:hover { color: var(--jp-ink-1); }
 
 /* ── Modal ───────────────────────────────────────── */
 .jp-modal-scrim {

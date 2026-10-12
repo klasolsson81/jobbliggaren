@@ -16,6 +16,7 @@ import {
   Clock,
   FileText,
   MapPin,
+  Minus,
   Search,
   SlidersHorizontal,
   X,
@@ -542,9 +543,17 @@ export function JobbResultsToolbar({
         {chips.map((chip) => {
           // Ikon per tagg-typ (CHIP_ICON — Klass 2 lade employmentType/
           // worktimeExtent; E2i — q-taggar särskiljs som Search).
-          const ChipIcon = CHIP_ICON[chip.axis];
+          // #2148 — an excluded word is not a search term: its own icon and tone, so the
+          // leading "-" is not the only thing telling it from a plus-word.
+          const excluded = chip.excludedTerm !== undefined;
+          const ChipIcon = excluded ? Minus : CHIP_ICON[chip.axis];
           return (
-            <span key={`${chip.axis}-${chip.value}`} className="jp-filterchip">
+            <span
+              key={`${chip.axis}-${chip.value}`}
+              className={
+                excluded ? "jp-filterchip jp-filterchip--excluded" : "jp-filterchip"
+              }
+            >
               <ChipIcon size={12} aria-hidden="true" />
               {chip.label}
               <button

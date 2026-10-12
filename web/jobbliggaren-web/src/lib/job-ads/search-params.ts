@@ -53,8 +53,6 @@ export interface JobbUrlState {
   // Heltid/Deltid, radio-single → 0 eller 1 element). Ett param per axel med
   // värdena joinade (samma kontrakt som occupationGroup/region/municipality,
   // ADR 0042 Beslut B + axel-serialiseringen 2026-08-01). Backend filtrerar på ?employmentType=/?worktimeExtent= (B2/#60).
-  // Panel-valda (aldrig text-representabla i hero-fältet — som popover-
-  // dimensionerna, CTO VAL 4a; lever bara i URL-state + filter-raden).
   employmentType: ReadonlyArray<string>;
   worktimeExtent: ReadonlyArray<string>;
   // STEG 5 (grade-filter, 2026-06-23) — matchningsgrad-filtret. Bär

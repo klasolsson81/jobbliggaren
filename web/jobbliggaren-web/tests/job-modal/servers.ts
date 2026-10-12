@@ -383,13 +383,12 @@ export async function startHarness(informationFlows = false, applicationCopies =
     }
     if (READ_MARK_ROUTES.some((pattern) => pattern.test(route))) {
       readReceipts.push({ route, body: await bodyOf(request) });
-      if (harness.readMarkDelayMs > 0)
-        await new Promise((resolve) => setTimeout(resolve, harness.readMarkDelayMs));
-      if (harness.refuseNextReadMark) {
-        harness.refuseNextReadMark = false;
-        return json(500, { title: "Internal Server Error", status: 500 });
-      }
-      return json(204);
+      // Decided on arrival: a request held from an earlier test must not spend a later test's refusal.
+      const refuse = harness.refuseNextReadMark;
+      if (refuse) harness.refuseNextReadMark = false;
+      const hold = harness.readMarkDelayMs;
+      if (hold > 0) await new Promise((resolve) => setTimeout(resolve, hold));
+      return refuse ? json(500, { title: "Internal Server Error", status: 500 }) : json(204);
     }
     const setting = SETTINGS_WRITES[route];
     if (setting) {

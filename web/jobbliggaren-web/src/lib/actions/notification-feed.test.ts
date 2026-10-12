@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { markNotificationRead, markNotificationsReadThrough, rerenders } = vi.hoisted(() => ({
+const { dismissNotification, markNotificationRead, markNotificationsReadThrough, rerenders } = vi.hoisted(() => ({
+  dismissNotification: vi.fn(),
   markNotificationRead: vi.fn(),
   markNotificationsReadThrough: vi.fn(),
   // Every call that makes Next re-render a route or write a cookie from an action.
@@ -13,7 +14,7 @@ const { markNotificationRead, markNotificationsReadThrough, rerenders } = vi.hoi
     redirect: vi.fn(),
   },
 }));
-vi.mock("@/lib/api/notification-feed", () => ({ markNotificationRead, markNotificationsReadThrough }));
+vi.mock("@/lib/api/notification-feed", () => ({ dismissNotification, markNotificationRead, markNotificationsReadThrough }));
 vi.mock("next/cache", () => ({
   revalidatePath: rerenders.revalidatePath,
   revalidateTag: rerenders.revalidateTag,
@@ -25,7 +26,7 @@ vi.mock("next/navigation", () => ({ redirect: rerenders.redirect }));
 vi.mock("next-intl/server", () => ({
   getTranslations: async () => (key: string) => `t:${key}`,
 }));
-import { markAllNotificationsReadAction, markNotificationReadAction } from "./notification-feed";
+import { dismissNotificationAction, markAllNotificationsReadAction, markNotificationReadAction } from "./notification-feed";
 
 // Microseconds, as the API writes them: a JS Date would round this down to .123 and leave the
 // acknowledged row itself unread.
@@ -35,6 +36,7 @@ const AD_ID = "7b0a1c52-4a5e-4d0e-9e0a-0b5d9e2f5a11";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  dismissNotification.mockResolvedValue({ kind: "ok", data: undefined });
   markNotificationRead.mockResolvedValue({ kind: "ok", data: undefined });
   markNotificationsReadThrough.mockResolvedValue({ kind: "ok", data: undefined });
 });
@@ -79,6 +81,51 @@ describe("markNotificationReadAction (#2130)", () => {
   it("never asks Next to re-render anything or to write a cookie", async () => {
     await markNotificationReadAction({ kind: "Match", jobAdId: AD_ID });
     await markAllNotificationsReadAction({ match: MATCH_TOKEN, followedCompanyAd: FOLLOW_TOKEN });
+
+    for (const call of Object.values(rerenders)) expect(call).not.toHaveBeenCalled();
+  });
+});
+
+describe("dismissNotificationAction (#2151)", () => {
+  it("takes exactly the named row out of the bell, through its own kind, and marks nothing read", async () => {
+    const result = await dismissNotificationAction({ kind: "Match", jobAdId: AD_ID });
+
+    expect(result).toEqual({ success: true });
+    expect(dismissNotification).toHaveBeenCalledExactlyOnceWith("Match", AD_ID);
+    expect(markNotificationRead).not.toHaveBeenCalled();
+    expect(markNotificationsReadThrough).not.toHaveBeenCalled();
+  });
+
+  // A Server Action is a public endpoint: any signed-in client can post it any argument.
+  it.each([
+    ["an unknown kind", { kind: "Application", jobAdId: AD_ID }],
+    ["no kind", { jobAdId: AD_ID }],
+    ["a job ad id that is not a UUID", { kind: "Match", jobAdId: "../me/profile" }],
+    ["no job ad id", { kind: "Match" }],
+    ["another field", { kind: "Match", jobAdId: AD_ID, userId: "someone-else" }],
+  ])("sends nothing for %s", async (_name, input) => {
+    const result = await dismissNotificationAction(input as never);
+
+    expect(result).toEqual({ success: false, error: "t:dismissFailed" });
+    expect(dismissNotification).not.toHaveBeenCalled();
+  });
+
+  it.each([["error"], ["unauthorized"], ["forbidden"], ["rateLimited"]])(
+    "reports a refusal (%s) as a failure",
+    async (kind) => {
+      dismissNotification.mockResolvedValue({ kind, retryAfterSeconds: 30 });
+
+      expect(await dismissNotificationAction({ kind: "FollowedCompanyAd", jobAdId: AD_ID })).toEqual({
+        success: false,
+        error: "t:dismissFailed",
+      });
+    },
+  );
+
+  // Fired without waiting, like the read mark: an action that re-rendered the route could re-render a job modal.
+  it("never asks Next to re-render anything or to write a cookie", async () => {
+    await dismissNotificationAction({ kind: "Match", jobAdId: AD_ID });
+    await dismissNotificationAction({ kind: "FollowedCompanyAd", jobAdId: "not-a-uuid" });
 
     for (const call of Object.values(rerenders)) expect(call).not.toHaveBeenCalled();
   });

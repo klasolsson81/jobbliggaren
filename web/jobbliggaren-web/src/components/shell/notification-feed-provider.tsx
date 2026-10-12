@@ -12,10 +12,10 @@ const NotificationFeedContext = createContext<NotificationFeedApi | null>(null);
  * `(app)` and `(admin)` render. A plain React context: no state library (AGENTS.md §4).
  */
 export function NotificationFeedProvider({ children }: { children: ReactNode }) {
-  const { state, refresh, increasedTo, pendingRead, markRead } = useNotificationFeed();
+  const { state, refresh, increasedTo, pendingRead, markRead, pendingDismiss, dismiss } = useNotificationFeed();
   const value = useMemo<NotificationFeedApi>(
-    () => ({ state, refresh, increasedTo, pendingRead, markRead }),
-    [state, refresh, increasedTo, pendingRead, markRead],
+    () => ({ state, refresh, increasedTo, pendingRead, markRead, pendingDismiss, dismiss }),
+    [state, refresh, increasedTo, pendingRead, markRead, pendingDismiss, dismiss],
   );
   return <NotificationFeedContext value={value}>{children}</NotificationFeedContext>;
 }

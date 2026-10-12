@@ -96,7 +96,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
         {
             window = await (
                     from h in NewFollowedCompanyAdSet.NewHits(db, userId, lastSeen: null)
-                    where h.CreatedAt <= listBound
+                    where h.CreatedAt <= listBound && !h.DismissedFromNotificationFeed
                     join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
                     orderby h.CreatedAt descending
                     select new WindowRow(
@@ -275,6 +275,19 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
         // The unit of work commits them. No hit, or a hit already read, is no row at all.
         foreach (var hit in hits)
             hit.MarkReadInNotificationFeed();
+    }
+
+    public async Task DismissRowAsync(NotificationFeedMarkContext context, JobAdId jobAdId, CancellationToken cancellationToken)
+    {
+        var userId = context.UserId;
+        // Every hit of the ad the owner has that is not dismissed yet, read in the bell or not: filtering on the read
+        // flag here would leave a hit the user already opened on screen. The unit of work commits them.
+        var hits = await context.Db.FollowedCompanyAdHits
+            .Where(h => h.UserId == userId && h.JobAdId == jobAdId && !h.DismissedFromNotificationFeed)
+            .ToListAsync(cancellationToken);
+
+        foreach (var hit in hits)
+            hit.DismissFromNotificationFeed();
     }
 
     public async Task MarkThroughAsync(

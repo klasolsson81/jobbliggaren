@@ -58,6 +58,14 @@ public sealed class UserJobAdMatch : AggregateRoot<UserJobAdMatchId>
     /// </summary>
     public bool ReadInNotificationFeed { get; private set; }
 
+    /// <summary>
+    /// #2151 (ADR 0169) — <c>true</c> once the user took this match's notification out of the bell with its X.
+    /// A dismissed row is also a read row (<c>ck_user_job_ad_matches_dismissed_implies_read</c>), so every count that
+    /// leaves out read rows leaves it out too. Nothing sets it back, and nothing but the bell's own list reads it: the
+    /// row stays where it is for <c>/matchningar</c>, Översikt and the e-mail, and is erased with the account.
+    /// </summary>
+    public bool DismissedFromNotificationFeed { get; private set; }
+
     private UserJobAdMatch() { }
 
     private UserJobAdMatch(

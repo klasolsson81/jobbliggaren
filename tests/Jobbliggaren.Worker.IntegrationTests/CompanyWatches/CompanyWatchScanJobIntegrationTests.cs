@@ -242,6 +242,38 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
     }
 
     [Fact]
+    public async Task RunAsync_AWatchAddedAfterAScan_GetsNoHitForAnAdThatScanAlreadyCovered()
+    {
+        // The producer premise under ADR 0169 (#2151): a notification taken out of the bell does not come back because a
+        // later scan finds the same ad through a NEW watch. Run N creates the hit for the ad through watch 1 and moves the
+        // watermark to its own time; the user then follows the same organisation through a group (watch 2); run N+1 reads
+        // only ads created after the watermark, so the ad is not reconsidered and watch 2 gets no hit for it.
+        // MUTATION: a backfill on a new follow (or a watermark that is not monotonic) creates a second hit here -> RED, and
+        // the lapse trigger in ADR 0169 has fired. The boundary race named there (an ad ingested after run N captured its
+        // time but loaded by it) is a declared residual and is NOT what this test pins.
+        var ct = TestContext.Current.CancellationToken;
+        var memberOrgNr = UniqueAbOrgNr();
+        var (userId, _) = await SeedConsentingUserAsync(ct);
+        var directWatchId = await SeedWatchAsync(userId, memberOrgNr, ct);
+        var adId = await SeedAdWithOrgNrAsync(memberOrgNr, "Volvo Cars AB", ct);
+        await RunJobAsync(ct, StubProvider(("volvo", [memberOrgNr])));
+        (await GetHitsAsync(userId, ct)).ShouldHaveSingleItem().CompanyWatchId.ShouldBe(directWatchId);
+
+        var groupWatchId = await SeedBrandGroupWatchAsync(userId, "volvo", ct);
+        // The control: an ad ingested AFTER run N is read by run N+1 through BOTH watches, which proves that run N+1 ran and that
+        // the group watch resolves to the organisation; only then does "no second hit for the first ad" mean something.
+        var laterAdId = await SeedAdWithOrgNrAtAsync(memberOrgNr, "Volvo Cars AB", Now.AddHours(1), ct);
+        await RunJobAsync(ct, StubProvider(("volvo", [memberOrgNr])));
+
+        var hits = await GetHitsAsync(userId, ct);
+        hits.Where(h => h.JobAdId == laterAdId).Select(h => h.CompanyWatchId).ToList()
+            .ShouldBe([directWatchId, groupWatchId], ignoreOrder: true);
+        var forTheCoveredAd = hits.Where(h => h.JobAdId == adId).ToList();
+        forTheCoveredAd.Count.ShouldBe(1, "a watch added after the scan does not make the scan reconsider an ad it already covered");
+        forTheCoveredAd.Single().CompanyWatchId.ShouldBe(directWatchId);
+    }
+
+    [Fact]
     public async Task RunAsync_GroupWatch_HitsMembersOnly_NotNonMembersNorOtherGroups()
     {
         // Asymmetric seed (the count-only oracle's 2+1 convention, generalised to 1+1+1): a member ad

@@ -226,3 +226,41 @@ test("a refused mark still opens the ad and puts the dot back", async ({ page })
   await expect(page.getByRole("button", { name: "Notiser, 2 olästa" })).toBeVisible();
   await expect(dots(page)).toHaveCount(2);
 });
+
+const DISMISS_FOLLOWED = `POST /api/v1/me/notification-feed/followed-company-ads/${ADS.saved.id}/dismiss`;
+
+// #2151: the X in a real browser. It is a button beside the row link, so a click on it opens nothing; the row goes at once, the
+// count follows the server, and exactly one dismissal is sent. The modal-safe action shape is proved for the read mark above.
+test("the X takes just that notification out, opens nothing, and the count follows the server", async ({ page }) => {
+  harness.readMarkDelayMs = 800;
+  await page.goto("/sparade");
+  await page.getByRole("button", { name: "Notiser, 2 olästa" }).click();
+  const panel = page.getByRole("dialog", { name: "Notiser" });
+
+  await panel.getByRole("button", { name: `Ta bort notisen: Bevakat företag, ${ADS.saved.title}, ${ADS.saved.company}` }).click();
+
+  await expect(panel.getByRole("link", { name: ADS.saved.title })).toHaveCount(0);
+  await expect(panel.getByRole("link", { name: ADS.open.title })).toBeVisible();
+  await expect(page).toHaveURL("/sparade");
+  await expect(panel.getByText("2 olästa")).toBeVisible();
+  await expect.poll(() => harness.readReceipts.map((receipt) => receipt.route)).toEqual([DISMISS_FOLLOWED]);
+  await expect(panel.getByText("1 oläst")).toBeVisible();
+  await expect(page.locator(".jp-notif-badge")).toHaveText("1");
+  await expect(panel).toBeVisible();
+  // Focus went to the other row's X, not to the page.
+  await expect(panel.getByRole("button", { name: `Ta bort notisen: Ny matchning, ${ADS.open.title}, ${ADS.open.company}` })).toBeFocused();
+  expect(harness.requests.filter((route) => route.startsWith("POST ") && /\/seen/.test(route))).toEqual([]);
+});
+
+test("a refused dismissal puts the row back with a notice", async ({ page }) => {
+  harness.refuseNextReadMark = true;
+  await page.goto("/sparade");
+  await page.getByRole("button", { name: "Notiser, 2 olästa" }).click();
+  const panel = page.getByRole("dialog", { name: "Notiser" });
+
+  await panel.getByRole("button", { name: `Ta bort notisen: Bevakat företag, ${ADS.saved.title}, ${ADS.saved.company}` }).click();
+
+  await expect(panel.getByRole("alert")).toContainText("Notisen kunde inte tas bort");
+  await expect(panel.getByRole("link", { name: ADS.saved.title })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Notiser, 2 olästa" })).toBeVisible();
+});

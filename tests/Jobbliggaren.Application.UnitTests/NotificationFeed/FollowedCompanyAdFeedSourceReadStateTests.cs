@@ -184,6 +184,103 @@ public class FollowedCompanyAdFeedSourceReadStateTests
         read.Items.ShouldHaveSingleItem().IsUnread.ShouldBeFalse();
     }
 
+    // #2151: a dismissed hit is read AND dismissed. It is neither listed nor counted, whatever its age.
+    [Fact]
+    public async Task ReadAsync_WithEveryHitOfAnAdDismissed_ListsNothingCountsNothingAndKeepsTheTokenAtThatHit()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var watchA = _seed.Watch(db, userId, onlyMatched: false);
+        var watchB = _seed.Watch(db, userId, onlyMatched: false);
+        var ad = _seed.ActiveAd(db);
+        _seed.Hit(db, userId, ad, watchA, T0.AddHours(1));
+        _seed.Hit(db, userId, ad, watchB, T0.AddHours(2));
+        NotificationFeedSeed.HitsDismissed(db, userId, ad);
+
+        var read = await ReadAsync(db, userId);
+
+        read.UnreadCount.ShouldBe(0);
+        read.Items.ShouldBeEmpty();
+        // The token has no flag predicate (ADR 0168 D2), so "Markera alla" still covers everything up to the dismissed hit.
+        read.AcknowledgedThrough.ShouldBe(T0.AddHours(2));
+    }
+
+    [Fact]
+    public async Task ReadAsync_WithADismissedAdBesideAReadOneAndAnUnreadOne_ListsOnlyTheLatterTwo()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var watch = _seed.Watch(db, userId, onlyMatched: false);
+        var dismissed = _seed.ActiveAd(db, "Borttagen");
+        var read = _seed.ActiveAd(db, "Läst");
+        var unread = _seed.ActiveAd(db, "Oläst");
+        _seed.Hit(db, userId, dismissed, watch, T0.AddHours(3));
+        _seed.Hit(db, userId, read, watch, T0.AddHours(2));
+        _seed.Hit(db, userId, unread, watch, T0.AddHours(1));
+        NotificationFeedSeed.HitsDismissed(db, userId, dismissed);
+        NotificationFeedSeed.HitsReadInBell(db, userId, read);
+
+        var result = await ReadAsync(db, userId);
+
+        result.UnreadCount.ShouldBe(1);
+        result.Items.Select(i => i.Title).ToList().ShouldBe(["Läst", "Oläst"]);
+        result.Items.Single(i => i.Title == "Läst").IsUnread.ShouldBeFalse();
+    }
+
+    // ADR 0169 s1, the read side: the state is one dismissed hit and one NEWER hit for the same ad through another watch. The
+    // actor that produces it is the boundary race named in s1 (an ad loaded by two scan runs while the user follows its
+    // organisation a second way between them); the scan job's ordinary case cannot (CompanyWatchScanJobIntegrationTests).
+    // The ad then reads as ONE unread row, at its undismissed hit: the residual the ADR states, not a defect to hide.
+    [Fact]
+    public async Task ReadAsync_WithADismissedHitAndANewerUndismissedHitOfTheSameAd_ListsTheAdOnceAsUnread()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var watchA = _seed.Watch(db, userId, onlyMatched: false);
+        var watchB = _seed.Watch(db, userId, onlyMatched: false);
+        var ad = _seed.ActiveAd(db);
+        _seed.Hit(db, userId, ad, watchA, T0.AddHours(1));
+        _seed.Hit(db, userId, ad, watchB, T0.AddHours(2));
+        db.FollowedCompanyAdHits.Single(h => h.CompanyWatchId == watchA).DismissFromNotificationFeed();
+        db.SaveChanges();
+
+        var read = await ReadAsync(db, userId);
+
+        read.UnreadCount.ShouldBe(1);
+        var row = read.Items.ShouldHaveSingleItem();
+        row.JobAdId.ShouldBe(ad.Value);
+        row.IsUnread.ShouldBeTrue();
+        row.OccurredAt.ShouldBe(T0.AddHours(2));
+    }
+
+    // Art. 5(1)(c): a dismissed ad never reaches the grader. On the grade path (a watch with "endast matchade") the window and
+    // the counted hits both leave dismissed hits out, so the one grading call carries only the live ad.
+    [Fact]
+    public async Task ReadAsync_OnTheGradePath_NeverSendsADismissedAdToTheGrader()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var watch = _seed.Watch(db, userId, onlyMatched: true);
+        var dismissed = _seed.ActiveAd(db, "Borttagen");
+        var live = _seed.ActiveAd(db, "Kvar");
+        _seed.Hit(db, userId, dismissed, watch, T0.AddHours(2));
+        _seed.Hit(db, userId, live, watch, T0.AddHours(1));
+        NotificationFeedSeed.HitsDismissed(db, userId, dismissed);
+        GradeAsMatching(live);
+
+        var read = await ReadAsync(db, userId);
+
+        read.Items.Select(i => i.JobAdId).ToList().ShouldBe([live.Value]);
+        await _perUserSearch.Received(1).FilterToMatchingAsync(
+            Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Is<IReadOnlyCollection<JobAdId>>(ids => ids.Count == 1 && ids.Contains(live)),
+            Arg.Any<CancellationToken>());
+    }
+
     // The common path under-fill (named skip of #2130 PR 1, closed here): no "endast matchade" watch, so every hit is
     // included and the old grade-path reserve never ran. Read ads crowd the newest-first window; the older unread ad is
     // named by the grouped statement. The window reads HitsPerRow x MaxItems hits (3 x 2 here).

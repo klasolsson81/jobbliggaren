@@ -28,14 +28,16 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// </para>
 ///
 /// <para>
-/// <b>Newest unread rows, on every path (#2130):</b> the list is the source's newest rows, and when read rows crowd
+/// <b>Newest unread rows, on every path (#2130):</b> the list is the source's newest rows (a row taken out of the bell
+/// with the X is not one, #2151), and when read rows crowd
 /// unread ones out of that window a second statement names the newest unread rows. It runs only then, so the base
 /// case stays at four statements. Each ad is listed once.
 /// </para>
 ///
 /// <para>
-/// No horizon: the list is the source's exact newest rows plus its newest unread rows, so no newer read row can be
-/// missing while an older one is shown.
+/// No horizon: the list is the source's exact newest rows that have not been taken out of the bell with the X (#2151)
+/// plus its newest unread rows, so no newer read row the user has not dismissed can be missing while an older one is
+/// shown.
 /// </para>
 /// </summary>
 internal sealed class MatchFeedSource : INotificationFeedSource, INotificationFeedReadMarker
@@ -72,7 +74,7 @@ internal sealed class MatchFeedSource : INotificationFeedSource, INotificationFe
 
         var rows = await (
                 from m in NewMatchSet.Matches(db, userId, since: null)
-                where m.CreatedAt <= listBound
+                where m.CreatedAt <= listBound && !m.DismissedFromNotificationFeed
                 join j in db.JobAds.AsNoTracking() on m.JobAdId equals j.Id
                 orderby m.CreatedAt descending, m.Id
                 select new MatchRow(m.JobAdId, j.Title, j.Company.Name, m.Grade, m.CreatedAt, m.ReadInNotificationFeed))
@@ -131,6 +133,20 @@ internal sealed class MatchFeedSource : INotificationFeedSource, INotificationFe
             .Where(m => m.UserId == userId && m.JobAdId == jobAdId && !m.ReadInNotificationFeed
                         && db.JobSeekers.Where(NotificationConsent.BackgroundMatch.Criteria).Any(js => js.UserId == m.UserId))
             .ExecuteUpdateAsync(set => set.SetProperty(m => m.ReadInNotificationFeed, true), cancellationToken);
+    }
+
+    public async Task DismissRowAsync(NotificationFeedMarkContext context, JobAdId jobAdId, CancellationToken cancellationToken)
+    {
+        var db = context.Db;
+        var userId = context.UserId;
+        // Filters on the dismissed flag, never the read flag: a row read in the bell is dismissed too. Both flags in one
+        // statement, with the consent beside them (ADR 0168 D3).
+        await db.UserJobAdMatches
+            .Where(m => m.UserId == userId && m.JobAdId == jobAdId && !m.DismissedFromNotificationFeed
+                        && db.JobSeekers.Where(NotificationConsent.BackgroundMatch.Criteria).Any(js => js.UserId == m.UserId))
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(m => m.DismissedFromNotificationFeed, true)
+                .SetProperty(m => m.ReadInNotificationFeed, true), cancellationToken);
     }
 
     public async Task MarkThroughAsync(

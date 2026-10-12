@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { markNotificationReadAction } from "@/lib/actions/notification-feed";
+import { dismissNotificationAction, markNotificationReadAction } from "@/lib/actions/notification-feed";
 import {
   notificationFeedSchema,
   type NotificationFeed,
@@ -45,6 +45,18 @@ export interface NotificationFeedApi {
    * read; a refused mark simply puts the dot back, and the row is unread at the next read.
    */
   readonly markRead: (kind: NotificationFeedSourceKind, jobAdId: string) => void;
+  /**
+   * The rows (`readKey`) the user took out with the X whose dismissal is still on its way. They are not shown at once,
+   * and the count follows only when the dismissal is confirmed (the same rule as `pendingRead`).
+   */
+  readonly pendingDismiss: ReadonlySet<string>;
+  /**
+   * #2151 — takes ONE notification out of the bell. Fired without waiting, like `markRead`; the promise resolves `true`
+   * when the server confirmed (or the row's dismissal was already on its way, which this call leaves alone) and `false` when
+   * it refused or the call failed, in which case the row is back (it was never deleted) and the caller says so. A confirmed dismissal removes the row from the answer in hand and lowers its
+   * source's count by one if the row was unread; it forces no read.
+   */
+  readonly dismiss: (kind: NotificationFeedSourceKind, jobAdId: string) => Promise<boolean>;
 }
 
 /** The identity of a notification row: one per (source, ad), the same key the list uses. */
@@ -72,6 +84,26 @@ export function withRowRead(feed: NotificationFeed, kind: NotificationFeedSource
 }
 
 /**
+ * The answer with one row taken out (#2151), as the server will answer once the dismissal has been written: the row is
+ * gone, and its source counts one less if the row was unread (a dismissed row is a read row). A row that is not in the
+ * list changes nothing, so the patch is safe to apply twice and never lowers a count it did not raise.
+ */
+export function withRowDismissed(feed: NotificationFeed, kind: NotificationFeedSourceKind, jobAdId: string): NotificationFeed {
+  const row = feed.items.find((item) => item.kind === kind && item.jobAdId === jobAdId);
+  if (row === undefined) return feed;
+  return {
+    items: feed.items.filter((item) => item !== row),
+    sources: row.isUnread
+      ? feed.sources.map((source) =>
+          source.kind === kind && source.unreadCount !== null && source.unreadCount > 0
+            ? { ...source, unreadCount: source.unreadCount - 1 }
+            : source,
+        )
+      : feed.sources,
+  };
+}
+
+/**
  * #1666 — the bell's feed: read on mount, every five minutes while the tab is visible, when the tab
  * becomes visible and when the panel opens (those two throttled to 30 s), through the BFF route
  * `/api/me/notification-feed`. The visibility-aware periodic read of AGENTS.md §4, hardened like
@@ -88,10 +120,14 @@ export function useNotificationFeed(): NotificationFeedApi {
   const [state, setState] = useState<NotificationFeedState>({ status: "loading" });
   const [increasedTo, setIncreasedTo] = useState<number | null>(null);
   const [pendingRead, setPendingRead] = useState<ReadonlySet<string>>(() => new Set());
+  const [pendingDismiss, setPendingDismiss] = useState<ReadonlySet<string>>(() => new Set());
   // The effect owns the poll; callers reach it through this ref.
   const refreshRef = useRef<(force: boolean) => Promise<void>>(() => Promise.resolve());
-  // `readKey` -> when the server confirmed the mark. Kept until a read that started after it has landed.
-  const confirmedRef = useRef<Map<string, number>>(new Map());
+  // `readKey` -> when the server confirmed the mark or the dismissal. Kept until a read that started after it has
+  // landed. A dismissal outranks a mark: such an answer must not bring the row back, only (at most) read.
+  const confirmedRef = useRef<Map<string, { readonly at: number; readonly dismissed: boolean }>>(new Map());
+  // The rows whose dismissal is on its way, so a second call for one of them does nothing.
+  const dismissingRef = useRef<Set<string>>(new Set());
   // The total of the answer on screen, undefined until the first answer, so the first total is never announced
   // as an increase. Synced after each render, so a confirmed mark lowers it too and a later notification is
   // announced against the number the user actually saw.
@@ -143,12 +179,14 @@ export function useNotificationFeed(): NotificationFeedApi {
           return;
         }
         let feed = parsed.data;
-        for (const [key, confirmedAt] of confirmedRef.current) {
+        for (const [key, { at: confirmedAt, dismissed }] of confirmedRef.current) {
           // `>=`: a mark confirmed in the very millisecond a read started may not be in that read's answer, and
           // patching an answer that already says read changes nothing, so a tie is patched, never trusted.
           if (confirmedAt >= startedAt) {
             const separator = key.indexOf(":");
-            feed = withRowRead(feed, key.slice(0, separator) as NotificationFeedSourceKind, key.slice(separator + 1));
+            const kind = key.slice(0, separator) as NotificationFeedSourceKind;
+            const jobAdId = key.slice(separator + 1);
+            feed = dismissed ? withRowDismissed(feed, kind, jobAdId) : withRowRead(feed, kind, jobAdId);
           } else {
             confirmedRef.current.delete(key);
           }
@@ -217,7 +255,8 @@ export function useNotificationFeed(): NotificationFeedApi {
     markNotificationReadAction({ kind, jobAdId }).then(
       (result) => {
         if (result.success) {
-          confirmedRef.current.set(key, Date.now());
+          // A dismissal confirmed earlier outranks this mark (a click and an X can overlap).
+          if (confirmedRef.current.get(key)?.dismissed !== true) confirmedRef.current.set(key, { at: Date.now(), dismissed: false });
           setState((current) => {
             if (current.status !== "ready") return current;
             const feed = withRowRead(current.feed, kind, jobAdId);
@@ -230,7 +269,45 @@ export function useNotificationFeed(): NotificationFeedApi {
     );
   }, []);
 
-  return { state, refresh, increasedTo, pendingRead, markRead };
+  const dismiss = useCallback(async (kind: NotificationFeedSourceKind, jobAdId: string): Promise<boolean> => {
+    const key = readKey(kind, jobAdId);
+    // A row already on its way is not sent twice: a second call would cost a token, and its settle would clear the first
+    // call's pending key too early.
+    if (dismissingRef.current.has(key)) return true;
+    dismissingRef.current.add(key);
+    const settle = () => {
+      dismissingRef.current.delete(key);
+      setPendingDismiss((current) => {
+        if (!current.has(key)) return current;
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+    };
+    setPendingDismiss((current) => (current.has(key) ? current : new Set(current).add(key)));
+
+    // A rejection (a stale build, a dropped connection) is a refused dismissal: the row comes back, because it was never
+    // deleted, and the caller tells the user. Confirming and settling happen in the same tick, so the row never flashes
+    // back between "pending" and "patched".
+    try {
+      const result = await dismissNotificationAction({ kind, jobAdId });
+      if (result.success) {
+        confirmedRef.current.set(key, { at: Date.now(), dismissed: true });
+        setState((current) => {
+          if (current.status !== "ready") return current;
+          const feed = withRowDismissed(current.feed, kind, jobAdId);
+          return feed === current.feed ? current : { ...current, feed };
+        });
+      }
+      settle();
+      return result.success;
+    } catch {
+      settle();
+      return false;
+    }
+  }, []);
+
+  return { state, refresh, increasedTo, pendingRead, markRead, pendingDismiss, dismiss };
 }
 
 /**

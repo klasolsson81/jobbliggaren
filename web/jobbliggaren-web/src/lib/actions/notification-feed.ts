@@ -3,14 +3,14 @@
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/actions/_action-result";
-import { markNotificationRead, markNotificationsReadThrough } from "@/lib/api/notification-feed";
+import { dismissNotification, markNotificationRead, markNotificationsReadThrough } from "@/lib/api/notification-feed";
 import { notificationFeedSourceKindSchema } from "@/lib/dto/notification-feed";
 
 /** A token as the API writes a `DateTimeOffset`; anything else never reaches the backend. */
 const tokenSchema = z.iso.datetime({ offset: true });
 
-/** A Server Action is a public endpoint: exactly a source and an ad id, nothing else. */
-const markOneSchema = z.strictObject({
+/** A Server Action is a public endpoint: exactly a source and an ad id, nothing else (the read mark and the X share it). */
+const rowActionSchema = z.strictObject({
   kind: notificationFeedSourceKindSchema,
   jobAdId: z.uuid(),
 });
@@ -31,11 +31,33 @@ export async function markNotificationReadAction(input: {
   jobAdId: string;
 }): Promise<ActionResult> {
   const t = await getTranslations("common.notifications");
-  const parsed = markOneSchema.safeParse(input);
+  const parsed = rowActionSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: t("markReadFailed") };
 
   const result = await markNotificationRead(parsed.data.kind, parsed.data.jobAdId);
   return result.kind === "ok" ? { success: true } : { success: false, error: t("markReadFailed") };
+}
+
+/**
+ * #2151 — the X on one notification in the bell: takes that notification out of the bell, and out of nothing else.
+ * It sets the bell's own flags; it moves no watermark and deletes nothing, so Översikt, `/matchningar` and
+ * `/foretag/bevakade/nya` keep their rows and numbers (Klas 2026-10-11, 2026-10-12). The API answers 204 whether or
+ * not the row exists, so the outcome says nothing about anyone's rows.
+ *
+ * Fired WITHOUT waiting, like `markNotificationReadAction`: it does no re-rendering work (`revalidatePath`, `refresh`,
+ * `updateTag`, a cookie write, `redirect`) and returns only its own value. A click on the X triggers it and nothing
+ * else: never a render, an effect, a hover or a focus.
+ */
+export async function dismissNotificationAction(input: {
+  kind: string;
+  jobAdId: string;
+}): Promise<ActionResult> {
+  const t = await getTranslations("common.notifications");
+  const parsed = rowActionSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: t("dismissFailed") };
+
+  const result = await dismissNotification(parsed.data.kind, parsed.data.jobAdId);
+  return result.kind === "ok" ? { success: true } : { success: false, error: t("dismissFailed") };
 }
 
 /**

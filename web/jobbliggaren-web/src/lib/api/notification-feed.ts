@@ -49,7 +49,22 @@ export async function markNotificationRead(
 ): Promise<ApiResult<void>> {
   const segment = SOURCE_SEGMENT[kind];
   if (segment === undefined || !isValidId(jobAdId)) return { kind: "error" };
-  return postRead(`/api/v1/me/notification-feed/${segment}/${encodeURIComponent(jobAdId)}/read`);
+  return postBellWrite(`/api/v1/me/notification-feed/${segment}/${encodeURIComponent(jobAdId)}/read`);
+}
+
+/**
+ * #2151 — the X: takes ONE notification out of the bell, `POST /api/v1/me/notification-feed/{source}/{jobAdId}/dismiss`
+ * (auth-gated, the same write bucket as the read marks). A POST and not a DELETE: nothing is deleted, the bell's
+ * own flags are set. The API answers 204 whether or not the row exists or belongs to the caller. Nothing another surface
+ * reads changes: Översikt, `/matchningar` and `/foretag/bevakade/nya` keep their rows and numbers.
+ */
+export async function dismissNotification(
+  kind: NotificationFeedSourceKind,
+  jobAdId: string,
+): Promise<ApiResult<void>> {
+  const segment = SOURCE_SEGMENT[kind];
+  if (segment === undefined || !isValidId(jobAdId)) return { kind: "error" };
+  return postBellWrite(`/api/v1/me/notification-feed/${segment}/${encodeURIComponent(jobAdId)}/dismiss`);
 }
 
 /**
@@ -63,10 +78,10 @@ export async function markNotificationsReadThrough(
 ): Promise<ApiResult<void>> {
   const segment = SOURCE_SEGMENT[kind];
   if (segment === undefined) return { kind: "error" };
-  return postRead(`/api/v1/me/notification-feed/${segment}/read`, { throughToken });
+  return postBellWrite(`/api/v1/me/notification-feed/${segment}/read`, { throughToken });
 }
 
-async function postRead(path: string, body?: Record<string, string>): Promise<ApiResult<void>> {
+async function postBellWrite(path: string, body?: Record<string, string>): Promise<ApiResult<void>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
 

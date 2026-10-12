@@ -276,8 +276,9 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
-    /// POST /api/v1/me/notification-feed/{source}/{jobAdId}/read and /api/v1/me/notification-feed/{source}/read - the
-    /// notification bell's read marks (#2130), one bucket for both, partitioned per UserId (claim "sub"), anonymous ->
+    /// POST /api/v1/me/notification-feed/{source}/{jobAdId}/read, /api/v1/me/notification-feed/{source}/read and
+    /// /api/v1/me/notification-feed/{source}/{jobAdId}/dismiss - the notification bell's read marks (#2130) and its X
+    /// (#2151), one bucket for all three, partitioned per UserId (claim "sub"), anonymous ->
     /// NoLimiter (RequireAuthorization answers 401 first). Its own bucket, never <see cref="MeWrite"/> and never
     /// <see cref="FollowSeenMark"/>: a withdrawal of a consent must not meet a 429 that clicking through notifications
     /// caused (GDPR Art. 7(3); the reason <see cref="FollowSeenMark"/> was split out of <see cref="MeWrite"/>), and the
@@ -286,11 +287,19 @@ public sealed class RateLimitingOptions
     /// The numbers (security-auditor, #2130 PR 2): the demand is one POST per click on a row that is unread locally
     /// (the client sends nothing for a row it holds as read) plus two POSTs per "Markera alla". The panel holds at
     /// most 20 rows, so ctrl- or middle-clicking every one and then pressing "Markera alla" is 22 calls within
-    /// seconds; 60 covers about three panels, i.e. two tabs plus slack. Sustained, a tab can demand at most about
+    /// seconds; for the read marks alone 60 covers about three panels, i.e. two tabs plus slack. Sustained, a tab can demand at most about
     /// 20 marks per 30 s (the open-throttle), so 60 a minute covers it. A false 429 puts a dot back, which is the
     /// defect this PR removes, while over-provisioning costs only owner-scoped, index-bounded updates of the user's own
     /// rows; every bulk update excludes rows already read, so a looped "Markera alla" writes no tuple. Burst 60,
     /// 10 tokens per 10 s. TokenBucket for a clean Retry-After, QueueLimit 0 (a queue is a memory-DoS).
+    /// </para>
+    /// <para>
+    /// The X (security-auditor, #2151 form round): one POST per X, whether the row is read or not, and a dismissed unread
+    /// row costs the one call because a dismissal also reads. A row costs at most two calls (open, then X). A panel's
+    /// burst is 20 reads + 20 X + 2 "Markera alla" = 42, under 60; clearing with the X alone is 20. Sustained, new rows
+    /// reach the panel only through a read, at most one per 30 s, so X alone is at most 40 a minute, under the refill
+    /// of 60; open-then-remove on every row is about 80 a minute, which the burst carries for about three minutes per
+    /// tab. Derived, not measured. A 429 costs a row that comes back, no data and no consent.
     /// </para>
     /// </summary>
     public PolicyOptions NotificationFeedMark { get; init; } = new()

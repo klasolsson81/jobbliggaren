@@ -395,6 +395,12 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<bool>("DismissedFromNotificationFeed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("dismissed_from_notification_feed");
+
                     b.Property<Guid>("JobAdId")
                         .HasColumnType("uuid")
                         .HasColumnName("job_ad_id");
@@ -437,7 +443,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_followed_company_ad_hits_user_jobad_watch");
 
-                    b.ToTable("followed_company_ad_hits", (string)null);
+                    b.ToTable("followed_company_ad_hits", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_followed_company_ad_hits_dismissed_implies_read", "NOT dismissed_from_notification_feed OR read_in_notification_feed");
+                        });
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.Feedback.FeedbackNotification", b =>
@@ -897,6 +906,12 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<bool>("DismissedFromNotificationFeed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("dismissed_from_notification_feed");
+
                     b.Property<string>("Grade")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -951,7 +966,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "NotificationStatus")
                         .HasDatabaseName("ix_user_job_ad_matches_user_status");
 
-                    b.ToTable("user_job_ad_matches", (string)null);
+                    b.ToTable("user_job_ad_matches", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_user_job_ad_matches_dismissed_implies_read", "NOT dismissed_from_notification_feed OR read_in_notification_feed");
+                        });
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.RecentJobSearches.RecentJobSearch", b =>

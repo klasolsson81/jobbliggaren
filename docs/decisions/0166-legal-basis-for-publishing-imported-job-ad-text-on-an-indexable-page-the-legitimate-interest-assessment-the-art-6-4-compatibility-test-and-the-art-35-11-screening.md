@@ -1,11 +1,12 @@
 # ADR 0166 — Legal basis for publishing imported job-ad text on an indexable page: the legitimate-interest assessment, the Art. 6(4) compatibility test and the Art. 35(11) screening
 
 **Date:** 2026-10-11
-**Status:** Proposed. The conclusion below is a proposal. It becomes the decision when Klas approves it as controller and
-`security-auditor` signs it (see Sign-off). The page it concerns does not go live before both.
-**Deciders:** Klas Olsson (controller; approval pending) · `security-auditor` (signature pending; her plan read of 2026-10-11
-set the four weights in D4) · `senior-cto-advisor` (ruled on 2026-10-11 that this assessment lives in an ADR of its own and
-that the session may propose a conclusion and not declare one;
+**Status:** Accepted 2026-10-12 for D1–D11. The Amendment 2026-10-11 (Art. 9) is the controller's
+override of a `security-auditor` Blocker and is not signed by her.
+**Deciders:** Klas Olsson (controller; approved 2026-10-12) · `security-auditor` (signed 2026-10-12: D1–D11
+and the notice text pinned as signature 3, not the Amendment 2026-10-11; her plan read of 2026-10-11 set the
+four weights in D4) · `senior-cto-advisor` (ruled on 2026-10-11 that this assessment lives in an ADR of its
+own and that the session may propose a conclusion and not declare one;
 `docs/reviews/2026-10-11-2090-s2-plan-cto.md`, local)
 **Related:** ADR 0160 (D4, D8, D9.1, D9.2, D9.3) · ADR 0165 (the page) · ADR 0106 (K3, D1, D5, Tier A and Tier B, A1) ·
 ADR 0087 D8(c) · ADR 0090 and ADR 0101 (the precedents for a DPIA ruling written as an ADR) · DPIA #456 §8-B · ADR 0071 ·
@@ -239,7 +240,7 @@ spaced-hyphen and `.`, `/`, `_` forms. The second is a date- and check-digit-val
 taken after the first nightly snapshot sync since #2120 was deployed, so the earliest reading is the morning of 2026-10-12. The
 date, the time and the two counts are recorded on #2090 and in this ADR.
 
-**Readings (counts only).** 2026-10-12 03:54-03:55 UTC, release 1627: listed 39 390, shaped 177, validated 0. 2026-10-12 04:27 UTC, release 1628 (`9ca862013`; `--status` read consistent before and after): listed 39 409, shaped 177, validated 0 in the title, the description, the company name and the link; link host other than Arbetsförmedlingen 0. The gate reads 0 and is taken again on the day of the merge.
+**Readings (counts only).** 2026-10-12 03:54-03:55 UTC, release 1627: listed 39 390, shaped 177, validated 0. 2026-10-12 04:27 UTC, release 1628 (`9ca862013`; `--status` read consistent before and after): listed 39 409, shaped 177, validated 0 in the title, the description, the company name and the link; link host other than Arbetsförmedlingen 0. Reading 3, 2026-10-12 05:15 UTC, release 1628, `--status` read consistent before and after: listed 39 415, shaped 177, validated 0 in the title, the description, the company name and the link; link host other than Arbetsförmedlingen 0. The gate reads 0.
 
 ## Alternatives considered
 
@@ -294,11 +295,13 @@ Ships under #2090 S2 with ADR 0165 and the three amendments (ADR 0053, 0017, 016
 
 ## Sign-off
 
-**Controller approval:** Klas Olsson, 2026-10-12, in the session's chat: the conclusion in D4 and D6 is approved. D8: an addendum to DPIA #456 §8-B, not a new full DPIA (draft written 2026-10-12, his approval of the text pending, local). This approval closes ADR 0106 K3.
-**Signature:** pending `security-auditor`. She signs this assessment and the revised notice text (sv and en).
-
-Until both lines read otherwise the Status stays Proposed, ADR 0160 D9.2 is not met, and the S2 PR is not set to merge. If Klas
-has not answered by the time the PR is otherwise ready, the PR carries the `blocked` label (CLAUDE.md §9.6).
+**Controller approval:** Klas Olsson, 2026-10-12, in the session's chat: the conclusion in D4 and D6 is approved. D8: an addendum to DPIA #456 §8-B, not a new full DPIA (written 2026-10-12, its text approved by Klas 2026-10-12 in reply to an explicit question, appended to the DPIA, local). This approval closes ADR 0106 K3.
+**Search-engine properties:** Klas confirmed in the same chat that Google Search Console and Bing Webmaster Tools are both verified; he gave no date, and asked that it be recorded so. Measured 2026-10-12, public data only: `jobbliggaren.se` carries a `google-site-verification` DNS TXT record, which is a domain property; no Bing meta tag or `BingSiteAuth.xml` is served, so Bing's route is not measured.
+**Signature:** `security-auditor`, 2026-10-12: signs D1–D11 and the revised `recruiterNotice` and
+privacy-policy paragraph (sv and en) as pinned as signature 3 by `content-legal-signed-copy.test.ts`.
+It does not cover the Amendment 2026-10-11: that Blocker stands with its grade, overridden by the
+controller. The signature is given for a merge on 2026-10-12; it lapses with any D10 trigger or a
+trigger of that Amendment, and does not carry over to a later change of the signed text.
 
 ## Amendment 2026-10-11 — Art. 9 in the free text: the controller's decision (Klas)
 

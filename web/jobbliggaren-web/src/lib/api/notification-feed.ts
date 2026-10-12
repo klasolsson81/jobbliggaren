@@ -53,6 +53,21 @@ export async function markNotificationRead(
 }
 
 /**
+ * #2151 — the X: takes ONE notification out of the bell, `POST /api/v1/me/notification-feed/{source}/{jobAdId}/dismiss`
+ * (auth-gated, the same write bucket as the read marks). A POST and not a DELETE: nothing is deleted, the bell's
+ * own flags are set. The API answers 204 whether or not the row exists or belongs to the caller. Nothing another surface
+ * reads changes: Översikt, `/matchningar` and `/foretag/bevakade/nya` keep their rows and numbers.
+ */
+export async function dismissNotification(
+  kind: NotificationFeedSourceKind,
+  jobAdId: string,
+): Promise<ApiResult<void>> {
+  const segment = SOURCE_SEGMENT[kind];
+  if (segment === undefined || !isValidId(jobAdId)) return { kind: "error" };
+  return postRead(`/api/v1/me/notification-feed/${segment}/${encodeURIComponent(jobAdId)}/dismiss`);
+}
+
+/**
  * #2130 — "Markera alla som lästa" for ONE source: flags every row of the source that is new since its
  * watermark and no newer than `throughToken`, the token the feed returned for it (sent as the original
  * string: the API stores microseconds). Never moves a watermark.

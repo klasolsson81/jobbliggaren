@@ -4719,18 +4719,33 @@ a.jp-adminnav__link[aria-current="page"]::after {
   overscroll-behavior: contain;
 }
 .jp-notif__list { margin: 0; padding: 0; list-style: none; }
-/* A row is a grid with a dot column (#2130): 8px for the unread dot, an 8px gap, then the content. A read row
-   leaves the column empty, so nothing moves when a row is read; the skeleton rows leave it empty too. */
+/* A row is a grid with a dot column (#2130): 8px for the unread dot, an 8px gap, then the content, then the X (#2151)
+   in a column of its own. A read row leaves the dot column empty, so nothing moves when a row is read; the skeleton rows
+   leave both empty. */
 .jp-notif__row {
   position: relative;
   display: grid;
-  grid-template-columns: 8px minmax(0, 1fr);
+  grid-template-columns: 8px minmax(0, 1fr) auto;
   column-gap: 8px;
   row-gap: 4px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--jp-border-soft);
 }
 .jp-notif__row > * { grid-column: 2; }
+/* The X (#2151): a .jp-icon-btn (38px, 44px at <=768px) in the third column, spanning the row's three lines and pulled
+   into the row's padding so the glyph sits on the panel's right inset. It sits above the row link's overlay
+   (.jp-job__rowlink::after covers the row), or a click meant for it would open the ad, the same as the controls
+   of #2012. The hover tint is --jp-border because the row's own hover is --jp-surface-3, which the icon button's
+   would vanish into. */
+.jp-notif__row > .jp-notif__dismiss {
+  grid-column: 3;
+  grid-row: 1 / span 3;
+  align-self: start;
+  position: relative;
+  z-index: 1;
+  margin: -6px -8px 0 0;
+}
+.jp-notif__row > .jp-notif__dismiss:hover { background: var(--jp-border); }
 .jp-notif__row:last-child { border-bottom: 0; }
 .jp-notif__row:not(.jp-notif__row--skeleton):hover { background: var(--jp-surface-3); }
 .jp-notif__signal {

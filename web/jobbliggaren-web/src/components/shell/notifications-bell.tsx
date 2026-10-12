@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState, useTransition, type MouseEvent } from "react";
 import Link from "next/link";
-import { Bell } from "lucide-react";
+import { Bell, X } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { MatchChip } from "@/components/job-ads/match-chip";
 import { useNotificationFeedContext } from "@/components/shell/notification-feed-provider";
@@ -25,6 +25,11 @@ const BADGE_MAX = 99;
  * (source, ad) pair, so an ad can appear once per reason. Nothing is acknowledged by opening or reading.
  * The panel holds notifications and nothing else (#2130): its only links are the rows' own, to the ad.
  *
+ * #2151 - every row carries an X, a button of its own beside the row link, that takes just that notification out of the
+ * bell: the row goes at once, the count follows when the server has agreed (an unread row falls out of the badge), and
+ * a refusal brings the row back with a notice, because nothing was deleted. It writes the bell's own flags and nothing
+ * else, so Översikt, `/matchningar` and `/foretag/bevakade/nya` keep their rows and numbers.
+ *
  * #2130 - an unread row carries a dot, and a click on it (plain, modified or middle) marks THAT row read:
  * the dot goes at once, the count follows when the server has agreed, and nothing waits on it, because the
  * same click opens the ad. "Markera alla som lästa" marks each source's counted set read. Both write the
@@ -44,9 +49,12 @@ export function NotificationsBell() {
   const close = () => setOpen(false);
   const ref = useDismissable(open, close, triggerRef);
   const titleId = useId();
-  const { state, refresh, increasedTo, pendingRead, markRead } = useNotificationFeedContext();
+  const { state, refresh, increasedTo, pendingRead, markRead, pendingDismiss, dismiss } = useNotificationFeedContext();
   const [marking, startMarking] = useTransition();
   const [markFailed, setMarkFailed] = useState(false);
+  const [dismissFailed, setDismissFailed] = useState(false);
+  // What the polite region says after an X, with the title so that two removals in a row are two announcements.
+  const [dismissedNote, setDismissedNote] = useState("");
 
   const feed = state.status === "ready" ? state.feed : null;
   const total = feed ? unreadTotal(feed) : undefined;
@@ -57,7 +65,26 @@ export function NotificationsBell() {
   function toggle() {
     if (!open) void refresh();
     setMarkFailed(false);
+    setDismissFailed(false);
+    setDismissedNote("");
     setOpen((value) => !value);
+  }
+
+  // The X. The row leaves the DOM at once, so focus is moved BEFORE it goes: to the next row's X, else the previous
+  // row's, else the panel heading, and never to the document body. A refusal puts the row back and says so.
+  function dismissRow(item: NotificationFeedItem, button: HTMLElement) {
+    const row = button.closest("li");
+    const neighbour = row?.nextElementSibling ?? row?.previousElementSibling ?? null;
+    const target = neighbour?.querySelector<HTMLElement>("[data-notif-dismiss]") ?? headingRef.current;
+    target?.focus();
+    setDismissFailed(false);
+    setDismissedNote(t("dismissedAnnounce", { title: item.title }));
+    void dismiss(item.kind, item.jobAdId).then((ok) => {
+      if (!ok) {
+        setDismissedNote("");
+        setDismissFailed(true);
+      }
+    });
   }
 
   function markAllRead() {
@@ -102,7 +129,7 @@ export function NotificationsBell() {
       </button>
       {/* Always mounted: a screen reader only announces a change to a region that already exists. */}
       <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {increasedTo !== null ? t("announce", { count: increasedTo }) : ""}
+        {dismissedNote !== "" ? dismissedNote : increasedTo !== null ? t("announce", { count: increasedTo }) : ""}
       </span>
       {open && (
         <div ref={ref} role="dialog" aria-labelledby={titleId} className="jp-notif">
@@ -129,6 +156,11 @@ export function NotificationsBell() {
               {t("markReadFailed")}
             </p>
           )}
+          {dismissFailed && (
+            <p className="jp-notif__notice" role="alert">
+              {t("dismissFailed")}
+            </p>
+          )}
           {state.status === "ready" && state.stale && (
             <p className="jp-notif__notice">{t("stale", { time: formatTime(format, new Date(state.fetchedAt)) })}</p>
           )}
@@ -137,9 +169,11 @@ export function NotificationsBell() {
             t={t}
             format={format}
             pendingRead={pendingRead}
+            pendingDismiss={pendingDismiss}
             onRetry={() => void refresh(true)}
             onNavigate={onNavigate}
             onRead={(item) => markRead(item.kind, item.jobAdId)}
+            onDismiss={dismissRow}
           />
         </div>
       )}
@@ -152,17 +186,21 @@ function PanelBody({
   t,
   format,
   pendingRead,
+  pendingDismiss,
   onRetry,
   onNavigate,
   onRead,
+  onDismiss,
 }: {
   state: ReturnType<typeof useNotificationFeedContext>["state"];
   t: NotificationsT;
   format: JpFormatter;
   pendingRead: ReadonlySet<string>;
+  pendingDismiss: ReadonlySet<string>;
   onRetry: () => void;
   onNavigate: (event: MouseEvent<Element>) => void;
   onRead: (item: NotificationFeedItem) => void;
+  onDismiss: (item: NotificationFeedItem, button: HTMLElement) => void;
 }) {
   if (state.status === "loading") {
     return (
@@ -194,13 +232,16 @@ function PanelBody({
     );
   }
 
-  const { items } = state.feed;
   const total = unreadTotal(state.feed);
+  // A row just taken out with the X is gone from the list at once, but its unread dot still counts toward the line below
+  // until the server has agreed, exactly as a just-clicked row keeps its count: both fall together on confirmation.
+  const allItems = state.feed.items;
+  const items = allItems.filter((item) => !pendingDismiss.has(readKey(item.kind, item.jobAdId)));
   // Unread notifications the list does not carry. The number is exact or absent (ADR 0120), so a refused
   // count (null) has none. The line is a statement, never a link: the panel holds notifications and nothing else.
   // It counts the rows the SERVER says are unread, not the dots still on screen: a row just clicked has lost its
   // dot but not yet the count, and both fall together when the mark is confirmed, so the line stays exact.
-  const unreadShown = items.filter((item) => item.isUnread).length;
+  const unreadShown = allItems.filter((item) => item.isUnread).length;
   const notInList = typeof total === "number" ? total - unreadShown : null;
   const note =
     notInList !== null && notInList > 0
@@ -230,6 +271,7 @@ function PanelBody({
             pending={pendingRead.has(readKey(item.kind, item.jobAdId))}
             onNavigate={onNavigate}
             onRead={onRead}
+            onDismiss={onDismiss}
           />
         ))}
       </ul>
@@ -244,6 +286,7 @@ function NotificationRow({
   pending,
   onNavigate,
   onRead,
+  onDismiss,
 }: {
   item: NotificationFeedItem;
   when: string;
@@ -251,6 +294,7 @@ function NotificationRow({
   pending: boolean;
   onNavigate: (event: MouseEvent<Element>) => void;
   onRead: (item: NotificationFeedItem) => void;
+  onDismiss: (item: NotificationFeedItem, button: HTMLElement) => void;
 }) {
   const t = useTranslations("common.notifications");
   const tTags = useTranslations("jobads.ui.tags");
@@ -306,6 +350,16 @@ function NotificationRow({
       <p id={companyId} className="jp-notif__company">
         {item.companyName}
       </p>
+      {/* A sibling of the row link and never inside it, above its overlay, so a click here opens nothing. */}
+      <button
+        type="button"
+        className="jp-icon-btn jp-notif__dismiss"
+        data-notif-dismiss=""
+        aria-label={t("dismiss", { title: item.title, company: item.companyName })}
+        onClick={(event) => onDismiss(item, event.currentTarget)}
+      >
+        <X size={16} aria-hidden="true" />
+      </button>
     </li>
   );
 }

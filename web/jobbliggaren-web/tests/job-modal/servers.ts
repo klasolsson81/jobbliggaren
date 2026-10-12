@@ -232,9 +232,10 @@ const SETTINGS_WRITES: Record<string, keyof NotificationSettings> = {
   "PUT /api/v1/me/notification-feed/followed-company-ads": "notificationFeedFollowedAdsEnabled",
 };
 
-/** #2130 — the bell's two read marks: one row of a source, and everything of a source through a token. */
+/** #2130, #2151 — the bell's writes: one row read, everything of a source read through a token, and one row taken out with the X. */
 const READ_MARK_ROUTES = [
   /^POST \/api\/v1\/me\/notification-feed\/(matches|followed-company-ads)\/[0-9a-f-]{36}\/read$/,
+  /^POST \/api\/v1\/me\/notification-feed\/(matches|followed-company-ads)\/[0-9a-f-]{36}\/dismiss$/,
   /^POST \/api\/v1\/me\/notification-feed\/(matches|followed-company-ads)\/read$/,
 ];
 

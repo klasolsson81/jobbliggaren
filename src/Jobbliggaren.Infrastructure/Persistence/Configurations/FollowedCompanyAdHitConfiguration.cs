@@ -75,6 +75,14 @@ public sealed class FollowedCompanyAdHitConfiguration : IEntityTypeConfiguration
         // over that handful of rows — a composite index buys nothing here (db-migration-writer 2026-07-02).
         builder.Property(h => h.SeenAt);
 
+        // #2130 (ADR 0162) — the notification bell's own per-row read state, NOT seen_at (the e-mail dedup
+        // authority above). NOT NULL DEFAULT false: a row written before the column existed is unread in the
+        // bell, which is today's meaning. No index of its own, for the reason given for seen_at.
+        builder.Property(h => h.ReadInNotificationFeed)
+            .HasColumnName("read_in_notification_feed")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         // UNIQUE (user_id, job_ad_id, company_watch_id) — the dedup spine. The scan is race-safe via
         // the Worker's DisableConcurrentExecution (single-writer) + a client-side existing-triple skip
         // (CompanyWatchScanJob), with this UNIQUE as the hard backstop (a concurrent insert would
@@ -90,10 +98,15 @@ public sealed class FollowedCompanyAdHitConfiguration : IEntityTypeConfiguration
         builder.HasIndex(h => new { h.UserId, h.NotificationStatus })
             .HasDatabaseName("ix_followed_company_ad_hits_user_status");
 
-        // UserId index for cascade-delete by user (AccountHardDeleter Art. 17 sweep) + the scan's
-        // per-user grouping.
-        builder.HasIndex(h => h.UserId)
-            .HasDatabaseName("ix_followed_company_ad_hits_user_id");
+        // (user_id, created_at DESC) (#2130, ADR 0162 s5 swap). It replaces the plain user_id index: the prefix
+        // gives the same equality on user_id, so the Art. 17 sweep (AccountHardDeleter) and the scan's per-user
+        // grouping read it as before, and the index count and the write cost are unchanged. The bell's reads
+        // order by created_at within one user — the token (MAX), the newest-first window, and "Markera alla" /
+        // the backlog mark (created_at <= token / > off-stamp) — so a user's hits come back already ordered
+        // instead of being read in full and sorted on every poll.
+        builder.HasIndex(h => new { h.UserId, h.CreatedAt })
+            .IsDescending(false, true)
+            .HasDatabaseName("ix_followed_company_ad_hits_user_created_at");
 
         builder.Ignore(h => h.DomainEvents);
     }

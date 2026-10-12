@@ -102,6 +102,16 @@ public sealed class UserJobAdMatchConfiguration : IEntityTypeConfiguration<UserJ
         builder.Property(m => m.CreatedAt).IsRequired();
         builder.Property(m => m.SentAt);
 
+        // #2130 (ADR 0162) — the notification bell's own per-row read state. NOT NULL DEFAULT false, so a
+        // row written before the column existed reads as unread, which is today's meaning (a pre-existing
+        // row is unread in the bell iff its created_at is past the watermark). No index of its own: the
+        // watermark bounds every scan to the head of ix_user_job_ad_matches_user_created_at, and the flag is
+        // a residual predicate over that handful of rows (the reasoning written for followed_company_ad_hits.seen_at).
+        builder.Property(m => m.ReadInNotificationFeed)
+            .HasColumnName("read_in_notification_feed")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         // UNIQUE (user_id, job_ad_id) — the dedup spine (an existing row in any non-Pending
         // status is skipped; re-running the Worker scan never re-notifies). The Worker
         // uses ADR 0032 §5 ON CONFLICT pattern for race-safe INSERT (parity with

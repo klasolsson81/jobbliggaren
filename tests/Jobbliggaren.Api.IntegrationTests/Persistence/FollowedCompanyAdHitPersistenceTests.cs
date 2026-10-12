@@ -50,13 +50,14 @@ public sealed class FollowedCompanyAdHitPersistenceTests(ApiFactory factory)
     [Theory]
     [InlineData("ux_followed_company_ad_hits_user_jobad_watch")]
     [InlineData("ix_followed_company_ad_hits_user_status")]
-    [InlineData("ix_followed_company_ad_hits_user_id")]
+    [InlineData("ix_followed_company_ad_hits_user_created_at")]
     public async Task Index_SurvivesTheDeletedAtDrop_AndIsNotPartial(string indexName)
     {
         // DROP COLUMN silently drops every index whose predicate names the column, and the EF model
         // snapshot is blind to it (#821). None of these three names deleted_at — all are plain B-trees
         // (FollowedCompanyAdHitConfiguration documents the dispatch index as a FULL B-tree explicitly) —
-        // so the drop must take none of them; ix_..._user_id in particular serves the Art. 17 sweep.
+        // so the drop must take none of them; ix_..._user_created_at in particular serves the Art. 17 sweep
+        // through its user_id prefix (it replaced the plain user_id index in #2130, ADR 0162 s5).
         // Non-partial is structural now: with the column gone there is no predicate left to make one
         // partial. The assertion stays as the tripwire against re-adding one.
         var ct = TestContext.Current.CancellationToken;
@@ -67,6 +68,46 @@ public sealed class FollowedCompanyAdHitPersistenceTests(ApiFactory factory)
         indexDef.ShouldNotBeNull($"{indexName} måste finnas i schemat efter deleted_at-droppen");
         indexDef!.ShouldNotContain("WHERE",
             customMessage: $"{indexName} får INTE vara partiellt — det finns inget deleted_at-predikat kvar");
+    }
+
+    [Fact]
+    public async Task TheIndexSwap_ReplacedThePlainUserIdIndexWithUserCreatedAtDescending()
+    {
+        // #2130 (ADR 0162 s5): ix_followed_company_ad_hits_user_id became (user_id, created_at DESC). The old name
+        // must be gone (a second index on the same prefix would double the write cost the swap promised to keep
+        // flat) and the new one must carry the DESC order the bell's newest-first reads rely on.
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        (await IndexDefAsync(db, "ix_followed_company_ad_hits_user_id", ct)).ShouldBeNull(
+            "the plain user_id index is replaced, not joined, by (user_id, created_at DESC)");
+        var def = await IndexDefAsync(db, "ix_followed_company_ad_hits_user_created_at", ct);
+        def.ShouldNotBeNull();
+        def!.ShouldContain("(user_id, created_at DESC)");
+    }
+
+    [Fact]
+    public async Task ReadInNotificationFeed_IsABooleanNotNullDefaultFalse()
+    {
+        // #2130: the physical column, straight from the catalog. A hand-edited Up() that updates the snapshot
+        // while adding the wrong thing satisfies EF's PendingModelChangesWarning completely; only this read
+        // closes that gap. The DEFAULT is the whole backfill: a row written before the column existed reads
+        // false, which is "not individually read in the bell" (today's meaning).
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var shape = await db.Database
+            .SqlQueryRaw<string>(
+                """
+                SELECT data_type || '|' || is_nullable || '|' || coalesce(column_default, 'none') AS "Value"
+                FROM information_schema.columns
+                WHERE table_name = 'followed_company_ad_hits' AND column_name = 'read_in_notification_feed'
+                """)
+            .ToListAsync(ct);
+
+        shape.ShouldHaveSingleItem().ShouldBe("boolean|NO|false");
     }
 
     // Physical column existence, straight from the catalog. Column name PARAMETERISED (a value in the

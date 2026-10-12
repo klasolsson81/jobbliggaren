@@ -405,6 +405,12 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("notification_status");
 
+                    b.Property<bool>("ReadInNotificationFeed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("read_in_notification_feed");
+
                     b.Property<DateTimeOffset?>("SeenAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("seen_at");
@@ -420,8 +426,9 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_followed_company_ad_hits");
 
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_followed_company_ad_hits_user_id");
+                    b.HasIndex("UserId", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_followed_company_ad_hits_user_created_at");
 
                     b.HasIndex("UserId", "NotificationStatus")
                         .HasDatabaseName("ix_followed_company_ad_hits_user_status");
@@ -905,6 +912,12 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("notification_status");
+
+                    b.Property<bool>("ReadInNotificationFeed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("read_in_notification_feed");
 
                     b.Property<DateTimeOffset?>("SentAt")
                         .HasColumnType("timestamp with time zone")
@@ -2084,6 +2097,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                             b1.Property<DateTimeOffset?>("NotificationConsentAt");
 
                             b1.Property<DateTimeOffset?>("NotificationConsentWithdrawnAt");
+
+                            b1.Property<DateTimeOffset?>("NotificationFeedFollowedAdsOffAt");
+
+                            b1.Property<DateTimeOffset?>("NotificationFeedMatchesOffAt");
 
                             b1.Property<DateTimeOffset?>("NotificationMailOffAt");
 

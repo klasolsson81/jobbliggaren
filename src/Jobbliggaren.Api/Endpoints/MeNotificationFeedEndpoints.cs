@@ -4,6 +4,7 @@ using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationFeedFollowedAds;
 using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationFeedMatches;
 using Jobbliggaren.Application.NotificationFeed;
+using Jobbliggaren.Application.NotificationFeed.Commands.DismissNotification;
 using Jobbliggaren.Application.NotificationFeed.Commands.MarkNotificationFeedBacklogRead;
 using Jobbliggaren.Application.NotificationFeed.Commands.MarkNotificationRead;
 using Jobbliggaren.Application.NotificationFeed.Commands.MarkNotificationsReadThrough;
@@ -19,9 +20,10 @@ namespace Jobbliggaren.Api.Endpoints;
 /// comes from the session only; no route, query or body carries one, so there is no IDOR surface.
 /// <list type="bullet">
 /// <item>One GET with no parameters: the feed. It writes nothing.</item>
-/// <item>Two POST marks (#2130): one row read, and everything read through a token. They set the source rows' own
-///   <c>read_in_notification_feed</c> flag and move no watermark. 204 for every request from a signed-in owner,
-///   whether or not the row exists, is theirs, or is still listed; they carry their own bucket.</item>
+/// <item>Three POST marks: one row read, and everything read through a token (#2130), and one row taken out of the bell
+///   with its X (#2151). They set the source rows' own bell flags (<c>read_in_notification_feed</c>; the X also
+///   <c>dismissed_from_notification_feed</c>) and move no watermark. 204 for every request from a signed-in owner,
+///   whether or not the row exists, is theirs, or is still listed; they share their own bucket.</item>
 /// <item>Two PUT switches (#2130): whether a type reaches the bell. Delivery choices, never consents; each carries only
 ///   <c>{enabled}</c>. Switching ON first marks what arrived while the type was off as read, then clears the stamp.</item>
 /// </list>
@@ -62,6 +64,18 @@ public static class MeNotificationFeedEndpoints
                 return UnknownSource();
 
             var result = await mediator.Send(new MarkNotificationReadCommand(kind, jobAdId), ct);
+            return result.IsSuccess ? Results.NoContent() : result.Error.ToProblemResult();
+        }).RequireRateLimiting(RateLimitingExtensions.NotificationFeedMarkPolicy);
+
+        // #2151 - the X on one notification: takes that (source, ad) pair out of the bell, nothing else. A POST and not a
+        // DELETE: no row is deleted (#2138 forbids it), a flag is set. Same 204 for every signed-in owner.
+        group.MapPost("/{source}/{jobAdId:guid}/dismiss", async (
+            string source, Guid jobAdId, IMediator mediator, CancellationToken ct) =>
+        {
+            if (!Sources.TryGetValue(source, out var kind))
+                return UnknownSource();
+
+            var result = await mediator.Send(new DismissNotificationCommand(kind, jobAdId), ct);
             return result.IsSuccess ? Results.NoContent() : result.Error.ToProblemResult();
         }).RequireRateLimiting(RateLimitingExtensions.NotificationFeedMarkPolicy);
 

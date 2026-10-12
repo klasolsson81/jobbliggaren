@@ -53,7 +53,12 @@ public sealed class UserJobAdMatchConfiguration : IEntityTypeConfiguration<UserJ
 
     public void Configure(EntityTypeBuilder<UserJobAdMatch> builder)
     {
-        builder.ToTable("user_job_ad_matches");
+        // #2151 (ADR 0169) — a dismissed notification is a read one. The match aggregate has no method for either flag
+        // (every write is one ExecuteUpdate that carries the consent), so this is the only place the invariant is
+        // held for all writers; the bell's count and its unread fallbacks rest on it.
+        builder.ToTable("user_job_ad_matches", t => t.HasCheckConstraint(
+            "ck_user_job_ad_matches_dismissed_implies_read",
+            "NOT dismissed_from_notification_feed OR read_in_notification_feed"));
 
         builder.HasKey(m => m.Id);
         builder.Property(m => m.Id)
@@ -109,6 +114,13 @@ public sealed class UserJobAdMatchConfiguration : IEntityTypeConfiguration<UserJ
         // a residual predicate over that handful of rows (the reasoning written for followed_company_ad_hits.seen_at).
         builder.Property(m => m.ReadInNotificationFeed)
             .HasColumnName("read_in_notification_feed")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        // #2151 (ADR 0169) — taken out of the bell with its X. Same shape as the read flag; no index (the bell's window
+        // statement reads it as a residual predicate over the head of ix_user_job_ad_matches_user_created_at).
+        builder.Property(m => m.DismissedFromNotificationFeed)
+            .HasColumnName("dismissed_from_notification_feed")
             .HasDefaultValue(false)
             .IsRequired();
 

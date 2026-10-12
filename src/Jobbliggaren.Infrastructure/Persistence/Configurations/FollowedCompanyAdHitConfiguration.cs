@@ -38,7 +38,10 @@ public sealed class FollowedCompanyAdHitConfiguration : IEntityTypeConfiguration
 {
     public void Configure(EntityTypeBuilder<FollowedCompanyAdHit> builder)
     {
-        builder.ToTable("followed_company_ad_hits");
+        // #2151 (ADR 0169) — a dismissed hit is a read one; the aggregate method sets both, and this holds it for raw SQL.
+        builder.ToTable("followed_company_ad_hits", t => t.HasCheckConstraint(
+            "ck_followed_company_ad_hits_dismissed_implies_read",
+            "NOT dismissed_from_notification_feed OR read_in_notification_feed"));
 
         builder.HasKey(h => h.Id);
         builder.Property(h => h.Id)
@@ -80,6 +83,12 @@ public sealed class FollowedCompanyAdHitConfiguration : IEntityTypeConfiguration
         // bell, which is today's meaning. No index of its own, for the reason given for seen_at.
         builder.Property(h => h.ReadInNotificationFeed)
             .HasColumnName("read_in_notification_feed")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        // #2151 (ADR 0169) — taken out of the bell with its X; implies read (the CHECK above). No index of its own.
+        builder.Property(h => h.DismissedFromNotificationFeed)
+            .HasColumnName("dismissed_from_notification_feed")
             .HasDefaultValue(false)
             .IsRequired();
 

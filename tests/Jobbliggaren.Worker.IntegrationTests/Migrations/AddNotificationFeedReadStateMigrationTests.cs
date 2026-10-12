@@ -68,23 +68,26 @@ public sealed class AddNotificationFeedReadStateMigrationTests : IAsyncLifetime
         (await ReadSchemaWithoutTheFlagAsync()).ShouldBe(previousSchema);
 
         // The model reads and writes the column as the app role: a mark persists, and Down below drops it with the row intact.
+        // Only the columns this migration owns are projected: the current model also maps columns of LATER migrations
+        // (#2151's dismissed flag), which this schema does not have, so a whole-entity read would name them.
         await using (var writer = NewAppContext())
         {
-            var match = await writer.UserJobAdMatches.AsNoTracking().SingleAsync(m => m.UserId == userId, Ct);
-            match.ReadInNotificationFeed.ShouldBeFalse();
+            (await writer.UserJobAdMatches.AsNoTracking().Where(m => m.UserId == userId)
+                .Select(m => m.ReadInNotificationFeed).SingleAsync(Ct)).ShouldBeFalse();
             // A match is marked by one set-based statement, as production marks it.
             await writer.UserJobAdMatches.Where(m => m.UserId == userId)
                 .ExecuteUpdateAsync(set => set.SetProperty(m => m.ReadInNotificationFeed, true), Ct);
-            var hit = await writer.FollowedCompanyAdHits.SingleAsync(h => h.UserId == userId, Ct);
-            hit.ReadInNotificationFeed.ShouldBeFalse();
-            hit.MarkReadInNotificationFeed();
-            await writer.SaveChangesAsync(Ct);
+            (await writer.FollowedCompanyAdHits.AsNoTracking().Where(h => h.UserId == userId)
+                .Select(h => h.ReadInNotificationFeed).SingleAsync(Ct)).ShouldBeFalse();
+            await writer.FollowedCompanyAdHits.Where(h => h.UserId == userId)
+                .ExecuteUpdateAsync(set => set.SetProperty(h => h.ReadInNotificationFeed, true), Ct);
         }
         await using (var read = NewAppContext())
         {
-            (await read.UserJobAdMatches.AsNoTracking().SingleAsync(m => m.UserId == userId, Ct))
-                .ReadInNotificationFeed.ShouldBeTrue();
-            var hit = await read.FollowedCompanyAdHits.AsNoTracking().SingleAsync(h => h.UserId == userId, Ct);
+            (await read.UserJobAdMatches.AsNoTracking().Where(m => m.UserId == userId)
+                .Select(m => m.ReadInNotificationFeed).SingleAsync(Ct)).ShouldBeTrue();
+            var hit = await read.FollowedCompanyAdHits.AsNoTracking().Where(h => h.UserId == userId)
+                .Select(h => new { h.ReadInNotificationFeed, h.SeenAt }).SingleAsync(Ct);
             hit.ReadInNotificationFeed.ShouldBeTrue();
             hit.SeenAt.ShouldBeNull("the bell's read mark is not the e-mail dedup stamp");
         }

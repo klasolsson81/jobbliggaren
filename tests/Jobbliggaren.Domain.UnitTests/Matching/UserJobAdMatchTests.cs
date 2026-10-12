@@ -297,6 +297,29 @@ public class UserJobAdMatchTests
         failed.ReadInNotificationFeed.ShouldBeFalse();
     }
 
+    // DismissedFromNotificationFeed - #2151 (ADR 0169). Like the read flag, its only writer is the set-based statement of
+    // MatchFeedSource.DismissRowAsync (proved against Npgsql in NotificationFeedReadStateEndpointTests); the aggregate has no
+    // method for it, so the mail path has nothing to clear.
+    [Fact]
+    public void Create_StartsNotDismissedInTheNotificationFeed()
+    {
+        CreateValid().Value.DismissedFromNotificationFeed.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void TheMailStateMachine_NeverChangesTheBellsDismissedFlag()
+    {
+        var sent = CreateValid().Value;
+        sent.MarkQueued();
+        sent.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
+        sent.DismissedFromNotificationFeed.ShouldBeFalse();
+
+        var failed = CreateValid().Value;
+        failed.MarkQueued();
+        failed.MarkFailed();
+        failed.DismissedFromNotificationFeed.ShouldBeFalse();
+    }
+
     // SoftDelete + DeletedAt retired by #868 (writerless decoy axis, same disease as #821/#915) —
     // Art. 17 erasure is a HARD delete via AccountHardDeleter. No soft-delete tests remain.
 }

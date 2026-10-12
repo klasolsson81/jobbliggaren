@@ -184,6 +184,51 @@ public class FollowedCompanyAdFeedSourceReadStateTests
         read.Items.ShouldHaveSingleItem().IsUnread.ShouldBeFalse();
     }
 
+    // #2151: a dismissed hit is read AND dismissed. It is neither listed nor counted, whatever its age.
+    [Fact]
+    public async Task ReadAsync_WithEveryHitOfAnAdDismissed_ListsNothingCountsNothingAndKeepsTheTokenAtThatHit()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var watchA = _seed.Watch(db, userId, onlyMatched: false);
+        var watchB = _seed.Watch(db, userId, onlyMatched: false);
+        var ad = _seed.ActiveAd(db);
+        _seed.Hit(db, userId, ad, watchA, T0.AddHours(1));
+        _seed.Hit(db, userId, ad, watchB, T0.AddHours(2));
+        NotificationFeedSeed.HitsDismissed(db, userId, ad);
+
+        var read = await ReadAsync(db, userId);
+
+        read.UnreadCount.ShouldBe(0);
+        read.Items.ShouldBeEmpty();
+        // The token has no flag predicate (ADR 0168 D2), so "Markera alla" still covers everything up to the dismissed hit.
+        read.AcknowledgedThrough.ShouldBe(T0.AddHours(2));
+    }
+
+    [Fact]
+    public async Task ReadAsync_WithADismissedAdBesideAReadOneAndAnUnreadOne_ListsOnlyTheLatterTwo()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var watch = _seed.Watch(db, userId, onlyMatched: false);
+        var dismissed = _seed.ActiveAd(db, "Borttagen");
+        var read = _seed.ActiveAd(db, "Läst");
+        var unread = _seed.ActiveAd(db, "Oläst");
+        _seed.Hit(db, userId, dismissed, watch, T0.AddHours(3));
+        _seed.Hit(db, userId, read, watch, T0.AddHours(2));
+        _seed.Hit(db, userId, unread, watch, T0.AddHours(1));
+        NotificationFeedSeed.HitsDismissed(db, userId, dismissed);
+        NotificationFeedSeed.HitsReadInBell(db, userId, read);
+
+        var result = await ReadAsync(db, userId);
+
+        result.UnreadCount.ShouldBe(1);
+        result.Items.Select(i => i.Title).ToList().ShouldBe(["Läst", "Oläst"]);
+        result.Items.Single(i => i.Title == "Läst").IsUnread.ShouldBeFalse();
+    }
+
     // The common path under-fill (named skip of #2130 PR 1, closed here): no "endast matchade" watch, so every hit is
     // included and the old grade-path reserve never ran. Read ads crowd the newest-first window; the older unread ad is
     // named by the grouped statement. The window reads HitsPerRow x MaxItems hits (3 x 2 here).

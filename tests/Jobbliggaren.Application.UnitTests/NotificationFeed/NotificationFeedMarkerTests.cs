@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.NotificationFeed;
+using Jobbliggaren.Application.NotificationFeed.Commands.DismissNotification;
 using Jobbliggaren.Application.NotificationFeed.Commands.MarkNotificationFeedBacklogRead;
 using Jobbliggaren.Application.NotificationFeed.Commands.MarkNotificationRead;
 using Jobbliggaren.Application.NotificationFeed.Commands.MarkNotificationsReadThrough;
@@ -79,6 +80,90 @@ public class NotificationFeedMarkerTests
         await db.SaveChangesAsync(CancellationToken.None);
 
         db.FollowedCompanyAdHits.Single().ReadInNotificationFeed.ShouldBeTrue();
+    }
+
+    // #2151 (ADR 0169): the X on a followed ad dismisses every hit of the ad the owner has, read in the bell or not (the read
+    // mark filters on the read flag; the X must not, or it does nothing on a row the user has opened), and touches no mail state.
+    [Fact]
+    public async Task DismissRowAsync_OnAFollowedAd_DismissesEveryHitOfThatAdForTheOwner_ReadOrNot_AndLeavesTheEmailStateAlone()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var me = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var seeker = _seed.Seeker(db, me, backgroundMatchConsent: false);
+        _seed.Seeker(db, other, backgroundMatchConsent: false);
+        var watchA = _seed.Watch(db, me, onlyMatched: false);
+        var watchB = _seed.Watch(db, me, onlyMatched: false);
+        var othersWatch = _seed.Watch(db, other, onlyMatched: false);
+        var ad = _seed.ActiveAd(db);
+        var elsewhere = _seed.ActiveAd(db);
+        _seed.Hit(db, me, ad, watchA, T0.AddHours(1));
+        _seed.Hit(db, me, ad, watchB, T0.AddHours(2));
+        _seed.Hit(db, me, elsewhere, watchA, T0.AddHours(3));
+        _seed.Hit(db, other, ad, othersWatch, T0.AddHours(1));
+        NotificationFeedSeed.HitReadInBell(db, me, ad, watchA);
+        var watermark = seeker.LastSeenFollowedAdsAt;
+
+        await Marker(NotificationFeedSourceKind.FollowedCompanyAd).DismissRowAsync(Context(db, me), ad, CancellationToken.None);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        db.FollowedCompanyAdHits.Where(h => h.UserId == me && h.JobAdId == ad)
+            .ShouldAllBe(h => h.DismissedFromNotificationFeed && h.ReadInNotificationFeed);
+        db.FollowedCompanyAdHits.Single(h => h.JobAdId == elsewhere).DismissedFromNotificationFeed.ShouldBeFalse();
+        db.FollowedCompanyAdHits.Single(h => h.UserId == other).DismissedFromNotificationFeed.ShouldBeFalse();
+        db.FollowedCompanyAdHits.ShouldAllBe(h => h.SeenAt == null && h.NotificationStatus == FollowedCompanyAdHitStatus.Pending);
+        db.JobSeekers.Single(js => js.UserId == me).LastSeenFollowedAdsAt.ShouldBe(watermark);
+    }
+
+    [Fact]
+    public async Task DismissRowAsync_OnAFollowedAd_IsIdempotent_AndAMissingAdIsNoError()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var watch = _seed.Watch(db, userId, onlyMatched: false);
+        var ad = _seed.ActiveAd(db);
+        _seed.Hit(db, userId, ad, watch, T0.AddHours(1));
+        var marker = Marker(NotificationFeedSourceKind.FollowedCompanyAd);
+
+        await marker.DismissRowAsync(Context(db, userId), ad, CancellationToken.None);
+        await db.SaveChangesAsync(CancellationToken.None);
+        await marker.DismissRowAsync(Context(db, userId), ad, CancellationToken.None);
+        await marker.DismissRowAsync(Context(db, userId), new JobAdId(Guid.NewGuid()), CancellationToken.None);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        db.FollowedCompanyAdHits.Single().DismissedFromNotificationFeed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task TheDismissHandler_AnswersSuccessForARowThatIsNotThere_AndRefusesWithoutASessionUser()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: true);
+        var currentUser = Substitute.For<ICurrentUser>();
+        currentUser.UserId.Returns(userId);
+
+        (await new DismissNotificationCommandHandler(db, currentUser).Handle(
+            new DismissNotificationCommand(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid()), CancellationToken.None))
+            .IsSuccess.ShouldBeTrue();
+
+        var anonymous = Substitute.For<ICurrentUser>();
+        anonymous.UserId.Returns((Guid?)null);
+        (await new DismissNotificationCommandHandler(db, anonymous).Handle(
+            new DismissNotificationCommand(NotificationFeedSourceKind.Match, Guid.NewGuid()), CancellationToken.None))
+            .Error.Code.ShouldBe("NotificationFeed.Unauthorized");
+    }
+
+    [Fact]
+    public void TheDismissValidator_RefusesAnUndefinedSourceAndAnEmptyAd_FromTheRequestAlone()
+    {
+        new DismissNotificationCommandValidator()
+            .Validate(new DismissNotificationCommand((NotificationFeedSourceKind)7, Guid.NewGuid())).IsValid.ShouldBeFalse();
+        new DismissNotificationCommandValidator()
+            .Validate(new DismissNotificationCommand(NotificationFeedSourceKind.Match, Guid.Empty)).IsValid.ShouldBeFalse();
+        new DismissNotificationCommandValidator()
+            .Validate(new DismissNotificationCommand(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid())).IsValid.ShouldBeTrue();
     }
 
     [Fact]

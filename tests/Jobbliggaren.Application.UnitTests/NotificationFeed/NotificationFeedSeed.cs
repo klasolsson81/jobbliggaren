@@ -115,6 +115,14 @@ internal sealed class NotificationFeedSeed
         db.SaveChanges();
     }
 
+    /// <summary>The user's X on this ad's notification (#2151): every hit of the ad is dismissed, through the aggregate, as the source does it.</summary>
+    public static void HitsDismissed(AppDbContext db, Guid userId, JobAdId adId)
+    {
+        foreach (var hit in db.FollowedCompanyAdHits.Where(h => h.UserId == userId && h.JobAdId == adId))
+            hit.DismissFromNotificationFeed();
+        db.SaveChanges();
+    }
+
     /// <summary>
     /// ONE hit of an ad read in the bell. The click reads them all, but the state in between is produced by the
     /// switch-on mark (it flags the hits created after an off-stamp), which can leave an ad's older hit unread beside a

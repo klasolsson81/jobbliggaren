@@ -4,14 +4,15 @@ using Jobbliggaren.Domain.JobAds;
 namespace Jobbliggaren.Application.NotificationFeed.Sources;
 
 /// <summary>
-/// The write side of one bell source (#2130, ADR 0168): marking its rows read IN THE BELL. A source
-/// implements both this and <see cref="INotificationFeedSource"/>, so the way a row is counted, listed and marked
-/// lives in one class and a new source adds one class, not a switch in a handler.
+/// The write side of one bell source (#2130, ADR 0168; #2151, ADR 0169): marking its rows read, and taking them out,
+/// IN THE BELL. A source implements both this and <see cref="INotificationFeedSource"/>, so the way a row is counted,
+/// listed and marked lives in one class and a new source adds one class, not a switch in a handler.
 ///
 /// <para>
-/// <b>What a mark is.</b> It sets the source row's own <c>ReadInNotificationFeed</c> flag and nothing else: never a
+/// <b>What a mark is.</b> It sets the source row's own bell flags (<c>ReadInNotificationFeed</c>, and for a dismissal
+/// <c>DismissedFromNotificationFeed</c> with it) and nothing else: never a
 /// watermark (<c>LastSeenMatchesAt</c>, <c>LastSeenFollowedAdsAt</c>), never <c>SeenAt</c>, <c>NotificationStatus</c>
-/// or <c>SentAt</c>, never <c>job_seekers</c>. So a mark cannot change what Översikt or the list pages show, and the
+/// or <c>SentAt</c>, never <c>job_seekers</c>. No member ever clears either flag. So a mark cannot change what Översikt or the list pages show, and the
 /// writer-replay guard (<c>JobSeekerWriterReplayGuardTests</c>) holds: no handler that calls a mark ever calls a
 /// <c>JobSeeker</c> mutator. Every member is owner-scoped by <see cref="NotificationFeedMarkContext.UserId"/> and
 /// idempotent: a row already read, missing or foreign changes nothing, and the caller answers 204 for all of them
@@ -37,6 +38,16 @@ internal interface INotificationFeedReadMarker
     /// writes in one statement that carries the consent.
     /// </summary>
     Task MarkRowAsync(NotificationFeedMarkContext context, JobAdId jobAdId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #2151 — the X: takes ONE notification out of the bell, which for a source with several rows per ad is every row
+    /// of that ad. Sets the dismissed flag AND the read flag (a dismissed row is a read row, held by a CHECK), so the
+    /// token, the count, <see cref="MarkThroughAsync"/> and <see cref="MarkBacklogAsync"/> need no knowledge of it, and
+    /// only the source's own window statement leaves dismissed rows out. It works on a row already read: filtering on
+    /// <c>!ReadInNotificationFeed</c> here, as <see cref="MarkRowAsync"/> does, would make the X do nothing on exactly
+    /// the rows the user most wants gone. The same gate and the same no-op as a mark; nothing is deleted.
+    /// </summary>
+    Task DismissRowAsync(NotificationFeedMarkContext context, JobAdId jobAdId, CancellationToken cancellationToken);
 
     /// <summary>
     /// "Markera alla som lästa": every row that is new since the source's watermark, not yet read, and no newer than

@@ -61,6 +61,13 @@ public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
     /// </summary>
     public bool ReadInNotificationFeed { get; private set; }
 
+    /// <summary>
+    /// #2151 (ADR 0169) — <c>true</c> once the user took this ad's notification out of the bell with its X (every hit
+    /// of the ad the owner has). A dismissed hit is also a read hit, so the bell's unread count leaves it out without
+    /// knowing about it; only the bell's own list reads this. The hit stays for Översikt, the list and the e-mail.
+    /// </summary>
+    public bool DismissedFromNotificationFeed { get; private set; }
+
     // EF Core constructor
     private FollowedCompanyAdHit() { }
 
@@ -175,6 +182,18 @@ public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
     /// or the mail state — and <see cref="MarkSeen"/> never writes it.
     /// </summary>
     public void MarkReadInNotificationFeed() => ReadInNotificationFeed = true;
+
+    /// <summary>
+    /// #2151 — takes this hit out of the notification bell. Sets <see cref="DismissedFromNotificationFeed"/> AND
+    /// <see cref="ReadInNotificationFeed"/>: a dismissed hit is a read one, which is what lets the bell's count and
+    /// token stay as they are. Idempotent, one-way (nothing clears either flag), no mail precondition, and it never
+    /// touches <see cref="SeenAt"/>, <see cref="NotificationStatus"/> or <see cref="SentAt"/>.
+    /// </summary>
+    public void DismissFromNotificationFeed()
+    {
+        DismissedFromNotificationFeed = true;
+        ReadInNotificationFeed = true;
+    }
 
     /// <summary>
     /// #453 (audit #26) — Queued → Failed (terminal). The <c>StrandedMatchReaperJob</c> follow arm calls

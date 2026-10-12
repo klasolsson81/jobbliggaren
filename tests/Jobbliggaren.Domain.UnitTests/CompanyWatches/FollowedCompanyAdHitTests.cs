@@ -386,4 +386,79 @@ public class FollowedCompanyAdHitTests
         read.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
         read.ReadInNotificationFeed.ShouldBeTrue("the mail path never clears a read mark");
     }
+
+    // ---------------------------------------------------------------
+    // DismissedFromNotificationFeed - #2151 (ADR 0169), the X on a bell notification. A dismissed hit is a read hit, so
+    // the bell's count and token need no knowledge of it; the mail state machine and the other bell writers never touch it.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Create_StartsNotDismissed()
+    {
+        CreateValid().DismissedFromNotificationFeed.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void DismissFromNotificationFeed_SetsBothFlags_AndTouchesNoMailState()
+    {
+        var hit = CreateValid();
+
+        hit.DismissFromNotificationFeed();
+
+        hit.DismissedFromNotificationFeed.ShouldBeTrue();
+        hit.ReadInNotificationFeed.ShouldBeTrue("a dismissed hit is a read hit (the CHECK holds it in the database)");
+        hit.SeenAt.ShouldBeNull("dismissing in the bell must not suppress the follow e-mail");
+        hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Pending);
+        hit.SentAt.ShouldBeNull();
+        hit.CreatedAt.ShouldBe(Clock.UtcNow);
+    }
+
+    [Fact]
+    public void DismissFromNotificationFeed_IsIdempotent_AndWorksOnAHitAlreadyRead()
+    {
+        var read = CreateValid();
+        read.MarkReadInNotificationFeed();
+
+        read.DismissFromNotificationFeed();
+        read.DismissFromNotificationFeed();
+
+        read.DismissedFromNotificationFeed.ShouldBeTrue();
+        read.ReadInNotificationFeed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void DismissFromNotificationFeed_WorksAfterTheMailIsClaimedOrSent()
+    {
+        var queued = CreateValid();
+        queued.MarkQueued();
+        queued.DismissFromNotificationFeed();
+        queued.DismissedFromNotificationFeed.ShouldBeTrue();
+
+        var sent = CreateValid();
+        sent.MarkQueued();
+        sent.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
+        sent.DismissFromNotificationFeed();
+        sent.DismissedFromNotificationFeed.ShouldBeTrue();
+        sent.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Sent);
+    }
+
+    [Fact]
+    public void NeitherMarkSeenNorTheMailStateMachineNorAReadMark_ChangesTheDismissedFlag()
+    {
+        var undismissed = CreateValid();
+        undismissed.MarkSeen(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(10)));
+        undismissed.MarkReadInNotificationFeed();
+        undismissed.MarkQueued();
+        undismissed.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
+        undismissed.DismissedFromNotificationFeed.ShouldBeFalse("opening, reading and mailing a hit never dismiss it");
+
+        var dismissed = CreateValid();
+        dismissed.DismissFromNotificationFeed();
+        dismissed.MarkSeen(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(10)));
+        dismissed.MarkReadInNotificationFeed();
+        dismissed.MarkQueued();
+        dismissed.MarkFailed();
+        dismissed.DismissedFromNotificationFeed.ShouldBeTrue("nothing clears a dismissal");
+        dismissed.ReadInNotificationFeed.ShouldBeTrue();
+    }
 }

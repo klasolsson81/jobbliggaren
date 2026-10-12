@@ -97,6 +97,12 @@ const BOUNDARIES: readonly ProviderBoundary[] = [
     providerFile: "app/(marketing-inner)/layout.tsx",
     routeRoot: "app/(marketing-inner)",
   },
+  // The public job page and its states (ADR 0165): the marketing-inner frame, reached only by the proxy's rewrite.
+  {
+    name: "(public-job)",
+    providerFile: "app/(public-job)/layout.tsx",
+    routeRoot: "app/(public-job)",
+  },
   // The last-line 404 for unmatched URLs. routeRoot is the FILE, not "app":
   // it mounts the public chrome, whose <LanguageSwitcher/> is a client
   // component reading `common`. Counted into root's subtree instead, that
@@ -151,6 +157,7 @@ const MIN_CLIENT_FILES: Readonly<Record<string, number>> = {
   "(guest)": 20,
   "(marketing)": 4,
   "(marketing-inner)": 2,
+  "(public-job)": 2,
   "not-found": 2,
 };
 

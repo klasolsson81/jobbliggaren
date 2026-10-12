@@ -3,6 +3,7 @@ import { isProtectedPath } from "@/lib/auth/protected-routes";
 import { ADMIN_RETURN_HEADER, adminReturnPath } from "@/lib/auth/admin-return";
 import { returnPathFor } from "@/lib/auth/return-path";
 import { strictCookieBounce } from "@/lib/auth/strict-cookie-bounce";
+import { publicJobAdRoute } from "@/lib/auth/public-job-ad-route";
 import {
   PERSISTENT_MAX_AGE_SECONDS,
   REFRESH_AFTER_COOKIE_NAME,
@@ -115,6 +116,11 @@ async function route(
   // admin branch, which has no cookie gate of its own; `strict-cookie-bounce.ts` carries the rule.
   const bounce = strictCookieBounce(request, Boolean(sessionId));
   if (bounce !== null) return bounce;
+
+  // ADR 0165: the anonymous twin of `/jobb/<uuid>`. After the bounce, so a cross-site arrival is still handed to the
+  // cookie first; before the login redirect below, which a cookieless request to it would otherwise meet.
+  const publicJobAd = await publicJobAdRoute(request, forwarded, Boolean(sessionId));
+  if (publicJobAd !== null) return publicJobAd;
 
   // #1979: the (admin) layout has no URL of its own, so the path its login redirect returns to travels in a
   // request header. Written on every /admin request, above the protected-path gate that /admin sits outside,

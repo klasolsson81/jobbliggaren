@@ -68,6 +68,20 @@ reveal an erasure. Its own
 IP-partitioned policy relies on the trusted forwarded client address. A change to
 the predicate, the DTO or those answers alters this boundary.
 
+The public job page (ADR 0165) is the first protected URL with an anonymous twin:
+`/jobb/<uuid>` is answered by the proxy when no session cookie is present, and takes
+the signed-in route untouched when one is. The proxy asks the read above once for a
+status (a probe that sends only the forwarded client address and never reads the
+body), because a page cannot set a 410 or a 503, and rewrites to an internal page
+group that is not a URL: a direct request for `/publik/**` is a 404. The page
+reads the ad again, so a view costs two reads against the per-client budget. An
+outage or the budget answers 503 and can never read as a removal, and `no-store`
+holds on every answer. Review the probe's header set (no cookie, no credential), the
+decoded-path refusal of the internal prefix, that the branch never reaches the
+signed-in route or its modal, that the metadata carries no free text, and that an
+ended and an erased ad stay byte-identical. `scripts/public-job-smoke.mjs` pins the
+statuses against the production build.
+
 A build made with `ADMIN_PREVIEW_ENABLED=true` serves fictional admin pages under
 `/admin/forhandsvisning` that need no session (ADR 0150 D5). No deployed build may
 contain them, and four locks keep it so: the page extension `next.config.ts` adds

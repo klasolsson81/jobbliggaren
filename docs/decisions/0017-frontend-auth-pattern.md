@@ -303,3 +303,30 @@ therefore false at HEAD: OAuth is added **with** a migration (6d removes; 6a add
 schema). Everything else in this ADR — custom cookie auth, opaque Redis sessions, Auth.js and
 Better Auth rejected — is unchanged and remains the ground ADR 0142 builds on. Additive amendment;
 no text above this block was edited.
+
+## Amendment 2026-10-11 (ADR 0165, #2090 S2) — the first protected URL with an anonymous answer
+
+*Affects Decision point 5.*
+
+Point 5 describes the proxy's cookie-presence check as a gate that blocks unauthenticated noise, with each protected layout
+re-verifying the session. For one URL shape that check is now also a **discriminator between two pages**. `GET` and `HEAD` of
+exactly `/jobb/<uuid>` (one segment, a well-formed GUID) is the first URL under a protected prefix that has an anonymous
+answer, chosen at the edge by whether a session cookie is present:
+
+- **With a cookie,** the request takes today's path byte for byte, and the `(app)` layout re-verifies the session as point 5
+  says.
+- **Without one,** `proxy.ts` rewrites to an internal group, `(public-job)`, which reads no session and renders only the
+  anonymous DTO of ADR 0160, after one probe of that endpoint has settled the status (ADR 0165 D1, D2).
+
+**What does not change.** `PROTECTED_PREFIXES` still mirrors the `(app)` group, and `/jobb` stays in it
+(`protected-routes.test.ts`). `/jobb`, `/jobb/<not a GUID>`, `/jobb/<uuid>/extra` and every other protected path still meet the
+login redirect, and so does any request that is not a `GET` or a `HEAD`. The cookie is checked for presence and not for
+validity, so a person whose cookie has expired takes the signed-in path and is sent to login as before. Point 5's second
+layer is untouched. The branch never calls `next()`.
+
+**If the proxy is skipped** (the CVE-2025-29927 shape that point 5 names), a cookieless request to `/jobb/<uuid>` reaches the
+`(app)` layout, which sends it to login. The internal pages become reachable under their own `/publik/**` path, because the
+proxy's 404 for direct requests is the part that was skipped, and they serve only what ADR 0160's anonymous endpoint answers
+anyone. This is reasoned from the code and was not measured.
+
+Additive amendment; no text above this block was edited.

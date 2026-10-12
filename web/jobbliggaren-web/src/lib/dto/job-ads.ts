@@ -58,7 +58,7 @@ export type JobAdSortBy = z.infer<typeof jobAdSortBySchema>;
 // XSS-exekvering i autentiserad session (cookie-stöld → GDPR Art. 32-yta).
 // FE blockerar via Zod refine. BE-tightening lyft som TD-80 (annan fas:
 // Domain-invariant, ej F2-P10 FE-scope).
-const jobAdUrlSchema = z
+export const jobAdUrlSchema = z
   .string()
   .refine((u) => u === "" || /^https?:\/\//i.test(u), {
     message: "URL måste börja med http:// eller https://",

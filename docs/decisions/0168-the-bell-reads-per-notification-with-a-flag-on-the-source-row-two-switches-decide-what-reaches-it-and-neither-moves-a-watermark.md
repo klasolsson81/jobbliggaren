@@ -10,6 +10,7 @@ consultation without grades). Its triage of PR 1 (`…-pr1-cto-triage.md`) added
 applied, not re-decided (the rule in the Context). The round needed no STOPP to Klas; one GO is owed (the migration, D8) and the rest was for his information.
 **Amends:** ADR 0162 and its Amendment 2026-10-11: the title ("read-only"), D1 (the source contract), D2, D3 (the token's destination), D4 (the grade-path-only
 reserve), D5 (replaced), D7, D8, D10, D11 and D13, and s5 of its Consequences. D6 is extended by one more AND, not changed. 0162 stays as the record and points to ADR 0168.
+**Amended by:** ADR 0169 (#2151, the X on a notification): a second flag beside D1's, a fourth marker member and a third POST beside D3's, and a clarification of what D9's "hiding of match rows" means. D2 stands unchanged.
 **Related:** [#2130](https://github.com/klasolsson81/jobbliggaren/issues/2130) (this is its PR 2) · #1662 (the notification epic) · #1663 (the next source) ·
 #2138 (the open GDPR Blocker) · #2107 and ADR 0164 (D1: the bell reads neither the e-mail master switch nor the per-type pauses; the form of the off-stamps) ·
 ADR 0018 (Amendment 2026-10-10: no write at render) · 0045 · 0080 (Beslut 5, 6) · 0113 · 0120 · 0125 · 0140 · 0146 (D3, D6) · 0154 · 0161

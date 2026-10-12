@@ -73,7 +73,7 @@ Re-run it against such a fixture after any change to the query.
 
 | Date and time (UTC) | Release / sync run | listed | shaped (any) | validated (any) | title / description / company / url | link host not AF | Taken by |
 |---|---|---|---|---|---|---|---|
-| _not yet taken_ | | | | | | | |
+| 2026-10-12 03:54-03:55 | Release 1627 (`e41eac850`, holds #2137) applied 01:49:35Z; the 02:00 snapshot ran on it, evidenced by `job_ads` autovacuum 02:05:51Z and the miss-tracking write 02:05:51Z (the worker was recreated 03:49Z by 1628, so its log is gone). Query `23cc0a4b9` (blob `297bfe6`) | 39 390 | 177 | **0** | shaped 0 / 177 / 0 / 0; validated 0 / 0 / 0 / 0 | 0 | Claude Code |
 
 The record is also posted on [#2090](https://github.com/klasolsson81/jobbliggaren/issues/2090) with the same date.
 

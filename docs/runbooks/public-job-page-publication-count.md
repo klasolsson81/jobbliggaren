@@ -38,8 +38,8 @@ The statement is read-only, takes a `statement_timeout` of 180 s, and reads each
   (`external_source = 'Platsbanken'`, never the user-settable `source`), `status = 'Active'`, and `expires_at` null or `>= now()`.
   A reading with `listed_ads` near 0 is not a reading: it means the table is not the one that was meant.
 - **shaped_ads**: an ad with a token of a personnummer *shape*: 10 or 12 digits, with the separators the Domain scanner accepts
-  (`-`, `+`, a Unicode dash, U+2212, U+FF0D) and the #2123 forms (up to three space or zero-width characters around the separator, `.`, `/`,
-  `_`, split groups such as `81 12 18-9876` and `811218-98 76`). Fullwidth digits are folded to ASCII first, as the scanner does. The context number.
+  (`-`, `+`, a Unicode dash, U+2212, U+FF0D) and the #2123 forms (up to three space or zero-width characters around the separator, up to two separators in a row as in
+  `811218 -- 9876` (#2137), `.`, `/`, `_`, split groups such as `81 12 18-9876` and `811218-98 76`). Fullwidth digits are folded to ASCII first, as the scanner does. The context number.
 - **validated_ads**: the same, and the token passes the Domain's own test, `Personnummer.TryParse`: month 01-12, day 01-31 or 61-91
   (samordningsnummer), Luhn over the 10 significant digits. **The gate.** It is computed with string comparison and `ascii()`
   arithmetic on digits alone, so no cast can fail on a data value.
@@ -48,14 +48,22 @@ The statement is read-only, takes a `statement_timeout` of 180 s, and reads each
 
 **What it does not see** (so a 0 is a floor of evidence, not a proof): a token split by a line break (the Domain deliberately does not
 bridge one, `PersonnummerGapProfile`), a gap wider than three of the listed space and zero-width characters (ADR 0134 D7/R3, accepted), a
-character class outside those listed, a token inside an image, and any shape not listed above. The scrub and its tests are the primary
-control; this is the measurement of what reached the table anyway.
+character class outside those listed, a token inside an image, and any shape not listed above. Three spellings the scanner's own pattern masks are measured
+not to be counted (dry run 2026-10-12): a separator, a space and a separator again (`811218 - -9876`, `811218-- --9876`), and a
+zero-width character between two separators (`811218-<ZWSP>-9876`); the query's separator run cannot straddle a gap. The scrub
+and its tests are the primary control; this is the measurement of what reached the table anyway.
 
-**Dry run.** The query was run on 2026-10-11 against an ephemeral Postgres 18 holding 26 fixture rows (valid plain, spaced, 12-digit,
-dot, slash, underscore, split groups, fullwidth with U+2212, thin space, fullwidth hyphen, zero-width and narrow no-break-space around the
-hyphen, a phone number in front of a valid one, a token in the link; a Luhn-invalid number, an organisation number, a 13-digit run, an
-archived, an expired and a non-imported ad). It counted the 23 listed rows and 14 validated description tokens, 1 in a title, 1 in a company
-name and 2 in a link (18 ads, 20 shaped), and excluded the rest. Re-run it against such a fixture after any change to the query.
+**Dry run.** The query was last run on 2026-10-12 against an ephemeral Postgres 18.6. The pre-change query first, on the 26-row fixture
+of 2026-10-11 (valid plain, spaced, 12-digit, dot, slash, underscore, split groups, fullwidth with U+2212, thin space, fullwidth hyphen,
+zero-width and narrow no-break-space around the hyphen, a phone number in front of a valid one, a token in the link; a Luhn-invalid
+number, an organisation number, a 13-digit run, an archived, an expired and a non-imported ad): it counted the 23 listed rows and 14
+validated description tokens, 1 in a title, 1 in a company name and 2 in a link (18 ads, 20 shaped), and excluded the rest, as on
+2026-10-11. The widened query counted the same on the same 26 rows. Then one row per spelling, pre-change query against widened:
+`811218--9876`, `811218 -- 9876`, `811218 --9876`, `811218-- 9876`, `811218.-9876`, `811218-/9876`, `19811218 -- 9876`,
+`811218<ZWSP>--<ZWSP>9876` and an en dash followed by U+2212 each read 0 shaped and 0 validated before and 1 and 1 after;
+`811218--9877` (Luhn-invalid) read 0 and 0 before and 1 shaped and 0 validated after; `811218---9876`, `811218 --- 9876` and
+`811218 - - 9876` (three separators, or three visible columns, which the mask does not bridge either) read 0 and 0 in both.
+Re-run it against such a fixture after any change to the query.
 
 ## The query
 

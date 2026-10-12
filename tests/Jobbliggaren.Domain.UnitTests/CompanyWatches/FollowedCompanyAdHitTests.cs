@@ -300,4 +300,90 @@ public class FollowedCompanyAdHitTests
         result.Error.Code.ShouldBe("FollowedCompanyAdHit.NotQueued");
         hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Failed);
     }
+
+    // ---------------------------------------------------------------
+    // ReadInNotificationFeed - #2130, the bell's own per-row read state. NOT SeenAt: SeenAt is the
+    // e-mail dedup authority ("aldrig mejla något jag sett i appen"), set when the AD is opened anywhere
+    // in-app and only on a Pending hit. The two answer different questions and never write each other.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Create_StartsUnreadInTheNotificationFeed()
+    {
+        CreateValid().ReadInNotificationFeed.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void MarkReadInNotificationFeed_SetsTheFlag_AndTouchesNoMailState()
+    {
+        var hit = CreateValid();
+
+        hit.MarkReadInNotificationFeed();
+
+        hit.ReadInNotificationFeed.ShouldBeTrue();
+        hit.SeenAt.ShouldBeNull("reading in the bell must not suppress the follow e-mail");
+        hit.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Pending);
+        hit.SentAt.ShouldBeNull();
+        hit.CreatedAt.ShouldBe(Clock.UtcNow);
+    }
+
+    [Fact]
+    public void MarkReadInNotificationFeed_WhenAlreadyRead_IsIdempotent()
+    {
+        var hit = CreateValid();
+        hit.MarkReadInNotificationFeed();
+
+        hit.MarkReadInNotificationFeed();
+
+        hit.ReadInNotificationFeed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void MarkReadInNotificationFeed_WorksAfterTheMailIsClaimedOrSent()
+    {
+        // Unlike MarkSeen (Pending-only), the bell's read mark has no mail precondition: a notification
+        // that was mailed is still a notification the user can open in the bell.
+        var queued = CreateValid();
+        queued.MarkQueued();
+        queued.MarkReadInNotificationFeed();
+        queued.ReadInNotificationFeed.ShouldBeTrue();
+
+        var sent = CreateValid();
+        sent.MarkQueued();
+        sent.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
+        sent.MarkReadInNotificationFeed();
+        sent.ReadInNotificationFeed.ShouldBeTrue();
+        sent.NotificationStatus.ShouldBe(FollowedCompanyAdHitStatus.Sent);
+    }
+
+    [Fact]
+    public void MarkSeen_NeverSetsTheBellsReadFlag()
+    {
+        var hit = CreateValid();
+
+        hit.MarkSeen(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(10)));
+
+        hit.SeenAt.ShouldNotBeNull();
+        hit.ReadInNotificationFeed.ShouldBeFalse("opening the ad is not reading the notification (B12)");
+    }
+
+    [Fact]
+    public void TheMailStateMachine_NeverChangesTheBellsReadFlag()
+    {
+        var unread = CreateValid();
+        unread.MarkQueued();
+        unread.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
+        unread.ReadInNotificationFeed.ShouldBeFalse();
+
+        var failed = CreateValid();
+        failed.MarkQueued();
+        failed.MarkFailed();
+        failed.ReadInNotificationFeed.ShouldBeFalse();
+
+        var read = CreateValid();
+        read.MarkReadInNotificationFeed();
+        read.MarkQueued();
+        read.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
+        read.ReadInNotificationFeed.ShouldBeTrue("the mail path never clears a read mark");
+    }
 }

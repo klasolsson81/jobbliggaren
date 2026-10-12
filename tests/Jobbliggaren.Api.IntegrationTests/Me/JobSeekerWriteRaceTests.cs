@@ -32,6 +32,7 @@ public class JobSeekerWriteRaceTests(ApiFactory factory)
     private const string MatchPreferencesPath = "/api/v1/me/match-preferences";
     private const string NotificationMailPath = "/api/v1/me/notification-mail";
     private const string TopMatchMailPath = "/api/v1/me/top-match-mail";
+    private const string FeedMatchesPath = "/api/v1/me/notification-feed/matches";
 
     private readonly ApiFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
@@ -222,6 +223,50 @@ public class JobSeekerWriteRaceTests(ApiFactory factory)
         added.ShouldBe(
             ["JobSeeker.NotificationMailUpdated", "JobSeeker.TopMatchMailUpdated"],
             ignoreOrder: true);
+    }
+
+    // ADR 0162 (#2130) - the withdrawal of the match consent commits while a bell-switch save is held. The held save is re-run
+    // on a fresh read, so it lays only its own stamp over the withdrawal and never restores the consent: the bell's switch
+    // is a delivery choice and carries no consent field (security V3; the problem ADR 0164 D5 closed for the mail pauses).
+    [Fact]
+    public async Task A_withdrawal_committed_inside_a_bell_switch_save_stands_and_the_switch_still_lands()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var userId = await AuthenticateAsync(ct);
+        (await _client.PutAsJsonAsync(ConsentPath, new { enabled = true }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var granted = await ReadSeekerAsync(userId, ct);
+        granted.Preferences.NotificationConsentWithdrawnAt.ShouldBeNull();
+        granted.Preferences.NotificationFeedMatchesOffAt.ShouldBeNull();
+
+        HttpStatusCode? withdrawalStatus = null;
+        Preferences? rightAfterWithdrawal = null;
+        _factory.JobSeekerSaveRace.Arm(userId, times: 1, async raceCt =>
+        {
+            withdrawalStatus = (await _competitor.PutAsJsonAsync(ConsentPath, new { enabled = false }, raceCt)).StatusCode;
+            rightAfterWithdrawal = (await ReadSeekerAsync(userId, raceCt)).Preferences;
+        });
+        HttpResponseMessage switchSave;
+        try
+        {
+            switchSave = await _client.PutAsJsonAsync(FeedMatchesPath, new { enabled = false }, ct);
+        }
+        finally
+        {
+            _factory.JobSeekerSaveRace.Disarm();
+        }
+
+        _factory.JobSeekerSaveRace.Fired.ShouldBe(1);
+        withdrawalStatus.ShouldBe(HttpStatusCode.NoContent);
+        switchSave.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        rightAfterWithdrawal.ShouldNotBeNull();
+        rightAfterWithdrawal.NotificationConsentWithdrawnAt.ShouldNotBeNull();
+
+        var stored = (await ReadSeekerAsync(userId, ct)).Preferences;
+        // The withdrawal stands, and the switch landed: the held save re-ran on a fresh read and laid only its own stamp.
+        stored.BackgroundMatchNotificationsEnabled.ShouldBeFalse();
+        stored.NotificationConsentWithdrawnAt.ShouldBe(rightAfterWithdrawal.NotificationConsentWithdrawnAt);
+        stored.NotificationFeedMatchesOffAt.ShouldNotBeNull();
     }
 
     // The cap: a withdrawal whose row is written again before every one of its attempts commits is

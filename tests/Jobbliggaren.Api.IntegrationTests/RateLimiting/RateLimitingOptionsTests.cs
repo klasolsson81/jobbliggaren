@@ -127,6 +127,19 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_NotificationFeedMark_Is60Per60s_TokenBucket()
+    {
+        // #2130 (security-auditor, PR 2 consult) - the bell's read marks: burst 60, ten tokens per 10 s. One bucket for
+        // the row mark and "Markera alla", never MeWrite and never FollowSeenMark.
+        // RateLimitingOptions.NotificationFeedMark carries the derivation.
+        var sut = new RateLimitingOptions();
+
+        sut.NotificationFeedMark.PermitLimit.ShouldBe(60);
+        sut.NotificationFeedMark.WindowSeconds.ShouldBe(60);
+        sut.NotificationFeedMark.SegmentsPerWindow.ShouldBe(6);
+    }
+
+    [Fact]
     public void Defaults_NotificationFeedRead_Is12Per60s_TokenBucket()
     {
         // #1666 (security-auditor, form round) — the bell's own bucket: burst 12, two tokens per
@@ -361,6 +374,7 @@ public class RateLimitingOptionsTests
         RateLimitingExtensions.JobAdStatusBatchPolicy.ShouldBe("job-ad-status-batch");
         RateLimitingExtensions.MeWritePolicy.ShouldBe("me-write");
         RateLimitingExtensions.FollowSeenMarkPolicy.ShouldBe("follow-seen-mark");
+        RateLimitingExtensions.NotificationFeedMarkPolicy.ShouldBe("notification-feed-mark");
         RateLimitingExtensions.ResumeImportPolicy.ShouldBe("resume-import");
         RateLimitingExtensions.ResumeRenderPolicy.ShouldBe("resume-render");
         // #1681 part 2 — the criteria list's own key. Drift between this constant and the endpoint's

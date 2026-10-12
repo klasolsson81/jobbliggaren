@@ -47,6 +47,7 @@ public static partial class RateLimitingExtensions
     public const string FeedbackSubmitPolicy = "feedback-submit";
     public const string FeedbackPromptStatePolicy = "feedback-prompt-state";
     public const string NotificationFeedReadPolicy = "notification-feed-read";
+    public const string NotificationFeedMarkPolicy = "notification-feed-mark";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -410,6 +411,29 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.NotificationFeedRead.PermitLimit / rateLimitOpts.NotificationFeedRead.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.NotificationFeedRead.WindowSeconds / (double)rateLimitOpts.NotificationFeedRead.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). #2130 - the notification bell's read marks (a click on a row, and
+            // "Markera alla som lästa"), their own bucket (RateLimitingOptions.NotificationFeedMark carries the
+            // derivation). Auth-gated -> anonymous is caught by RequireAuthorization (NoLimiter bypass).
+            // TokenBucket, QueueLimit=0. Never MeWrite (a withdrawal of a consent must not meet a 429 caused by
+            // clicking through notifications, Art. 7(3)) and never FollowSeenMark (that one is filled by every ad open).
+            options.AddPolicy(NotificationFeedMarkPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-notification-feed-mark");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.NotificationFeedMark.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.NotificationFeedMark.PermitLimit / rateLimitOpts.NotificationFeedMark.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.NotificationFeedMark.WindowSeconds / (double)rateLimitOpts.NotificationFeedMark.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

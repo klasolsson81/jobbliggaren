@@ -62,6 +62,18 @@ internal static class NewFollowedCompanyAdSet
             .Select(js => js.LastSeenFollowedAdsAt)
             .FirstOrDefaultAsync(cancellationToken);
 
+        return await LoadScopeAsync(db, userId, lastSeen, cancellationToken);
+    }
+
+    /// <summary>
+    /// The scope for a caller that has already read the watermark. The bell reads it in the same statement that
+    /// applies its own gate (the user's switch for this type), so a user who switched the type off costs no
+    /// watches read (#2130, Art. 5(1)(c)). Översikt and the list read the one-argument form above, whose SQL is
+    /// unchanged.
+    /// </summary>
+    public static async Task<Scope?> LoadScopeAsync(
+        IAppDbContext db, Guid userId, DateTimeOffset? lastSeen, CancellationToken cancellationToken)
+    {
         var activeWatches = await db.CompanyWatches
             .AsNoTracking()
             .Where(w => w.UserId == userId)
@@ -150,6 +162,11 @@ internal static class NewFollowedCompanyAdSet
     /// acknowledges it describe the same rows (#1666). <paramref name="maxGradeHits"/> bounds the
     /// grade path's load; past it the input is <see cref="CountInput.TooMany"/>. The Översikt count
     /// passes neither, and its SQL is the one it always ran.
+    /// <para>
+    /// <paramref name="unreadInNotificationFeedOnly"/> (#2130) leaves out the hits the user has read in the bell, so
+    /// the bell counts what it still shows as unread. Only the bell passes <c>true</c>: Översikt and the list pass
+    /// <c>false</c>, the composition adds nothing for them, and the bell's reading never changes what they show.
+    /// </para>
     /// </summary>
     public static async Task<CountInput> LoadCountInputAsync(
         IAppDbContext db,
@@ -157,11 +174,14 @@ internal static class NewFollowedCompanyAdSet
         Scope scope,
         DateTimeOffset? upperBound,
         int? maxGradeHits,
+        bool unreadInNotificationFeedOnly,
         CancellationToken cancellationToken)
     {
         var newHits = NewHits(db, userId, scope.LastSeen);
         if (upperBound is { } bound)
             newHits = newHits.Where(h => h.CreatedAt <= bound);
+        if (unreadInNotificationFeedOnly)
+            newHits = newHits.Where(h => !h.ReadInNotificationFeed);
 
         if (scope.GradeWatchIds.Count == 0)
         {

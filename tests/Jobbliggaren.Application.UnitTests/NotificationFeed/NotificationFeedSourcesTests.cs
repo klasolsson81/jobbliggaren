@@ -43,4 +43,28 @@ public class NotificationFeedSourcesTests
                 .ShouldBeEmpty($"{type.Name} holds instance state, but one instance serves every request");
         }
     }
+
+    // #2130: the write side of a source is the source itself (its counted rows are the rows it marks), so a source that
+    // cannot mark would be a notification the user can never read, and a marker that is not a source would be a write the
+    // feed never counts.
+    [Fact]
+    public void Markers_AreExactlyTheSources_EachListedOnce_WithOneMarkerPerKind()
+    {
+        NotificationFeedSources.Markers.Select(m => m.GetType())
+            .ShouldBe(NotificationFeedSources.All.Select(s => s.GetType()), ignoreOrder: true);
+        SourceTypes.ShouldAllBe(t => typeof(INotificationFeedReadMarker).IsAssignableFrom(t));
+        NotificationFeedSources.Markers.Select(m => m.Kind)
+            .ShouldBe(Enum.GetValues<NotificationFeedSourceKind>(), ignoreOrder: true);
+    }
+
+    [Fact]
+    public void MarkerFor_ResolvesEachKindToTheSourceOfThatKind()
+    {
+        foreach (var kind in Enum.GetValues<NotificationFeedSourceKind>())
+        {
+            var marker = NotificationFeedSources.MarkerFor(kind);
+            marker.Kind.ShouldBe(kind);
+            ((INotificationFeedSource)marker).Kind.ShouldBe(kind);
+        }
+    }
 }

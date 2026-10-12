@@ -26,6 +26,10 @@ public sealed record JobSeekerProfileDto(
     bool NotificationMailEnabled,
     bool TopMatchMailEnabled,
     bool MatchSummaryMailEnabled,
+    // ADR 0162 (#2130) — what reaches the notification bell, as on/off and never the stamps (same rule). A
+    // delivery choice inside nothing: the bell has no consent of its own, and these decide only what it shows.
+    bool NotificationFeedMatchesEnabled,
+    bool NotificationFeedFollowedAdsEnabled,
     DateTimeOffset CreatedAt,
     // F4-12 (ADR 0076) — derived signal for the setup nudge: true once the user
     // has stated at least one desired occupation-group. Drives the "ange vilka
@@ -49,6 +53,8 @@ public sealed record JobSeekerProfileDto(
         js.Preferences.NotificationMailOffAt is null,
         js.Preferences.TopMatchMailOffAt is null,
         js.Preferences.MatchSummaryMailOffAt is null,
+        js.Preferences.NotificationFeedMatchesOffAt is null,
+        js.Preferences.NotificationFeedFollowedAdsOffAt is null,
         js.CreatedAt,
         js.MatchPreferences.PreferredOccupationGroups.Count > 0,
         js.MatchPreferences.PreferredOccupationGroups,

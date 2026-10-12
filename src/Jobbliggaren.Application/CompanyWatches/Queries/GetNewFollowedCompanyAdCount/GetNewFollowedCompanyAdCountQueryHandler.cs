@@ -70,7 +70,7 @@ public sealed class GetNewFollowedCompanyAdCountQueryHandler(
         // active watch is OnlyMatched, otherwise the new hits loaded and graded read-time. No bound
         // and no token here, so this is the count Översikt always ran (#1666 shares it).
         var input = await NewFollowedCompanyAdSet.LoadCountInputAsync(
-            db, userId, scope, upperBound: null, maxGradeHits: null, cancellationToken);
+            db, userId, scope, upperBound: null, maxGradeHits: null, unreadInNotificationFeedOnly: false, cancellationToken);
         if (input.Exact is { } exact)
             return new NewFollowedCompanyAdCountDto(exact);
 

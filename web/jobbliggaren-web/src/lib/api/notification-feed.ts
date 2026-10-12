@@ -49,7 +49,7 @@ export async function markNotificationRead(
 ): Promise<ApiResult<void>> {
   const segment = SOURCE_SEGMENT[kind];
   if (segment === undefined || !isValidId(jobAdId)) return { kind: "error" };
-  return postRead(`/api/v1/me/notification-feed/${segment}/${encodeURIComponent(jobAdId)}/read`);
+  return postBellWrite(`/api/v1/me/notification-feed/${segment}/${encodeURIComponent(jobAdId)}/read`);
 }
 
 /**
@@ -64,7 +64,7 @@ export async function dismissNotification(
 ): Promise<ApiResult<void>> {
   const segment = SOURCE_SEGMENT[kind];
   if (segment === undefined || !isValidId(jobAdId)) return { kind: "error" };
-  return postRead(`/api/v1/me/notification-feed/${segment}/${encodeURIComponent(jobAdId)}/dismiss`);
+  return postBellWrite(`/api/v1/me/notification-feed/${segment}/${encodeURIComponent(jobAdId)}/dismiss`);
 }
 
 /**
@@ -78,10 +78,10 @@ export async function markNotificationsReadThrough(
 ): Promise<ApiResult<void>> {
   const segment = SOURCE_SEGMENT[kind];
   if (segment === undefined) return { kind: "error" };
-  return postRead(`/api/v1/me/notification-feed/${segment}/read`, { throughToken });
+  return postBellWrite(`/api/v1/me/notification-feed/${segment}/read`, { throughToken });
 }
 
-async function postRead(path: string, body?: Record<string, string>): Promise<ApiResult<void>> {
+async function postBellWrite(path: string, body?: Record<string, string>): Promise<ApiResult<void>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
 

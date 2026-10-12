@@ -19,7 +19,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     ///
     /// <para>
     /// <b>Down is destructive</b> by this repository's convention: it drops both columns, so every dismissed
-    /// notification reads as unread again (the rows were never deleted), and it drops the two CHECKs. A code rollback
+    /// notification returns to the bell as a read one (the rows were never deleted, and the read flag stays), and it
+    /// drops the two CHECKs. A code rollback
     /// makes <c>Migrate</c> refuse (schema ahead, exit 3) until <c>MIGRATE_ALLOW_SCHEMA_AHEAD</c> names this id.
     /// </para>
     /// </summary>
@@ -60,6 +61,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql(BoundTheLockWait);
+
             migrationBuilder.DropCheckConstraint(
                 name: "ck_user_job_ad_matches_dismissed_implies_read",
                 table: "user_job_ad_matches");

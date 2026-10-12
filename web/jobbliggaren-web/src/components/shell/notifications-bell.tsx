@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, useTransition, type MouseEvent } from "react";
+import { useEffect, useId, useRef, useState, useTransition, type MouseEvent } from "react";
 import Link from "next/link";
 import { Bell, X } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
@@ -46,15 +46,29 @@ export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const headingRef = useRef<HTMLDivElement>(null);
-  const close = () => setOpen(false);
-  const ref = useDismissable(open, close, triggerRef);
-  const titleId = useId();
-  const { state, refresh, increasedTo, pendingRead, markRead, pendingDismiss, dismiss } = useNotificationFeedContext();
   const [marking, startMarking] = useTransition();
   const [markFailed, setMarkFailed] = useState(false);
   const [dismissFailed, setDismissFailed] = useState(false);
-  // What the polite region says after an X, with the title so that two removals in a row are two announcements.
+  // What the removal's polite region says after an X, with the title and the reason so that two removals in a row are two
+  // announcements, even of one ad listed for two reasons.
   const [dismissedNote, setDismissedNote] = useState("");
+  // Set when a refused dismissal restores a row whose X should have focus again; an object, so asking twice runs the effect twice.
+  const [restoreFocus, setRestoreFocus] = useState<{ readonly key: string } | null>(null);
+  // Every way the panel closes (the button, Escape, a click outside, a link) forgets the last removal, so its message
+  // never outlives the panel it belongs to.
+  const close = () => {
+    setOpen(false);
+    setDismissFailed(false);
+    setDismissedNote("");
+  };
+  const ref = useDismissable(open, close, triggerRef);
+  const titleId = useId();
+  const { state, refresh, increasedTo, pendingRead, markRead, pendingDismiss, dismiss } = useNotificationFeedContext();
+
+  useEffect(() => {
+    if (restoreFocus === null) return;
+    ref.current?.querySelector<HTMLElement>(`[data-notif-dismiss="${restoreFocus.key}"]`)?.focus();
+  }, [restoreFocus, ref]);
 
   const feed = state.status === "ready" ? state.feed : null;
   const total = feed ? unreadTotal(feed) : undefined;
@@ -71,19 +85,22 @@ export function NotificationsBell() {
   }
 
   // The X. The row leaves the DOM at once, so focus is moved BEFORE it goes: to the next row's X, else the previous
-  // row's, else the panel heading, and never to the document body. A refusal puts the row back and says so.
+  // row's, else the panel heading, and never to the document body. A refusal puts the row back, says so, and gives focus
+  // back to the restored row's X if it is still where the removal left it.
   function dismissRow(item: NotificationFeedItem, button: HTMLElement) {
     const row = button.closest("li");
     const neighbour = row?.nextElementSibling ?? row?.previousElementSibling ?? null;
     const target = neighbour?.querySelector<HTMLElement>("[data-notif-dismiss]") ?? headingRef.current;
     target?.focus();
     setDismissFailed(false);
-    setDismissedNote(t("dismissedAnnounce", { title: item.title }));
+    setDismissedNote(t("dismissedAnnounce", { title: item.title, reason: reasonOf(t, item) }));
     void dismiss(item.kind, item.jobAdId).then((ok) => {
-      if (!ok) {
-        setDismissedNote("");
-        setDismissFailed(true);
-      }
+      if (ok) return;
+      setDismissedNote("");
+      setDismissFailed(true);
+      // Only if focus is still where the removal left it; the effect below runs once the restored row is in the DOM.
+      const active = document.activeElement;
+      if (active === target || active === document.body) setRestoreFocus({ key: readKey(item.kind, item.jobAdId) });
     });
   }
 
@@ -129,7 +146,11 @@ export function NotificationsBell() {
       </button>
       {/* Always mounted: a screen reader only announces a change to a region that already exists. */}
       <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {dismissedNote !== "" ? dismissedNote : increasedTo !== null ? t("announce", { count: increasedTo }) : ""}
+        {increasedTo !== null ? t("announce", { count: increasedTo }) : ""}
+      </span>
+      {/* The removal has a region of its own, so it can never mask a new-notification announcement or bring an old one back. */}
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {dismissedNote}
       </span>
       {open && (
         <div ref={ref} role="dialog" aria-labelledby={titleId} className="jp-notif">
@@ -354,14 +375,19 @@ function NotificationRow({
       <button
         type="button"
         className="jp-icon-btn jp-notif__dismiss"
-        data-notif-dismiss=""
-        aria-label={t("dismiss", { title: item.title, company: item.companyName })}
+        data-notif-dismiss={readKey(item.kind, item.jobAdId)}
+        aria-label={t("dismiss", { reason: reasonOf(t, item), title: item.title, company: item.companyName })}
         onClick={(event) => onDismiss(item, event.currentTarget)}
       >
         <X size={16} aria-hidden="true" />
       </button>
     </li>
   );
+}
+
+/** Why the notification is there, in words: an ad can be listed once per reason, so the X's name must tell them apart. */
+function reasonOf(t: NotificationsT, item: NotificationFeedItem): string {
+  return item.kind === "Match" ? t("reasonMatch") : t("reasonFollowed");
 }
 
 function tokenFor(feed: NotificationFeed, kind: NotificationFeedSourceKind): string | null {

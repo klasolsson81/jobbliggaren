@@ -273,7 +273,7 @@ describe("NotificationsBell: click-to-read (#2130)", () => {
       await vi.advanceTimersByTimeAsync(NOTIFICATION_FEED_POLL_MS);
     });
 
-    expect(screen.getByRole("status")).toHaveTextContent("Du har 3 olästa notiser.");
+    expect(screen.getAllByRole("status")[0]!).toHaveTextContent("Du har 3 olästa notiser.");
   });
 
   it("marks everything with the server's tokens through the bulk action, not row by row", async () => {

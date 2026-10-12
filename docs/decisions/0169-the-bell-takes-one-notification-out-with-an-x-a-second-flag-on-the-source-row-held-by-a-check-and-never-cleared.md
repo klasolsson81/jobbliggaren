@@ -132,7 +132,7 @@ deletion, #2138). Nothing else in 0168 D9 changes.
 catalog-only but holds ACCESS EXCLUSIVE until commit, and `lock_timeout` turns a queue behind a long transaction into a loud deploy failure the next reconcile retries. Each
 CHECK validates existing rows under the lock already held; every row passes (the column is false everywhere), on tables of 0 matches and 379 hits on 2026-10-11 (from
 `docs/current-work.md`, not re-measured). `NOT VALID`/`VALIDATE` was not needed at this size. **Down is destructive:** it drops the CHECKs and both columns, so every dismissed
-notification returns unread (no row was deleted); a code rollback makes `Migrate` refuse (schema ahead, exit 3) until `MIGRATE_ALLOW_SCHEMA_AHEAD` names this id. A per-migration
+notification returns to the bell as a read one (no row was deleted, and the read flag stays); a code rollback makes `Migrate` refuse (schema ahead, exit 3) until `MIGRATE_ALLOW_SCHEMA_AHEAD` names this id. A per-migration
 test covers Up, Down and Up again. **Klas's migration GO is owed for this migration; the GO for #2149 does not carry.**
 
 ### D8' — Legal position (`security-auditor` (d); V22, V26, V27). Extends 0168 D5's position
@@ -181,10 +181,10 @@ change to Översikt, `/matchningar`, `/foretag/bevakade/nya`, `NewMatchSet`, `Ne
   row. Watches that hit the same ad in one run are created in one `SaveChanges`, so one X covers them. The architect read the producer as unable to produce a newer hit for a dismissed
   ad in the ordinary case (`:228-236`, `:291-322`; matches have `UNIQUE(user, job_ad)` and an insert-only producer) and did not list the boundary race. **Both readings are recorded;
   they agree it is a premise on the producer, not a guarantee.** The keying is unchanged (Alternatives G, H). Lapse trigger: a backfill on a new follow, or a reset watermark.
-  Whether a test pins the premise on `CompanyWatchScanJob` was left to check, and is not claimed here.
+  The ordinary case is pinned by `CompanyWatchScanJobIntegrationTests.RunAsync_AWatchAddedAfterAScan_GetsNoHitForAnAdThatScanAlreadyCovered`; the boundary race itself is not.
 - **s2. Consent withdrawn in another tab, then the X:** 204 with no write (the gate), the client removes the row, and after a new consent the row is back. Correct: no write under a
   withdrawal. Not a defect.
-- **s3. Down drops every dismissal;** the notifications return unread. **There is no undo**, by directive.
+- **s3. Down drops every dismissal;** the notifications return to the bell as read ones (the read flag stays). **There is no undo**, by directive.
 - **s4. A dismissed row is gone from the bell for good but not from the lists,** which still show it by design (Klas's rule); the two surfaces differ on purpose.
 - **s5. The bucket figures are derived** (D4'); the match-row consent race and the unmeasured V9 relative form carry over from 0168 (s7).
 

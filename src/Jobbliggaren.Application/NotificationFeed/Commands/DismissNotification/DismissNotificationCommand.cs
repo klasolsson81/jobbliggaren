@@ -12,7 +12,7 @@ namespace Jobbliggaren.Application.NotificationFeed.Commands.DismissNotification
 ///
 /// <para>
 /// <b>Owner-scoped, IDOR-safe:</b> the user comes from <c>ICurrentUser</c> in the handler, never from the command. A
-/// row that is missing, someone else's, already dismissed or ended, or a match whose consent is withdrawn, changes
+/// row that is missing, someone else's or already dismissed, or a match whose consent is withdrawn, changes
 /// nothing and is the same <c>Result.Success()</c>: 204 for every request from a signed-in owner, never a NotFound.
 /// </para>
 ///

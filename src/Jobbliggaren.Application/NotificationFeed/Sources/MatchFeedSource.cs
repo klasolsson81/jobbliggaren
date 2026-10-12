@@ -28,14 +28,16 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// </para>
 ///
 /// <para>
-/// <b>Newest unread rows, on every path (#2130):</b> the list is the source's newest rows, and when read rows crowd
+/// <b>Newest unread rows, on every path (#2130):</b> the list is the source's newest rows (a row taken out of the bell
+/// with the X is not one, #2151), and when read rows crowd
 /// unread ones out of that window a second statement names the newest unread rows. It runs only then, so the base
 /// case stays at four statements. Each ad is listed once.
 /// </para>
 ///
 /// <para>
-/// No horizon: the list is the source's exact newest rows plus its newest unread rows, so no newer read row can be
-/// missing while an older one is shown.
+/// No horizon: the list is the source's exact newest rows that have not been taken out of the bell with the X (#2151)
+/// plus its newest unread rows, so no newer read row the user has not dismissed can be missing while an older one is
+/// shown.
 /// </para>
 /// </summary>
 internal sealed class MatchFeedSource : INotificationFeedSource, INotificationFeedReadMarker

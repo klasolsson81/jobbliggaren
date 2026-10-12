@@ -237,7 +237,7 @@ test("the X takes just that notification out, opens nothing, and the count follo
   await page.getByRole("button", { name: "Notiser, 2 olästa" }).click();
   const panel = page.getByRole("dialog", { name: "Notiser" });
 
-  await panel.getByRole("button", { name: `Ta bort notisen: ${ADS.saved.title}, ${ADS.saved.company}` }).click();
+  await panel.getByRole("button", { name: `Ta bort notisen: Bevakat företag, ${ADS.saved.title}, ${ADS.saved.company}` }).click();
 
   await expect(panel.getByRole("link", { name: ADS.saved.title })).toHaveCount(0);
   await expect(panel.getByRole("link", { name: ADS.open.title })).toBeVisible();
@@ -248,7 +248,7 @@ test("the X takes just that notification out, opens nothing, and the count follo
   await expect(page.locator(".jp-notif-badge")).toHaveText("1");
   await expect(panel).toBeVisible();
   // Focus went to the other row's X, not to the page.
-  await expect(panel.getByRole("button", { name: `Ta bort notisen: ${ADS.open.title}, ${ADS.open.company}` })).toBeFocused();
+  await expect(panel.getByRole("button", { name: `Ta bort notisen: Ny matchning, ${ADS.open.title}, ${ADS.open.company}` })).toBeFocused();
   expect(harness.requests.filter((route) => route.startsWith("POST ") && /\/seen/.test(route))).toEqual([]);
 });
 
@@ -258,7 +258,7 @@ test("a refused dismissal puts the row back with a notice", async ({ page }) => 
   await page.getByRole("button", { name: "Notiser, 2 olästa" }).click();
   const panel = page.getByRole("dialog", { name: "Notiser" });
 
-  await panel.getByRole("button", { name: `Ta bort notisen: ${ADS.saved.title}, ${ADS.saved.company}` }).click();
+  await panel.getByRole("button", { name: `Ta bort notisen: Bevakat företag, ${ADS.saved.title}, ${ADS.saved.company}` }).click();
 
   await expect(panel.getByRole("alert")).toContainText("Notisen kunde inte tas bort");
   await expect(panel.getByRole("link", { name: ADS.saved.title })).toBeVisible();

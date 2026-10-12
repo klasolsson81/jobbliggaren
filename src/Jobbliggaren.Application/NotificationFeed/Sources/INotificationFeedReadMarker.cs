@@ -15,7 +15,7 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// or <c>SentAt</c>, never <c>job_seekers</c>. No member ever clears either flag. So a mark cannot change what Översikt or the list pages show, and the
 /// writer-replay guard (<c>JobSeekerWriterReplayGuardTests</c>) holds: no handler that calls a mark ever calls a
 /// <c>JobSeeker</c> mutator. Every member is owner-scoped by <see cref="NotificationFeedMarkContext.UserId"/> and
-/// idempotent: a row already read, missing or foreign changes nothing, and the caller answers 204 for all of them
+/// idempotent: a row already in the state the member writes, missing or foreign changes nothing, and the caller answers 204 for all of them
 /// and reveals nothing (IDOR).
 /// </para>
 ///

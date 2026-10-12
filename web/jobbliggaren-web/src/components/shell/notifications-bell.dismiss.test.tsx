@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { NotificationFeed } from "@/lib/dto/notification-feed";
-import { withRowDismissed } from "@/lib/hooks/use-notification-feed";
+import { renderHook } from "@testing-library/react";
+import { NOTIFICATION_FEED_POLL_MS, useNotificationFeed, withRowDismissed } from "@/lib/hooks/use-notification-feed";
 
 const { dismissNotificationAction, markAllNotificationsReadAction, markNotificationReadAction } = vi.hoisted(() => ({
   dismissNotificationAction: vi.fn(),
@@ -75,8 +76,10 @@ function open() {
   return screen.getByRole("dialog", { name: "Notiser" });
 }
 
+// The name carries the reason (an ad can be listed once per reason), the title and the company.
+const REASON: Record<string, string> = { Utvecklare: "Ny matchning", Tekniker: "Ny matchning", Testare: "Bevakat företag" };
 const dismissButton = (dialog: HTMLElement, title: string) =>
-  within(dialog).getByRole("button", { name: `Ta bort notisen: ${title}, ${title} AB` });
+  within(dialog).getByRole("button", { name: `Ta bort notisen: ${REASON[title]}, ${title}, ${title} AB` });
 const titles = (dialog: HTMLElement) => within(dialog).queryAllByRole("link").map((link) => link.textContent);
 
 beforeEach(() => {
@@ -279,12 +282,12 @@ describe("NotificationsBell: the X (#2151)", () => {
     dismissNotificationAction.mockResolvedValue({ success: true });
     const dialog = open();
     const regions = () => screen.getAllByRole("status");
-    expect(regions().map((region) => region.textContent)).not.toContain("Notisen Utvecklare är borttagen.");
+    expect(regions().map((region) => region.textContent)).not.toContain("Notisen Utvecklare (Ny matchning) är borttagen.");
 
     fireEvent.click(dismissButton(dialog, "Utvecklare"));
     await settle();
 
-    expect(regions().map((region) => region.textContent)).toContain("Notisen Utvecklare är borttagen.");
+    expect(regions().map((region) => region.textContent)).toContain("Notisen Utvecklare (Ny matchning) är borttagen.");
   });
 
   // A read that started before the dismissal was confirmed may have been answered before the write landed; its stale row must
@@ -311,5 +314,130 @@ describe("NotificationsBell: the X (#2151)", () => {
 
     expect(titles(dialog)).toEqual(["Tekniker", "Testare"]);
     expect(within(dialog).getByText("1 oläst")).toBeInTheDocument();
+  });
+  // The removal has a region of its own: after an X and an Escape, a poll that finds MORE notifications is still announced,
+  // and the removal's message neither masks it nor comes back.
+  it("does not let the removal message mask a later announcement of new notifications", async () => {
+    fetchMock.mockReturnValueOnce(ok(threeRows()));
+    await renderBell();
+    dismissNotificationAction.mockResolvedValue({ success: true });
+    const dialog = open();
+    fireEvent.click(dismissButton(dialog, "Utvecklare"));
+    await settle();
+    expect(screen.getAllByRole("status").map((region) => region.textContent)).toContain("Notisen Utvecklare (Ny matchning) är borttagen.");
+
+    fireEvent.keyDown(document, { key: "Escape" }); // closes the panel without the bell button
+    await settle();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getAllByRole("status").map((region) => region.textContent)).not.toContain("Notisen Utvecklare (Ny matchning) är borttagen.");
+
+    const more = threeRows();
+    more.sources = [
+      { kind: "Match", unreadCount: 2, acknowledgedThrough: TOKEN },
+      { kind: "FollowedCompanyAd", unreadCount: 1, acknowledgedThrough: TOKEN },
+    ];
+    fetchMock.mockReturnValueOnce(ok(more));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(NOTIFICATION_FEED_POLL_MS);
+    });
+
+    expect(screen.getAllByRole("status").map((region) => region.textContent)).toContain("Du har 3 olästa notiser.");
+  });
+
+  it("clears the refusal notice when the panel is closed with Escape", async () => {
+    fetchMock.mockReturnValue(ok(threeRows()));
+    await renderBell();
+    dismissNotificationAction.mockResolvedValue({ success: false, error: "x" });
+    const dialog = open();
+    fireEvent.click(dismissButton(dialog, "Tekniker"));
+    await settle();
+    expect(within(dialog).getByRole("alert")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await settle();
+    const reopened = open();
+
+    expect(within(reopened).queryByRole("alert")).toBeNull();
+  });
+
+  it("tells two notifications of the same ad apart by their reason", async () => {
+    const both = threeRows();
+    both.items = [row("Match", AD_1, "Utvecklare", true), row("FollowedCompanyAd", AD_1, "Utvecklare", true)];
+    fetchMock.mockReturnValue(ok(both));
+    await renderBell();
+    const dialog = open();
+
+    expect(within(dialog).getByRole("button", { name: "Ta bort notisen: Ny matchning, Utvecklare, Utvecklare AB" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Ta bort notisen: Bevakat företag, Utvecklare, Utvecklare AB" })).toBeInTheDocument();
+  });
+
+  it("gives focus back to the restored row's X when a dismissal is refused", async () => {
+    fetchMock.mockReturnValue(ok(threeRows()));
+    await renderBell();
+    dismissNotificationAction.mockResolvedValue({ success: false, error: "x" });
+    const dialog = open();
+
+    fireEvent.click(dismissButton(dialog, "Utvecklare"));
+    await settle();
+    await settle(); // the focus is given back after the restored row is in the DOM
+
+    expect(titles(dialog)).toEqual(["Utvecklare", "Tekniker", "Testare"]);
+    expect(dismissButton(dialog, "Utvecklare")).toHaveFocus();
+  });
+
+  // A dismissal confirmed BEFORE a read mark that was clicked earlier: the later confirmation must not demote it, or a read
+  // that started before both would patch the row back in as read.
+  it("keeps a confirmed dismissal when a read mark for the same row is confirmed after it", async () => {
+    fetchMock.mockReturnValueOnce(ok(threeRows()));
+    await renderBell();
+    let answer: (response: Response) => void = () => {};
+    fetchMock.mockReturnValueOnce(new Promise<Response>((resolve) => (answer = resolve)));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31_000);
+    });
+    const dialog = open(); // starts the second read, held
+    let confirmMark: (value: { success: true }) => void = () => {};
+    markNotificationReadAction.mockReturnValue(new Promise((resolve) => (confirmMark = resolve)));
+    dismissNotificationAction.mockResolvedValue({ success: true });
+
+    fireEvent.click(within(dialog).getByRole("link", { name: "Utvecklare" }), { ctrlKey: true }); // the mark, still on its way
+    fireEvent.click(dismissButton(dialog, "Utvecklare"));
+    await settle();
+    await act(async () => {
+      confirmMark({ success: true }); // confirmed AFTER the dismissal
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      answer(Response.json(threeRows())); // the read that predates both
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(titles(dialog)).toEqual(["Tekniker", "Testare"]);
+  });
+});
+
+describe("useNotificationFeed().dismiss (#2151)", () => {
+  it("sends a row that is already on its way once, however many times it is called", async () => {
+    fetchMock.mockReturnValue(ok(threeRows()));
+    let confirm: (value: { success: true }) => void = () => {};
+    dismissNotificationAction.mockReturnValue(new Promise((resolve) => (confirm = resolve)));
+    const { result } = renderHook(() => useNotificationFeed());
+    await settle();
+
+    let first: Promise<boolean> = Promise.resolve(false);
+    let second: Promise<boolean> = Promise.resolve(false);
+    act(() => {
+      first = result.current.dismiss("Match", AD_1);
+      second = result.current.dismiss("Match", AD_1);
+    });
+    await act(async () => {
+      confirm({ success: true });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(dismissNotificationAction).toHaveBeenCalledTimes(1);
+    await expect(first).resolves.toBe(true);
+    await expect(second).resolves.toBe(true);
+    expect(result.current.pendingDismiss.size).toBe(0);
   });
 });

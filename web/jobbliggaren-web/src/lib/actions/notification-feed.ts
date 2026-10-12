@@ -9,8 +9,8 @@ import { notificationFeedSourceKindSchema } from "@/lib/dto/notification-feed";
 /** A token as the API writes a `DateTimeOffset`; anything else never reaches the backend. */
 const tokenSchema = z.iso.datetime({ offset: true });
 
-/** A Server Action is a public endpoint: exactly a source and an ad id, nothing else. */
-const markOneSchema = z.strictObject({
+/** A Server Action is a public endpoint: exactly a source and an ad id, nothing else (the read mark and the X share it). */
+const rowActionSchema = z.strictObject({
   kind: notificationFeedSourceKindSchema,
   jobAdId: z.uuid(),
 });
@@ -31,7 +31,7 @@ export async function markNotificationReadAction(input: {
   jobAdId: string;
 }): Promise<ActionResult> {
   const t = await getTranslations("common.notifications");
-  const parsed = markOneSchema.safeParse(input);
+  const parsed = rowActionSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: t("markReadFailed") };
 
   const result = await markNotificationRead(parsed.data.kind, parsed.data.jobAdId);
@@ -53,7 +53,7 @@ export async function dismissNotificationAction(input: {
   jobAdId: string;
 }): Promise<ActionResult> {
   const t = await getTranslations("common.notifications");
-  const parsed = markOneSchema.safeParse(input);
+  const parsed = rowActionSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: t("dismissFailed") };
 
   const result = await dismissNotification(parsed.data.kind, parsed.data.jobAdId);

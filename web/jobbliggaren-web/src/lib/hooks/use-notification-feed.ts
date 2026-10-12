@@ -52,8 +52,8 @@ export interface NotificationFeedApi {
   readonly pendingDismiss: ReadonlySet<string>;
   /**
    * #2151 — takes ONE notification out of the bell. Fired without waiting, like `markRead`; the promise resolves `true`
-   * when the server confirmed and `false` when it refused or the call failed, in which case the row is back (it was never
-   * deleted) and the caller says so. A confirmed dismissal removes the row from the answer in hand and lowers its
+   * when the server confirmed (or the row's dismissal was already on its way, which this call leaves alone) and `false` when
+   * it refused or the call failed, in which case the row is back (it was never deleted) and the caller says so. A confirmed dismissal removes the row from the answer in hand and lowers its
    * source's count by one if the row was unread; it forces no read.
    */
   readonly dismiss: (kind: NotificationFeedSourceKind, jobAdId: string) => Promise<boolean>;
@@ -126,6 +126,8 @@ export function useNotificationFeed(): NotificationFeedApi {
   // `readKey` -> when the server confirmed the mark or the dismissal. Kept until a read that started after it has
   // landed. A dismissal outranks a mark: such an answer must not bring the row back, only (at most) read.
   const confirmedRef = useRef<Map<string, { readonly at: number; readonly dismissed: boolean }>>(new Map());
+  // The rows whose dismissal is on its way, so a second call for one of them does nothing.
+  const dismissingRef = useRef<Set<string>>(new Set());
   // The total of the answer on screen, undefined until the first answer, so the first total is never announced
   // as an increase. Synced after each render, so a confirmed mark lowers it too and a later notification is
   // announced against the number the user actually saw.
@@ -269,13 +271,19 @@ export function useNotificationFeed(): NotificationFeedApi {
 
   const dismiss = useCallback(async (kind: NotificationFeedSourceKind, jobAdId: string): Promise<boolean> => {
     const key = readKey(kind, jobAdId);
-    const settle = () =>
+    // A row already on its way is not sent twice: a second call would cost a token, and its settle would clear the first
+    // call's pending key too early.
+    if (dismissingRef.current.has(key)) return true;
+    dismissingRef.current.add(key);
+    const settle = () => {
+      dismissingRef.current.delete(key);
       setPendingDismiss((current) => {
         if (!current.has(key)) return current;
         const next = new Set(current);
         next.delete(key);
         return next;
       });
+    };
     setPendingDismiss((current) => (current.has(key) ? current : new Set(current).add(key)));
 
     // A rejection (a stale build, a dropped connection) is a refused dismissal: the row comes back, because it was never

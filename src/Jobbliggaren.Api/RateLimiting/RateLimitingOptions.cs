@@ -287,7 +287,7 @@ public sealed class RateLimitingOptions
     /// The numbers (security-auditor, #2130 PR 2): the demand is one POST per click on a row that is unread locally
     /// (the client sends nothing for a row it holds as read) plus two POSTs per "Markera alla". The panel holds at
     /// most 20 rows, so ctrl- or middle-clicking every one and then pressing "Markera alla" is 22 calls within
-    /// seconds; 60 covers about three panels, i.e. two tabs plus slack. Sustained, a tab can demand at most about
+    /// seconds; for the read marks alone 60 covers about three panels, i.e. two tabs plus slack. Sustained, a tab can demand at most about
     /// 20 marks per 30 s (the open-throttle), so 60 a minute covers it. A false 429 puts a dot back, which is the
     /// defect this PR removes, while over-provisioning costs only owner-scoped, index-bounded updates of the user's own
     /// rows; every bulk update excludes rows already read, so a looped "Markera alla" writes no tuple. Burst 60,

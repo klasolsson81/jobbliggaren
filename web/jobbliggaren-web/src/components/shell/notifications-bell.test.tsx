@@ -310,7 +310,7 @@ describe("NotificationsBell (#1666)", () => {
   it("announces an increase, never the first answer and never a decrease", async () => {
     fetchMock.mockReturnValueOnce(ok(feed({ sources: counts(2, 0) })));
     await renderBell();
-    const live = screen.getByRole("status");
+    const live = screen.getAllByRole("status")[0]!;
     expect(live).toHaveTextContent("");
 
     fetchMock.mockReturnValueOnce(ok(feed({ sources: counts(2, 2) })));

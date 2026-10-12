@@ -23,9 +23,8 @@ const markOneSchema = z.strictObject({
  *
  * Fired WITHOUT waiting from a click that also opens the ad, often as the intercepted job modal. It does no
  * re-rendering work (`revalidatePath`, `refresh`, `updateTag`, a cookie write, `redirect`) and returns only its
- * own value. The navigation the same click starts overtakes it, so Next discards its response without
- * cancelling the write (measured 2026-10-12, `tests/job-modal/notifications-bell.spec.ts`: the modal opens at
- * once and stays mounted while the answer is held 0 and 5 000 ms). Next dispatches actions one at a time.
+ * own value. Measured 2026-10-12 (`tests/job-modal/notifications-bell.spec.ts`): the modal opens at once and
+ * stays mounted while the answer is held 0 and 5 000 ms, and the write lands. Next dispatches actions one at a time.
  */
 export async function markNotificationReadAction(input: {
   kind: string;

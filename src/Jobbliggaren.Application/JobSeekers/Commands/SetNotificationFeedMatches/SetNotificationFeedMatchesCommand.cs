@@ -10,7 +10,7 @@ using Mediator;
 namespace Jobbliggaren.Application.JobSeekers.Commands.SetNotificationFeedMatches;
 
 /// <summary>
-/// ADR 0162 (#2130) — turns "new matches reach the notification bell" on or off for the current user. A delivery
+/// ADR 0168 (#2130) — turns "new matches reach the notification bell" on or off for the current user. A delivery
 /// choice, never a consent or a withdrawal: <see cref="JobSeeker.SetNotificationFeedMatches"/> writes only its own
 /// stamp (security V3), and the command carries no consent field, so a replay after a concurrency conflict re-applies
 /// only this value (ADR 0146). Owner-scoped; one control, one write.

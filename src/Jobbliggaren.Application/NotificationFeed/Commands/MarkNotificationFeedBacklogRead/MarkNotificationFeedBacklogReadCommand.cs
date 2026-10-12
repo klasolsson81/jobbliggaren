@@ -5,7 +5,7 @@ using Mediator;
 namespace Jobbliggaren.Application.NotificationFeed.Commands.MarkNotificationFeedBacklogRead;
 
 /// <summary>
-/// #2130 (ADR 0162 as amended) — what arrived while the user had a notification type switched off is marked read in
+/// #2130 (ADR 0168) — what arrived while the user had a notification type switched off is marked read in
 /// the bell, so switching the type back ON does not flood it. Sent by the switch-on endpoint BEFORE the command that
 /// clears the off-stamp: the stamp is the key, so the order matters, and a failure between the two leaves the type
 /// off with its backlog read, which is harmless (a retry marks nothing more).

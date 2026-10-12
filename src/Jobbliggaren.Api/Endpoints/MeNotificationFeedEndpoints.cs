@@ -53,7 +53,7 @@ public static class MeNotificationFeedEndpoints
         }).RequireRateLimiting(RateLimitingExtensions.NotificationFeedReadPolicy);
 
         // #2130 - one notification read. The ad id (non-PII, already in /jobb/{id}) is in the path; the owner is not.
-        // 204 on Success, also for a benign no-op (a missing, foreign or ended row, or a match whose consent is withdrawn):
+        // 204 on Success, also when nothing changes (a missing or foreign row, or a match whose consent is withdrawn):
         // never a 404, which would reveal whether the user has the row. A non-GUID id never matches the route.
         group.MapPost("/{source}/{jobAdId:guid}/read", async (
             string source, Guid jobAdId, IMediator mediator, CancellationToken ct) =>

@@ -10,8 +10,7 @@ import { APP_ORIGIN, QUIET_NOTIFICATION_FEED, SESSION_COOKIE, SESSION_ID, startH
  *
  * The click-to-read tests prove what a unit test cannot: that a Server Action fired WITHOUT waiting from the
  * click that also opens the ad as the intercepted modal leaves that modal mounted, while the action is in
- * flight and after it answers (Next 16 discards a pending action's result when a navigation arrives; the
- * write must still land, and nothing may re-render under the modal).
+ * flight and after it answers; the write must still land, and nothing may re-render under the modal.
  */
 
 let harness: Harness;
@@ -148,8 +147,8 @@ const dots = (page: Page) => page.locator(".jp-notif__dot");
 // would show as a modal that is slow to open; with the backend answering at once, the response lands while the modal
 // is opening. The modal is tagged, so any re-render that unmounted and remounted it drops the tag, and the
 // heading's x position shows the page behind it never moved. (Measured 2026-10-12: an action that also called
-// revalidatePath passed this too, because the navigation overtakes the action and Next discards its response; the
-// no-re-render rule on the action is kept as the cheap guard it is, not as something this test detects.)
+// revalidatePath passed this too, so the no-re-render rule on the action is guarded by the action's own unit test,
+// not by this one.)
 for (const holdMs of [0, 5_000]) {
   test(`a click on a row opens the ad in the modal over an unmoved page, and the modal stays mounted while the mark is held ${holdMs} ms and after it lands`, async ({ page }) => {
     harness.readMarkDelayMs = holdMs;

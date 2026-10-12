@@ -125,7 +125,7 @@ export function updateMatchSummaryMail(input: {
 }
 
 /**
- * ADR 0162 (#2130) — whether new matches reach the bell. A delivery choice, never a consent: the body
+ * ADR 0168 (#2130) — whether new matches reach the bell. A delivery choice, never a consent: the body
  * carries only `{ enabled }`. Turning it on first marks what arrived while it was off as read in the bell,
  * on the API's side, so nothing from that period floods the bell.
  */
@@ -137,7 +137,7 @@ export function updateNotificationFeedMatches(input: {
   });
 }
 
-/** ADR 0162 (#2130) — whether new ads from followed companies reach the bell. Same shape and rule. */
+/** ADR 0168 (#2130) — whether new ads from followed companies reach the bell. Same shape and rule. */
 export function updateNotificationFeedFollowedAds(input: {
   enabled: boolean;
 }): Promise<ApiResult<void>> {

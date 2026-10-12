@@ -48,7 +48,7 @@ public sealed class AddNotificationFeedReadStateMigrationTests : IAsyncLifetime
     public async ValueTask DisposeAsync() => await _postgres.DisposeAsync();
 
     [Fact]
-    public async Task MigrateAsync_ShouldAddTheFlagDefaultFalseSwapTheIndexAndKeepEverythingElse_AcrossUpDownAndReUp()
+    public async Task MigrateAsync_ShouldAddTheFlagDefaultFalseAndSwapTheIndexLeavingEveryColumnAsItWas_AcrossUpDownAndReUp()
     {
         await using var db = NewAppContext();
         var migrations = db.Database.GetMigrations().ToList();
@@ -70,9 +70,11 @@ public sealed class AddNotificationFeedReadStateMigrationTests : IAsyncLifetime
         // The model reads and writes the column as the app role: a mark persists, and Down below drops it with the row intact.
         await using (var writer = NewAppContext())
         {
-            var match = await writer.UserJobAdMatches.SingleAsync(m => m.UserId == userId, Ct);
+            var match = await writer.UserJobAdMatches.AsNoTracking().SingleAsync(m => m.UserId == userId, Ct);
             match.ReadInNotificationFeed.ShouldBeFalse();
-            match.MarkReadInNotificationFeed();
+            // A match is marked by one set-based statement, as production marks it.
+            await writer.UserJobAdMatches.Where(m => m.UserId == userId)
+                .ExecuteUpdateAsync(set => set.SetProperty(m => m.ReadInNotificationFeed, true), Ct);
             var hit = await writer.FollowedCompanyAdHits.SingleAsync(h => h.UserId == userId, Ct);
             hit.ReadInNotificationFeed.ShouldBeFalse();
             hit.MarkReadInNotificationFeed();

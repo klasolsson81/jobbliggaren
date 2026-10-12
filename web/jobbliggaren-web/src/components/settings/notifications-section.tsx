@@ -64,7 +64,7 @@ interface NotificationsSectionProps {
  * while the e-mail switch and the match consent are both on; hidden, they keep their saved values.
  * The cadence renders while a mail it paces can be sent.
  *
- * #2130 (ADR 0162) - each type's group also holds ONE switch for what reaches the notification bell, before the
+ * #2130 (ADR 0168) - each type's group also holds ONE switch for what reaches the notification bell, before the
  * e-mail rows. They are delivery choices, never consents: they do not depend on the e-mail switch (the bell
  * ignores the mail pauses, ADR 0164 D1), they decide only what the bell shows (never Översikt or the lists),
  * and the matches switch renders only while the match consent is on, keeping its saved value when it is hidden,

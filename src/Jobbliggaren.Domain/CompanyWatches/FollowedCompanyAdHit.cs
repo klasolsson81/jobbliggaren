@@ -53,7 +53,7 @@ public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
     public DateTimeOffset? SeenAt { get; private set; }
 
     /// <summary>
-    /// #2130 (ADR 0162) — the notification bell's own per-row read state: <c>true</c> once the user opened this
+    /// #2130 (ADR 0168) — the notification bell's own per-row read state: <c>true</c> once the user opened this
     /// ad's notification in the bell (a click marks every hit of the ad), or marked it through "Markera alla
     /// som lästa". It is a channel flag and NOT <see cref="SeenAt"/>: <see cref="SeenAt"/> is the e-mail
     /// dedup authority (set when the ad is opened anywhere in-app, Pending hits only), while this answers

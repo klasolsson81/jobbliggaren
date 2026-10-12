@@ -127,13 +127,10 @@ internal sealed class MatchFeedSource : INotificationFeedSource, INotificationFe
     {
         var db = context.Db;
         var userId = context.UserId;
-        var match = await db.UserJobAdMatches
-            .Where(m => m.UserId == userId && m.JobAdId == jobAdId && !m.ReadInNotificationFeed)
-            .Where(m => db.JobSeekers.Where(NotificationConsent.BackgroundMatch.Criteria).Any(js => js.UserId == m.UserId))
-            .FirstOrDefaultAsync(cancellationToken);
-
-        // The unit of work commits it. A missing, foreign, ended or already-read row is no row at all.
-        match?.MarkReadInNotificationFeed();
+        await db.UserJobAdMatches
+            .Where(m => m.UserId == userId && m.JobAdId == jobAdId && !m.ReadInNotificationFeed
+                        && db.JobSeekers.Where(NotificationConsent.BackgroundMatch.Criteria).Any(js => js.UserId == m.UserId))
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.ReadInNotificationFeed, true), cancellationToken);
     }
 
     public async Task MarkThroughAsync(
@@ -162,11 +159,11 @@ internal sealed class MatchFeedSource : INotificationFeedSource, INotificationFe
     {
         var db = context.Db;
         var userId = context.UserId;
-        // The whole row, untracked: an owned JSON type cannot be projected without its owner, and this read sits in a
-        // command that must not touch the tracked aggregate (it is not a JobSeeker writer).
-        var seeker = await db.JobSeekers.AsNoTracking()
-            .FirstOrDefaultAsync(js => js.UserId == userId, cancellationToken);
-        if (seeker?.Preferences.NotificationFeedMatchesOffAt is not { } offAt)
+        var stamp = await db.JobSeekers
+            .Where(js => js.UserId == userId)
+            .Select(js => new { js.Preferences.NotificationFeedMatchesOffAt })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (stamp?.NotificationFeedMatchesOffAt is not { } offAt)
             return;
 
         await db.UserJobAdMatches

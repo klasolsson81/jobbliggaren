@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ADR 0162 (#2130): the two switches for what reaches the bell. They are delivery choices, never consents
+// ADR 0168 (#2130): the two switches for what reaches the bell. They are delivery choices, never consents
 // (security V3): each action forwards only its own `{ enabled }`, refuses a body carrying anything else
 // (a Server Action is a public endpoint, and a tab on an earlier build can post a combined body), and
 // touches no consent's or mail pause's write. The translator mock returns `namespace.key`.

@@ -217,7 +217,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     }
 
     /// <summary>
-    /// ADR 0162 (#2130) — turns "new matches reach the bell" on or off, with <see cref="SetNotificationMail"/>'s
+    /// ADR 0168 (#2130) — turns "new matches reach the bell" on or off, with <see cref="SetNotificationMail"/>'s
     /// semantics, on <see cref="Preferences.NotificationFeedMatchesOffAt"/> only. It decides what reaches the
     /// bell and nothing else: it never writes the background-match consent, a withdrawal, a mail pause or the
     /// other bell type, and it is not refused while the consent is off (the value is kept for when it returns).
@@ -233,7 +233,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     }
 
     /// <summary>
-    /// ADR 0162 (#2130) — turns "new ads from followed companies reach the bell" on or off, with
+    /// ADR 0168 (#2130) — turns "new ads from followed companies reach the bell" on or off, with
     /// <see cref="SetNotificationFeedMatches"/>'s semantics, on <see cref="Preferences.NotificationFeedFollowedAdsOffAt"/>
     /// only. The follow mail's own consent is untouched.
     /// </summary>

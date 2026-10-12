@@ -56,7 +56,7 @@ describe("jobSeekerProfileSchema", () => {
     notificationMailEnabled: true,
     topMatchMailEnabled: true,
     matchSummaryMailEnabled: true,
-    // ADR 0162 (#2130) — what reaches the bell, `true` = on.
+    // ADR 0168 (#2130) — what reaches the bell, `true` = on.
     notificationFeedMatchesEnabled: true,
     notificationFeedFollowedAdsEnabled: true,
     createdAt: "2026-05-11T10:00:00Z",

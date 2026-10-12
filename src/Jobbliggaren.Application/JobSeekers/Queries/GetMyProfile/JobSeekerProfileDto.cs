@@ -26,7 +26,7 @@ public sealed record JobSeekerProfileDto(
     bool NotificationMailEnabled,
     bool TopMatchMailEnabled,
     bool MatchSummaryMailEnabled,
-    // ADR 0162 (#2130) — what reaches the notification bell, as on/off and never the stamps (same rule). A
+    // ADR 0168 (#2130) — what reaches the notification bell, as on/off and never the stamps (same rule). A
     // delivery choice inside nothing: the bell has no consent of its own, and these decide only what it shows.
     bool NotificationFeedMatchesEnabled,
     bool NotificationFeedFollowedAdsEnabled,

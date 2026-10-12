@@ -5,7 +5,7 @@
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     /// <summary>
-    /// #2130 PR 2 (ADR 0162, amended by the ADR that follows it) — the notification bell's own per-row read
+    /// #2130 PR 2 (ADR 0162, amended by ADR 0168) — the notification bell's own per-row read
     /// state, as <c>read_in_notification_feed boolean NOT NULL DEFAULT false</c> on the two source tables
     /// (<c>user_job_ad_matches</c>, <c>followed_company_ad_hits</c>), plus ONE separately named line: the index
     /// swap on <c>followed_company_ad_hits</c> (ADR 0162 s5, Q8).
@@ -19,7 +19,7 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// <para>
     /// <b>Locks.</b> <c>ADD COLUMN</c> takes ACCESS EXCLUSIVE, and the two statements run in one transaction, so both
     /// locks are held to commit. With a non-volatile <c>DEFAULT false</c> the value lives in the table's metadata
-    /// (PostgreSQL 18, <c>ALTER TABLE</c>: no rewrite, no scan), so the hold is milliseconds at any row count. The
+    /// (PostgreSQL 18, <c>ALTER TABLE</c>: no rewrite), so the hold is milliseconds at any row count. The
     /// only real exposure is queueing behind a long transaction while readers (the bell, Översikt, /matchningar)
     /// and the five-minute Worker run queue behind the lock: <c>SET LOCAL lock_timeout</c> turns that queue into a
     /// loud deploy failure that the next reconcile retries. It binds only inside the migration's own transaction,
@@ -37,11 +37,12 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// <c>ix_followed_company_ad_hits_user_created_at (user_id, created_at DESC)</c>. The prefix gives the same equality
     /// on <c>user_id</c> (the Art. 17 sweep and the scan's per-user grouping), so the number of indexes and the write
     /// cost are unchanged. This migration adds access paths keyed <c>(user_id, created_at)</c> on that table — the
-    /// token, the newest-first window, "Markera alla" and the backlog mark — which the plain index cannot order. DROP
-    /// takes ACCESS EXCLUSIVE and CREATE INDEX takes SHARE (blocking writes) for milliseconds at this table's size;
-    /// neither is <c>CONCURRENTLY</c>, as for the other small-table index changes. Striking the line means deleting
-    /// the four statements marked below (Up and Down) and restoring the old <c>HasIndex(h =&gt; h.UserId)</c>
-    /// configuration and the name pinned in <c>FollowedCompanyAdHitPersistenceTests</c>.
+    /// token, the newest-first window, "Markera alla" and the backlog mark — which the plain index cannot order. In this
+    /// transaction the table already holds the ACCESS EXCLUSIVE of <c>ADD COLUMN</c>, so the DROP and the CREATE INDEX
+    /// (alone, SHARE) also block reads, for milliseconds at this table's size; neither is <c>CONCURRENTLY</c>. Striking
+    /// the line touches seven artefacts: the four statements marked below (Up and Down), the Designer and the snapshot
+    /// (the new name is in both), <c>FollowedCompanyAdHitConfiguration</c>, <c>FollowedCompanyAdHitPersistenceTests</c>,
+    /// <c>AddNotificationFeedReadStateMigrationTests</c> and ADR 0168 D8.
     /// </para>
     ///
     /// <para>

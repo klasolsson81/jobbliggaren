@@ -164,8 +164,8 @@ internal static class NewFollowedCompanyAdSet
     /// passes neither, and its SQL is the one it always ran.
     /// <para>
     /// <paramref name="unreadInNotificationFeedOnly"/> (#2130) leaves out the hits the user has read in the bell, so
-    /// the bell counts what it still shows as unread. Only the bell passes <c>true</c>: Översikt and the list pass
-    /// <c>false</c>, the composition adds nothing for them, and the bell's reading never changes what they show.
+    /// the bell counts what it still shows as unread. Only the bell passes <c>true</c>: Översikt's count passes
+    /// <c>false</c>, the composition adds nothing for it, and the bell's reading never changes what it shows.
     /// </para>
     /// </summary>
     public static async Task<CountInput> LoadCountInputAsync(

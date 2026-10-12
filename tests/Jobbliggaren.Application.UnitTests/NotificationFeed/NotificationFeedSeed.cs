@@ -96,12 +96,14 @@ internal sealed class NotificationFeedSeed
     }
 
     /// <summary>
-    /// The user opened this match in the bell (#2130): the aggregate's own method, the one the click's command ends in,
-    /// so the row is read the way production reads it. It touches no watermark.
+    /// The user opened this match in the bell (#2130). Production writes the flag with one set-based UPDATE
+    /// (<c>MatchFeedSource</c>'s three marks), which EF InMemory cannot run; the state that leaves behind is this one
+    /// boolean, set here through the change tracker. It touches no watermark.
     /// </summary>
     public static void MatchReadInBell(AppDbContext db, Guid userId, JobAdId adId)
     {
-        db.UserJobAdMatches.Single(m => m.UserId == userId && m.JobAdId == adId).MarkReadInNotificationFeed();
+        var match = db.UserJobAdMatches.Single(m => m.UserId == userId && m.JobAdId == adId);
+        db.Entry(match).Property(m => m.ReadInNotificationFeed).CurrentValue = true;
         db.SaveChanges();
     }
 

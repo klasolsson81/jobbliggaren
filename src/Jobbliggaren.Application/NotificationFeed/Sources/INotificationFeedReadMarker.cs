@@ -4,7 +4,7 @@ using Jobbliggaren.Domain.JobAds;
 namespace Jobbliggaren.Application.NotificationFeed.Sources;
 
 /// <summary>
-/// The write side of one bell source (#2130, ADR 0162 as amended): marking its rows read IN THE BELL. A source
+/// The write side of one bell source (#2130, ADR 0168): marking its rows read IN THE BELL. A source
 /// implements both this and <see cref="INotificationFeedSource"/>, so the way a row is counted, listed and marked
 /// lives in one class and a new source adds one class, not a switch in a handler.
 ///
@@ -14,16 +14,16 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// or <c>SentAt</c>, never <c>job_seekers</c>. So a mark cannot change what Översikt or the list pages show, and the
 /// writer-replay guard (<c>JobSeekerWriterReplayGuardTests</c>) holds: no handler that calls a mark ever calls a
 /// <c>JobSeeker</c> mutator. Every member is owner-scoped by <see cref="NotificationFeedMarkContext.UserId"/> and
-/// idempotent: a row already read, missing, foreign or ended is a no-op, so the caller can answer 204 for all of
-/// them and reveal nothing (IDOR).
+/// idempotent: a row already read, missing or foreign changes nothing, and the caller answers 204 for all of them
+/// and reveals nothing (IDOR).
 /// </para>
 ///
 /// <para>
 /// <b>The gate.</b> A mark on a source whose rows were produced under a consent applies that consent in the same
-/// statement as the write (an <c>EXISTS</c> over the user's <c>JobSeeker</c>, not a read before it), so a mark never
-/// writes a row the bell could not show. It does <b>not</b> apply the user's switch for the type: the backlog mark
-/// runs while the switch is still off, and a mark under the type's own gate would always do nothing. A mark that
-/// the gate refuses is the same no-op as any other, never an error.
+/// statement as the write (an <c>EXISTS</c> over the user's <c>JobSeeker</c>, not a read before it), so no mark
+/// writes a match row while the consent is withdrawn. It does <b>not</b> apply the user's switch for the type: the
+/// backlog mark runs while the switch is still off, and a mark under the type's own gate would always do nothing. A
+/// mark that the gate refuses is the same no-op as any other, never an error.
 /// </para>
 /// </summary>
 internal interface INotificationFeedReadMarker
@@ -32,9 +32,9 @@ internal interface INotificationFeedReadMarker
 
     /// <summary>
     /// ONE notification read: the row of <paramref name="jobAdId"/>, which for a source with several rows per ad is
-    /// every row of that ad. The bell's row is the (source, ad) pair, so a click reads the whole pair. A tracked load
-    /// and the aggregate's own method, committed by the unit of work: a handful of rows at most, and seedable
-    /// without a database.
+    /// every row of that ad. The bell's row is the (source, ad) pair, so a click reads the whole pair. The follow
+    /// source loads its few rows and marks them through the aggregate, committed by the unit of work; the match source
+    /// writes in one statement that carries the consent.
     /// </summary>
     Task MarkRowAsync(NotificationFeedMarkContext context, JobAdId jobAdId, CancellationToken cancellationToken);
 

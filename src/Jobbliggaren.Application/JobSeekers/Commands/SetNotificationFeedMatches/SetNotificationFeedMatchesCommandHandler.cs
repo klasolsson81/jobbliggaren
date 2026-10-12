@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Jobbliggaren.Application.JobSeekers.Commands.SetNotificationFeedMatches;
 
 /// <summary>
-/// ADR 0162 (#2130) — loads the current user's JobSeeker tracked so <c>UnitOfWorkBehavior</c> persists the change, and
+/// ADR 0168 (#2130) — loads the current user's JobSeeker tracked so <c>UnitOfWorkBehavior</c> persists the change, and
 /// echoes its id for the audit row.
 /// </summary>
 public sealed class SetNotificationFeedMatchesCommandHandler(

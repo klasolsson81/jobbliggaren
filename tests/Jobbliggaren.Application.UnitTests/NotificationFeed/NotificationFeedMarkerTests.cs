@@ -7,7 +7,6 @@ using Jobbliggaren.Application.NotificationFeed.Sources;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
-using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
 using NSubstitute;
 using Shouldly;
@@ -15,10 +14,11 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.NotificationFeed;
 
 /// <summary>
-/// #2130 - marking ONE notification read (ADR 0162 as amended), under EF InMemory: the tracked load and the aggregate's
-/// own method, which is what the unit of work commits. What a mark is NOT is pinned here too: it moves no watermark and
-/// touches no e-mail state. The set-based marks ("Markera alla", the switch-on backlog) are <c>ExecuteUpdate</c>, which
-/// InMemory does not run: <c>NotificationFeedReadStateEndpointTests</c> proves them against Npgsql.
+/// #2130 - marking ONE followed-company notification read (ADR 0168), under EF InMemory: the tracked load and the
+/// aggregate's own method, which is what the unit of work commits. What a mark is NOT is pinned here too: it moves no
+/// watermark and touches no e-mail state. Every write on a match row, and the set-based marks ("Markera alla", the
+/// switch-on backlog), are <c>ExecuteUpdate</c>, which InMemory does not run:
+/// <c>NotificationFeedReadStateEndpointTests</c> proves them against Npgsql.
 /// </summary>
 public class NotificationFeedMarkerTests
 {
@@ -29,87 +29,6 @@ public class NotificationFeedMarkerTests
 
     private static INotificationFeedReadMarker Marker(NotificationFeedSourceKind kind) =>
         NotificationFeedSources.MarkerFor(kind);
-
-    [Fact]
-    public async Task MarkRowAsync_OnAMatch_MarksThatRowRead_AndNothingElse()
-    {
-        using var db = TestAppDbContextFactory.Create();
-        var userId = Guid.NewGuid();
-        var seeker = _seed.Seeker(db, userId, backgroundMatchConsent: true);
-        var watermark = seeker.LastSeenMatchesAt;
-        var ad = _seed.ActiveAd(db);
-        var other = _seed.ActiveAd(db);
-        _seed.Match(db, userId, ad, NotifiableMatchGrade.Top, T0.AddHours(1));
-        _seed.Match(db, userId, other, NotifiableMatchGrade.Good, T0.AddHours(2));
-
-        await Marker(NotificationFeedSourceKind.Match).MarkRowAsync(Context(db, userId), ad, CancellationToken.None);
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        var marked = db.UserJobAdMatches.Single(m => m.JobAdId == ad);
-        marked.ReadInNotificationFeed.ShouldBeTrue();
-        marked.NotificationStatus.ShouldBe(NotificationStatus.Pending);
-        marked.SentAt.ShouldBeNull();
-        db.UserJobAdMatches.Single(m => m.JobAdId == other).ReadInNotificationFeed.ShouldBeFalse();
-        db.JobSeekers.Single(js => js.UserId == userId).LastSeenMatchesAt.ShouldBe(watermark);
-    }
-
-    [Fact]
-    public async Task MarkRowAsync_OnAMatch_IsANoOpForAnotherUsersRowAMissingRowAndAnEndedAd()
-    {
-        using var db = TestAppDbContextFactory.Create();
-        var me = Guid.NewGuid();
-        var other = Guid.NewGuid();
-        _seed.Seeker(db, me, backgroundMatchConsent: true);
-        _seed.Seeker(db, other, backgroundMatchConsent: true);
-        var othersAd = _seed.ActiveAd(db);
-        var endedAd = _seed.ActiveAd(db);
-        _seed.Match(db, other, othersAd, NotifiableMatchGrade.Top, T0.AddHours(1));
-        _seed.Match(db, me, endedAd, NotifiableMatchGrade.Top, T0.AddHours(1));
-        _seed.Archive(db, endedAd);
-        var marker = Marker(NotificationFeedSourceKind.Match);
-
-        // Someone else's ad, an ad I have no row for, and an ad that ended: each is no error and no write on anyone else's row.
-        await marker.MarkRowAsync(Context(db, me), othersAd, CancellationToken.None);
-        await marker.MarkRowAsync(Context(db, me), new JobAdId(Guid.NewGuid()), CancellationToken.None);
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        db.UserJobAdMatches.Single(m => m.UserId == other).ReadInNotificationFeed.ShouldBeFalse();
-    }
-
-    // Security V1: a mark on a match row applies the consent, in the same statement as the load, so a withdrawn consent
-    // writes no row (#2138 is open: nothing is built that writes a match row while the consent is withdrawn).
-    [Fact]
-    public async Task MarkRowAsync_OnAMatch_WritesNothingWhileTheConsentIsWithdrawn()
-    {
-        using var db = TestAppDbContextFactory.Create();
-        var userId = Guid.NewGuid();
-        var seeker = _seed.Seeker(db, userId, backgroundMatchConsent: true);
-        var ad = _seed.ActiveAd(db);
-        _seed.Match(db, userId, ad, NotifiableMatchGrade.Top, T0.AddHours(1));
-        _seed.SetConsent(db, seeker, enabled: false, T0.AddHours(2));
-
-        await Marker(NotificationFeedSourceKind.Match).MarkRowAsync(Context(db, userId), ad, CancellationToken.None);
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        db.UserJobAdMatches.Single().ReadInNotificationFeed.ShouldBeFalse();
-    }
-
-    // The mark is under the consent only, never the user's switch for the type: the backlog mark runs while the switch is off.
-    [Fact]
-    public async Task MarkRowAsync_OnAMatch_StillMarksWhileTheTypeIsSwitchedOff()
-    {
-        using var db = TestAppDbContextFactory.Create();
-        var userId = Guid.NewGuid();
-        var seeker = _seed.Seeker(db, userId, backgroundMatchConsent: true);
-        var ad = _seed.ActiveAd(db);
-        _seed.Match(db, userId, ad, NotifiableMatchGrade.Top, T0.AddHours(1));
-        _seed.SwitchFeedMatches(db, seeker, on: false, T0.AddHours(2));
-
-        await Marker(NotificationFeedSourceKind.Match).MarkRowAsync(Context(db, userId), ad, CancellationToken.None);
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        db.UserJobAdMatches.Single().ReadInNotificationFeed.ShouldBeTrue();
-    }
 
     [Fact]
     public async Task MarkRowAsync_OnAFollowedAd_MarksEveryHitOfThatAdForTheOwner_AndLeavesTheEmailStateAlone()
@@ -171,12 +90,32 @@ public class NotificationFeedMarkerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(userId);
 
-        // A signed-in owner gets Success for every request: a row that is missing, foreign or ended is not an error, so the
-        // answer says nothing about whether the user has it. (Through and Backlog reach ExecuteUpdate only with a row to
-        // write; their no-op-without-a-stamp path is the one InMemory can run.)
+        // A signed-in owner gets Success for every request: a row that is missing or foreign is not an error, so the answer
+        // says nothing about whether the user has it. (The match row mark and the through marks are ExecuteUpdate, which
+        // InMemory cannot run: their 204s are NotificationFeedReadStateEndpointTests'.)
         (await new MarkNotificationReadCommandHandler(db, currentUser).Handle(
-            new MarkNotificationReadCommand(NotificationFeedSourceKind.Match, Guid.NewGuid()), CancellationToken.None))
+            new MarkNotificationReadCommand(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid()), CancellationToken.None))
             .IsSuccess.ShouldBeTrue();
+        (await new MarkNotificationFeedBacklogReadCommandHandler(db, currentUser).Handle(
+            new MarkNotificationFeedBacklogReadCommand(NotificationFeedSourceKind.Match), CancellationToken.None))
+            .IsSuccess.ShouldBeTrue();
+        (await new MarkNotificationFeedBacklogReadCommandHandler(db, currentUser).Handle(
+            new MarkNotificationFeedBacklogReadCommand(NotificationFeedSourceKind.FollowedCompanyAd), CancellationToken.None))
+            .IsSuccess.ShouldBeTrue();
+    }
+
+    // security V6, declared unreachable: no request carries a signed-in user without a JobSeeker row (registration creates
+    // both; over HTTP such a user is a 401, measured), so this asserts only that the handlers degrade safely if the invariant
+    // ever breaks: the same Success, never a NotFound that would say whether the user has a row. The match marks and the
+    // through marks are ExecuteUpdate, which InMemory cannot run.
+    [Fact]
+    public async Task TheCommandHandlers_AnswerSuccessForASignedInUserWithoutAJobSeekerRow()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        var currentUser = Substitute.For<ICurrentUser>();
+        currentUser.UserId.Returns(userId);
+
         (await new MarkNotificationReadCommandHandler(db, currentUser).Handle(
             new MarkNotificationReadCommand(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid()), CancellationToken.None))
             .IsSuccess.ShouldBeTrue();

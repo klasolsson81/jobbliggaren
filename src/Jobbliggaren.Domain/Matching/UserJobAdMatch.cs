@@ -50,7 +50,7 @@ public sealed class UserJobAdMatch : AggregateRoot<UserJobAdMatchId>
     public DateTimeOffset? SentAt { get; private set; }
 
     /// <summary>
-    /// #2130 (ADR 0162) — the notification bell's own per-row read state: <c>true</c> once the user opened
+    /// #2130 (ADR 0168) — the notification bell's own per-row read state: <c>true</c> once the user opened
     /// this match in the bell (or marked it through "Markera alla som lästa"). It is a channel flag, named
     /// after its channel, and a different clock from <see cref="NotificationStatus"/> (the e-mail
     /// state machine) and from the <c>LastSeenMatchesAt</c> watermark (which <c>/matchningar</c> and
@@ -142,13 +142,6 @@ public sealed class UserJobAdMatch : AggregateRoot<UserJobAdMatchId>
         SentAt = clock.UtcNow;
         return Result.Success();
     }
-
-    /// <summary>
-    /// #2130 — marks this match read in the notification bell. Idempotent, with no precondition: a match that
-    /// was mailed is still a notification the user can open in the bell. It writes only
-    /// <see cref="ReadInNotificationFeed"/>, never the mail state, and the mail state machine never writes it.
-    /// </summary>
-    public void MarkReadInNotificationFeed() => ReadInNotificationFeed = true;
 
     /// <summary>
     /// TD-114 — Queued → Failed (terminal). The stranded-match reaper calls this on a row that

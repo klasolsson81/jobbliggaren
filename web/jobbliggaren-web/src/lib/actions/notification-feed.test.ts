@@ -1,14 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { markNotificationRead, markNotificationsReadThrough, revalidatePath } = vi.hoisted(() => ({
+const { markNotificationRead, markNotificationsReadThrough, rerenders } = vi.hoisted(() => ({
   markNotificationRead: vi.fn(),
   markNotificationsReadThrough: vi.fn(),
-  revalidatePath: vi.fn(),
+  // Every call that makes Next re-render a route or write a cookie from an action.
+  rerenders: {
+    revalidatePath: vi.fn(),
+    revalidateTag: vi.fn(),
+    updateTag: vi.fn(),
+    refresh: vi.fn(),
+    cookies: vi.fn(),
+    redirect: vi.fn(),
+  },
 }));
 vi.mock("@/lib/api/notification-feed", () => ({ markNotificationRead, markNotificationsReadThrough }));
-vi.mock("next/cache", () => ({ revalidatePath, revalidateTag: vi.fn(), updateTag: vi.fn() }));
-vi.mock("next/headers", () => ({ cookies: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("next/cache", () => ({
+  revalidatePath: rerenders.revalidatePath,
+  revalidateTag: rerenders.revalidateTag,
+  updateTag: rerenders.updateTag,
+  refresh: rerenders.refresh,
+}));
+vi.mock("next/headers", () => ({ cookies: rerenders.cookies }));
+vi.mock("next/navigation", () => ({ redirect: rerenders.redirect }));
 vi.mock("next-intl/server", () => ({
   getTranslations: async () => (key: string) => `t:${key}`,
 }));
@@ -61,11 +74,13 @@ describe("markNotificationReadAction (#2130)", () => {
   );
 
   // The write is fired without waiting on the click that opens the ad. An action that re-rendered the route
-  // (revalidatePath, refresh, a cookie, a redirect) would re-render a job modal the click had just opened.
-  it("never asks Next to re-render anything", async () => {
+  // (revalidatePath, revalidateTag, updateTag, refresh, a cookie, a redirect) could re-render a job modal the click had
+  // just opened. The Playwright spec cannot tell such an action from this one, so this is the guard.
+  it("never asks Next to re-render anything or to write a cookie", async () => {
     await markNotificationReadAction({ kind: "Match", jobAdId: AD_ID });
+    await markAllNotificationsReadAction({ match: MATCH_TOKEN, followedCompanyAd: FOLLOW_TOKEN });
 
-    expect(revalidatePath).not.toHaveBeenCalled();
+    for (const call of Object.values(rerenders)) expect(call).not.toHaveBeenCalled();
   });
 });
 
@@ -123,9 +138,9 @@ describe("markAllNotificationsReadAction (#2130)", () => {
     expect(markNotificationsReadThrough).not.toHaveBeenCalled();
   });
 
-  it("never asks Next to re-render anything", async () => {
+  it("never asks Next to re-render anything or to write a cookie", async () => {
     await markAllNotificationsReadAction({ match: MATCH_TOKEN, followedCompanyAd: FOLLOW_TOKEN });
 
-    expect(revalidatePath).not.toHaveBeenCalled();
+    for (const call of Object.values(rerenders)) expect(call).not.toHaveBeenCalled();
   });
 });

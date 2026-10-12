@@ -10,7 +10,7 @@ using Mediator;
 namespace Jobbliggaren.Application.JobSeekers.Commands.SetNotificationFeedFollowedAds;
 
 /// <summary>
-/// ADR 0162 (#2130) — turns "new ads from followed companies reach the notification bell" on or off for the current
+/// ADR 0168 (#2130) — turns "new ads from followed companies reach the notification bell" on or off for the current
 /// user, with <c>SetNotificationFeedMatchesCommand</c>'s rules: a delivery choice, never a consent
 /// (<see cref="JobSeeker.SetNotificationFeedFollowedAds"/> writes only its own stamp, and the follow mail's consent is
 /// untouched), required on the wire, audited with <c>{"enabled": bool}</c> and nothing else, replayed on a concurrency

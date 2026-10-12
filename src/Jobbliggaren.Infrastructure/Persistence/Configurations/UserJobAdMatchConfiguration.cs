@@ -102,7 +102,7 @@ public sealed class UserJobAdMatchConfiguration : IEntityTypeConfiguration<UserJ
         builder.Property(m => m.CreatedAt).IsRequired();
         builder.Property(m => m.SentAt);
 
-        // #2130 (ADR 0162) — the notification bell's own per-row read state. NOT NULL DEFAULT false, so a
+        // #2130 (ADR 0168) — the notification bell's own per-row read state. NOT NULL DEFAULT false, so a
         // row written before the column existed reads as unread, which is today's meaning (a pre-existing
         // row is unread in the bell iff its created_at is past the watermark). No index of its own: the
         // watermark bounds every scan to the head of ix_user_job_ad_matches_user_created_at, and the flag is

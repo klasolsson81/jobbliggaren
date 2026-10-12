@@ -221,7 +221,7 @@ export async function updateMatchSummaryMailAction(
 }
 
 /**
- * ADR 0162 (#2130) — whether new matches reach the bell. A delivery choice, never a consent: neither
+ * ADR 0168 (#2130) — whether new matches reach the bell. A delivery choice, never a consent: neither
  * direction writes or withdraws one (security V3), and the field is the only one it carries. Its failures read
  * as the background-match copy, which names no purpose.
  */
@@ -239,7 +239,7 @@ export async function updateNotificationFeedMatchesAction(
   return notificationSettingOutcome(result, ts, "backgroundMatch");
 }
 
-/** ADR 0162 (#2130) — whether new ads from followed companies reach the bell. Same rule; the follow mail's consent is untouched. */
+/** ADR 0168 (#2130) — whether new ads from followed companies reach the bell. Same rule; the follow mail's consent is untouched. */
 export async function updateNotificationFeedFollowedAdsAction(
   input: UpdateNotificationFeedFollowedAdsInput
 ): Promise<ActionResult> {

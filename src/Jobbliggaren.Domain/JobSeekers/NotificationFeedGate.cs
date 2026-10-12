@@ -3,7 +3,7 @@ using Jobbliggaren.Domain.Common;
 namespace Jobbliggaren.Domain.JobSeekers;
 
 /// <summary>
-/// Whether a notification type reaches the bell (ADR 0162, #2130): the user's own switch for the type and, for a
+/// Whether a notification type reaches the bell (ADR 0168, #2130): the user's own switch for the type and, for a
 /// match, the consent its rows were produced under. Setting AND consent, never OR (security V1): a switch is a
 /// delivery choice and grants nothing, and a consent says nothing about whether the user wants the bell to show
 /// it. The consent is held by reference to <see cref="NotificationConsent"/>, never copied, so the bell and the

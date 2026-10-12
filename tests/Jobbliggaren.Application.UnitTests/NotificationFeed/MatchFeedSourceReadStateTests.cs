@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.NotificationFeed;
 using Jobbliggaren.Application.NotificationFeed.Sources;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.Matching;
 using Jobbliggaren.Infrastructure.Persistence;
 using NSubstitute;
@@ -162,6 +163,50 @@ public class MatchFeedSourceReadStateTests
         result.Items.Count(i => i.IsUnread).ShouldBe(1);
         result.Items.Single(i => i.IsUnread).JobAdId.ShouldBe(unreadAd.Value);
         result.Items.Select(i => i.JobAdId).Distinct().Count().ShouldBe(result.Items.Count);
+    }
+
+    // More unread rows are crowded out than the cap takes: the second statement names the NEWEST of them, not the oldest.
+    [Fact]
+    public async Task ReadAsync_WhenMoreUnreadRowsAreCrowdedOutThanTheCapTakes_NamesTheNewestUnreadOnes()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: true);
+        for (var i = 1; i <= 5; i++)
+            _seed.Match(db, userId, _seed.ActiveAd(db, $"Oläst {i}"), NotifiableMatchGrade.Good, T0.AddHours(i));
+        for (var i = 0; i < 3; i++)
+        {
+            var read = _seed.ActiveAd(db, $"Läst {i}");
+            _seed.Match(db, userId, read, NotifiableMatchGrade.Strong, T0.AddHours(10 + i));
+            NotificationFeedSeed.MatchReadInBell(db, userId, read);
+        }
+
+        var result = await ReadAsync(db, userId, maxItems: 3);
+
+        result.UnreadCount.ShouldBe(5);
+        result.Items.Where(i => i.IsUnread).Select(i => i.Title).Order().ShouldBe(["Oläst 3", "Oläst 4", "Oläst 5"]);
+    }
+
+    // The other half of F3: the e-mail state machine never clears a read mark. The mark itself is written by one set-based
+    // statement in production (Npgsql's tests); here it is set through the change tracker, the same boolean.
+    [Fact]
+    public async Task TheMailPath_NeverClearsAReadMark()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: true);
+        var ad = _seed.ActiveAd(db);
+        _seed.Match(db, userId, ad, NotifiableMatchGrade.Top, T0.AddHours(1));
+        NotificationFeedSeed.MatchReadInBell(db, userId, ad);
+        var clock = Substitute.For<IDateTimeProvider>();
+        clock.UtcNow.Returns(T0.AddHours(2));
+
+        var match = db.UserJobAdMatches.Single();
+        match.MarkQueued();
+        match.MarkSent(clock);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        db.UserJobAdMatches.Single().ReadInNotificationFeed.ShouldBeTrue("sending the e-mail never clears a read mark");
     }
 
     [Fact]

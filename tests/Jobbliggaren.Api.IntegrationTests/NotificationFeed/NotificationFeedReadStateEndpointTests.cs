@@ -152,13 +152,13 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>The user's click, as the command ends it: the aggregate's own method on every row of the ad.</summary>
+    /// <summary>The user's click on a match, as the command ends it: the one set-based statement, without the consent predicate.</summary>
     private async Task ReadMatchInBellAsync(Guid userId, JobAdId adId, CancellationToken ct)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        (await db.UserJobAdMatches.SingleAsync(m => m.UserId == userId && m.JobAdId == adId, ct)).MarkReadInNotificationFeed();
-        await db.SaveChangesAsync(ct);
+        await db.UserJobAdMatches.Where(m => m.UserId == userId && m.JobAdId == adId)
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.ReadInNotificationFeed, true), ct);
     }
 
     private async Task ReadHitsInBellAsync(Guid userId, JobAdId adId, CancellationToken ct)
@@ -340,10 +340,14 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
 
         (await MatchRowAsync(otherId, theirsMatch, ct)).ReadInNotificationFeed.ShouldBeFalse();
         (await HitRowsAsync(otherId, theirsFollow, ct)).ShouldAllBe(h => !h.ReadInNotificationFeed);
+        // ADR 0168 D3: a mark reads no JobAds, so the owner's own row of an ended ad is flagged. The feed never lists it, so
+        // nothing observes that, and the answer was the same 204.
+        (await MatchRowAsync(myId, endedAd, ct)).ReadInNotificationFeed.ShouldBeTrue();
     }
 
     // #2138 is open: nothing is built that writes a match row while the consent is withdrawn. A mark is the same 204 and
-    // no write, for the row, the set and the backlog alike.
+    // no write, for the row, the set and the backlog alike. The backlog reaches only a row created AFTER the off-stamp, so
+    // that row is seeded after it: a row from before the stamp stays unread whatever the consent says.
     [Fact]
     public async Task While_the_consent_is_withdrawn_a_mark_of_a_match_is_a_204_and_writes_no_match_row()
     {
@@ -352,14 +356,35 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         await ConsentAsync(userId, true, ct);
         var ad = await SeedAdAsync("Match", ct);
         await SeedMatchAsync(userId, ad, Base.AddMinutes(1), ct);
+        (await SwitchAsync(client, Matches, false, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var arrivedWhileOff = await SeedAdAsync("Kom medan den var av", ct);
+        await SeedMatchAsync(userId, arrivedWhileOff, DateTimeOffset.UtcNow.AddMinutes(10), ct);
         await ConsentAsync(userId, false, ct);
 
         (await MarkRowAsync(client, Matches, ad.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        (await MarkThroughAsync(client, Matches, Base.AddDays(1), ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        (await SwitchAsync(client, Matches, false, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await MarkRowAsync(client, Matches, arrivedWhileOff.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await MarkThroughAsync(client, Matches, DateTimeOffset.UtcNow.AddDays(1), ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await SwitchAsync(client, Matches, true, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         (await MatchRowAsync(userId, ad, ct)).ReadInNotificationFeed.ShouldBeFalse();
+        (await MatchRowAsync(userId, arrivedWhileOff, ct)).ReadInNotificationFeed.ShouldBeFalse();
+    }
+
+    // The row mark answers to the consent only, never to the user's switch for the type: a click on a row the bell can no
+    // longer show (the type was switched off in another tab) still marks it.
+    [Fact]
+    public async Task A_row_mark_of_a_match_still_writes_while_the_type_is_switched_off()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, userId) = await RegisterUserAsync("mark-type-off", ct);
+        await ConsentAsync(userId, true, ct);
+        var ad = await SeedAdAsync("Match", ct);
+        await SeedMatchAsync(userId, ad, Base.AddMinutes(1), ct);
+        (await SwitchAsync(client, Matches, false, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        (await MarkRowAsync(client, Matches, ad.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        (await MatchRowAsync(userId, ad, ct)).ReadInNotificationFeed.ShouldBeTrue();
     }
 
     // ── what a mark is and is not ────────────────────────────────────────────────────────────
@@ -777,9 +802,8 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     }
 
     // Eleven, not nine, when read rows hide unread ones in BOTH sources: the two conditional statements run. The base case
-    // (nothing read in the bell) stays at nine, pinned by NotificationFeedEndpointTests, and the read bucket's derivation
-    // (RateLimitingOptions.NotificationFeedRead) takes this worst case as its input. Driven with a small cap, which shrinks
-    // the window with it, so a handful of rows is enough.
+    // (nothing read in the bell) stays at nine, pinned by NotificationFeedEndpointTests. Driven with a small cap, which
+    // shrinks the window with it, so a handful of rows is enough.
     [Fact]
     public async Task A_request_whose_read_rows_hide_unread_ones_in_both_sources_runs_eleven_statements()
     {

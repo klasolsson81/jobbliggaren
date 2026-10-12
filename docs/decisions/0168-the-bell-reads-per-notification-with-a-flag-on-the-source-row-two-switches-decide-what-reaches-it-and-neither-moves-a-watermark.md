@@ -39,8 +39,7 @@ made the panel hold notifications only and decided, but did not build, the rest.
 - **The rows already exist and have one producer each.** `user_job_ad_matches` and `followed_company_ad_hits` are written by one job each under
   `DisableConcurrentExecution` (120 s for matching since ADR 0161, 1800 s for the follow scan), carry no concurrency token and no soft delete, and are erased with
   the account. `followed_company_ad_hits.seen_at` is the e-mail dedup authority, Pending hits only, and cannot stand for "read in the bell" (finding F3).
-- **Three sentences of 0162 become false:** the title's "read-only", D5's "adds no write surface" and D13's "No migration". A fourth, the contract text in
-  D1 that "the bell has no store of its own", is rewritten.
+- **Three sentences of 0162 become false:** the title's "read-only", D5's "adds no write surface" and D13's "No migration".
 - **Match rows outlive a withdrawn consent.** `security-auditor` graded that a GDPR Blocker in delivered behaviour outside the bell (#2138, open with Klas).
   Whatever this PR adds must not widen it.
 
@@ -56,9 +55,11 @@ bell alone: neither is a consent, a watermark or an input to anything else.** Th
   `false`, which is today's meaning, so there is no backfill; a `now()` backfill would hide notifications nobody has seen.
 - It is a channel flag, a different clock from the e-mail state machine (`NotificationStatus`, `SentAt`) and from the watermarks, and it is not `SeenAt`. A
   timestamp was refused: no named consumer reads the time (data minimisation, `security-auditor` V10).
-- **Writers:** the two source classes and nobody else. The aggregate's `MarkReadInNotificationFeed()` serves the row mark; mark-through and the backlog mark are one
-  set-based `ExecuteUpdate` each per source (D3). `MarkSeen`, `MarkQueued`, `MarkSent` and `MarkFailed` never touch the flag and it never touches `SeenAt`,
-  `NotificationStatus` or `SentAt` (F3, pinned both ways on both aggregates).
+- **Writers:** the two source classes and nobody else. Every write on a match row is one set-based `ExecuteUpdate` that carries the consent (D3), so the match
+  aggregate has no method that sets the flag; the follow source's row mark loads the ad's few hits and calls `FollowedCompanyAdHit.MarkReadInNotificationFeed()`, and its
+  mark-through and backlog are `ExecuteUpdate` too. `MarkSeen`, `MarkQueued`, `MarkSent` and `MarkFailed` never touch the flag and it never touches `SeenAt`,
+  `NotificationStatus` or `SentAt` (F3, pinned both ways on the follow aggregate; on matches, the mail path never clears a mark in `MatchFeedSourceReadStateTests` and a
+  mark leaves the mail state alone on Npgsql).
 - **Readers:** the two sources and, only when the bell asks, `NewFollowedCompanyAdSet.LoadCountInputAsync`. Never input to matching, grading, sorting or mail.
   Översikt's and the lists' statements never name the column (pinned on the statement text by `Oversikt_and_the_lists_never_read_the_bells_flag`).
 - No index of its own: the watermark bounds every scan to the head of the existing `(user_id, created_at)` index, and a partial "unread" index would never shrink,
@@ -69,7 +70,9 @@ bell alone: neither is a consent, a watermark or an input to anything else.** Th
 ### D2 — Unread in the bell, the token, and parity as an inequality (CTO B2, C4). Changes 0162 D2, D3, D7
 
 - **Unread** = new since the source's watermark AND not read in the bell AND the type is on AND (matches: the consent is held; follows: the hit is included by the
-  #1576 rule). A follow ad is unread while any included hit of it is; its moment is its newest included hit.
+  #1576 rule). A follow ad is unread while any included hit of it is; its moment is its newest included hit. One deviation, accepted by `dotnet-architect`: a row the
+  fallback names from outside the window takes the newest included UNREAD hit as its moment, so an ad with an older unread and a newer read hit, both beyond the window,
+  is listed at the older one. Inside the window the merge keeps the later of the two moments (pinned).
 - **The token is unchanged:** `MAX(CreatedAt)` over the watermark-new set with no flag predicate, read first. A token over unread rows only would leave a row read one
   by one above it, still "new" for Översikt and the list, and "Markera alla" would not show when nothing is unread (I1). D3's order stands; its point 4 changes
   destination only: the token still travels as the original string, now to the bell's own read-through endpoint (D3 below), not to `/seen`.
@@ -81,8 +84,8 @@ bell alone: neither is a consent, a watermark or an input to anything else.** Th
 ### D3 — Read marks: three writes behind `INotificationFeedReadMarker` (CTO B7, B11, B12, B13). Changes 0162 D1, D5, D8, D10
 
 - **The marker.** A source also implements the internal `INotificationFeedReadMarker` (ISP), so how a row is counted, listed and marked lives in one class and a new
-  source is one class. The reflection test fails the build if a source is not its own marker. Three members: a **row mark** (a tracked load and the aggregate's method;
-  a click reads the whole (source, ad) pair, which for follows is every hit of the ad the owner has), a **mark-through** (every watermark-new, unread row with
+  source is one class. The reflection test fails the build if a source is not its own marker. Three members: a **row mark** (a click reads the whole (source, ad) pair,
+  which for follows is every hit of the ad the owner has, loaded and marked through the aggregate; for matches it is one statement), a **mark-through** (every watermark-new, unread row with
   `CreatedAt <= token`; a row that arrived after the token stays unread, I4) and a **backlog mark** (D5). `ExecuteUpdate` is core EF, so no port.
 - **The wire.** `POST /api/v1/me/notification-feed/{source}/{jobAdId}/read` and `POST …/{source}/read` with a required body `{throughToken}`. `{source}` is a closed
   set (`matches`, `followed-company-ads`): anything else is a 400 before any read, as is an empty id; a non-GUID segment matches no route. The owner comes from
@@ -112,8 +115,8 @@ bell alone: neither is a consent, a watermark or an input to anything else.** Th
 - **Measured 2026-10-12** in Playwright against a production build with the fixture backend (`web/jobbliggaren-web/tests/job-modal/notifications-bell.spec.ts`, two
   cases; recorded in the spec and the action's docblock, not re-run for this ADR): the modal opens inside 2.5 s and the tagged modal node stays mounted, with the page
   behind it unmoved (the heading's x position), while the mark is held 0 ms and 5 000 ms and after the answer lands; the mark arrives once and no watermark moves.
-  **A limit the spec records:** a variant of the action that also called `revalidatePath` passed too, because the navigation overtakes the action and Next discards its
-  response. The no-re-render rule is a guard, not something the test detects.
+  **A limit the spec records:** a variant of the action that also called `revalidatePath` passed too, so the spec does not detect a re-rendering action. The guard
+  is the action's own unit test, which asserts that every re-rendering and cookie call is untouched.
 
 ### D5 — Two switches decide what reaches the bell (CTO B4, B5, B6, C8). Extends 0162 D6
 
@@ -143,7 +146,7 @@ bell alone: neither is a consent, a watermark or an input to anything else.** Th
 ### D6 — The sources return their newest unread rows explicitly (CTO Läsläge, PR 1 triage). Changes 0162 D1 (contract text), D4
 
 - **Contract.** A source returns its newest unread rows up to the cap, on every path that has a counted set, plus its newest rows to fill, each row once. The
-  `INotificationFeedSource` docblock says so in place of "the bell has no store of its own"; the merge never has to guess whether an unread row was left out. The
+  `INotificationFeedSource` docblock says so; the merge never has to guess whether an unread row was left out. The
   refused state (past `MaxCountedHits`) has no counted set to take rows from and returns its window only, as before.
 - **Match:** the newest-first list, and when read rows crowd unread ones out of it a second statement names the newest unread rows. **Follow:** the PR 1 grade-path
   reserve (from the counted hits, no second grading call) now has a common-path twin: one grouped statement (`GROUP BY job_ad_id`, ordered by the grouped
@@ -173,10 +176,10 @@ bell alone: neither is a consent, a watermark or an input to anything else.** Th
   `SET LOCAL lock_timeout = '3s'` first; `ADD read_in_notification_feed boolean NOT NULL DEFAULT false` on the two tables; the two `Preferences` stamps move the snapshot
   only (jsonb, no DDL); and, as a separately named block, `DROP INDEX ix_followed_company_ad_hits_user_id` then `CREATE INDEX
   ix_followed_company_ad_hits_user_created_at (user_id, created_at DESC)`.
-- **Locks** (documented PostgreSQL behaviour, not re-read against the PG 18 docs by `db-migration-writer` or here). `ADD COLUMN` takes ACCESS EXCLUSIVE, and the two are
-  held to commit; a constant default lives in the table's metadata, so there is no rewrite and no scan. The real exposure is queueing behind an open transaction, which
-  `lock_timeout` turns into a loud deploy failure that the next reconcile retries (every merge goes live on the one box, ADR 0154). The swap holds ACCESS EXCLUSIVE (DROP) and SHARE (CREATE) for milliseconds at this
-  table's size, and is not `CONCURRENTLY`.
+- **Locks** (PostgreSQL 18 documentation read by `db-migration-writer` on 2026-10-12, and measured by it on a throwaway `postgres:18.3`). `ADD COLUMN` takes ACCESS
+  EXCLUSIVE, and the two are held to commit; a constant default lives in the table's metadata, so there is no rewrite. The real exposure is queueing behind an open transaction, which
+  `lock_timeout` turns into a loud deploy failure that the next reconcile retries (every merge goes live on the one box, ADR 0154). Inside the migration's transaction the table already holds the `ADD COLUMN`'s
+  ACCESS EXCLUSIVE, so the DROP and the CREATE INDEX also block reads, for milliseconds at this table's size; the swap is not `CONCURRENTLY`.
 - **The swap replaces 0162 s5's measurement trigger with reasons.** The migration and the GO are paid by this PR anyway; this PR adds access paths keyed
   `(user_id, created_at)` on that table (the token, the newest-first window, mark-through, the backlog mark, the grouped unread statement); and the index that goes is a
   prefix of `ux_followed_company_ad_hits_user_jobad_watch` and `ix_followed_company_ad_hits_user_status`, so the index count and the write cost are unchanged and the
@@ -184,7 +187,8 @@ bell alone: neither is a consent, a watermark or an input to anything else.** Th
   hits on 2026-10-11, from `docs/current-work.md`, not re-measured; at that size the planner scans sequentially).
 - **Down is destructive** by this repository's convention: it drops both columns, so every read mark is lost and every notification reads unread again, and it
   reverses the swap. A code rollback makes `Migrate` refuse (schema ahead, exit 3) until `MIGRATE_ALLOW_SCHEMA_AHEAD` names this exact id. A per-migration test runs Up,
-  Down and Up as `jobbliggaren_app`. One GO from Klas covers the lot, and he can strike the swap.
+  Down and Up as `jobbliggaren_app`. One GO from Klas covers the lot, and he can strike the swap; striking it touches seven artefacts (the migration, its Designer and the
+  snapshot, `FollowedCompanyAdHitConfiguration`, `FollowedCompanyAdHitPersistenceTests`, the migration test and this section) and a new head.
 
 ### D9 — What this decision is not (CTO B3, the #2138 list). Changes 0162 D13
 
@@ -275,8 +279,7 @@ One PR on `feat/bell-read-state-and-settings`: the backend, the frontend, DESIGN
   fallback, each killed by a hand mutation of its own line (an ad at its newest included hit and not its oldest, the cap on the lowest ad ids when more ads share
   the newest moment, an unread fallback row keeping the later of its two moments:
   `ReadAsync_OnTheGradePath_NamesAnAdAtItsNewestIncludedHit_NotItsOldest`, `…_WhenMoreAdsShareTheNewestMomentThanTheCapTakes_TheCapFallsOnTheLowestAdIds`,
-  `…_TheUnreadFallbackRowKeepsTheLaterMomentOfTheWindowsRowOfTheSameAd`). The merge's own tie-break at the cap is the existing
-  `GetMyNotificationFeedQueryHandler.Merge` pins.
+  `…_TheUnreadFallbackRowKeepsTheLaterMomentOfTheWindowsRowOfTheSameAd`).
 - **Owed outside the diff.** Klas's migration GO (CLAUDE.md §6.5, §9.2); the field note in the local processing register, in the main copy; the PR 2 panel (`code-reviewer`,
   `dotnet-architect`, `security-auditor`, `design-reviewer`, `db-migration-writer`, `test-writer`) and `design-reviewer`'s renders of the flow and of `/mina-sidor/notiser` at 1280, 375 and 320.
 

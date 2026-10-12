@@ -139,9 +139,11 @@ public class FollowedCompanyAdFeedSourceReadStateTests
         read.Items.Single(i => i.JobAdId == older.Value).IsUnread.ShouldBeTrue();
     }
 
-    // An ad reached through two watches is two hits and one row. A click reads both; between a switch-on mark and a
-    // later hit, one can be read and the other not, and the ad is unread while ANY included new hit is: the count's
-    // own predicate, so the row and the count beside it cannot disagree.
+    // An ad reached through two watches is two hits and one row (two active watches on one employer, ADR 0162 D3b:
+    // code-producible, the brand-group catalogue being empty today). A click reads both. The switch-on mark reads the hits
+    // created after the type's off-stamp and leaves the older ones, so an older unread hit can sit beside a newer read one,
+    // and the ad is unread while ANY included new hit is: the count's own predicate, so the row and the count beside it
+    // cannot disagree.
     [Fact]
     public async Task ReadAsync_WithAnOlderUnreadHitBesideANewerReadOne_ListsOneUnreadRowAtTheNewestMoment()
     {
@@ -250,8 +252,13 @@ public class FollowedCompanyAdFeedSourceReadStateTests
         var graded = _seed.Watch(db, userId, onlyMatched: true);
         var included = _seed.ActiveAd(db, "Matchande annons");
         _seed.Hit(db, userId, included, graded, T0.AddHours(1));
+        // The excluded hits the window fills with are the ones the user already read in the bell.
         for (var i = 0; i < 8; i++)
-            _seed.Hit(db, userId, _seed.ActiveAd(db), graded, T0.AddHours(2 + i));
+        {
+            var excluded = _seed.ActiveAd(db);
+            _seed.Hit(db, userId, excluded, graded, T0.AddHours(2 + i));
+            NotificationFeedSeed.HitsReadInBell(db, userId, excluded);
+        }
         GradeAsMatching(included);
 
         var read = await ReadAsync(db, userId, maxItems: 2);
@@ -286,8 +293,9 @@ public class FollowedCompanyAdFeedSourceReadStateTests
     }
 
     // The grade path's ordering details (#2130 PR 1's named skip, closed here). The fallback names an ad at its NEWEST
-    // included hit, the moment the window would give it, so an ad with two hits sorts by the newer one. A mutant that
-    // took the oldest hit reverses these two.
+    // included hit, so an ad with two hits sorts by the newer one; a mutant that took the oldest hit reverses these two.
+    // Two hits of one ad are two active watches on one employer (ADR 0162 D3b: code-producible, the brand-group catalogue
+    // being empty today).
     [Fact]
     public async Task ReadAsync_OnTheGradePath_NamesAnAdAtItsNewestIncludedHit_NotItsOldest()
     {
@@ -311,6 +319,32 @@ public class FollowedCompanyAdFeedSourceReadStateTests
         read.Items.Select(i => i.Title).ShouldBe(["Två träffar", "En träff"]);
         read.Items[0].OccurredAt.ShouldBe(T0.AddMinutes(5));
         read.Items.ShouldAllBe(i => i.IsUnread);
+    }
+
+    // An ad is named at its newest INCLUDED hit: a newer hit through an "endast matchade" watch the grader excludes does not
+    // move it. A mutant that groups before the inclusion rule names it at the excluded hit's moment and swaps the order.
+    [Fact]
+    public async Task ReadAsync_OnTheGradePath_NamesAnAdAtItsNewestIncludedHit_NotAtANewerExcludedOne()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var regular = _seed.Watch(db, userId, onlyMatched: false);
+        var graded = _seed.Watch(db, userId, onlyMatched: true);
+        var mixed = _seed.ActiveAd(db, "Vanlig och utesluten");
+        var rival = _seed.ActiveAd(db, "Rival");
+        _seed.Hit(db, userId, mixed, regular, T0.AddMinutes(1));   // a regular watch includes every hit
+        _seed.Hit(db, userId, mixed, graded, T0.AddMinutes(9));    // the grader does not match this ad: excluded
+        _seed.Hit(db, userId, rival, regular, T0.AddMinutes(5));
+        for (var i = 0; i < 10; i++)
+            _seed.Hit(db, userId, _seed.ActiveAd(db), graded, T0.AddHours(1 + i));
+        GradeAsMatching();
+
+        var read = await ReadAsync(db, userId, maxItems: 3);
+
+        read.UnreadCount.ShouldBe(2);
+        read.Items.Select(i => i.Title).ShouldBe(["Rival", "Vanlig och utesluten"]);
+        read.Items[1].OccurredAt.ShouldBe(T0.AddMinutes(1));
     }
 
     // Seven ads share one moment and the cap is three: which three are named is decided by the ad id, ascending, and not by
@@ -337,7 +371,8 @@ public class FollowedCompanyAdFeedSourceReadStateTests
     }
 
     // An ad the window lists as READ (its newest hit is read) whose older hit is unread and beyond the window: the fallback
-    // makes the row unread and keeps the LATER of the two moments, so it does not sink below rows it is newer than.
+    // makes the row unread and keeps the LATER of the two moments, so it does not sink below rows it is newer than. The
+    // state is the switch-on mark's: it reads the hits created after the off-stamp and leaves the older ones.
     [Fact]
     public async Task ReadAsync_OnTheGradePath_TheUnreadFallbackRowKeepsTheLaterMomentOfTheWindowsRowOfTheSameAd()
     {

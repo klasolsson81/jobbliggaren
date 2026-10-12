@@ -239,7 +239,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
 
     /// <summary>
     /// The newest <paramref name="maxItems"/> ads the inclusion rule admits among the counted (unread) hits,
-    /// each at its newest INCLUDED hit, the same moment the window assigns it. Pure: no database access.
+    /// each at its newest included hit among them. Pure: no database access.
     /// </summary>
     private static List<(JobAdId AdId, DateTimeOffset At)> NewestIncludedUnreadAds(
         NewFollowedCompanyAdSet.CountInput countInput,
@@ -302,11 +302,11 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
     {
         var db = context.Db;
         var userId = context.UserId;
-        // The whole row, untracked: an owned JSON type cannot be projected without its owner, and this read sits in a
-        // command that must not touch the tracked aggregate (it is not a JobSeeker writer).
-        var seeker = await db.JobSeekers.AsNoTracking()
-            .FirstOrDefaultAsync(js => js.UserId == userId, cancellationToken);
-        if (seeker?.Preferences.NotificationFeedFollowedAdsOffAt is not { } offAt)
+        var stamp = await db.JobSeekers
+            .Where(js => js.UserId == userId)
+            .Select(js => new { js.Preferences.NotificationFeedFollowedAdsOffAt })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (stamp?.NotificationFeedFollowedAdsOffAt is not { } offAt)
             return;
 
         await db.FollowedCompanyAdHits

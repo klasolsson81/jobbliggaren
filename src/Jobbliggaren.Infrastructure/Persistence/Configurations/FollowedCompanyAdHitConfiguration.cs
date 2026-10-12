@@ -22,7 +22,7 @@ namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 ///   existing row in any non-Pending status is skipped). The watch_id is part of the key so the
 ///   same ad matched via TWO of a user's follows is two honest, independently-dispatched rows.</item>
 /// <item>Two btree indexes for the hot paths: dispatch query (user_id, notification_status) and
-///   the cascade-by-user sweep (user_id).</item>
+///   the cascade-by-user sweep and the bell's reads (user_id, created_at DESC).</item>
 /// </list>
 /// </para>
 /// <para>
@@ -75,7 +75,7 @@ public sealed class FollowedCompanyAdHitConfiguration : IEntityTypeConfiguration
         // over that handful of rows — a composite index buys nothing here (db-migration-writer 2026-07-02).
         builder.Property(h => h.SeenAt);
 
-        // #2130 (ADR 0162) — the notification bell's own per-row read state, NOT seen_at (the e-mail dedup
+        // #2130 (ADR 0168) — the notification bell's own per-row read state, NOT seen_at (the e-mail dedup
         // authority above). NOT NULL DEFAULT false: a row written before the column existed is unread in the
         // bell, which is today's meaning. No index of its own, for the reason given for seen_at.
         builder.Property(h => h.ReadInNotificationFeed)

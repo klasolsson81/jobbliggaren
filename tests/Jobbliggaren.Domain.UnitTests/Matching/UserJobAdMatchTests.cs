@@ -272,40 +272,15 @@ public class UserJobAdMatchTests
     }
 
     // ---------------------------------------------------------------
-    // ReadInNotificationFeed - #2130, the bell's own per-row read state (never the e-mail axis)
+    // ReadInNotificationFeed - #2130, the bell's own per-row read state (never the e-mail axis). The only writers are the
+    // set-based statements of MatchFeedSource, so the other half (the mail path never clears a read mark) is pinned in
+    // MatchFeedSourceReadStateTests, where a read row exists.
     // ---------------------------------------------------------------
 
     [Fact]
     public void Create_StartsUnreadInTheNotificationFeed()
     {
         CreateValid().Value.ReadInNotificationFeed.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void MarkReadInNotificationFeed_SetsTheFlag_AndTouchesNothingElse()
-    {
-        var match = CreateValid().Value;
-
-        match.MarkReadInNotificationFeed();
-
-        match.ReadInNotificationFeed.ShouldBeTrue();
-        // The e-mail axis is a different clock: reading in the bell never queues, sends or stamps.
-        match.NotificationStatus.ShouldBe(NotificationStatus.Pending);
-        match.SentAt.ShouldBeNull();
-        match.CreatedAt.ShouldBe(Clock.UtcNow);
-        match.Grade.ShouldBe(NotifiableMatchGrade.Strong);
-        match.MatchedSkillConceptIds.ShouldBe(["csharp", "sql"]);
-    }
-
-    [Fact]
-    public void MarkReadInNotificationFeed_WhenAlreadyRead_IsIdempotent()
-    {
-        var match = CreateValid().Value;
-        match.MarkReadInNotificationFeed();
-
-        match.MarkReadInNotificationFeed();
-
-        match.ReadInNotificationFeed.ShouldBeTrue();
     }
 
     [Fact]
@@ -320,12 +295,6 @@ public class UserJobAdMatchTests
         failed.MarkQueued();
         failed.MarkFailed();
         failed.ReadInNotificationFeed.ShouldBeFalse();
-
-        var read = CreateValid().Value;
-        read.MarkReadInNotificationFeed();
-        read.MarkQueued();
-        read.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
-        read.ReadInNotificationFeed.ShouldBeTrue("the mail path never clears a read mark");
     }
 
     // SoftDelete + DeletedAt retired by #868 (writerless decoy axis, same disease as #821/#915) —

@@ -1333,3 +1333,7 @@ trader's org.nr written into an ad's text is the holder's personnummer, and the 
 - **ADR 0134 D7.** Its pin (`PersonnummerGapProfileCallSiteTests`) names `JobAd.cs` as the one `Redact` site outside
   `Resumes/`.
 - **Not a read-time redaction on one surface.** D4 rejected a second normaliser on a read path, and this follows it.
+
+## Amendment 2026-10-12 (#2090 S2) — LIA K3
+
+LIA K3, the legitimate-interest assessment for the public page, is the assessment written as ADR 0166 (first numbered 0164). Klas approved its conclusion as controller on 2026-10-12, in the session's chat, and answered ADR 0166 D8 with an addendum to DPIA #456 §8-B. K3 is closed by that approval. The Art. 9 override in ADR 0166's Amendment 2026-10-11 is not part of it. K4 (the notice copy) and the other STOPP points are untouched.

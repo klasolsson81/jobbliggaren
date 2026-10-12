@@ -13,7 +13,6 @@ go-live condition of this page) · ADR 0053 (the job route and its modal) · ADR
 ADR 0163 (the per-request nonce CSP, PR #2128, open when this was written) ·
 [#2090](https://github.com/klasolsson81/jobbliggaren/issues/2090) (the epic; this is S2) ·
 [#2091](https://github.com/klasolsson81/jobbliggaren/issues/2091) (S1) · #2094 · #2098 · #2123 · #1477
-**Numbering:** written 2026-10-11 as ADR 0165 beside ADR 0166 (the legal basis), which was renumbered 2026-10-12 to ADR 0166 because `origin/main` took 0164 for the notification-mail pauses (#2135). This ADR keeps 0165.
 **Measured against:** the branch `feat/seo-s2-public-job-page`, cut from `8bc108dcf`; `origin/main` at `11750988b`; Next
 16.3.8. D1–D7 describe what the branch builds. It is not merged, and the merge is the go-live (ADR 0154).
 

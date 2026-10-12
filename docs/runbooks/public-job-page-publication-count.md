@@ -8,13 +8,12 @@ title, the description, the company name and the link), taken on the production 
 dataskyddslagen 3 kap. 10 §), and a sole trader's organisation number is their personnummer (#841). More than 0 means the page does not
 go live: wait for the next nightly snapshot (`sync-platsbanken-snapshot`, 02:00 UTC) and count again. The snapshot upserts every record and
 `JobAd.ApplyContactRedaction` masks a personnummer in title and description each time, so no backfill is needed for a listed ad (Klas,
-2026-10-11, waived S2-P2). A count that stays above 0 after a nightly run is a defect in the scrub, and its PR merges first. **Company name and
-link are never masked at import**, so a token there stays until the ad leaves the listed set; if one is counted, that is a finding of its own,
+2026-10-11, waived S2-P2). A count that stays above 0 after a nightly run is a defect in the scrub, and its PR merges first. **The link is never masked at import**, so a token there stays until the ad leaves the listed set; if one is counted, that is a finding of its own,
 not a reason to wait for the next run.
 
 **The gate measures the stock, not the flow.** It reads what is in the table on the day. An ad imported after go-live with a token in a
 form #2123 describes (a space around the hyphen, `.`, `/`, `_`) is published unmasked and nothing here sees it. `security-auditor` therefore
-requires #2123 merged and live, and a nightly run after it, before the page goes live, and this count taken on that release (ADR 0166 D4 W3, D10).
+requires #2123 merged and live, and a nightly run after it, before the page goes live, and this count taken on that release (ADR 0166 D4 W3, D11).
 
 **When.** After the first nightly snapshot that ran on a release containing #2123 and #2120, and **on the day of the merge** that makes the
 page live. A reading is never inherited from an earlier row of this table.
@@ -37,7 +36,7 @@ The statement is read-only, takes a `statement_timeout` of 180 s, and reads each
 - **listed** is the publication predicate's (`JobAdPublication.Classify`, ADR 0160 D2): imported from the published source
   (`external_source = 'Platsbanken'`, never the user-settable `source`), `status = 'Active'`, and `expires_at` null or `>= now()`.
   A reading with `listed_ads` near 0 is not a reading: it means the table is not the one that was meant.
-- **shaped_ads**: an ad with a token of a personnummer *shape*: 10 or 12 digits, with the separators the Domain scanner accepts
+- **shaped_ads**: an ad with a token of a personnummer *shape*: a run of digits, with the separators the Domain scanner accepts
   (`-`, `+`, a Unicode dash, U+2212, U+FF0D) and the #2123 forms (up to three space or zero-width characters around the separator, up to two separators in a row as in
   `811218 -- 9876` (#2137), `.`, `/`, `_`, split groups such as `81 12 18-9876` and `811218-98 76`). Fullwidth digits are folded to ASCII first, as the scanner does. The context number.
 - **validated_ads**: the same, and the token passes the Domain's own test, `Personnummer.TryParse`: month 01-12, day 01-31 or 61-91
@@ -74,6 +73,7 @@ Re-run it against such a fixture after any change to the query.
 | Date and time (UTC) | Release / sync run | listed | shaped (any) | validated (any) | title / description / company / url | link host not AF | Taken by |
 |---|---|---|---|---|---|---|---|
 | 2026-10-12 03:54-03:55 | Release 1627 (`e41eac850`, holds #2137) applied 01:49:35Z; the 02:00 snapshot ran on it, evidenced by `job_ads` autovacuum 02:05:51Z and the miss-tracking write 02:05:51Z (the worker was recreated 03:49Z by 1628, so its log is gone). Query `23cc0a4b9` (blob `297bfe6`) | 39 390 | 177 | **0** | shaped 0 / 177 / 0 / 0; validated 0 / 0 / 0 / 0 | 0 | Claude Code |
+| 2026-10-12 04:27 | Release 1628 (`9ca862013`, holds #2137), `--status` consistent before (04:27:09Z) and after (04:27:31Z); the 02:00 snapshot ran on 1627 (evidence above). Query blob `8c02e37` (comment-only change from `297bfe6`: the length claim on shaped_ads removed) | 39 409 | 177 | **0** | shaped 177 in the description, no row printed for the others; validated: no row printed (0) | 0 | Claude Code |
 
 The record is also posted on [#2090](https://github.com/klasolsson81/jobbliggaren/issues/2090) with the same date.
 

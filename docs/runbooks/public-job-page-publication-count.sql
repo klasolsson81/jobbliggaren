@@ -10,7 +10,7 @@
 -- so '09' < '12' needs no cast.
 --
 -- Two numbers per field, and one more for the label of the ad link:
---   shaped_ads    ads with a token of a personnummer SHAPE (10 or 12 digits, with the separators the Domain
+--   shaped_ads    ads with a token of a personnummer SHAPE (a digit run, with the separators the Domain
 --                 scanner accepts and the #2123/#2137 forms: spaces around the separator, up to two separators in a row, '.', '/', '_', split groups)
 --   validated_ads the same, and the token passes the Domain's own test: month 01-12, day 01-31 or 61-91
 --                 (samordningsnummer), Luhn over the 10 significant digits. THIS IS THE GATE: it must read 0.

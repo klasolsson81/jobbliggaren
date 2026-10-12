@@ -232,16 +232,14 @@ affected scope only, until Klas has taken it again. It withdraws no finding and 
 
 S2-P3 is a hard gate before go-live and is not waived (Klas waived only the backfill, ADR 0160 amendment). It is two counts
 over listed `job_ads` (Active, `expires_at` null or not past, imported from Platsbanken), in the title, the description,
-`company_name` **and** `url` (the four values the page prints; the last two are never masked at import). The first is a superset pattern over both families of forms: #2098's plain and 12-digit forms and #2123's
+`company_name` **and** `url` (the four values the page prints). The first is a superset pattern over both families of forms: #2098's plain and 12-digit forms and #2123's
 spaced-hyphen and `.`, `/`, `_` forms. The second is a date- and check-digit-validated count in SQL, by the same predicate as
 `Personnummer.TryParse`. **The gate is the validated count: 0.** The SQL is written so that no cast can fail on a data value
 (a cast error echoes the value, which would be an unintended read, CLAUDE.md §9.2 (e)), and only counts are written down. It is
 taken after the first nightly snapshot sync since #2120 was deployed, so the earliest reading is the morning of 2026-10-12. The
 date, the time and the two counts are recorded on #2090 and in this ADR.
 
-**As of this ADR's date the counts have not been taken, and their result is not in this ADR.** The proposed conclusion therefore
-stands on a residual that is unmeasured. A count above 0 means the page does not go live. What follows is set by the S2-P3
-comment on #2090 and #2123's gate text, and is not decided here. The result is entered here, dated, before go-live.
+**Readings (counts only).** 2026-10-12 03:54-03:55 UTC, release 1627: listed 39 390, shaped 177, validated 0. 2026-10-12 04:27 UTC, release 1628 (`9ca862013`; `--status` read consistent before and after): listed 39 409, shaped 177, validated 0 in the title, the description, the company name and the link; link host other than Arbetsförmedlingen 0. The gate reads 0 and is taken again on the day of the merge.
 
 ## Alternatives considered
 
@@ -296,8 +294,7 @@ Ships under #2090 S2 with ADR 0165 and the three amendments (ADR 0053, 0017, 016
 
 ## Sign-off
 
-**Controller approval:** pending Klas. His approval is the Art. 5(2) record of the controller's decision. At the same time he
-states his answer to D8 (an addendum or a full DPIA) and whether his approval also closes ADR 0106's K3.
+**Controller approval:** Klas Olsson, 2026-10-12, in the session's chat: the conclusion in D4 and D6 is approved. D8: an addendum to DPIA #456 §8-B, not a new full DPIA (draft written 2026-10-12, his approval of the text pending, local). This approval closes ADR 0106 K3.
 **Signature:** pending `security-auditor`. She signs this assessment and the revised notice text (sv and en).
 
 Until both lines read otherwise the Status stays Proposed, ADR 0160 D9.2 is not met, and the S2 PR is not set to merge. If Klas

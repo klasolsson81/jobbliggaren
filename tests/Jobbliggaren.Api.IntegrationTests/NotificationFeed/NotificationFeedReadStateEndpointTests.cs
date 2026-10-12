@@ -888,6 +888,50 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         statements.Texts.ShouldNotContain(text => text.Contains("read_in_notification_feed", StringComparison.OrdinalIgnoreCase));
     }
 
+    // The grade path over Npgsql with EXCLUDED hits (#2130 PR 1's named skip, closed here): an "endast matchade" watch's
+    // newest hits grade below Good and fill the window, so the older ads that do match are named only by the fallback, which
+    // runs the counted-hits-to-ads read the in-memory tests cannot translate. The grader is the one stub, as a profile
+    // build and a search belong to other contexts; everything else is the real provider.
+    [Fact]
+    public async Task On_the_grade_path_hits_the_grader_excludes_fill_the_window_and_the_older_matching_unread_ads_are_still_listed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (_, userId) = await RegisterUserAsync("grade-exclusion", ct);
+        var watch = await SeedWatchOnlyMatchedAsync(userId, ct);
+        var matching = new List<JobAdId>();
+        for (var i = 1; i <= 3; i++)
+        {
+            var ad = await SeedAdAsync($"Matchande {i}", ct);
+            matching.Add(ad);
+            await SeedHitAsync(userId, ad, watch, Base.AddMinutes(i), ct);
+        }
+
+        const int maxItems = 3;
+        var window = maxItems * FollowedCompanyAdFeedSource.HitsPerRow;
+        for (var i = 1; i <= window + 1; i++)
+            await SeedHitAsync(userId, await SeedAdAsync($"Utesluten {i}", ct), watch, Base.AddHours(1).AddMinutes(i), ct);
+
+        var profileBuilder = Substitute.For<IMatchProfileBuilder>();
+        profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(new FullCandidateMatchProfile(new CandidateMatchProfile("", ["ssyk-2512"], [], [], []), []));
+        var search = Substitute.For<IPerUserJobAdSearchQuery>();
+        search.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(), Arg.Any<CancellationToken>())
+            .Returns(new HashSet<JobAdId>(matching));
+
+        using var scope = factory.Services.CreateScope();
+        await using var db = NewContext(scope);
+        var read = await new FollowedCompanyAdFeedSource().ReadAsync(
+            new NotificationFeedReadContext(db, userId, maxItems, profileBuilder, search), ct);
+
+        read.UnreadCount.ShouldBe(3);
+        read.Items.ShouldAllBe(i => i.IsUnread);
+        read.Items.Select(i => i.Title).ShouldBe(["Matchande 3", "Matchande 2", "Matchande 1"]);
+        read.AcknowledgedThrough.ShouldBe(Base.AddHours(1).AddMinutes(window + 1));
+        await search.Received(1).FilterToMatchingAsync(
+            Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(), Arg.Any<CancellationToken>());
+    }
+
     private async Task<CompanyWatchId> SeedWatchOnlyMatchedAsync(Guid userId, CancellationToken ct)
     {
         using var scope = factory.Services.CreateScope();

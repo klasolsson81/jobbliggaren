@@ -285,6 +285,86 @@ public class FollowedCompanyAdFeedSourceReadStateTests
         read.Items.Single(i => i.JobAdId == unreadAd.Value).IsUnread.ShouldBeTrue();
     }
 
+    // The grade path's ordering details (#2130 PR 1's named skip, closed here). The fallback names an ad at its NEWEST
+    // included hit, the moment the window would give it, so an ad with two hits sorts by the newer one. A mutant that
+    // took the oldest hit reverses these two.
+    [Fact]
+    public async Task ReadAsync_OnTheGradePath_NamesAnAdAtItsNewestIncludedHit_NotItsOldest()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var first = _seed.Watch(db, userId, onlyMatched: true);
+        var second = _seed.Watch(db, userId, onlyMatched: true);
+        var twoHits = _seed.ActiveAd(db, "Två träffar");
+        var oneHit = _seed.ActiveAd(db, "En träff");
+        _seed.Hit(db, userId, twoHits, first, T0.AddMinutes(1));
+        _seed.Hit(db, userId, oneHit, first, T0.AddMinutes(3));
+        _seed.Hit(db, userId, twoHits, second, T0.AddMinutes(5));
+        for (var i = 0; i < 10; i++)
+            _seed.Hit(db, userId, _seed.ActiveAd(db), first, T0.AddHours(1 + i));
+        GradeAsMatching(twoHits, oneHit);
+
+        var read = await ReadAsync(db, userId, maxItems: 3);
+
+        read.UnreadCount.ShouldBe(2);
+        read.Items.Select(i => i.Title).ShouldBe(["Två träffar", "En träff"]);
+        read.Items[0].OccurredAt.ShouldBe(T0.AddMinutes(5));
+        read.Items.ShouldAllBe(i => i.IsUnread);
+    }
+
+    // Seven ads share one moment and the cap is three: which three are named is decided by the ad id, ascending, and not by
+    // the order the rows happen to come back in. The same ids are named whatever order they were created in.
+    [Fact]
+    public async Task ReadAsync_OnTheGradePath_WhenMoreAdsShareTheNewestMomentThanTheCapTakes_TheCapFallsOnTheLowestAdIds()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var graded = _seed.Watch(db, userId, onlyMatched: true);
+        var tied = Enumerable.Range(1, 7).Select(i => _seed.ActiveAd(db, $"Samtidig {i}")).ToArray();
+        foreach (var ad in tied)
+            _seed.Hit(db, userId, ad, graded, T0.AddMinutes(30));
+        for (var i = 0; i < 10; i++)
+            _seed.Hit(db, userId, _seed.ActiveAd(db), graded, T0.AddHours(1 + i));
+        GradeAsMatching(tied);
+
+        var read = await ReadAsync(db, userId, maxItems: 3);
+
+        read.UnreadCount.ShouldBe(7);
+        read.Items.Select(i => i.JobAdId).ShouldBe(tied.Select(a => a.Value).Order().Take(3));
+        read.Items.ShouldAllBe(i => i.OccurredAt == T0.AddMinutes(30));
+    }
+
+    // An ad the window lists as READ (its newest hit is read) whose older hit is unread and beyond the window: the fallback
+    // makes the row unread and keeps the LATER of the two moments, so it does not sink below rows it is newer than.
+    [Fact]
+    public async Task ReadAsync_OnTheGradePath_TheUnreadFallbackRowKeepsTheLaterMomentOfTheWindowsRowOfTheSameAd()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var older = _seed.Watch(db, userId, onlyMatched: true);
+        var newer = _seed.Watch(db, userId, onlyMatched: true);
+        var ad = _seed.ActiveAd(db, "Delvis läst");
+        _seed.Hit(db, userId, ad, older, T0.AddMinutes(1));
+        _seed.Hit(db, userId, ad, newer, T0.AddMinutes(10));
+        NotificationFeedSeed.HitReadInBell(db, userId, ad, newer);
+        // maxItems 1 reads a window of the newest three hits, and the fourth sets the horizon: the ad's newest hit is in
+        // the window, its older hit is not.
+        _seed.Hit(db, userId, _seed.ActiveAd(db), older, T0.AddMinutes(5));
+        _seed.Hit(db, userId, _seed.ActiveAd(db), older, T0.AddMinutes(11));
+        _seed.Hit(db, userId, _seed.ActiveAd(db), older, T0.AddMinutes(12));
+        GradeAsMatching(ad);
+
+        var read = await ReadAsync(db, userId, maxItems: 1);
+
+        read.UnreadCount.ShouldBe(1);
+        var row = read.Items.Single(i => i.JobAdId == ad.Value);
+        row.IsUnread.ShouldBeTrue();
+        row.OccurredAt.ShouldBe(T0.AddMinutes(10));
+    }
+
     [Fact]
     public async Task ReadAsync_IsOwnerScoped_AHitReadByAnotherUserDoesNotChangeMine()
     {

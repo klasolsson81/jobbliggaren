@@ -14,9 +14,12 @@ vi.mock("next/navigation", () => ({
 }));
 
 const taxonomy: TaxonomyTree = {
-  // ADR 0043-amendment 2026-06-13 (Klass 2) — required; not exercised here.
-  employmentTypes: [],
-  worktimeExtents: [],
+  // ADR 0043-amendment 2026-06-13 (Klass 2) — the real concept ids and source labels.
+  employmentTypes: [{ conceptId: "gro4_cWF_6D7", label: "Vikariat" }],
+  worktimeExtents: [
+    { conceptId: "6YE1_gAC_R2G", label: "Heltid" },
+    { conceptId: "947z_JGS_Uk2", label: "Deltid" },
+  ],
   regions: [
     {
       conceptId: "CifL_Rzy_Mku",
@@ -124,17 +127,28 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
     expect(screen.getByRole("combobox")).toHaveValue("hogia ");
   });
 
-  it("Klas-flödet: 'göteborg volvo heltid ' → ort + två q-ord, allt kvar i fältet", async () => {
+  it("Klas-flödet (#2148): 'göteborg volvo heltid ' → ort + omfattning som filter, volvo som q-ord, allt kvar i fältet", async () => {
     const user = userEvent.setup();
     setup();
     await user.type(screen.getByRole("combobox"), "göteborg volvo heltid ");
     expect(replaceMock).toHaveBeenLastCalledWith(
-      "/jobb?municipality=PVZL_BQT_XtL&q=volvo+heltid",
+      "/jobb?municipality=PVZL_BQT_XtL&worktimeExtent=6YE1_gAC_R2G&q=volvo",
       { scroll: false },
     );
     expect(screen.getByRole("combobox")).toHaveValue(
       "göteborg volvo heltid ",
     );
+  });
+
+  it("omfattning är en radio (#2148): 'heltid deltid ' → Deltid, det undanträngda ordet lämnar fältet", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByRole("combobox"), "heltid deltid ");
+    expect(replaceMock).toHaveBeenLastCalledWith(
+      "/jobb?worktimeExtent=947z_JGS_Uk2",
+      { scroll: false },
+    );
+    expect(screen.getByRole("combobox")).toHaveValue("deltid ");
   });
 
   it("pågående ord (caret i ordet) committas INTE", async () => {

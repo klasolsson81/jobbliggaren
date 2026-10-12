@@ -11,6 +11,7 @@ import {
   sameUrlState,
   serializeSearchText,
   updateTextForStateChange,
+  withoutDisplacedWorktimeWords,
 } from "./tokenize";
 import { buildTaxonomyLabelResolver } from "./chip-models";
 import type { JobbUrlState } from "./search-params";
@@ -654,7 +655,7 @@ describe("Klass 2-ord som filtertaggar (#2148)", () => {
     expect(drop.removedLabels).toEqual(["Heltid"]);
   });
 
-  it("I1: en popover-vald omfattning rörs inte när texten gör anspråk på en annan", () => {
+  it("omfattning är en radio: ett textord ersätter en popover-vald omfattning, anställningsform läggs till", () => {
     const state: JobbUrlState = { ...empty, worktimeExtent: ["947z_JGS_Uk2"] };
     const r = applyClaimsDelta(
       state,
@@ -662,7 +663,42 @@ describe("Klass 2-ord som filtertaggar (#2148)", () => {
       parseSearchText("heltid", idx, null),
       klass2,
     );
-    expect(r.next.worktimeExtent).toEqual(["947z_JGS_Uk2", "6YE1_gAC_R2G"]);
+    expect(r.next.worktimeExtent).toEqual(["6YE1_gAC_R2G"]);
+  });
+
+  it("två omfattningsord: det SISTA gör anspråk, det tidigare blir aldrig ett q-ord (CTO #2148)", () => {
+    const r = parseSearchText("heltid deltid", idx, null);
+    expect(r.matches).toEqual([
+      { kind: "WorktimeExtent", conceptId: "947z_JGS_Uk2", label: "Deltid" },
+    ]);
+    expect(r.qWords).toEqual([]);
+    const both = parseSearchText("heltid vikariat", idx, null);
+    expect(both.matches.map((m) => m.kind).sort()).toEqual(["EmploymentType", "WorktimeExtent"]);
+  });
+
+  it("I1 med två omfattningsord: staten bär exakt ett värde och appliedClaims lika många", () => {
+    const claims = parseSearchText("heltid deltid", idx, null);
+    const r = applyClaimsDelta(empty, EMPTY_CLAIMS, claims, klass2);
+    expect(r.next.worktimeExtent).toEqual(["947z_JGS_Uk2"]);
+    expect(r.appliedClaims.matches).toHaveLength(1);
+  });
+
+  it("withoutDisplacedWorktimeWords tar bort det undanträngda ordet och bevarar resten", () => {
+    expect(withoutDisplacedWorktimeWords("deltid heltid ", idx, null)).toBe("heltid ");
+    expect(withoutDisplacedWorktimeWords("volvo deltid, lärare heltid", idx, null)).toBe(
+      "volvo lärare heltid",
+    );
+    expect(withoutDisplacedWorktimeWords("heltid vikariat", idx, null)).toBe("heltid vikariat");
+    const text = "heltid lärare";
+    expect(withoutDisplacedWorktimeWords(text, idx, null)).toBe(text);
+  });
+
+  it("Deltid skrivet i fältet efter panelens Heltid ersätter den (texten och staten)", () => {
+    const state: JobbUrlState = { ...empty, worktimeExtent: ["6YE1_gAC_R2G"] };
+    const text = withoutDisplacedWorktimeWords("Heltid deltid ", idx, null);
+    expect(text).toBe("deltid ");
+    const r = applyClaimsDelta(state, parseSearchText("Heltid", idx, null), parseSearchText(text, idx, null), klass2);
+    expect(r.next.worktimeExtent).toEqual(["947z_JGS_Uk2"]);
   });
 
   it("enforceClaims återställer ett anspråk som staten tappat", () => {
@@ -685,6 +721,35 @@ describe("Klass 2-ord som filtertaggar (#2148)", () => {
     const claims = parseSearchText(text, idx, null);
     expect(claims.matches.map((m) => m.conceptId).sort()).toEqual(
       ["6YE1_gAC_R2G", "PVZL_BQT_XtL", "gro4_cWF_6D7"].sort(),
+    );
+  });
+
+  it("flerords-etiketter med skiljetecken rundtrippar och tas bort kirurgiskt", () => {
+    const multi: TaxonomyTree = {
+      ...klass2,
+      employmentTypes: [
+        ...klass2.employmentTypes,
+        { conceptId: "Jh8f_q9J_pbJ", label: "Sommarjobb / feriejobb" },
+      ],
+    };
+    const midx = buildLabelIndex(multi);
+    const mres = buildTaxonomyLabelResolver(multi, labelCopy);
+    const state: JobbUrlState = {
+      ...empty,
+      employmentType: ["Jh8f_q9J_pbJ", "kpPX_CNN_gDU"],
+      q: "volvo",
+    };
+    const text = serializeSearchText(state, mres, midx);
+    expect(text).toBe(
+      "Sommarjobb / feriejobb Tillsvidareanställning (inkl. eventuell provanställning) volvo",
+    );
+    const claims = parseSearchText(text, midx, null);
+    expect(claims.matches.map((m) => m.conceptId)).toEqual(["Jh8f_q9J_pbJ", "kpPX_CNN_gDU"]);
+    expect(claims.qWords).toEqual(["volvo"]);
+
+    const next: JobbUrlState = { ...state, employmentType: ["kpPX_CNN_gDU"] };
+    expect(updateTextForStateChange(text, state, next, mres, midx)).toBe(
+      "Tillsvidareanställning (inkl. eventuell provanställning) volvo",
     );
   });
 

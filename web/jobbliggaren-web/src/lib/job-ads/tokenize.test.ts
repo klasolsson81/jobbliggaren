@@ -4,6 +4,7 @@ import {
   buildLabelIndex,
   claimsCarriedBy,
   EMPTY_CLAIMS,
+  enforceClaims,
   getTokenRange,
   isTextRepresentable,
   parseSearchText,
@@ -569,5 +570,127 @@ describe("sameUrlState #454 PR-0 (employer i komparatorn)", () => {
     expect(sameUrlState({ ...empty, employer: [] }, { ...empty })).toBe(
       true,
     );
+  });
+});
+
+describe("Klass 2-ord som filtertaggar (#2148)", () => {
+  const klass2: TaxonomyTree = {
+    ...taxonomy,
+    employmentTypes: [
+      { conceptId: "gro4_cWF_6D7", label: "Vikariat" },
+      { conceptId: "kpPX_CNN_gDU", label: "Tillsvidareanställning (inkl. eventuell provanställning)" },
+    ],
+    worktimeExtents: [
+      { conceptId: "6YE1_gAC_R2G", label: "Heltid" },
+      { conceptId: "947z_JGS_Uk2", label: "Deltid" },
+    ],
+  };
+  const idx = buildLabelIndex(klass2);
+  const res = buildTaxonomyLabelResolver(klass2, labelCopy);
+
+  it("ett ord lika med en omfattning är ett anspråk, inte ett q-ord", () => {
+    const r = parseSearchText("Heltid lärare", idx, null);
+    expect(r.matches).toEqual([
+      { kind: "WorktimeExtent", conceptId: "6YE1_gAC_R2G", label: "Heltid" },
+    ]);
+    expect(r.qWords).toEqual(["lärare"]);
+  });
+
+  it("anställningsform och flerords-etikett matchar; 'vikariat' är anspråk", () => {
+    expect(parseSearchText("vikariat", idx, null).matches[0]).toMatchObject({
+      kind: "EmploymentType",
+      conceptId: "gro4_cWF_6D7",
+    });
+    const long = parseSearchText(
+      "tillsvidareanställning (inkl. eventuell provanställning)",
+      idx,
+      null,
+    );
+    expect(long.matches).toHaveLength(1);
+    expect(long.qWords).toEqual([]);
+  });
+
+  it("ett minus-ord gör aldrig anspråk: -heltid förblir ett uteslutet q-ord (ADR 0167 D2)", () => {
+    const r = parseSearchText("-heltid", idx, null);
+    expect(r.matches).toEqual([]);
+    expect(r.qWords).toEqual(["-heltid"]);
+  });
+
+  it("ett minus-ord bryter inte bort ett plus-ord: 'backend -göteborg heltid'", () => {
+    const r = parseSearchText("backend -göteborg heltid", idx, null);
+    expect(r.matches.map((m) => m.kind)).toEqual(["WorktimeExtent"]);
+    expect(r.qWords).toEqual(["backend", "-göteborg"]);
+  });
+
+  it("locale-namnet indexeras bredvid källetiketten", () => {
+    const en = buildLabelIndex(klass2, (id, fb) =>
+      id === "6YE1_gAC_R2G" ? "Full-time" : fb,
+    );
+    expect(parseSearchText("full-time", en, null).matches[0]).toMatchObject({
+      kind: "WorktimeExtent",
+      conceptId: "6YE1_gAC_R2G",
+    });
+    expect(parseSearchText("heltid", en, null).matches).toHaveLength(1);
+  });
+
+  it("delta: ordet sätter axeln och annonseras; att radera ordet släpper den", () => {
+    const add = applyClaimsDelta(
+      empty,
+      EMPTY_CLAIMS,
+      parseSearchText("heltid", idx, null),
+      klass2,
+    );
+    expect(add.next.worktimeExtent).toEqual(["6YE1_gAC_R2G"]);
+    expect(add.next.q).toBe("");
+    expect(add.addedLabels).toEqual(["Heltid"]);
+
+    const drop = applyClaimsDelta(
+      add.next,
+      add.appliedClaims,
+      EMPTY_CLAIMS,
+      klass2,
+    );
+    expect(drop.next.worktimeExtent).toEqual([]);
+    expect(drop.removedLabels).toEqual(["Heltid"]);
+  });
+
+  it("I1: en popover-vald omfattning rörs inte när texten gör anspråk på en annan", () => {
+    const state: JobbUrlState = { ...empty, worktimeExtent: ["947z_JGS_Uk2"] };
+    const r = applyClaimsDelta(
+      state,
+      EMPTY_CLAIMS,
+      parseSearchText("heltid", idx, null),
+      klass2,
+    );
+    expect(r.next.worktimeExtent).toEqual(["947z_JGS_Uk2", "6YE1_gAC_R2G"]);
+  });
+
+  it("enforceClaims återställer ett anspråk som staten tappat", () => {
+    const claims = parseSearchText("vikariat", idx, null);
+    expect(enforceClaims(empty, claims, klass2).employmentType).toEqual([
+      "gro4_cWF_6D7",
+    ]);
+  });
+
+  it("serialize + rundtripp: omfattning och anställningsform skrivs kanoniskt före q-orden", () => {
+    const state: JobbUrlState = {
+      ...empty,
+      municipality: ["PVZL_BQT_XtL"],
+      employmentType: ["gro4_cWF_6D7"],
+      worktimeExtent: ["6YE1_gAC_R2G"],
+      q: "volvo",
+    };
+    const text = serializeSearchText(state, res, idx);
+    expect(text).toBe("Göteborg Vikariat Heltid volvo");
+    const claims = parseSearchText(text, idx, null);
+    expect(claims.matches.map((m) => m.conceptId).sort()).toEqual(
+      ["6YE1_gAC_R2G", "PVZL_BQT_XtL", "gro4_cWF_6D7"].sort(),
+    );
+  });
+
+  it("toolbar-× på Heltid tar bort ordet ur texten (I1)", () => {
+    const prev: JobbUrlState = { ...empty, worktimeExtent: ["6YE1_gAC_R2G"], q: "volvo" };
+    const next: JobbUrlState = { ...empty, q: "volvo" };
+    expect(updateTextForStateChange("volvo heltid", prev, next, res, idx)).toBe("volvo");
   });
 });

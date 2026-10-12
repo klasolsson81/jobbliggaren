@@ -142,7 +142,15 @@ export function JobbHeroSearch({
     () => false,
   );
 
-  const labelIndex = useMemo(() => buildLabelIndex(taxonomy), [taxonomy]);
+  // #2148 — the reader's name for heltid, deltid, vikariat … is indexed beside the source
+  // label, so what the field writes back parses to the same filter in every locale.
+  const labelIndex = useMemo(
+    () =>
+      buildLabelIndex(taxonomy, (conceptId, fallback) =>
+        codedTaxonomyName(tEnum, conceptId, fallback),
+      ),
+    [taxonomy, tEnum],
+  );
   const resolveLabel = useMemo(
     () =>
       buildTaxonomyLabelResolver(taxonomy, {

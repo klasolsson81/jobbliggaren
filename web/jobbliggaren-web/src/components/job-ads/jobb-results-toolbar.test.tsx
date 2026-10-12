@@ -283,6 +283,17 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     expect(pushMock).toHaveBeenCalledWith("/jobb?q=volvo&commit=true");
   });
 
+  it("#2148: en minus-tagg har egen klass och Minus-ikon; en plus-tagg behåller den neutrala chippen", () => {
+    renderToolbar({ totalCount: 3, q: "volvo -deltid" });
+    const minus = screen.getByText("-deltid").closest(".jp-filterchip");
+    const plus = screen.getByText("volvo").closest(".jp-filterchip");
+    expect(minus).toHaveClass("jp-filterchip--excluded");
+    expect(minus?.querySelector("svg.lucide-minus")).not.toBeNull();
+    expect(minus?.querySelector("svg.lucide-search")).toBeNull();
+    expect(plus).not.toHaveClass("jp-filterchip--excluded");
+    expect(plus?.querySelector("svg.lucide-search")).not.toBeNull();
+  });
+
   it("sort-byte commit:ar sortBy och bevarar q + filter", async () => {
     const user = userEvent.setup();
     renderToolbar({

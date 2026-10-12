@@ -38,6 +38,14 @@ namespace Jobbliggaren.Domain.JobSeekers;
 /// <see cref="JobSeeker.SetTopMatchMail"/> and <see cref="JobSeeker.SetMatchSummaryMail"/>.
 /// </para>
 /// <para>
+/// <b>ADR 0168 (#2130) — what reaches the notification bell.</b> <see cref="NotificationFeedMatchesOffAt"/> and
+/// <see cref="NotificationFeedFollowedAdsOffAt"/> switch one notification type off in the bell, with the same
+/// shape as the mail pauses: a stamp whose <c>null</c> means on. They decide only what reaches the bell — never
+/// a consent, a withdrawal, an e-mail, or what Översikt and the lists show — and the bell ignores the mail
+/// pauses in turn (ADR 0164 D1). Mutated only via <see cref="JobSeeker.SetNotificationFeedMatches"/> and
+/// <see cref="JobSeeker.SetNotificationFeedFollowedAds"/>.
+/// </para>
+/// <para>
 /// TD-115 (2026-06-25): the legacy <c>EmailNotifications</c> (opt-OUT default, Art.
 /// 7-noncompliant) + <c>WeeklySummary</c> flags were RETIRED — they gated no email path
 /// (the Vag 4 dispatch reads <see cref="BackgroundMatchNotificationsEnabled"/> + the
@@ -58,4 +66,6 @@ public sealed record Preferences(
     DateTimeOffset? FollowedCompanyNotificationConsentWithdrawnAt = null,
     DateTimeOffset? NotificationMailOffAt = null,
     DateTimeOffset? TopMatchMailOffAt = null,
-    DateTimeOffset? MatchSummaryMailOffAt = null);
+    DateTimeOffset? MatchSummaryMailOffAt = null,
+    DateTimeOffset? NotificationFeedMatchesOffAt = null,
+    DateTimeOffset? NotificationFeedFollowedAdsOffAt = null);

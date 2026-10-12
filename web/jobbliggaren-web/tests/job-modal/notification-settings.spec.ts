@@ -17,6 +17,9 @@ import {
  * values survive a reload, a refused write reverts and leaves focus on the switch that caused it
  * (design-reviewer B2), and the card never scrolls sideways at phone widths.
  *
+ * #2130: the two bell switches ("som notis i appen") sit beside the e-mail ones and answer to neither the
+ * e-mail switch nor the e-mail types; the matches one exists only while the match consent is on.
+ *
  * With VISUAL_SHOTS_DIR set, every state is also saved as a screenshot for the design verdict.
  */
 
@@ -48,6 +51,10 @@ const SUMMARY = "Sammanfattning via e-post";
 const FOLLOW = "Nya annonser via e-post";
 const PAUSED = "Skickas inte medan e-postnotiser är av.";
 const CADENCE = "Hur ofta";
+const FEED_MATCH = "Nya matchningar som notis i appen";
+const FEED_FOLLOW = "Nya annonser som notis i appen";
+const FEED_MATCH_ROUTE = "PUT /api/v1/me/notification-feed/matches";
+const FEED_FOLLOW_ROUTE = "PUT /api/v1/me/notification-feed/followed-company-ads";
 
 const switchNamed = (page: Page, name: string) => page.getByRole("switch", { name, exact: true });
 const refusal = (page: Page) =>
@@ -117,6 +124,11 @@ for (const width of [1280, 375] as const) {
 
       await expect(switchNamed(page, TOP)).toHaveCount(state.mailTypeSwitches);
       await expect(switchNamed(page, SUMMARY)).toHaveCount(state.mailTypeSwitches);
+      // The bell's matches switch follows the consent, never the e-mail switch; the follow one is always there.
+      await expect(switchNamed(page, FEED_MATCH)).toHaveCount(
+        state.settings.backgroundMatchNotificationsEnabled ? 1 : 0,
+      );
+      await expect(switchNamed(page, FEED_FOLLOW)).toHaveCount(1);
       await expect(page.getByRole("radiogroup", { name: CADENCE })).toHaveCount(state.cadence ? 1 : 0);
       await expect(page.getByText(PAUSED, { exact: true })).toHaveCount(state.paused ? 1 : 0);
       await shot(page, `${state.name}-${width}`);
@@ -218,6 +230,81 @@ test("a refused e-mail-on that hides the focused switch leaves focus on the e-ma
   await expect(refusal(page)).toBeVisible();
   await expect(switchNamed(page, TOP)).toHaveCount(0);
   await expect(switchNamed(page, MAIL)).toBeFocused();
+});
+
+test("a new account has both bell switches on and the matches one hidden until the consent is given", async ({ page }) => {
+  await open(page, {});
+  await expect(switchNamed(page, FEED_FOLLOW)).toHaveAttribute("aria-checked", "true");
+  await expect(switchNamed(page, FEED_MATCH)).toHaveCount(0);
+
+  await switchNamed(page, MATCH).click();
+
+  await expect(switchNamed(page, FEED_MATCH)).toHaveAttribute("aria-checked", "true");
+  await shot(page, "feed-matches-after-consent-1280");
+});
+
+test("the bell switches answer to neither the e-mail switch nor the e-mail types", async ({ page }) => {
+  await open(page, {
+    notificationMailEnabled: false,
+    backgroundMatchNotificationsEnabled: true,
+    followedCompanyNotificationsEnabled: true,
+  });
+
+  await expect(switchNamed(page, FEED_MATCH)).toBeEnabled();
+  await expect(switchNamed(page, FEED_FOLLOW)).toBeEnabled();
+  // They carry no "not sent while e-mail is off" line: they are not e-mail.
+  await expect(switchNamed(page, FEED_FOLLOW)).not.toHaveAccessibleDescription(new RegExp(PAUSED));
+
+  await switchNamed(page, MAIL).click();
+  await expect(switchNamed(page, TOP)).toBeVisible();
+  await expect(switchNamed(page, FEED_MATCH)).toHaveAttribute("aria-checked", "true");
+  await expect(switchNamed(page, FEED_FOLLOW)).toHaveAttribute("aria-checked", "true");
+  expect(harness.settingsWrites.map((write) => write.route)).toEqual(["PUT /api/v1/me/notification-mail"]);
+});
+
+test("a bell switch off survives a reload and writes only its own route", async ({ page }) => {
+  await open(page, { backgroundMatchNotificationsEnabled: true });
+
+  await switchNamed(page, FEED_FOLLOW).click();
+  await expect(page.getByText(/^Sparat \d{2}:\d{2}$/)).toBeVisible();
+  await page.reload();
+
+  await expect(switchNamed(page, FEED_FOLLOW)).toHaveAttribute("aria-checked", "false");
+  await expect(switchNamed(page, FEED_MATCH)).toHaveAttribute("aria-checked", "true");
+  expect(harness.settingsWrites).toEqual([{ route: FEED_FOLLOW_ROUTE, body: { enabled: false } }]);
+
+  await switchNamed(page, FEED_MATCH).click();
+  await expect.poll(() => harness.notificationSettings.notificationFeedMatchesEnabled).toBe(false);
+  await page.reload();
+  await expect(switchNamed(page, FEED_MATCH)).toHaveAttribute("aria-checked", "false");
+  await expect(switchNamed(page, FEED_FOLLOW)).toHaveAttribute("aria-checked", "false");
+  expect(harness.settingsWrites.map((write) => write.route)).toEqual([FEED_FOLLOW_ROUTE, FEED_MATCH_ROUTE]);
+});
+
+test("withdrawing the match consent removes the bell's matches switch and keeps its value for the next consent", async ({ page }) => {
+  await open(page, { backgroundMatchNotificationsEnabled: true, notificationFeedMatchesEnabled: false });
+  await expect(switchNamed(page, FEED_MATCH)).toHaveAttribute("aria-checked", "false");
+
+  await switchNamed(page, MATCH).click();
+  await expect(switchNamed(page, FEED_MATCH)).toHaveCount(0);
+  await switchNamed(page, MATCH).click();
+
+  // The saved choice comes back as it was left, and nothing but the consent was written.
+  await expect(switchNamed(page, FEED_MATCH)).toHaveAttribute("aria-checked", "false");
+  expect(harness.notificationSettings.notificationFeedMatchesEnabled).toBe(false);
+  expect(harness.settingsWrites.map((write) => write.route)).not.toContain(FEED_MATCH_ROUTE);
+});
+
+test("a refused bell switch reverts and says so under it", async ({ page }) => {
+  await open(page, { backgroundMatchNotificationsEnabled: true });
+  harness.refuseNextSettingsWrite = true;
+
+  await switchNamed(page, FEED_FOLLOW).click();
+
+  await expect(refusal(page)).toBeVisible();
+  await expect(switchNamed(page, FEED_FOLLOW)).toHaveAttribute("aria-checked", "true");
+  expect(harness.notificationSettings.notificationFeedFollowedAdsEnabled).toBe(true);
+  await shot(page, "feed-refused-1280");
 });
 
 test("captures the card in the dark theme, with a background other than the light theme's", async ({ page }) => {

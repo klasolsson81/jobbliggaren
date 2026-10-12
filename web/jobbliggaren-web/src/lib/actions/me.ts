@@ -26,6 +26,8 @@ import {
   updateFollowedCompanyNotificationConsent,
   updateMatchSummaryMail,
   updateNotificationConsent,
+  updateNotificationFeedFollowedAds,
+  updateNotificationFeedMatches,
   updateNotificationMail,
   updateTopMatchMail,
 } from "@/lib/api/me";
@@ -46,6 +48,10 @@ import {
   type UpdateTopMatchMailInput,
   makeUpdateMatchSummaryMailSchema,
   type UpdateMatchSummaryMailInput,
+  makeUpdateNotificationFeedMatchesSchema,
+  type UpdateNotificationFeedMatchesInput,
+  makeUpdateNotificationFeedFollowedAdsSchema,
+  type UpdateNotificationFeedFollowedAdsInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
 import type { ActionResult } from "./_action-result";
@@ -212,6 +218,40 @@ export async function updateMatchSummaryMailAction(
 
   const result = await updateMatchSummaryMail({ enabled: parsed.data.enabled });
   return notificationSettingOutcome(result, ts, "backgroundMatch");
+}
+
+/**
+ * ADR 0168 (#2130) — whether new matches reach the bell. A delivery choice, never a consent: neither
+ * direction writes or withdraws one (security V3), and the field is the only one it carries. Its failures read
+ * as the background-match copy, which names no purpose.
+ */
+export async function updateNotificationFeedMatchesAction(
+  input: UpdateNotificationFeedMatchesInput
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const t = await getTranslations("validation");
+  const parsed = makeUpdateNotificationFeedMatchesSchema(t).safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: ts("backgroundMatch.errors.invalidInput") };
+  }
+
+  const result = await updateNotificationFeedMatches({ enabled: parsed.data.enabled });
+  return notificationSettingOutcome(result, ts, "backgroundMatch");
+}
+
+/** ADR 0168 (#2130) — whether new ads from followed companies reach the bell. Same rule; the follow mail's consent is untouched. */
+export async function updateNotificationFeedFollowedAdsAction(
+  input: UpdateNotificationFeedFollowedAdsInput
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const t = await getTranslations("validation");
+  const parsed = makeUpdateNotificationFeedFollowedAdsSchema(t).safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: ts("followedCompanyNotifications.errors.invalidInput") };
+  }
+
+  const result = await updateNotificationFeedFollowedAds({ enabled: parsed.data.enabled });
+  return notificationSettingOutcome(result, ts, "followedCompanyNotifications");
 }
 
 function notificationSettingOutcome(

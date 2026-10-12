@@ -95,6 +95,54 @@ internal sealed class NotificationFeedSeed
         db.SaveChanges();
     }
 
+    /// <summary>
+    /// The user opened this match in the bell (#2130). Production writes the flag with one set-based UPDATE
+    /// (<c>MatchFeedSource</c>'s three marks), which EF InMemory cannot run; the state that leaves behind is this one
+    /// boolean, set here through the change tracker. It touches no watermark.
+    /// </summary>
+    public static void MatchReadInBell(AppDbContext db, Guid userId, JobAdId adId)
+    {
+        var match = db.UserJobAdMatches.Single(m => m.UserId == userId && m.JobAdId == adId);
+        db.Entry(match).Property(m => m.ReadInNotificationFeed).CurrentValue = true;
+        db.SaveChanges();
+    }
+
+    /// <summary>The user opened this ad's notification in the bell: every hit of the ad is read, as a click reads them.</summary>
+    public static void HitsReadInBell(AppDbContext db, Guid userId, JobAdId adId)
+    {
+        foreach (var hit in db.FollowedCompanyAdHits.Where(h => h.UserId == userId && h.JobAdId == adId))
+            hit.MarkReadInNotificationFeed();
+        db.SaveChanges();
+    }
+
+    /// <summary>
+    /// ONE hit of an ad read in the bell. The click reads them all, but the state in between is produced by the
+    /// switch-on mark (it flags the hits created after an off-stamp), which can leave an ad's older hit unread beside a
+    /// newer one that is read.
+    /// </summary>
+    public static void HitReadInBell(AppDbContext db, Guid userId, JobAdId adId, CompanyWatchId watchId)
+    {
+        db.FollowedCompanyAdHits
+            .Single(h => h.UserId == userId && h.JobAdId == adId && h.CompanyWatchId == watchId)
+            .MarkReadInNotificationFeed();
+        db.SaveChanges();
+    }
+
+    /// <summary>The user's switch for a type (#2130), through the aggregate's own setter.</summary>
+    public void SwitchFeedMatches(AppDbContext db, JobSeeker seeker, bool on, DateTimeOffset at)
+    {
+        _clock.UtcNow.Returns(at);
+        seeker.SetNotificationFeedMatches(on, _clock);
+        db.SaveChanges();
+    }
+
+    public void SwitchFeedFollowedAds(AppDbContext db, JobSeeker seeker, bool on, DateTimeOffset at)
+    {
+        _clock.UtcNow.Returns(at);
+        seeker.SetNotificationFeedFollowedAds(on, _clock);
+        db.SaveChanges();
+    }
+
     public CompanyWatchId Watch(AppDbContext db, Guid userId, bool onlyMatched)
     {
         _clock.UtcNow.Returns(T0);

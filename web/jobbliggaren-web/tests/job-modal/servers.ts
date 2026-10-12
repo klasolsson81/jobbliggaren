@@ -89,6 +89,12 @@ export type Harness = {
   settingsWriteDelayMs: number;
   /** #2107 — the settings PUTs received, in order. */
   readonly settingsWrites: { route: string; body: Record<string, unknown> }[];
+  /** #2130 — the bell's read marks the backend received, in order: one row, or everything through a token. */
+  readonly readReceipts: { route: string; body: Record<string, unknown> }[];
+  /** #2130 — how long a read mark waits before it answers, so a test can act while it is pending. */
+  readMarkDelayMs: number;
+  /** #2130 — the next read mark answers 500 and marks nothing. */
+  refuseNextReadMark: boolean;
   reset(): void;
   stop(): Promise<void>;
 };
@@ -190,8 +196,11 @@ export const QUIET_NOTIFICATION_FEED = {
   ],
 } as const;
 
-/** #2107 — the six values /mina-sidor/notiser reads from the profile. */
+/** #2107, #2130 — the eight values /mina-sidor/notiser reads from the profile. */
 export type NotificationSettings = {
+  /** #2130 — whether each type reaches the bell. */
+  notificationFeedMatchesEnabled: boolean;
+  notificationFeedFollowedAdsEnabled: boolean;
   notificationMailEnabled: boolean;
   backgroundMatchNotificationsEnabled: boolean;
   topMatchMailEnabled: boolean;
@@ -202,6 +211,8 @@ export type NotificationSettings = {
 
 /** A new account: e-mail and both mail types on, both consents off, the weekly cadence. */
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  notificationFeedMatchesEnabled: true,
+  notificationFeedFollowedAdsEnabled: true,
   notificationMailEnabled: true,
   backgroundMatchNotificationsEnabled: false,
   topMatchMailEnabled: true,
@@ -217,7 +228,15 @@ const SETTINGS_WRITES: Record<string, keyof NotificationSettings> = {
   "PUT /api/v1/me/match-summary-mail": "matchSummaryMailEnabled",
   "PUT /api/v1/me/followed-company-notification-consent": "followedCompanyNotificationsEnabled",
   "PUT /api/v1/me/digest-cadence": "digestCadence",
+  "PUT /api/v1/me/notification-feed/matches": "notificationFeedMatchesEnabled",
+  "PUT /api/v1/me/notification-feed/followed-company-ads": "notificationFeedFollowedAdsEnabled",
 };
+
+/** #2130 — the bell's two read marks: one row of a source, and everything of a source through a token. */
+const READ_MARK_ROUTES = [
+  /^POST \/api\/v1\/me\/notification-feed\/(matches|followed-company-ads)\/[0-9a-f-]{36}\/read$/,
+  /^POST \/api\/v1\/me\/notification-feed\/(matches|followed-company-ads)\/read$/,
+];
 
 export async function startHarness(informationFlows = false, applicationCopies = 0, ports: { proxy: number; next: number; backend: number } = HARNESS_PORTS): Promise<Harness> {
   const misses: string[] = [];
@@ -226,6 +245,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
   const feedbackReceipts: FeedbackReceipt[] = [];
   const seenReceipts: { route: string; body: Record<string, unknown> }[] = [];
   const settingsWrites: { route: string; body: Record<string, unknown> }[] = [];
+  const readReceipts: { route: string; body: Record<string, unknown> }[] = [];
   const ads = [...ALL_ADS, ...Array.from({ length: applicationCopies }, (_, index) => ({
     ...ALL_ADS[1]!,
     id: `19860000-0000-4000-8000-${String(index + 1000).padStart(12, "0")}`,
@@ -254,6 +274,9 @@ export async function startHarness(informationFlows = false, applicationCopies =
     refuseNextSettingsWrite: false,
     settingsWriteDelayMs: 0,
     settingsWrites,
+    readReceipts,
+    readMarkDelayMs: 0,
+    refuseNextReadMark: false,
     reset() {
       misses.length = 0;
       requests.length = 0;
@@ -261,6 +284,9 @@ export async function startHarness(informationFlows = false, applicationCopies =
       feedbackReceipts.length = 0;
       seenReceipts.length = 0;
       settingsWrites.length = 0;
+      readReceipts.length = 0;
+      harness.readMarkDelayMs = 0;
+      harness.refuseNextReadMark = false;
       harness.notificationSettings = { ...DEFAULT_NOTIFICATION_SETTINGS };
       harness.refuseNextSettingsWrite = false;
       harness.settingsWriteDelayMs = 0;
@@ -354,6 +380,15 @@ export async function startHarness(informationFlows = false, applicationCopies =
     if (route === "POST /api/v1/me/matches/seen" || route === "POST /api/v1/me/followed-company-ads/seen") {
       seenReceipts.push({ route, body: await bodyOf(request) });
       return json(204);
+    }
+    if (READ_MARK_ROUTES.some((pattern) => pattern.test(route))) {
+      readReceipts.push({ route, body: await bodyOf(request) });
+      // Decided on arrival: a request held from an earlier test must not spend a later test's refusal.
+      const refuse = harness.refuseNextReadMark;
+      if (refuse) harness.refuseNextReadMark = false;
+      const hold = harness.readMarkDelayMs;
+      if (hold > 0) await new Promise((resolve) => setTimeout(resolve, hold));
+      return refuse ? json(500, { title: "Internal Server Error", status: 500 }) : json(204);
     }
     const setting = SETTINGS_WRITES[route];
     if (setting) {

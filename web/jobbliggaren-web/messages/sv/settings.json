@@ -13,7 +13,9 @@
     "mailLabel": "E-postnotiser",
     "mailPaused": "Skickas inte medan e-postnotiser är av.",
     "matchesTitle": "Matchningar",
-    "followTitle": "Företag du följer"
+    "feedMatchesLabel": "Nya matchningar som notis i appen",
+    "followTitle": "Företag du följer",
+    "feedFollowedAdsLabel": "Nya annonser som notis i appen"
   },
   "backgroundMatch": {
     "toggleLabel": "Matcha nya annonser åt mig",

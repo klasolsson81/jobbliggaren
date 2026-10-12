@@ -168,6 +168,49 @@ public class GetMyProfileQueryHandlerTests
         result.MatchSummaryMailEnabled.ShouldBeTrue();
     }
 
+    // ADR 0162 (#2130) - the two bell switches project as on/off, derived from their off-stamps, and never as the stamps.
+    [Fact]
+    public async Task Handle_WhenNoBellSwitchWasEverSet_ProjectsBothOn()
+    {
+        var userId = Guid.NewGuid();
+        var db = TestAppDbContextFactory.Create();
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var result = await HandlerFor(db, userId).Handle(new GetMyProfileQuery(), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result.NotificationFeedMatchesEnabled.ShouldBeTrue();
+        result.NotificationFeedFollowedAdsEnabled.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_AfterABellSwitchIsTurnedOff_ProjectsThatSwitchOffAndTheOtherOn(bool matches)
+    {
+        var userId = Guid.NewGuid();
+        var db = TestAppDbContextFactory.Create();
+        var clock = FakeDateTimeProvider.Default;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        if (matches)
+            seeker.SetNotificationFeedMatches(on: false, clock);
+        else
+            seeker.SetNotificationFeedFollowedAds(on: false, clock);
+        seeker.SetNotificationMail(on: false, clock);
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var result = await HandlerFor(db, userId).Handle(new GetMyProfileQuery(), CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result.NotificationFeedMatchesEnabled.ShouldBe(!matches);
+        result.NotificationFeedFollowedAdsEnabled.ShouldBe(matches);
+        // The bell ignores the mail pauses (ADR 0164 D1), and so does the projection of its own switches.
+        result.NotificationMailEnabled.ShouldBeFalse();
+    }
+
     [Theory]
     [InlineData(MailSwitch.AllNotificationMail)]
     [InlineData(MailSwitch.TopMatchMail)]

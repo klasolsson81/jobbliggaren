@@ -76,6 +76,11 @@ export const jobSeekerProfileSchema = z.object({
   notificationMailEnabled: z.boolean(),
   topMatchMailEnabled: z.boolean(),
   matchSummaryMailEnabled: z.boolean(),
+  // ADR 0168 (#2130): whether each notification type reaches the bell, `true` = on (the default for every
+  // user). Delivery choices, not consents: each only decides what the bell shows, never what Översikt or the
+  // lists show. The backend always projects them → required keys.
+  notificationFeedMatchesEnabled: z.boolean(),
+  notificationFeedFollowedAdsEnabled: z.boolean(),
   createdAt: z.string(),
   hasStatedDesiredOccupation: z.boolean(),
   preferredOccupationGroups: z.array(z.string()).readonly(),

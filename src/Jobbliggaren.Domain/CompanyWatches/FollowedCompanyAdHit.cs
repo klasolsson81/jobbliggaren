@@ -52,6 +52,15 @@ public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
     /// </summary>
     public DateTimeOffset? SeenAt { get; private set; }
 
+    /// <summary>
+    /// #2130 (ADR 0168) — the notification bell's own per-row read state: <c>true</c> once the user opened this
+    /// ad's notification in the bell (a click marks every hit of the ad), or marked it through "Markera alla
+    /// som lästa". It is a channel flag and NOT <see cref="SeenAt"/>: <see cref="SeenAt"/> is the e-mail
+    /// dedup authority (set when the ad is opened anywhere in-app, Pending hits only), while this answers
+    /// only "did the bell's user read this notification", moves no watermark and never suppresses a mail.
+    /// </summary>
+    public bool ReadInNotificationFeed { get; private set; }
+
     // EF Core constructor
     private FollowedCompanyAdHit() { }
 
@@ -158,6 +167,14 @@ public sealed class FollowedCompanyAdHit : AggregateRoot<FollowedCompanyAdHitId>
         SeenAt = clock.UtcNow;
         return Result.Success();
     }
+
+    /// <summary>
+    /// #2130 — marks this hit read in the notification bell. Idempotent, with no mail precondition (unlike
+    /// <see cref="MarkSeen"/>, which is Pending-only): a hit that was mailed is still a notification the user
+    /// can open in the bell. It writes only <see cref="ReadInNotificationFeed"/> — never <see cref="SeenAt"/>
+    /// or the mail state — and <see cref="MarkSeen"/> never writes it.
+    /// </summary>
+    public void MarkReadInNotificationFeed() => ReadInNotificationFeed = true;
 
     /// <summary>
     /// #453 (audit #26) — Queued → Failed (terminal). The <c>StrandedMatchReaperJob</c> follow arm calls

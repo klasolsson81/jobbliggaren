@@ -36,6 +36,8 @@ export default async function MinaSidorNotiserPage() {
             initialTopMatchEnabled={profileResult.data.topMatchMailEnabled}
             initialSummaryEnabled={profileResult.data.matchSummaryMailEnabled}
             initialFollowEnabled={profileResult.data.followedCompanyNotificationsEnabled}
+            initialFeedMatchesEnabled={profileResult.data.notificationFeedMatchesEnabled}
+            initialFeedFollowedAdsEnabled={profileResult.data.notificationFeedFollowedAdsEnabled}
             initialCadence={profileResult.data.digestCadence}
           />
         ) : (

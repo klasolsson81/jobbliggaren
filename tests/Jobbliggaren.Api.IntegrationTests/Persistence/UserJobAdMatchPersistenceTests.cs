@@ -246,6 +246,29 @@ public sealed class UserJobAdMatchPersistenceTests(ApiFactory factory)
         }
     }
 
+    [Fact]
+    public async Task ReadInNotificationFeed_IsABooleanNotNullDefaultFalse()
+    {
+        // #2130: the physical column, straight from the catalog (the snapshot cannot vouch for the DDL). The
+        // DEFAULT is the whole backfill: a row written before the column existed reads false, which is "not
+        // individually read in the bell" (today's meaning).
+        var ct = TestContext.Current.CancellationToken;
+        var (db, _, scope) = NewScope();
+        using (scope)
+        {
+            var shape = await db.Database
+                .SqlQueryRaw<string>(
+                    """
+                    SELECT data_type || '|' || is_nullable || '|' || coalesce(column_default, 'none') AS "Value"
+                    FROM information_schema.columns
+                    WHERE table_name = 'user_job_ad_matches' AND column_name = 'read_in_notification_feed'
+                    """)
+                .ToListAsync(ct);
+
+            shape.ShouldHaveSingleItem().ShouldBe("boolean|NO|false");
+        }
+    }
+
     [Theory]
     [InlineData("ux_user_job_ad_matches_user_jobad")]
     [InlineData("ix_user_job_ad_matches_user_created_at")]

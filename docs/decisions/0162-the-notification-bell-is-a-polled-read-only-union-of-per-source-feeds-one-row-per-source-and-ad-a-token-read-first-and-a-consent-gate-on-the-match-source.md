@@ -12,6 +12,7 @@ ADR 0080 Beslut 5 (2026-06-24). The round needed no STOPP to Klas.
 Amendment of 2026-10-10, not changed.
 **Amendment 2026-10-11:** the panel holds notifications only (#2130; D3, D4, D6, D11) — see
 [§Amendment 2026-10-11](#amendment-2026-10-11--the-panel-holds-notifications-only-2130).
+**Amended by [ADR 0168](./0168-the-bell-reads-per-notification-with-a-flag-on-the-source-row-two-switches-decide-what-reaches-it-and-neither-moves-a-watermark.md) (2026-10-12, #2130 PR 2):** the bell's read state is a flag on the source rows and two switches decide what reaches it. The title's "read-only", D1 (the contract text), D2, D3 (the token's destination), D4, D5, D7, D8, D10, D11, D13 and s5 are changed there; where the text below differs, ADR 0168 governs and this text stays as the record.
 **Related:** [#1666](https://github.com/klasolsson81/jobbliggaren/issues/1666) (the issue this ADR ships under) ·
 [#1662](https://github.com/klasolsson81/jobbliggaren/issues/1662) (the notification epic) · #2106 (a Toppmatch within minutes, in parallel) ·
 #2107 (the e-mail notice controls) · #1663 (smart-watch criterion hits, not built: the next source) · #1576 (the follow window rule) ·

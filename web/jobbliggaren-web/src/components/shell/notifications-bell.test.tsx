@@ -3,8 +3,12 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { NotificationFeed } from "@/lib/dto/notification-feed";
 import { NOTIFICATION_FEED_POLL_MS } from "@/lib/hooks/use-notification-feed";
 
-const { markNotificationsReadAction } = vi.hoisted(() => ({ markNotificationsReadAction: vi.fn() }));
-vi.mock("@/lib/actions/notification-feed", () => ({ markNotificationsReadAction }));
+const { markAllNotificationsReadAction, markNotificationReadAction } = vi.hoisted(() => ({
+  markAllNotificationsReadAction: vi.fn(),
+  markNotificationReadAction: vi.fn(),
+}));
+vi.mock("@/lib/actions/notification-feed", () => ({ markAllNotificationsReadAction, markNotificationReadAction }));
+import { NotificationFeedProvider } from "./notification-feed-provider";
 import { NotificationsBell } from "./notifications-bell";
 
 // 12:00 in Stockholm on Sunday 2026-10-11.
@@ -67,7 +71,11 @@ async function settle() {
 }
 
 async function renderBell() {
-  render(<NotificationsBell />);
+  render(
+    <NotificationFeedProvider>
+      <NotificationsBell />
+    </NotificationFeedProvider>,
+  );
   await settle();
 }
 
@@ -91,7 +99,8 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   fetchMock = vi.fn();
   global.fetch = fetchMock as unknown as typeof fetch;
-  markNotificationsReadAction.mockReset();
+  markAllNotificationsReadAction.mockReset();
+  markNotificationReadAction.mockReset();
   Object.defineProperty(document, "hidden", { configurable: true, value: false });
 });
 
@@ -157,7 +166,7 @@ describe("NotificationsBell (#1666)", () => {
     const dialog = open();
     expect(within(dialog).getByText("Inga olästa")).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Markera alla som lästa" })).toBeNull();
-    expect(within(dialog).queryByText("Ny")).toBeNull();
+    expect(dialog.querySelectorAll(".jp-notif__dot")).toHaveLength(0);
     expect(within(dialog).getAllByRole("listitem")).toHaveLength(2);
   });
 
@@ -202,20 +211,25 @@ describe("NotificationsBell (#1666)", () => {
     expect(dialog.querySelector(".jp-notif__footlink")).toBeNull();
   });
 
-  it("renders each row's reason, the Ny tag, a link to the ad and the Swedish time", async () => {
+  it("renders each row's reason, an unread dot, a link to the ad and the Swedish time", async () => {
     fetchMock.mockReturnValue(ok(feed()));
     await renderBell();
 
     const dialog = open();
     const [matchRow, followedRow] = within(dialog).getAllByRole("listitem");
     expect(within(matchRow!).getByText("Toppmatch")).toBeInTheDocument();
-    expect(within(matchRow!).getByText("Ny")).toBeInTheDocument();
+    // The dot is a shape, hidden from assistive technology, and the row says "Oläst" in words instead (WCAG 1.4.1).
+    expect(matchRow!.querySelectorAll(".jp-notif__dot")).toHaveLength(1);
+    expect(matchRow!.querySelector(".jp-notif__dot")).toHaveAttribute("aria-hidden", "true");
+    expect(within(matchRow!).getByText("Oläst")).toHaveClass("sr-only");
+    expect(dialog.textContent).not.toContain("Ny");
     expect(within(matchRow!).getByText("idag, kl. 09:14")).toBeInTheDocument();
     const matchLink = within(matchRow!).getByRole("link", { name: "Utvecklare" });
     expect(matchLink).toHaveAttribute("href", `/jobb/${AD_1}`);
-    expect(matchLink).toHaveAccessibleDescription(/Toppmatch.*Ny.*idag, kl. 09:14.*Match AB/);
+    expect(matchLink).toHaveAccessibleDescription(/Toppmatch.*Oläst.*idag, kl. 09:14.*Match AB/);
     expect(within(followedRow!).getByText("Bevakar")).toBeInTheDocument();
-    expect(within(followedRow!).queryByText("Ny")).toBeNull();
+    expect(followedRow!.querySelectorAll(".jp-notif__dot")).toHaveLength(0);
+    expect(within(followedRow!).queryByText("Oläst")).toBeNull();
     expect(within(followedRow!).getByText("igår, kl. 17:32")).toBeInTheDocument();
   });
 
@@ -311,7 +325,7 @@ describe("NotificationsBell (#1666)", () => {
   it("marks everything read with the server's tokens, then reads again and moves focus to the heading", async () => {
     fetchMock.mockReturnValueOnce(ok(feed()));
     await renderBell();
-    markNotificationsReadAction.mockResolvedValue({ success: true });
+    markAllNotificationsReadAction.mockResolvedValue({ success: true });
     fetchMock.mockReturnValue(
       ok(feed({ items: feed().items.map((i) => ({ ...i, isUnread: false })), sources: counts(0, 0) })),
     );
@@ -320,7 +334,7 @@ describe("NotificationsBell (#1666)", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Markera alla som lästa" }));
     await settle();
 
-    expect(markNotificationsReadAction).toHaveBeenCalledWith({ match: MATCH_TOKEN, followedCompanyAd: null });
+    expect(markAllNotificationsReadAction).toHaveBeenCalledWith({ match: MATCH_TOKEN, followedCompanyAd: null });
     expect(within(dialog).getByText("Inga olästa")).toBeInTheDocument();
     expect(within(dialog).getByText("Notiser", { selector: ".jp-notif__title" })).toHaveFocus();
     expect(document.querySelector(".jp-notif-badge")).toBeNull();
@@ -329,7 +343,7 @@ describe("NotificationsBell (#1666)", () => {
   it("says so when marking read failed, and keeps the control", async () => {
     fetchMock.mockReturnValue(ok(feed()));
     await renderBell();
-    markNotificationsReadAction.mockResolvedValue({ success: false, error: "x" });
+    markAllNotificationsReadAction.mockResolvedValue({ success: false, error: "x" });
 
     const dialog = open();
     fireEvent.click(within(dialog).getByRole("button", { name: "Markera alla som lästa" }));
@@ -348,9 +362,9 @@ describe("NotificationsBell (#1666)", () => {
 
     open();
     await settle();
-    expect(markNotificationsReadAction).not.toHaveBeenCalled();
+    expect(markAllNotificationsReadAction).not.toHaveBeenCalled();
     await poll();
-    expect(markNotificationsReadAction).not.toHaveBeenCalled();
+    expect(markAllNotificationsReadAction).not.toHaveBeenCalled();
   });
 
   it("reads again when the tab comes back or the panel opens, at most every 30 seconds", async () => {
@@ -519,7 +533,7 @@ describe("NotificationsBell (#1666)", () => {
   it("keeps Markerar… until the read after acknowledging has landed", async () => {
     fetchMock.mockReturnValueOnce(ok(feed()));
     await renderBell();
-    markNotificationsReadAction.mockResolvedValue({ success: true });
+    markAllNotificationsReadAction.mockResolvedValue({ success: true });
     let land: (value: Response) => void = () => {};
     fetchMock.mockReturnValueOnce(new Promise<Response>((resolve) => (land = resolve)));
 
@@ -546,7 +560,7 @@ describe("NotificationsBell (#1666)", () => {
       return new Promise<Response>(() => {});
     });
     await poll();
-    markNotificationsReadAction.mockResolvedValue({ success: true });
+    markAllNotificationsReadAction.mockResolvedValue({ success: true });
     fetchMock.mockReturnValueOnce(
       ok(feed({ items: feed().items.map((i) => ({ ...i, isUnread: false })), sources: counts(0, 0) })),
     );

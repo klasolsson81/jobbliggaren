@@ -25,6 +25,10 @@ vi.mock("@/components/shell/header-stats", () => ({
 vi.mock("@/components/shell/notifications-bell", () => ({
   NotificationsBell: () => <button type="button" aria-label="Notiser" />,
 }));
+// The provider owns that poll for the shell (#2130); stubbed with it, so this file runs no poll either.
+vi.mock("@/components/shell/notification-feed-provider", () => ({
+  NotificationFeedProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 const STATS_FIXTURE: LandingStatsDto = {
   activeCount: 45_580,

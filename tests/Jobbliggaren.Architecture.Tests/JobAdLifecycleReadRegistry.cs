@@ -155,22 +155,34 @@ public static class JobAdLifecycleReadRegistry
                     + "owes the decision more than one that counts them: an archived ad here would be "
                     + "a visible row the count did not count — #864 read from the other end.")),
             ["Jobbliggaren.Application.NotificationFeed.Sources.FollowedCompanyAdFeedSource.ReadBoundedAsync"] =
-            [
-                Active("join JobAds for the ad columns of the notification bell's followed-company rows "
+                One(Active("join JobAds for the ad columns of the notification bell's followed-company rows "
                     + "(#1666). NO Status predicate at this site: the gate is INHERITED from "
                     + "NewFollowedCompanyAdSet.NewHits, which the window composes onto — the same posture as "
                     + "ListNewFollowedCompanyAdsQueryHandler.Handle, so the bell cannot show an ad the count "
-                    + "beside it did not count."),
-                Active("join JobAds for the ad columns of the unread ads the window never reached (#2130, "
-                    + "the grade path only). NO Status predicate at this site: the gate is INHERITED from "
-                    + "NewFollowedCompanyAdSet.NewHits, which this read composes onto exactly as the window "
-                    + "does, and only ads the counted hits already named are kept, so a row listed here is "
+                    + "beside it did not count.")),
+            ["Jobbliggaren.Application.NotificationFeed.Sources.FollowedCompanyAdFeedSource.ReadUnreadBeyondWindowAsync"] =
+            [
+                Active("join JobAds for the ad columns of the newest unread ads on the COMMON path (#2130): "
+                    + "grouped by ad over NewFollowedCompanyAdSet.NewHits, then joined for the display columns. "
+                    + "NO Status predicate at this site: the gate is INHERITED from NewHits, which the grouping "
+                    + "composes onto exactly as the window does, so a row listed here is one the count beside it "
+                    + "counted."),
+                Active("join JobAds for the ad columns of the unread ads the window never reached, on the GRADE "
+                    + "path (#2130, first built for #2130 PR 1). NO Status predicate at this site: the gate is "
+                    + "INHERITED from NewFollowedCompanyAdSet.NewHits, which this read composes onto exactly as the "
+                    + "window does, and only ads the counted hits already named are kept, so a row listed here is "
                     + "one the count beside it counted."),
             ],
             ["Jobbliggaren.Application.NotificationFeed.Sources.MatchFeedSource.ReadAsync"] =
-                One(Active("join JobAds for the ad columns of the notification bell's match rows (#1666). NO "
+            [
+                Active("join JobAds for the ad columns of the notification bell's match rows (#1666). NO "
                     + "Status predicate at this site: the gate is INHERITED from NewMatchSet.Matches, which "
-                    + "the list composes onto, so a row and the count beside it share one lifecycle decision.")),
+                    + "the list composes onto, so a row and the count beside it share one lifecycle decision."),
+                Active("join JobAds for the ad columns of the newest unread matches the newest-first list left "
+                    + "out because read rows crowded them out (#2130). NO Status predicate at this site: the gate "
+                    + "is INHERITED from NewMatchSet.Matches, which this read composes onto exactly as the list "
+                    + "does, and it names only rows the count beside it counted."),
+            ],
             ["Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds.BrowseCriterionAdsQueryHandler.LoadPageAsync"] =
                 One(Active("load JobAds by id for the ad columns of a smart watch's ad list "
                     + "(/foretag/branschbevakningar/[id]/annonser, #1559). NO Status predicate at this "

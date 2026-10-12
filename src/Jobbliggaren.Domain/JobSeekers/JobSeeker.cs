@@ -216,6 +216,37 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
         UpdatedAt = now;
     }
 
+    /// <summary>
+    /// ADR 0168 (#2130) — turns "new matches reach the bell" on or off, with <see cref="SetNotificationMail"/>'s
+    /// semantics, on <see cref="Preferences.NotificationFeedMatchesOffAt"/> only. It decides what reaches the
+    /// bell and nothing else: it never writes the background-match consent, a withdrawal, a mail pause or the
+    /// other bell type, and it is not refused while the consent is off (the value is kept for when it returns).
+    /// </summary>
+    public void SetNotificationFeedMatches(bool on, IDateTimeProvider clock)
+    {
+        var now = clock.UtcNow;
+        var offAt = PauseStamp(Preferences.NotificationFeedMatchesOffAt, on, now);
+        if (offAt == Preferences.NotificationFeedMatchesOffAt)
+            return;
+        Preferences = Preferences with { NotificationFeedMatchesOffAt = offAt };
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// ADR 0168 (#2130) — turns "new ads from followed companies reach the bell" on or off, with
+    /// <see cref="SetNotificationFeedMatches"/>'s semantics, on <see cref="Preferences.NotificationFeedFollowedAdsOffAt"/>
+    /// only. The follow mail's own consent is untouched.
+    /// </summary>
+    public void SetNotificationFeedFollowedAds(bool on, IDateTimeProvider clock)
+    {
+        var now = clock.UtcNow;
+        var offAt = PauseStamp(Preferences.NotificationFeedFollowedAdsOffAt, on, now);
+        if (offAt == Preferences.NotificationFeedFollowedAdsOffAt)
+            return;
+        Preferences = Preferences with { NotificationFeedFollowedAdsOffAt = offAt };
+        UpdatedAt = now;
+    }
+
     // On clears the stamp; off keeps the first stamp, or takes one now.
     private static DateTimeOffset? PauseStamp(DateTimeOffset? offAt, bool on, DateTimeOffset now) =>
         on ? null : offAt ?? now;

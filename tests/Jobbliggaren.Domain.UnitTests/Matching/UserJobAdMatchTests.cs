@@ -271,6 +271,32 @@ public class UserJobAdMatchTests
         match.NotificationStatus.ShouldBe(NotificationStatus.Failed);
     }
 
+    // ---------------------------------------------------------------
+    // ReadInNotificationFeed - #2130, the bell's own per-row read state (never the e-mail axis). The only writers are the
+    // set-based statements of MatchFeedSource, so the other half (the mail path never clears a read mark) is pinned in
+    // MatchFeedSourceReadStateTests, where a read row exists.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Create_StartsUnreadInTheNotificationFeed()
+    {
+        CreateValid().Value.ReadInNotificationFeed.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void TheMailStateMachine_NeverChangesTheBellsReadFlag()
+    {
+        var unread = CreateValid().Value;
+        unread.MarkQueued();
+        unread.MarkSent(FakeDateTimeProvider.At(Clock.UtcNow.AddMinutes(5)));
+        unread.ReadInNotificationFeed.ShouldBeFalse("sending the e-mail is not reading it in the bell");
+
+        var failed = CreateValid().Value;
+        failed.MarkQueued();
+        failed.MarkFailed();
+        failed.ReadInNotificationFeed.ShouldBeFalse();
+    }
+
     // SoftDelete + DeletedAt retired by #868 (writerless decoy axis, same disease as #821/#915) —
     // Art. 17 erasure is a HARD delete via AccountHardDeleter. No soft-delete tests remain.
 }

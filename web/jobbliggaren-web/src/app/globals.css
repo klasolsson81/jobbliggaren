@@ -4710,14 +4710,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
   overscroll-behavior: contain;
 }
 .jp-notif__list { margin: 0; padding: 0; list-style: none; }
+/* A row is a grid with a dot column (#2130): 8px for the unread dot, an 8px gap, then the content. A read row
+   leaves the column empty, so nothing moves when a row is read; the skeleton rows leave it empty too. */
 .jp-notif__row {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 4px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--jp-border-soft);
 }
+.jp-notif__row > * { grid-column: 2; }
 .jp-notif__row:last-child { border-bottom: 0; }
 .jp-notif__row:not(.jp-notif__row--skeleton):hover { background: var(--jp-surface-3); }
 .jp-notif__signal {
@@ -4725,6 +4729,22 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+/* The unread dot: neutral ink, never the grade's green nor an info or status colour, in the title's row and
+   not beside the reason chip (the Toppmatch chip has a dot of its own, and two dots side by side read as one).
+   --jp-ink-1 keeps its light value inside the header in both themes, so no dark rule is owed. The margin centres
+   the dot on the title's first line: the dot takes the title's font size and line height to measure it. */
+.jp-notif__dot {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: start;
+  width: 8px;
+  height: 8px;
+  margin-top: calc((1lh - 8px) / 2);
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-ink-1);
+  font-size: var(--text-ui);
+  line-height: inherit;
 }
 .jp-notif__time {
   margin-left: auto;

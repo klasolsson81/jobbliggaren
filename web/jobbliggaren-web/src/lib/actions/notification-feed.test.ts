@@ -1,83 +1,146 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { markMatchesSeen, markFollowedAdsSeen } = vi.hoisted(() => ({
-  markMatchesSeen: vi.fn(),
-  markFollowedAdsSeen: vi.fn(),
+const { markNotificationRead, markNotificationsReadThrough, rerenders } = vi.hoisted(() => ({
+  markNotificationRead: vi.fn(),
+  markNotificationsReadThrough: vi.fn(),
+  // Every call that makes Next re-render a route or write a cookie from an action.
+  rerenders: {
+    revalidatePath: vi.fn(),
+    revalidateTag: vi.fn(),
+    updateTag: vi.fn(),
+    refresh: vi.fn(),
+    cookies: vi.fn(),
+    redirect: vi.fn(),
+  },
 }));
-vi.mock("@/lib/api/me-matches", () => ({ markMatchesSeen }));
-vi.mock("@/lib/api/company-follows", () => ({ markFollowedAdsSeen }));
+vi.mock("@/lib/api/notification-feed", () => ({ markNotificationRead, markNotificationsReadThrough }));
+vi.mock("next/cache", () => ({
+  revalidatePath: rerenders.revalidatePath,
+  revalidateTag: rerenders.revalidateTag,
+  updateTag: rerenders.updateTag,
+  refresh: rerenders.refresh,
+}));
+vi.mock("next/headers", () => ({ cookies: rerenders.cookies }));
+vi.mock("next/navigation", () => ({ redirect: rerenders.redirect }));
 vi.mock("next-intl/server", () => ({
   getTranslations: async () => (key: string) => `t:${key}`,
 }));
-import { markNotificationsReadAction } from "./notification-feed";
+import { markAllNotificationsReadAction, markNotificationReadAction } from "./notification-feed";
 
 // Microseconds, as the API writes them: a JS Date would round this down to .123 and leave the
 // acknowledged row itself unread.
 const MATCH_TOKEN = "2026-10-11T07:14:03.123456+00:00";
 const FOLLOW_TOKEN = "2026-10-11T08:00:00.000001+00:00";
+const AD_ID = "7b0a1c52-4a5e-4d0e-9e0a-0b5d9e2f5a11";
 
 beforeEach(() => {
-  markMatchesSeen.mockReset().mockResolvedValue({ kind: "ok", data: undefined });
-  markFollowedAdsSeen.mockReset().mockResolvedValue({ kind: "ok", data: undefined });
+  vi.clearAllMocks();
+  markNotificationRead.mockResolvedValue({ kind: "ok", data: undefined });
+  markNotificationsReadThrough.mockResolvedValue({ kind: "ok", data: undefined });
 });
 
-describe("markNotificationsReadAction (#1666)", () => {
-  it("sends each source's token as the exact string, one call after the other", async () => {
-    const order: string[] = [];
-    markMatchesSeen.mockImplementation(async () => {
-      order.push("match:start");
-      await Promise.resolve();
-      order.push("match:end");
-      return { kind: "ok", data: undefined };
-    });
-    markFollowedAdsSeen.mockImplementation(async () => {
-      order.push("follow");
-      return { kind: "ok", data: undefined };
-    });
-
-    const result = await markNotificationsReadAction({ match: MATCH_TOKEN, followedCompanyAd: FOLLOW_TOKEN });
+describe("markNotificationReadAction (#2130)", () => {
+  it("marks exactly the named row read, through its own kind", async () => {
+    const result = await markNotificationReadAction({ kind: "FollowedCompanyAd", jobAdId: AD_ID });
 
     expect(result).toEqual({ success: true });
-    expect(markMatchesSeen).toHaveBeenCalledWith(MATCH_TOKEN);
-    expect(markFollowedAdsSeen).toHaveBeenCalledWith(FOLLOW_TOKEN);
-    expect(order).toEqual(["match:start", "match:end", "follow"]);
+    expect(markNotificationRead).toHaveBeenCalledExactlyOnceWith("FollowedCompanyAd", AD_ID);
+    expect(markNotificationsReadThrough).not.toHaveBeenCalled();
   });
 
-  // An empty /seen body means "acknowledge through now" to the backend, which would swallow rows
-  // that arrived after the user read the number. A null token sends nothing.
-  it("sends nothing for a source whose token is null, and never an undefined token", async () => {
-    const result = await markNotificationsReadAction({ match: null, followedCompanyAd: FOLLOW_TOKEN });
+  // A Server Action is a public endpoint: any signed-in client can post it any argument.
+  it.each([
+    ["an unknown kind", { kind: "Application", jobAdId: AD_ID }],
+    ["no kind", { jobAdId: AD_ID }],
+    ["a job ad id that is not a UUID", { kind: "Match", jobAdId: "../me/profile" }],
+    ["no job ad id", { kind: "Match" }],
+    ["another field", { kind: "Match", jobAdId: AD_ID, userId: "someone-else" }],
+  ])("sends nothing for %s", async (_name, input) => {
+    const result = await markNotificationReadAction(input as never);
+
+    expect(result).toEqual({ success: false, error: "t:markReadFailed" });
+    expect(markNotificationRead).not.toHaveBeenCalled();
+  });
+
+  it.each([["error"], ["unauthorized"], ["forbidden"], ["rateLimited"]])(
+    "reports a refusal (%s) as a failure",
+    async (kind) => {
+      markNotificationRead.mockResolvedValue({ kind, retryAfterSeconds: 30 });
+
+      const result = await markNotificationReadAction({ kind: "Match", jobAdId: AD_ID });
+
+      expect(result).toEqual({ success: false, error: "t:markReadFailed" });
+    },
+  );
+
+  // The write is fired without waiting on the click that opens the ad. An action that re-rendered the route
+  // (revalidatePath, revalidateTag, updateTag, refresh, a cookie, a redirect) could re-render a job modal the click had
+  // just opened. The Playwright spec cannot tell such an action from this one, so this is the guard.
+  it("never asks Next to re-render anything or to write a cookie", async () => {
+    await markNotificationReadAction({ kind: "Match", jobAdId: AD_ID });
+    await markAllNotificationsReadAction({ match: MATCH_TOKEN, followedCompanyAd: FOLLOW_TOKEN });
+
+    for (const call of Object.values(rerenders)) expect(call).not.toHaveBeenCalled();
+  });
+});
+
+describe("markAllNotificationsReadAction (#2130)", () => {
+  it("sends each source's token as the exact string, one call after the other", async () => {
+    const order: string[] = [];
+    markNotificationsReadThrough.mockImplementation(async (kind: string) => {
+      order.push(`${kind}:start`);
+      await Promise.resolve();
+      order.push(`${kind}:end`);
+      return { kind: "ok", data: undefined };
+    });
+
+    const result = await markAllNotificationsReadAction({ match: MATCH_TOKEN, followedCompanyAd: FOLLOW_TOKEN });
 
     expect(result).toEqual({ success: true });
-    expect(markMatchesSeen).not.toHaveBeenCalled();
-    expect(markFollowedAdsSeen).toHaveBeenCalledWith(FOLLOW_TOKEN);
-    for (const call of [...markMatchesSeen.mock.calls, ...markFollowedAdsSeen.mock.calls]) {
-      expect(call[0]).toEqual(expect.any(String));
+    expect(markNotificationsReadThrough).toHaveBeenNthCalledWith(1, "Match", MATCH_TOKEN);
+    expect(markNotificationsReadThrough).toHaveBeenNthCalledWith(2, "FollowedCompanyAd", FOLLOW_TOKEN);
+    expect(order).toEqual(["Match:start", "Match:end", "FollowedCompanyAd:start", "FollowedCompanyAd:end"]);
+    expect(markNotificationRead).not.toHaveBeenCalled();
+  });
+
+  // The API reads a missing token as a malformed request, and the old `/seen` endpoints read an empty
+  // body as "acknowledge through now": a null token sends nothing for that source, never an undefined one.
+  it("sends nothing for a source whose token is null, and never an undefined token", async () => {
+    const result = await markAllNotificationsReadAction({ match: null, followedCompanyAd: FOLLOW_TOKEN });
+
+    expect(result).toEqual({ success: true });
+    expect(markNotificationsReadThrough).toHaveBeenCalledExactlyOnceWith("FollowedCompanyAd", FOLLOW_TOKEN);
+    for (const call of markNotificationsReadThrough.mock.calls) {
+      expect(call[1]).toEqual(expect.any(String));
     }
   });
 
   it("sends nothing for a malformed token and reports the failure", async () => {
-    const result = await markNotificationsReadAction({ match: "yesterday", followedCompanyAd: FOLLOW_TOKEN });
+    const result = await markAllNotificationsReadAction({ match: "yesterday", followedCompanyAd: FOLLOW_TOKEN });
 
-    expect(markMatchesSeen).not.toHaveBeenCalled();
-    expect(markFollowedAdsSeen).toHaveBeenCalledWith(FOLLOW_TOKEN);
+    expect(markNotificationsReadThrough).toHaveBeenCalledExactlyOnceWith("FollowedCompanyAd", FOLLOW_TOKEN);
     expect(result).toEqual({ success: false, error: "t:markReadFailed" });
   });
 
   it("still sends the second source when the first fails, and reports the failure", async () => {
-    markMatchesSeen.mockResolvedValue({ kind: "error" });
+    markNotificationsReadThrough.mockResolvedValueOnce({ kind: "error" });
 
-    const result = await markNotificationsReadAction({ match: MATCH_TOKEN, followedCompanyAd: FOLLOW_TOKEN });
+    const result = await markAllNotificationsReadAction({ match: MATCH_TOKEN, followedCompanyAd: FOLLOW_TOKEN });
 
-    expect(markFollowedAdsSeen).toHaveBeenCalledWith(FOLLOW_TOKEN);
+    expect(markNotificationsReadThrough).toHaveBeenCalledTimes(2);
     expect(result).toEqual({ success: false, error: "t:markReadFailed" });
   });
 
   it("is a no-op success when nothing is unread", async () => {
-    const result = await markNotificationsReadAction({ match: null, followedCompanyAd: null });
+    const result = await markAllNotificationsReadAction({ match: null, followedCompanyAd: null });
 
     expect(result).toEqual({ success: true });
-    expect(markMatchesSeen).not.toHaveBeenCalled();
-    expect(markFollowedAdsSeen).not.toHaveBeenCalled();
+    expect(markNotificationsReadThrough).not.toHaveBeenCalled();
+  });
+
+  it("never asks Next to re-render anything or to write a cookie", async () => {
+    await markAllNotificationsReadAction({ match: MATCH_TOKEN, followedCompanyAd: FOLLOW_TOKEN });
+
+    for (const call of Object.values(rerenders)) expect(call).not.toHaveBeenCalled();
   });
 });

@@ -7,9 +7,9 @@ using Mediator;
 namespace Jobbliggaren.Application.NotificationFeed.Queries.GetMyNotificationFeed;
 
 /// <summary>
-/// The notification bell (#1666): a read-only union of <see cref="NotificationFeedSources.All"/>.
-/// Owner-scoped through <see cref="ICurrentUser"/>; no authenticated user gives an empty feed. Writes
-/// nothing — acknowledgement goes through each source's existing <c>/seen</c> command, never a read.
+/// The notification bell (#1666): a union of <see cref="NotificationFeedSources.All"/>.
+/// Owner-scoped through <see cref="ICurrentUser"/>; no authenticated user gives an empty feed. This query writes
+/// nothing — a notification is marked read through the mark commands (#2130), never by a read.
 ///
 /// <para>
 /// The sources run one after another because they share one scoped <see cref="IAppDbContext"/>, which

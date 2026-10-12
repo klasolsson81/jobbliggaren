@@ -7,19 +7,22 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 
 /// <summary>
 /// One reason the bell can ring (#1666, ADR 0162). A source answers, under the single definition its own context
-/// already owns, three things for one user: the exact unread count, the token that acknowledges exactly
-/// that count, and its newest rows.
+/// already owns, three things for one user: the exact unread count, the token that bounds that count, and its rows.
 ///
 /// <para>
 /// <b>The contract every source keeps:</b>
 /// <list type="bullet">
 /// <item>it reads EXISTING rows only — the bell has no store of its own and writes nothing on a read
-///   (ADR 0018 amendment 2026-10-10: a write on a GET is a CSRF surface);</item>
-/// <item>"new" is its context's own watermark and predicate, composed, never restated;</item>
-/// <item>the token is the newest unread row's timestamp, read FIRST; the count and the list are bounded
-///   by it, so the number shown is exactly what "Markera alla som lästa" acknowledges;</item>
+///   (ADR 0018 amendment 2026-10-10: a write on a GET is a CSRF surface). Its only state is the flag a click writes
+///   on the source's own rows (<see cref="INotificationFeedReadMarker"/>), never on a GET;</item>
+/// <item>"new" is its context's own watermark and predicate, composed, never restated; UNREAD is new AND not
+///   read in the bell, and a row and the count beside it are decided by that one predicate;</item>
+/// <item>the token is the newest row of the WATERMARK-NEW set, read FIRST, whether or not a row is read in the bell;
+///   the count and the list are bounded by it, so the number shown is exactly what "Markera alla som lästa" marks;</item>
+/// <item>the rows are its NEWEST UNREAD rows, up to the cap, on every path, plus its newest rows to fill, each row
+///   once; the merge never has to guess whether an unread row was left out;</item>
 /// <item>it is read under the legal ground its rows were produced under (a consent-produced source is
-///   gated on that consent at read time);</item>
+///   gated on that consent at read time), and only while the user's own switch for the type is on;</item>
 /// <item>it is stateless: one instance serves every request, and anything per request travels in
 ///   <see cref="NotificationFeedReadContext"/>.</item>
 /// </list>

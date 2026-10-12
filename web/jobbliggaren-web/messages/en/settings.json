@@ -13,7 +13,9 @@
     "mailLabel": "Email notifications",
     "mailPaused": "Not sent while email notifications are off.",
     "matchesTitle": "Matches",
-    "followTitle": "Companies you follow"
+    "feedMatchesLabel": "New matches as in-app notifications",
+    "followTitle": "Companies you follow",
+    "feedFollowedAdsLabel": "New job ads as in-app notifications"
   },
   "backgroundMatch": {
     "toggleLabel": "Match new job ads for me",

@@ -276,6 +276,30 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
+    /// POST /api/v1/me/notification-feed/{source}/{jobAdId}/read and /api/v1/me/notification-feed/{source}/read - the
+    /// notification bell's read marks (#2130), one bucket for both, partitioned per UserId (claim "sub"), anonymous ->
+    /// NoLimiter (RequireAuthorization answers 401 first). Its own bucket, never <see cref="MeWrite"/> and never
+    /// <see cref="FollowSeenMark"/>: a withdrawal of a consent must not meet a 429 that clicking through notifications
+    /// caused (GDPR Art. 7(3); the reason <see cref="FollowSeenMark"/> was split out of <see cref="MeWrite"/>), and the
+    /// ad-open auto-mark must not drain the budget of a deliberate gesture (bulkhead, Nygard).
+    /// <para>
+    /// The numbers (security-auditor, #2130 PR 2): the demand is one POST per click on a row that is unread locally
+    /// (the client sends nothing for a row it holds as read) plus two POSTs per "Markera alla". The panel holds at
+    /// most 20 rows, so ctrl- or middle-clicking every one and then pressing "Markera alla" is 22 calls within
+    /// seconds; 60 covers about three panels, i.e. two tabs plus slack. Sustained, a tab can demand at most about
+    /// 20 marks per 30 s (the open-throttle), so 60 a minute covers it. A false 429 puts a dot back, which is the
+    /// defect this PR removes, while over-provisioning costs only owner-scoped, index-bounded updates of the user's own
+    /// rows; every bulk update excludes rows already read, so a looped "Markera alla" writes no tuple. Burst 60,
+    /// 10 tokens per 10 s. TokenBucket for a clean Retry-After, QueueLimit 0 (a queue is a memory-DoS).
+    /// </para>
+    /// </summary>
+    public PolicyOptions NotificationFeedMark { get; init; } = new()
+    {
+        PermitLimit = 60,
+        WindowSeconds = 60,
+    };
+
+    /// <summary>
     /// POST /api/v1/me/job-ad-status (per-user-overlay-status batch, ADR 0063,
     /// Pre-4 STEG 5, TD-87) — <strong>dual-partition</strong>: sub närvarande →
     /// user:-bucket, annars → ip:-bucket. Endpointen är anonym-tolerant (INTE

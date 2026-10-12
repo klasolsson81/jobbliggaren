@@ -49,6 +49,15 @@ public sealed class UserJobAdMatch : AggregateRoot<UserJobAdMatchId>
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? SentAt { get; private set; }
 
+    /// <summary>
+    /// #2130 (ADR 0168) — the notification bell's own per-row read state: <c>true</c> once the user opened
+    /// this match in the bell (or marked it through "Markera alla som lästa"). It is a channel flag, named
+    /// after its channel, and a different clock from <see cref="NotificationStatus"/> (the e-mail
+    /// state machine) and from the <c>LastSeenMatchesAt</c> watermark (which <c>/matchningar</c> and
+    /// Översikt acknowledge). Nothing here reads it as input to matching, grading, sorting or mail.
+    /// </summary>
+    public bool ReadInNotificationFeed { get; private set; }
+
     private UserJobAdMatch() { }
 
     private UserJobAdMatch(

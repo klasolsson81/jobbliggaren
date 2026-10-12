@@ -30,9 +30,10 @@ public sealed record NotificationFeedItemDto(
 
 /// <summary>
 /// One source's unread state. <see cref="UnreadCount"/> is exact, or <c>null</c> when the source
-/// refused to count past its bound (ADR 0120 clause 5). <see cref="AcknowledgedThrough"/> is the newest
-/// unread row's timestamp — the value "Markera alla som lästa" sends back to the source's existing
-/// <c>/seen</c> endpoint unchanged — and <c>null</c> when nothing is unread.
+/// refused to count past its bound (ADR 0120 clause 5). <see cref="AcknowledgedThrough"/> is the token: the
+/// newest timestamp among the rows new since the source's watermark, whether or not they are read in the bell
+/// (so a row read one by one never strands the rest) — the value "Markera alla som lästa" sends back to the
+/// source's read-through endpoint unchanged (#2130) — and <c>null</c> when nothing is new since the watermark.
 /// </summary>
 public sealed record NotificationFeedSourceDto(
     NotificationFeedSourceKind Kind,

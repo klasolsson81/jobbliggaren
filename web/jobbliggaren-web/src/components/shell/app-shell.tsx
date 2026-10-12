@@ -23,6 +23,7 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { LogoutForm } from "@/components/auth/logout-form";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { HeaderStats } from "@/components/shell/header-stats";
+import { NotificationFeedProvider } from "@/components/shell/notification-feed-provider";
 import { NotificationsBell } from "@/components/shell/notifications-bell";
 import { HeaderStrip } from "@/components/site/header-strip";
 import type { LandingStatsDto } from "@/lib/dto/landing";
@@ -296,21 +297,35 @@ function Drawer({
   );
 }
 
-export function AppShell({
-  email,
-  isAdmin,
-  initialStats,
-  className,
-  contentClassName = "jp-content focus:outline-none",
-  children,
-}: {
+interface AppShellProps {
   email: string;
   isAdmin: boolean;
   initialStats: LandingStatsDto;
   className?: string;
   contentClassName?: string;
   children: React.ReactNode;
-}) {
+}
+
+/**
+ * The signed-in shell (`(app)` and `(admin)`). It provides the bell's one feed to the header AND the page in
+ * `main` (#2130), so a saved notification setting can ask the bell to read again; the frame below is the layout.
+ */
+export function AppShell(props: AppShellProps) {
+  return (
+    <NotificationFeedProvider>
+      <AppShellFrame {...props} />
+    </NotificationFeedProvider>
+  );
+}
+
+function AppShellFrame({
+  email,
+  isAdmin,
+  initialStats,
+  className,
+  contentClassName = "jp-content focus:outline-none",
+  children,
+}: AppShellProps) {
   const t = useTranslations("common");
   const pathname = usePathname();
   const [adminNavigation, setAdminNavigation] = useState(() => isAdmin && isActive(pathname, "/admin"));

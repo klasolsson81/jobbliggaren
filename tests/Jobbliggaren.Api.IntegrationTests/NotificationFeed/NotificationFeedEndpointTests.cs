@@ -200,6 +200,9 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
             .Endpoints
             .OfType<RouteEndpoint>()
             .Where(e => (e.RoutePattern.RawText ?? string.Empty).Contains("/notification-feed", StringComparison.Ordinal))
+            // #2130 added the read marks and the two switches under the same prefix; their wiring is
+            // NotificationFeedReadStateEndpointTests'. This test is the feed read, the one GET.
+            .Where(e => e.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("GET"))
             .ShouldHaveSingleItem();
 
         endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.ShouldBe(["GET"]);

@@ -70,6 +70,8 @@ export function profile(occupationStated: boolean) {
     notificationMailEnabled: true,
     topMatchMailEnabled: true,
     matchSummaryMailEnabled: true,
+    notificationFeedMatchesEnabled: true,
+    notificationFeedFollowedAdsEnabled: true,
     createdAt: "2026-05-12T09:30:00+02:00",
     hasStatedDesiredOccupation: occupationStated,
     preferredOccupationGroups: occupationStated ? [OCCUPATION.conceptId] : [],

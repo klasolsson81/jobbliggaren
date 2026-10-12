@@ -49,6 +49,8 @@ const baseProfile: JobSeekerProfileDto = {
   notificationMailEnabled: true,
   topMatchMailEnabled: true,
   matchSummaryMailEnabled: true,
+  notificationFeedMatchesEnabled: true,
+  notificationFeedFollowedAdsEnabled: true,
   createdAt: "2026-05-11T10:00:00Z",
   hasStatedDesiredOccupation: false,
   preferredOccupationGroups: [],

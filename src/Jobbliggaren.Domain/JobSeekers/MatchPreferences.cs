@@ -98,10 +98,11 @@ public sealed record MatchPreferences
     // (JobAdFilterCriteria.Remote, unioned with the ort axes). A location-family bool that
     // folds into the same "ort" dimension as PreferredMunicipalities/PreferredRegions.
     // Appended last so the jsonb-key write order stays a purely additive extension.
-    // STORED + read by the FACET-HARD notis count ONLY (GetMyMatchCount) — NEVER the scorer:
-    // ADR 0079 never-grade-coupled, arch-pinned by MatchProfileRemoteIndependenceTests (F1),
-    // so PreferredRemote deliberately does NOT reach CandidateMatchProfile. Default false =
-    // honest "distans not requested".
+    // STORED + read by the FACET-HARD notis count (GetMyMatchCount). The scorer's profile carries it
+    // (CandidateMatchProfile.PreferredRemote) ONLY to decide whether the ort counts as STATED (ADR
+    // 0170, Klas 2026-10-13: a Distans-only user has stated an ort); it never decides whether an ad
+    // matches, ADR 0079 never-grade-coupled, pinned by MatchProfileRemoteIndependenceTests (F1).
+    // Default false = honest "distans not requested".
     public bool PreferredRemote { get; private init; }
 
     // EF + record copy-semantik. Property-initializers (= []) ensure non-null even

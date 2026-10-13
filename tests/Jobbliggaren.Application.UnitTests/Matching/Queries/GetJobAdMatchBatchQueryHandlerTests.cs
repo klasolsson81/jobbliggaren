@@ -97,7 +97,7 @@ public class GetJobAdMatchBatchQueryHandlerTests
         // still accepts a FullMatchScore-valued dict (every existing test seeds the score), and
         // wraps each with SsykIsRelated:false here — behaviour-inert (no related set in any of
         // these tests). The handler unwraps .Score for the grade verdict rows + forwards
-        // .SsykIsRelated into Grade(FullMatchScore, bool).
+        // .SsykIsRelated into Grade(FullMatchScore, MatchDimensionCauses, bool).
         public ValueTask<IReadOnlyDictionary<JobAdId, FullScoredMatch>> ScoreFullBatchAsync(
             IReadOnlyList<JobAdId> jobAdIds, FullCandidateMatchProfile profile,
             CancellationToken cancellationToken)
@@ -107,7 +107,7 @@ public class GetJobAdMatchBatchQueryHandlerTests
             IReadOnlyDictionary<JobAdId, FullScoredMatch> carriers = scores.ToDictionary(
                 kvp => kvp.Key,
                 kvp => new FullScoredMatch(
-                    kvp.Value, SsykIsRelated: false, [], MatchDimensionCauses.None, new FullMatchConceptEvidence(new([], []), new([], []), new([], []))));
+                    kvp.Value, SsykIsRelated: false, [], ProducedCauses.For(kvp.Value.Fast), new FullMatchConceptEvidence(new([], []), new([], []), new([], []))));
             return new ValueTask<IReadOnlyDictionary<JobAdId, FullScoredMatch>>(carriers);
         }
 
@@ -297,9 +297,10 @@ public class GetJobAdMatchBatchQueryHandlerTests
         var result = await sut.Handle(new GetJobAdMatchBatchQuery([ad.Value]), ct);
 
         var entry = result.Entries[ad.Value];
-        // PR-B1: must-have Match (gate OPEN) + one secondary confirmed (region Match,
-        // employment NotAssessed) → Strong via the open-secondary fallback (was Good).
-        entry.Grade.ShouldBe(MatchGrade.Strong);
+        // Must-have Match (gate OPEN) + a skill Partial signal + both secondaries confirmed
+        // (region Match, employment never stated — which confirms, ADR 0170) → Top. Before
+        // ADR 0170 the unstated employment confirmed nothing and this was Strong (#2154).
+        entry.Grade.ShouldBe(MatchGrade.Top);
         // Four Fast verdicts.
         entry.SsykOverlap.ShouldBe(MatchDimensionVerdict.Match);
         entry.TitleSimilarity.ShouldBe(MatchDimensionVerdict.NotAssessed);

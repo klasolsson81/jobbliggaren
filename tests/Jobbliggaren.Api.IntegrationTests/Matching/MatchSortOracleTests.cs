@@ -49,7 +49,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// </para>
 /// <para>
 /// <b>PR-B1 (RE-BIND G3-OPT-A) — the bound sort ≠ requirement-aware grade divergence:</b>
-/// the requirement-aware <see cref="MatchGradeCalculator.Grade(FullMatchScore)"/> now caps
+/// the requirement-aware <see cref="MatchGradeCalculator.Grade(FullMatchScore, MatchDimensionCauses, bool)"/> now caps
 /// the visible grade on must-have coverage. The SQL match-sort, by contrast, ranks on the
 /// FAST band (+ the F4-15 golden top-5 skill lift) and structurally CANNOT assess must-have
 /// (binary GIN <c>?|</c> on top-5 plaintext skills, no requirement partition, no DEK —
@@ -57,14 +57,14 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// existing oracle (SQL rank ≡ Fast grade) STILL HOLDS. The new divergence test below pins
 /// the bound consequence: two ads with the SAME Fast tuple but DIFFERENT must-have coverage
 /// are NOT separated by the SQL sort (it cannot see must-have), while
-/// <see cref="MatchGradeCalculator.Grade(FullMatchScore)"/> WOULD grade them differently —
+/// <see cref="MatchGradeCalculator.Grade(FullMatchScore, MatchDimensionCauses, bool)"/> WOULD grade them differently —
 /// "sort is an honest Fast-band coarsening; grade is the per-ad requirement-aware truth."
 /// </para>
 /// <para>
 /// <b>The UNIFIED Fast/Full rule (#371/#382, senior-cto-advisor bind):</b> the /jobb list's
 /// SORT + grade-FILTER + headline-COUNT all pin to the FAST band
-/// (<see cref="MatchGradeCalculator.Grade(MatchScore)"/>, mirrored in SQL); the card BADGE is the Full
-/// requirement-aware grade (<see cref="MatchGradeCalculator.Grade(FullMatchScore)"/>). The Fast/Full
+/// (<see cref="MatchGradeCalculator.Grade(MatchScore, MatchDimensionCauses, bool)"/>, mirrored in SQL); the card BADGE is the Full
+/// requirement-aware grade (<see cref="MatchGradeCalculator.Grade(FullMatchScore, MatchDimensionCauses, bool)"/>). The Fast/Full
 /// divergence is bound + bidirectional + oracle-pinned (G3-OPT-A) — this file pins the SORT side; the
 /// filter-side twin lives in <see cref="MatchSortGradeFilterOracleTests"/>. See ADR 0076 (amendment)
 /// and issues #371/#382.
@@ -372,7 +372,7 @@ public class MatchSortOracleTests(ApiFactory factory)
             await SeedJobAdAsync(run, PrefGroup, ContainmentLan, PrefEmployment, t.AddDays(8), ct),
             await SeedJobAdAsync(run, PrefGroup, ContainmentLan, PrefEmployment, t.AddDays(7), ct),
 
-            // --- Basic (0 confirmed, both NotAssessed) — region null + employment null
+            // --- Basic (the #552 floor) — region null + employment null against stated preferences
             await SeedJobAdAsync(run, PrefGroup, null, null, t.AddDays(6), ct),
             // --- Basic (contradiction floors) — region NoMatch (other), employment Match
             await SeedJobAdAsync(run, PrefGroup, OtherRegion, PrefEmployment, t.AddDays(5), ct),
@@ -403,11 +403,11 @@ public class MatchSortOracleTests(ApiFactory factory)
         // carries the same Fast).
         var (scoreScope, _, scorer) = NewSearchAndScorer();
         using var __ = scoreScope;
-        var scores = await scorer.ScoreBatchAsync(seeded, profile.Fast, ct);
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, seeded, profile, ct);
 
         var expectedRankById = seeded.ToDictionary(
             id => id.Value,
-            id => RankOf(MatchGradeCalculator.Grade(scores[id])));
+            id => RankOf(grades[id]));
 
         // Sanity: the seed genuinely spans the untagged/Basic/Good/Strong rank buckets so the
         // oracle is not vacuously green on a degenerate set. PR-4 (#300): the Fast Grade(MatchScore)
@@ -469,7 +469,7 @@ public class MatchSortOracleTests(ApiFactory factory)
             //     Basic; the related-cap is BEFORE RB1 → still Related (rank 2, NOT Basic=1).
             await SeedJobAdAsync(run, RelatedGroup, OtherRegion, PrefEmployment, t.AddDays(11), ct),
 
-            // --- Basic (rank 1): exact occupation, both secondaries NotAssessed.
+            // --- Basic (rank 1): exact occupation, region + employment null against stated preferences (#552 floor).
             await SeedJobAdAsync(run, PrefGroup, null, null, t.AddDays(8), ct),
 
             // --- Untagged (rank 0): SSYK in NEITHER exact nor related → gate fails even broadened.
@@ -502,7 +502,7 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var expectedRankById = seeded.ToDictionary(
             id => id.Value,
-            id => RankOf(MatchGradeCalculator.Grade(scored[id].Score.Fast, scored[id].SsykIsRelated)));
+            id => RankOf(MatchGradeCalculator.Grade(scored[id].Score.Fast, scored[id].Causes, scored[id].SsykIsRelated)));
 
         // Sanity: the seed spans EVERY rung incl. the Related rung — distinct ranks == {0,1,2,3,4}.
         var distinctRanks = expectedRankById.Values.Distinct().OrderBy(r => r).ToList();
@@ -667,13 +667,13 @@ public class MatchSortOracleTests(ApiFactory factory)
         // C# SSOT (the scorer-side of the twin): the both-NULL-ort ad grades Basic under #552.
         var (scoreScope, _, scorer) = NewSearchAndScorer();
         using var __ = scoreScope;
-        var scores = await scorer.ScoreBatchAsync([strong, contradiction, bothNullOrt], profile.Fast, ct);
-        MatchGradeCalculator.Grade(scores[bothNullOrt]).ShouldBe(MatchGrade.Basic,
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, [strong, contradiction, bothNullOrt], profile, ct);
+        grades[bothNullOrt].ShouldBe(MatchGrade.Basic,
             "#552: en ANGIVEN region-preferens mot en annons utan NÅGOT ort-värde (båda shadows " +
             "NULL) golvar till Basic — precis som en motsägelse (inte längre NotAssessed → Good).");
-        MatchGradeCalculator.Grade(scores[contradiction]).ShouldBe(MatchGrade.Basic,
+        grades[contradiction].ShouldBe(MatchGrade.Basic,
             "Motsägande region-shadow (NoMatch) golvar till Basic (oförändrat).");
-        MatchGradeCalculator.Grade(scores[strong]).ShouldBe(MatchGrade.Strong);
+        grades[strong].ShouldBe(MatchGrade.Strong);
 
         var (sortScope, matchSort) = NewMatchSort();
         using var ___ = sortScope;
@@ -777,11 +777,11 @@ public class MatchSortOracleTests(ApiFactory factory)
         // scorer computes flows into the UNCHANGED grade ladder.
         var (scoreScope, _, scorer) = NewSearchAndScorer();
         using var __ = scoreScope;
-        var scores = await scorer.ScoreBatchAsync(seeded, profile.Fast, ct);
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, seeded, profile, ct);
 
         var expectedRankById = seeded.ToDictionary(
             id => id.Value,
-            id => RankOf(MatchGradeCalculator.Grade(scores[id])));
+            id => RankOf(grades[id]));
 
         // Sanity: the ort-union seed spans Strong / Good / Basic / untagged. PR-4 (#300): the
         // renumbered ranks are {0,1,3,4} (no Related row here — the Fast overload yields no Related).
@@ -828,10 +828,10 @@ public class MatchSortOracleTests(ApiFactory factory)
         // ort NoMatch → Basic.
         var (scoreScope, _, scorer) = NewSearchAndScorer();
         using var __ = scoreScope;
-        var scores = await scorer.ScoreBatchAsync([municipalityHit, ortNoMatch], profile.Fast, ct);
-        MatchGradeCalculator.Grade(scores[municipalityHit]).ShouldBe(MatchGrade.Strong,
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, [municipalityHit, ortNoMatch], profile, ct);
+        grades[municipalityHit].ShouldBe(MatchGrade.Strong,
             "Kommun-träff (region ej föredragen) = ort Match → 2 bekräftade sekundärer → Strong.");
-        MatchGradeCalculator.Grade(scores[ortNoMatch]).ShouldBe(MatchGrade.Basic,
+        grades[ortNoMatch].ShouldBe(MatchGrade.Basic,
             "Ingen union-träff (både region och kommun icke-föredragna) → ort NoMatch → Basic.");
 
         var (sortScope, matchSort) = NewMatchSort();
@@ -881,13 +881,13 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var (scoreScope, _, scorer) = NewSearchAndScorer();
         using var __ = scoreScope;
-        var scores = await scorer.ScoreBatchAsync([strong, contradiction, bothNullOrt], profile.Fast, ct);
-        MatchGradeCalculator.Grade(scores[bothNullOrt]).ShouldBe(MatchGrade.Basic,
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, [strong, contradiction, bothNullOrt], profile, ct);
+        grades[bothNullOrt].ShouldBe(MatchGrade.Basic,
             "#552: NULL kommun-shadow (och NULL region) med ANGIVEN kommun-preferens golvar till " +
             "Basic — precis som en motsägelse (inte längre NotAssessed → Good).");
-        MatchGradeCalculator.Grade(scores[contradiction]).ShouldBe(MatchGrade.Basic,
+        grades[contradiction].ShouldBe(MatchGrade.Basic,
             "Motsägande kommun-shadow (present, icke-föredragen) → ort NoMatch → Basic (oförändrat).");
-        MatchGradeCalculator.Grade(scores[strong]).ShouldBe(MatchGrade.Strong);
+        grades[strong].ShouldBe(MatchGrade.Strong);
 
         var (sortScope, matchSort) = NewMatchSort();
         using var ___ = sortScope;
@@ -932,11 +932,11 @@ public class MatchSortOracleTests(ApiFactory factory)
 
         var (scoreScope, _, scorer) = NewSearchAndScorer();
         using var __ = scoreScope;
-        var scores = await scorer.ScoreBatchAsync([regionHitNullMun, ortNoMatch], profile.Fast, ct);
-        MatchGradeCalculator.Grade(scores[regionHitNullMun]).ShouldBe(MatchGrade.Strong,
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, [regionHitNullMun, ortNoMatch], profile, ct);
+        grades[regionHitNullMun].ShouldBe(MatchGrade.Strong,
             "Region-träff + NULL kommun = ort Match (NULL-kommunen får inte golva region-träffen) " +
             "→ 2 bekräftade sekundärer → Strong.");
-        MatchGradeCalculator.Grade(scores[ortNoMatch]).ShouldBe(MatchGrade.Basic,
+        grades[ortNoMatch].ShouldBe(MatchGrade.Basic,
             "Ingen union-träff (båda ort-värden icke-föredragna) → ort NoMatch → Basic.");
 
         var (sortScope, matchSort) = NewMatchSort();
@@ -1079,8 +1079,8 @@ public class MatchSortOracleTests(ApiFactory factory)
         using var __ = scoreScope;
         var full = await scorer.ScoreFullBatchAsync([mustHaveMatch, mustHaveNoMatch], profile, ct);
 
-        var gradeMatch = MatchGradeCalculator.Grade(full[mustHaveMatch].Score);
-        var gradeNoMatch = MatchGradeCalculator.Grade(full[mustHaveNoMatch].Score);
+        var gradeMatch = MatchGradeCalculator.Grade(full[mustHaveMatch].Score, full[mustHaveMatch].Causes, full[mustHaveMatch].SsykIsRelated);
+        var gradeNoMatch = MatchGradeCalculator.Grade(full[mustHaveNoMatch].Score, full[mustHaveNoMatch].Causes, full[mustHaveNoMatch].SsykIsRelated);
 
         // must-have Match + both secondaries + skill Match → Top; must-have NoMatch caps at
         // Good. The point is only that they DIFFER (the grade sees must-have).

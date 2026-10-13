@@ -317,28 +317,36 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
         var run = NewRunWorktimeExtent();
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
+        // The preferred kommun and its parent län (containment): a län-only ad in that län is a real Good.
+        const string prefMunicipality = "kn-golden-ladder-pref";
+        const string containmentLan = "reg-golden-ladder-lan";
+
         var goldenTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
 
-        // S+ : Strong AND shares the CV skill (golden).
-        var sPlus = await SeedJobAdAsync(
-            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(10), goldenTerms, ct);
-        // S- : Strong, no shared skill (no extracted skill term).
+        // Every pair below is seeded so that recency (PublishedAt desc) would order it WRONG: only the
+        // key under test can produce the asserted order.
+        // S- : Strong, no shared skill (no extracted skill term). The newest Strong.
         var sMinus = await SeedJobAdAsync(
-            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(9), terms: null, ct);
-        // G  : Good (one confirmed secondary — employment NotAssessed via null shadow).
-        var g = await SeedJobAdAsync(
-            run, PrefGroup, PrefRegion, null, t.AddDays(8), terms: null, ct);
-        // B  : Basic (both secondaries NotAssessed — null region + null employment).
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(10), terms: null, ct);
+        // S+ : Strong AND shares the CV skill (golden). OLDER than S-: only the lift puts it first.
+        var sPlus = await SeedJobAdAsync(
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(9), goldenTerms, ct);
+        // B  : Basic (the #552 floor: null region + null employment against stated preferences). NEWER than G.
         var b = await SeedJobAdAsync(
-            run, PrefGroup, null, null, t.AddDays(7), terms: null, ct);
-        // U  : untagged (SSYK NotAssessed via null group) → sorts last.
+            run, PrefGroup, null, null, t.AddDays(8), terms: null, ct);
+        // G  : Good (#477 containment: a län-only ad in the preferred kommun's län, employment Match, so
+        //      RegionFit is NotAssessed and exactly one secondary is confirmed). OLDER than B: only the rank
+        //      puts it above B.
+        var g = await SeedJobAdAsync(
+            run, PrefGroup, containmentLan, PrefEmployment, t.AddDays(7), terms: null, ct);
+        // U  : untagged (SSYK NotAssessed via null group). The NEWEST ad: only the rank sorts it last.
         var u = await SeedJobAdAsync(
-            run, null, PrefRegion, PrefEmployment, t.AddDays(6), terms: null, ct);
+            run, null, PrefRegion, PrefEmployment, t.AddDays(20), terms: null, ct);
 
         var (scope, matchSort) = NewMatchSort();
         using var _ = scope;
         var page = await matchSort.SearchPerUserAsync(
-            FilterFor(run), Profile(CvSkillConceptId), grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 100, ct);
+            FilterFor(run), ProfileWithContainment(prefMunicipality, containmentLan, CvSkillConceptId), grades: [], sort: JobAdSortBy.PublishedAtDesc, orderByMatchRank: true, status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 100, ct);
 
         var orderedIds = page.Items.Select(i => i.Id).ToList();
         orderedIds.Count.ShouldBe(5, "Hela den filtrerade mängden ska returneras (otaggade inkl.).");
@@ -381,6 +389,64 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
             .ShouldBeLessThan(orderedIds.IndexOf(strongWithSkillOlder.Value),
                 "Utan CV-skills får skill-annonsen INGEN golden-lyft — ordningen ≡ F4-14 " +
                 "(nyare publishedAt först inom samma grad).");
+    }
+
+    // =================================================================
+    // 11b. ADR 0170 (#2154) — an UNSTATED ort / employment preference confirms, so the golden top-skill
+    //      lift fires for a user who left one empty: a Strong that shares a CV skill sorts above a plain
+    //      Strong. Before ADR 0170 such a user never reached the Strong band, so the lift never applied.
+    //      The profile is the one the builder produces for an empty list (no region/municipality, or no
+    //      employment type); the ads carry whatever value they like for the dimension left empty.
+    // =================================================================
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task SearchByMatch_WithUnstatedPreferences_GoldenStrongSortsAbovePlainStrong(
+        bool ortStated, bool employmentStated)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        var goldenTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
+
+        // The value an ad carries on a dimension the user stated is the preferred one; on a dimension
+        // the user left empty the ad may carry anything — here a value the user would never have picked.
+        var region = ortStated ? PrefRegion : "reg-golden-anything";
+        var employment = employmentStated ? PrefEmployment : "emp-golden-anything";
+
+        // The golden ad is OLDER than the plain Strong, so recency alone would put it second: only the
+        // lift can put it first.
+        var sPlus = await SeedJobAdAsync(run, PrefGroup, region, employment, t.AddDays(8), goldenTerms, ct);
+        var sMinus = await SeedJobAdAsync(run, PrefGroup, region, employment, t.AddDays(9), terms: null, ct);
+        // Contradicts whichever dimension IS stated, so it floors to Basic and sorts last; for the
+        // all-empty profile nothing can contradict, so it is a third Strong (oldest, no skill).
+        var third = await SeedJobAdAsync(
+            run, PrefGroup, ortStated ? "reg-golden-other" : region,
+            employmentStated && !ortStated ? "emp-golden-other" : employment,
+            t.AddDays(7), terms: null, ct);
+
+        var profile = new FullCandidateMatchProfile(
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: [PrefGroup],
+                PreferredRegionConceptIds: ortStated ? [PrefRegion] : [],
+                PreferredEmploymentTypeConceptIds: employmentStated ? [PrefEmployment] : [],
+                PreferredMunicipalityConceptIds: []),
+            [CvSkillConceptId]);
+
+        var (scope, matchSort) = NewMatchSort();
+        using var _ = scope;
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run), profile, grades: [], sort: JobAdSortBy.PublishedAtDesc,
+            orderByMatchRank: true, status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 100, ct);
+
+        page.Items.Select(i => i.Id).ToList().ShouldBe(
+            [sPlus.Value, sMinus.Value, third.Value],
+            "Golden (Strong + delad CV-skill) ska ligga ÖVER plain Strong även när en preferens lämnats tom " +
+            "(ADR 0170); den motsagda annonsen golvas till Basic och ligger sist.");
     }
 
     // =================================================================
@@ -663,12 +729,13 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
 
         var goldenTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
 
-        // goldenStrong: Strong (region hit) + shared skill → golden top lift.
+        // goldenStrong: Strong (region hit) + shared skill → golden top lift. OLDER than plainStrong,
+        // so recency alone would rank it second: only the lift puts it first.
         var goldenStrong = await SeedJobAdAsync(
-            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(10), goldenTerms, ct);
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(9), goldenTerms, ct);
         // plainStrong: Strong (region hit), no skill → plain Strong (below golden).
         var plainStrong = await SeedJobAdAsync(
-            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(9), terms: null, ct);
+            run, PrefGroup, PrefRegion, PrefEmployment, t.AddDays(10), terms: null, ct);
         // containmentGood: LÄN-ONLY ad in the containment län (region = containmentLan, municipality
         // NULL) + employment Match → RegionFit NotAssessed (containment) → Good (rank 3). It ALSO
         // carries the shared CV skill — but it is NOT Strong-band, so it earns NO golden lift (the
@@ -677,8 +744,8 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
         // newer plainBasic — making this assertion fail loud on revert.
         var containmentGood = await SeedJobAdAsync(
             run, PrefGroup, containmentLan, PrefEmployment, t.AddDays(3), goldenTerms, ct);
-        // plainBasic: SSYK Match only, both secondaries NotAssessed (region + employment NULL) →
-        // Basic (rank 1). Published NEWER than containmentGood — the contrast that makes Good-vs-Basic
+        // plainBasic: SSYK Match only, region + employment NULL against stated preferences → the #552
+        // floor → Basic (rank 1). Published NEWER than containmentGood — the contrast that makes Good-vs-Basic
         // observable in the sort order (revert-detection).
         var plainBasic = await SeedJobAdAsync(
             run, PrefGroup, null, null, t.AddDays(8), terms: null, ct);

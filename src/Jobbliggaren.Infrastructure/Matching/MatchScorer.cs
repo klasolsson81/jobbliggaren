@@ -137,7 +137,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             RegionFit: ScoreOrtUnion(
                 profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
                 profile.ContainmentRegionConceptIds,
-                ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote).Dimension,
+                ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote,
+                preferredRemote: profile.PreferredRemote).Dimension,
             EmploymentFit: ScoreEmploymentMembership(
                 profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId).Dimension);
     }
@@ -215,7 +216,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 RegionFit: ScoreOrtUnion(
                     profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
                     profile.ContainmentRegionConceptIds,
-                    ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote).Dimension,
+                    ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote,
+                preferredRemote: profile.PreferredRemote).Dimension,
                 EmploymentFit: ScoreEmploymentMembership(
                     profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId).Dimension);
         }
@@ -289,7 +291,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         var ort = ScoreOrtUnion(
             fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
             fast.ContainmentRegionConceptIds,
-            ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote);
+            ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote,
+            preferredRemote: fast.PreferredRemote);
         var employment = ScoreEmploymentMembership(
             fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId);
         var fastScore = new MatchScore(
@@ -397,7 +400,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             var ort = ScoreOrtUnion(
                 fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
                 fast.ContainmentRegionConceptIds,
-                ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote);
+                ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote,
+                preferredRemote: fast.PreferredRemote);
             var employment = ScoreEmploymentMembership(
                 fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId);
             var fastScore = new MatchScore(
@@ -618,7 +622,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // Match = the ad's region is among the preferred regions OR the ad's municipality is
     // among the preferred municipalities (a "hela länet" region preference matches any ad in
     // that län; a specific municipality preference matches that kommun). NotAssessed ONLY
-    // when NO ort preference is stated (BOTH lists empty) — the vacuous-gate doctrine.
+    // when NO ort place is stated (BOTH lists empty) — the vacuous-gate doctrine. Its cause is
+    // PreferenceUnstated, except for a user whose only ort choice is Distans (preferredRemote):
+    // she has stated an ort, so her NotAssessed carries no cause (ADR 0170).
     // NoMatch (which floors the grade to Basic via the UNCHANGED MatchGradeCalculator RB1
     // rule) when an ort preference IS stated AND either (a) the ad carries NEITHER ort value
     // (#552 grade gate, ADR 0076 amendment: the ad's silence on a user-constrained dimension
@@ -653,7 +659,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         IReadOnlyList<string> containmentRegions,
         string? adRegion,
         string? adMunicipality,
-        bool adRemote)
+        bool adRemote,
+        bool preferredRemote)
     {
         var stated = preferredRegions.Count > 0 || preferredMunicipalities.Count > 0;
         var hasAdRegion = !string.IsNullOrEmpty(adRegion);
@@ -662,7 +669,10 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // NotAssessed: no ort preference stated (vacuous-gate doctrine, unchanged).
         if (!stated)
         {
-            return new(NotAssessed(), MatchDimensionCause.PreferenceUnstated);
+            // A user whose only ort choice is Distans HAS stated an ort (ADR 0170): the grade must not read her
+            // empty lists as "open to everywhere", so her NotAssessed carries no cause and neither confirms nor
+            // contradicts. PreferredRemote decides only whether the ort is stated, never whether an ad matches.
+            return new(NotAssessed(), preferredRemote ? null : MatchDimensionCause.PreferenceUnstated);
         }
 
         // #551 (ADR 0076 #551 amendment) — a remote ad OVERRIDES the ort gate: it is a location-match
@@ -670,13 +680,13 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // of whether the ad also names a (non-matching) location. This realises the ADR 0076 #551
         // forward-note the #552 gate accepted as a documented limitation.
         //
-        // PLACEMENT is load-bearing (CTO D4). AFTER !stated: an unstated user has no ort gate to override,
-        // and lifting their RegionFit to Match would fabricate a confirmed secondary they never asked for
-        // (vacuous-gate doctrine — "a location-match for everyone" means regardless of WHICH ort, not "even
-        // for users who stated none"). BEFORE the both-NULL #552 gate AND the union logic: a remote ad must
+        // PLACEMENT is load-bearing (CTO D4). AFTER !stated: an unstated user has no ort gate to override, so
+        // there is nothing to lift (vacuous-gate doctrine — "a location-match for everyone" means regardless
+        // of WHICH ort, not "even for users who stated none"). BEFORE the both-NULL #552 gate AND the union logic: a remote ad must
         // never be floored, and "remote, HQ Göteborg" must match a Stockholm user too (remote wins over a
-        // non-matching tag). Match (not NotAssessed) is FORCED: a Göteborg-only user needs ≥Bra, and
-        // NotAssessed+NotAssessed = 0 confirmed secondaries = Basic (MatchGradeCalculator).
+        // non-matching tag). Match (not NotAssessed) is FORCED: a NotAssessed region would not confirm the
+        // ort this user stated (only PreferenceUnstated confirms, ADR 0170), capping a Göteborg-only user's
+        // remote ad below Strong.
         //
         // EMPTY evidence: there is no region concept-id to cite (the ad has none, or a non-matching one),
         // and a magic-string "distans" sentinel in Matched is a §5 anti-pattern that would break the

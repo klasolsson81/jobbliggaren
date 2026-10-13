@@ -39,7 +39,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.Matching;
 /// </para>
 ///
 /// <para>
-/// <b>Grade-seeding recipe</b> (against <see cref="MatchGradeCalculator.Grade(FullMatchScore)"/>,
+/// <b>Grade-seeding recipe</b> (against <see cref="MatchGradeCalculator.Grade(FullMatchScore, MatchDimensionCauses, bool)"/>,
 /// SSYK=Match assumed via a matching occupation_group shadow):
 /// <list type="bullet">
 /// <item><b>Good</b> — region + employment Match (both secondaries) but the user has NO confirmed
@@ -47,8 +47,8 @@ namespace Jobbliggaren.Worker.IntegrationTests.Matching;
 /// <item><b>Top</b> — region + employment Match + the user confirms the ad's must-have skill
 ///   (MustHaveCoverage = Match) AND a skill signal (SkillOverlap = Match) → "Top". The Worker is
 ///   the FIRST place the FULL grade runs, so the first place Top is produced.</item>
-/// <item><b>Basic</b> (honest floor) — region + employment shadows NULL (both NotAssessed) and no
-///   skills → 0 confirmed secondaries → "Basic" → NEVER persisted.</item>
+/// <item><b>Basic</b> (honest floor) — region + employment shadows NULL against a user who states
+///   both: the #552 floor → "Basic" → NEVER persisted.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -172,16 +172,15 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
     {
         var ct = TestContext.Current.CancellationToken;
 
-        // Basic: occupation Match but NEITHER secondary confirmed (region + employment shadows
-        // NULL → both NotAssessed) and no skills → 0 confirmed secondaries → Basic.
+        // Basic: occupation Match, but the user states region and employment and the ad's shadows
+        // are NULL → the #552 floor → Basic.
         var jobAdId = await SeedAdAsync(
             OccupationGroup, regionConceptId: null, employmentTypeConceptId: null,
             Now.AddDays(-1), terms: null, ct);
 
         var (userId, _) = await SeedConsentingJobSeekerAsync(
             occupationGroups: [OccupationGroup],
-            // stated, ad has no region/employment → Basic. Pre-#552 via 0 confirmed secondaries
-            // (both NotAssessed); post-#552 via the ort + employment NoMatch RB1 floor. Basic either way.
+            // stated, ad has no region/employment → the ort + employment NoMatch RB1 floor → Basic.
             regions: [Region],
             employments: [Employment],
             skills: [],
@@ -440,10 +439,10 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
         scores.TryGetValue(jobAdId, out var scored).ShouldBeTrue("the seeded ad must be scored");
 
         // PR-4 (#300, ADR 0084): the carrier holds the score + SsykIsRelated. Recompute the
-        // grade EXACTLY as the Worker does — Grade(FullMatchScore, bool) with the carrier's
+        // grade EXACTLY as the Worker does — Grade(FullMatchScore, MatchDimensionCauses, bool) with the carrier's
         // related bit — so this SSOT cross-check mirrors the production path (a related-only hit
         // grades Related, which the switch below maps to null = not notifiable).
-        var grade = MatchGradeCalculator.Grade(scored!.Score, scored.SsykIsRelated);
+        var grade = MatchGradeCalculator.Grade(scored!.Score, scored.Causes, scored.SsykIsRelated);
         return grade switch
         {
             MatchGrade.Good => NotifiableMatchGrade.Good,

@@ -83,4 +83,19 @@ public sealed record CandidateMatchProfile(
     /// </para>
     /// </summary>
     public IReadOnlyList<string> ContainmentRegionConceptIds { get; init; } = [];
+
+    /// <summary>
+    /// <b><see cref="PreferredRemote"/> (ADR 0170, Klas 2026-10-13):</b> the user ticked Distans. It decides
+    /// ONE thing: whether the ort counts as STATED. A user whose only ort choice is Distans has stated an
+    /// ort, so her empty region and municipality lists are not read as "open to everywhere" (which would
+    /// confirm the ort for every on-site ad); her ort stays neutral. It NEVER decides whether an ad
+    /// MATCHES the ort: <c>MatchScorer.ScoreOrtUnion</c> matches on the two lists and the AD's own remote
+    /// flag only (ADR 0079 F1, <c>MatchProfileRemoteIndependenceTests</c>).
+    /// <para>
+    /// Additive init-property, default <c>false</c> = "Distans not ticked", so every existing construction
+    /// is unchanged. <see cref="FullCandidateMatchProfile"/> reads it via its embedded
+    /// <see cref="FullCandidateMatchProfile.Fast"/>.
+    /// </para>
+    /// </summary>
+    public bool PreferredRemote { get; init; }
 }

@@ -24,25 +24,43 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </summary>
 public class MatchProfileRemoteIndependenceTests
 {
+    // ADR 0170 (Klas 2026-10-13) amends this pin NARROWLY: the profile may carry exactly ONE remote member,
+    // `PreferredRemote`, because a user whose only ort choice is Distans has STATED an ort (her empty region and
+    // municipality lists must not read as "open to everywhere", which would confirm every on-site ad). It decides
+    // whether the ort is stated, never whether an ad matches it: ScoreOrtUnion matches on the two lists and the
+    // AD's remote flag only, pinned behaviourally by FullMatchScorerIntegrationTests (a Distans-only profile never
+    // yields a Match on the ort). Any other remote-named member still fails here.
     [Fact]
-    public void CandidateMatchProfile_ExposesNoRemotePreferenceMember_SoTheGradeStaysAdDriven()
+    public void CandidateMatchProfile_ExposesNoRemotePreferenceMember_ButPreferredRemote_SoTheGradeStaysAdDriven()
     {
-        AssertNoRemoteMember(typeof(CandidateMatchProfile));
+        AssertNoRemoteMember(typeof(CandidateMatchProfile), allowed: ["PreferredRemote"]);
+    }
+
+    [Fact]
+    public void CandidateMatchProfile_PreferredRemote_IsABoolThatDefaultsToFalse()
+    {
+        var member = typeof(CandidateMatchProfile).GetProperty(nameof(CandidateMatchProfile.PreferredRemote));
+
+        member.ShouldNotBeNull();
+        member.PropertyType.ShouldBe(typeof(bool));
+        new CandidateMatchProfile(string.Empty, [], [], [], []).PreferredRemote.ShouldBeFalse(
+            "Default false = Distans not ticked, so every existing construction keeps its behaviour.");
     }
 
     [Fact]
     public void FullCandidateMatchProfile_ExposesNoRemotePreferenceMember_SoTheGradeStaysAdDriven()
     {
-        AssertNoRemoteMember(typeof(FullCandidateMatchProfile));
+        AssertNoRemoteMember(typeof(FullCandidateMatchProfile), allowed: []);
     }
 
-    private static void AssertNoRemoteMember(Type profileType)
+    private static void AssertNoRemoteMember(Type profileType, string[] allowed)
     {
         var remoteMembers = profileType
             .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Where(m => m is PropertyInfo or FieldInfo)
             .Where(m => m.Name.Contains("remote", StringComparison.OrdinalIgnoreCase))
             .Select(m => m.Name)
+            .Where(name => !allowed.Contains(name, StringComparer.Ordinal))
             .ToList();
 
         remoteMembers.ShouldBeEmpty(

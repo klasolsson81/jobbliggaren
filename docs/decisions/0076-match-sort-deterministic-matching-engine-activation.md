@@ -1583,3 +1583,43 @@ The producer facts this rests on were measured at `ad2ce55f9` on 2026-10-03:
 - `MatchScorer` scores an AdSilent place or employment type as NoMatch, which floors the grade at Basic;
 - 167 of the 20,679 v30 skill labels carry a parenthesis that belongs to the concept;
 - stripping those parentheses made three sets of distinct concepts read identically.
+
+---
+
+## Amendment 2026-10-13 — an unstated ort / employment preference counts as a confirmed secondary in the grade (ADR 0170, #2154)
+
+**Date:** 2026-10-13
+**Instrument:** first-class dated amendment. The reasoning, the alternatives and the consequences are in ADR 0170; this note records only what it changes in this ADR.
+**Driver:** Klas Olsson (decision after a live test of a test account, 2026-10-13, #2154).
+
+### What changes
+
+A secondary, `RegionFit` or `EmploymentFit`, is confirmed in the grade when its verdict is `Match`, **or** when its verdict is `NotAssessed` with the cause
+`PreferenceUnstated` (the cause of Amendment 2026-08-31, carried beside the score). Both `MatchGradeCalculator.Grade` overloads take the causes as a required argument, and the
+SQL twin (`PerUserJobAdSearchQuery.GradeRankExpression`, with the golden-rung sort lift) gains `!ortStated` / `!employmentStated`, so Fast and Full still agree at `Good` and
+above. A `NotAssessed` region with the cause `RegionContainsPreferredMunicipality` (#477 Low 1) stays neutral and is not counted, and so does the ort of a user whose only ort
+choice is Distans (Klas, 2026-10-13: Distans is a stated ort; `CandidateMatchProfile.PreferredRemote` decides whether the ort is stated and never whether an ad matches it).
+
+### Earlier readings superseded — for the grade count only
+
+Wherever a passage below says that a `NotAssessed` region or employment "neither confirms nor caps", or counts it as no confirmed secondary, it no longer holds when the cause
+is `PreferenceUnstated`:
+
+- **Amendment 2026-06-19 (b) §1:** the `Basic` row ("region and employment both `NotAssessed` (open / not stated)").
+- **Amendment 2026-06-19 (b) §2:** "A `NotAssessed` dimension (user stated "open" or did not state a preference) neither confirms nor caps", and the total-mapping rows
+  `Match`/`NotAssessed` → Good, `NotAssessed`/`Match` → Good and `NotAssessed`/`NotAssessed` → Basic.
+- **Amendment 2026-06-20 §1:** the "Strong (open-secondary)" row, the two "Good" rows and the "Basic" row ("no confirmed secondary, must-have not met").
+- **Amendment 2026-06-27 §1 and §2 (b′):** the same three rows ("Strong (open-secondary)", "Good", "Basic: otherwise"), including the unwritten case `requirementBacked` with no
+  confirmed secondary → Basic, and "Caps at `Good` (≥1 confirmed secondary) or `Basic`". Read "confirmed secondary" as ADR 0170 defines it.
+- **Amendment 2026-07-18 (#552) and 2026-07-18 (b) (#551):** "An UNSTATED preference is untouched — still `NotAssessed`" stands, **for the verdict**. Superseded is the reading of
+  that `NotAssessed` as neutral in the count: the PLACEMENT note's "would fabricate a confirmed secondary they never asked for", and the arithmetic "`NotAssessed`+`NotAssessed` =
+  0 confirmed secondaries = Basic" when the `NotAssessed` is `PreferenceUnstated`. The remote override still returns `Match` and still sits after the `!stated` return. The ADR 0079 line
+  "the scorer reads the ad's flag, NEVER the user's remote preference" no longer holds literally: `PreferredRemote` reaches the profile to decide whether the ort is stated, never whether
+  an ad matches it (ADR 0170 D6).
+
+### What does not change
+
+The SSYK gate, the Related cap (ADR 0084 §F4), the RB1 contradiction floor, the F1(b) requirement gate and the no-CV ceiling (`Good`); the `NotAssessed` verdict, the cause on the
+wire, the modal rows and all copy; G3-OPT-A (Amendment 2026-06-29). The ripple of Amendment 2026-07-18 ("Good becomes containment-only under a both-stated profile") still holds for a
+profile that states both. ADR 0170 states two consequences: for an exact-occupation ad `Basic` now means only that a stated preference is contradicted, and for a user who stated
+neither ort nor employment every exact-occupation ad is `Strong` in the Fast band.

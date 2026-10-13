@@ -261,7 +261,7 @@ public class MatchCountOracleTests(ApiFactory factory)
     private Task<JobAdId> SeedGoodAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, PrefGroup, ContainmentLan, PrefEmployment, publishedAt, ct);
 
-    // Basic (rank 1): both secondaries NotAssessed (region NULL + employment NULL).
+    // Basic (rank 1): region + employment NULL against a profile that states both: the #552 floor.
     private Task<JobAdId> SeedBasicNeutralAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, PrefGroup, null, null, publishedAt, ct);
 
@@ -417,10 +417,10 @@ public class MatchCountOracleTests(ApiFactory factory)
         // C# grade-SSOT: grade every seeded ad and count those in {Good, Strong}.
         var (scoreScope, scorer) = NewScorer();
         using var scoreDispose = scoreScope;
-        var scores = await scorer.ScoreBatchAsync(seeded, profile.Fast, ct);
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, seeded, profile, ct);
         var headline = new[] { MatchGrade.Good, MatchGrade.Strong };
         var expectedCount = seeded.Count(id =>
-            MatchGradeCalculator.Grade(scores[id]) is { } g && headline.Contains(g));
+            grades[id] is { } g && headline.Contains(g));
 
         // Sanity: the seed genuinely spans the band (Strong + Good present) so the assertion
         // is not vacuously green.
@@ -552,19 +552,20 @@ public class MatchCountOracleTests(ApiFactory factory)
         // the batch query returns nothing at all.
         scores.ShouldContainKey(live1);
         scores.ShouldContainKey(live2);
-        MatchGradeCalculator.Grade(scores[live1]).ShouldBe(MatchGrade.Strong);
-        MatchGradeCalculator.Grade(scores[live2]).ShouldBe(MatchGrade.Strong);
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, [live1, live2, archived, erased], profile, ct);
+        grades[live1].ShouldBe(MatchGrade.Strong);
+        grades[live2].ShouldBe(MatchGrade.Strong);
 
         // THE COUNTERFACTUAL — asserted, not assumed. "The archived ad is absent" is only evidence
         // of a GATE if the ad would OTHERWISE have been in the set. Nothing above says that: it
         // rests on the seed helper, and the day the grade ladder is retuned the archived ad could
         // fall out of the headline band for an unrelated reason — at which point this oracle would
         // read 2 == 2 and go GREEN while the SQL engine had lost its gate entirely.
-        // The S-split supplies its own oracle here: ScoreAsync is the SINGLE method, deliberately
-        // UNGATED (#864 D2), so it says what the archived ad WOULD grade. It grades Strong — so its
-        // absence from the batch is the gate's doing, and nothing else's.
-        var archivedIfItHadStayedActive = await scorer.ScoreAsync(archived, profile.Fast, ct);
-        MatchGradeCalculator.Grade(archivedIfItHadStayedActive).ShouldBe(MatchGrade.Strong,
+        // The S-split supplies its own oracle here: the SINGLE family (ScoreAsync, ScoreFullAsync) is
+        // deliberately UNGATED on Active (#864 D2), so it says what the archived ad WOULD grade. It
+        // grades Strong — so its absence from the batch is the gate's doing, and nothing else's.
+        var archivedIfItHadStayedActive = await ScorerGrading.GradeAsync(scorer, archived, profile.Fast, ct);
+        archivedIfItHadStayedActive.ShouldBe(MatchGrade.Strong,
             "Den arkiverade annonsen SKULLE ha graderat Strong (den ogrindade single-metoden säger " +
             "det) — annars mäter detta orakel inte grinden utan seedens råkade gradfall.");
 
@@ -617,8 +618,7 @@ public class MatchCountOracleTests(ApiFactory factory)
             "Full-batchens allow-list-pin: en deny-list (!= Archived) hade graderat tombstonen — " +
             "utan denna rad kunde Full-grindens flip överleva med orakelet GRÖNT.");
 
-        var csharpHeadlineCount = scores.Count(kv =>
-            MatchGradeCalculator.Grade(kv.Value) is { } g && headline.Contains(g));
+        var csharpHeadlineCount = grades.Values.Count(g => g is { } x && headline.Contains(x));
 
         // ---- The SQL engine (CountPerUserAsync — ApplyFilter's own Status == Active) ----
         var (queryScope, query) = NewPerUserQuery();
@@ -677,9 +677,9 @@ public class MatchCountOracleTests(ApiFactory factory)
         var (scoreScope, scorer) = NewScorer();
         using var scoreDispose = scoreScope;
         var scored = await scorer.ScoreFullBatchAsync([strong, good, related1, related2], profile, ct);
-        MatchGradeCalculator.Grade(scored[related1].Score.Fast, scored[related1].SsykIsRelated)
+        MatchGradeCalculator.Grade(scored[related1].Score.Fast, scored[related1].Causes, scored[related1].SsykIsRelated)
             .ShouldBe(MatchGrade.Related);
-        MatchGradeCalculator.Grade(scored[related2].Score.Fast, scored[related2].SsykIsRelated)
+        MatchGradeCalculator.Grade(scored[related2].Score.Fast, scored[related2].Causes, scored[related2].SsykIsRelated)
             .ShouldBe(MatchGrade.Related);
         scored[strong].SsykIsRelated.ShouldBeFalse();
         scored[good].SsykIsRelated.ShouldBeFalse();
@@ -738,13 +738,12 @@ public class MatchCountOracleTests(ApiFactory factory)
         // C# SSOT (the scorer-side of the twin): the new-arm ads grade Basic under #552.
         var (scoreScope, scorer) = NewScorer();
         using var scoreDispose = scoreScope;
-        var scores = await scorer.ScoreBatchAsync(
-            [strong1, strong2, bothNullOrt, nullEmployment], profile.Fast, ct);
-        MatchGradeCalculator.Grade(scores[strong1]).ShouldBe(MatchGrade.Strong);
-        MatchGradeCalculator.Grade(scores[strong2]).ShouldBe(MatchGrade.Strong);
-        MatchGradeCalculator.Grade(scores[bothNullOrt]).ShouldBe(MatchGrade.Basic,
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, [strong1, strong2, bothNullOrt, nullEmployment], profile, ct);
+        grades[strong1].ShouldBe(MatchGrade.Strong);
+        grades[strong2].ShouldBe(MatchGrade.Strong);
+        grades[bothNullOrt].ShouldBe(MatchGrade.Basic,
             "#552: both-NULL-ort + employment Match golvar till Basic (pre-#552 Good).");
-        MatchGradeCalculator.Grade(scores[nullEmployment]).ShouldBe(MatchGrade.Basic,
+        grades[nullEmployment].ShouldBe(MatchGrade.Basic,
             "#552: region Match + NULL employment (anställning angiven) golvar till Basic (pre-#552 Good).");
 
         var (queryScope, query) = NewPerUserQuery();

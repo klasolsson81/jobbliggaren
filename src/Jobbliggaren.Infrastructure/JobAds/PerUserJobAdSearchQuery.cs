@@ -41,8 +41,10 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// men EJ i den angivna exakta; platt cap MELLAN Basic och Good, oberoende av sekundärer);</item>
 /// <item>1 = Basic (exakt SSYK Match, men en angiven ort/anställningsform motsäger — golvar);</item>
 /// <item>exakt SSYK Match utan motsägelse: 1/3/4 (Basic/Good/Strong) efter antal bekräftade
-/// sekundärer (ort (region∪kommun) / anställningsform) — 0/1/2 st. En <c>NotAssessed</c>-
-/// dimension varken bekräftar eller golvar.</item>
+/// sekundärer (ort (region∪kommun) / anställningsform) — 0/1/2 st. En ej angiven dimension
+/// (tom lista; för ort: inga platser och inte Distans) räknas som bekräftad, ADR 0170; en
+/// neutral län-only-containment-annons och en Distans-only-användares ort varken bekräftar
+/// eller golvar.</item>
 /// </list>
 /// <b>G3-OPT-A (medveten, bunden divergens):</b> Fast-bandet toppar på Stark — Topp kan
 /// inte beräknas i SQL (ingen kind-separerad must-have-lexem-kolumn) och avvisas wire-side
@@ -101,9 +103,9 @@ internal sealed class PerUserJobAdSearchQuery(
         ArgumentNullException.ThrowIfNull(grades);
 
         // Profil-listorna fångas lokalt → EF binder dem som parametrar (= ANY).
-        // SSYK är icke-tom (handlerns gate). regions/employment kan vara tomma
-        // (NotAssessed — varken bekräftar eller golvar; vacuous-gate-doktrinen, oförändrad
-        // av #552-grinden som enbart gäller ANGIVEN pref mot NULL-shadow).
+        // SSYK är icke-tom (handlerns gate). regions/employment kan vara tomma: en ej angiven
+        // dimension räknas som bekräftad (ADR 0170); #552-grinden gäller enbart ANGIVEN pref
+        // mot NULL-shadow.
         var fast = profile.Fast;
         var ssyk = fast.SsykGroupConceptIds;
         // #300 PR-4 (ADR 0084 §F4): the RELATED ssyk-4 set (substitutable occupations). Populated
@@ -118,10 +120,9 @@ internal sealed class PerUserJobAdSearchQuery(
         // disjunkten i GradeRankExpression blir konstant false → pre-#477 byte-for-byte.
         var containmentRegions = fast.ContainmentRegionConceptIds;
         var employment = fast.PreferredEmploymentTypeConceptIds;
-        // The ort dimension folds region ∪ municipality into ONE secondary (parity
-        // RegionFit / ScoreOrtUnion): "stated" iff EITHER preference list is non-empty.
-        var ortStated = regions.Count > 0 || municipalities.Count > 0;
-        var employmentStated = employment.Count > 0;
+        // "Stated" is derived in ONE place (IsOrtOpen / IsEmploymentStated), shared with GradeRankExpression.
+        var ortOpen = IsOrtOpen(regions, municipalities, fast.PreferredRemote);
+        var employmentStated = IsEmploymentStated(employment);
 
         // F4-15 (ADR 0076 Decision 6) → ADR 0079 STEG 3 PR-D: den gyllene topp-rungen.
         // CvSkillConceptIds är den BEKRÄFTADE skill-mängden (plaintext PreferredSkills,
@@ -146,7 +147,7 @@ internal sealed class PerUserJobAdSearchQuery(
         // Konsumeras av grad-WHERE, count OCH match-rank-ORDER BY så filter och sort aldrig
         // divergerar (CTO-re-bind 2026-06-23). Oracle-pinnad.
         var rankExpr = GradeRankExpression(
-            ssyk, relatedSsyk, regions, municipalities, containmentRegions, employment, ortStated, employmentStated);
+            ssyk, relatedSsyk, regions, municipalities, containmentRegions, employment, fast.PreferredRemote);
 
         // ADR 0079 STEG 5 — grad-WHERE: den PER-ANVÄNDAR-predikaten. Lever ENBART här,
         // aldrig i den delade anonymt cachebara ApplyFilter (anon-cache + SavedSearch +
@@ -195,9 +196,11 @@ internal sealed class PerUserJobAdSearchQuery(
                 .OrderByDescending(j =>
                     skillStated
                     && ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
-                    && (regions.Contains(EF.Property<string?>(j, RegionColumn))
+                    && (ortOpen
+                        || regions.Contains(EF.Property<string?>(j, RegionColumn))
                         || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn)))
-                    && employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
+                    && (!employmentStated
+                        || employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn)))
                     && EF.Functions.JsonExistAny(EF.Property<string>(j, ExtractedLexemesColumn), cvSkillIds)
                         ? 1
                         : 0)
@@ -242,8 +245,6 @@ internal sealed class PerUserJobAdSearchQuery(
         // disjunkten i GradeRankExpression blir konstant false → pre-#477 byte-for-byte.
         var containmentRegions = fast.ContainmentRegionConceptIds;
         var employment = fast.PreferredEmploymentTypeConceptIds;
-        var ortStated = regions.Count > 0 || municipalities.Count > 0;
-        var employmentStated = employment.Count > 0;
 
         // SAMMA filter-SPOT + SAMMA delade GradeRankExpression som SearchPerUserAsync:s
         // grad-WHERE → counten är per konstruktion lika med list-vägens TotalCount för
@@ -263,7 +264,7 @@ internal sealed class PerUserJobAdSearchQuery(
                 db, resolved.Text, baseQuery.CountAsync, cancellationToken);
 
         var rankExpr = GradeRankExpression(
-            ssyk, relatedSsyk, regions, municipalities, containmentRegions, employment, ortStated, employmentStated);
+            ssyk, relatedSsyk, regions, municipalities, containmentRegions, employment, fast.PreferredRemote);
         var selectedRanks = grades.Select(GradeToRank).Distinct().ToArray();
         var gradedQuery = baseQuery.Where(RankInSet(rankExpr, selectedRanks));
         return await BitmapPlanCount.CountWithBitmapPlanAsync(
@@ -296,8 +297,6 @@ internal sealed class PerUserJobAdSearchQuery(
         // disjunkten i GradeRankExpression blir konstant false → pre-#477 byte-for-byte.
         var containmentRegions = fast.ContainmentRegionConceptIds;
         var employment = fast.PreferredEmploymentTypeConceptIds;
-        var ortStated = regions.Count > 0 || municipalities.Count > 0;
-        var employmentStated = employment.Count > 0;
 
         // Captured locals → EF binds them as parameters (= ANY(...)). string? element type so the
         // EF.Property<string?> Contains translates cleanly (the org.nr shadow column is nullable; a
@@ -308,7 +307,7 @@ internal sealed class PerUserJobAdSearchQuery(
         // count can never diverge from /jobb's grade for the same ad (ADR 0079). Grade-WHERE via the
         // same RankInSet helper (positive-only: rank 0 excluded once a grade is selected).
         var rankExpr = GradeRankExpression(
-            ssyk, relatedSsyk, regions, municipalities, containmentRegions, employment, ortStated, employmentStated);
+            ssyk, relatedSsyk, regions, municipalities, containmentRegions, employment, fast.PreferredRemote);
         var selectedRanks = grades.Select(GradeToRank).Distinct().ToArray();
 
         // Bounded per-employer GROUP BY over PUBLIC Active job_ads (parity #447 ActiveAdCount +
@@ -354,10 +353,6 @@ internal sealed class PerUserJobAdSearchQuery(
             return new HashSet<JobAdId>();
 
         var fast = profile.Fast;
-        var ortStated = fast.PreferredRegionConceptIds.Count > 0
-                        || fast.PreferredMunicipalityConceptIds.Count > 0;
-        var employmentStated = fast.PreferredEmploymentTypeConceptIds.Count > 0;
-
         // SAME shared GradeRankExpression SSOT as SearchPerUserAsync/CountPerUser* (ADR 0079);
         // the ≥Good floor is the FIXED Fast band {Good, Strong} (RF-5=5A — exact: Fast ≡ Full at
         // ≥Good; Top never lifts an ad ACROSS the Good threshold, only within the band).
@@ -368,8 +363,7 @@ internal sealed class PerUserJobAdSearchQuery(
             fast.PreferredMunicipalityConceptIds,
             fast.ContainmentRegionConceptIds,
             fast.PreferredEmploymentTypeConceptIds,
-            ortStated,
-            employmentStated);
+            fast.PreferredRemote);
         var goodOrBetterRanks = MatchGradeBands.GoodOrBetter.Select(GradeToRank).ToArray();
 
         // ONE round-trip via parameterized `= ANY` (the canonical strongly-typed-id-set pattern
@@ -498,7 +492,7 @@ internal sealed class PerUserJobAdSearchQuery(
     }
 
     // Den delade grad-rank-Expression:en (SSOT) — en kompilerad spegel av den Fast
-    // MatchGradeCalculator.Grade(MatchScore, isRelated)-stegen över shadow-kolumnerna.
+    // MatchGradeCalculator.Grade(MatchScore, causes, isRelated)-stegen över shadow-kolumnerna.
     // #300 PR-4 (ADR 0084 §F2/§F4): Related infogad MELLAN Basic och Good → rank-omnumrering.
     // Returnerar 0 (otaggad/SSYK ∉ exact ∪ related), 1 (Basic — golv vid motsägande ort/
     // anställning ELLER inga bekräftade sekundärer), 2 (Related — yrket är en SUBSTITUERBAR
@@ -520,9 +514,12 @@ internal sealed class PerUserJobAdSearchQuery(
         IReadOnlyList<string> municipalities,
         IReadOnlyList<string> containmentRegions,
         IReadOnlyList<string> employment,
-        bool ortStated,
-        bool employmentStated) =>
-        j =>
+        bool preferredRemote)
+    {
+        var hasOrtPlaces = HasOrtPlaces(regions, municipalities);
+        var ortOpen = IsOrtOpen(regions, municipalities, preferredRemote);
+        var employmentStated = IsEmploymentStated(employment);
+        return j =>
             // Gate: yrket måste vara i exact ∪ related, annars otaggad (0). Gaten vinner över
             // Related-cap (parity calculatorns gate-före-cap).
             !(ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
@@ -540,7 +537,7 @@ internal sealed class PerUserJobAdSearchQuery(
                     // !list.Contains(nullCol) — `NOT (col = ANY(...))` är NULL (ej TRUE) för en
                     // NULL-kolumn i rå SQL; endast den explicita IS NULL-grenen är bevisbart
                     // golvande oavsett null-semantik-regim. Testcontainers-oraklen pinnar detta.
-                    : ((ortStated
+                    : ((hasOrtPlaces
                             // #551 — en remote-annons golvas ALDRIG på ort (speglar ScoreOrtUnions
                             // remote-override som returnerar Match FÖRE both-NULL-#552-grinden). `!remote`
                             // som en TVÅVÄRD term (bool NOT NULL) → ingen trevärd-fälla. För en icke-remote
@@ -567,22 +564,46 @@ internal sealed class PerUserJobAdSearchQuery(
                         // (3), ingen → Basic (1). (1+sekundärer-aritmetiken duger inte längre när
                         // Related sitter på 2 — boolean-mappning i stället.)
                         // #551 — remote räknas som en bekräftad ort-sekundär, men BARA för en
-                        // angiven-ort-användare (`ortStated && remote`) — speglar ScoreOrtUnion, där
+                        // angiven-ort-användare (`hasOrtPlaces && remote`) — speglar ScoreOrtUnion, där
                         // remote-override:n bara fyrar efter `!stated`-returen. En icke-remote annons:
-                        // `ortStated && false` = false → disjunkten byte-identisk med pre-#551.
-                        : (regions.Contains(EF.Property<string?>(j, RegionColumn))
+                        // `hasOrtPlaces && false` = false → disjunkten byte-identisk med pre-#551.
+                        // ADR 0170 — an open ort (no place and no Distans) and an unstated employment
+                        // confirm (`ortOpen` / `!employmentStated`), parity MatchGradeCalculator. After the
+                        // floor the ort term is false only for the län-only containment ad and for a
+                        // Distans-only user (neutral), but the employment term then decides, so rank 1 is
+                        // never reached here; the arm mirrors the calculator's `_ => Basic`.
+                        : (ortOpen
+                                || regions.Contains(EF.Property<string?>(j, RegionColumn))
                                 || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))
-                                || (ortStated && EF.Property<bool>(j, RemoteColumn)))
-                            && employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
+                                || (hasOrtPlaces && EF.Property<bool>(j, RemoteColumn)))
+                            && (!employmentStated
+                                || employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn)))
                             ? 4
                             // #551 — samma remote-sekundär-disjunkt som Strong-grenen ovan (en bekräftad
                             // ort-sekundär för angiven-ort-användare); icke-remote = byte-identisk.
-                            : (regions.Contains(EF.Property<string?>(j, RegionColumn))
+                            : (ortOpen
+                                    || regions.Contains(EF.Property<string?>(j, RegionColumn))
                                     || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))
-                                    || (ortStated && EF.Property<bool>(j, RemoteColumn)))
-                                || employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
+                                    || (hasOrtPlaces && EF.Property<bool>(j, RemoteColumn)))
+                                || (!employmentStated
+                                    || employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn)))
                                 ? 3
                                 : 1;
+    }
+
+    // ADR 0170: an UNSTATED preference confirms, and this is the one place that says what stated means in SQL.
+    // ScoreOrtUnion folds region ∪ municipality into one secondary: the ort HAS PLACES when EITHER list is
+    // non-empty (that alone drives the contradiction floor and the remote disjunct), and it is OPEN, which is
+    // what confirms, only when there are no places AND Distans is not ticked (Klas 2026-10-13: a Distans-only
+    // user has stated an ort, which stays neutral). PreferredRemote decides open-ness, never a match.
+    private static bool HasOrtPlaces(IReadOnlyList<string> regions, IReadOnlyList<string> municipalities) =>
+        regions.Count > 0 || municipalities.Count > 0;
+
+    private static bool IsOrtOpen(
+        IReadOnlyList<string> regions, IReadOnlyList<string> municipalities, bool preferredRemote) =>
+        !HasOrtPlaces(regions, municipalities) && !preferredRemote;
+
+    private static bool IsEmploymentStated(IReadOnlyList<string> employment) => employment.Count > 0;
 
     // Komponerar ett EF-översättbart predikat `selectedRanks.Contains(rank(j))` genom att
     // ÅTERANVÄNDA exakt samma rank-Body + parameter (ingen duplikat-logik, ingen LINQKit).

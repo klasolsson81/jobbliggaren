@@ -312,7 +312,7 @@ public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
         var profile = await sp.GetRequiredService<IMatchProfileBuilder>().BuildFullForUserIdAsync(seeker.UserId, Ct);
         var scored = await sp.GetRequiredService<IMatchScorer>().ScoreFullBatchAsync([ad], profile, Ct);
         scored.TryGetValue(ad, out var actual).ShouldBeTrue();
-        MatchGradeCalculator.Grade(actual!.Score, actual.SsykIsRelated).ShouldBe(MatchGrade.Top);
+        MatchGradeCalculator.Grade(actual!.Score, actual.Causes, actual.SsykIsRelated).ShouldBe(MatchGrade.Top);
     }
 
     private async Task<bool> WithdrawConsentAsync(Seeker target, CancellationToken ct)

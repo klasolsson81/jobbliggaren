@@ -113,9 +113,9 @@ public sealed class MatchProfileBuilder(
     }
 
     // #551 PR-B F3 — the remote/distans notis preference, owner-scoped. Reads ONLY
-    // MatchPreferences.PreferredRemote and returns it as a BARE bool — never onto a
-    // CandidateMatchProfile (F1: the scorer must never read the user's remote preference;
-    // arch-pinned by MatchProfileRemoteIndependenceTests). Reuses LoadJobSeekerAsync so the
+    // MatchPreferences.PreferredRemote and returns it as a BARE bool for the count. The
+    // CandidateMatchProfile carries the same preference only to decide whether the ort is STATED
+    // (ADR 0170), never whether an ad matches (F1, MatchProfileRemoteIndependenceTests). Reuses LoadJobSeekerAsync so the
     // owner-scoping is the one authoritative gate (no duplicated user→JobSeeker resolution).
     // Absent user / JobSeeker → false (the honest "distans not requested" default).
     public async ValueTask<bool> GetPreferredRemoteForNotificationCountAsync(
@@ -225,6 +225,7 @@ public sealed class MatchProfileBuilder(
             PreferredMunicipalityConceptIds: preferences.PreferredMunicipalities)
         {
             ContainmentRegionConceptIds = containmentRegions,
+            PreferredRemote = preferences.PreferredRemote,
         };
 
         if (!includeRelated)

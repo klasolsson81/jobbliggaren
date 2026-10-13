@@ -295,9 +295,11 @@ public class MatchTagBatchEndpointsTests(ApiFactory factory)
         // NON-VACUITY FIRST (#841): the ACTIVE ads ARE tagged, with a real grade. Without this,
         // "the archived one is absent" would pass trivially the day the endpoint tags nothing.
         TryGetEntry(dto, liveAd, out var liveEntry).ShouldBeTrue();
-        liveEntry.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Basic));
+        // The user states an occupation and nothing else: ort and employment are unstated and confirm
+        // (ADR 0170), and with no CV the requirement gate is shut, so the ceiling is Good.
+        liveEntry.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Good));
         TryGetEntry(dto, liveAd2, out var liveEntry2).ShouldBeTrue();
-        liveEntry2.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Basic));
+        liveEntry2.GetProperty("grade").GetString().ShouldBe(Wire(MatchGrade.Good));
 
         // THE SPECIFICATION: the archived ad is omitted exactly like the ghost. A client cannot
         // obtain a match grade for an ad the product may no longer present, by asking for its id.

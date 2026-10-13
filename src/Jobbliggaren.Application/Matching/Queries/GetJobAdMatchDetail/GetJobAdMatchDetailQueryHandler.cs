@@ -97,7 +97,7 @@ public sealed class GetJobAdMatchDetailQueryHandler(
         // MatchGrade.Related (lit by the live ?relaterade=on toggle, off by default; with it off
         // the related set is empty so SsykIsRelated is false).
         var score = scored.Score;
-        var grade = MatchGradeCalculator.Grade(score, scored.SsykIsRelated);
+        var grade = MatchGradeCalculator.Grade(score, scored.Causes, scored.SsykIsRelated);
 
         // The three membership dimensions (SSYK / region / employment) carry RAW
         // taxonomy concept-ids in their evidence (MatchScorer.ScoreSsykMembership/ScoreOrtUnion/ScoreEmploymentMembership). A

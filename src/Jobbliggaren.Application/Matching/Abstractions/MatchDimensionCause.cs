@@ -39,7 +39,8 @@ public enum MatchDimensionCause
     /// The USER constrained nothing on this dimension, so there was nothing to assess
     /// against — the vacuous-gate doctrine for the verdict. Produced by all three membership
     /// scorers. For region and employment the grade counts this as a confirmed secondary
-    /// (ADR 0170).
+    /// (ADR 0170). A user whose only ort choice is Distans has constrained the ort: her
+    /// <c>NotAssessed</c> region carries no cause and confirms nothing.
     /// </summary>
     PreferenceUnstated,
 

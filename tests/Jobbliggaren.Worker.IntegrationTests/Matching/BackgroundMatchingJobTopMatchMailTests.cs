@@ -234,6 +234,31 @@ public sealed class BackgroundMatchingJobTopMatchMailTests(WorkerTestFixture fix
         MailsTo(sender, user).ShouldHaveSingleItem().Items.ShouldHaveSingleItem().JobAdId.ShouldBe(control.Value);
     }
 
+    // Klas 2026-10-13: Distans-only is a STATED ort, so it stays neutral. A consenting user whose only ort choice is
+    // Distans, with employment and the required skill stated, gets a Strong row (employment confirms, the ort does
+    // not) for an on-site ad whose requirements are all met: never Top, so never the direct mail. The control user
+    // (nothing ticked for ort, otherwise identical) gets the Toppmatch mail for the same kind of ad, so the absence
+    // for the Distans-only user is the rule's doing and not the scan missing her.
+    [Fact]
+    public async Task RunAsync_DistansOnlyUser_GetsAStrongRowAndNoDirectMail_ForAnOnSiteAdWithEveryRequirementMet()
+    {
+        var run = CronMinuteField.NextAfter(Cron, new DateTimeOffset(2031, 4, 21, 10, 0, 0, TimeSpan.Zero));
+        var distans = await RegisterAsync(Mine, run.AddHours(-1), statesRegion: false, ticksDistans: true);
+        var control = await RegisterAsync(Another, run.AddHours(-1), statesRegion: false);
+        var onSiteForDistans = await SaveAsync(ImportTopAd(Mine, run.AddMinutes(-3), region: "reg-on-site-" + _run));
+        var onSiteForControl = await SaveAsync(ImportTopAd(Another, run.AddMinutes(-3), region: "reg-on-site-" + _run));
+        var sender = Substitute.For<IEmailSender>();
+
+        await RunAtAsync(run, sender);
+
+        var strong = (await MatchesAsync(distans, onSiteForDistans)).ShouldHaveSingleItem();
+        strong.Grade.ShouldBe(NotifiableMatchGrade.Strong);
+        MailsTo(sender, distans).ShouldBeEmpty();
+
+        (await MatchesAsync(control, onSiteForControl)).ShouldHaveSingleItem().Grade.ShouldBe(NotifiableMatchGrade.Top);
+        MailsTo(sender, control).ShouldHaveSingleItem().Items.ShouldHaveSingleItem().JobAdId.ShouldBe(onSiteForControl.Value);
+    }
+
     private async Task RunAtAsync(DateTimeOffset at, IEmailSender sender, IServiceScopeFactory? scopes = null)
     {
         scopes ??= fixture.Services.GetRequiredService<IServiceScopeFactory>();
@@ -255,7 +280,11 @@ public sealed class BackgroundMatchingJobTopMatchMailTests(WorkerTestFixture fix
     ];
 
     private async Task<Recipient> RegisterAsync(
-        Profile profile, DateTimeOffset at, bool statesRegion = true, bool statesEmployment = true)
+        Profile profile,
+        DateTimeOffset at,
+        bool statesRegion = true,
+        bool statesEmployment = true,
+        bool ticksDistans = false)
     {
         using var scope = fixture.Services.CreateScope();
         var sp = scope.ServiceProvider;
@@ -269,7 +298,8 @@ public sealed class BackgroundMatchingJobTopMatchMailTests(WorkerTestFixture fix
             [profile.Group],
             statesRegion ? [profile.Region] : [],
             statesEmployment ? [profile.Employment] : [],
-            preferredSkills: [profile.Skill]);
+            preferredSkills: [profile.Skill],
+            preferredRemote: ticksDistans);
         preferences.IsSuccess.ShouldBeTrue();
         seeker.UpdateMatchPreferences(preferences.Value, clock);
         seeker.UpdateNotificationConsent(enabled: true, clock);

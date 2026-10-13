@@ -571,6 +571,10 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         OrtOnly,
         EmploymentOnly,
         Neither,
+
+        // Klas 2026-10-13: the user's only ort choice is Distans. The ort IS stated, so it stays neutral
+        // (no region or municipality, PreferredRemote true), and employment is left empty.
+        DistansOnly,
     }
 
     public enum OrtShape
@@ -601,6 +605,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
             RelatedSsykGroupConceptIds = RelatedGroups,
             // The profile builder fills the containment set only for a stated kommun.
             ContainmentRegionConceptIds = stated == StatedPrefs.OrtOnly ? [PrefMunicipalityRegion] : [],
+            PreferredRemote = stated == StatedPrefs.DistansOnly,
         },
         CvSkillConceptIds: []);
 
@@ -635,16 +640,19 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     // value; a län-only ad in the user's own kommun's län is neither) — not from the SUT's code.
     private static MatchGrade ExpectedExactGrade(StatedPrefs stated, OrtShape ort, EmploymentShape employment)
     {
-        var ortStated = stated == StatedPrefs.OrtOnly;
+        var ortPlaces = stated == StatedPrefs.OrtOnly;
+        var ortDistansOnly = stated == StatedPrefs.DistansOnly;
         var employmentStated = stated == StatedPrefs.EmploymentOnly;
 
-        var ortContradicted = ortStated && ort is OrtShape.OtherRegion or OrtShape.Locationless;
+        var ortContradicted = ortPlaces && ort is OrtShape.OtherRegion or OrtShape.Locationless;
         var employmentContradicted = employmentStated && employment != EmploymentShape.Preferred;
         if (ortContradicted || employmentContradicted)
             return MatchGrade.Basic;
 
-        var ortConfirms = !ortStated
-            || ort is OrtShape.RegionHit or OrtShape.MunicipalityHit or OrtShape.RemoteLocationless;
+        // An open ort (no place and not Distans) confirms; a Distans-only ort is stated and neutral for EVERY ad
+        // (an on-site ad and a remote ad alike: her preference never decides a match).
+        var ortConfirms = (!ortPlaces && !ortDistansOnly)
+            || (ortPlaces && ort is OrtShape.RegionHit or OrtShape.MunicipalityHit or OrtShape.RemoteLocationless);
         var employmentConfirms = !employmentStated || employment == EmploymentShape.Preferred;
 
         var confirmed = (ortConfirms ? 1 : 0) + (employmentConfirms ? 1 : 0);
@@ -669,6 +677,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     [InlineData(StatedPrefs.OrtOnly)]
     [InlineData(StatedPrefs.EmploymentOnly)]
     [InlineData(StatedPrefs.Neither)]
+    [InlineData(StatedPrefs.DistansOnly)]
     public async Task GradeFilter_UnstatedPreferences_CountAsConfirmed_SqlEqualsGradeSsot_ForEveryBandSubset(
         StatedPrefs stated)
     {
@@ -712,9 +721,20 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         gradeById[related.Value].ShouldBe(MatchGrade.Related);
         gradeById[untagged.Value].ShouldBeNull();
 
-        // Non-vacuity: the headline of #2154 — Stark match is reachable although something was left empty.
-        gradeById.Values.ShouldContain(MatchGrade.Strong,
-            "En användare som lämnat en preferens tom ska kunna nå Stark match.");
+        if (stated == StatedPrefs.DistansOnly)
+        {
+            // Klas 2026-10-13: a Distans-only ort is stated and neutral, so with employment left empty exactly one
+            // secondary is confirmed: Good at most, never Strong, for an on-site and a remote ad alike.
+            gradeById.Values.ShouldContain(MatchGrade.Good);
+            gradeById.Values.ShouldNotContain(MatchGrade.Strong,
+                "Distans-only: orten är neutral, så en platsannons når aldrig Stark match.");
+        }
+        else
+        {
+            // Non-vacuity: the headline of #2154 — Stark match is reachable although something was left empty.
+            gradeById.Values.ShouldContain(MatchGrade.Strong,
+                "En användare som lämnat en preferens tom ska kunna nå Stark match.");
+        }
 
         var (queryScope, query) = NewPerUserQuery();
         using var queryDispose = queryScope;

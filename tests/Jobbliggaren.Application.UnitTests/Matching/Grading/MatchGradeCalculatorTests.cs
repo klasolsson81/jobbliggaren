@@ -21,7 +21,8 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Grading;
 /// secondary is confirmed by a <c>Match</c> OR by a preference the user never stated
 /// (<c>NotAssessed</c> with <see cref="MatchDimensionCause.PreferenceUnstated"/> — "lämna tomt
 /// för att matcha alla", ADR 0170): 2 → <c>Strong</c>; 1 → <c>Good</c>; 0 → <c>Basic</c>. The
-/// län-only containment arm is the one <c>NotAssessed</c> that neither confirms nor contradicts.</item>
+/// län-only containment arm and the Distans-only ort are the <c>NotAssessed</c> that neither confirm
+/// nor contradict.</item>
 /// </list>
 /// <see cref="MatchScore.TitleSimilarity"/> is NOT consulted — proven below.
 /// </para>
@@ -80,8 +81,8 @@ public class MatchGradeCalculatorTests
 
     // ---------------------------------------------------------------
     // A verdict-keyed test that says "NotAssessed" on region or employment means "unstated": see
-    // ProducedCauses for the two situations the scorer emits it in. The län-only containment arm
-    // and RemoteOverride / AdSilent are exercised by name below. The scorer's side of the
+    // ProducedCauses for the situations the scorer emits it in. The län-only containment arm, the
+    // Distans-only ort and RemoteOverride / AdSilent are exercised by name below. The scorer's side of the
     // contract is pinned by FullMatchScorerIntegrationTests and the grade oracles, which read
     // the cause off the real scorer.
     // ---------------------------------------------------------------
@@ -268,13 +269,47 @@ public class MatchGradeCalculatorTests
         MatchGradeCalculator.Grade(score, causes, isRelated: false).ShouldBe(MatchGrade.Good);
     }
 
+    // The Distans-only user (Klas 2026-10-13): her only ort choice is Distans, so the ort IS stated and the
+    // scorer (ScoreOrtUnion with PreferredRemote) returns NotAssessed with NO cause. It neither confirms nor
+    // contradicts, so an on-site ad can reach at most what her other preference allows.
+
+    [Fact]
+    public void Grade_ShouldReturnGood_WhenRegionIsDistansOnly_AndEmploymentIsUnstated()
+    {
+        var score = Score(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NotAssessed,
+            employment: MatchDimensionVerdict.NotAssessed);
+        var causes = new MatchDimensionCauses(
+            SsykOverlap: null, RegionFit: null, EmploymentFit: MatchDimensionCause.PreferenceUnstated);
+
+        MatchGradeCalculator.Grade(score, causes, isRelated: false).ShouldBe(MatchGrade.Good);
+    }
+
+    [Fact]
+    public void GradeFull_ShouldReturnStrongAndNeverTop_WhenRegionIsDistansOnly_EvenWithEveryRequirementMet()
+    {
+        // Distans-only + an on-site ad whose requirements are all met: Strong at most, never Toppmatch.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NotAssessed,
+            employment: MatchDimensionVerdict.NotAssessed,
+            skill: MatchDimensionVerdict.Match,
+            mustHave: MatchDimensionVerdict.Match,
+            niceToHave: MatchDimensionVerdict.Match);
+        var causes = new MatchDimensionCauses(
+            SsykOverlap: null, RegionFit: null, EmploymentFit: MatchDimensionCause.PreferenceUnstated);
+
+        MatchGradeCalculator.Grade(score, causes, isRelated: false).ShouldBe(MatchGrade.Strong);
+    }
+
     [Fact]
     public void Grade_ShouldNotCountANotAssessedSecondary_WhenItCarriesNoCause()
     {
-        // Declared unreachable: the scorer always attaches a cause to a NotAssessed region or
-        // employment verdict (ScoreOrtUnion / ScoreEmploymentMembership). If the invariant ever
-        // breaks, the read side degrades to the pre-ADR-0170 reading — an unexplained
-        // NotAssessed neither confirms nor contradicts — rather than inventing a confirmation.
+        // A NotAssessed WITHOUT a cause confirms nothing. For region it is producible (the Distans-only
+        // user, above); for employment it is declared unreachable, since ScoreEmploymentMembership always
+        // attaches PreferenceUnstated. The cell with both causeless asserts only that the read side
+        // degrades safely rather than inventing a confirmation.
         var score = Score(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.NotAssessed,
@@ -1146,7 +1181,7 @@ public class MatchGradeCalculatorTests
     //   • an ad that fits the stated preference confirms (Match, and Match by remote override);
     //   • a stated preference the ad contradicts, or is silent on, contradicts (NoMatch);
     //   • a preference the user never stated confirms: "lämna tomt för att matcha alla";
-    //   • the län-only containment arm neither confirms nor contradicts.
+    //   • the län-only containment arm and the Distans-only ort (ADR 0170) neither confirm nor contradict.
     // =================================================================
 
     public enum RegionState
@@ -1157,6 +1192,7 @@ public class MatchGradeCalculatorTests
         ContradictedByAdSilence,
         Unstated,
         LanOnlyContainment,
+        DistansOnly,
     }
 
     public enum EmploymentState
@@ -1184,6 +1220,7 @@ public class MatchGradeCalculatorTests
             RegionState.Unstated => (MatchDimensionVerdict.NotAssessed, MatchDimensionCause.PreferenceUnstated),
             RegionState.LanOnlyContainment =>
                 (MatchDimensionVerdict.NotAssessed, MatchDimensionCause.RegionContainsPreferredMunicipality),
+            RegionState.DistansOnly => (MatchDimensionVerdict.NotAssessed, null),
             _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
         };
 
@@ -1201,7 +1238,7 @@ public class MatchGradeCalculatorTests
     {
         RegionState.Match or RegionState.MatchByRemote or RegionState.Unstated => SecondaryStance.Confirms,
         RegionState.Contradicted or RegionState.ContradictedByAdSilence => SecondaryStance.Contradicts,
-        RegionState.LanOnlyContainment => SecondaryStance.Neutral,
+        RegionState.LanOnlyContainment or RegionState.DistansOnly => SecondaryStance.Neutral,
         _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
     };
 

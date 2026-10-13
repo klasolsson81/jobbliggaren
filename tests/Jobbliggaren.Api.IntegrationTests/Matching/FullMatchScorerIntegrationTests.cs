@@ -276,6 +276,60 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
             "the remote override fires only AFTER the !stated early-return — an unstated user is untouched");
     }
 
+    // ADR 0170 (Klas 2026-10-13): a user whose ONLY ort choice is Distans has STATED an ort. PreferredRemote decides
+    // that the ort is stated and nothing else: it never decides whether an ad matches. So for her an on-site ad AND a
+    // remote ad both read RegionFit = NotAssessed with NO cause (neutral: not Match, not the PreferenceUnstated that
+    // confirms, not a NoMatch that floors), and the grade can never be Toppmatch however well the ad fits otherwise.
+    // This is the behavioural half of the narrowed MatchProfileRemoteIndependenceTests pin.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ScoreFull_DistansOnlyUser_ReadsTheOrtAsNeutralForAnyAd_AndNeverGradesTop(bool adIsRemote)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: AdWrongRegion, employmentTypeConceptId: null,
+            terms: null, ct, remote: adIsRemote);
+        var profile = new FullCandidateMatchProfile(
+            new CandidateMatchProfile("Titel", [ExactGroup], [], [], []) { PreferredRemote = true },
+            []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed,
+            "the ort is stated (Distans) and no list matches: neutral, never a Match from the user's Distans");
+        result.Causes.RegionFit.ShouldBeNull(
+            "no PreferenceUnstated: that is the cause that confirms, and she did state an ort");
+        result.Causes.EmploymentFit.ShouldBe(MatchDimensionCause.PreferenceUnstated);
+        MatchGradeCalculator.Grade(result.Score.Fast, result.Causes, result.SsykIsRelated)
+            .ShouldBe(MatchGrade.Good, "one confirmed secondary (the unstated employment), the ort neutral");
+        MatchGradeCalculator.Grade(result.Score, result.Causes, result.SsykIsRelated)
+            .ShouldNotBe(MatchGrade.Top);
+    }
+
+    // The control for the test above: the SAME ad against a user who ticked nothing at all. Her ort is open, so it
+    // confirms. Without this the Distans-only assertions would also pass if the ort never confirmed for anyone.
+    [Fact]
+    public async Task ScoreFull_UserWithNoOrtChoiceAtAll_ConfirmsTheOrt_ControlForDistansOnly()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: AdWrongRegion, employmentTypeConceptId: null,
+            terms: null, ct, remote: false);
+        var profile = new FullCandidateMatchProfile(
+            new CandidateMatchProfile("Titel", [ExactGroup], [], [], []), []);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.Causes.RegionFit.ShouldBe(MatchDimensionCause.PreferenceUnstated);
+        MatchGradeCalculator.Grade(result.Score.Fast, result.Causes, result.SsykIsRelated)
+            .ShouldBe(MatchGrade.Strong, "both secondaries are open, so both confirm");
+    }
+
     // occupation_group + employment_type are TOP-LEVEL; region lives under
     // workplace_address (parity MatchScorerIntegrationTests / JobAdFacetsSurvivePurgeTests).
     private static string BuildRawPayload(

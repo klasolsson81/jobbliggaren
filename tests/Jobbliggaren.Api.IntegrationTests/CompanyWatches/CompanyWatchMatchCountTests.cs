@@ -27,7 +27,7 @@ namespace Jobbliggaren.Api.IntegrationTests.CompanyWatches;
 /// <list type="number">
 /// <item><b>THE ORACLE</b> — the Fast-band ≥Good count from the cheap SQL
 /// <c>GROUP BY organization_number</c> EQUALS the Full-band ≥Good count computed via the real
-/// <see cref="MatchScorer"/> + <see cref="MatchGradeCalculator.Grade(FullMatchScore, bool)"/>.
+/// <see cref="MatchScorer"/> + <see cref="MatchGradeCalculator.Grade(FullMatchScore, MatchDimensionCauses, bool)"/>.
 /// This is the load-bearing correctness claim: CV-skills only elevate a match WITHIN the
 /// notifiable band (Good→Strong→Top) and never lift a Basic across the Good threshold, so the
 /// cheap SQL count is EXACT, not an approximation — Top's SQL-incomputability (G3-OPT-A) is
@@ -225,7 +225,7 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
     private Task<JobAdId> SeedGoodAsync(string orgNr, CancellationToken ct, ExtractedTerms? terms = null) =>
         SeedAdAsync(orgNr, PrefGroup, ContainmentLan, PrefEmployment, ct, terms);
 
-    // Basic (rank 1): both secondaries NotAssessed (region NULL + employment NULL).
+    // Basic (rank 1): region + employment NULL against a profile that states both: the #552 floor.
     private Task<JobAdId> SeedBasicNeutralAsync(string orgNr, CancellationToken ct) =>
         SeedAdAsync(orgNr, PrefGroup, regionConceptId: null, employmentTypeConceptId: null, ct);
 

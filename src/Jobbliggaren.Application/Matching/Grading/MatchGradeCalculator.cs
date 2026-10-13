@@ -42,7 +42,7 @@ public static class MatchGradeCalculator
     /// <c>null</c> when the ad does not earn a tag (occupation not a Match). See the
     /// type summary for the full ladder.
     /// </summary>
-    public static MatchGrade? Grade(MatchScore score, MatchDimensionCauses causes, bool isRelated = false)
+    public static MatchGrade? Grade(MatchScore score, MatchDimensionCauses causes, bool isRelated)
     {
         ArgumentNullException.ThrowIfNull(score);
         ArgumentNullException.ThrowIfNull(causes);
@@ -128,7 +128,7 @@ public static class MatchGradeCalculator
     /// categorical verdict, not a magnitude.
     /// </para>
     /// </summary>
-    public static MatchGrade? Grade(FullMatchScore score, MatchDimensionCauses causes, bool isRelated = false)
+    public static MatchGrade? Grade(FullMatchScore score, MatchDimensionCauses causes, bool isRelated)
     {
         ArgumentNullException.ThrowIfNull(score);
         ArgumentNullException.ThrowIfNull(causes);

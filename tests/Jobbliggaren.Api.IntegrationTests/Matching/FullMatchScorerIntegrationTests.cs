@@ -256,9 +256,9 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
             .ShouldBe(MatchGrade.Strong, "the unstated employment confirms (ADR 0170), so the remote match is Strong");
     }
 
-    // Case 4 (scoping): an UNSTATED-ort user has no ort gate to override. Lifting RegionFit to Match would
-    // fabricate a confirmed secondary they never asked for (vacuous-gate doctrine) — so remote does NOTHING
-    // here. "A location-match for everyone" means regardless of WHICH ort, not "even for users who stated none".
+    // Case 4 (scoping): an UNSTATED-ort user has no ort gate to override, so remote does NOTHING here
+    // (vacuous-gate doctrine). "A location-match for everyone" means regardless of WHICH ort, not "even for
+    // users who stated none".
     [Fact]
     public async Task ScoreFull_RemoteAd_ForAnUnstatedOrtUser_LeavesRegionFitNotAssessed()
     {

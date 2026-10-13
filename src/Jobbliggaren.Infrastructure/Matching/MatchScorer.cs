@@ -670,10 +670,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // of whether the ad also names a (non-matching) location. This realises the ADR 0076 #551
         // forward-note the #552 gate accepted as a documented limitation.
         //
-        // PLACEMENT is load-bearing (CTO D4). AFTER !stated: an unstated user has no ort gate to override,
-        // and lifting their RegionFit to Match would fabricate a confirmed secondary they never asked for
-        // (vacuous-gate doctrine — "a location-match for everyone" means regardless of WHICH ort, not "even
-        // for users who stated none"). BEFORE the both-NULL #552 gate AND the union logic: a remote ad must
+        // PLACEMENT is load-bearing (CTO D4). AFTER !stated: an unstated user has no ort gate to override, so
+        // there is nothing to lift (vacuous-gate doctrine — "a location-match for everyone" means regardless
+        // of WHICH ort, not "even for users who stated none"). BEFORE the both-NULL #552 gate AND the union logic: a remote ad must
         // never be floored, and "remote, HQ Göteborg" must match a Stockholm user too (remote wins over a
         // non-matching tag). Match (not NotAssessed) is FORCED: a NotAssessed region would not confirm the
         // ort this user stated (only PreferenceUnstated confirms, ADR 0170), capping a Göteborg-only user's

@@ -228,7 +228,7 @@ public class FilterToMatchingTests(ApiFactory factory)
     private Task<JobAdId> SeedGoodAsync(string orgNr, CancellationToken ct, ExtractedTerms? terms = null) =>
         SeedAdAsync(orgNr, PrefGroup, ContainmentLan, PrefEmployment, ct, terms);
 
-    // Basic (rank 1): both secondaries NotAssessed (region NULL + employment NULL).
+    // Basic (rank 1): region + employment NULL against a profile that states both: the #552 floor.
     private Task<JobAdId> SeedBasicNeutralAsync(string orgNr, CancellationToken ct) =>
         SeedAdAsync(orgNr, PrefGroup, regionConceptId: null, employmentTypeConceptId: null, ct);
 
@@ -303,6 +303,58 @@ public class FilterToMatchingTests(ApiFactory factory)
             "FilterToMatchingAsync (Fast ≥Good via den delade GradeRankExpression) MÅSTE returnera " +
             "EXAKT Full-bandets ≥Good-MÄNGD — {Good, Strong}-annonserna — aldrig Basic/Related/otaggad. " +
             "CV-skills lyfter aldrig en match ÖVER Good-tröskeln, så den billiga SQL-mängden är EXAKT.");
+    }
+
+    // =========================================================================================
+    // 1b. ADR 0170 (#2154) — the same ≥Good membership oracle when the user LEFT A PREFERENCE EMPTY.
+    //     FilterToMatchingAsync derives its own ortStated / employmentStated, so it needs its own row for
+    //     the all-empty profile: that is the only profile where the ≥Good membership moves (an empty
+    //     dimension confirms, so every exact-occupation ad is at least Good).
+    // =========================================================================================
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task FilterToMatching_EqualsFullBandGoodOrBetter_WhenAPreferenceIsUnstated(
+        bool ortStated, bool employmentStated)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var orgNr = NewOrgNr();
+        var skillTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
+
+        var all = new List<JobAdId>();
+        foreach (var region in new[] { PrefRegion, OtherRegion, null })
+            foreach (var employment in new[] { PrefEmployment, "emp-f2m-other", null })
+                foreach (var terms in new ExtractedTerms?[] { skillTerms, null })
+                    all.Add(await SeedAdAsync(orgNr, PrefGroup, region, employment, ct, terms));
+        all.Add(await SeedUntaggedAsync(orgNr, ct));
+
+        var profile = new FullCandidateMatchProfile(
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: [PrefGroup],
+                PreferredRegionConceptIds: ortStated ? [PrefRegion] : [],
+                PreferredEmploymentTypeConceptIds: employmentStated ? [PrefEmployment] : [],
+                PreferredMunicipalityConceptIds: []),
+            [CvSkillConceptId]);
+
+        var (scoreScope, scorer) = NewScorer();
+        using var scoreDispose = scoreScope;
+        var fullScores = await scorer.ScoreFullBatchAsync(all, profile, ct);
+        var expectedGoodOrBetter = all
+            .Where(id => MatchGradeCalculator.Grade(fullScores[id].Score, fullScores[id].Causes, fullScores[id].SsykIsRelated)
+                is MatchGrade.Good or MatchGrade.Strong or MatchGrade.Top)
+            .ToHashSet();
+        expectedGoodOrBetter.Count.ShouldBeGreaterThan(0);
+
+        var (queryScope, query) = NewPerUserQuery();
+        using var queryDispose = queryScope;
+        var matching = await query.FilterToMatchingAsync(profile, all, ct);
+
+        matching.ShouldBe(expectedGoodOrBetter, ignoreOrder: true,
+            $"ortStated={ortStated}, employmentStated={employmentStated}: FilterToMatchingAsync MÅSTE " +
+            "returnera EXAKT Full-bandets ≥Good-MÄNGD även när en preferens lämnats tom (ADR 0170).");
     }
 
     // =========================================================================================

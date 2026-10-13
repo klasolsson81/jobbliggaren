@@ -67,7 +67,7 @@ public enum MatchGrade
     Related,
 
     /// <summary>
-    /// A <i>preference-fit</i> grade: occupation matches and at least one stated
+    /// A <i>preference-fit</i> grade: occupation matches and at least one
     /// region/employment preference is confirmed, but the ad's must-have requirements are
     /// NOT met — or there is no CV to assess them (the honest no-CV ceiling). "Bra match".
     /// On the Fast overload (no must-have input) this is simply "exactly one secondary
@@ -79,7 +79,7 @@ public enum MatchGrade
     /// A <i>requirement-backed</i> grade: the ad's must-have requirements are met — or the ad
     /// states none (Vacuous) AND a positive CV skill/nice-to-have signal backs it (F1(b)
     /// amendment 2026-06-27: a Vacuous must-have <b>alone</b> no longer opens Strong; without a
-    /// skill signal it caps at <see cref="Good"/>) — AND at least one stated region/employment
+    /// skill signal it caps at <see cref="Good"/>) — AND at least one region/employment
     /// preference is confirmed (none contradicted). "Stark match". On the Fast overload (no
     /// must-have input) this is the top rung — "both secondaries confirmed".
     /// </summary>

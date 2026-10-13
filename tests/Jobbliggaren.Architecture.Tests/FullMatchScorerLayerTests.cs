@@ -223,7 +223,9 @@ public class FullMatchScorerLayerTests
             ignoreOrder: true,
             "MatchDimensionCause är en BUNDEN vokabulär mot en strikt FE-parser. En ny medlem " +
             "kräver en katalogfras per locale (sv + en) och en zod-utökning i samma PR — annars " +
-            $"faller modal-hämtningen. Faktiska: [{string.Join(", ", names)}].");
+            "faller modal-hämtningen. En ny NotAssessed-orsak för ort eller anställningsform ska också " +
+            "avgöras i MatchGradeCalculator.IsConfirmed OCH i PerUserJobAdSearchQuery.GradeRankExpression " +
+            $"(ADR 0170). Faktiska: [{string.Join(", ", names)}].");
     }
 
     [Fact]

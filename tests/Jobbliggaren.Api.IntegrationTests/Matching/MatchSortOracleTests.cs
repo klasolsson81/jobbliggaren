@@ -49,7 +49,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// </para>
 /// <para>
 /// <b>PR-B1 (RE-BIND G3-OPT-A) — the bound sort ≠ requirement-aware grade divergence:</b>
-/// the requirement-aware <see cref="MatchGradeCalculator.Grade(FullMatchScore)"/> now caps
+/// the requirement-aware <see cref="MatchGradeCalculator.Grade(FullMatchScore, MatchDimensionCauses, bool)"/> now caps
 /// the visible grade on must-have coverage. The SQL match-sort, by contrast, ranks on the
 /// FAST band (+ the F4-15 golden top-5 skill lift) and structurally CANNOT assess must-have
 /// (binary GIN <c>?|</c> on top-5 plaintext skills, no requirement partition, no DEK —
@@ -57,14 +57,14 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// existing oracle (SQL rank ≡ Fast grade) STILL HOLDS. The new divergence test below pins
 /// the bound consequence: two ads with the SAME Fast tuple but DIFFERENT must-have coverage
 /// are NOT separated by the SQL sort (it cannot see must-have), while
-/// <see cref="MatchGradeCalculator.Grade(FullMatchScore)"/> WOULD grade them differently —
+/// <see cref="MatchGradeCalculator.Grade(FullMatchScore, MatchDimensionCauses, bool)"/> WOULD grade them differently —
 /// "sort is an honest Fast-band coarsening; grade is the per-ad requirement-aware truth."
 /// </para>
 /// <para>
 /// <b>The UNIFIED Fast/Full rule (#371/#382, senior-cto-advisor bind):</b> the /jobb list's
 /// SORT + grade-FILTER + headline-COUNT all pin to the FAST band
-/// (<see cref="MatchGradeCalculator.Grade(MatchScore)"/>, mirrored in SQL); the card BADGE is the Full
-/// requirement-aware grade (<see cref="MatchGradeCalculator.Grade(FullMatchScore)"/>). The Fast/Full
+/// (<see cref="MatchGradeCalculator.Grade(MatchScore, MatchDimensionCauses, bool)"/>, mirrored in SQL); the card BADGE is the Full
+/// requirement-aware grade (<see cref="MatchGradeCalculator.Grade(FullMatchScore, MatchDimensionCauses, bool)"/>). The Fast/Full
 /// divergence is bound + bidirectional + oracle-pinned (G3-OPT-A) — this file pins the SORT side; the
 /// filter-side twin lives in <see cref="MatchSortGradeFilterOracleTests"/>. See ADR 0076 (amendment)
 /// and issues #371/#382.
@@ -372,7 +372,7 @@ public class MatchSortOracleTests(ApiFactory factory)
             await SeedJobAdAsync(run, PrefGroup, ContainmentLan, PrefEmployment, t.AddDays(8), ct),
             await SeedJobAdAsync(run, PrefGroup, ContainmentLan, PrefEmployment, t.AddDays(7), ct),
 
-            // --- Basic (0 confirmed, both NotAssessed) — region null + employment null
+            // --- Basic (the #552 floor) — region null + employment null against stated preferences
             await SeedJobAdAsync(run, PrefGroup, null, null, t.AddDays(6), ct),
             // --- Basic (contradiction floors) — region NoMatch (other), employment Match
             await SeedJobAdAsync(run, PrefGroup, OtherRegion, PrefEmployment, t.AddDays(5), ct),
@@ -469,7 +469,7 @@ public class MatchSortOracleTests(ApiFactory factory)
             //     Basic; the related-cap is BEFORE RB1 → still Related (rank 2, NOT Basic=1).
             await SeedJobAdAsync(run, RelatedGroup, OtherRegion, PrefEmployment, t.AddDays(11), ct),
 
-            // --- Basic (rank 1): exact occupation, both secondaries NotAssessed.
+            // --- Basic (rank 1): exact occupation, region + employment null against stated preferences (#552 floor).
             await SeedJobAdAsync(run, PrefGroup, null, null, t.AddDays(8), ct),
 
             // --- Untagged (rank 0): SSYK in NEITHER exact nor related → gate fails even broadened.
@@ -1079,8 +1079,8 @@ public class MatchSortOracleTests(ApiFactory factory)
         using var __ = scoreScope;
         var full = await scorer.ScoreFullBatchAsync([mustHaveMatch, mustHaveNoMatch], profile, ct);
 
-        var gradeMatch = MatchGradeCalculator.Grade(full[mustHaveMatch].Score, full[mustHaveMatch].Causes);
-        var gradeNoMatch = MatchGradeCalculator.Grade(full[mustHaveNoMatch].Score, full[mustHaveNoMatch].Causes);
+        var gradeMatch = MatchGradeCalculator.Grade(full[mustHaveMatch].Score, full[mustHaveMatch].Causes, full[mustHaveMatch].SsykIsRelated);
+        var gradeNoMatch = MatchGradeCalculator.Grade(full[mustHaveNoMatch].Score, full[mustHaveNoMatch].Causes, full[mustHaveNoMatch].SsykIsRelated);
 
         // must-have Match + both secondaries + skill Match → Top; must-have NoMatch caps at
         // Good. The point is only that they DIFFER (the grade sees must-have).

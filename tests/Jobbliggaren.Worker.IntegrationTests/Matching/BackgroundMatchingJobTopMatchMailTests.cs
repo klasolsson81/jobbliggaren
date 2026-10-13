@@ -217,19 +217,21 @@ public sealed class BackgroundMatchingJobTopMatchMailTests(WorkerTestFixture fix
     }
 
     // The contradiction floor is untouched: a user who STATES ort and employment, and an ad that carries
-    // another ort, still gets no row and no mail.
+    // another ort, still gets no row and no mail. The control ad matches on every dimension and IS mailed,
+    // alone: the scan reached the user, so the absence of a mail for the other ad is the floor's doing.
     [Fact]
     public async Task RunAsync_UserWhoStatesAPreferenceTheAdContradicts_IsNotMailed()
     {
         var run = CronMinuteField.NextAfter(Cron, new DateTimeOffset(2031, 4, 14, 10, 0, 0, TimeSpan.Zero));
         var user = await RegisterAsync(Mine, run.AddHours(-1));
-        var ad = await SaveAsync(ImportTopAd(Mine, run.AddMinutes(-3), region: Another.Region));
+        var contradicted = await SaveAsync(ImportTopAd(Mine, run.AddMinutes(-4), region: Another.Region));
+        var control = await SaveAsync(ImportTopAd(Mine, run.AddMinutes(-3)));
         var sender = Substitute.For<IEmailSender>();
 
         await RunAtAsync(run, sender);
 
-        (await MatchesAsync(user, ad)).ShouldBeEmpty();
-        MailsTo(sender, user).ShouldBeEmpty();
+        (await MatchesAsync(user, contradicted)).ShouldBeEmpty();
+        MailsTo(sender, user).ShouldHaveSingleItem().Items.ShouldHaveSingleItem().JobAdId.ShouldBe(control.Value);
     }
 
     private async Task RunAtAsync(DateTimeOffset at, IEmailSender sender, IServiceScopeFactory? scopes = null)

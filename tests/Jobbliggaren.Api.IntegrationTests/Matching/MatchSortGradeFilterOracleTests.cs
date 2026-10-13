@@ -19,7 +19,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// ADR 0079 STEG 5 (CTO-mandated oracle, 2026-06-23) — THE GRADE-FILTER ORACLE. The
 /// anti-drift guard that pins the SQL grade-<b>WHERE</b> in
 /// <see cref="PerUserJobAdSearchQuery"/> (and its recomputed count + the decoupled sort)
-/// to the C# grade SSOT (<see cref="MatchGradeCalculator.Grade(MatchScore)"/> over
+/// to the C# grade SSOT (<see cref="MatchGradeCalculator.Grade(MatchScore, MatchDimensionCauses, bool)"/> over
 /// <see cref="MatchScorer"/> verdicts). The sibling <see cref="MatchSortOracleTests"/>
 /// pins the match-rank ORDER BY; THIS file pins the grade-WHERE: for every non-empty
 /// subset of the Fast band {Basic, Good, Strong}, the rows the SQL filter returns must
@@ -46,8 +46,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// <para>
 /// <b>The UNIFIED Fast/Full rule (#371/#382, senior-cto-advisor bind):</b> the /jobb list's
 /// SORT + grade-FILTER + headline-COUNT all pin to the FAST band
-/// (<see cref="MatchGradeCalculator.Grade(MatchScore)"/>, mirrored in SQL); the card BADGE is the
-/// Full requirement-aware grade (<see cref="MatchGradeCalculator.Grade(FullMatchScore)"/>, F1(b)-gated).
+/// (<see cref="MatchGradeCalculator.Grade(MatchScore, MatchDimensionCauses, bool)"/>, mirrored in SQL); the card BADGE is the
+/// Full requirement-aware grade (<see cref="MatchGradeCalculator.Grade(FullMatchScore, MatchDimensionCauses, bool)"/>, F1(b)-gated).
 /// The Fast/Full divergence is bound + bidirectional + oracle-pinned (G3-OPT-A) — a Fast-Strong ad in
 /// the <c>{Strong}</c> filter bucket can carry a Full BADGE of Top (up) OR Good (down) and that is by
 /// design, never drift. The sort-side twin is pinned in <see cref="MatchSortOracleTests"/>; the
@@ -271,7 +271,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
     private Task<JobAdId> SeedGoodAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, PrefGroup, PrefRegion, null, publishedAt, ct);
 
-    // Basic (rank 1) — both secondaries NotAssessed (region NULL + employment NULL).
+    // Basic (rank 1) — region + employment NULL against a profile that states both: the #552 floor.
     private Task<JobAdId> SeedBasicNeutralAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, PrefGroup, null, null, publishedAt, ct);
 
@@ -677,7 +677,8 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         // The whole ort x employment matrix of exact-occupation ads, plus a related-only and an
-        // untagged ad. publishedAt decreases along the matrix so recency never coincides with grade.
+        // untagged ad. The two are NEWER than the whole matrix, so recency alone would rank them first;
+        // only the match-rank order puts them last.
         var shaped = new Dictionary<JobAdId, (OrtShape Ort, EmploymentShape Employment)>();
         var offset = 0;
         foreach (var ort in Enum.GetValues<OrtShape>())
@@ -687,8 +688,8 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
                 shaped[id] = (ort, employment);
             }
 
-        var related = await SeedRelatedAsync(run, t.AddDays(10), ct);
-        var untagged = await SeedUntaggedSsykNoMatchAsync(run, t.AddDays(5), ct);
+        var related = await SeedRelatedAsync(run, t.AddDays(200), ct);
+        var untagged = await SeedUntaggedSsykNoMatchAsync(run, t.AddDays(201), ct);
         var seeded = shaped.Keys.Concat([related, untagged]).ToList();
 
         var profile = ProfileWith(stated);
@@ -1118,8 +1119,8 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
                 "annonserna hamnar i {Strong}-bucketen oavsett sina olika Full-badgar.");
 
         // (b) The FULL overload (the card BADGE) DIFFERS — Top (up) vs Good (down, F1(b) degrade).
-        var gradeFull_top = MatchGradeCalculator.Grade(full[fullTop].Score, full[fullTop].Causes);
-        var gradeFull_good = MatchGradeCalculator.Grade(full[fullGood].Score, full[fullGood].Causes);
+        var gradeFull_top = MatchGradeCalculator.Grade(full[fullTop].Score, full[fullTop].Causes, full[fullTop].SsykIsRelated);
+        var gradeFull_good = MatchGradeCalculator.Grade(full[fullGood].Score, full[fullGood].Causes, full[fullGood].SsykIsRelated);
         gradeFull_top.ShouldBe(MatchGrade.Top,
             "fullTops BADGE = Full requirement-aware Top (must-have Match + båda sekundärer + " +
             "skill-signal) — \"Toppmatch\".");

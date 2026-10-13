@@ -261,7 +261,7 @@ public class MatchCountOracleTests(ApiFactory factory)
     private Task<JobAdId> SeedGoodAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, PrefGroup, ContainmentLan, PrefEmployment, publishedAt, ct);
 
-    // Basic (rank 1): both secondaries NotAssessed (region NULL + employment NULL).
+    // Basic (rank 1): region + employment NULL against a profile that states both: the #552 floor.
     private Task<JobAdId> SeedBasicNeutralAsync(string run, DateTimeOffset publishedAt, CancellationToken ct) =>
         SeedJobAdAsync(run, PrefGroup, null, null, publishedAt, ct);
 

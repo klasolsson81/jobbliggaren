@@ -191,9 +191,10 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     // =================================================================
 
     // Case 1 (THE klar-kriterium): a stated-ort user, a remote ad with NO location at all. Without the
-    // override this is the #552 both-NULL contradiction → NoMatch → Basic. With it: Match → Good (≥Bra).
+    // override this is the #552 both-NULL contradiction → NoMatch → Basic. With it: Match, and the employment the
+    // user never stated confirms too (ADR 0170) → Strong.
     [Fact]
-    public async Task ScoreFull_RemoteAd_LocationlessForAStatedOrtUser_LiftsRegionFitToMatch_AndGradesGood()
+    public async Task ScoreFull_RemoteAd_LocationlessForAStatedOrtUser_LiftsRegionFitToMatch_AndGradesStrong()
     {
         var ct = TestContext.Current.CancellationToken;
         var jobAdId = await SeedJobAdAsync(
@@ -208,8 +209,9 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match,
             "a remote ad is a location-match for a stated-ort user (the override fires before the both-NULL #552 gate)");
         result.Score.Fast.RegionFit.Matched.ShouldBeEmpty("no region concept-id to cite — the ad has none");
-        MatchGradeCalculator.Grade(result.Score.Fast, result.SsykIsRelated)
-            .ShouldBe(MatchGrade.Good, "RegionFit=Match earns one confirmed secondary → ≥Bra");
+        MatchGradeCalculator.Grade(result.Score.Fast, result.Causes, result.SsykIsRelated)
+            .ShouldBe(MatchGrade.Strong,
+                "RegionFit=Match plus the employment the user never stated = two confirmed secondaries → Strong");
     }
 
     // Case 5 (the counterfactual — absence proves the gate only against this): the SAME stated-ort user
@@ -229,7 +231,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
             "a non-remote locationless ad against a stated ort is the #552 contradiction");
-        MatchGradeCalculator.Grade(result.Score.Fast, result.SsykIsRelated)
+        MatchGradeCalculator.Grade(result.Score.Fast, result.Causes, result.SsykIsRelated)
             .ShouldBe(MatchGrade.Basic, "the #552 RB1 floor is intact for the non-remote twin");
     }
 
@@ -250,7 +252,8 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match,
             "remote overrides even a present, non-preferred region tag");
-        MatchGradeCalculator.Grade(result.Score.Fast, result.SsykIsRelated).ShouldBe(MatchGrade.Good);
+        MatchGradeCalculator.Grade(result.Score.Fast, result.Causes, result.SsykIsRelated)
+            .ShouldBe(MatchGrade.Strong, "the unstated employment confirms (ADR 0170), so the remote match is Strong");
     }
 
     // Case 4 (scoping): an UNSTATED-ort user has no ort gate to override. Lifting RegionFit to Match would
@@ -1459,7 +1462,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         result.Score.Fast.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         // Flat cap: a related occupation is always exactly Related, never Good/Strong/Top.
-        MatchGradeCalculator.Grade(result.Score, result.SsykIsRelated).ShouldBe(MatchGrade.Related,
+        MatchGradeCalculator.Grade(result.Score, result.Causes, result.SsykIsRelated).ShouldBe(MatchGrade.Related,
             "en related-only-träff cap:as platt till Related även med båda sekundärerna Match.");
     }
 
@@ -1482,7 +1485,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         result.SsykIsRelated.ShouldBeTrue();
         // The region genuinely contradicts (the RB1 trigger an exact hit would floor on).
         result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
-        MatchGradeCalculator.Grade(result.Score, result.SsykIsRelated).ShouldBe(MatchGrade.Related,
+        MatchGradeCalculator.Grade(result.Score, result.Causes, result.SsykIsRelated).ShouldBe(MatchGrade.Related,
             "Related-cap före RB1: en related occupation i fel stad ska läsa Related, INTE Basic " +
             "(annars presenteras ett substituerbart yrke som ett exakt-yrkes-utfall).");
     }
@@ -1520,7 +1523,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
 
         result.SsykIsRelated.ShouldBeFalse("gate stängd → related-biten är inte meningsfull → false.");
         result.Score.Fast.SsykOverlap.Verdict.ShouldNotBe(MatchDimensionVerdict.Match);
-        MatchGradeCalculator.Grade(result.Score, result.SsykIsRelated).ShouldBeNull(
+        MatchGradeCalculator.Grade(result.Score, result.Causes, result.SsykIsRelated).ShouldBeNull(
             "ad-gruppen ligger i varken exakt eller related → gate-fail → ingen tagg (null).");
     }
 

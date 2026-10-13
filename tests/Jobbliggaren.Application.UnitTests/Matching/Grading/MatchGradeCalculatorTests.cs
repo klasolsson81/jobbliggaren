@@ -17,8 +17,11 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Grading;
 /// <item><b>Gate:</b> SsykOverlap != Match → <c>null</c> (no tag).</item>
 /// <item>Occupation Match + a stated NoMatch on Region OR Employment → <c>Basic</c>
 /// (a contradicted preference floors the grade).</item>
-/// <item>Otherwise by count of <c>Match</c> among {Region, Employment}: 2 → <c>Strong</c>;
-/// 1 → <c>Good</c>; 0 (both NotAssessed) → <c>Basic</c>.</item>
+/// <item>Otherwise by count of confirmed secondaries among {Region, Employment}, where a
+/// secondary is confirmed by a <c>Match</c> OR by a preference the user never stated
+/// (<c>NotAssessed</c> with <see cref="MatchDimensionCause.PreferenceUnstated"/> — "lämna tomt
+/// för att matcha alla", ADR 0170): 2 → <c>Strong</c>; 1 → <c>Good</c>; 0 → <c>Basic</c>. The
+/// län-only containment arm is the one <c>NotAssessed</c> that neither confirms nor contradicts.</item>
 /// </list>
 /// <see cref="MatchScore.TitleSimilarity"/> is NOT consulted — proven below.
 /// </para>
@@ -39,7 +42,8 @@ namespace Jobbliggaren.Application.UnitTests.Matching.Grading;
 /// A covered must-have is sufficient evidence on its own; a <c>Vacuous</c> must-have (ad
 /// states none) is gate-open ONLY when backed by a skill/nice signal. AMENDS Reading 1 —
 /// Vacuous alone no longer reaches Strong/Top (~98% of ads are Vacuous).</item>
-/// <item><c>confirmed = #Match among {RegionFit, EmploymentFit}</c>.</item>
+/// <item><c>confirmed = #{RegionFit, EmploymentFit} that Match or were never stated</c>
+/// (ADR 0170).</item>
 /// <item>If <c>requirementBacked</c>: <c>confirmed == 2 AND HasSkillOrNiceSignal</c> →
 /// <c>Top</c>; else <c>confirmed >= 1</c> → <c>Strong</c>; else → <c>Basic</c> (evidence but
 /// no secondary stated).</item>
@@ -74,6 +78,29 @@ public class MatchGradeCalculatorTests
     private static MatchDimension Dim(MatchDimensionVerdict verdict) =>
         new(verdict, [], []);
 
+    // ---------------------------------------------------------------
+    // A verdict-keyed test that says "NotAssessed" on region or employment means "unstated": see
+    // ProducedCauses for the two situations the scorer emits it in. The län-only containment arm
+    // and RemoteOverride / AdSilent are exercised by name below. The scorer's side of the
+    // contract is pinned by FullMatchScorerIntegrationTests and the grade oracles, which read
+    // the cause off the real scorer.
+    // ---------------------------------------------------------------
+    private static MatchDimensionCauses ScorerCauses(MatchScore fast) => ProducedCauses.For(fast);
+
+    // Region NotAssessed by the län-only containment arm (the user stated a kommun, the ad names
+    // only its län); employment is stated and carries no cause the grade reads.
+    private static MatchDimensionCauses LanOnlyRegionCauses() =>
+        new(
+            SsykOverlap: null,
+            RegionFit: MatchDimensionCause.RegionContainsPreferredMunicipality,
+            EmploymentFit: null);
+
+    private static MatchGrade? GradeAsScored(MatchScore score, bool isRelated = false) =>
+        MatchGradeCalculator.Grade(score, ScorerCauses(score), isRelated);
+
+    private static MatchGrade? GradeAsScored(FullMatchScore score, bool isRelated = false) =>
+        MatchGradeCalculator.Grade(score, ScorerCauses(score.Fast), isRelated);
+
     // =================================================================
     // Gate — occupation/SSYK must Match to earn ANY tag (else null)
     // =================================================================
@@ -87,7 +114,7 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.Match,
             employment: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBeNull();
+        GradeAsScored(score).ShouldBeNull();
     }
 
     [Fact]
@@ -100,7 +127,7 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.Match,
             employment: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBeNull();
+        GradeAsScored(score).ShouldBeNull();
     }
 
     [Fact]
@@ -113,7 +140,7 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.Match,
             employment: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBeNull();
+        GradeAsScored(score).ShouldBeNull();
     }
 
     // =================================================================
@@ -130,7 +157,7 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.NoMatch,
             employment: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Basic);
     }
 
     [Fact]
@@ -141,7 +168,7 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.Match,
             employment: MatchDimensionVerdict.NoMatch);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Basic);
     }
 
     [Fact]
@@ -152,7 +179,7 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.NoMatch,
             employment: MatchDimensionVerdict.NoMatch);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Basic);
     }
 
     // =================================================================
@@ -167,42 +194,105 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.Match,
             employment: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+        GradeAsScored(score).ShouldBe(MatchGrade.Strong);
     }
 
     [Fact]
-    public void Grade_ShouldReturnGood_WhenOnlyRegionConfirmed()
+    public void Grade_ShouldReturnStrong_WhenRegionConfirmed_AndEmploymentIsUnstated()
     {
+        // "Lämna tomt för att matcha alla": an employment form the user never picked is open to
+        // every form, so it confirms. Before ADR 0170 this was Good (#2154).
         var score = Score(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.Match,
             employment: MatchDimensionVerdict.NotAssessed);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+        GradeAsScored(score).ShouldBe(MatchGrade.Strong);
     }
 
     [Fact]
-    public void Grade_ShouldReturnGood_WhenOnlyEmploymentConfirmed()
+    public void Grade_ShouldReturnStrong_WhenEmploymentConfirmed_AndRegionIsUnstated()
     {
         var score = Score(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.NotAssessed,
             employment: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+        GradeAsScored(score).ShouldBe(MatchGrade.Strong);
     }
 
     [Fact]
-    public void Grade_ShouldReturnBasic_WhenNeitherSecondaryAssessed()
+    public void Grade_ShouldReturnStrong_WhenBothPreferencesAreUnstated()
     {
-        // Occupation Match, both secondaries NotAssessed ("open"/not stated) → Basic.
-        // A NotAssessed secondary never penalises and never confirms.
+        // Occupation Match and nothing else stated: the user is open to every ort and every
+        // form, so both secondaries are confirmed. Before ADR 0170 this was Basic (#2154).
         var score = Score(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.NotAssessed,
             employment: MatchDimensionVerdict.NotAssessed);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Strong);
+    }
+
+    // The one NotAssessed that is NOT "unstated": the län-only containment arm
+    // (MatchScorer.ScoreOrtUnion, #477 Low 1). The user DID state a kommun and the ad names only
+    // its län, so the ad neither confirms nor contradicts — it must not ride the unstated rule.
+
+    [Fact]
+    public void Grade_ShouldReturnGood_WhenRegionIsLanOnlyContainment_AndEmploymentConfirmed()
+    {
+        var score = Score(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NotAssessed,
+            employment: MatchDimensionVerdict.Match);
+        var causes = new MatchDimensionCauses(
+            SsykOverlap: null,
+            RegionFit: MatchDimensionCause.RegionContainsPreferredMunicipality,
+            EmploymentFit: null);
+
+        MatchGradeCalculator.Grade(score, causes).ShouldBe(MatchGrade.Good);
+    }
+
+    [Fact]
+    public void Grade_ShouldReturnGood_WhenRegionIsLanOnlyContainment_AndEmploymentIsUnstated()
+    {
+        var score = Score(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NotAssessed,
+            employment: MatchDimensionVerdict.NotAssessed);
+        var causes = new MatchDimensionCauses(
+            SsykOverlap: null,
+            RegionFit: MatchDimensionCause.RegionContainsPreferredMunicipality,
+            EmploymentFit: MatchDimensionCause.PreferenceUnstated);
+
+        MatchGradeCalculator.Grade(score, causes).ShouldBe(MatchGrade.Good);
+    }
+
+    [Fact]
+    public void Grade_ShouldNotCountANotAssessedSecondary_WhenItCarriesNoCause()
+    {
+        // Declared unreachable: the scorer always attaches a cause to a NotAssessed region or
+        // employment verdict (ScoreOrtUnion / ScoreEmploymentMembership). If the invariant ever
+        // breaks, the read side degrades to the pre-ADR-0170 reading — an unexplained
+        // NotAssessed neither confirms nor contradicts — rather than inventing a confirmation.
+        var score = Score(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NotAssessed,
+            employment: MatchDimensionVerdict.NotAssessed);
+
+        MatchGradeCalculator.Grade(score, MatchDimensionCauses.None).ShouldBe(MatchGrade.Basic);
+    }
+
+    [Fact]
+    public void Grade_ShouldKeepTheContradictionFloor_WhenTheOtherPreferenceIsUnstated()
+    {
+        // Region contradicted, employment unstated: the floor wins over the open secondary.
+        var score = Score(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NoMatch,
+            employment: MatchDimensionVerdict.NotAssessed);
+
+        GradeAsScored(score).ShouldBe(MatchGrade.Basic);
     }
 
     // =================================================================
@@ -213,16 +303,32 @@ public class MatchGradeCalculatorTests
     // =================================================================
 
     [Fact]
-    public void Grade_ShouldReturnBasic_WhenRegionPartialAndEmploymentNotAssessed()
+    public void Grade_ShouldReturnGood_WhenRegionPartialAndEmploymentIsUnstated()
     {
-        // Partial neither contradicts (not NoMatch → no floor trigger) nor confirms
-        // (not Match → confirmedSecondaries stays 0) → count branch _ => Basic.
+        // Partial neither contradicts (not NoMatch → no floor trigger) nor confirms (not Match,
+        // and carries no PreferenceUnstated cause); only the unstated employment confirms
+        // → 1 → Good. Before ADR 0170 this was Basic.
         var score = Score(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.Partial,
             employment: MatchDimensionVerdict.NotAssessed);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Good);
+    }
+
+    [Fact]
+    public void Grade_ShouldReturnBasic_WhenRegionPartialAndEmploymentIsNotAssessedWithoutCause()
+    {
+        // The only Fast cell that still reaches the count branch's `_ => Basic` arm: nothing
+        // confirms. Partial is unreachable on ScoreOrtUnion and a cause-less NotAssessed
+        // employment is unreachable on ScoreEmploymentMembership, so this pins the total
+        // function's arm and nothing the scorer produces.
+        var score = Score(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.Partial,
+            employment: MatchDimensionVerdict.NotAssessed);
+
+        MatchGradeCalculator.Grade(score, MatchDimensionCauses.None).ShouldBe(MatchGrade.Basic);
     }
 
     [Fact]
@@ -234,7 +340,7 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.Partial,
             employment: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+        GradeAsScored(score).ShouldBe(MatchGrade.Good);
     }
 
     // =================================================================
@@ -258,7 +364,7 @@ public class MatchGradeCalculatorTests
             employment: MatchDimensionVerdict.NotAssessed,
             title: titleVerdict);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+        GradeAsScored(score).ShouldBe(MatchGrade.Strong);
     }
 
     // =================================================================
@@ -322,9 +428,11 @@ public class MatchGradeCalculatorTests
             || employment == MatchDimensionVerdict.NoMatch)
             return MatchGrade.Basic;
 
+        // ADR 0170 / ADR 0076 Amendment 2026-10-13: NotAssessed here means "the user stated nothing"
+        // (see ScorerCauses), and an unstated preference is open to everything — it confirms.
         var confirmed =
-            (region == MatchDimensionVerdict.Match ? 1 : 0)
-            + (employment == MatchDimensionVerdict.Match ? 1 : 0);
+            (region is MatchDimensionVerdict.Match or MatchDimensionVerdict.NotAssessed ? 1 : 0)
+            + (employment is MatchDimensionVerdict.Match or MatchDimensionVerdict.NotAssessed ? 1 : 0);
 
         return confirmed switch
         {
@@ -345,7 +453,7 @@ public class MatchGradeCalculatorTests
     {
         var score = Score(ssyk, region, employment);
 
-        MatchGradeCalculator.Grade(score, isRelated).ShouldBe(expected,
+        GradeAsScored(score, isRelated).ShouldBe(expected,
             $"ssyk={ssyk}, region={region}, employment={employment}, " +
             $"isRelated={isRelated} ska ge {expected}.");
     }
@@ -357,7 +465,17 @@ public class MatchGradeCalculatorTests
     [Fact]
     public void Grade_ShouldThrowArgumentNullException_WhenScoreIsNull()
     {
-        Should.Throw<ArgumentNullException>(() => MatchGradeCalculator.Grade((MatchScore)null!));
+        Should.Throw<ArgumentNullException>(
+            () => MatchGradeCalculator.Grade((MatchScore)null!, MatchDimensionCauses.None));
+    }
+
+    [Fact]
+    public void Grade_ShouldThrowArgumentNullException_WhenCausesIsNull()
+    {
+        var score = Score(
+            MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match);
+
+        Should.Throw<ArgumentNullException>(() => MatchGradeCalculator.Grade(score, null!));
     }
 
     // =================================================================
@@ -443,10 +561,12 @@ public class MatchGradeCalculatorTests
             mustHave == MatchDimensionVerdict.Match
             || (mustHave == MatchDimensionVerdict.Vacuous && skillOrNiceSignal);
 
-        // 6.
+        // 6. A secondary is confirmed by a Match or by an unstated preference (NotAssessed here
+        //    means "the user stated nothing", see ScorerCauses): ADR 0170 / ADR 0076 Amendment
+        //    2026-10-13, "an empty preference matches all".
         var confirmed =
-            (region == MatchDimensionVerdict.Match ? 1 : 0)
-            + (employment == MatchDimensionVerdict.Match ? 1 : 0);
+            (region is MatchDimensionVerdict.Match or MatchDimensionVerdict.NotAssessed ? 1 : 0)
+            + (employment is MatchDimensionVerdict.Match or MatchDimensionVerdict.NotAssessed ? 1 : 0);
 
         if (requirementBacked)
         {
@@ -526,7 +646,7 @@ public class MatchGradeCalculatorTests
     {
         var score = FullScore(ssyk, region, employment, skill, mustHave, niceToHave);
 
-        MatchGradeCalculator.Grade(score, isRelated).ShouldBe(expected,
+        GradeAsScored(score, isRelated).ShouldBe(expected,
             $"ssyk={ssyk}, region={region}, employment={employment}, skill={skill}, " +
             $"mustHave={mustHave}, niceToHave={niceToHave}, isRelated={isRelated} ska ge {expected}.");
     }
@@ -552,7 +672,7 @@ public class MatchGradeCalculatorTests
             mustHave: MatchDimensionVerdict.NotAssessed,
             niceToHave: MatchDimensionVerdict.NotAssessed);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+        GradeAsScored(score).ShouldBe(MatchGrade.Good);
     }
 
     [Fact]
@@ -564,19 +684,21 @@ public class MatchGradeCalculatorTests
             employment: MatchDimensionVerdict.NotAssessed,
             mustHave: MatchDimensionVerdict.NotAssessed);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+        GradeAsScored(score).ShouldBe(MatchGrade.Good);
     }
 
     [Fact]
-    public void GradeFull_ShouldReturnBasic_WhenNoCv_AndNoSecondaryConfirmed()
+    public void GradeFull_ShouldReturnGood_WhenNoCv_AndBothPreferencesAreUnstated()
     {
+        // Both preferences unstated = both confirmed (ADR 0170), but with no CV the requirement
+        // gate stays shut, so the ceiling is Good. Before ADR 0170 this was Basic (#2154).
         var score = FullScore(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.NotAssessed,
             employment: MatchDimensionVerdict.NotAssessed,
             mustHave: MatchDimensionVerdict.NotAssessed);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Good);
     }
 
     [Theory]
@@ -595,7 +717,7 @@ public class MatchGradeCalculatorTests
             mustHave: MatchDimensionVerdict.NotAssessed,
             niceToHave: MatchDimensionVerdict.NotAssessed);
 
-        var grade = MatchGradeCalculator.Grade(score);
+        var grade = GradeAsScored(score);
         grade.ShouldNotBe(MatchGrade.Strong);
         grade.ShouldNotBe(MatchGrade.Top);
     }
@@ -614,11 +736,11 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.Partial);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+        GradeAsScored(score).ShouldBe(MatchGrade.Good);
     }
 
     [Fact]
-    public void GradeFull_ShouldReturnBasic_WhenMustHavePartial_AndNoSecondaryConfirmed()
+    public void GradeFull_ShouldReturnGood_WhenMustHavePartial_AndBothPreferencesAreUnstated()
     {
         var score = FullScore(
             ssyk: MatchDimensionVerdict.Match,
@@ -626,7 +748,7 @@ public class MatchGradeCalculatorTests
             employment: MatchDimensionVerdict.NotAssessed,
             mustHave: MatchDimensionVerdict.Partial);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Good);
     }
 
     // --- NoMatch must-have (CV present, disjoint) → caps at Good/Basic, NEVER Strong/Top ---
@@ -643,11 +765,11 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.NoMatch);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+        GradeAsScored(score).ShouldBe(MatchGrade.Good);
     }
 
     [Fact]
-    public void GradeFull_ShouldReturnBasic_WhenMustHaveNoMatch_AndNoSecondaryConfirmed()
+    public void GradeFull_ShouldReturnGood_WhenMustHaveNoMatch_AndBothPreferencesAreUnstated()
     {
         var score = FullScore(
             ssyk: MatchDimensionVerdict.Match,
@@ -655,7 +777,7 @@ public class MatchGradeCalculatorTests
             employment: MatchDimensionVerdict.NotAssessed,
             mustHave: MatchDimensionVerdict.NoMatch);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Good);
     }
 
     // --- Vacuous must-have (ad states no must-haves, CV present) — ADR 0076 amendment
@@ -676,7 +798,7 @@ public class MatchGradeCalculatorTests
             mustHave: MatchDimensionVerdict.Vacuous,
             niceToHave: MatchDimensionVerdict.Vacuous);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+        GradeAsScored(score).ShouldBe(MatchGrade.Good);
     }
 
     [Fact]
@@ -684,7 +806,24 @@ public class MatchGradeCalculatorTests
     {
         // F1(b): a Vacuous must-have BACKED by a skill signal IS requirement-backed (Reading
         // 1's spirit survives — a candidate genuinely sharing a skill with a no-requirement
-        // ad is not punished). One confirmed secondary + a skill Partial → Strong.
+        // ad is not punished). Exactly one confirmed secondary (the län-only region is
+        // neutral, the employment Matches) + a skill Partial → Strong.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NotAssessed,
+            employment: MatchDimensionVerdict.Match,
+            skill: MatchDimensionVerdict.Partial,
+            mustHave: MatchDimensionVerdict.Vacuous);
+
+        MatchGradeCalculator.Grade(score, LanOnlyRegionCauses()).ShouldBe(MatchGrade.Strong);
+    }
+
+    [Fact]
+    public void GradeFull_ShouldReturnTop_WhenMustHaveVacuous_RegionMatch_EmploymentIsUnstated_AndSkillSignal()
+    {
+        // The same cell with the region confirmed and the employment left empty: the empty
+        // employment confirms (ADR 0170), so both secondaries are confirmed and the skill
+        // signal earns Top. Before ADR 0170 this was Strong (#2154).
         var score = FullScore(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.Match,
@@ -692,7 +831,7 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Partial,
             mustHave: MatchDimensionVerdict.Vacuous);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+        GradeAsScored(score).ShouldBe(MatchGrade.Top);
     }
 
     [Fact]
@@ -707,7 +846,7 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.Vacuous);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Top);
+        GradeAsScored(score).ShouldBe(MatchGrade.Top);
     }
 
     [Fact]
@@ -729,7 +868,7 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Partial,
             mustHave: MatchDimensionVerdict.Vacuous);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Top);
+        GradeAsScored(score).ShouldBe(MatchGrade.Top);
     }
 
     [Fact]
@@ -743,7 +882,7 @@ public class MatchGradeCalculatorTests
             employment: MatchDimensionVerdict.NotAssessed,
             mustHave: MatchDimensionVerdict.Vacuous);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good);
+        GradeAsScored(score).ShouldBe(MatchGrade.Good);
     }
 
     // --- F1(b) load-bearing invariant: Vacuous-without-signal NEVER reaches Strong/Top
@@ -767,7 +906,7 @@ public class MatchGradeCalculatorTests
             mustHave: MatchDimensionVerdict.Vacuous,
             niceToHave: MatchDimensionVerdict.Vacuous);
 
-        var grade = MatchGradeCalculator.Grade(score);
+        var grade = GradeAsScored(score);
         grade.ShouldNotBe(MatchGrade.Strong);
         grade.ShouldNotBe(MatchGrade.Top);
     }
@@ -786,7 +925,7 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Basic);
     }
 
     [Fact]
@@ -799,17 +938,18 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Basic);
     }
 
     // --- must-have met + 0 secondaries confirmed (both NotAssessed) → Basic
     //     (the one non-obvious cell; the bound CTO "otherwise" behaviour) ---
 
     [Fact]
-    public void GradeFull_ShouldReturnBasic_WhenMustHaveMatch_ButBothSecondariesNotAssessed()
+    public void GradeFull_ShouldReturnTop_WhenMustHaveMatch_AndBothPreferencesAreUnstated_WithSkillMatch()
     {
-        // must-have met but NO secondary preference stated → Basic. The gate is open but
-        // there is nothing to confirm Strong (CTO "else → Basic"). Bound, non-obvious.
+        // The cell that used to be the one non-obvious Basic (must-have met, no secondary
+        // stated): nothing stated is nothing contradicted AND everything open, so both
+        // secondaries are confirmed and the skill signal earns Top (ADR 0170, #2154).
         var score = FullScore(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.NotAssessed,
@@ -817,13 +957,13 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Top);
     }
 
     [Fact]
-    public void GradeFull_ShouldReturnBasic_WhenMustHaveVacuous_ButBothSecondariesNotAssessed()
+    public void GradeFull_ShouldReturnTop_WhenMustHaveVacuous_AndBothPreferencesAreUnstated_WithSkillMatch()
     {
-        // Same "otherwise" cell with a Vacuous gate — still Basic (no secondary stated).
+        // Same cell with a Vacuous gate backed by a skill Match.
         var score = FullScore(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.NotAssessed,
@@ -831,7 +971,20 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.Vacuous);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        GradeAsScored(score).ShouldBe(MatchGrade.Top);
+    }
+
+    [Fact]
+    public void GradeFull_ShouldReturnStrong_WhenMustHaveMatch_AndBothPreferencesAreUnstated_WithoutSkillSignal()
+    {
+        // Both secondaries confirmed but no skill or nice-to-have signal: Strong, never Top.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NotAssessed,
+            employment: MatchDimensionVerdict.NotAssessed,
+            mustHave: MatchDimensionVerdict.Match);
+
+        GradeAsScored(score).ShouldBe(MatchGrade.Strong);
     }
 
     // --- Top requires confirmed==2 AND a skill|nice signal ---
@@ -846,7 +999,7 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Top);
+        GradeAsScored(score).ShouldBe(MatchGrade.Top);
     }
 
     [Fact]
@@ -861,7 +1014,7 @@ public class MatchGradeCalculatorTests
             mustHave: MatchDimensionVerdict.Match,
             niceToHave: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Top);
+        GradeAsScored(score).ShouldBe(MatchGrade.Top);
     }
 
     [Fact]
@@ -876,42 +1029,43 @@ public class MatchGradeCalculatorTests
             mustHave: MatchDimensionVerdict.Match,
             niceToHave: MatchDimensionVerdict.NotAssessed);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+        GradeAsScored(score).ShouldBe(MatchGrade.Strong);
     }
 
     [Fact]
     public void GradeFull_ShouldNotReachTop_WhenMustHaveMatch_OnlyOneSecondaryConfirmed_EvenWithSkillMatch()
     {
-        // Top REQUIRES confirmed==2; with one secondary NotAssessed it caps at Strong even
-        // with a perfect skill overlap (the open-secondary Strong fallback).
+        // Top REQUIRES confirmed==2; with the region neutral (a län-only ad in the user's own
+        // kommun's län — neither confirmed nor contradicted) it caps at Strong even with a
+        // perfect skill overlap. The empty-preference case no longer lands here: see the
+        // BothPreferencesAreUnstated cells above.
         var score = FullScore(
             ssyk: MatchDimensionVerdict.Match,
-            region: MatchDimensionVerdict.Match,
-            employment: MatchDimensionVerdict.NotAssessed,
+            region: MatchDimensionVerdict.NotAssessed,
+            employment: MatchDimensionVerdict.Match,
             skill: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+        MatchGradeCalculator.Grade(score, LanOnlyRegionCauses()).ShouldBe(MatchGrade.Strong);
     }
 
-    // --- Strong open-secondary fallback (confirmed==1, must-have met) ---
+    // --- Strong without a skill signal: confirmed==2 and must-have met, but no Top tie-break.
+    //     The empty preference confirms, so these two are the same cell as BothMatch above. ---
 
     [Fact]
-    public void GradeFull_ShouldReturnStrong_WhenMustHaveMatch_RegionMatch_EmploymentNotAssessed()
+    public void GradeFull_ShouldReturnStrong_WhenMustHaveMatch_RegionMatch_EmploymentIsUnstated_ButNoSignal()
     {
-        // One secondary Match, the other NotAssessed (not contradicted) + must-have met
-        // → Strong (the open-secondary fallback).
         var score = FullScore(
             ssyk: MatchDimensionVerdict.Match,
             region: MatchDimensionVerdict.Match,
             employment: MatchDimensionVerdict.NotAssessed,
             mustHave: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+        GradeAsScored(score).ShouldBe(MatchGrade.Strong);
     }
 
     [Fact]
-    public void GradeFull_ShouldReturnStrong_WhenMustHaveMatch_RegionNotAssessed_EmploymentMatch()
+    public void GradeFull_ShouldReturnStrong_WhenMustHaveMatch_RegionIsUnstated_EmploymentMatch_ButNoSignal()
     {
         var score = FullScore(
             ssyk: MatchDimensionVerdict.Match,
@@ -919,7 +1073,32 @@ public class MatchGradeCalculatorTests
             employment: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+        GradeAsScored(score).ShouldBe(MatchGrade.Strong);
+    }
+
+    [Fact]
+    public void GradeFull_ShouldReturnStrong_WhenMustHaveMatch_RegionIsLanOnly_EmploymentMatch()
+    {
+        // Exactly one confirmed secondary (the län-only region is neutral) + must-have met
+        // → Strong: the reading of "at least one confirmed secondary" that survives ADR 0170.
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NotAssessed,
+            employment: MatchDimensionVerdict.Match,
+            mustHave: MatchDimensionVerdict.Match);
+
+        MatchGradeCalculator.Grade(score, LanOnlyRegionCauses()).ShouldBe(MatchGrade.Strong);
+    }
+
+    [Fact]
+    public void GradeFull_ShouldReturnGood_WhenNoCv_RegionIsLanOnly_EmploymentMatch()
+    {
+        var score = FullScore(
+            ssyk: MatchDimensionVerdict.Match,
+            region: MatchDimensionVerdict.NotAssessed,
+            employment: MatchDimensionVerdict.Match);
+
+        MatchGradeCalculator.Grade(score, LanOnlyRegionCauses()).ShouldBe(MatchGrade.Good);
     }
 
     // --- The occupation gate still wins above everything (null regardless of Full dims) ---
@@ -938,7 +1117,7 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Match,
             mustHave: mustHave);
 
-        MatchGradeCalculator.Grade(score).ShouldBeNull();
+        GradeAsScored(score).ShouldBeNull();
     }
 
     // --- Null guard parity with the Fast overload ---
@@ -947,7 +1126,228 @@ public class MatchGradeCalculatorTests
     public void GradeFull_ShouldThrowArgumentNullException_WhenScoreIsNull()
     {
         Should.Throw<ArgumentNullException>(
-            () => MatchGradeCalculator.Grade((FullMatchScore)null!));
+            () => MatchGradeCalculator.Grade((FullMatchScore)null!, MatchDimensionCauses.None));
+    }
+
+    [Fact]
+    public void GradeFull_ShouldThrowArgumentNullException_WhenCausesIsNull()
+    {
+        var score = FullScore(
+            MatchDimensionVerdict.Match, MatchDimensionVerdict.Match, MatchDimensionVerdict.Match);
+
+        Should.Throw<ArgumentNullException>(() => MatchGradeCalculator.Grade(score, null!));
+    }
+
+    // =================================================================
+    // ADR 0170 (ADR 0076 Amendment 2026-10-13, #2154) — the PRODUCIBLE secondary states.
+    // The verdict-keyed sweeps above read NotAssessed as "unstated"; a verdict cannot say WHY it
+    // is NotAssessed, and region has a second reason (the län-only containment arm). This sweep
+    // is keyed on the (verdict, cause) pairs MatchScorer.ScoreOrtUnion / ScoreEmploymentMembership
+    // actually emit, so every row is a state production produces. Its oracle is keyed on what each
+    // state MEANS for the user — confirms, contradicts or neither — not on the SUT's predicate:
+    //   • an ad that fits the stated preference confirms (Match, and Match by remote override);
+    //   • a stated preference the ad contradicts, or is silent on, contradicts (NoMatch);
+    //   • a preference the user never stated confirms: "lämna tomt för att matcha alla";
+    //   • the län-only containment arm neither confirms nor contradicts.
+    // =================================================================
+
+    public enum RegionState
+    {
+        Match,
+        MatchByRemote,
+        Contradicted,
+        ContradictedByAdSilence,
+        Unstated,
+        LanOnlyContainment,
+    }
+
+    public enum EmploymentState
+    {
+        Match,
+        Contradicted,
+        ContradictedByAdSilence,
+        Unstated,
+    }
+
+    public enum SecondaryStance
+    {
+        Confirms,
+        Contradicts,
+        Neutral,
+    }
+
+    private static (MatchDimensionVerdict Verdict, MatchDimensionCause? Cause) Emitted(RegionState state) =>
+        state switch
+        {
+            RegionState.Match => (MatchDimensionVerdict.Match, null),
+            RegionState.MatchByRemote => (MatchDimensionVerdict.Match, MatchDimensionCause.RemoteOverride),
+            RegionState.Contradicted => (MatchDimensionVerdict.NoMatch, null),
+            RegionState.ContradictedByAdSilence => (MatchDimensionVerdict.NoMatch, MatchDimensionCause.AdSilent),
+            RegionState.Unstated => (MatchDimensionVerdict.NotAssessed, MatchDimensionCause.PreferenceUnstated),
+            RegionState.LanOnlyContainment =>
+                (MatchDimensionVerdict.NotAssessed, MatchDimensionCause.RegionContainsPreferredMunicipality),
+            _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
+        };
+
+    private static (MatchDimensionVerdict Verdict, MatchDimensionCause? Cause) Emitted(EmploymentState state) =>
+        state switch
+        {
+            EmploymentState.Match => (MatchDimensionVerdict.Match, null),
+            EmploymentState.Contradicted => (MatchDimensionVerdict.NoMatch, null),
+            EmploymentState.ContradictedByAdSilence => (MatchDimensionVerdict.NoMatch, MatchDimensionCause.AdSilent),
+            EmploymentState.Unstated => (MatchDimensionVerdict.NotAssessed, MatchDimensionCause.PreferenceUnstated),
+            _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
+        };
+
+    private static SecondaryStance StanceOf(RegionState state) => state switch
+    {
+        RegionState.Match or RegionState.MatchByRemote or RegionState.Unstated => SecondaryStance.Confirms,
+        RegionState.Contradicted or RegionState.ContradictedByAdSilence => SecondaryStance.Contradicts,
+        RegionState.LanOnlyContainment => SecondaryStance.Neutral,
+        _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
+    };
+
+    private static SecondaryStance StanceOf(EmploymentState state) => state switch
+    {
+        EmploymentState.Match or EmploymentState.Unstated => SecondaryStance.Confirms,
+        EmploymentState.Contradicted or EmploymentState.ContradictedByAdSilence => SecondaryStance.Contradicts,
+        _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
+    };
+
+    private static MatchScore ScoreOf(
+        MatchDimensionVerdict ssyk, RegionState region, EmploymentState employment) =>
+        Score(ssyk, Emitted(region).Verdict, Emitted(employment).Verdict);
+
+    private static MatchDimensionCauses CausesOf(RegionState region, EmploymentState employment) =>
+        new(SsykOverlap: null, RegionFit: Emitted(region).Cause, EmploymentFit: Emitted(employment).Cause);
+
+    public static TheoryData<MatchDimensionVerdict, RegionState, EmploymentState, bool> ProducibleFastSpace()
+    {
+        var data = new TheoryData<MatchDimensionVerdict, RegionState, EmploymentState, bool>();
+        foreach (var ssyk in new[]
+                 {
+                     MatchDimensionVerdict.Match, MatchDimensionVerdict.NoMatch, MatchDimensionVerdict.NotAssessed,
+                 })
+            foreach (var region in Enum.GetValues<RegionState>())
+                foreach (var employment in Enum.GetValues<EmploymentState>())
+                    foreach (var isRelated in new[] { false, true })
+                        data.Add(ssyk, region, employment, isRelated);
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(ProducibleFastSpace))]
+    public void Grade_ShouldMatchTheStanceTable_AcrossEveryProducibleSecondaryState(
+        MatchDimensionVerdict ssyk, RegionState region, EmploymentState employment, bool isRelated)
+    {
+        var expected = ExpectedByStance(ssyk, StanceOf(region), StanceOf(employment), isRelated);
+
+        MatchGradeCalculator.Grade(ScoreOf(ssyk, region, employment), CausesOf(region, employment), isRelated)
+            .ShouldBe(expected,
+                $"ssyk={ssyk}, region={region}, employment={employment}, isRelated={isRelated} " +
+                $"ska ge {expected?.ToString() ?? "null"}.");
+    }
+
+    // The ladder restated over stances, independent of the SUT (and of the verdict-keyed Expected
+    // above): gate, Related cap, contradiction floor, then the count of confirming secondaries.
+    private static MatchGrade? ExpectedByStance(
+        MatchDimensionVerdict ssyk, SecondaryStance region, SecondaryStance employment, bool isRelated)
+    {
+        if (ssyk != MatchDimensionVerdict.Match)
+            return null;
+        if (isRelated)
+            return MatchGrade.Related;
+        if (region == SecondaryStance.Contradicts || employment == SecondaryStance.Contradicts)
+            return MatchGrade.Basic;
+
+        var confirming = new[] { region, employment }.Count(s => s == SecondaryStance.Confirms);
+        return confirming switch
+        {
+            2 => MatchGrade.Strong,
+            1 => MatchGrade.Good,
+            _ => MatchGrade.Basic,
+        };
+    }
+
+    public static TheoryData<
+        RegionState, EmploymentState, MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, bool>
+        ProducibleFullSpace()
+    {
+        var data = new TheoryData<
+            RegionState, EmploymentState, MatchDimensionVerdict, MatchDimensionVerdict, MatchDimensionVerdict, bool>();
+        foreach (var region in Enum.GetValues<RegionState>())
+            foreach (var employment in Enum.GetValues<EmploymentState>())
+                foreach (var skill in new[]
+                         {
+                             MatchDimensionVerdict.Match, MatchDimensionVerdict.NoMatch,
+                             MatchDimensionVerdict.NotAssessed,
+                         })
+                    foreach (var mustHave in AllVerdicts)
+                        foreach (var niceToHave in new[]
+                                 {
+                                     MatchDimensionVerdict.Match, MatchDimensionVerdict.NotAssessed,
+                                 })
+                            foreach (var isRelated in new[] { false, true })
+                                data.Add(region, employment, skill, mustHave, niceToHave, isRelated);
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(ProducibleFullSpace))]
+    public void GradeFull_ShouldMatchTheStanceTable_AcrossEveryProducibleSecondaryState(
+        RegionState region,
+        EmploymentState employment,
+        MatchDimensionVerdict skill,
+        MatchDimensionVerdict mustHave,
+        MatchDimensionVerdict niceToHave,
+        bool isRelated)
+    {
+        var expected = ExpectedFullByStance(
+            StanceOf(region), StanceOf(employment), skill, mustHave, niceToHave, isRelated);
+        var score = new FullMatchScore(
+            Fast: ScoreOf(MatchDimensionVerdict.Match, region, employment),
+            SkillOverlap: FullDim(skill),
+            MustHaveCoverage: FullDim(mustHave),
+            NiceToHaveCoverage: FullDim(niceToHave));
+
+        MatchGradeCalculator.Grade(score, CausesOf(region, employment), isRelated).ShouldBe(expected,
+            $"region={region}, employment={employment}, skill={skill}, mustHave={mustHave}, " +
+            $"niceToHave={niceToHave}, isRelated={isRelated} ska ge {expected?.ToString() ?? "null"}.");
+    }
+
+    // The requirement-aware ladder restated over stances (SSYK = Match assumed).
+    private static MatchGrade? ExpectedFullByStance(
+        SecondaryStance region,
+        SecondaryStance employment,
+        MatchDimensionVerdict skill,
+        MatchDimensionVerdict mustHave,
+        MatchDimensionVerdict niceToHave,
+        bool isRelated)
+    {
+        if (isRelated)
+            return MatchGrade.Related;
+        if (region == SecondaryStance.Contradicts || employment == SecondaryStance.Contradicts)
+            return MatchGrade.Basic;
+
+        var signal =
+            skill is MatchDimensionVerdict.Match or MatchDimensionVerdict.Partial
+            || niceToHave is MatchDimensionVerdict.Match or MatchDimensionVerdict.Partial;
+        var requirementBacked =
+            mustHave == MatchDimensionVerdict.Match
+            || (mustHave == MatchDimensionVerdict.Vacuous && signal);
+        var confirming = new[] { region, employment }.Count(s => s == SecondaryStance.Confirms);
+
+        if (requirementBacked)
+        {
+            if (confirming == 2 && signal)
+                return MatchGrade.Top;
+
+            return confirming >= 1 ? MatchGrade.Strong : MatchGrade.Basic;
+        }
+
+        return confirming >= 1 ? MatchGrade.Good : MatchGrade.Basic;
     }
 
     // =================================================================
@@ -980,7 +1380,7 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.Match,
             employment: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBe(MatchGrade.Related,
+        GradeAsScored(score, isRelated: true).ShouldBe(MatchGrade.Related,
             "En related-yrkes-träff med båda sekundärerna bekräftade ska kapas till Related, " +
             "inte Strong (flat-cap, ADR 0084 §F2).");
     }
@@ -995,7 +1395,7 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.NoMatch,
             employment: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBe(MatchGrade.Related,
+        GradeAsScored(score, isRelated: true).ShouldBe(MatchGrade.Related,
             "Related-cap sitter FÖRE RB1-golvet — fel ort kapar inte ner till Basic (ADR 0084 §F4).");
     }
 
@@ -1008,7 +1408,7 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.Match,
             employment: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBeNull(
+        GradeAsScored(score, isRelated: true).ShouldBeNull(
             "Grinden slår capen: ingen SSYK-träff → null, även om isRelated är true (ADR 0084 §F4).");
     }
 
@@ -1022,7 +1422,7 @@ public class MatchGradeCalculatorTests
             region: MatchDimensionVerdict.NotAssessed,
             employment: MatchDimensionVerdict.NotAssessed);
 
-        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBe(MatchGrade.Related);
+        GradeAsScored(score, isRelated: true).ShouldBe(MatchGrade.Related);
     }
 
     // --- Full overload: the load-bearing Related cells ---
@@ -1040,7 +1440,7 @@ public class MatchGradeCalculatorTests
             mustHave: MatchDimensionVerdict.Match,
             niceToHave: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBe(MatchGrade.Related,
+        GradeAsScored(score, isRelated: true).ShouldBe(MatchGrade.Related,
             "Related-cap sitter FÖRE F1(b)-kravgrinden — perfekt full-träff kapas till Related, " +
             "inte Top (ADR 0084 §F2).");
     }
@@ -1057,7 +1457,7 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBe(MatchGrade.Related,
+        GradeAsScored(score, isRelated: true).ShouldBe(MatchGrade.Related,
             "Related-cap sitter FÖRE RB1-golvet på Full-overloaden — fel ort kapar inte ner " +
             "till Basic (ADR 0084 §F4).");
     }
@@ -1073,7 +1473,7 @@ public class MatchGradeCalculatorTests
             skill: MatchDimensionVerdict.Match,
             mustHave: MatchDimensionVerdict.Match);
 
-        MatchGradeCalculator.Grade(score, isRelated: true).ShouldBeNull(
+        GradeAsScored(score, isRelated: true).ShouldBeNull(
             "Grinden slår capen även på Full-overloaden: ingen SSYK-träff → null (ADR 0084 §F4).");
     }
 
@@ -1129,14 +1529,14 @@ public class MatchGradeCalculatorTests
     {
         // Fast: only the secondaries matter; the flat cap collapses them all to Related.
         var fastScore = Score(MatchDimensionVerdict.Match, region, employment);
-        MatchGradeCalculator.Grade(fastScore, isRelated: true).ShouldBe(MatchGrade.Related,
+        GradeAsScored(fastScore, isRelated: true).ShouldBe(MatchGrade.Related,
             $"Fast: SSYK Match + isRelated true ska ALLTID ge exakt Related " +
             $"(region={region}, employment={employment}).");
 
         // Full: secondaries + must-have + skill + nice — still exactly Related.
         var fullScore = FullScore(
             MatchDimensionVerdict.Match, region, employment, skill, mustHave, niceToHave);
-        MatchGradeCalculator.Grade(fullScore, isRelated: true).ShouldBe(MatchGrade.Related,
+        GradeAsScored(fullScore, isRelated: true).ShouldBe(MatchGrade.Related,
             $"Full: SSYK Match + isRelated true ska ALLTID ge exakt Related " +
             $"(region={region}, employment={employment}, skill={skill}, mustHave={mustHave}).");
     }
@@ -1162,7 +1562,7 @@ public class MatchGradeCalculatorTests
         preExisting.ShouldBe(expected, "Sanity: cross-product-oraklet matchar pre-cap-oraklet.");
 
         var score = Score(ssyk, region, employment);
-        MatchGradeCalculator.Grade(score, isRelated: false).ShouldBe(preExisting,
+        GradeAsScored(score, isRelated: false).ShouldBe(preExisting,
             $"isRelated:false ska reproducera den befintliga Fast-tabellen bit-för-bit " +
             $"(ssyk={ssyk}, region={region}, employment={employment}).");
     }
@@ -1186,7 +1586,7 @@ public class MatchGradeCalculatorTests
         preExisting.ShouldBe(expected, "Sanity: cross-product-oraklet matchar pre-cap-oraklet.");
 
         var score = FullScore(ssyk, region, employment, skill, mustHave, niceToHave);
-        MatchGradeCalculator.Grade(score, isRelated: false).ShouldBe(preExisting,
+        GradeAsScored(score, isRelated: false).ShouldBe(preExisting,
             $"isRelated:false ska reproducera den befintliga requirement-aware-tabellen bit-för-bit " +
             $"(ssyk={ssyk}, region={region}, employment={employment}, skill={skill}, mustHave={mustHave}).");
     }
@@ -1254,12 +1654,12 @@ public class MatchGradeCalculatorTests
         // The non-cited extra twin id is inert: identical dimensions (compared by VALUE — record
         // equality over IReadOnlyList members is reference-based, so assert content) and grade.
         AssertScoreEquivalent(both, baseline);
-        MatchGradeCalculator.Grade(both).ShouldBe(MatchGradeCalculator.Grade(baseline),
+        GradeAsScored(both).ShouldBe(GradeAsScored(baseline),
             "PreferredSkills hålls platt + scorad som mängd → graden är tvilling-cardinalitet-inert (#277).");
 
         // Sanity: the baseline actually exercises a positive skill match (else the pin is vacuous).
         baseline.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
-        MatchGradeCalculator.Grade(baseline).ShouldNotBeNull();
+        GradeAsScored(baseline).ShouldNotBeNull();
     }
 
     // Value-equality of two FullMatchScores by dimension verdict + matched/missing CONTENT (record

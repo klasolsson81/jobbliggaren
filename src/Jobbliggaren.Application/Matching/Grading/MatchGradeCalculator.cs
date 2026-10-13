@@ -20,16 +20,17 @@ namespace Jobbliggaren.Application.Matching.Grading;
 /// (<see cref="MatchDimensionVerdict.NoMatch"/>) forces the lowest positive grade —
 /// Klas 2026-06-19: a deselected location/employment form must not read as a strong
 /// match ("det sämsta är ... inte rätt ort").</item>
-/// <item><b>Otherwise by confirmed secondaries:</b> both region and employment
-/// <c>Match</c> → <see cref="MatchGrade.Strong"/>; exactly one → <see cref="MatchGrade.Good"/>;
-/// neither (both <see cref="MatchDimensionVerdict.NotAssessed"/> — "open"/not stated) →
-/// <see cref="MatchGrade.Basic"/>. A <c>NotAssessed</c> secondary never penalises (an
-/// unstated preference means "open", not "wrong").</item>
+/// <item><b>Otherwise by confirmed secondaries:</b> both region and employment confirmed →
+/// <see cref="MatchGrade.Strong"/>; exactly one → <see cref="MatchGrade.Good"/>; neither →
+/// <see cref="MatchGrade.Basic"/>. A secondary is confirmed by a
+/// <see cref="MatchDimensionVerdict.Match"/> or by a preference the user never stated
+/// (<see cref="MatchDimensionCause.PreferenceUnstated"/>); ADR 0170 owns the rule. The
+/// län-only containment arm stays neutral.</item>
 /// </list>
 /// </para>
 /// <para>
 /// <b>No opaque total (Goodhart guard):</b> the output is a named category, never a
-/// number. The full nine reachable (Region × Employment) verdict tuples each map to
+/// number. Every (verdict, cause) pair the scorer emits for region and employment maps to
 /// exactly one grade — the RED-first table is the oracle. F4-15 re-proves totality by
 /// extending the rule with skill/requirement rungs.
 /// </para>
@@ -41,9 +42,10 @@ public static class MatchGradeCalculator
     /// <c>null</c> when the ad does not earn a tag (occupation not a Match). See the
     /// type summary for the full ladder.
     /// </summary>
-    public static MatchGrade? Grade(MatchScore score, bool isRelated = false)
+    public static MatchGrade? Grade(MatchScore score, MatchDimensionCauses causes, bool isRelated = false)
     {
         ArgumentNullException.ThrowIfNull(score);
+        ArgumentNullException.ThrowIfNull(causes);
 
         // Gate: occupation/SSYK must Match to show any positive tag. The gate WINS over the
         // Related-cap below: a related occupation still earns no tag when the ad's ssyk is in
@@ -68,13 +70,8 @@ public static class MatchGradeCalculator
         if (regionContradicts || employmentContradicts)
             return MatchGrade.Basic;
 
-        // Otherwise grade by the count of confirmed secondary preferences. A NotAssessed
-        // secondary ("open"/not stated) neither confirms nor contradicts.
-        var confirmedSecondaries = 0;
-        if (score.RegionFit.Verdict == MatchDimensionVerdict.Match)
-            confirmedSecondaries++;
-        if (score.EmploymentFit.Verdict == MatchDimensionVerdict.Match)
-            confirmedSecondaries++;
+        // Otherwise grade by the count of confirmed secondary preferences (ADR 0170).
+        var confirmedSecondaries = ConfirmedSecondaries(score, causes);
 
         return confirmedSecondaries switch
         {
@@ -111,9 +108,9 @@ public static class MatchGradeCalculator
     /// (<c>NotAssessed</c>) or <c>Partial</c>/<c>NoMatch</c> coverage never passes.</item>
     /// <item><b>If the gate is met:</b> both secondaries confirmed AND a skill/nice-to-have
     /// signal (<c>∈ {Match, Partial}</c>) → <see cref="MatchGrade.Top"/>; at least one
-    /// confirmed secondary → <see cref="MatchGrade.Strong"/> (the other <c>Match</c>, or
-    /// — open-secondary fallback — <c>NotAssessed</c>); no confirmed secondary →
-    /// <see cref="MatchGrade.Basic"/>.</item>
+    /// confirmed secondary → <see cref="MatchGrade.Strong"/>; no confirmed secondary →
+    /// <see cref="MatchGrade.Basic"/>. A secondary is confirmed by a <c>Match</c> or by a
+    /// preference the user never stated (ADR 0170).</item>
     /// <item><b>If the gate is NOT met</b> (no CV / partial / disjoint must-have): a
     /// preference-fit grade, NEVER Strong/Top — at least one confirmed secondary →
     /// <see cref="MatchGrade.Good"/>, else <see cref="MatchGrade.Basic"/>. This is the honest
@@ -122,8 +119,8 @@ public static class MatchGradeCalculator
     /// </list>
     /// </para>
     /// <para>
-    /// The Fast <see cref="Grade(MatchScore)"/> overload is unchanged (it has no must-have
-    /// input); the VISIBLE grade is this Full overload, computed wherever the full CV skills
+    /// The Fast <see cref="Grade(MatchScore, MatchDimensionCauses, bool)"/> overload has no
+    /// must-have input; the VISIBLE grade is this Full overload, computed wherever the full CV skills
     /// are in hand (the page tag + the modal). The F4-14 sort path cannot compute must-have
     /// (top-5 plaintext, no DEK) so it ranks by the Fast band only — honestly DIFFERENT from
     /// this grade in the must-have band (G3-OPT-A, documented + oracle-pinned). Still NO
@@ -131,9 +128,10 @@ public static class MatchGradeCalculator
     /// categorical verdict, not a magnitude.
     /// </para>
     /// </summary>
-    public static MatchGrade? Grade(FullMatchScore score, bool isRelated = false)
+    public static MatchGrade? Grade(FullMatchScore score, MatchDimensionCauses causes, bool isRelated = false)
     {
         ArgumentNullException.ThrowIfNull(score);
+        ArgumentNullException.ThrowIfNull(causes);
 
         var fast = score.Fast;
 
@@ -173,11 +171,8 @@ public static class MatchGradeCalculator
             score.MustHaveCoverage.Verdict == MatchDimensionVerdict.Match
             || (score.MustHaveCoverage.Verdict == MatchDimensionVerdict.Vacuous && hasSignal);
 
-        // NoMatch on a secondary is already floored out above, so a Match here is the only
-        // positive; NotAssessed ("open"/not stated) neither confirms nor floors.
-        var confirmedSecondaries =
-            (fast.RegionFit.Verdict == MatchDimensionVerdict.Match ? 1 : 0)
-            + (fast.EmploymentFit.Verdict == MatchDimensionVerdict.Match ? 1 : 0);
+        // A NoMatch secondary is floored out above; ADR 0170 owns what confirms.
+        var confirmedSecondaries = ConfirmedSecondaries(fast, causes);
 
         if (requirementBacked)
         {
@@ -193,6 +188,16 @@ public static class MatchGradeCalculator
         // skill): preference-fit only — never Strong/Top.
         return confirmedSecondaries >= 1 ? MatchGrade.Good : MatchGrade.Basic;
     }
+
+    // ADR 0170: a verdict cannot say why a dimension is NotAssessed, so the scorer's cause decides.
+    private static int ConfirmedSecondaries(MatchScore fast, MatchDimensionCauses causes) =>
+        (IsConfirmed(fast.RegionFit, causes.RegionFit) ? 1 : 0)
+        + (IsConfirmed(fast.EmploymentFit, causes.EmploymentFit) ? 1 : 0);
+
+    private static bool IsConfirmed(MatchDimension secondary, MatchDimensionCause? cause) =>
+        secondary.Verdict == MatchDimensionVerdict.Match
+        || (secondary.Verdict == MatchDimensionVerdict.NotAssessed
+            && cause == MatchDimensionCause.PreferenceUnstated);
 
     // A positive skill OR nice-to-have signal (set overlap). Vacuous is deliberately NOT a
     // signal — "the ad lists no skills" is not evidence of skill fit, so it cannot earn Top.

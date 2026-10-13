@@ -384,6 +384,64 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
     }
 
     // =================================================================
+    // 11b. ADR 0170 (#2154) — an UNSTATED ort / employment preference confirms, so the golden top-skill
+    //      lift fires for a user who left one empty: a Strong that shares a CV skill sorts above a plain
+    //      Strong. Before ADR 0170 such a user never reached the Strong band, so the lift never applied.
+    //      The profile is the one the builder produces for an empty list (no region/municipality, or no
+    //      employment type); the ads carry whatever value they like for the dimension left empty.
+    // =================================================================
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task SearchByMatch_WithUnstatedPreferences_GoldenStrongSortsAbovePlainStrong(
+        bool ortStated, bool employmentStated)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        var goldenTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
+
+        // The value an ad carries on a dimension the user stated is the preferred one; on a dimension
+        // the user left empty the ad may carry anything — here a value the user would never have picked.
+        var region = ortStated ? PrefRegion : "reg-golden-anything";
+        var employment = employmentStated ? PrefEmployment : "emp-golden-anything";
+
+        // The golden ad is OLDER than the plain Strong, so recency alone would put it second: only the
+        // lift can put it first.
+        var sPlus = await SeedJobAdAsync(run, PrefGroup, region, employment, t.AddDays(8), goldenTerms, ct);
+        var sMinus = await SeedJobAdAsync(run, PrefGroup, region, employment, t.AddDays(9), terms: null, ct);
+        // Contradicts whichever dimension IS stated, so it floors to Basic and sorts last; for the
+        // all-empty profile nothing can contradict, so it is a third Strong (oldest, no skill).
+        var third = await SeedJobAdAsync(
+            run, PrefGroup, ortStated ? "reg-golden-other" : region,
+            employmentStated && !ortStated ? "emp-golden-other" : employment,
+            t.AddDays(7), terms: null, ct);
+
+        var profile = new FullCandidateMatchProfile(
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: [PrefGroup],
+                PreferredRegionConceptIds: ortStated ? [PrefRegion] : [],
+                PreferredEmploymentTypeConceptIds: employmentStated ? [PrefEmployment] : [],
+                PreferredMunicipalityConceptIds: []),
+            [CvSkillConceptId]);
+
+        var (scope, matchSort) = NewMatchSort();
+        using var _ = scope;
+        var page = await matchSort.SearchPerUserAsync(
+            FilterFor(run), profile, grades: [], sort: JobAdSortBy.PublishedAtDesc,
+            orderByMatchRank: true, status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 100, ct);
+
+        page.Items.Select(i => i.Id).ToList().ShouldBe(
+            [sPlus.Value, sMinus.Value, third.Value],
+            "Golden (Strong + delad CV-skill) ska ligga ÖVER plain Strong även när en preferens lämnats tom " +
+            "(ADR 0170); den motsagda annonsen golvas till Basic och ligger sist.");
+    }
+
+    // =================================================================
     // 12. Tie-break within a tier — publishedAt desc, then Id
     // =================================================================
 

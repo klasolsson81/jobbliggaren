@@ -128,7 +128,7 @@ public interface IMatchScorer
     /// #300 PR-4 (ADR 0084 §F4): returns a <see cref="FullScoredMatch"/> — the score PLUS
     /// <see cref="FullScoredMatch.SsykIsRelated"/> (the ad matched only via a RELATED occupation
     /// group, not the user's exact set). The caller passes that bit to
-    /// <see cref="Grading.MatchGradeCalculator.Grade(FullMatchScore, bool)"/> for the Related cap.
+    /// <see cref="Grading.MatchGradeCalculator.Grade(FullMatchScore, MatchDimensionCauses, bool)"/> for the Related cap.
     /// Lit by the live <c>?includeRelated</c> toggle (off by default, #300); with it off the
     /// related set is empty, so the flag is <c>false</c> and behaviour is exact-only.
     /// </para>

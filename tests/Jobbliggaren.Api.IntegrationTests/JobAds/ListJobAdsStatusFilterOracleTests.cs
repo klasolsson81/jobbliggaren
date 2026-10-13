@@ -423,11 +423,12 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
             PreferredMunicipalityConceptIds: []),
         CvSkillConceptIds: []);
 
-    // Seeds a JobAd whose occupation_group == PrefGroup (→ Fast SSYK Match, both secondaries
-    // NotAssessed → Basic rung) plus the run's worktime-extent tag. The status path is what we
-    // compose; the grade is uniformly Basic for every seeded ad so the {Basic} subset selects
-    // the whole run's graded mass and the status filter does the gallring we assert.
-    private async Task<JobAdId> SeedBasicGradedAdAsync(string runWorktimeExtent, DateTimeOffset publishedAt)
+    // Seeds a JobAd whose occupation_group == PrefGroup (→ Fast SSYK Match; the profile states no ort
+    // and no employment, so both secondaries are unstated and confirm, ADR 0170 → Strong rung) plus
+    // the run's worktime-extent tag. The status path is what we compose; the grade is uniformly
+    // Strong for every seeded ad so the {Strong} subset selects the whole run's graded mass and the
+    // status filter does the gallring we assert.
+    private async Task<JobAdId> SeedStrongGradedAdAsync(string runWorktimeExtent, DateTimeOffset publishedAt)
     {
         var externalId = $"ext-{Guid.NewGuid():N}";
         var (db, scope, clock) = NewScope();
@@ -463,34 +464,34 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
         var run = NewRunWorktimeExtent();
         var seeker = await SeedSeekerAsync();
 
-        // All four ads grade Basic (SSYK Match, secondaries NotAssessed). Saved = a strict subset.
-        var savedBasic1 = await SeedBasicGradedAdAsync(run, T0.AddDays(10));
-        var savedBasic2 = await SeedBasicGradedAdAsync(run, T0.AddDays(9));
-        var unsavedBasic1 = await SeedBasicGradedAdAsync(run, T0.AddDays(8));
-        var unsavedBasic2 = await SeedBasicGradedAdAsync(run, T0.AddDays(7));
-        await SaveJobAdAsync(seeker, savedBasic1);
-        await SaveJobAdAsync(seeker, savedBasic2);
+        // All four ads grade Strong (SSYK Match, both secondaries unstated). Saved = a strict subset.
+        var savedStrong1 = await SeedStrongGradedAdAsync(run, T0.AddDays(10));
+        var savedStrong2 = await SeedStrongGradedAdAsync(run, T0.AddDays(9));
+        var unsavedStrong1 = await SeedStrongGradedAdAsync(run, T0.AddDays(8));
+        var unsavedStrong2 = await SeedStrongGradedAdAsync(run, T0.AddDays(7));
+        await SaveJobAdAsync(seeker, savedStrong1);
+        await SaveJobAdAsync(seeker, savedStrong2);
 
         var (scope, query) = NewPerUserQuery();
         using var _ = scope;
 
-        // {Basic} grade subset selects the whole run (all Basic); savedOnly intersects to the
+        // {Strong} grade subset selects the whole run (all Strong); savedOnly intersects to the
         // two saved ads → the returned set is (graded ∩ status-filtered).
         var page = await query.SearchPerUserAsync(
-            FilterFor(run), Profile(), grades: [MatchGrade.Basic], sort: JobAdSortBy.PublishedAtDesc,
+            FilterFor(run), Profile(), grades: [MatchGrade.Strong], sort: JobAdSortBy.PublishedAtDesc,
             orderByMatchRank: true, status: new JobAdStatusFilter(SavedOnly: true, false, false),
             seekerId: seeker, page: 1, pageSize: 100, ct);
 
         IdSet(page.Items.Select(i => new JobAdId(i.Id))).ShouldBe(
-            IdSet([savedBasic1, savedBasic2]), ignoreOrder: true,
+            IdSet([savedStrong1, savedStrong2]), ignoreOrder: true,
             "den status-komponerade match-vägen ska returnera (grad-filtrerad ∩ status-filtrerad) " +
-            "— Basic-bandet ∩ savedOnly = de två sparade Basic-annonserna.");
+            "— Strong-bandet ∩ savedOnly = de två sparade Strong-annonserna.");
         var returned = page.Items.Select(i => i.Id).ToList();
-        returned.ShouldNotContain(unsavedBasic1.Value,
-            "en osparad annons (även om den graderar Basic) får inte passera savedOnly-status:en.");
-        returned.ShouldNotContain(unsavedBasic2.Value);
+        returned.ShouldNotContain(unsavedStrong1.Value,
+            "en osparad annons (även om den graderar Strong) får inte passera savedOnly-status:en.");
+        returned.ShouldNotContain(unsavedStrong2.Value);
         page.TotalCount.ShouldBe(2,
-            "TotalCount ska räknas över (grad ∩ status)-mängden (2), inte hela det Basic-graderade " +
+            "TotalCount ska räknas över (grad ∩ status)-mängden (2), inte hela det Strong-graderade " +
             "bandet (4) — status appliceras FÖRE grad-WHERE/count.");
     }
 

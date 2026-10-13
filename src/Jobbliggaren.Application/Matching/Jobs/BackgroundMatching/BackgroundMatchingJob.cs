@@ -248,7 +248,7 @@ public sealed partial class BackgroundMatchingJob(
 
             // FULL grade. #300 PR-4 (ADR 0084 §F4): SsykIsRelated grades Related, which ToNotifiable maps
             // to null; the scan builds with includeRelated=false, so it never fires here.
-            var grade = MatchGradeCalculator.Grade(scored.Score, scored.SsykIsRelated);
+            var grade = MatchGradeCalculator.Grade(scored.Score, scored.Causes, scored.SsykIsRelated);
             if (grade is null || ToNotifiable(grade.Value) is not { } notifiable)
                 continue;
 

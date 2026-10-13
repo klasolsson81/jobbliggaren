@@ -186,6 +186,52 @@ public sealed class BackgroundMatchingJobTopMatchMailTests(WorkerTestFixture fix
         await db.SaveChangesAsync(Ct);
     }
 
+    // ADR 0170 (#2154): a preference the user left empty is open to every ad, so it confirms. A user who
+    // states an occupation, the skill the ad requires and at most one of ort / anställningsform now gets
+    // a Toppmatch, and the direct mail, for an ad that carries ANY value on the dimension left empty.
+    // Before ADR 0170 the empty dimension confirmed nothing and the same ad graded Strong (the digest).
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task RunAsync_UserWhoLeftAPreferenceEmpty_IsMailedATopMatch_WhateverTheAdCarriesThere(
+        bool statesRegion, bool statesEmployment)
+    {
+        var run = CronMinuteField.NextAfter(Cron, new DateTimeOffset(2031, 4, 7, 10, 0, 0, TimeSpan.Zero));
+        var user = await RegisterAsync(Mine, run.AddHours(-1), statesRegion, statesEmployment);
+        var ad = await SaveAsync(ImportTopAd(
+            Mine,
+            run.AddMinutes(-3),
+            region: statesRegion ? Mine.Region : Another.Region,
+            employment: statesEmployment ? Mine.Employment : Another.Employment));
+        var sender = Substitute.For<IEmailSender>();
+
+        await RunAtAsync(run, sender);
+
+        var match = (await MatchesAsync(user, ad)).ShouldHaveSingleItem();
+        match.Grade.ShouldBe(NotifiableMatchGrade.Top);
+        match.NotificationStatus.ShouldBe(NotificationStatus.Sent);
+        var mail = MailsTo(sender, user).ShouldHaveSingleItem();
+        mail.Kind.ShouldBe(MatchNotificationKind.Direct);
+        mail.Items.ShouldHaveSingleItem().JobAdId.ShouldBe(ad.Value);
+    }
+
+    // The contradiction floor is untouched: a user who STATES ort and employment, and an ad that carries
+    // another ort, still gets no row and no mail.
+    [Fact]
+    public async Task RunAsync_UserWhoStatesAPreferenceTheAdContradicts_IsNotMailed()
+    {
+        var run = CronMinuteField.NextAfter(Cron, new DateTimeOffset(2031, 4, 14, 10, 0, 0, TimeSpan.Zero));
+        var user = await RegisterAsync(Mine, run.AddHours(-1));
+        var ad = await SaveAsync(ImportTopAd(Mine, run.AddMinutes(-3), region: Another.Region));
+        var sender = Substitute.For<IEmailSender>();
+
+        await RunAtAsync(run, sender);
+
+        (await MatchesAsync(user, ad)).ShouldBeEmpty();
+        MailsTo(sender, user).ShouldBeEmpty();
+    }
+
     private async Task RunAtAsync(DateTimeOffset at, IEmailSender sender, IServiceScopeFactory? scopes = null)
     {
         scopes ??= fixture.Services.GetRequiredService<IServiceScopeFactory>();
@@ -206,7 +252,8 @@ public sealed class BackgroundMatchingJobTopMatchMailTests(WorkerTestFixture fix
             .Select(call => (MatchNotificationEmail)call.GetArguments()[1]!),
     ];
 
-    private async Task<Recipient> RegisterAsync(Profile profile, DateTimeOffset at)
+    private async Task<Recipient> RegisterAsync(
+        Profile profile, DateTimeOffset at, bool statesRegion = true, bool statesEmployment = true)
     {
         using var scope = fixture.Services.CreateScope();
         var sp = scope.ServiceProvider;
@@ -217,7 +264,10 @@ public sealed class BackgroundMatchingJobTopMatchMailTests(WorkerTestFixture fix
         var clock = new FixedClock(at);
         var seeker = JobSeeker.Register(user.Id, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         var preferences = MatchPreferences.Create(
-            [profile.Group], [profile.Region], [profile.Employment], preferredSkills: [profile.Skill]);
+            [profile.Group],
+            statesRegion ? [profile.Region] : [],
+            statesEmployment ? [profile.Employment] : [],
+            preferredSkills: [profile.Skill]);
         preferences.IsSuccess.ShouldBeTrue();
         seeker.UpdateMatchPreferences(preferences.Value, clock);
         seeker.UpdateNotificationConsent(enabled: true, clock);
@@ -231,7 +281,8 @@ public sealed class BackgroundMatchingJobTopMatchMailTests(WorkerTestFixture fix
     // Top for a user of the same profile: occupation, region and employment match, and the ad requires a
     // skill the user confirms. The terms are the pair JobAdKeywordExtractor writes when the employer
     // states a must-have skill that the text also names: a Requirement term and a Skill term on one concept.
-    private static JobAd ImportTopAd(Profile profile, DateTimeOffset ingestedAt)
+    private static JobAd ImportTopAd(
+        Profile profile, DateTimeOffset ingestedAt, string? region = null, string? employment = null)
     {
         var terms = ExtractedTerms.From(
         [
@@ -240,7 +291,7 @@ public sealed class BackgroundMatchingJobTopMatchMailTests(WorkerTestFixture fix
             new ExtractedTerm(profile.Skill, "Testkompetens", ExtractedTermKind.Requirement,
                 ExtractedTermSource.MustHave, "Testkompetens", profile.Skill, 1),
         ]);
-        return Import(profile.Group, profile.Region, profile.Employment, ingestedAt,
+        return Import(profile.Group, region ?? profile.Region, employment ?? profile.Employment, ingestedAt,
             TestKeywordExtraction.Returning(terms));
     }
 

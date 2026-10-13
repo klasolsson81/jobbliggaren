@@ -1041,7 +1041,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
         score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Good,
+        (await ScorerGrading.GradeAsync(scorer, jobAdId, profile, ct)).ShouldBe(MatchGrade.Good,
             "Containment-läns-only-annons + yrke Match + anställning Match → RegionFit NotAssessed " +
             "(neutral) → en bekräftad sekundär → Good (INTE Basic — #477-fixens payoff).");
 
@@ -1050,21 +1050,21 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
             "Titel", [adGroup], [], [adEmployment], [prefMunicipality]);
         var contrast = await scorer.ScoreAsync(jobAdId, withoutContainment, ct);
         contrast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
-        MatchGradeCalculator.Grade(contrast).ShouldBe(MatchGrade.Basic,
+        (await ScorerGrading.GradeAsync(scorer, jobAdId, withoutContainment, ct)).ShouldBe(MatchGrade.Basic,
             "Utan containment golvas SAMMA annons till Basic (RB1) — kontrasten som bevisar fixens " +
             "värde (NoMatch → floor).");
     }
 
     [Fact]
-    public async Task MatchScorer_OrtUnion_Containment_LanOnlyAd_NoOtherSecondary_YieldsBasic()
+    public async Task MatchScorer_OrtUnion_Containment_LanOnlyAd_EmploymentUnstated_YieldsGood()
     {
         var ct = TestContext.Current.CancellationToken;
         var adGroup = NewConceptId("grp");
         var containmentLan = NewConceptId("reg");
         var prefMunicipality = NewConceptId("mun");
-        // Containment län-only ad + SSYK Match, but NO other confirmed secondary (employment NULL →
-        // NotAssessed) → RegionFit NotAssessed + no secondary → Basic. Containment neither floors NOR
-        // lifts: it does not, on its own, invent a Good — the honest floor when nothing else confirms.
+        // Containment län-only ad + SSYK Match, and an employment the user never stated. Containment
+        // neither floors NOR lifts (RegionFit NotAssessed, neutral); the unstated employment confirms
+        // (ADR 0170), so exactly one secondary is confirmed → Good. Before ADR 0170 this was Basic.
         var jobAdId = await SeedJobAdAsync(
             "Titel", adGroup, containmentLan, null, ct, municipalityConceptId: null);
         var profile = new CandidateMatchProfile(
@@ -1080,9 +1080,9 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
         score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic,
-            "Containment-läns-only-annons + yrke Match, inga andra bekräftade sekundärer → RegionFit " +
-            "NotAssessed (neutral) → Basic (containment lyfter inte på egen hand, #477).");
+        (await ScorerGrading.GradeAsync(scorer, jobAdId, profile, ct)).ShouldBe(MatchGrade.Good,
+            "Containment-läns-only-annons + yrke Match + en anställning användaren aldrig angav → " +
+            "RegionFit NotAssessed (neutral) och EmploymentFit bekräftar (ADR 0170) → Good.");
     }
 
     // =================================================================
@@ -1292,7 +1292,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         score.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         // ... which floors the (unchanged) Fast grade to Basic (RB1).
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic);
+        (await ScorerGrading.GradeAsync(scorer, jobAdId, profile, ct)).ShouldBe(MatchGrade.Basic);
     }
 
     [Fact]
@@ -1322,7 +1322,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         score.RegionFit.Matched.ShouldBe([adMunicipality]);
         score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Strong);
+        (await ScorerGrading.GradeAsync(scorer, jobAdId, profile, ct)).ShouldBe(MatchGrade.Strong);
     }
 
     // =================================================================
@@ -1361,7 +1361,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
             "Angiven ort + annons utan ort-värde → NoMatch (#552).");
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic,
+        (await ScorerGrading.GradeAsync(scorer, jobAdId, profile, ct)).ShouldBe(MatchGrade.Basic,
             "Ort-NoMatch (både shadows NULL, ort angiven) golvar graden till Basic (RB1) — trots " +
             "bekräftad anställning. Pre-#552 var detta Good; #552-grinden demoterar.");
     }
@@ -1391,7 +1391,7 @@ public class MatchScorerIntegrationTests(ApiFactory factory)
         score.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
         score.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch,
             "Angiven anställning + NULL employment-shadow → NoMatch (#552).");
-        MatchGradeCalculator.Grade(score).ShouldBe(MatchGrade.Basic,
+        (await ScorerGrading.GradeAsync(scorer, jobAdId, profile, ct)).ShouldBe(MatchGrade.Basic,
             "Anställnings-NoMatch (NULL shadow, anställning angiven) golvar graden till Basic (RB1) " +
             "— trots bekräftad ort. Pre-#552 var detta Good; #552-grinden demoterar.");
     }

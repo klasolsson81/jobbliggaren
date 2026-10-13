@@ -121,7 +121,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
         {
             _score = score;
             _isRelated = isRelated;
-            _causes = causes ?? MatchDimensionCauses.None;
+            _causes = causes ?? ProducedCauses.For(score.Fast);
         }
 
         public FakeScorer(Exception throwOnScoreFull)

@@ -443,7 +443,7 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
         // grade EXACTLY as the Worker does — Grade(FullMatchScore, bool) with the carrier's
         // related bit — so this SSOT cross-check mirrors the production path (a related-only hit
         // grades Related, which the switch below maps to null = not notifiable).
-        var grade = MatchGradeCalculator.Grade(scored!.Score, scored.SsykIsRelated);
+        var grade = MatchGradeCalculator.Grade(scored!.Score, scored.Causes, scored.SsykIsRelated);
         return grade switch
         {
             MatchGrade.Good => NotifiableMatchGrade.Good,

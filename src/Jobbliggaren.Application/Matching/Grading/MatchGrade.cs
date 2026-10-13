@@ -28,8 +28,8 @@ namespace Jobbliggaren.Application.Matching.Grading;
 /// evidence-only": must-have coverage now GATES the upper rungs, so a no-CV user caps at
 /// <see cref="Good"/> and uploading a CV is the only path to <see cref="Strong"/>/<see cref="Top"/>.
 /// The full ladder lives in
-/// <see cref="MatchGradeCalculator.Grade(Abstractions.FullMatchScore)"/>; the Fast
-/// <see cref="MatchGradeCalculator.Grade(Abstractions.MatchScore)"/> overload (no must-have
+/// <see cref="MatchGradeCalculator.Grade(Abstractions.FullMatchScore, Abstractions.MatchDimensionCauses, bool)"/>; the Fast
+/// <see cref="MatchGradeCalculator.Grade(Abstractions.MatchScore, Abstractions.MatchDimensionCauses, bool)"/> overload (no must-have
 /// input) is unchanged and still tops at <see cref="Strong"/>.
 /// </para>
 /// <para>
@@ -90,7 +90,7 @@ public enum MatchGrade
     /// met (or none — Vacuous), BOTH region and employment are confirmed, AND there is a
     /// positive CV skill / nice-to-have signal (<c>Match</c>/<c>Partial</c>). The strongest
     /// requirement-backed grade. Reachable only via the Full
-    /// <see cref="MatchGradeCalculator.Grade(Abstractions.FullMatchScore)"/> overload (the
+    /// <see cref="MatchGradeCalculator.Grade(Abstractions.FullMatchScore, Abstractions.MatchDimensionCauses, bool)"/> overload (the
     /// Fast overload has no skill/must-have input and tops at <see cref="Strong"/>). "Toppmatch".
     /// </summary>
     Top,

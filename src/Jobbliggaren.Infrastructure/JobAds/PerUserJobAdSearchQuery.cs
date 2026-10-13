@@ -41,8 +41,9 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// men EJ i den angivna exakta; platt cap MELLAN Basic och Good, oberoende av sekundärer);</item>
 /// <item>1 = Basic (exakt SSYK Match, men en angiven ort/anställningsform motsäger — golvar);</item>
 /// <item>exakt SSYK Match utan motsägelse: 1/3/4 (Basic/Good/Strong) efter antal bekräftade
-/// sekundärer (ort (region∪kommun) / anställningsform) — 0/1/2 st. En <c>NotAssessed</c>-
-/// dimension varken bekräftar eller golvar.</item>
+/// sekundärer (ort (region∪kommun) / anställningsform) — 0/1/2 st. En ej angiven dimension
+/// (tom lista) räknas som bekräftad, ADR 0170; en neutral län-only-containment-annons
+/// varken bekräftar eller golvar.</item>
 /// </list>
 /// <b>G3-OPT-A (medveten, bunden divergens):</b> Fast-bandet toppar på Stark — Topp kan
 /// inte beräknas i SQL (ingen kind-separerad must-have-lexem-kolumn) och avvisas wire-side
@@ -101,9 +102,9 @@ internal sealed class PerUserJobAdSearchQuery(
         ArgumentNullException.ThrowIfNull(grades);
 
         // Profil-listorna fångas lokalt → EF binder dem som parametrar (= ANY).
-        // SSYK är icke-tom (handlerns gate). regions/employment kan vara tomma
-        // (NotAssessed — varken bekräftar eller golvar; vacuous-gate-doktrinen, oförändrad
-        // av #552-grinden som enbart gäller ANGIVEN pref mot NULL-shadow).
+        // SSYK är icke-tom (handlerns gate). regions/employment kan vara tomma: en ej angiven
+        // dimension räknas som bekräftad (ADR 0170); #552-grinden gäller enbart ANGIVEN pref
+        // mot NULL-shadow.
         var fast = profile.Fast;
         var ssyk = fast.SsykGroupConceptIds;
         // #300 PR-4 (ADR 0084 §F4): the RELATED ssyk-4 set (substitutable occupations). Populated
@@ -195,9 +196,11 @@ internal sealed class PerUserJobAdSearchQuery(
                 .OrderByDescending(j =>
                     skillStated
                     && ssyk.Contains(EF.Property<string?>(j, OccupationGroupColumn))
-                    && (regions.Contains(EF.Property<string?>(j, RegionColumn))
+                    && (!ortStated
+                        || regions.Contains(EF.Property<string?>(j, RegionColumn))
                         || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn)))
-                    && employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
+                    && (!employmentStated
+                        || employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn)))
                     && EF.Functions.JsonExistAny(EF.Property<string>(j, ExtractedLexemesColumn), cvSkillIds)
                         ? 1
                         : 0)
@@ -570,17 +573,25 @@ internal sealed class PerUserJobAdSearchQuery(
                         // angiven-ort-användare (`ortStated && remote`) — speglar ScoreOrtUnion, där
                         // remote-override:n bara fyrar efter `!stated`-returen. En icke-remote annons:
                         // `ortStated && false` = false → disjunkten byte-identisk med pre-#551.
-                        : (regions.Contains(EF.Property<string?>(j, RegionColumn))
+                        // ADR 0170 — en ej angiven ort/anställningsform bekräftar (`!ortStated` /
+                        // `!employmentStated`), parity MatchGradeCalculator. Efter golvet kan bara
+                        // län-only-containment-annonsen göra ort-termen falsk, så rank 1 nås här
+                        // aldrig; armen speglar räknegrenens `_ => Basic`.
+                        : (!ortStated
+                                || regions.Contains(EF.Property<string?>(j, RegionColumn))
                                 || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))
                                 || (ortStated && EF.Property<bool>(j, RemoteColumn)))
-                            && employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
+                            && (!employmentStated
+                                || employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn)))
                             ? 4
                             // #551 — samma remote-sekundär-disjunkt som Strong-grenen ovan (en bekräftad
                             // ort-sekundär för angiven-ort-användare); icke-remote = byte-identisk.
-                            : (regions.Contains(EF.Property<string?>(j, RegionColumn))
+                            : (!ortStated
+                                    || regions.Contains(EF.Property<string?>(j, RegionColumn))
                                     || municipalities.Contains(EF.Property<string?>(j, MunicipalityColumn))
                                     || (ortStated && EF.Property<bool>(j, RemoteColumn)))
-                                || employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn))
+                                || (!employmentStated
+                                    || employment.Contains(EF.Property<string?>(j, EmploymentTypeColumn)))
                                 ? 3
                                 : 1;
 

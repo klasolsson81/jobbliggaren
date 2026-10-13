@@ -675,8 +675,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // (vacuous-gate doctrine — "a location-match for everyone" means regardless of WHICH ort, not "even
         // for users who stated none"). BEFORE the both-NULL #552 gate AND the union logic: a remote ad must
         // never be floored, and "remote, HQ Göteborg" must match a Stockholm user too (remote wins over a
-        // non-matching tag). Match (not NotAssessed) is FORCED: a Göteborg-only user needs ≥Bra, and
-        // NotAssessed+NotAssessed = 0 confirmed secondaries = Basic (MatchGradeCalculator).
+        // non-matching tag). Match (not NotAssessed) is FORCED: a NotAssessed region would not confirm the
+        // ort this user stated (only PreferenceUnstated confirms, ADR 0170), capping a Göteborg-only user's
+        // remote ad below Strong.
         //
         // EMPTY evidence: there is no region concept-id to cite (the ad has none, or a non-matching one),
         // and a magic-string "distans" sentinel in Matched is a §5 anti-pattern that would break the

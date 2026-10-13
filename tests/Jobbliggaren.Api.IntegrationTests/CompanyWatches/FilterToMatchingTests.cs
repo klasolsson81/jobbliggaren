@@ -279,7 +279,7 @@ public class FilterToMatchingTests(ApiFactory factory)
         using var scoreDispose = scoreScope;
         var fullScores = await scorer.ScoreFullBatchAsync(all, profile, ct);
         var expectedGoodOrBetter = all
-            .Where(id => MatchGradeCalculator.Grade(fullScores[id].Score, fullScores[id].SsykIsRelated)
+            .Where(id => MatchGradeCalculator.Grade(fullScores[id].Score, fullScores[id].Causes, fullScores[id].SsykIsRelated)
                 is MatchGrade.Good or MatchGrade.Strong or MatchGrade.Top)
             .ToHashSet();
 
@@ -290,7 +290,7 @@ public class FilterToMatchingTests(ApiFactory factory)
             "Basic/otaggad/Related ligger under tröskeln.");
 
         // Prove the Fast-vs-Full asymmetry is REALLY exercised: at least one ad is Full Top.
-        all.Any(id => MatchGradeCalculator.Grade(fullScores[id].Score, fullScores[id].SsykIsRelated)
+        all.Any(id => MatchGradeCalculator.Grade(fullScores[id].Score, fullScores[id].Causes, fullScores[id].SsykIsRelated)
                 == MatchGrade.Top)
             .ShouldBeTrue("Minst en annons ska bli Full Top (skill på en Strong) — annars testar " +
                 "orakelt inte Fast≡Full-asymmetrin.");

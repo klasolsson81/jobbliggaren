@@ -278,7 +278,7 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
         using var scoreDispose = scoreScope;
         var fullScores = await scorer.ScoreFullBatchAsync(seeded, profile, ct);
         var expectedFullBandAtLeastGood = seeded.Count(id =>
-            MatchGradeCalculator.Grade(fullScores[id].Score, fullScores[id].SsykIsRelated)
+            MatchGradeCalculator.Grade(fullScores[id].Score, fullScores[id].Causes, fullScores[id].SsykIsRelated)
                 is MatchGrade.Good or MatchGrade.Strong or MatchGrade.Top);
 
         // Sanity: the seed genuinely spans the band (not vacuously green). 4 ads are ≥Good.
@@ -288,7 +288,7 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
         // Prove the Fast-vs-Full asymmetry is REALLY exercised: at least one ad is Full Top (skill on
         // a Strong) — if it were not, the oracle would not be testing the interesting claim.
         seeded.Any(id =>
-                MatchGradeCalculator.Grade(fullScores[id].Score, fullScores[id].SsykIsRelated) == MatchGrade.Top)
+                MatchGradeCalculator.Grade(fullScores[id].Score, fullScores[id].Causes, fullScores[id].SsykIsRelated) == MatchGrade.Top)
             .ShouldBeTrue("Minst en annons ska bli Full Top (skill på en Strong) — annars testar " +
                 "orakelt inte Fast≡Full-asymmetrin.");
 
@@ -302,6 +302,70 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
             "med Full-bandets ≥Good-kardinalitet (C#-SSOT via MatchGradeCalculator.Grade(FullMatchScore)) " +
             "— CV-skills lyfter aldrig en match ÖVER Good-tröskeln, så den billiga SQL-counten är EXAKT, " +
             "inte en approximation (ADR 0087 D5-tillägg Fast≡Full-orakel).");
+    }
+
+    // =========================================================================================
+    // 1b. ADR 0170 (#2154) — the same Fast≡Full ≥Good oracle when the user LEFT A PREFERENCE EMPTY.
+    //     An unstated ort / employment confirms, so ads the user never constrained reach Strong
+    //     (Fast) and Top (Full, with a shared skill). The ≥Good MEMBERSHIP must still coincide:
+    //     skills only re-rank inside the band. The profiles are the ones the profile builder
+    //     produces for an empty list; every ad is shaped from raw_payload like production. Only the
+    //     all-empty row can tell the old reading from the new: the ≥Good MEMBERSHIP moves only when no
+    //     dimension is stated; Good vs Strong inside the band is pinned by the grade-filter oracle.
+    // =========================================================================================
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task CountPerUserByEmployer_EqualsFullBandGradeSsotCardinality_WhenAPreferenceIsUnstated(
+        bool ortStated, bool employmentStated)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var orgNr = NewOrgNr();
+        var skillTerms = ExtractedTerms.From([SkillTerm(CvSkillConceptId, CvSkillDisplay)]);
+
+        // The ort x employment matrix, half of it carrying the shared CV skill, so every cell of the
+        // stated/unstated product has an ad on each side of the Good threshold.
+        var seeded = new List<JobAdId>();
+        foreach (var region in new[] { PrefRegion, OtherRegion, null })
+            foreach (var employment in new[] { PrefEmployment, "emp-cwmatch-other", null })
+                foreach (var terms in new ExtractedTerms?[] { skillTerms, null })
+                    seeded.Add(await SeedAdAsync(orgNr, PrefGroup, region, employment, ct, terms));
+        seeded.Add(await SeedUntaggedAsync(orgNr, ct));
+
+        var profile = new FullCandidateMatchProfile(
+            new CandidateMatchProfile(
+                Title: string.Empty,
+                SsykGroupConceptIds: [PrefGroup],
+                PreferredRegionConceptIds: ortStated ? [PrefRegion] : [],
+                PreferredEmploymentTypeConceptIds: employmentStated ? [PrefEmployment] : [],
+                PreferredMunicipalityConceptIds: []),
+            [CvSkillConceptId]);
+
+        var (scoreScope, scorer) = NewScorer();
+        using var scoreDispose = scoreScope;
+        var fullScores = await scorer.ScoreFullBatchAsync(seeded, profile, ct);
+        var fullGrades = seeded.ToDictionary(
+            id => id,
+            id => MatchGradeCalculator.Grade(fullScores[id].Score, fullScores[id].Causes, fullScores[id].SsykIsRelated));
+        var expectedAtLeastGood = fullGrades.Values.Count(
+            g => g is MatchGrade.Good or MatchGrade.Strong or MatchGrade.Top);
+
+        // Non-vacuity: leaving a preference empty makes Top reachable — the headline of #2154 — and
+        // the oracle is not green on an empty band.
+        fullGrades.Values.ShouldContain(MatchGrade.Top,
+            "En användare som lämnat en preferens tom ska kunna nå Toppmatch på en annons med delad skill.");
+        expectedAtLeastGood.ShouldBeGreaterThan(0);
+
+        var (queryScope, query) = NewPerUserQuery();
+        using var queryDispose = queryScope;
+        var dict = await query.CountPerUserByEmployerAsync([orgNr], profile, HeadlineGrades, ct);
+
+        dict.GetValueOrDefault(orgNr).ShouldBe(expectedAtLeastGood,
+            $"ortStated={ortStated}, employmentStated={employmentStated}: CountPerUserByEmployerAsync " +
+            "(Fast-band ≥Good) MÅSTE vara lika med Full-bandets ≥Good-kardinalitet även när en " +
+            "preferens lämnats tom (ADR 0170).");
     }
 
     // =========================================================================================

@@ -13,7 +13,7 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 /// not a score field" so the frozen pin stays green. This carrier delivers that parameter
 /// from the scorer to the three grade call-sites (the page-tag batch, the modal detail, the
 /// background scan) so they can call
-/// <see cref="Grading.MatchGradeCalculator.Grade(FullMatchScore, bool)"/> with the right flag.
+/// <see cref="Grading.MatchGradeCalculator.Grade(FullMatchScore, MatchDimensionCauses, bool)"/> with the right flag.
 /// </para>
 /// <para>
 /// <b><see cref="SsykIsRelated"/> is CATEGORICAL, not a magnitude (Goodhart-safe, ADR 0084

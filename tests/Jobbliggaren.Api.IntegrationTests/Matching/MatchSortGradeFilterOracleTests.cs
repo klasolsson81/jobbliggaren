@@ -424,7 +424,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         var scored = await scorer.ScoreFullBatchAsync(seeded, profile, ct);
         var gradeById = seeded.ToDictionary(
             id => id.Value,
-            id => MatchGradeCalculator.Grade(scored[id].Score.Fast, scored[id].SsykIsRelated));
+            id => MatchGradeCalculator.Grade(scored[id].Score.Fast, scored[id].Causes, scored[id].SsykIsRelated));
 
         // Sanity: the seed genuinely spans Basic, Related, Good, Strong AND untagged (so no subset
         // assertion is vacuously green on a degenerate set).
@@ -523,9 +523,9 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         using var scoreDispose = scoreScope;
         var scored = await scorer.ScoreFullBatchAsync(
             [related1, related2, strong, good, basic, untagged], profile, ct);
-        MatchGradeCalculator.Grade(scored[related1].Score.Fast, scored[related1].SsykIsRelated)
+        MatchGradeCalculator.Grade(scored[related1].Score.Fast, scored[related1].Causes, scored[related1].SsykIsRelated)
             .ShouldBe(MatchGrade.Related);
-        MatchGradeCalculator.Grade(scored[related2].Score.Fast, scored[related2].SsykIsRelated)
+        MatchGradeCalculator.Grade(scored[related2].Score.Fast, scored[related2].Causes, scored[related2].SsykIsRelated)
             .ShouldBe(MatchGrade.Related);
         scored[strong].SsykIsRelated.ShouldBeFalse("en exakt-yrke-annons är aldrig related.");
 
@@ -551,6 +551,202 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         fastBandIds.ShouldNotContain(related1.Value,
             "en related-annons får aldrig dyka upp i {Good, Strong} (Related är sin egen rung).");
         fastBandIds.ShouldNotContain(related2.Value);
+    }
+
+    // ===============================================================
+    // 1c. ADR 0170 (#2154) — an UNSTATED ort / employment preference counts as CONFIRMED, in the
+    //     SQL twin exactly as in the calculator. "Lämna tomt för att matcha alla": a user who left
+    //     employment (and/or ort) empty is open to every ad, so Stark match / Toppmatch must be
+    //     reachable. Every profile below is one the profile builder produces for an empty list;
+    //     every ad is shaped from raw_payload like production. The expectation is an independent
+    //     statement of what each ad MEANS for that user (ExpectedExactGrade), not the predicate the
+    //     SUT evaluates, and the per-subset set-equality proves the SQL grade-WHERE, the recomputed
+    //     count and the match-rank order against the scorer + calculator for the same ads.
+    // ===============================================================
+
+    private const string OtherEmployment = "emp-gradefilter-other";
+
+    public enum StatedPrefs
+    {
+        OrtOnly,
+        EmploymentOnly,
+        Neither,
+    }
+
+    public enum OrtShape
+    {
+        RegionHit,
+        MunicipalityHit,
+        OtherRegion,
+        Locationless,
+        RemoteLocationless,
+        LanOnlyContainment,
+    }
+
+    public enum EmploymentShape
+    {
+        Preferred,
+        Other,
+        Absent,
+    }
+
+    private static FullCandidateMatchProfile ProfileWith(StatedPrefs stated) => new(
+        new CandidateMatchProfile(
+            Title: string.Empty,
+            SsykGroupConceptIds: ExactGroups,
+            PreferredRegionConceptIds: stated == StatedPrefs.OrtOnly ? [PrefRegion] : [],
+            PreferredEmploymentTypeConceptIds: stated == StatedPrefs.EmploymentOnly ? [PrefEmployment] : [],
+            PreferredMunicipalityConceptIds: stated == StatedPrefs.OrtOnly ? [PrefMunicipality] : [])
+        {
+            RelatedSsykGroupConceptIds = RelatedGroups,
+            // The profile builder fills the containment set only for a stated kommun.
+            ContainmentRegionConceptIds = stated == StatedPrefs.OrtOnly ? [PrefMunicipalityRegion] : [],
+        },
+        CvSkillConceptIds: []);
+
+    private Task<JobAdId> SeedShapedAsync(
+        string run, OrtShape ort, EmploymentShape employment, DateTimeOffset publishedAt, CancellationToken ct)
+    {
+        var (region, municipality, remote) = ort switch
+        {
+            OrtShape.RegionHit => (PrefRegion, (string?)null, false),
+            OrtShape.MunicipalityHit => (OtherRegion, PrefMunicipality, false),
+            OrtShape.OtherRegion => (OtherRegion, null, false),
+            OrtShape.Locationless => (null, null, false),
+            OrtShape.RemoteLocationless => (null, null, true),
+            OrtShape.LanOnlyContainment => (PrefMunicipalityRegion, null, false),
+            _ => throw new ArgumentOutOfRangeException(nameof(ort), ort, null),
+        };
+        var employmentId = employment switch
+        {
+            EmploymentShape.Preferred => PrefEmployment,
+            EmploymentShape.Other => OtherEmployment,
+            EmploymentShape.Absent => null,
+            _ => throw new ArgumentOutOfRangeException(nameof(employment), employment, null),
+        };
+
+        return SeedJobAdAsync(
+            run, PrefGroup, region, employmentId, publishedAt, ct,
+            municipalityConceptId: municipality, remote: remote);
+    }
+
+    // What each exact-occupation ad means for each kind of user, stated from the product promise
+    // (an empty preference matches all; a stated one is contradicted by a different or missing
+    // value; a län-only ad in the user's own kommun's län is neither) — not from the SUT's code.
+    private static MatchGrade ExpectedExactGrade(StatedPrefs stated, OrtShape ort, EmploymentShape employment)
+    {
+        var ortStated = stated == StatedPrefs.OrtOnly;
+        var employmentStated = stated == StatedPrefs.EmploymentOnly;
+
+        var ortContradicted = ortStated && ort is OrtShape.OtherRegion or OrtShape.Locationless;
+        var employmentContradicted = employmentStated && employment != EmploymentShape.Preferred;
+        if (ortContradicted || employmentContradicted)
+            return MatchGrade.Basic;
+
+        var ortConfirms = !ortStated
+            || ort is OrtShape.RegionHit or OrtShape.MunicipalityHit or OrtShape.RemoteLocationless;
+        var employmentConfirms = !employmentStated || employment == EmploymentShape.Preferred;
+
+        var confirmed = (ortConfirms ? 1 : 0) + (employmentConfirms ? 1 : 0);
+        return confirmed switch
+        {
+            2 => MatchGrade.Strong,
+            1 => MatchGrade.Good,
+            _ => MatchGrade.Basic,
+        };
+    }
+
+    private static int RankOf(MatchGrade? grade) => grade switch
+    {
+        MatchGrade.Strong => 4,
+        MatchGrade.Good => 3,
+        MatchGrade.Related => 2,
+        MatchGrade.Basic => 1,
+        _ => 0,
+    };
+
+    [Theory]
+    [InlineData(StatedPrefs.OrtOnly)]
+    [InlineData(StatedPrefs.EmploymentOnly)]
+    [InlineData(StatedPrefs.Neither)]
+    public async Task GradeFilter_UnstatedPreferences_CountAsConfirmed_SqlEqualsGradeSsot_ForEveryBandSubset(
+        StatedPrefs stated)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var run = NewRunWorktimeExtent();
+        var t = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        // The whole ort x employment matrix of exact-occupation ads, plus a related-only and an
+        // untagged ad. publishedAt decreases along the matrix so recency never coincides with grade.
+        var shaped = new Dictionary<JobAdId, (OrtShape Ort, EmploymentShape Employment)>();
+        var offset = 0;
+        foreach (var ort in Enum.GetValues<OrtShape>())
+            foreach (var employment in Enum.GetValues<EmploymentShape>())
+            {
+                var id = await SeedShapedAsync(run, ort, employment, t.AddDays(100 - offset++), ct);
+                shaped[id] = (ort, employment);
+            }
+
+        var related = await SeedRelatedAsync(run, t.AddDays(10), ct);
+        var untagged = await SeedUntaggedSsykNoMatchAsync(run, t.AddDays(5), ct);
+        var seeded = shaped.Keys.Concat([related, untagged]).ToList();
+
+        var profile = ProfileWith(stated);
+        var filter = FilterFor(run);
+
+        var (scoreScope, scorer) = NewScorer();
+        using var scoreDispose = scoreScope;
+        var scored = await scorer.ScoreFullBatchAsync(seeded, profile, ct);
+        var gradeById = seeded.ToDictionary(
+            id => id.Value,
+            id => MatchGradeCalculator.Grade(scored[id].Score.Fast, scored[id].Causes, scored[id].SsykIsRelated));
+
+        // The scorer + calculator grade every exact ad as the product promise says.
+        foreach (var (id, shape) in shaped)
+        {
+            gradeById[id.Value].ShouldBe(ExpectedExactGrade(stated, shape.Ort, shape.Employment),
+                $"stated={stated}, ort={shape.Ort}, employment={shape.Employment}");
+        }
+
+        gradeById[related.Value].ShouldBe(MatchGrade.Related);
+        gradeById[untagged.Value].ShouldBeNull();
+
+        // Non-vacuity: the headline of #2154 — Stark match is reachable although something was left empty.
+        gradeById.Values.ShouldContain(MatchGrade.Strong,
+            "En användare som lämnat en preferens tom ska kunna nå Stark match.");
+
+        var (queryScope, query) = NewPerUserQuery();
+        using var queryDispose = queryScope;
+
+        foreach (var subset in AllNonEmptyBandSubsets())
+        {
+            var expectedIds = gradeById
+                .Where(kvp => kvp.Value is { } g && subset.Contains(g))
+                .Select(kvp => kvp.Key)
+                .ToHashSet();
+
+            var page = await query.SearchPerUserAsync(
+                filter, profile, grades: subset, sort: JobAdSortBy.PublishedAtDesc,
+                orderByMatchRank: true, status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 100, ct);
+
+            page.Items.Select(i => i.Id).ToHashSet().ShouldBe(expectedIds, ignoreOrder: true,
+                $"stated={stated}: grad-WHERE:t ska returnera EXAKT de annonser vars Fast-grad ligger i " +
+                $"[{string.Join(", ", subset)}] — annars har SQL-ranken och C#-SSOT:en drivit isär (ADR 0170).");
+            page.TotalCount.ShouldBe(expectedIds.Count);
+
+            var counted = await query.CountPerUserAsync(filter, profile, subset, ct);
+            counted.ShouldBe(expectedIds.Count,
+                $"stated={stated}: CountPerUserAsync ska vara lika med list-vägens TotalCount för [{string.Join(", ", subset)}].");
+        }
+
+        // The match-rank ORDER BY puts Stark first and never ranks a lower grade above a higher one.
+        var all = await query.SearchPerUserAsync(
+            filter, profile, grades: [], sort: JobAdSortBy.PublishedAtDesc,
+            orderByMatchRank: true, status: JobAdStatusFilter.None, seekerId: default, page: 1, pageSize: 100, ct);
+        all.Items.Count.ShouldBe(seeded.Count);
+        var ranks = all.Items.Select(i => RankOf(gradeById[i.Id])).ToList();
+        ranks.ShouldBe(ranks.OrderByDescending(r => r).ToList(),
+            $"stated={stated}: match-sorten ska ordna efter grad-rank fallande, Stark först.");
     }
 
     // ===============================================================
@@ -701,12 +897,11 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         // Confirm the C# SSOT grades (proves the seed is what the test claims).
         var (scoreScope, scorer) = NewScorer();
         using var scoreDispose = scoreScope;
-        var scores = await scorer.ScoreBatchAsync(
-            [laterGood, earlierStrong, basic, untagged], profile.Fast, ct);
-        MatchGradeCalculator.Grade(scores[laterGood]).ShouldBe(MatchGrade.Good);
-        MatchGradeCalculator.Grade(scores[earlierStrong]).ShouldBe(MatchGrade.Strong);
-        MatchGradeCalculator.Grade(scores[basic]).ShouldBe(MatchGrade.Basic);
-        MatchGradeCalculator.Grade(scores[untagged]).ShouldBeNull();
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, [laterGood, earlierStrong, basic, untagged], profile, ct);
+        grades[laterGood].ShouldBe(MatchGrade.Good);
+        grades[earlierStrong].ShouldBe(MatchGrade.Strong);
+        grades[basic].ShouldBe(MatchGrade.Basic);
+        grades[untagged].ShouldBeNull();
 
         var (queryScope, query) = NewPerUserQuery();
         using var queryDispose = queryScope;
@@ -759,13 +954,13 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
 
         var (scoreScope, scorer) = NewScorer();
         using var scoreDispose = scoreScope;
-        var scores = await scorer.ScoreBatchAsync([strong, good], profile.Fast, ct);
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, [strong, good], profile, ct);
 
         // The Fast SSOT never produces Top — the strongest tuple caps at Strong.
-        MatchGradeCalculator.Grade(scores[strong]).ShouldBe(MatchGrade.Strong,
+        grades[strong].ShouldBe(MatchGrade.Strong,
             "Det starkaste Fast-tupeln (yrke+ort+anställning Match) toppar på Strong i Fast-" +
             "bandet — Top kräver Full-overloadens must-have/skill-signal, oåtkomlig i Fast.");
-        MatchGradeCalculator.Grade(scores[strong]).ShouldNotBe(MatchGrade.Top);
+        grades[strong].ShouldNotBe(MatchGrade.Top);
 
         var (queryScope, query) = NewPerUserQuery();
         using var queryDispose = queryScope;
@@ -913,18 +1108,18 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         var full = await scorer.ScoreFullBatchAsync([fullTop, fullGood], profile, ct);
 
         // (a) The FAST band (filter/sort/count SSOT) reads Strong for BOTH — same Fast-Strong bucket.
-        MatchGradeCalculator.Grade(full[fullTop].Score.Fast, full[fullTop].SsykIsRelated)
+        MatchGradeCalculator.Grade(full[fullTop].Score.Fast, full[fullTop].Causes, full[fullTop].SsykIsRelated)
             .ShouldBe(MatchGrade.Strong,
                 "fullTop ligger i Fast-Strong-bandet (yrke+ort+anställning Match) — det är " +
                 "den bucket grad-filtret gallrar på.");
-        MatchGradeCalculator.Grade(full[fullGood].Score.Fast, full[fullGood].SsykIsRelated)
+        MatchGradeCalculator.Grade(full[fullGood].Score.Fast, full[fullGood].Causes, full[fullGood].SsykIsRelated)
             .ShouldBe(MatchGrade.Strong,
                 "fullGood ligger i SAMMA Fast-Strong-band — Fast ser inte must-have, så båda " +
                 "annonserna hamnar i {Strong}-bucketen oavsett sina olika Full-badgar.");
 
         // (b) The FULL overload (the card BADGE) DIFFERS — Top (up) vs Good (down, F1(b) degrade).
-        var gradeFull_top = MatchGradeCalculator.Grade(full[fullTop].Score);
-        var gradeFull_good = MatchGradeCalculator.Grade(full[fullGood].Score);
+        var gradeFull_top = MatchGradeCalculator.Grade(full[fullTop].Score, full[fullTop].Causes);
+        var gradeFull_good = MatchGradeCalculator.Grade(full[fullGood].Score, full[fullGood].Causes);
         gradeFull_top.ShouldBe(MatchGrade.Top,
             "fullTops BADGE = Full requirement-aware Top (must-have Match + båda sekundärer + " +
             "skill-signal) — \"Toppmatch\".");
@@ -1008,17 +1203,16 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         // ---- C# SSOT (the scorer-side of the twin): the new-arm ads grade Basic under #552. ----
         var (scoreScope, scorer) = NewScorer();
         using var scoreDispose = scoreScope;
-        var scores = await scorer.ScoreBatchAsync(
-            [bothNullOrt, nullEmployment, contradictionBasic, good, strong], profile.Fast, ct);
-        MatchGradeCalculator.Grade(scores[bothNullOrt]).ShouldBe(MatchGrade.Basic,
+        var grades = await ScorerGrading.GradeBatchAsync(scorer, [bothNullOrt, nullEmployment, contradictionBasic, good, strong], profile, ct);
+        grades[bothNullOrt].ShouldBe(MatchGrade.Basic,
             "#552: SSYK Match + båda ort-shadows NULL (ort angiven) + employment Match → ort NoMatch " +
             "→ RB1-golv → Basic (pre-#552 var detta Good).");
-        MatchGradeCalculator.Grade(scores[nullEmployment]).ShouldBe(MatchGrade.Basic,
+        grades[nullEmployment].ShouldBe(MatchGrade.Basic,
             "#552: SSYK Match + region Match + NULL employment-shadow (anställning angiven) → employment " +
             "NoMatch → RB1-golv → Basic (pre-#552 var detta Good).");
         // Non-vacuity: the anchors grade as intended.
-        MatchGradeCalculator.Grade(scores[good]).ShouldBe(MatchGrade.Good);
-        MatchGradeCalculator.Grade(scores[strong]).ShouldBe(MatchGrade.Strong);
+        grades[good].ShouldBe(MatchGrade.Good);
+        grades[strong].ShouldBe(MatchGrade.Strong);
 
         // ---- The SQL twin (grade-WHERE band membership). ----
         var (queryScope, query) = NewPerUserQuery();

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<title>Väntläge</title>
+<style>
+@font-face{font-family:'SS3';src:url(assets/fonts/ss3.woff2) format('woff2');font-weight:200 900;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family:'SS3';src:url(assets/fonts/ss3-ext.woff2) format('woff2');font-weight:200 900;unicode-range:U+0100-02AF,U+0304,U+0308,U+0329,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+@font-face{font-family:'JBM';src:url(assets/fonts/jbm.woff2) format('woff2');font-weight:100 800;}
+:root{--g900:#0B2A1E;--g800:#15603F;--g500:#2E8B63;--gold:#E8C77B;--ink:#0C1A2E;--warn:#E07A2E;--ok:#3FB37A;--bad:#E05A4F}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:1080px;height:1350px;overflow:hidden;background:#000}
+#stage{position:relative;width:1080px;height:1350px;overflow:hidden;font-family:'SS3',sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+#gl{position:absolute;inset:0;width:1080px;height:1350px;display:block}
+#ov{position:absolute;inset:0;pointer-events:none}
+.o{position:absolute;opacity:0}
+.ln{display:block;overflow:hidden;padding-bottom:.1em;margin-bottom:-.1em}
+.ln>span{display:inline-block}
+/* top scrim for chapter headlines over 3D */
+#scrimTop{position:absolute;left:0;right:0;top:0;height:480px;background:linear-gradient(to bottom,rgba(3,12,9,.82) 0%,rgba(3,12,9,.55) 45%,rgba(3,12,9,0) 100%);opacity:0}
+#scrimBot{position:absolute;left:0;right:0;bottom:0;height:520px;background:linear-gradient(to top,rgba(3,12,9,.85) 0%,rgba(3,12,9,.5) 50%,rgba(3,12,9,0) 100%);opacity:0}
+.kicker{left:72px;top:84px;font-family:'JBM';font-weight:700;font-size:30px;letter-spacing:.14em;color:var(--gold);text-transform:uppercase}
+.kicker .beta{font-size:22px;color:#1d1405;background:var(--gold);padding:3px 10px;border-radius:4px;margin-left:12px;vertical-align:4px;letter-spacing:.1em}
+.head{left:72px;top:132px;width:940px;font-weight:800;font-size:74px;line-height:1.03;letter-spacing:-.02em;text-shadow:0 2px 18px rgba(0,0,0,.35)}
+.subh{left:72px;width:940px;font-weight:600;font-size:40px;line-height:1.2;color:rgba(255,255,255,.92);text-shadow:0 2px 14px rgba(0,0,0,.4)}
+.cap{left:72px;font-weight:800;font-size:66px;line-height:1.05;letter-spacing:-.015em;background:var(--g900);padding:18px 30px 22px;border-radius:4px;white-space:nowrap}
+.cap.gold{color:var(--gold)}
+/* airport PA card */
+.pa{left:72px;width:936px;background:#0C1A2E;border:2px solid rgba(232,199,123,.55);border-radius:8px;padding:24px 30px 28px}
+.pa .ph{display:flex;align-items:center;gap:14px;font-family:'JBM';font-weight:700;font-size:24px;letter-spacing:.16em;color:var(--gold)}
+.pa .pt{margin-top:12px;font-weight:700;font-size:46px;line-height:1.12}
+.pa .ps{margin-top:10px;font-weight:600;font-size:34px;color:rgba(255,255,255,.78)}
+.sdh{left:0;right:0;display:flex;justify-content:center}
+.sdh span{font-weight:600;font-size:36px;background:rgba(0,0,0,.8);padding:6px 16px;border-radius:3px}
+/* radar labels */
+.blip{font-family:'SS3';white-space:nowrap;transform:translate(-50%,-100%)}
+.blip .bt{font-weight:700;font-size:32px;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+.blip .bg{display:inline-flex;align-items:center;gap:9px;margin-top:6px;font-family:'JBM';font-weight:700;font-size:26px;padding:6px 12px;border-radius:4px;background:#0B3D1B;color:#fff}
+.blip .bg.b{background:#EEF1F5;color:#455366}
+.blip .dx{margin-top:6px;font-weight:700;font-size:30px;color:#fff;opacity:0;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+.blip .bg.s{background:#1C7530}.blip .bg.g{background:#DFF3E5;color:#1C7530}.blip .bg.n{background:#3a4148;color:#cfd5dc}
+.blip .bg i{width:10px;height:10px;border-radius:50%;background:currentColor}
+.why{background:#fff;color:var(--ink);border-radius:8px;padding:18px 22px 20px;border-left:6px solid #0B3D1B;width:600px;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+.why .ptr{position:absolute;left:150px;top:-14px;width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:14px solid #fff}
+.why .r{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
+.why .l{font-family:'JBM';font-weight:700;font-size:18px;letter-spacing:.12em;width:112px;color:#15603F}
+.why .l.m{color:#4F5D72}
+.why .c{font-weight:600;font-size:26px;padding:5px 12px;border-radius:4px;background:#E9F2ED;color:#15603F;border:1.5px solid #D3E7DC}
+.why .c.m{background:#fff;color:#455366;border:1.5px dashed #7C8AA0;font-weight:500}
+/* notification + checklist cards */
+.card{background:#fff;color:var(--ink);border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+.notif{left:72px;width:936px;padding:22px 28px 24px 60px}
+.notif .dot{position:absolute;left:26px;top:34px;width:14px;height:14px;border-radius:50%;background:#15603F}
+.notif .sig{display:flex;align-items:center;gap:14px;font-size:24px;color:#4F5D72}
+.notif .tag{font-family:'JBM';font-weight:700;font-size:26px;padding:5px 11px;border-radius:4px;background:#EEF1F5;color:#455366;border:1.5px solid #C9D2E0}
+.notif .tt{margin-top:8px;font-size:40px;font-weight:700}
+.notif .co{margin-top:2px;font-size:28px;color:#455366}
+.check{left:72px;width:936px;padding:22px 28px 18px}
+.check .ch{font-family:'JBM';font-weight:700;font-size:22px;letter-spacing:.14em;color:#4F5D72;padding-bottom:12px;border-bottom:1.5px solid #E3E8F0}
+.check .it{display:flex;align-items:flex-start;gap:16px;padding:14px 0;border-bottom:1.5px solid #E3E8F0;font-size:32px;font-weight:700}
+.check .it:last-child{border-bottom:0}
+.check .ic{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;margin-top:2px}
+.check .ok .ic{background:#DFF3E5;color:#16793B}.check .no .ic{background:#FBE0E0;color:#BE1B1B}
+.check .ev{display:block;font-weight:500;font-size:27px;color:#455366;margin-top:2px}
+.check .ev b{color:#BE1B1B}
+.check .q{display:block;margin-top:6px;font-weight:500;font-style:italic;font-size:28px;color:#0C1A2E;background:#FFF1C9;border-left:5px solid #E0A82E;padding:4px 12px}
+/* logo lockup + end */
+.lock{left:0;right:0;text-align:center}
+.lock .plate{display:inline-block;background:rgba(5,20,15,.93);border:1.5px solid rgba(232,199,123,.35);border-radius:8px;padding:30px 56px 34px}
+.lock .w{font-weight:700;font-size:112px;letter-spacing:-.025em;line-height:1}
+.lock .t{margin-top:14px;font-weight:700;font-size:46px;color:var(--gold)}
+.lock .u{margin-top:6px;font-family:'JBM';font-weight:700;font-size:36px;color:#fff;letter-spacing:.02em}
+.endc{left:72px;width:936px}
+.endc .e1{font-weight:800;font-size:96px;line-height:1.02;letter-spacing:-.02em}
+.endc .e2{margin-top:30px;font-weight:700;font-size:52px;color:#fff}
+.endc .url{display:flex;align-items:center;gap:24px;margin-top:10px;font-weight:800;font-size:96px;letter-spacing:-.02em;color:#fff}
+.endc .e3{margin-top:22px;font-weight:700;font-size:46px;color:var(--gold)}
+.bug{right:60px;top:90px;font-family:'JBM';font-weight:700;font-size:26px;color:#fff;letter-spacing:.04em}
+.endc .btn{display:inline-flex;align-items:center;gap:14px;margin-top:30px;background:#fff;color:var(--ink);font-weight:700;font-size:40px;padding:22px 40px;border-radius:8px}
+</style>
+<script type="importmap">{"imports":{"three":"./lib/three.module.js","three/addons/":"./lib/jsm/"}}</script>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl" width="1080" height="1350"></canvas>
+  <div id="ov">
+    <div id="scrimTop"></div><div id="scrimBot"></div>
+
+    <!-- act 1 -->
+    <div class="o cap" id="cDay" style="top:1062px;opacity:1">Dag 64 av jobbsökandet.</div>
+    <div class="o cap" id="cLift" style="top:1050px"><span class="ln"><span>Ansökan 37 lyfter.</span></span></div>
+    <div class="o cap gold" id="cHope" style="top:1162px;font-size:52px;padding:12px 34px 16px 30px">Full av hopp.</div>
+    <div class="o pa" id="paWait" style="top:960px"><div class="ph"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>MEDDELANDE</div><div class="pt">Din ansökan har placerats i väntläge.</div><div class="ps">Beräknad väntetid: okänd.</div></div>
+    <div class="o sdh" id="sdhCrick" style="top:880px"><span>[syrsor]</span></div>
+    <div class="o cap" id="cTurn" style="top:1040px;white-space:normal;width:936px"><span class="ln"><span>Nu finns det flygledning</span></span><span class="ln"><span>för ditt jobbsökande.</span></span></div>
+    <div class="o lock" id="lock" style="top:948px"><div class="plate"><div class="w"><span class="ln"><span>Jobbliggaren</span></span></div><div class="t"><span class="ln"><span>Registreringen är öppen.</span></span></div><div class="u"><span class="ln"><span>jobbliggaren.se</span></span></div></div></div>
+
+    <!-- chapter heads -->
+    <div class="o kicker" id="k1">01 · Matchning</div>
+    <div class="o head" id="h1"><span class="ln"><span>Radarn hittar jobben</span></span><span class="ln"><span>som matchar dig.</span></span></div>
+    <div class="o subh" id="s1" style="top:300px">Och visar varför.</div>
+    <div class="o kicker" id="k2">02 · Uppföljning</div>
+    <div class="o head" id="h2"><span class="ln"><span>Tavlan säger till när</span></span><span class="ln"><span>det är dags att följa upp.</span></span></div>
+    <div class="o kicker" id="k3">03 · Bevakning</div>
+    <div class="o head" id="h3"><span class="ln"><span>Sluta cirkla runt</span></span><span class="ln"><span>karriärsidan.</span></span></div>
+    <div class="o subh" id="s3" style="top:300px">Bevaka företaget. Du får en notis när de annonserar.</div>
+    <div class="o kicker" id="k4">04 · CV-granskning <span class="beta">BETA</span></div>
+    <div class="o head" id="h4"><span class="ln"><span>Kolla lasten</span></span><span class="ln"><span>före start.</span></span></div>
+    <div class="o subh" id="s4" style="top:300px">43 kriterier. Varje omdöme visar var i ditt CV det gäller.</div>
+
+    <!-- F1 radar labels -->
+    <div class="o blip" id="bA"><div class="bt">Backend-utvecklare .NET</div><div class="bg"><i></i>Toppmatch</div></div>
+    <div class="o blip" id="bB"><div class="bt">Systemutvecklare C#</div><div class="bg s"><i></i>Stark match</div></div>
+    <div class="o blip" id="bC"><div class="bt">Fullstackutvecklare</div><div class="bg g"><i></i>Bra match</div></div>
+    <div class="o blip" id="bE"><div class="bt">IT-tekniker</div><div class="bg b"><i></i>Grundmatch</div></div>
+    <div class="o blip" id="bD"><div class="bt">Glassbilsförare, Kiruna</div><div class="dx" id="bDx">Utanför radarn</div></div>
+    <div class="o why" id="why" style="left:430px;top:800px"><span class="ptr"></span><div class="r"><span class="l">MATCHAR</span><span class="c">Yrke</span><span class="c">Ort</span><span class="c">Heltid</span><span class="c">C#</span></div><div class="r"><span class="l m">SAKNAS</span><span class="c m">Kubernetes</span></div></div>
+
+    <!-- F2 PA -->
+    <div class="o pa" id="paLate" style="top:1000px"><div class="ph"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>MEDDELANDE</div><div class="pt">Ansökan 36 har väntat 14 dagar utan svar.</div><div class="ps">Dags att följa upp.</div></div>
+
+    <!-- F3 notification -->
+    <div class="o card notif" id="notif" style="top:1000px"><span class="dot"></span><div class="sig"><span class="tag">Bevakar</span>idag, kl. 08.14</div><div class="tt">Systemutvecklare .NET</div><div class="co">Trollhättans Dataservice</div></div>
+
+    <!-- F4 PA + checklist -->
+    <div class="o pa" id="paLoad" style="top:1040px"><div class="ph"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>MEDDELANDE</div><div class="pt">Ansökan 37 är överlastad.</div></div>
+    <div class="o card check" id="check" style="top:836px"><div class="ch">CV-GRANSKNING · FÖRE START</div>
+      <div class="it ok" id="ck1"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M20 6 9 17l-5-5"/></svg></span><span>Kontaktuppgifter</span></div>
+      <div class="it ok" id="ck2"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M20 6 9 17l-5-5"/></svg></span><span>Mätbara resultat</span></div>
+      <div class="it no" id="ck3"><span class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M18 6 6 18M6 6l12 12"/></svg></span><span>Profiltext för lång<span class="q">”Driven och engagerad person som gillar utmaningar …”</span><span class="ev"><b>224 ord.</b> Gränsen är 100.</span></span></div>
+    </div>
+
+    <!-- end -->
+    <div class="o endc" id="endc" style="top:772px">
+      <div class="e1"><span class="ln"><span>Klar för start?</span></span></div>
+      <div class="e2" id="e2">Skapa ett gratis konto på</div>
+      <div class="url" id="eUrl"><svg width="96" height="96" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#15603F"/><circle cx="50" cy="50" r="37" fill="none" stroke="#fff" stroke-width="2.4"/><rect x="36" y="39.5" width="24" height="4.5" rx="2" fill="#fff"/><rect x="33" y="47.5" width="30" height="5.5" rx="2.5" fill="#E8C77B"/><rect x="36" y="56.5" width="18" height="4.5" rx="2" fill="#fff"/><path d="M56.5,50.6 L59,52.8 L64,47.6" fill="none" stroke="#15603F" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="50" r="48.5" fill="none" stroke="#fff" stroke-width="3"/></svg>jobbliggaren.se</div>
+      <div class="e3" id="e3">Registreringen är öppen.</div>
+    </div>
+    <div class="o bug" id="bug">jobbliggaren.se</div>
+  </div>
+</div>
+<script type="module" src="main.js"></script>
+</body>
+</html>

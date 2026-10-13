@@ -1613,7 +1613,9 @@ is `PreferenceUnstated`:
   confirmed secondary → Basic, and "Caps at `Good` (≥1 confirmed secondary) or `Basic`". Read "confirmed secondary" as ADR 0170 defines it.
 - **Amendment 2026-07-18 (#552) and 2026-07-18 (b) (#551):** "An UNSTATED preference is untouched — still `NotAssessed`" stands, **for the verdict**. Superseded is the reading of
   that `NotAssessed` as neutral in the count: the PLACEMENT note's "would fabricate a confirmed secondary they never asked for", and the arithmetic "`NotAssessed`+`NotAssessed` =
-  0 confirmed secondaries = Basic" when the `NotAssessed` is `PreferenceUnstated`. The remote override still returns `Match` and still sits after the `!stated` return.
+  0 confirmed secondaries = Basic" when the `NotAssessed` is `PreferenceUnstated`. The remote override still returns `Match` and still sits after the `!stated` return. The ADR 0079 line
+  "the scorer reads the ad's flag, NEVER the user's remote preference" no longer holds literally: `PreferredRemote` reaches the profile to decide whether the ort is stated, never whether
+  an ad matches it (ADR 0170 D6).
 
 ### What does not change
 

@@ -114,7 +114,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
 
         // PR-4 (#300, ADR 0084): ScoreFullAsync now returns the FullScoredMatch carrier
         // (score + SsykIsRelated). The optional isRelated flag lets a test set the related
-        // bit the handler forwards into Grade(FullMatchScore, bool); default false keeps every
+        // bit the handler forwards into Grade(FullMatchScore, MatchDimensionCauses, bool); default false keeps every
         // existing test behaviour-inert (the carrier wraps the stored score, isRelated:false).
         public FakeScorer(
             FullMatchScore score, bool isRelated = false, MatchDimensionCauses? causes = null)

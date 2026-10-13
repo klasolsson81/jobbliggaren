@@ -108,7 +108,7 @@ Background matching without consent (a separate change), and any change to the m
 ### D6 — Distans-only is a stated ort (Klas, 2026-10-13, answering the code-reviewer's Major on PR #2155)
 
 A user whose only ort choice is Distans (no län, no kommun) has stated an ort. The rule above applies only to a user with no ort choice at all; for a Distans-only user the ort is
-neutral and the grade is what it was before this ADR (at most `Strong`, never `Toppmatch` on an on-site ad). The mechanism is the smallest one: `CandidateMatchProfile` carries
+neutral (at most `Strong`, never `Toppmatch` on an on-site ad). The mechanism is the smallest one: `CandidateMatchProfile` carries
 `PreferredRemote`, `ScoreOrtUnion` returns `NotAssessed` with no cause when the lists are empty and `PreferredRemote` is set, and the SQL twin's `IsOrtOpen` is false for her.
 `PreferredRemote` decides whether the ort is stated and never whether an ad matches it: the scorer still matches on the two lists and on the ad's own remote flag only, and
 `MatchProfileRemoteIndependenceTests` was amended narrowly to allow exactly that one member (ADR 0079 F1 is otherwise unchanged). Making a remote ad count as a `Match` for her is

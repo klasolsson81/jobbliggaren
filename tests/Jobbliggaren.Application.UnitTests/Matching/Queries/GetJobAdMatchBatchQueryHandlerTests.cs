@@ -97,7 +97,7 @@ public class GetJobAdMatchBatchQueryHandlerTests
         // still accepts a FullMatchScore-valued dict (every existing test seeds the score), and
         // wraps each with SsykIsRelated:false here — behaviour-inert (no related set in any of
         // these tests). The handler unwraps .Score for the grade verdict rows + forwards
-        // .SsykIsRelated into Grade(FullMatchScore, bool).
+        // .SsykIsRelated into Grade(FullMatchScore, MatchDimensionCauses, bool).
         public ValueTask<IReadOnlyDictionary<JobAdId, FullScoredMatch>> ScoreFullBatchAsync(
             IReadOnlyList<JobAdId> jobAdIds, FullCandidateMatchProfile profile,
             CancellationToken cancellationToken)

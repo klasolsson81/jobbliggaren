@@ -439,7 +439,7 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
         scores.TryGetValue(jobAdId, out var scored).ShouldBeTrue("the seeded ad must be scored");
 
         // PR-4 (#300, ADR 0084): the carrier holds the score + SsykIsRelated. Recompute the
-        // grade EXACTLY as the Worker does — Grade(FullMatchScore, bool) with the carrier's
+        // grade EXACTLY as the Worker does — Grade(FullMatchScore, MatchDimensionCauses, bool) with the carrier's
         // related bit — so this SSOT cross-check mirrors the production path (a related-only hit
         // grades Related, which the switch below maps to null = not notifiable).
         var grade = MatchGradeCalculator.Grade(scored!.Score, scored.Causes, scored.SsykIsRelated);

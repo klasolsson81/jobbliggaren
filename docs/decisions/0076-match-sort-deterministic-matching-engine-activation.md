@@ -1597,7 +1597,8 @@ The producer facts this rests on were measured at `ad2ce55f9` on 2026-10-03:
 A secondary, `RegionFit` or `EmploymentFit`, is confirmed in the grade when its verdict is `Match`, **or** when its verdict is `NotAssessed` with the cause
 `PreferenceUnstated` (the cause of Amendment 2026-08-31, carried beside the score). Both `MatchGradeCalculator.Grade` overloads take the causes as a required argument, and the
 SQL twin (`PerUserJobAdSearchQuery.GradeRankExpression`, with the golden-rung sort lift) gains `!ortStated` / `!employmentStated`, so Fast and Full still agree at `Good` and
-above. A `NotAssessed` region with the cause `RegionContainsPreferredMunicipality` (#477 Low 1) stays neutral and is not counted.
+above. A `NotAssessed` region with the cause `RegionContainsPreferredMunicipality` (#477 Low 1) stays neutral and is not counted, and so does the ort of a user whose only ort
+choice is Distans (Klas, 2026-10-13: Distans is a stated ort; `CandidateMatchProfile.PreferredRemote` decides whether the ort is stated and never whether an ad matches it).
 
 ### Earlier readings superseded — for the grade count only
 

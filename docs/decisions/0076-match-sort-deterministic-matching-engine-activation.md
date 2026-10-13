@@ -1604,10 +1604,9 @@ above. A `NotAssessed` region with the cause `RegionContainsPreferredMunicipalit
 Wherever a passage below says that a `NotAssessed` region or employment "neither confirms nor caps", or counts it as no confirmed secondary, it no longer holds when the cause
 is `PreferenceUnstated`:
 
-- **Amendment 2026-06-19 (b) §1:** the `Basic` row ("region and employment both `NotAssessed` (open / not stated)") and "`NotAssessed` … dimensions neither confirm nor cap
-  (parity region/employment below)".
+- **Amendment 2026-06-19 (b) §1:** the `Basic` row ("region and employment both `NotAssessed` (open / not stated)").
 - **Amendment 2026-06-19 (b) §2:** "A `NotAssessed` dimension (user stated "open" or did not state a preference) neither confirms nor caps", and the total-mapping rows
-  `Match`/`NotAssessed` → Good, `NotAssessed`/`Match` → Good and `NotAssessed`/`NotAssessed` → Basic. The rows with a `NoMatch` are unchanged (the floor).
+  `Match`/`NotAssessed` → Good, `NotAssessed`/`Match` → Good and `NotAssessed`/`NotAssessed` → Basic.
 - **Amendment 2026-06-20 §1:** the "Strong (open-secondary)" row, the two "Good" rows and the "Basic" row ("no confirmed secondary, must-have not met").
 - **Amendment 2026-06-27 §1 and §2 (b′):** the same three rows ("Strong (open-secondary)", "Good", "Basic: otherwise"), including the unwritten case `requirementBacked` with no
   confirmed secondary → Basic, and "Caps at `Good` (≥1 confirmed secondary) or `Basic`". Read "confirmed secondary" as ADR 0170 defines it.

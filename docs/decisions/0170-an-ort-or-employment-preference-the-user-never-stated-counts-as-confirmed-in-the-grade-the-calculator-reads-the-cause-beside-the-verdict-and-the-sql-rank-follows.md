@@ -3,8 +3,8 @@
 **Date:** 2026-10-13
 **Status:** Accepted
 **Decider:** Klas Olsson, for the rule (D1): his decision of 2026-10-13, taken after a live test of a test account and recorded on #2154. D2–D5 are the driving
-session's design of that rule; the golden-rung part of D4 is its call alone. No `senior-cto-advisor` ruling and no `security-auditor` review was requested (no PII, auth
-or secret surface changes), and no agent has reviewed this ADR: the mandatory agents review the implementation in the PR.
+session's design of that rule; the golden-rung part of D4 is its call alone. No `security-auditor` review was requested (no PII, auth
+or secret surface changes).
 **Amends:** ADR 0076, by its Amendment 2026-10-13: what a `NotAssessed` region or employment verdict counts for in the grade. The earlier passages it supersedes for the
 grade count are named there. The SSYK gate, the Related cap (ADR 0084 §F4), the RB1 contradiction floor and the F1(b) requirement gate are not touched.
 **Related:** [#2154](https://github.com/klasolsson81/jobbliggaren/issues/2154) · ADR 0076 and its Amendments 2026-06-19 (b), 2026-06-20, 2026-06-27, 2026-07-18,
@@ -66,7 +66,7 @@ For an exact-occupation ad (SSYK `Match`, not Related) with no secondary contrad
 
 ### D2 — The signature (driving session)
 
-`Grade(MatchScore score, MatchDimensionCauses causes, bool isRelated = false)` and `Grade(FullMatchScore score, MatchDimensionCauses causes, bool isRelated = false)`.
+`Grade(MatchScore score, MatchDimensionCauses causes, bool isRelated)` and `Grade(FullMatchScore score, MatchDimensionCauses causes, bool isRelated)`.
 `causes` is required, a `null` throws, and it has no default: a verdict cannot say why a dimension is `NotAssessed`, and a default of `MatchDimensionCauses.None` would let a
 caller that forgot the argument silently get the old reading. The cause stays beside the score and is never put inside it, so the Goodhart pin on the score shape
 (`FullMatchScorerLayerTests`) is untouched.
@@ -80,7 +80,8 @@ it. All three call the Full overload; the Fast overload is the specification its
 
 `RegionContainsPreferredMunicipality` (ADR 0076 Amendment 2026-07-18, #477 Low 1: the user stated a kommun and the ad names only its län) is a `NotAssessed` that neither
 confirms nor contradicts, and it is not counted. A `NotAssessed` that carries no cause at all is not reachable, because the scorer attaches one to every `NotAssessed` it emits
-for region and employment. If one ever arrived it would degrade to the old reading and confirm nothing, and the calculator would not invent a confirmation.
+for region and employment. If one ever arrived it would degrade to the old reading and confirm nothing, and the calculator would not invent a confirmation. Because an unstated ort
+confirms and the containment arm does not, a län-only ad grades one step lower for a user who stated a kommun than for a user who stated nothing (read from the code, not measured).
 
 ### D4 — The SQL twin follows (driving session)
 
@@ -124,7 +125,6 @@ Background matching without consent (a separate change), and any change to the m
 - The promise in the copy holds. A user who leaves ort or employment empty can reach "Stark match" in the list and Toppmatch on the card (the latter when the ad gives a skill or
   nice-to-have signal and the requirement gate is open).
 - Fast equals Full at `Good` and above still holds, because the SQL twin carries the same terms.
-- One place decides what confirms: the `MatchDimensionCause` enum.
 - The wire, the modal and the copy do not move, and there is no migration.
 
 ### Negative and risks
@@ -138,13 +138,14 @@ Background matching without consent (a separate change), and any change to the m
   consenting user who states an occupation and the skill the ad requires, and at most one of ort and employment form (three shapes: ort only, employment only, neither), now
   gets a direct Toppmatch mail for an ad that carries any value on the empty dimension. With the old counting none of the three got one, because the ad graded `Strong`, which
   goes to the digest. Users who state everything are unchanged. The contradiction floor holds: a stated ort that the ad contradicts writes no row and sends no mail. How many consenting
-  accounts on the box this reaches is not measured here.
-- **Rows already persisted keep the grade they were written with.** The run skips an ad it already has a row for (`existingJobAdIds` in `BackgroundMatchingJob`), so no earlier
-  row is re-graded or mailed because of this change. Read from the code, not measured.
+  accounts on the box this reaches is not measured here. A consenting user who stated neither now also gets a persisted `Good` row (or better with a CV) for every new exact-occupation
+  ad, where `Basic` was never persisted (`ToNotifiable` in `BackgroundMatchingJob`; read from the code, not measured).
+- **Rows already persisted keep the grade they were written with.** The run reads only ads created after a user's `LastMatchScanAt` watermark (`BackgroundMatchingJob`), so an ad
+  scanned before this change is not graded again by it. Read from the code, not measured.
 - **Test premises.** Hand-built `NotAssessed` fixtures with `MatchDimensionCauses.None` asserted a grade for a state production cannot produce (AGENTS.md §5, Tests). They were
   replaced by the causes the scorer emits: `ProducedCauses.For` in the unit tests, and `ScorerGrading` in the integration oracles, which grade from the real Full scorer.
-- **Revisit trigger.** Any new `NotAssessed` reason for region or employment says, in the same change, whether it confirms; the `MatchDimensionCause` enum is the one place that
-  is decided. A reason that says nothing does not confirm, because only `PreferenceUnstated` does.
+- **Revisit trigger.** Any new `NotAssessed` reason for region or employment says, in the same change, whether it confirms. A reason that says nothing does not confirm,
+  because only `PreferenceUnstated` does.
 
 ## Implementation
 

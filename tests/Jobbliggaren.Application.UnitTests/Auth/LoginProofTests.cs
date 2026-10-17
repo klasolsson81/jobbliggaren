@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.AccountEmailChanges;
+using Jobbliggaren.Application.Auth.Activity;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
 using Jobbliggaren.Application.Auth.ExternalLogins;
@@ -54,6 +55,7 @@ public sealed class LoginProofTests
     private readonly AccountAccessTestKit.RecordingAccountAccessCoordinator _coordinator = AccountAccessTestKit.Coordinator();
     private readonly IAccountEmailChangeStore _addressChanges = Substitute.For<IAccountEmailChangeStore>();
     private readonly RecordingLogger<AccountAccessCleanup> _cleanupLogger = new();
+    private readonly IAccountActivityRecorder _activity = Substitute.For<IAccountActivityRecorder>();
 
     private static readonly GrantToken IssuedGrant = GrantToken.FromRaw("AAECAwQFBgcICQoLDA0ODw");
 
@@ -99,7 +101,7 @@ public sealed class LoginProofTests
         });
         return new PasswordlessSessionGrant(
             _inbox, _sessions, _audit, _db, FakeDateTimeProvider.Default, correlation, request,
-            reader, _coordinator, writer, new AccountAccessCleanup(_sessions, _addressChanges, _cleanupLogger));
+            reader, _coordinator, writer, new AccountAccessCleanup(_sessions, _addressChanges, _cleanupLogger), _activity);
     }
 
     private void FirstInboxProof()
@@ -226,6 +228,7 @@ public sealed class LoginProofTests
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateCommittedAsync(default!, default, Ct);
+        await _activity.DidNotReceiveWithAnyArgs().RecordLoginAsync(default, Ct);
     }
 
     [Fact]
@@ -284,6 +287,7 @@ public sealed class LoginProofTests
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateCommittedAsync(default!, default, Ct);
         await _inbox.DidNotReceiveWithAnyArgs().RecordAsync(default, Ct);
+        await _activity.DidNotReceiveWithAnyArgs().RecordLoginAsync(default, Ct);
     }
 
     [Fact]
@@ -567,6 +571,63 @@ public sealed class LoginProofTests
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateCommittedAsync(default!, default, Ct);
         _audit.DidNotReceiveWithAnyArgs().LoginSucceeded(default, default!, default);
+        await _activity.DidNotReceiveWithAnyArgs().RecordLoginAsync(default, Ct);
+    }
+
+    // ── #2161: the session the grant issues is the account's recorded login (ADR 0172 D5) ──
+
+    [Fact]
+    public async Task A_granted_session_is_recorded_as_the_login_after_the_session_exists_and_outside_the_access_scope()
+    {
+        await WithProfileAsync();
+        bool? scopeOpenAtTheRecord = null;
+        _activity.RecordLoginAsync(_userId, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            scopeOpenAtTheRecord = _coordinator.HasActiveScope;
+            return Task.CompletedTask;
+        });
+
+        await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Code,
+            AccountAccessTestKit.Bound(_userId), null, Ct);
+
+        scopeOpenAtTheRecord.ShouldBe(false);
+        Received.InOrder(() =>
+        {
+            _sessions.CreateAsync(_userId, Arg.Any<AccountAccessProof>(), SessionLifetime.Persistent, CancellationToken.None);
+            _audit.LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.Code);
+            _activity.RecordLoginAsync(_userId, CancellationToken.None);
+        });
+    }
+
+    [Fact]
+    public async Task A_session_issued_after_a_first_inbox_proof_is_recorded_as_the_login_too()
+    {
+        await WithProfileAsync();
+        FirstInboxProof();
+
+        await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Link,
+            AccountAccessTestKit.Bound(_userId), null, Ct);
+
+        await _sessions.Received(1).CreateCommittedAsync(
+            Arg.Any<CommittedSessionAuthorization>(), SessionLifetime.Persistent, CancellationToken.None);
+        await _activity.Received(1).RecordLoginAsync(_userId, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task A_session_the_store_refuses_records_no_login()
+    {
+        // AccessControlledSessionStore answers null when the account no longer admits the proof by the time the
+        // session is issued — a committed address change or suspension in between.
+        await WithProfileAsync();
+        _sessions.CreateAsync(_userId, Arg.Any<AccountAccessProof>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
+            .Returns((Session?)null);
+
+        var receipt = await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Code,
+            AccountAccessTestKit.Bound(_userId), null, Ct);
+
+        receipt.ShouldBeNull();
+        _audit.DidNotReceiveWithAnyArgs().LoginSucceeded(default, default!, default);
+        await _activity.DidNotReceiveWithAnyArgs().RecordLoginAsync(default, Ct);
     }
 
     // ── #1744: a provider's proof (ADR 0142 D8, security-auditor M-1, senior-cto-advisor F2/F3) ─────────────

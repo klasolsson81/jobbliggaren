@@ -1,5 +1,6 @@
 using Hangfire;
 using Hangfire.PostgreSql;
+using Jobbliggaren.Api.Activity;
 using Jobbliggaren.Api.Authorization;
 using Jobbliggaren.Api.Configuration;
 using Jobbliggaren.Api.Endpoints;
@@ -366,6 +367,8 @@ app.Use(async (ctx, next) =>
 });
 
 app.UseAuthentication();
+// #2161 (ADR 0172 D4) — directly after authentication, so it sees exactly the principals the session handler accepted.
+app.UseMiddleware<AccountActivityMiddleware>();
 app.UseAuthorization();
 // Rate limiting comes after authentication, so the user's claims are available to the
 // policies that partition per user ("sub").

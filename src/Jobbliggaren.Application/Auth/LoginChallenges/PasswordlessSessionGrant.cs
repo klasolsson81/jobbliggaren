@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth.Access;
+using Jobbliggaren.Application.Auth.Activity;
 using Jobbliggaren.Application.Auth.Dtos;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -11,7 +12,8 @@ namespace Jobbliggaren.Application.Auth.LoginChallenges;
 /// <summary>
 /// The one grant of a passwordless session (ADR 0142 D3/D4). It takes an <see cref="LoginSubject.Active"/>
 /// only, so the #1349 rule — no session for a soft-deleted or missing profile — holds by type. Every
-/// session it creates is <see cref="SessionLifetime.Persistent"/>.
+/// session it creates is <see cref="SessionLifetime.Persistent"/>, and every one it creates is recorded as the
+/// account's login (ADR 0172).
 /// </summary>
 public sealed class PasswordlessSessionGrant(
     IInboxProofRecorder inboxProof,
@@ -24,7 +26,8 @@ public sealed class PasswordlessSessionGrant(
     IAccountAccessReader access,
     IAccountAccessCoordinator coordinator,
     IAccountAccessWriter accessWriter,
-    IAccountAccessCleanup cleanup)
+    IAccountAccessCleanup cleanup,
+    IAccountActivityRecorder activity)
 {
     /// <summary>The <c>audit_log</c> event for a first passwordless proof of an unconfirmed address.</summary>
     public const string InboxProvenAuditEventType = "User.InboxProvenByLogin";
@@ -91,6 +94,9 @@ public sealed class PasswordlessSessionGrant(
         if (session is null)
             return null;
         audit.LoginSucceeded(subject.UserId, session.Id.ToString(), method);
+        // ADR 0172 D5: only once the session exists, outside the access scope; the session is already issued, so a
+        // client that hangs up now does not cancel the record. The recorder never throws.
+        await activity.RecordLoginAsync(subject.UserId, CancellationToken.None);
         return new SessionDto(session.Id.Reveal());
     }
 }

@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Access;
+using Jobbliggaren.Application.Auth.Activity;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
@@ -45,6 +46,7 @@ public sealed class CompleteLoginChallengeTests
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
     private readonly IExternalLoginLookup _externalLookup = Substitute.For<IExternalLoginLookup>();
     private readonly IExternalLoginWriter _externalWriter = Substitute.For<IExternalLoginWriter>();
+    private readonly IAccountActivityRecorder _activity = Substitute.For<IAccountActivityRecorder>();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -73,7 +75,7 @@ public sealed class CompleteLoginChallengeTests
         var reader = AccountAccessTestKit.ReaderFromProfiles(database, id => id == _userId ? Email : null);
         var grant = new PasswordlessSessionGrant(
             _inbox, _sessions, Substitute.For<IAuthAuditLogger>(), database, FakeDateTimeProvider.Default, correlation, request,
-            reader, access, AccountAccessTestKit.Advancer(reader, access), Substitute.For<IAccountAccessCleanup>());
+            reader, access, AccountAccessTestKit.Advancer(reader, access), Substitute.For<IAccountAccessCleanup>(), _activity);
 
         return new CompleteLoginChallengeCommandHandler(
             options, _grants, _claim, resolver,
@@ -264,6 +266,20 @@ public sealed class CompleteLoginChallengeTests
     }
 
     [Fact]
+    public async Task The_registrations_session_is_recorded_as_the_new_accounts_login()
+    {
+        TheAddressGetsItsAccountFromTheCreator();
+
+        await Handler().Handle(Command(), Ct);
+
+        Received.InOrder(() =>
+        {
+            _sessions.CreateAsync(_userId, Arg.Any<AccountAccessProof>(), SessionLifetime.Persistent, CancellationToken.None);
+            _activity.RecordLoginAsync(_userId, CancellationToken.None);
+        });
+    }
+
+    [Fact]
     public async Task The_new_account_leaves_exactly_one_audit_row_and_it_names_no_address()
     {
         TheAddressGetsItsAccountFromTheCreator();
@@ -291,6 +307,7 @@ public sealed class CompleteLoginChallengeTests
         await Should.ThrowAsync<SessionStoreUnavailableException>(() => Handler().Handle(Command(), Ct).AsTask());
 
         (await _db.JobSeekers.AsNoTracking().CountAsync(Ct)).ShouldBe(1);
+        await _activity.DidNotReceiveWithAnyArgs().RecordLoginAsync(default, Ct);
     }
 
     [Fact]

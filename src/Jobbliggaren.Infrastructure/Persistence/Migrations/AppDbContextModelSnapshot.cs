@@ -1495,6 +1495,26 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.ToTable("saved_searches", (string)null);
                 });
 
+            modelBuilder.Entity("Jobbliggaren.Infrastructure.Auth.Activity.AccountActivity", b =>
+                {
+                    b.Property<Guid>("JobSeekerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_seeker_id");
+
+                    b.Property<DateTimeOffset>("LastActiveAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_active_at");
+
+                    b.Property<DateTimeOffset?>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_login_at");
+
+                    b.HasKey("JobSeekerId")
+                        .HasName("pk_account_activity");
+
+                    b.ToTable("account_activity", (string)null);
+                });
+
             modelBuilder.Entity("Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchCriterionMaterialisation", b =>
                 {
                     b.Property<Guid>("CriterionId")
@@ -2247,6 +2267,16 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_resume_versions_resumes_resume_id");
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Infrastructure.Auth.Activity.AccountActivity", b =>
+                {
+                    b.HasOne("Jobbliggaren.Domain.JobSeekers.JobSeeker", null)
+                        .WithMany()
+                        .HasForeignKey("JobSeekerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_account_activity_job_seekers_job_seeker_id");
                 });
 
             modelBuilder.Entity("Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchCriterionMaterialisation", b =>

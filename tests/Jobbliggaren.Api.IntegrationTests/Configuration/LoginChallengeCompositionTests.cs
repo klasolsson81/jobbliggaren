@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Activity;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
@@ -5,6 +6,7 @@ using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.Activity;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,6 +67,10 @@ public sealed class LoginChallengeCompositionTests
         // #1745 (dotnet-architect N4): the code request's gates. The dispatcher they hand off to is Api-exclusive, so
         // they are too.
         services.ShouldContain(d => d.ServiceType == typeof(LoginChallengeAdmission));
+
+        // #2161 (ADR 0172): the activity record's writers are the grant and the Api's request middleware.
+        services.ShouldContain(d => d.ServiceType == typeof(IAccountActivityRecorder) && d.Lifetime == ServiceLifetime.Scoped);
+        services.ShouldContain(d => d.ServiceType == typeof(AccountActivityClaims) && d.Lifetime == ServiceLifetime.Singleton);
     }
 
     [Fact]
@@ -86,6 +92,8 @@ public sealed class LoginChallengeCompositionTests
         services.ShouldNotContain(d => d.ServiceType == typeof(IInboxProofRecorder));
         services.ShouldNotContain(d => d.ServiceType == typeof(VolatileRedisConnection));
         services.ShouldNotContain(d => d.ServiceType == typeof(LoginChallengeAdmission));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IAccountActivityRecorder));
+        services.ShouldNotContain(d => d.ServiceType == typeof(AccountActivityClaims));
     }
 
     [Theory]

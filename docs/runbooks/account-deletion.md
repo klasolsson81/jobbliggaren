@@ -85,7 +85,8 @@ registration. Every run performs its normal four steps:
 
 The cascade includes applications/children, resumes/versions, parsed CVs and
 originals, matching/digest state, saved searches/job ads, recent searches,
-company watches/hits/criteria and database-cascaded derived rows, and feedback
+company watches/hits/criteria and database-cascaded derived rows (among them the
+account-activity record, ADR 0172), and feedback
 screenshots/submissions/notices/prompt suppressions. Screenshots are removed before
 their submissions. The cascade map and worker integration tests pin the current
 inventory, including screenshot preservation while scheduled, rollback on Identity

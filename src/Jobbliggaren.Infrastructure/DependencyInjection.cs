@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Admin.Accounts;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.AccountEmailChanges;
+using Jobbliggaren.Application.Auth.Activity;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
@@ -21,6 +22,7 @@ using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Access;
 using Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
+using Jobbliggaren.Infrastructure.Auth.Activity;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.Grants;
@@ -1451,6 +1453,11 @@ public static class DependencyInjection
         services.AddScoped<LoginChallengeIssuer>();
         services.AddScoped<LoginChallengeAdmission>();
         services.AddScoped<IInboxProofRecorder, IdentityInboxProofRecorder>();
+        // #2161 (ADR 0172) — the account-activity record: the grant records each login, the Api's request middleware
+        // each authenticated minute. Api-only like the grant (LoginChallengeCompositionTests); the claims are per
+        // process by design (ADR 0172 D4).
+        services.AddSingleton<AccountActivityClaims>();
+        services.AddScoped<IAccountActivityRecorder, SqlAccountActivityRecorder>();
         services.AddScoped<PasswordlessSessionGrant>();
         services.AddScoped<LoginProofOutcome>();
 

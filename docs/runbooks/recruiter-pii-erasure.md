@@ -354,7 +354,10 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
    it. Do not write the addresses or the names into an issue, a commit or a PR.
 6. **Say what cannot be reached**, in the reply: a link-preview cache, another search
    engine, an archive and a copy someone else made are outside our reach, and
-   Arbetsförmedlingen keeps the original until the ad's own deadline. The reply templates
+   Arbetsförmedlingen keeps the original until the ad's own deadline. Since the page carries
+   `JobPosting` markup (ADR 0171), Google's own jobs experience holds a listing too; it drops
+   it on the 410 or on `validThrough`, with a lag Google itself states, and whether the
+   Removals tool reaches that surface is not measured. The reply templates
    in section 4 are Klas-approved; a sentence about this step is added only with his
    approval, and only once the step is done.
 
@@ -366,7 +369,11 @@ updated 2025-12-10): "within a day", pair a request with a permanent fix, do not
 `robots.txt`; Google Search Central, "HTTP status codes"
 (https://developers.google.com/search/docs/crawling-indexing/http-network-errors, updated
 2026-02-04): a 404 and a 410 are treated alike, and an indexed URL that answers one is
-dropped.*
+dropped; Google Search Central, "Job posting structured data"
+(https://developers.google.com/search/docs/appearance/structured-data/job-posting, updated
+2026-09-08, read 2026-10-17): an expired posting is removed by `validThrough` in the past, a
+404/410 or removing the markup, and "Users can still access the page through the jobs
+experience on Google even though the job has expired".*
 
 ### 2.5 The audit trail
 

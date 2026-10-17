@@ -276,3 +276,19 @@ Ships under #2090 S2 in one PR with this ADR, ADR 0166 and the three amendments 
   (2026-07-10). These pages change; the dates say what was read.
 - ADR 0018 (Amendment 2026-10-10), ADR 0053, ADR 0017, ADR 0106, ADR 0154, ADR 0163 · #2090 · #2091 · #2094 · #2098 · #2123 ·
   #1477
+
+## Amendment 2026-10-17 (#2090 S3, ADR 0171) — JSON-LD now ships; D4's metadata rule is unchanged; the page gains a facts row
+
+D1–D7 stand and nothing above is rewritten. This amendment records what the S3 PR changes in D4; the reasoning is in ADR 0171.
+
+**1. "Left out on purpose: … JSON-LD (S3)" is closed.** The page now carries one `JobPosting` JSON-LD block when the ad is complete enough for Google's schema (ADR 0171
+D2–D5). The block is built from the anonymous DTO and from the blocks `parseAdDescription` produces, with every text run HTML-escaped.
+
+**2. D4's metadata rule is UNCHANGED.** "Metadata comes from structured fields only": the title, the description and the OpenGraph tags are built from title, company and
+dates, never from the free text. The sentinel-name test on `generateMetadata` still pins it and is not modified. The data block is a different channel with a different
+class of holder, which ADR 0166 states in its amendment of the same date.
+
+**3. The page gains a facts row** under the dates: kommun and län, and employment type and extent (ADR 0171 D6). The concept-id labels that D4 left out "on purpose" are
+therefore partly shown; occupation group, the explainer links and related ads stay with S6.
+
+ADR 0165 remains **Accepted**.

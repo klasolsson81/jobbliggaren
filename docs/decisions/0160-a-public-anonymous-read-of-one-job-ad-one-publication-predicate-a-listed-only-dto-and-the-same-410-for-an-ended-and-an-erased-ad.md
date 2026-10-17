@@ -336,3 +336,17 @@ on both calls, which is the relay D5 said was needed. This is accepted for phase
 `(app)` page (ADR 0165 D7).
 
 ADR 0160 remains **Accepted**.
+
+## Amendment 2026-10-17 (#2090 S3, ADR 0171) — D4's member set grows from 12 to 14; D7 is resolved per dimension
+
+D1–D9 stand and nothing above is rewritten. This amendment records two things the S3 PR settles; the reasoning is in ADR 0171 (D1).
+
+**1. D4's member set grows from 12 to 14.** `PublicJobAdDto` gains `MunicipalityName` and `RegionName`, both nullable; the concept ids stay. The names are
+register data (proper nouns), not personal data. `PublicJobAdDtoContractTests` and the wire pin in `PublicJobAdEndpointTests` are updated to the 14-member set. D4's
+"never carried" and "left out on purpose" lists are unchanged.
+
+**2. D7 is resolved, per dimension.** Kommun and län are named by `GetPublicJobAdQueryHandler` through `ITaxonomyReadModel`, in one `ResolveLabelsAsync` call made only
+after the second `Classify` returns Listed (never for a 410 or a 404). Employment type and worktime extent stay coded and are named by the frontend catalogue
+`coded-taxonomy.ts` (#1537). Occupation group is not resolved; it belongs to S6.
+
+ADR 0160 remains **Accepted**.

@@ -7,7 +7,7 @@
   "openAdAf": "Öppna annonsen hos Arbetsförmedlingen",
   "facts": {
     "location": "Ort",
-    "employment": "Anställningsform och omfattning"
+    "employment": "Anställning"
   },
   "gone": {
     "title": "Annonsen är inte längre tillgänglig",

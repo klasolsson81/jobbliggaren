@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import { Briefcase, ExternalLink, MapPin } from "lucide-react";
+import { ExternalLink, FileText, MapPin } from "lucide-react";
 import { InformationLink } from "@/components/information/InformationLink";
 import { JsonLdScript } from "@/components/seo/json-ld-script";
 import type { PublicJobAdDto } from "@/lib/dto/public-job-ad";
@@ -65,7 +65,7 @@ export function PublicJobAd({ jobAd }: { jobAd: PublicJobAdDto }) {
                 )}
                 {employment !== "" && (
                   <span className="jp-modal__fact">
-                    <Briefcase size={14} className="jp-modal__fact-icon" aria-hidden="true" />
+                    <FileText size={14} className="jp-modal__fact-icon" aria-hidden="true" />
                     <span>
                       <span className="sr-only">{tPublic("facts.employment")} </span>
                       {employment}

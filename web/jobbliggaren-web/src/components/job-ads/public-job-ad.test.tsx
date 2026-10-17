@@ -13,9 +13,7 @@ const AD: PublicJobAdDto = {
   url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
   publishedAt: "2026-10-01T08:00:00Z",
   expiresAt: "2026-11-01T08:00:00Z",
-  municipalityConceptId: "AvNB_uwa_6n6",
   municipalityName: "Stockholm",
-  regionConceptId: "CifL_Rzy_Mku",
   regionName: "Stockholms län",
   employmentTypeConceptId: "gro4_cWF_6D7", // Vikariat
   worktimeExtentConceptId: "6YE1_gAC_R2G", // Heltid
@@ -177,7 +175,7 @@ describe("PublicJobAd: the facts row (ADR 0171)", () => {
     const facts = container.querySelector(".jp-modal__facts");
     expect(facts).not.toBeNull();
     const items = [...facts!.querySelectorAll(".jp-modal__fact")].map((f) => f.textContent?.replace(/\s+/g, " ").trim());
-    expect(items).toEqual(["Ort Stockholm, Stockholms län", "Anställningsform och omfattning Vikariat · Heltid"]);
+    expect(items).toEqual(["Ort Stockholm, Stockholms län", "Anställning Vikariat · Heltid"]);
     expect(facts!.querySelectorAll(".sr-only")).toHaveLength(2);
     expect(facts!.querySelectorAll("svg[aria-hidden='true']")).toHaveLength(2);
   });
@@ -205,7 +203,7 @@ describe("PublicJobAd: the facts row (ADR 0171)", () => {
 
   it("never shows a concept id", () => {
     const { container } = render(<PublicJobAd jobAd={AD} />);
-    for (const id of ["AvNB_uwa_6n6", "CifL_Rzy_Mku", "gro4_cWF_6D7", "6YE1_gAC_R2G"]) {
+    for (const id of ["gro4_cWF_6D7", "6YE1_gAC_R2G"]) {
       expect(container.textContent).not.toContain(id);
     }
   });
@@ -226,7 +224,9 @@ describe("PublicJobAd: the JobPosting data block (ADR 0171)", () => {
 
   it("asserts nothing the page does not show: title, company, kommun, län and every employment label are in the rendered text", () => {
     const { container } = render(<PublicJobAd jobAd={AD} />);
-    const text = container.textContent ?? "";
+    // The article holds everything a visitor sees; the data block is its sibling, so its own JSON cannot
+    // satisfy these assertions.
+    const text = container.querySelector("article")?.textContent ?? "";
     const posting = JSON.parse(jsonLdScripts(container)[0]?.innerHTML ?? "") as {
       title: string;
       hiringOrganization: { name: string };

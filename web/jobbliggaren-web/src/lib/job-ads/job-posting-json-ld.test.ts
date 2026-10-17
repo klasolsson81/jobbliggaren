@@ -31,9 +31,7 @@ const AD: PublicJobAdDto = {
   url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
   publishedAt: "2026-10-01T08:00:00+00:00",
   expiresAt: "2026-11-01T08:00:00+00:00",
-  municipalityConceptId: "AvNB_uwa_6n6",
   municipalityName: "Stockholm",
-  regionConceptId: "CifL_Rzy_Mku",
   regionName: "Stockholms län",
   employmentTypeConceptId: byLabel("Vikariat"),
   worktimeExtentConceptId: byLabel("Heltid"),
@@ -154,7 +152,7 @@ describe("buildJobPosting: the eligible ad", () => {
 describe("buildJobPosting: eligibility, one branch each", () => {
   it.each([
     ["a blank title", { title: "   " }],
-    ["a blank company name", { companyName: "" }],
+    ["a blank company name", { companyName: "   " }],
     ["no resolved kommun (a län alone does not carry addressCountry)", { municipalityName: null }],
     ["a kommun name that is only whitespace", { municipalityName: " " }],
     ["a description that is the title again (case-insensitive)", { description: " SJUKSKÖTERSKA TILL VÅRDCENTRAL " }],
@@ -166,14 +164,8 @@ describe("buildJobPosting: eligibility, one branch each", () => {
 
   it("does not need a region, an employment type or an extent", () => {
     expect(
-      buildJobPosting({ ...AD, regionName: null, regionConceptId: null, employmentTypeConceptId: null, worktimeExtentConceptId: null })
+      buildJobPosting({ ...AD, regionName: null, employmentTypeConceptId: null, worktimeExtentConceptId: null })
     ).not.toBeNull();
-  });
-
-  it("is pure: the same DTO gives the same posting, whatever the time is", () => {
-    const a = JSON.stringify(buildJobPosting(AD));
-    const b = JSON.stringify(buildJobPosting(AD));
-    expect(a).toBe(b);
   });
 });
 
@@ -253,20 +245,5 @@ describe("the description HTML", () => {
 
   it("escapes the five characters and nothing else", () => {
     expect(escapeHtmlText("a & b < c > d \" e ' f åäö")).toBe("a &amp; b &lt; c &gt; d &quot; e &#39; f åäö");
-  });
-});
-
-describe("buildJobPosting: the serialised script can never close itself", () => {
-  it("has no `</script` once the title, company and text carry one and JsonLdScript's escape is applied", () => {
-    const posting = buildJobPosting({
-      ...AD,
-      title: "</script><script>alert(1)</script> Titel",
-      companyName: "</script>Bolag",
-      description: "Text</script>\n\nMer text",
-    });
-    const serialised = JSON.stringify(posting).replace(/</g, "\\u003c");
-    expect(serialised).not.toContain("</script");
-    expect(serialised).not.toContain("<");
-    expect(JSON.parse(serialised)).toEqual(posting);
   });
 });

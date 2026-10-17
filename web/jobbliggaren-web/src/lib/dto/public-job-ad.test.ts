@@ -19,7 +19,7 @@ const WIRE = {
 };
 
 describe("publicJobAdDtoSchema", () => {
-  it("reads the eleven members the page uses and strips the rest of the wire (the occupation group stays unread)", () => {
+  it("reads the eleven members the page uses and strips the rest of the wire (the three unread concept ids among them)", () => {
     const parsed = publicJobAdDtoSchema.parse(WIRE);
 
     expect(Object.keys(parsed).sort()).toEqual(
@@ -31,15 +31,15 @@ describe("publicJobAdDtoSchema", () => {
         "publishedAt",
         "title",
         "url",
-        "municipalityConceptId",
         "municipalityName",
-        "regionConceptId",
         "regionName",
         "employmentTypeConceptId",
         "worktimeExtentConceptId",
       ].sort()
     );
-    expect("occupationGroupConceptId" in parsed).toBe(false);
+    for (const unread of ["occupationGroupConceptId", "municipalityConceptId", "regionConceptId"]) {
+      expect(unread in parsed).toBe(false);
+    }
   });
 
   it("accepts a null name (an id the snapshot does not know) and an employment id the catalogue does not know", () => {

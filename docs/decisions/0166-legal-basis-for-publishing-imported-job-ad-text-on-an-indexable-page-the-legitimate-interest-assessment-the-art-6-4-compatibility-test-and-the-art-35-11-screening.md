@@ -349,7 +349,7 @@ three bearer-absence readings covers (a new register of accounts, sends or reade
   https://developers.google.com/search/docs/appearance/structured-data/job-posting
 - #2090 · #2091 · #2098 · #2123 · #841
 
-## Amendment 2026-10-17 (#2090 S3, ADR 0171) — the record is made true (Art. 5(2)); approved by Klas 2026-10-17, signature pending `security-auditor`'s scoped re-check
+## Amendment 2026-10-17 (#2090 S3, ADR 0171) — the record is made true (Art. 5(2)); approved by Klas 2026-10-17, signed by `security-auditor` 2026-10-17
 
 D1–D11 and the earlier amendment stand and nothing above is rewritten. S3 puts a `JobPosting` data block on the listed `/jobb/<uuid>` page (ADR 0171). The block is built
 from the anonymous read the page already makes, with the description HTML-escaped and a pinned key set (ADR 0171 D4). This amendment makes the record say what the page does.
@@ -376,6 +376,6 @@ The `recruiterNotice` text is **not** changed (Klas's choice, 2026-10-17). How m
 
 **Controller approval:** Klas Olsson, 2026-10-17, in the session's chat, to `security-auditor`'s escalation relayed verbatim: "Ja, ingen trigger (Rek.)" (trigger 1 does not
 fire for S3) and "Ja, godkänt (Rek.)" (this amendment).
-**Signature:** `security-auditor`, pending her scoped re-check of PR [#2160](https://github.com/klasolsson81/jobbliggaren/pull/2160). Her signature of 2026-10-12 does not cover this amendment.
+**Signature:** `security-auditor`, 2026-10-17, on her scoped re-check of PR [#2160](https://github.com/klasolsson81/jobbliggaren/pull/2160) at head `144fda24c`: signs this amendment, points (i)–(iv) and D10 triggers 5–7, read with ADR 0171 D4 as delivered — the description HTML escaped per text run before any tag is wrapped and emitted only in the tag set `p`, `ul`, `li`, `br`; `hiringOrganization` as `{@type, name}` only; `jobLocation.address` as `addressLocality`, `addressRegion` and `addressCountry` only; no `url`. It does not re-sign D1–D11, which her signature of 2026-10-12 covers, and it does not cover the Amendment 2026-10-11, which she has not signed. It lapses with any D10 trigger, 5–7 included, and with any change to this amendment's text or to ADR 0171 D4's key set or escaping; the edit that writes this line and marks the amendment Accepted does not reopen it.
 
-ADR 0166 remains **Accepted** for D1–D11; this amendment is **Proposed** until signed.
+ADR 0166 remains **Accepted** for D1–D11; this amendment is **Accepted** (approved by Klas and signed by `security-auditor`, both 2026-10-17).

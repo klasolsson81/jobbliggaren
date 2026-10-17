@@ -114,7 +114,7 @@ public sealed class GetPublicJobAdQueryHandler(IAppDbContext db, ITaxonomyReadMo
         if (ids.Count == 0)
             return EmptyNames;
 
-        var resolved = await taxonomy.ResolveLabelsAsync(ids, cancellationToken);
+        var resolved = await taxonomy.ResolveLabelsAsync(ids.Distinct(StringComparer.Ordinal).ToList(), cancellationToken);
         return resolved
             .Where(l => l.Label is not null)
             .ToDictionary(l => l.ConceptId, l => l.Label!, StringComparer.Ordinal);

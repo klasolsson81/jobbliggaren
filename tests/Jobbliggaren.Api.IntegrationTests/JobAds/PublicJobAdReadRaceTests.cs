@@ -4,6 +4,7 @@ using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.JobAds;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd;
+using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -30,15 +31,27 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
     private string _connectionString = string.Empty;
 
     /// <summary>
-    /// The taxonomy port. The ad has no location ids (<c>TestFacets.None</c>), so a Listed answer would not
-    /// ask it either; what these tests pin is that the second classification gates the port as well as
-    /// the body (ADR 0171): an ad that ended between the reads never reaches it.
+    /// The taxonomy port, kept to the adapter's contract (one row per asked id, in input order, a null label
+    /// for an id the snapshot does not know). The ad carries a kommun and a län id, so a Listed answer asks
+    /// the port once; what these tests pin is that the second classification gates the port as well as the
+    /// body (ADR 0171): an ad that ended between the reads never reaches it.
     /// </summary>
     private readonly ITaxonomyReadModel _taxonomy = Substitute.For<ITaxonomyReadModel>();
 
+    private static readonly string[] RaceLocationIds = ["mun_race", "reg_race"];
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public async ValueTask InitializeAsync() => _connectionString = await postgres.CreateDatabaseAsync();
+    public async ValueTask InitializeAsync()
+    {
+        _connectionString = await postgres.CreateDatabaseAsync();
+        // CA2012: NSubstitute's stub of a ValueTask-returning port member is the library's idiom (same waiver as the unit tests).
+#pragma warning disable CA2012
+        _taxonomy.ResolveLabelsAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(call => new ValueTask<IReadOnlyList<TaxonomyLabelDto>>(
+                call.Arg<IReadOnlyList<string>>().Select(id => new TaxonomyLabelDto(id, Label: null)).ToList()));
+#pragma warning restore CA2012
+    }
 
     public async ValueTask DisposeAsync() => await postgres.DropDatabaseAsync(_connectionString);
 
@@ -62,7 +75,7 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
             url: $"https://arbetsformedlingen.se/platsbanken/annonser/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: payload,
-            facets: TestFacets.None,
+            facets: TestFacets.From(municipality: "mun_race", region: "reg_race"),
             declaredContacts: [],
             publishedAt: Clock.UtcNow.AddDays(-2),
             expiresAt: Clock.UtcNow.AddDays(20),
@@ -88,6 +101,23 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
         var result = await new GetPublicJobAdQueryHandler(db, _taxonomy, Clock).Handle(new GetPublicJobAdQuery(id), Ct);
         interleave.Reads.ShouldBe(2, "the change must land between the facts read and the content read");
         return result;
+    }
+
+    [Fact]
+    public async Task An_ad_unchanged_between_the_two_reads_is_listed_and_asks_the_port_once()
+    {
+        // The control case: the fixture's ids do reach the port on the Listed path, so the two
+        // DidNotReceive pins below cannot hold vacuously.
+        var id = await ImportListedAsync();
+
+        var result = await ReadWithChangeAfterFirstReadAsync(id, _ => Result.Success());
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.MunicipalityConceptId.ShouldBe("mun_race");
+        result.Value.MunicipalityName.ShouldBeNull("the stub knows no id, as the real adapter answers an unknown one");
+        await _taxonomy.Received(1).ResolveLabelsAsync(
+            Arg.Is<IReadOnlyList<string>>(ids => ids.SequenceEqual(RaceLocationIds)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

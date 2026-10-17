@@ -1,7 +1,7 @@
 # ADR 0171 — The public job page carries a `JobPosting` data block: built in the frontend, kommun and län named by the handler, and the page shows the facts its markup asserts
 
 **Date:** 2026-10-17
-**Status:** Proposed. The §9.2 panel reviews the PR; the signature of `security-auditor` on the ADR 0166 amendment comes on her scoped re-check.
+**Status:** Accepted 2026-10-17. The §9.2 panel's round on PR #2160 (code-reviewer, dotnet-architect, security-auditor, test-writer, design-reviewer; verdict table in the PR body) closed every finding in-block; `security-auditor` signed the ADR 0166 amendment the same day. Klas reviews the diff post-merge (CLAUDE.md §9.2).
 **Deciders:** Klas Olsson (controller and product owner; two answers in chat on 2026-10-17, recorded in D7) · `senior-cto-advisor`, "the CTO" below
 (decision-maker under CLAUDE.md §9.2; ruling on forks F1–F7, report-only; `docs/reviews/2026-10-17-2090-s3-plan-cto.md`) · `security-auditor`
 (plan read, report-only; `docs/reviews/2026-10-17-2090-s3-plan-security-auditor.md`: her verdict, M1, M2, Minor 3 and the escalation) ·
@@ -156,7 +156,7 @@ reader of the trigger list, she put two questions to him, relayed verbatim the s
 2. **"Ja, godkänt (Rek.)"**: a dated amendment to ADR 0166, written as the ADR 0166 amendment of 2026-10-17. The `recruiterNotice` text is **not** changed: he did not
    choose the clarification that `security-auditor` offered as his option.
 
-Her reading holds only while M1 and M2 hold. Her signature of 2026-10-12 does not cover the amendment; she signs it on her scoped re-check of the PR.
+Her reading holds only while M1 and M2 hold. Her signature of 2026-10-12 does not cover the amendment; she signed it on 2026-10-17, on her review of PR #2160 at head `144fda24c` (the signature text is in the amendment).
 
 ### D8 — What is not measured
 
@@ -228,7 +228,7 @@ Files as delivered on the branch `feat/seo-s3-jobposting-jsonld`:
 ## References
 
 - `docs/reviews/2026-10-17-2090-s3-plan-cto.md` · `docs/reviews/2026-10-17-2090-s3-plan-security-auditor.md` · `docs/reviews/2026-10-17-2090-s3-plan-dotnet-architect.md`
-  (the first two transcribed verbatim by the driving session; local)
+  (all three transcribed verbatim by the driving session; local)
 - ADR 0160 (D2, D3, D4, D5, D7) · ADR 0165 (D3, D4) · ADR 0166 (D2, D4, D5, D7, D10) · ADR 0043 (Beslut A, Amendment 2026-06-13) · ADR 0087 D8
 - Martin, *Clean Architecture* (2017), ch. 13 (CCP) and ch. 22 · Hunt/Thomas, *The Pragmatic Programmer* (1999), DRY · Evans 2003, ch. 14 (ACL)
 - Google Search Central, job posting structured data (dated 2026-09-08, read 2026-10-17):

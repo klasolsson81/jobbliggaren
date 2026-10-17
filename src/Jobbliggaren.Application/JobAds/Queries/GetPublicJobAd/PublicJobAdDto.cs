@@ -7,8 +7,11 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd;
 /// <remarks>
 /// Structurally anonymous: no user state, no match data, no contact block, no org.nr, no raw
 /// payload, no extracted terms. <c>PublicJobAdDtoContractTests</c> pins the exact member set, so a
-/// field added here fails a test before it reaches a public page. The concept ids stay codes;
-/// whoever renders them owns the labels (ADR 0043).
+/// field added here fails a test before it reaches a public page. Kommun and län leave as the
+/// concept id and its snapshot name (ADR 0171; the name is <see langword="null"/> when the snapshot
+/// does not know the id). Employment type, worktime extent and occupation group stay codes: the
+/// frontend catalogue names the first two per locale (ADR 0043 Amendment 2026-06-13), and the third
+/// has no public consumer.
 /// </remarks>
 public sealed record PublicJobAdDto(
     Guid Id,
@@ -19,7 +22,9 @@ public sealed record PublicJobAdDto(
     DateTimeOffset PublishedAt,
     DateTimeOffset? ExpiresAt,
     string? MunicipalityConceptId,
+    string? MunicipalityName,
     string? RegionConceptId,
+    string? RegionName,
     string? OccupationGroupConceptId,
     string? EmploymentTypeConceptId,
     string? WorktimeExtentConceptId);

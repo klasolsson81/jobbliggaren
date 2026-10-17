@@ -3,6 +3,7 @@ using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd;
 using Jobbliggaren.Domain.JobAds;
@@ -89,7 +90,7 @@ public sealed class PublicJobAdDeadlineAgreementTests(SharedPostgresFixture post
     {
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var result = await new GetPublicJobAdQueryHandler(db, new MutableFakeDateTimeProvider { UtcNow = now })
+        var result = await new GetPublicJobAdQueryHandler(db, Substitute.For<ITaxonomyReadModel>(), new MutableFakeDateTimeProvider { UtcNow = now })
             .Handle(new GetPublicJobAdQuery(id), Ct);
         if (result.IsFailure)
             result.Error.ShouldBe(JobAdErrors.Gone);

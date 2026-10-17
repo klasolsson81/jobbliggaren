@@ -2,6 +2,7 @@ using System.Data.Common;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.JobAds;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -9,6 +10,7 @@ using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using NSubstitute;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
@@ -26,6 +28,13 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
     private static readonly MutableFakeDateTimeProvider Clock = new() { UtcNow = new(2026, 10, 10, 12, 0, 0, TimeSpan.Zero) };
 
     private string _connectionString = string.Empty;
+
+    /// <summary>
+    /// The taxonomy port. The ad has no location ids (<c>TestFacets.None</c>), so a Listed answer would not
+    /// ask it either; what these tests pin is that the second classification gates the port as well as
+    /// the body (ADR 0171): an ad that ended between the reads never reaches it.
+    /// </summary>
+    private readonly ITaxonomyReadModel _taxonomy = Substitute.For<ITaxonomyReadModel>();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -76,7 +85,7 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
         });
 
         await using var db = NewContext(interleave);
-        var result = await new GetPublicJobAdQueryHandler(db, Clock).Handle(new GetPublicJobAdQuery(id), Ct);
+        var result = await new GetPublicJobAdQueryHandler(db, _taxonomy, Clock).Handle(new GetPublicJobAdQuery(id), Ct);
         interleave.Reads.ShouldBe(2, "the change must land between the facts read and the content read");
         return result;
     }
@@ -90,6 +99,7 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
 
         result.IsFailure.ShouldBeTrue("a 200 here would serve the erased tombstone's '[raderad]'.");
         result.Error.ShouldBe(JobAdErrors.Gone);
+        await _taxonomy.DidNotReceive().ResolveLabelsAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -101,6 +111,7 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldBe(JobAdErrors.Gone);
+        await _taxonomy.DidNotReceive().ResolveLabelsAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Runs <paramref name="action"/> once, after the first reader of the context has executed.</summary>

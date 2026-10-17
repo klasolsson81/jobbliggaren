@@ -1,21 +1,51 @@
 using Jobbliggaren.Application.JobAds;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd;
+using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
+using NSubstitute;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetPublicJobAd;
+
+// CA2012: NSubstitute stubs and receive-checks on a ValueTask-returning port member are the
+// library's own idiom (the same waiver as TaxonomyQueryHandlersTests and DeriveOccupationCodesQueryHandlerTests).
+#pragma warning disable CA2012
 
 /// <summary>
 /// The anonymous detail read (ADR 0160). Premises come from the production factories: an imported
 /// ad through <c>JobAd.Import</c>, a never-imported one through <c>JobAd.Create</c> (what
 /// <c>POST /api/v1/job-ads</c> calls), and lifecycle changes through <c>Archive</c>/<c>Erase</c>.
+/// The taxonomy port is a substitute that keeps the real adapter's contract (one row per asked id,
+/// in input order, a null label for an id the snapshot does not know, never a throw).
 /// </summary>
 public class GetPublicJobAdQueryHandlerTests
 {
     private static readonly FakeDateTimeProvider Clock = FakeDateTimeProvider.Default;
+
+    /// <summary>What the snapshot knows in these tests. Two different names, so a swapped member fails.</summary>
+    private static readonly Dictionary<string, string> SnapshotNames = new(StringComparer.Ordinal)
+    {
+        ["mun_sthlm"] = "Stockholm",
+        ["reg_ab"] = "Stockholms län",
+    };
+
+    private static readonly string[] BothLocationIds = ["mun_sthlm", "reg_ab"];
+    private static readonly string[] RegionIdOnly = ["reg_ab"];
+
+    private readonly ITaxonomyReadModel _taxonomy = Substitute.For<ITaxonomyReadModel>();
+
+    public GetPublicJobAdQueryHandlerTests()
+    {
+        _taxonomy.ResolveLabelsAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(call => new ValueTask<IReadOnlyList<TaxonomyLabelDto>>(
+                call.Arg<IReadOnlyList<string>>()
+                    .Select(id => new TaxonomyLabelDto(id, SnapshotNames.GetValueOrDefault(id)))
+                    .ToList()));
+    }
 
     private static JobAd Import(DateTimeOffset publishedAt, DateTimeOffset? expiresAt, JobAdFacets? facets = null)
     {
@@ -50,11 +80,14 @@ public class GetPublicJobAdQueryHandlerTests
         return jobAd.Id.Value;
     }
 
-    private static ValueTask<Domain.Common.Result<PublicJobAdDto>> HandleAsync(AppDbContext db, Guid id) =>
-        new GetPublicJobAdQueryHandler(db, Clock).Handle(new GetPublicJobAdQuery(id), CancellationToken.None);
+    private ValueTask<Domain.Common.Result<PublicJobAdDto>> HandleAsync(AppDbContext db, Guid id) =>
+        new GetPublicJobAdQueryHandler(db, _taxonomy, Clock).Handle(new GetPublicJobAdQuery(id), CancellationToken.None);
+
+    private ValueTask<IReadOnlyList<TaxonomyLabelDto>> ThePortWasNotAskedAsync() =>
+        _taxonomy.DidNotReceive().ResolveLabelsAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
 
     [Fact]
-    public async Task Handle_ListedAd_ReturnsTheAdWithItsConceptIds()
+    public async Task Handle_ListedAd_ReturnsTheAdWithItsConceptIdsAndTheKommunAndLanNames()
     {
         await using var db = TestAppDbContextFactory.Create();
         var publishedAt = Clock.UtcNow.AddDays(-2);
@@ -67,18 +100,68 @@ public class GetPublicJobAdQueryHandlerTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(new PublicJobAdDto(
-            id,
-            "Backend-utvecklare",
-            "Klarna",
-            "Vi söker en backend-utvecklare.",
-            "https://arbetsformedlingen.se/platsbanken/annonser/1",
-            publishedAt,
-            expiresAt,
+            Id: id,
+            Title: "Backend-utvecklare",
+            CompanyName: "Klarna",
+            Description: "Vi söker en backend-utvecklare.",
+            Url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
+            PublishedAt: publishedAt,
+            ExpiresAt: expiresAt,
             MunicipalityConceptId: "mun_sthlm",
+            MunicipalityName: "Stockholm",
             RegionConceptId: "reg_ab",
+            RegionName: "Stockholms län",
             OccupationGroupConceptId: "grp_dev",
             EmploymentTypeConceptId: "et_fast",
             WorktimeExtentConceptId: "wt_full"));
+        await _taxonomy.Received(1).ResolveLabelsAsync(
+            Arg.Is<IReadOnlyList<string>>(ids => ids.SequenceEqual(BothLocationIds)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ListedAdWithAKommunIdTheSnapshotDoesNotKnow_LeavesThatNameNullAndKeepsTheOther()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-2), Clock.UtcNow.AddDays(20),
+            TestFacets.From(municipality: "mun_drifted", region: "reg_ab")));
+
+        var result = await HandleAsync(db, id);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.MunicipalityConceptId.ShouldBe("mun_drifted");
+        result.Value.MunicipalityName.ShouldBeNull();
+        result.Value.RegionName.ShouldBe("Stockholms län");
+    }
+
+    [Fact]
+    public async Task Handle_ListedAdWithOnlyALan_AsksThePortForThatIdAlone()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-2), null, TestFacets.From(region: "reg_ab")));
+
+        var result = await HandleAsync(db, id);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.MunicipalityName.ShouldBeNull();
+        result.Value.RegionName.ShouldBe("Stockholms län");
+        await _taxonomy.Received(1).ResolveLabelsAsync(
+            Arg.Is<IReadOnlyList<string>>(ids => ids.SequenceEqual(RegionIdOnly)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ListedAdWithoutLocationIds_DoesNotAskThePort()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-2), Clock.UtcNow.AddDays(20)));
+
+        var result = await HandleAsync(db, id);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.MunicipalityName.ShouldBeNull();
+        result.Value.RegionName.ShouldBeNull();
+        await ThePortWasNotAskedAsync();
     }
 
     [Fact]
@@ -90,6 +173,7 @@ public class GetPublicJobAdQueryHandlerTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldBe(JobAdErrors.NotFound);
+        await ThePortWasNotAskedAsync();
     }
 
     [Fact]
@@ -117,18 +201,21 @@ public class GetPublicJobAdQueryHandlerTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldBe(JobAdErrors.NotFound);
+        await ThePortWasNotAskedAsync();
     }
 
     [Fact]
     public async Task Handle_ErasedAd_ReturnsGone()
     {
         await using var db = TestAppDbContextFactory.Create();
-        var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-2), null), ad => ad.Erase(Clock).IsSuccess);
+        var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-2), null,
+            TestFacets.From(municipality: "mun_sthlm", region: "reg_ab")), ad => ad.Erase(Clock).IsSuccess);
 
         var result = await HandleAsync(db, id);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldBe(JobAdErrors.Gone);
+        await ThePortWasNotAskedAsync();
     }
 
     [Fact]
@@ -136,7 +223,8 @@ public class GetPublicJobAdQueryHandlerTests
     {
         await using var db = TestAppDbContextFactory.Create();
         var id = await SeedAsync(
-            db, Import(Clock.UtcNow.AddDays(-2), Clock.UtcNow.AddDays(20)), ad => ad.Archive(Clock).IsSuccess);
+            db, Import(Clock.UtcNow.AddDays(-2), Clock.UtcNow.AddDays(20),
+                TestFacets.From(municipality: "mun_sthlm", region: "reg_ab")), ad => ad.Archive(Clock).IsSuccess);
 
         var result = await HandleAsync(db, id);
 
@@ -144,6 +232,7 @@ public class GetPublicJobAdQueryHandlerTests
         result.Error.ShouldBe(JobAdErrors.Gone,
             "an ended ad answers exactly like an erased one, so the public surface never shows which "
             + "ads someone asked to have erased.");
+        await ThePortWasNotAskedAsync();
     }
 
     [Fact]
@@ -151,11 +240,14 @@ public class GetPublicJobAdQueryHandlerTests
     {
         // The clock, not a writer, makes this state: the ad is still Active until ExpireJobAdsJob runs.
         await using var db = TestAppDbContextFactory.Create();
-        var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-10), Clock.UtcNow.AddDays(-1)));
+        var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-10), Clock.UtcNow.AddDays(-1),
+            TestFacets.From(municipality: "mun_sthlm", region: "reg_ab")));
 
         var result = await HandleAsync(db, id);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldBe(JobAdErrors.Gone);
+        await ThePortWasNotAskedAsync();
     }
 }
+#pragma warning restore CA2012

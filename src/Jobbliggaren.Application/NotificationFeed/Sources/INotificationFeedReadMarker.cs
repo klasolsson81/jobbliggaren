@@ -33,7 +33,7 @@ internal interface INotificationFeedReadMarker
 
     /// <summary>
     /// ONE notification read: the row of <paramref name="jobAdId"/>, which for a source with several rows per ad is
-    /// every row of that ad. The bell's row is the (source, ad) pair, so a click reads the whole pair. The follow
+    /// every row of that ad. A click calls this on every source, because the ad is the notification (#2158). The follow
     /// source loads its few rows and marks them through the aggregate, committed by the unit of work; the match source
     /// writes in one statement that carries the consent.
     /// </summary>
@@ -41,7 +41,7 @@ internal interface INotificationFeedReadMarker
 
     /// <summary>
     /// #2151 — the X: takes ONE notification out of the bell, which for a source with several rows per ad is every row
-    /// of that ad. Sets the dismissed flag AND the read flag (a dismissed row is a read row, held by a CHECK), so the
+    /// of that ad, and is called on every source (#2158). Sets the dismissed flag AND the read flag (a dismissed row is a read row, held by a CHECK), so the
     /// token, the count, <see cref="MarkThroughAsync"/> and <see cref="MarkBacklogAsync"/> need no knowledge of it, and
     /// only the source's own window statement leaves dismissed rows out. It works on a row already read: filtering on
     /// <c>!ReadInNotificationFeed</c> here, as <see cref="MarkRowAsync"/> does, would make the X do nothing on exactly

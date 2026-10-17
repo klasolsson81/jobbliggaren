@@ -13,7 +13,7 @@ namespace Jobbliggaren.Application.UnitTests.NotificationFeed;
 
 /// <summary>
 /// #1666 — the bell's handler: no user gives an empty feed, every source answers once, and the merge
-/// keeps one row per (source, ad), newest first, capped.
+/// interleaves the sources newest first, capped.
 /// </summary>
 public class GetMyNotificationFeedQueryHandlerTests
 {
@@ -61,25 +61,25 @@ public class GetMyNotificationFeedQueryHandlerTests
         feed.Items.ShouldBeEmpty();
     }
 
-    // An ad that is both a match and a followed company's new ad is two notifications, for two reasons.
     [Fact]
-    public void Merge_KeepsOneRowPerSourceAndAd_NewestFirst()
+    public void Merge_InterleavesTheSourcesNewestFirst_AndPassesTheCountsThrough()
     {
-        var shared = Guid.NewGuid();
-        var other = Guid.NewGuid();
+        var newest = Guid.NewGuid();
+        var followedAd = Guid.NewGuid();
+        var oldest = Guid.NewGuid();
         var match = Read(NotificationFeedSourceKind.Match, 2, null,
-            Item(NotificationFeedSourceKind.Match, shared, T0.AddHours(3)),
-            Item(NotificationFeedSourceKind.Match, other, T0.AddHours(1)));
+            Item(NotificationFeedSourceKind.Match, newest, T0.AddHours(3)),
+            Item(NotificationFeedSourceKind.Match, oldest, T0.AddHours(1)));
         var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 1, null,
-            Item(NotificationFeedSourceKind.FollowedCompanyAd, shared, T0.AddHours(2)));
+            Item(NotificationFeedSourceKind.FollowedCompanyAd, followedAd, T0.AddHours(2)));
 
         var feed = GetMyNotificationFeedQueryHandler.Merge([match, followed], maxItems: 20);
 
         feed.Items.Select(i => (i.Kind, i.JobAdId)).ShouldBe(
         [
-            (NotificationFeedSourceKind.Match, shared),
-            (NotificationFeedSourceKind.FollowedCompanyAd, shared),
-            (NotificationFeedSourceKind.Match, other),
+            (NotificationFeedSourceKind.Match, newest),
+            (NotificationFeedSourceKind.FollowedCompanyAd, followedAd),
+            (NotificationFeedSourceKind.Match, oldest),
         ]);
         feed.Sources.Select(s => (s.Kind, s.UnreadCount)).ShouldBe(
         [
@@ -88,17 +88,19 @@ public class GetMyNotificationFeedQueryHandlerTests
         ]);
     }
 
+    // The followed ad has the lowest id of the three, so its place after both matches is the kind's doing, not the id's.
     [Fact]
     public void Merge_BreaksATieByKindThenAdId()
     {
-        var low = new Guid("00000000-0000-0000-0000-000000000001");
-        var high = new Guid("00000000-0000-0000-0000-000000000002");
+        var lowest = new Guid("00000000-0000-0000-0000-000000000001");
+        var low = new Guid("00000000-0000-0000-0000-000000000002");
+        var high = new Guid("00000000-0000-0000-0000-000000000003");
         var at = T0.AddHours(1);
         var match = Read(NotificationFeedSourceKind.Match, 2, null,
             Item(NotificationFeedSourceKind.Match, high, at),
             Item(NotificationFeedSourceKind.Match, low, at));
         var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 1, null,
-            Item(NotificationFeedSourceKind.FollowedCompanyAd, low, at));
+            Item(NotificationFeedSourceKind.FollowedCompanyAd, lowest, at));
 
         var feed = GetMyNotificationFeedQueryHandler.Merge([followed, match], maxItems: 20);
 
@@ -106,7 +108,7 @@ public class GetMyNotificationFeedQueryHandlerTests
         [
             (NotificationFeedSourceKind.Match, low),
             (NotificationFeedSourceKind.Match, high),
-            (NotificationFeedSourceKind.FollowedCompanyAd, low),
+            (NotificationFeedSourceKind.FollowedCompanyAd, lowest),
         ]);
     }
 
@@ -213,15 +215,16 @@ public class GetMyNotificationFeedQueryHandlerTests
     [Fact]
     public void Merge_DisplaysTheSelectionByTime_TiesByKindThenAdId()
     {
-        var low = new Guid("00000000-0000-0000-0000-000000000001");
-        var high = new Guid("00000000-0000-0000-0000-000000000002");
+        var lowest = new Guid("00000000-0000-0000-0000-000000000001");
+        var low = new Guid("00000000-0000-0000-0000-000000000002");
+        var high = new Guid("00000000-0000-0000-0000-000000000003");
         var at = T0.AddHours(1);
         var match = Read(NotificationFeedSourceKind.Match, 0, null,
             Item(NotificationFeedSourceKind.Match, high, at, unread: false),
             Item(NotificationFeedSourceKind.Match, low, at, unread: false),
             Item(NotificationFeedSourceKind.Match, Guid.NewGuid(), at.AddHours(1), unread: false));
         var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 1, null,
-            Item(NotificationFeedSourceKind.FollowedCompanyAd, low, at));
+            Item(NotificationFeedSourceKind.FollowedCompanyAd, lowest, at));
 
         var feed = GetMyNotificationFeedQueryHandler.Merge([followed, match], maxItems: 20);
 
@@ -232,7 +235,7 @@ public class GetMyNotificationFeedQueryHandlerTests
             (NotificationFeedSourceKind.Match, false),
             (NotificationFeedSourceKind.FollowedCompanyAd, true),
         ]);
-        feed.Items.Skip(1).Select(i => i.JobAdId).ShouldBe([low, high, low]);
+        feed.Items.Skip(1).Select(i => i.JobAdId).ShouldBe([low, high, lowest]);
     }
 
     // A source that refused to count still returned its rows; the preference for unread rows does not

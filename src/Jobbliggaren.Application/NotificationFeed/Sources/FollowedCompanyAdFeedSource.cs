@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.NotificationFeed.Queries.GetMyNotificationFeed;
 using Jobbliggaren.Domain.CompanyWatches;
@@ -10,7 +11,8 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// <summary>
 /// The followed-company source (#1666): <see cref="NewFollowedCompanyAdSet"/> under
 /// <c>LastSeenFollowedAdsAt</c>, the definition Översikt's "nya annonser från bevakade företag" reads,
-/// so the bell's number is that count bounded by its token, less the hits the user has read in the bell (#2130).
+/// so the bell's number is that count bounded by its token, less the hits the user has read in the bell (#2130) and
+/// the ads the match source holds (#2158).
 /// One row per AD, never per hit (<see cref="NewFollowedCompanyAdSet.CollapseToAds"/>), and only ads the inclusion
 /// rule admits — an "endast matchade" watch's ad below Good is no notification. Not consent-gated: follow hits are
 /// produced for every active follow, and their consent governs e-mail only. It is read only while
@@ -20,14 +22,23 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// <b>Unread in the bell</b> = new since the watermark AND not read in the bell. A row is unread when ANY of its
 /// included hits is. The <b>token (#1576)</b> is the newest of ALL new hits, flagged or not and including those the
 /// grade filter excludes, so an excluded older hit cannot hold the watermark down and re-show the same ads, and a
-/// hit read one by one can never strand the rest. The explicit "Markera alla som lästa" marks the whole counted set
-/// up to it; a visit to <c>/foretag/bevakade/nya</c> still acknowledges only the window it showed.
+/// hit read one by one can never strand the rest. The explicit "Markera alla som lästa" marks every new hit up to it,
+/// held ones included; a visit to <c>/foretag/bevakade/nya</c> still acknowledges only the window it showed.
+/// </para>
+///
+/// <para>
+/// <b>Held ads (#2158, ADR 0173):</b> while match notifications reach the bell, an ad the match source holds
+/// (<see cref="MatchFeedSource.HeldAdIds"/>) is its notification and not this one's: the count, the window and both
+/// fallbacks leave its hits out in SQL, and the token does not. Whether the match gate holds is read in the first
+/// statement, so with it off no statement here reads a match row; the held set checks the gate again inside every
+/// statement that uses it.
 /// </para>
 ///
 /// <para>
 /// <b>Window and horizon:</b> the list reads the newest <see cref="HitsPerRow"/> hits per shown row, read ones
-/// included, and filters them after reading, so an ad whose included hits all lie beyond the window can be missing.
-/// When the window is full, the hit just past it is the horizon, and the merge shows no READ row at or before it.
+/// included and held ones not, and filters them after reading, so an ad whose included hits all lie beyond the
+/// window can be missing. When the window is full, the hit just past it is the horizon, and the merge shows no READ
+/// row at or before it.
 /// </para>
 ///
 /// <para>
@@ -69,12 +80,15 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
 
         // The user's switch for this type and the watermark, in one statement: a user who switched the type off costs
         // no further read (Art. 5(1)(c)). The scope below reads the watches with the watermark already in hand.
+        var matchGate = NotificationFeedGate.Matches.Apply(db.JobSeekers);
         var seeker = await NotificationFeedGate.FollowedAds.Apply(db.JobSeekers)
             .Where(js => js.UserId == userId)
-            .Select(js => new { js.LastSeenFollowedAdsAt })
+            .Select(js => new { js.LastSeenFollowedAdsAt, MatchesReachBell = matchGate.Any(m => m.UserId == js.UserId) })
             .FirstOrDefaultAsync(cancellationToken);
         if (seeker is null)
             return NotificationSourceRead.Nothing(Kind);
+
+        var held = seeker.MatchesReachBell ? MatchFeedSource.HeldAdIds(db, userId) : null;
 
         var scope = await NewFollowedCompanyAdSet.LoadScopeAsync(db, userId, seeker.LastSeenFollowedAdsAt, cancellationToken);
         if (scope is null)
@@ -86,7 +100,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
         var countInput = token is { } through
             ? await NewFollowedCompanyAdSet.LoadCountInputAsync(
                 db, userId, scope, upperBound: through, maxGradeHits: maxCountedHits,
-                unreadInNotificationFeedOnly: true, cancellationToken)
+                narrowing: CountedInTheBell(held), cancellationToken)
             : NewFollowedCompanyAdSet.CountInput.Common(0);
 
         var windowHits = context.MaxItems * HitsPerRow;
@@ -95,7 +109,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
         if ((token ?? scope.LastSeen) is { } listBound)
         {
             window = await (
-                    from h in NewFollowedCompanyAdSet.NewHits(db, userId, lastSeen: null)
+                    from h in NotHeld(NewFollowedCompanyAdSet.NewHits(db, userId, lastSeen: null), held)
                     where h.CreatedAt <= listBound && !h.DismissedFromNotificationFeed
                     join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
                     orderby h.CreatedAt descending
@@ -154,7 +168,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
             && items.Count(i => i.IsUnread) < Math.Min(counted, context.MaxItems))
         {
             var unreadAds = await ReadUnreadBeyondWindowAsync(
-                context, scope, countInput, resolution.Matching, upTo, cancellationToken);
+                context, scope, countInput, resolution.Matching, held, upTo, cancellationToken);
 
             // One row per ad (ADR 0162 D2): the unread ad replaces the window's version of it (read, because its newest
             // hit is read while an older one is not), keeping the later of the two moments.
@@ -182,6 +196,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
         NewFollowedCompanyAdSet.Scope scope,
         NewFollowedCompanyAdSet.CountInput countInput,
         IReadOnlySet<JobAdId> matching,
+        IQueryable<JobAdId>? held,
         DateTimeOffset upTo,
         CancellationToken cancellationToken)
     {
@@ -194,7 +209,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
             // grouping of the unread hits.
             var rows = await (
                     from x in (
-                        from h in NewFollowedCompanyAdSet.NewHits(db, userId, scope.LastSeen)
+                        from h in NotHeld(NewFollowedCompanyAdSet.NewHits(db, userId, scope.LastSeen), held)
                         where h.CreatedAt <= upTo && !h.ReadInNotificationFeed
                         group h by h.JobAdId into g
                         select new { JobAdId = g.Key, At = g.Max(h => h.CreatedAt) })
@@ -217,13 +232,13 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
 
         var oldestWanted = wanted.Min(x => x.At);
         var hits = await (
-                from h in NewFollowedCompanyAdSet.NewHits(db, userId, scope.LastSeen)
+                from h in NotHeld(NewFollowedCompanyAdSet.NewHits(db, userId, scope.LastSeen), held)
                 where h.CreatedAt >= oldestWanted && h.CreatedAt <= upTo && !h.ReadInNotificationFeed
                 join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
                 orderby h.CreatedAt descending
                 select new { h.JobAdId, j.Title, Company = j.Company.Name })
-            // The same hits the count loaded (unread, past the watermark, up to the token), narrowed by time, so
-            // they number at most the counted hits and every wanted ad is among them.
+            // The same hits the count loaded (unread, not held, past the watermark, up to the token), narrowed by time,
+            // so they number at most the counted hits and every wanted ad is among them.
             .Take(countInput.GradeHits.Count)
             .ToListAsync(cancellationToken);
         var display = hits.GroupBy(r => r.JobAdId).ToDictionary(g => g.Key, g => g.First());
@@ -255,6 +270,18 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
             .Take(maxItems)
             .ToList();
 
+    /// <summary>The hits the bell counts: unread in the bell, and of an ad the match source does not hold.</summary>
+    private static Expression<Func<FollowedCompanyAdHit, bool>> CountedInTheBell(IQueryable<JobAdId>? held)
+    {
+        if (held is null)
+            return h => !h.ReadInNotificationFeed;
+        return h => !h.ReadInNotificationFeed && !held.Any(id => id == h.JobAdId);
+    }
+
+    /// <summary>The hits of ads the match source does not hold; every hit when it holds none.</summary>
+    private static IQueryable<FollowedCompanyAdHit> NotHeld(IQueryable<FollowedCompanyAdHit> hits, IQueryable<JobAdId>? held) =>
+        held is null ? hits : hits.Where(h => !held.Any(id => id == h.JobAdId));
+
     /// <summary>One hit joined to its ad's display columns. Named because an anonymous type cannot cross the projection.</summary>
     private sealed record WindowRow(
         JobAdId JobAdId, CompanyWatchId CompanyWatchId, DateTimeOffset CreatedAt, string Title, string CompanyName,
@@ -267,7 +294,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
     public async Task MarkRowAsync(NotificationFeedMarkContext context, JobAdId jobAdId, CancellationToken cancellationToken)
     {
         var userId = context.UserId;
-        // The bell's row is the (source, ad) pair, so every hit of the ad the owner has, through any watch.
+        // The bell's row is the ad, so every hit of the ad the owner has, through any watch.
         var hits = await context.Db.FollowedCompanyAdHits
             .Where(h => h.UserId == userId && h.JobAdId == jobAdId && !h.ReadInNotificationFeed)
             .ToListAsync(cancellationToken);

@@ -105,7 +105,7 @@ public class FollowedCompanyAdFeedSourceReadStateTests
     }
 
     [Fact]
-    public async Task ReadAsync_IsNotAffectedByTheBackgroundMatchSwitchOrConsent()
+    public async Task ReadAsync_ForAnAdThatIsNoMatch_IsNotAffectedByTheBackgroundMatchSwitchOrConsent()
     {
         using var db = TestAppDbContextFactory.Create();
         var userId = Guid.NewGuid();

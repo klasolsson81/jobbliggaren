@@ -214,9 +214,9 @@ public static class JobAdLifecycleReadRegistry
                     + "contradicts.")),
             ["Jobbliggaren.Application.Matching.Queries.NewMatchSet.Matches"] =
                 One(Active("join JobAds where j.Status == Active — the single definition of the user's new "
-                    + "matches, shared by the uncapped new-match count (#913 B3 witness) and the notification "
-                    + "bell's match source (#1666). The count handler no longer holds this read; it composes "
-                    + "this one.")),
+                    + "matches, shared by the uncapped new-match count (#913 B3 witness), the notification "
+                    + "bell's match source (#1666) and the ads that source holds, which the follow source leaves "
+                    + "out (#2158). The count handler no longer holds this read; it composes this one.")),
             ["Jobbliggaren.Application.Matching.Queries.GetMyMatches.GetMyMatchesQueryHandler.Handle"] =
                 One(Active("join JobAds where j.Status == Active — the /matchningar list (#864 PR-A gate).")),
             ["Jobbliggaren.Application.Matching.Jobs.DigestDispatch.DigestDispatchJob.DispatchUserDigestAsync"] =

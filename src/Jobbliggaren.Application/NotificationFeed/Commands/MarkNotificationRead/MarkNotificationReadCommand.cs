@@ -5,10 +5,10 @@ using Mediator;
 namespace Jobbliggaren.Application.NotificationFeed.Commands.MarkNotificationRead;
 
 /// <summary>
-/// #2130 (ADR 0168) — the authenticated user opened ONE notification in the bell: mark that (source, ad)
-/// pair read, in the bell and nowhere else. It sets the source row's own <c>ReadInNotificationFeed</c> flag and moves
-/// no watermark, so Översikt, <c>/matchningar</c> and <c>/foretag/bevakade/nya</c> keep their numbers (Klas
-/// 2026-10-11); it is not the e-mail dedup stamp either.
+/// #2130 (ADR 0168) — the authenticated user opened ONE notification in the bell: mark that ad read in every
+/// source (#2158, ADR 0173), in the bell and nowhere else. It sets the source rows' own
+/// <c>ReadInNotificationFeed</c> flag and moves no watermark, so Översikt, <c>/matchningar</c> and
+/// <c>/foretag/bevakade/nya</c> keep their numbers (Klas 2026-10-11); it is not the e-mail dedup stamp either.
 ///
 /// <para>
 /// <b>Owner-scoped, IDOR-safe (CLAUDE.md §5/§12):</b> the user is resolved in the handler from <c>ICurrentUser</c>,
@@ -24,5 +24,5 @@ namespace Jobbliggaren.Application.NotificationFeed.Commands.MarkNotificationRea
 /// owns. It is an ordinary command.
 /// </para>
 /// </summary>
-public sealed record MarkNotificationReadCommand(NotificationFeedSourceKind Kind, Guid JobAdId)
+public sealed record MarkNotificationReadCommand(Guid JobAdId)
     : ICommand<Result>, IAuthenticatedRequest;

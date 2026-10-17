@@ -42,7 +42,6 @@ describe("withRowRead (#2130)", () => {
 
     expect(patched.items[0]?.isUnread).toBe(false);
     expect(patched.sources.find((s) => s.kind === "Match")?.unreadCount).toBe(2);
-    // The same ad under the other source is another notification and is left alone.
     expect(patched.items[1]?.isUnread).toBe(true);
     expect(patched.sources.find((s) => s.kind === "FollowedCompanyAd")?.unreadCount).toBe(1);
   });

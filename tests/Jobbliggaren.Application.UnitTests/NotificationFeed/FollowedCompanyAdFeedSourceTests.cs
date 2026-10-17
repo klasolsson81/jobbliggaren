@@ -352,13 +352,13 @@ public class FollowedCompanyAdFeedSourceTests
         var scope = await NewFollowedCompanyAdSet.LoadScopeAsync(db, userId, ct);
 
         var input = await NewFollowedCompanyAdSet.LoadCountInputAsync(
-            db, userId, scope!, upperBound: T0.AddHours(2), maxGradeHits: 10, unreadInNotificationFeedOnly: false, ct);
+            db, userId, scope!, upperBound: T0.AddHours(2), maxGradeHits: 10, narrowing: null, ct);
 
         input.Refused.ShouldBeFalse();
         input.GradeHits.Select(h => h.CreatedAt).OrderBy(c => c).ShouldBe([T0.AddHours(1), T0.AddHours(2)]);
     }
 
-    // The bell's number is Översikt's "nya annonser från bevakade företag", not a second definition.
+    // For ads that are no match, the bell's number is Översikt's "nya annonser från bevakade företag", not a second definition.
     [Fact]
     public async Task ReadAsync_UnreadCount_EqualsTheOversiktCount_ForTheSameState()
     {

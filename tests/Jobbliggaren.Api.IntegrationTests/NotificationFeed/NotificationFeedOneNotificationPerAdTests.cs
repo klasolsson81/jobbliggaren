@@ -844,10 +844,12 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     }
 
     // Which follow statements read a match row: the count and the window while the gate holds (the control), the token
-    // never, and none at all while the consent is withdrawn or the follow switch is off (a gated source reads no row).
+    // never, and none at all while the consent is withdrawn, the match switch is off or the follow switch is off (a gated
+    // source reads no row).
     [Theory]
     [InlineData("gate-on")]
     [InlineData("consent-off")]
+    [InlineData("matches-off")]
     [InlineData("follows-off")]
     public async Task The_follow_source_reads_a_match_row_only_while_the_match_gate_holds(string state)
     {
@@ -857,6 +859,9 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         var ad = await SeedAdAsync("J", Ct);
         await SeedMatchAsync(userId, ad, Base.AddMinutes(1), Ct);
         await SeedHitAsync(userId, ad, watch, Base.AddMinutes(10), Ct);
+        if (state == "matches-off")
+            (await client.PutAsJsonAsync($"{Feed}/matches", new { enabled = false }, Ct))
+                .StatusCode.ShouldBe(HttpStatusCode.NoContent);
         if (state == "follows-off")
             (await client.PutAsJsonAsync($"{Feed}/followed-company-ads", new { enabled = false }, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);

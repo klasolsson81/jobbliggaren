@@ -376,6 +376,6 @@ The `recruiterNotice` text is **not** changed (Klas's choice, 2026-10-17). How m
 
 **Controller approval:** Klas Olsson, 2026-10-17, in the session's chat, to `security-auditor`'s escalation relayed verbatim: "Ja, ingen trigger (Rek.)" (trigger 1 does not
 fire for S3) and "Ja, godkänt (Rek.)" (this amendment).
-**Signature:** `security-auditor`, pending her scoped re-check of PR #<to be filled by the session>. Her signature of 2026-10-12 does not cover this amendment.
+**Signature:** `security-auditor`, pending her scoped re-check of PR [#2160](https://github.com/klasolsson81/jobbliggaren/pull/2160). Her signature of 2026-10-12 does not cover this amendment.
 
 ADR 0166 remains **Accepted** for D1–D11; this amendment is **Proposed** until signed.

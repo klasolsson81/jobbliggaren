@@ -69,8 +69,8 @@ public sealed class LoginChallengeCompositionTests
         services.ShouldContain(d => d.ServiceType == typeof(LoginChallengeAdmission));
 
         // #2161 (ADR 0172): the activity record's writers are the grant and the Api's request middleware.
-        services.ShouldContain(d => d.ServiceType == typeof(IAccountActivityRecorder));
-        services.ShouldContain(d => d.ServiceType == typeof(AccountActivityClaims));
+        services.ShouldContain(d => d.ServiceType == typeof(IAccountActivityRecorder) && d.Lifetime == ServiceLifetime.Scoped);
+        services.ShouldContain(d => d.ServiceType == typeof(AccountActivityClaims) && d.Lifetime == ServiceLifetime.Singleton);
     }
 
     [Fact]

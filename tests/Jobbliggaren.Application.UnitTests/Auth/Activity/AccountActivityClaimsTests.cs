@@ -98,6 +98,25 @@ public sealed class AccountActivityClaimsTests
     }
 
     [Fact]
+    public async Task Concurrent_requests_of_one_account_claim_the_next_minute_exactly_once()
+    {
+        _claims.TryClaim(_account, Minute).ShouldBeTrue();
+        using var start = new ManualResetEventSlim();
+        var attempts = Enumerable.Range(0, 64)
+            .Select(_ => Task.Run(() =>
+            {
+                start.Wait(TestContext.Current.CancellationToken);
+                return Enumerable.Range(0, 100).Count(_ => _claims.TryClaim(_account, Minute.AddMinutes(1)));
+            }))
+            .ToList();
+
+        start.Set();
+        var claimed = await Task.WhenAll(attempts);
+
+        claimed.Sum().ShouldBe(1);
+    }
+
+    [Fact]
     public void Pruning_a_new_minute_keeps_the_claims_made_in_it()
     {
         var other = Guid.NewGuid();

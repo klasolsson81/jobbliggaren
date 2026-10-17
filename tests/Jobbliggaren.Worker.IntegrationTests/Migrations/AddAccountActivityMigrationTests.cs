@@ -51,11 +51,13 @@ public sealed class AddAccountActivityMigrationTests : IAsyncLifetime
         await migrator.MigrateAsync(PreviousMigration, Ct);
         (await ColumnsAsync()).ShouldBeEmpty();
         var previousSchema = await ReadSchemaWithoutTheRecordAsync();
+        var existing = await RegisterProfileAsync(Guid.NewGuid());
 
         await migrator.MigrateAsync(ThisMigration, Ct);
 
         await AssertUpAsync();
         (await ReadSchemaWithoutTheRecordAsync()).ShouldBe(previousSchema);
+        (await CountAsync(existing)).ShouldBe(0, "Up fills nothing in: recording starts with the release");
 
         // The app role writes the record through the production recorder, and the cascade takes it with the profile.
         var userId = Guid.NewGuid();
@@ -77,6 +79,8 @@ public sealed class AddAccountActivityMigrationTests : IAsyncLifetime
         await migrator.MigrateAsync(ThisMigration, Ct);
 
         await AssertUpAsync();
+        (await ReadSchemaWithoutTheRecordAsync()).ShouldBe(previousSchema);
+        (await CountAsync(existing)).ShouldBe(0);
     }
 
     private async Task AssertUpAsync()

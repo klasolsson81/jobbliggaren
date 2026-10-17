@@ -2,8 +2,8 @@ namespace Jobbliggaren.Application.Auth.Activity;
 
 /// <summary>
 /// #2161 (ADR 0172) — the account-activity record: the minute an account last signed in and the minute it last made
-/// an authenticated request. Best effort by contract: the implementation logs a failed write and never throws it,
-/// so neither a login nor a request fails on it. Its callers are <c>PasswordlessSessionGrant</c> and the Api's
+/// an authenticated request. Best effort by contract: the implementation logs a failed write, so neither a login nor
+/// a request fails on it. Its callers are <c>PasswordlessSessionGrant</c> and the Api's
 /// request middleware, and nothing else (pinned by an architecture test).
 /// </summary>
 public interface IAccountActivityRecorder

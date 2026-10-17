@@ -5,8 +5,8 @@ namespace Jobbliggaren.Infrastructure.Auth.Activity;
 /// <summary>
 /// #2161 (ADR 0172) — one row of <c>account_activity</c>: the minute an account last signed in and the minute it
 /// last made an authenticated request. Infrastructure-internal, the ADR 0139 form: written only by
-/// <see cref="SqlAccountActivityRecorder"/>'s upsert and read only through the admin directory's raw SQL, so it is
-/// mapped for the migration schema and is never a <c>DbSet</c> on <c>IAppDbContext</c>.
+/// <see cref="SqlAccountActivityRecorder"/>'s upsert, so it is mapped for the migration schema and is never a
+/// <c>DbSet</c> on <c>IAppDbContext</c>.
 /// </summary>
 internal sealed class AccountActivity
 {

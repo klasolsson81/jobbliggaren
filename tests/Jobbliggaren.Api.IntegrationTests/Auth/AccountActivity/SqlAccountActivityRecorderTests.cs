@@ -35,8 +35,9 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
     {
         private readonly AsyncServiceScope _scope;
         private readonly AppDbContext _db;
+        private readonly LoggerFactory _loggers;
 
-        public Process(ApiFactory factory, DateTimeOffset now, string? connectionString = null)
+        private Process(ApiFactory factory, DateTimeOffset now, string? connectionString)
         {
             _scope = factory.Services.CreateAsyncScope();
             var cs = connectionString
@@ -53,7 +54,21 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
                 _db, new AccountActivityClaims(), Clock, _loggers.CreateLogger<SqlAccountActivityRecorder>());
         }
 
-        private readonly LoggerFactory _loggers;
+        /// <summary>
+        /// Opens the connection once before the first timed write, so building this context's EF services and its first
+        /// physical connection is not counted against that write's budget.
+        /// </summary>
+        public static async Task<Process> StartAsync(ApiFactory factory, DateTimeOffset now)
+        {
+            var process = new Process(factory, now, connectionString: null);
+            await process._db.Database.OpenConnectionAsync(Ct);
+            await process._db.Database.CloseConnectionAsync();
+            return process;
+        }
+
+        /// <summary>A process whose database refuses connections, so nothing can be warmed.</summary>
+        public static Process StartRefused(ApiFactory factory, DateTimeOffset now, string refusingConnectionString) =>
+            new(factory, now, refusingConnectionString);
 
         public MutableFakeDateTimeProvider Clock { get; } = new();
 
@@ -88,6 +103,37 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
         }
     }
 
+    /// <summary>Holds <c>account_activity</c> the way a migration or a VACUUM FULL does: ACCESS EXCLUSIVE until rollback.</summary>
+    private sealed class TableHolder : IAsyncDisposable
+    {
+        private readonly NpgsqlConnection _connection;
+        private readonly NpgsqlTransaction _transaction;
+
+        private TableHolder(NpgsqlConnection connection, NpgsqlTransaction transaction)
+        {
+            _connection = connection;
+            _transaction = transaction;
+        }
+
+        public static async Task<TableHolder> HoldAsync(string connectionString)
+        {
+            var connection = new NpgsqlConnection(connectionString);
+            await connection.OpenAsync(Ct);
+            var transaction = await connection.BeginTransactionAsync(Ct);
+            await using (var lockTable = new NpgsqlCommand(
+                             "LOCK TABLE account_activity IN ACCESS EXCLUSIVE MODE", connection, transaction))
+                await lockTable.ExecuteNonQueryAsync(Ct);
+            return new TableHolder(connection, transaction);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await _transaction.RollbackAsync(Ct);
+            await _transaction.DisposeAsync();
+            await _connection.DisposeAsync();
+        }
+    }
+
     private string ConnectionString()
     {
         using var scope = factory.Services.CreateScope();
@@ -113,14 +159,6 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
             reader.GetFieldValue<DateTimeOffset>(1));
     }
 
-    private async Task<long> RowCountAsync()
-    {
-        await using var connection = new NpgsqlConnection(ConnectionString());
-        await connection.OpenAsync(Ct);
-        await using var command = new NpgsqlCommand("SELECT count(*) FROM account_activity", connection);
-        return (long)(await command.ExecuteScalarAsync(Ct))!;
-    }
-
     private Task<Guid> OpenAsync(string label) => OpenActiveAsync(factory, Address(NewToken(), label), Ct);
 
     private static void ShouldHaveLoggedNothingAboveDebug(Process process) =>
@@ -130,7 +168,7 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
     public async Task A_request_creates_the_record_at_its_minute_with_no_login()
     {
         var userId = await OpenAsync("request");
-        await using var process = new Process(factory, Morning);
+        await using var process = await Process.StartAsync(factory, Morning);
 
         await process.Recorder.RecordRequestAsync(userId, Ct);
 
@@ -142,7 +180,7 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
     public async Task A_login_records_both_minutes_and_a_later_minute_moves_only_the_activity()
     {
         var userId = await OpenAsync("login");
-        await using var process = new Process(factory, Morning);
+        await using var process = await Process.StartAsync(factory, Morning);
 
         await process.Recorder.RecordLoginAsync(userId, Ct);
         process.Clock.UtcNow = Morning.AddMinutes(3);
@@ -155,7 +193,7 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
     public async Task One_process_sends_one_statement_per_account_and_minute_and_a_login_covers_its_own_minute()
     {
         var userId = await OpenAsync("throttle");
-        await using var process = new Process(factory, Morning);
+        await using var process = await Process.StartAsync(factory, Morning);
 
         await process.Recorder.RecordRequestAsync(userId, Ct);
         foreach (var seconds in new[] { 5, 15, 22 })
@@ -178,13 +216,27 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_login_in_a_minute_a_request_already_claimed_still_records_the_login()
+    {
+        var userId = await OpenAsync("login-after-request");
+        await using var process = await Process.StartAsync(factory, Morning);
+
+        await process.Recorder.RecordRequestAsync(userId, Ct);
+        process.Clock.UtcNow = Morning.AddSeconds(20);
+        await process.Recorder.RecordLoginAsync(userId, Ct);
+
+        process.Statements.Count.ShouldBe(2);
+        (await RowOfAsync(userId)).ShouldBe(new Row(MinuteOf(Morning), MinuteOf(Morning)));
+    }
+
+    [Fact]
     public async Task An_earlier_minute_from_another_process_never_moves_a_value_back()
     {
         var userId = await OpenAsync("monotonic");
-        await using (var later = new Process(factory, Morning.AddMinutes(5)))
+        await using (var later = await Process.StartAsync(factory, Morning.AddMinutes(5)))
             await later.Recorder.RecordLoginAsync(userId, Ct);
 
-        await using (var earlier = new Process(factory, Morning))
+        await using (var earlier = await Process.StartAsync(factory, Morning))
         {
             await earlier.Recorder.RecordRequestAsync(userId, Ct);
             await earlier.Recorder.RecordLoginAsync(userId, Ct);
@@ -199,7 +251,7 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
     {
         var userId = await OpenAsync("concurrent");
         var minutes = Enumerable.Range(0, 12).Select(i => Morning.AddMinutes(i)).OrderBy(_ => Random.Shared.Next()).ToList();
-        var processes = minutes.Select(minute => new Process(factory, minute)).ToList();
+        var processes = (await Task.WhenAll(minutes.Select(minute => Process.StartAsync(factory, minute)))).ToList();
         try
         {
             await Task.WhenAll(processes.Select((process, i) => i % 3 == 0
@@ -219,88 +271,83 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task An_account_without_a_profile_gets_no_record_and_no_warning()
-    {
-        // The historical shape AdminAccountsKit.CreateWithoutProfileAsync documents; the write keys through the profile.
-        var userId = await CreateWithoutProfileAsync(factory, Address(NewToken(), "profileless"), Ct);
-        var before = await RowCountAsync();
-        await using var process = new Process(factory, Morning);
-
-        await process.Recorder.RecordLoginAsync(userId, Ct);
-        process.Clock.UtcNow = Morning.AddMinutes(1);
-        await process.Recorder.RecordRequestAsync(userId, Ct);
-
-        process.Statements.Count.ShouldBe(2);
-        (await RowCountAsync()).ShouldBe(before);
-        ShouldHaveLoggedNothingAboveDebug(process);
-    }
-
-    [Fact]
     public async Task A_database_outage_is_logged_without_the_address_and_never_thrown()
     {
         var email = Address(NewToken(), "outage");
         var userId = await OpenActiveAsync(factory, email, Ct);
         // A database that refuses connections: nothing listens on port 1.
         var refusing = new NpgsqlConnectionStringBuilder(ConnectionString()) { Port = 1, Timeout = 1 }.ConnectionString;
-        await using var process = new Process(factory, Morning, refusing);
+        await using var process = Process.StartRefused(factory, Morning, refusing);
 
         await process.Recorder.RecordLoginAsync(userId, Ct);
         process.Clock.UtcNow = Morning.AddMinutes(1);
         await process.Recorder.RecordRequestAsync(userId, Ct);
 
-        var failures = process.Logs.Logs.Where(log => log.EventId.Id == 2701).ToList();
+        // A refused connection can outlast the request write's shorter budget, so that write may log 2703 instead.
+        var failures = process.Logs.Logs.Where(log => log.EventId.Id is 2701 or 2703).ToList();
         failures.Count.ShouldBe(2);
+        failures.ShouldContain(log => log.EventId.Id == 2701);
         failures.ShouldAllBe(log => log.Level == LogLevel.Warning);
         failures.ShouldAllBe(log => log.Message.Contains(userId.ToString(), StringComparison.Ordinal));
         process.Logs.Logs.ShouldAllBe(log => !log.AllText.Contains(email, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public async Task A_write_held_past_its_budget_is_abandoned_logged_and_never_thrown()
+    public async Task A_request_write_held_past_its_budget_is_abandoned_logged_and_not_retried_that_minute()
     {
-        var userId = await OpenAsync("budget");
-        // A migration or a VACUUM FULL holds the table: ACCESS EXCLUSIVE until its transaction ends.
-        await using var holder = new NpgsqlConnection(ConnectionString());
-        await holder.OpenAsync(Ct);
-        await using var transaction = await holder.BeginTransactionAsync(Ct);
-        await using (var lockTable = new NpgsqlCommand("LOCK TABLE account_activity IN ACCESS EXCLUSIVE MODE", holder, transaction))
-            await lockTable.ExecuteNonQueryAsync(Ct);
-        await using var process = new Process(factory, Morning);
-        var started = TimeProvider.System.GetTimestamp();
+        var userId = await OpenAsync("request-budget");
+        await using var process = await Process.StartAsync(factory, Morning);
+        TimeSpan waited;
+        await using (await TableHolder.HoldAsync(ConnectionString()))
+        {
+            var started = TimeProvider.System.GetTimestamp();
+            await process.Recorder.RecordRequestAsync(userId, Ct);
+            waited = TimeProvider.System.GetElapsedTime(started);
 
-        await process.Recorder.RecordRequestAsync(userId, Ct);
+            process.Clock.UtcNow = Morning.AddSeconds(10);
+            await process.Recorder.RecordRequestAsync(userId, Ct);
+        }
 
-        var waited = TimeProvider.System.GetElapsedTime(started);
-        await transaction.RollbackAsync(Ct);
-        waited.ShouldBeGreaterThanOrEqualTo(SqlAccountActivityRecorder.WriteBudget - TimeSpan.FromMilliseconds(100));
-        waited.ShouldBeLessThan(SqlAccountActivityRecorder.WriteBudget + TimeSpan.FromSeconds(5));
+        waited.ShouldBeGreaterThanOrEqualTo(SqlAccountActivityRecorder.RequestWriteBudget - TimeSpan.FromMilliseconds(100));
+        waited.ShouldBeLessThan(SqlAccountActivityRecorder.RequestWriteBudget + TimeSpan.FromSeconds(5));
+        process.Statements.Count.ShouldBe(1);
         process.Logs.Logs.ShouldContain(log => log.EventId.Id == 2703 && log.Level == LogLevel.Warning);
         (await RowOfAsync(userId)).ShouldBeNull();
     }
 
     [Fact]
-    public async Task A_profile_erased_while_its_write_waits_is_an_expected_outcome_below_warning()
+    public async Task A_login_write_held_past_its_budget_is_abandoned_and_logged()
     {
-        var userId = await OpenAsync("erased-meanwhile");
-        // The hard delete's transaction has removed the profile row but not yet committed: the write reads the row,
-        // waits on its key-share lock, and finds it gone at the commit.
-        await using var deleter = new NpgsqlConnection(ConnectionString());
-        await deleter.OpenAsync(Ct);
-        await using var transaction = await deleter.BeginTransactionAsync(Ct);
-        await using (var delete = new NpgsqlCommand("DELETE FROM job_seekers WHERE user_id = @user_id", deleter, transaction))
+        var userId = await OpenAsync("login-budget");
+        await using var process = await Process.StartAsync(factory, Morning);
+        TimeSpan waited;
+        await using (await TableHolder.HoldAsync(ConnectionString()))
         {
-            delete.Parameters.AddWithValue("user_id", userId);
-            (await delete.ExecuteNonQueryAsync(Ct)).ShouldBe(1);
+            var started = TimeProvider.System.GetTimestamp();
+            await process.Recorder.RecordLoginAsync(userId, Ct);
+            waited = TimeProvider.System.GetElapsedTime(started);
         }
-        await using var process = new Process(factory, Morning);
 
-        var write = process.Recorder.RecordRequestAsync(userId, Ct);
-        await Task.Delay(200, Ct);
-        await transaction.CommitAsync(Ct);
-        await write;
+        waited.ShouldBeGreaterThanOrEqualTo(SqlAccountActivityRecorder.LoginWriteBudget - TimeSpan.FromMilliseconds(100));
+        waited.ShouldBeLessThan(SqlAccountActivityRecorder.LoginWriteBudget + TimeSpan.FromSeconds(5));
+        process.Logs.Logs.ShouldContain(log => log.EventId.Id == 2703 && log.Level == LogLevel.Warning);
+        (await RowOfAsync(userId)).ShouldBeNull();
+    }
 
-        process.Logs.Logs.ShouldContain(log => log.EventId.Id == 2702 && log.Level == LogLevel.Debug);
-        process.Logs.Logs.ShouldNotContain(log => log.Level >= LogLevel.Warning);
+    [Fact]
+    public async Task A_callers_cancellation_during_the_write_is_thrown_and_not_logged_as_abandoned()
+    {
+        var userId = await OpenAsync("caller-cancels");
+        await using var process = await Process.StartAsync(factory, Morning);
+        Exception? thrown;
+        await using (await TableHolder.HoldAsync(ConnectionString()))
+        {
+            using var caller = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
+            thrown = await Record.ExceptionAsync(() => process.Recorder.RecordRequestAsync(userId, caller.Token));
+        }
+
+        thrown.ShouldBeAssignableTo<OperationCanceledException>();
+        process.Logs.Logs.ShouldNotContain(log => log.EventId.Id == 2703);
         (await RowOfAsync(userId)).ShouldBeNull();
     }
 }

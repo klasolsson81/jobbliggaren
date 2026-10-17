@@ -9,8 +9,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth.AccountActivity;
 
 /// <summary>
 /// #2161 (ADR 0172 D4) — the middleware hands the authenticated request's account to the recorder and nothing else:
-/// an anonymous request is passed on untouched, and every request reaches the rest of the pipeline. The recorder is
-/// substituted with what the production one returns, a completed task, since it never throws by contract.
+/// an anonymous request is passed on untouched. The recorder is substituted with what the production one returns, a
+/// completed task.
 /// </summary>
 public sealed class AccountActivityMiddlewareTests
 {

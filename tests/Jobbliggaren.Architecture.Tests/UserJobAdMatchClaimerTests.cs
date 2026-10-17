@@ -60,7 +60,7 @@ public sealed class UserJobAdMatchClaimerTests
             + "Callers found: " + string.Join(", ", runCallers));
     }
 
-    private static List<string> ReferencesTo(Type declaringType, string methodName)
+    internal static List<string> ReferencesTo(Type declaringType, string methodName)
     {
         var declaringTypeName = declaringType.FullName;
         var referrers = new SortedSet<string>(StringComparer.Ordinal);

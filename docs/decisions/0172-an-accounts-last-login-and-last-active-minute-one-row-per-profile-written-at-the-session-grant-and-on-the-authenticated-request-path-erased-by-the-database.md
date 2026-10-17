@@ -35,7 +35,7 @@ because no login or activity source exists. The per-account counts exist (ADR 01
 ## Decision
 
 **Two minutes per account, in a new table `account_activity` with one row per profile: the minute a session was last issued and the minute of the last authenticated request.
-One Application port writes them, best effort, from the session grant and from a middleware that lets a process write at most once per account per minute, and a foreign key makes
+One Application port writes them, best effort, from the session grant and from a middleware that lets a process make at most one request write per account per minute, and a foreign key makes
 the database erase the row with the profile.** D1–D10 are this ADR's numbering.
 
 ### D1 — What the two values mean (CTO Q1)
@@ -71,21 +71,21 @@ middleware as the port's only consumers, so the stored values mean what those tw
 
 The writer is an Api middleware placed immediately after `UseAuthentication()`, so it sees exactly the principals the session handler accepted. It reads only the authenticated
 principal and does nothing for an anonymous request. It is not a Mediator command: it is a per-request cross-cutting concern and not a use case, and it stays out of the logging and
-audit pipeline. The adapter holds a process-wide claim per account per UTC minute and claims the minute before it attempts the write, so a process writes at most once per account
-per minute and a failed write is not retried within that minute. The granularity, G, is one minute because it equals the display precision `YYYY-MM-DD HH:mm`: the shown minute is
+audit pipeline. The adapter holds a process-wide claim per account per UTC minute and claims the minute before it attempts the write, so a process makes at most one request write per
+account per minute and a failed write is not retried within that minute. The granularity, G, is one minute because it equals the display precision `YYYY-MM-DD HH:mm`: the shown minute is
 exactly the last minute with a recorded request, and a coarser G would show a lower bound. G and the display format change together. The claim is an atomic compare-and-swap on a
 concurrent map, pruned once per minute so that it holds roughly the accounts active in the current minute (design pass); this refines the ruling's `IMemoryCache` entry, whose
 `GetOrCreate` is not atomic under concurrency. A login writes both columns and primes the claim. The minute comes from `IDateTimeProvider`. The claim holds nothing correctness
 depends on (twelve-factor VI): losing it costs one redundant write, and that write converges (D6).
 
-### D5 — A failed write never fails a login or a request (CTO Q5; the event ids, the budget and the login write's cancellation are the design pass)
+### D5 — A failed write never fails a login or a request (CTO Q5, triage R1 and R3; the event ids and the login write's cancellation are the design pass)
 
 The write is best effort. The adapter owns a typed catch for the provider's exception (`DbException`; a typed catch that logs is not the §5 catch-all, AGENTS.md §3.6) and logs a
-`LoggerMessage` Warning, EventId 2701, with the user id, the exception type name and the SQLSTATE and never an address. A foreign-key violation for a profile erased between the read
-and the write is an expected outcome and is logged at Debug (EventId 2702). The write runs under its own budget of 2 seconds; a write that outruns it is abandoned and logged as
-Warning 2703, while the caller's cancellation is not swallowed. The login write runs once the session exists, beside `audit.LoginSucceeded`, never inside the account-access scope:
+`LoggerMessage` Warning, EventId 2701, with the user id, the exception type name and the SQLSTATE and never an address.
+A request write runs under a budget of 400 ms (ADR 0045 Beslut 1 class (c)) and a login write under 2 seconds: a lost request minute is overwritten by the
+account's next request, while a lost login stays missing until the next sign-in. A write that outruns its budget is abandoned and logged as Warning 2703, while the caller's cancellation is not swallowed. The login write runs once the session exists, beside `audit.LoginSucceeded`, never inside the account-access scope:
 inside it would commit a login for a session whose creation can still fail in Redis, a false value, and would hold the lifecycle lock for telemetry. It runs with
-`CancellationToken.None` under the same budget, so a client that hangs up after the session exists does not abandon the record. The residual is named, not hidden: if the last
+`CancellationToken.None`, so a client that hangs up after the session exists does not abandon the record. The residual is named, not hidden: if the last
 write fails, an earlier minute remains, and the failure is logged.
 
 ### D6 — Concurrency and the hazards checked (design pass)
@@ -156,7 +156,7 @@ A request made under impersonation (#1984, not built) records nothing for the im
 - Erasure is a property of the database, also under a code rollback (D6).
 - One small migration that the box applies itself, with no data to fill in and nothing on the Identity side; no new coupling across the Identity and profile boundary, so ADR 0013
   needs no note.
-- At most one write per active account per minute per process.
+- At most one request write per active account per minute per process.
 
 ### Negative and risks
 

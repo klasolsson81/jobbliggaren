@@ -15,7 +15,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// <b>Locks.</b> Creating the foreign key takes SHARE ROW EXCLUSIVE on <c>job_seekers</c> until commit, so writes
     /// to that table wait for this transaction (reads do not). The new table is empty, so the key has nothing to
     /// validate and the transaction is short; <c>SET LOCAL lock_timeout</c> turns a queue behind a long transaction
-    /// into a loud deploy failure that the next reconcile retries.
+    /// into a loud deploy failure that the next reconcile retries. Down's <c>DROP TABLE</c> removes the foreign key's triggers
+    /// from <c>job_seekers</c> and takes ACCESS EXCLUSIVE on it, so reads wait too; the same <c>lock_timeout</c> bounds it.
     /// </para>
     ///
     /// <para>

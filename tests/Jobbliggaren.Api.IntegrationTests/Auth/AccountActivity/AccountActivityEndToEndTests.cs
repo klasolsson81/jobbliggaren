@@ -102,6 +102,16 @@ public sealed class AccountActivityEndToEndTests(ApiFactory factory)
     // ── the request path ──
 
     [Fact]
+    public void The_api_host_holds_one_claim_map_for_every_request()
+    {
+        using var first = factory.Services.CreateScope();
+        using var second = factory.Services.CreateScope();
+
+        first.ServiceProvider.GetRequiredService<AccountActivityClaims>()
+            .ShouldBeSameAs(second.ServiceProvider.GetRequiredService<AccountActivityClaims>());
+    }
+
+    [Fact]
     public async Task An_authenticated_request_records_its_minute_and_a_later_minute_moves_it()
     {
         var (userId, sessionId) = await SignedInAsync("request");
@@ -115,6 +125,25 @@ public sealed class AccountActivityEndToEndTests(ApiFactory factory)
 
             clock.UtcNow = clock.UtcNow.AddMinutes(2);
             (await MeAsync(client, sessionId)).ShouldBe(HttpStatusCode.OK);
+            (await RowOfAsync(userId)).ShouldBe(new Row(null, MinuteOf(clock.UtcNow)));
+        }
+    }
+
+    [Fact]
+    public async Task A_request_the_admin_policy_refuses_still_records_its_minute()
+    {
+        var (userId, sessionId) = await SignedInAsync("forbidden");
+        var (host, clock) = HostWithClock();
+        using (host)
+        {
+            using var client = host.CreateClient();
+            (await MeAsync(client, sessionId)).ShouldBe(HttpStatusCode.OK);
+            clock.UtcNow = clock.UtcNow.AddMinutes(2);
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/admin/accounts/{Guid.NewGuid()}");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+            (await client.SendAsync(request, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
             (await RowOfAsync(userId)).ShouldBe(new Row(null, MinuteOf(clock.UtcNow)));
         }
     }
@@ -142,7 +171,7 @@ public sealed class AccountActivityEndToEndTests(ApiFactory factory)
         {
             using var client = host.CreateClient();
             (await MeAsync(client, sessionId)).ShouldBe(HttpStatusCode.OK);
-            var recorded = await RowOfAsync(userId);
+            var recorded = (await RowOfAsync(userId)).ShouldNotBeNull();
 
             var grant = await ReauthTestHelpers.MintGrantAsync(factory, admin.Client, admin.SessionId, admin.Email, Ct);
             var suspended = await admin.Client.PostAsJsonAsync(
@@ -165,11 +194,14 @@ public sealed class AccountActivityEndToEndTests(ApiFactory factory)
         await using (var lockTable = new NpgsqlCommand("LOCK TABLE account_activity IN ACCESS EXCLUSIVE MODE", holder, transaction))
             await lockTable.ExecuteNonQueryAsync(Ct);
         using var client = factory.CreateClient();
+        var started = TimeProvider.System.GetTimestamp();
 
         var status = await MeAsync(client, sessionId);
 
+        var waited = TimeProvider.System.GetElapsedTime(started);
         await transaction.RollbackAsync(Ct);
         status.ShouldBe(HttpStatusCode.OK);
+        waited.ShouldBeGreaterThanOrEqualTo(SqlAccountActivityRecorder.RequestWriteBudget - TimeSpan.FromMilliseconds(100));
         (await RowOfAsync(userId)).ShouldBeNull();
     }
 

@@ -21,28 +21,32 @@ internal sealed partial class SqlAccountActivityRecorder(
     IDateTimeProvider clock,
     ILogger<SqlAccountActivityRecorder> logger) : IAccountActivityRecorder
 {
-    /// <summary>The longest a write may take before it is abandoned and logged (ADR 0172 D5).</summary>
-    internal static readonly TimeSpan WriteBudget = TimeSpan.FromSeconds(2);
+    /// <summary>The longest a request write may take before it is abandoned and logged (ADR 0172 D5).</summary>
+    internal static readonly TimeSpan RequestWriteBudget = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>The longest a login write may take before it is abandoned and logged (ADR 0172 D5).</summary>
+    internal static readonly TimeSpan LoginWriteBudget = TimeSpan.FromSeconds(2);
 
     public Task RecordLoginAsync(Guid userId, CancellationToken cancellationToken)
     {
         var minute = AccountActivityClaims.MinuteOf(clock.UtcNow);
         claims.Prime(userId, minute);
-        return WriteAsync(userId, minute, isLogin: true, cancellationToken);
+        return WriteAsync(userId, minute, isLogin: true, LoginWriteBudget, cancellationToken);
     }
 
     public Task RecordRequestAsync(Guid userId, CancellationToken cancellationToken)
     {
         var minute = AccountActivityClaims.MinuteOf(clock.UtcNow);
         return claims.TryClaim(userId, minute)
-            ? WriteAsync(userId, minute, isLogin: false, cancellationToken)
+            ? WriteAsync(userId, minute, isLogin: false, RequestWriteBudget, cancellationToken)
             : Task.CompletedTask;
     }
 
-    private async Task WriteAsync(Guid userId, DateTimeOffset minute, bool isLogin, CancellationToken cancellationToken)
+    private async Task WriteAsync(
+        Guid userId, DateTimeOffset minute, bool isLogin, TimeSpan writeBudget, CancellationToken cancellationToken)
     {
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(WriteBudget);
+        budget.CancelAfter(writeBudget);
         try
         {
             await (isLogin
@@ -64,17 +68,13 @@ internal sealed partial class SqlAccountActivityRecorder(
                     """,
                     budget.Token));
         }
-        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.ForeignKeyViolation)
-        {
-            LogProfileGone(logger, userId);
-        }
         catch (DbException ex)
         {
             LogWriteFailed(logger, userId, ex.GetType().Name, (ex as PostgresException)?.SqlState);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            LogWriteAbandoned(logger, userId, WriteBudget.TotalSeconds);
+            LogWriteAbandoned(logger, userId, writeBudget.TotalMilliseconds);
         }
     }
 
@@ -82,11 +82,7 @@ internal sealed partial class SqlAccountActivityRecorder(
         Message = "Account activity was not recorded for user {UserId}: {ExceptionType} (SQLSTATE {SqlState})")]
     private static partial void LogWriteFailed(ILogger logger, Guid userId, string exceptionType, string? sqlState);
 
-    [LoggerMessage(EventId = 2702, Level = LogLevel.Debug,
-        Message = "Account activity was not recorded for user {UserId}: the profile was erased during the write")]
-    private static partial void LogProfileGone(ILogger logger, Guid userId);
-
     [LoggerMessage(EventId = 2703, Level = LogLevel.Warning,
-        Message = "Account activity was not recorded for user {UserId}: the write exceeded its {BudgetSeconds} s budget")]
-    private static partial void LogWriteAbandoned(ILogger logger, Guid userId, double budgetSeconds);
+        Message = "Account activity was not recorded for user {UserId}: the write exceeded its {BudgetMilliseconds} ms budget")]
+    private static partial void LogWriteAbandoned(ILogger logger, Guid userId, double budgetMilliseconds);
 }

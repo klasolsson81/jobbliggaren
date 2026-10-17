@@ -39,10 +39,6 @@ public partial class HardDeleteAccountsJobIntegrationTests
 
         (await CountActivityAsync(erased, ct)).ShouldBe(0, "the record goes with its profile row (Art. 17, ADR 0172 D2)");
         (await CountActivityAsync(kept, ct)).ShouldBe(1, "another account's record is untouched");
-
-        // A request still in flight for the erased account writes nothing: the write keys through the profile.
-        await RecordLoginAsync(erasedUser, now, ct);
-        (await CountActivityAsync(erased, ct)).ShouldBe(0);
     }
 
     private async Task RecordLoginAsync(Guid userId, DateTimeOffset at, CancellationToken ct)

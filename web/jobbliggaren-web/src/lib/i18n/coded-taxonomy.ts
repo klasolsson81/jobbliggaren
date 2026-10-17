@@ -68,7 +68,7 @@ export type CodedTaxonomyId = (typeof CODED_TAXONOMY_IDS)[number];
  */
 export type CodedTaxonomyKey = `codedTaxonomy.${CodedTaxonomyId}`;
 
-function isCodedTaxonomyId(id: string): id is CodedTaxonomyId {
+export function isCodedTaxonomyId(id: string): id is CodedTaxonomyId {
   return (CODED_TAXONOMY_IDS as readonly string[]).includes(id);
 }
 

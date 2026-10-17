@@ -13,7 +13,16 @@ const AD: PublicJobAdDto = {
   url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
   publishedAt: "2026-10-01T08:00:00Z",
   expiresAt: "2026-11-01T08:00:00Z",
+  municipalityConceptId: "AvNB_uwa_6n6",
+  municipalityName: "Stockholm",
+  regionConceptId: "CifL_Rzy_Mku",
+  regionName: "Stockholms län",
+  employmentTypeConceptId: "gro4_cWF_6D7", // Vikariat
+  worktimeExtentConceptId: "6YE1_gAC_R2G", // Heltid
 };
+
+const jsonLdScripts = (container: HTMLElement) =>
+  [...container.querySelectorAll('script[type="application/ld+json"]')] as HTMLScriptElement[];
 
 describe("PublicJobAd", () => {
   it("is one landmark with one h1 (the ad's title), the company and both dates", () => {
@@ -42,14 +51,16 @@ describe("PublicJobAd", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("renders the description as text, never as HTML (ADR 0160 D9.6)", () => {
+  it("renders the description as text, never as HTML (ADR 0160 D9.6); the only script is the JSON-LD data block", () => {
     const hostile = '<img src=x onerror="alert(1)"><script>alert(2)</script> Fet <b>text</b>';
     const { container } = render(<PublicJobAd jobAd={{ ...AD, description: hostile }} />);
 
     expect(container.querySelector("img")).toBeNull();
-    expect(container.querySelector("script")).toBeNull();
     expect(container.querySelector(".jp-modal__description b")).toBeNull();
     expect(container.textContent).toContain("<script>alert(2)</script>");
+    const scripts = [...container.querySelectorAll("script")];
+    expect(scripts.map((s) => s.getAttribute("type"))).toEqual(["application/ld+json"]);
+    expect(scripts[0]?.innerHTML).not.toContain("<");
   });
 
   it("renders the title and the company as text too", () => {
@@ -156,5 +167,97 @@ describe("PublicJobAd", () => {
 
     expect(replace).not.toHaveBeenCalled();
     replace.mockRestore();
+  });
+});
+
+describe("PublicJobAd: the facts row (ADR 0171)", () => {
+  it("shows kommun before län, and the employment type and extent as the catalogue names them, each with its axis for a screen reader", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+
+    const facts = container.querySelector(".jp-modal__facts");
+    expect(facts).not.toBeNull();
+    const items = [...facts!.querySelectorAll(".jp-modal__fact")].map((f) => f.textContent?.replace(/\s+/g, " ").trim());
+    expect(items).toEqual(["Ort Stockholm, Stockholms län", "Anställningsform och omfattning Vikariat · Heltid"]);
+    expect(facts!.querySelectorAll(".sr-only")).toHaveLength(2);
+    expect(facts!.querySelectorAll("svg[aria-hidden='true']")).toHaveLength(2);
+  });
+
+  it("shows the kommun alone when the län is not resolved, and the län alone when the kommun is not", () => {
+    const { container: a } = render(<PublicJobAd jobAd={{ ...AD, regionName: null }} />);
+    expect(a.querySelector(".jp-modal__fact")).toHaveTextContent(/^Ort Stockholm$/);
+
+    const { container: b } = render(<PublicJobAd jobAd={{ ...AD, municipalityName: null }} />);
+    expect(b.querySelector(".jp-modal__fact")).toHaveTextContent(/^Ort Stockholms län$/);
+  });
+
+  it("leaves out an employment id the catalogue does not know, and the whole row when nothing is known", () => {
+    const { container: a } = render(<PublicJobAd jobAd={{ ...AD, employmentTypeConceptId: "drifted_id" }} />);
+    expect([...a.querySelectorAll(".jp-modal__fact")].at(-1)).toHaveTextContent(/Heltid$/);
+    expect(a.textContent).not.toContain("drifted_id");
+
+    const { container: b } = render(
+      <PublicJobAd
+        jobAd={{ ...AD, municipalityName: null, regionName: null, employmentTypeConceptId: null, worktimeExtentConceptId: null }}
+      />
+    );
+    expect(b.querySelector(".jp-modal__facts")).toBeNull();
+  });
+
+  it("never shows a concept id", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+    for (const id of ["AvNB_uwa_6n6", "CifL_Rzy_Mku", "gro4_cWF_6D7", "6YE1_gAC_R2G"]) {
+      expect(container.textContent).not.toContain(id);
+    }
+  });
+});
+
+describe("PublicJobAd: the JobPosting data block (ADR 0171)", () => {
+  it("carries exactly one JSON-LD script for an eligible ad, parsable, with no literal `<`", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+
+    const scripts = jsonLdScripts(container);
+    expect(scripts).toHaveLength(1);
+    expect(scripts[0]?.innerHTML).not.toContain("<");
+    const posting = JSON.parse(scripts[0]?.innerHTML ?? "") as Record<string, unknown>;
+    expect(posting["@type"]).toBe("JobPosting");
+    expect(posting.title).toBe(AD.title);
+    expect(posting.validThrough).toBe("2026-11-01T08:00:00.000Z");
+  });
+
+  it("asserts nothing the page does not show: title, company, kommun, län and every employment label are in the rendered text", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+    const text = container.textContent ?? "";
+    const posting = JSON.parse(jsonLdScripts(container)[0]?.innerHTML ?? "") as {
+      title: string;
+      hiringOrganization: { name: string };
+      jobLocation: { address: { addressLocality: string; addressRegion: string } };
+      employmentType: string[];
+    };
+
+    expect(text).toContain(posting.title);
+    expect(text).toContain(posting.hiringOrganization.name);
+    expect(text).toContain(posting.jobLocation.address.addressLocality);
+    expect(text).toContain(posting.jobLocation.address.addressRegion);
+    // FULL_TIME ↔ Heltid, TEMPORARY ↔ Vikariat: the visible labels of the ids the values came from.
+    expect(posting.employmentType).toEqual(["FULL_TIME", "TEMPORARY"]);
+    expect(text).toContain("Heltid");
+    expect(text).toContain("Vikariat");
+  });
+
+  it("carries no JSON-LD for an ineligible ad (no kommun), and the page is otherwise the same", () => {
+    const { container: eligible } = render(<PublicJobAd jobAd={AD} />);
+    const { container: ineligible } = render(<PublicJobAd jobAd={{ ...AD, municipalityName: null }} />);
+
+    expect(jsonLdScripts(ineligible)).toHaveLength(0);
+    expect(ineligible.querySelector("h1")?.textContent).toBe(eligible.querySelector("h1")?.textContent);
+    expect(ineligible.querySelector(".jp-modal__description")?.textContent).toBe(
+      eligible.querySelector(".jp-modal__description")?.textContent
+    );
+  });
+
+  it("carries no JSON-LD for work abroad", () => {
+    const { container } = render(<PublicJobAd jobAd={{ ...AD, employmentTypeConceptId: "9Wuo_2Yb_36E" }} />);
+    expect(jsonLdScripts(container)).toHaveLength(0);
+    expect(container.textContent).toContain("Arbete utomlands");
   });
 });

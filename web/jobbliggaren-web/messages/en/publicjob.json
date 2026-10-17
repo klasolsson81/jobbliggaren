@@ -5,6 +5,10 @@
   },
   "openAd": "Open the ad",
   "openAdAf": "Open the ad at Arbetsförmedlingen",
+  "facts": {
+    "location": "Location",
+    "employment": "Employment type and extent"
+  },
   "gone": {
     "title": "The job ad is no longer available",
     "body": "The application deadline may have passed, or the ad may have been removed."

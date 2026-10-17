@@ -40,6 +40,7 @@ const PUBLIC_SURFACE = [
   resolve(SRC, "lib/api/public-job-ad.ts"),
   resolve(SRC, "lib/api/public-job-ad-probe.ts"),
   resolve(SRC, "lib/auth/public-job-ad-route.ts"),
+  resolve(SRC, "lib/job-ads/job-posting-json-ld.ts"),
 ];
 
 describe("(public-job) route group", () => {
@@ -56,8 +57,18 @@ describe("(public-job) route group", () => {
     expect(PUBLIC_SURFACE.filter((f) => /<Suspense\b|from "react".*\bSuspense\b/.test(read(f)))).toEqual([]);
   });
 
-  it("never renders ad text as HTML", () => {
+  it("never renders ad text as HTML; the JobPosting data block goes through JsonLdScript alone (ADR 0171)", () => {
     expect(PUBLIC_SURFACE.filter((f) => read(f).includes("dangerouslySetInnerHTML"))).toEqual([]);
+    const withJsonLd = PUBLIC_SURFACE.filter((f) => /ld\+json|JsonLdScript/.test(read(f))).map((f) => toPosix(relative(SRC, f)));
+    expect(withJsonLd).toEqual(["components/job-ads/public-job-ad.tsx"]);
+    expect(read(resolve(SRC, "components/job-ads/public-job-ad.tsx"))).toMatch(/import \{ JsonLdScript \} from "@\/components\/seo\/json-ld-script"/);
+  });
+
+  it("builds the JobPosting from the DTO alone: no clock, no status, no fetch, no request state (ADR 0171)", () => {
+    const mapper = read(resolve(SRC, "lib/job-ads/job-posting-json-ld.ts"))
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    expect(mapper).not.toMatch(/Date\.now\(|new Date\(\)|fetch\(|headers\(|cookies\(|\bstatus\b|expiresAt\s*[<>]/);
   });
 
   it("is rendered per request: no ISR, no static params, no force-static, no fetch revalidation", () => {

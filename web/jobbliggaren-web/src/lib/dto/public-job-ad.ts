@@ -7,9 +7,13 @@ import { readableInstantSchema } from "./_helpers";
  * The anonymous public job-ad read (`GET /api/v1/public/job-ads/{id}`, ADR 0160 D4), and nothing more
  * of it than the page renders.
  *
- * The wire carries twelve members. This schema names the seven the page uses and strips the rest, so a
- * field the backend adds later cannot reach the page by accident: the five concept ids stay unread on
- * purpose (ADR 0160 D7: labels are S3's and S6's), and there is no user state, contact block, organisation
+ * The wire carries fourteen members. This schema names the eleven the page uses and strips the rest, so
+ * a field the backend adds later cannot reach the page by accident. Kommun and län arrive as the concept
+ * id and its snapshot name (ADR 0171; the name is null when the snapshot does not know the id); the
+ * employment-type and worktime-extent ids are read as plain strings and named by the locale catalogue
+ * (`coded-taxonomy.ts`), never enum-validated, so an id the catalogue does not know (taxonomy drift)
+ * parses and is left out of the page and its `JobPosting`, and never makes the page fail. The
+ * occupation-group id stays unread on purpose (S6). There is no user state, contact block, organisation
  * number or raw payload on that wire to begin with. The backend pins its member set
  * (`PublicJobAdDtoContractTests`); this side pins what it reads.
  *
@@ -24,5 +28,11 @@ export const publicJobAdDtoSchema = z.object({
   url: jobAdUrlSchema,
   publishedAt: readableInstantSchema,
   expiresAt: readableInstantSchema.nullable(),
+  municipalityConceptId: z.string().nullable(),
+  municipalityName: z.string().nullable(),
+  regionConceptId: z.string().nullable(),
+  regionName: z.string().nullable(),
+  employmentTypeConceptId: z.string().nullable(),
+  worktimeExtentConceptId: z.string().nullable(),
 });
 export type PublicJobAdDto = z.infer<typeof publicJobAdDtoSchema>;

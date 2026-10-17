@@ -1,6 +1,7 @@
 using FluentValidation.TestHelper;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Access;
+using Jobbliggaren.Application.Auth.Activity;
 using Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 using Jobbliggaren.Application.Auth.Commands.StartExternalLogin;
 using Jobbliggaren.Application.Auth.ExternalLogins;
@@ -285,6 +286,7 @@ public class CompleteExternalLoginCommandHandlerTests
     private readonly IExternalLoginWriter _externalWriter = Substitute.For<IExternalLoginWriter>();
     private readonly IInboxProofRecorder _inbox = Substitute.For<IInboxProofRecorder>();
     private readonly IAuthAuditLogger _audit = Substitute.For<IAuthAuditLogger>();
+    private readonly IAccountActivityRecorder _activity = Substitute.For<IAccountActivityRecorder>();
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
     private readonly CapturingLogger<CompleteExternalLoginCommandHandler> _log = new();
     private readonly CapturingLogger<LoginProofOutcome> _outcomeLog = new();
@@ -323,7 +325,8 @@ public class CompleteExternalLoginCommandHandlerTests
             new LoginSubjectResolver(_lookup, _externalLookup, _db),
             new PasswordlessSessionGrant(
                 _inbox, _sessions, _audit, _db, FakeDateTimeProvider.Default, correlation, request,
-                reader, access, AccountAccessTestKit.Advancer(reader, access), Substitute.For<IAccountAccessCleanup>()),
+                reader, access, AccountAccessTestKit.Advancer(reader, access), Substitute.For<IAccountAccessCleanup>(),
+                _activity),
             _grants,
             new ExternalLoginLinker(_externalWriter, _db, FakeDateTimeProvider.Default, correlation, request),
             Options.Create(new AuthOptions { RegistrationsOpen = _registrationsOpen }),
@@ -473,6 +476,7 @@ public class CompleteExternalLoginCommandHandlerTests
             _externalWriter.LinkAsync(userId, ExternalProviderKey.GitHub, subject, Arg.Any<CancellationToken>());
             _inbox.RecordAsync(userId, Arg.Any<CancellationToken>());
             _audit.LoginSucceeded(userId, Arg.Any<string>(), LoginMethod.GitHub);
+            _activity.RecordLoginAsync(userId, CancellationToken.None);
         });
     }
 
@@ -491,6 +495,7 @@ public class CompleteExternalLoginCommandHandlerTests
             Arg.Any<CancellationToken>());
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, Ct);
+        await _activity.DidNotReceiveWithAnyArgs().RecordLoginAsync(default, Ct);
     }
 
     [Fact]

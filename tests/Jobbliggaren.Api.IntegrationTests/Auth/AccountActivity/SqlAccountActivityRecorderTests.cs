@@ -309,7 +309,7 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
         }
 
         waited.ShouldBeGreaterThanOrEqualTo(SqlAccountActivityRecorder.RequestWriteBudget - TimeSpan.FromMilliseconds(100));
-        waited.ShouldBeLessThan(SqlAccountActivityRecorder.RequestWriteBudget + TimeSpan.FromSeconds(5));
+        waited.ShouldBeLessThan(SqlAccountActivityRecorder.LoginWriteBudget);
         process.Statements.Count.ShouldBe(1);
         process.Logs.Logs.ShouldContain(log => log.EventId.Id == 2703 && log.Level == LogLevel.Warning);
         (await RowOfAsync(userId)).ShouldBeNull();
@@ -346,7 +346,7 @@ public sealed class SqlAccountActivityRecorderTests(ApiFactory factory)
             thrown = await Record.ExceptionAsync(() => process.Recorder.RecordRequestAsync(userId, caller.Token));
         }
 
-        thrown.ShouldBeAssignableTo<OperationCanceledException>();
+        thrown.ShouldNotBeNull().ShouldBeAssignableTo<OperationCanceledException>();
         process.Logs.Logs.ShouldNotContain(log => log.EventId.Id == 2703);
         (await RowOfAsync(userId)).ShouldBeNull();
     }

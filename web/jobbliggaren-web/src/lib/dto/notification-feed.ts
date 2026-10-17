@@ -10,7 +10,7 @@ import { notifiableMatchGradeSchema } from "@/lib/dto/me-matches";
  * som lästa" sends it back unchanged.
  */
 
-/** Why a notification exists. One row per (source, ad); an ad can ring for both reasons. */
+/** Why a notification exists. */
 export const notificationFeedSourceKindSchema = z.enum(["Match", "FollowedCompanyAd"]);
 export type NotificationFeedSourceKind = z.infer<typeof notificationFeedSourceKindSchema>;
 

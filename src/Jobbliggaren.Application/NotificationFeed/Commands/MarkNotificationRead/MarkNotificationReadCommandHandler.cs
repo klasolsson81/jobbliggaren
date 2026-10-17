@@ -15,10 +15,11 @@ public sealed class MarkNotificationReadCommandHandler(IAppDbContext db, ICurren
             return Result.Failure(
                 DomainError.Validation("NotificationFeed.Unauthorized", "Användaren är inte autentiserad."));
 
-        await NotificationFeedSources.MarkerFor(command.Kind).MarkRowAsync(
-            new NotificationFeedMarkContext(db, currentUser.UserId.Value),
-            new JobAdId(command.JobAdId),
-            cancellationToken);
+        // The ad is the notification (#2158): every source's rows of it, each source under its own gate.
+        var context = new NotificationFeedMarkContext(db, currentUser.UserId.Value);
+        var jobAdId = new JobAdId(command.JobAdId);
+        foreach (var marker in NotificationFeedSources.Markers)
+            await marker.MarkRowAsync(context, jobAdId, cancellationToken);
 
         return Result.Success();
     }

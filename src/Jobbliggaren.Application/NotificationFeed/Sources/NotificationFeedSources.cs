@@ -7,7 +7,8 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// missing here, listed twice, shares a kind, or holds instance state.
 /// <para>
 /// A source is also its own marker (#2130): <see cref="MarkerFor"/> resolves the write side of a source by its
-/// kind, for the commands that mark rows read. The same instances serve both lists.
+/// kind, for "Markera alla" and the switch-on backlog; a click and an X reach every one of <see cref="Markers"/>
+/// (#2158). The same instances serve both lists.
 /// </para>
 /// </summary>
 internal static class NotificationFeedSources

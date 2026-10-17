@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Matching.Queries;
 using Jobbliggaren.Application.NotificationFeed.Queries.GetMyNotificationFeed;
 using Jobbliggaren.Domain.JobAds;
@@ -107,6 +108,20 @@ internal sealed class MatchFeedSource : INotificationFeedSource, INotificationFe
         }
 
         return new NotificationSourceRead(Kind, unreadCount, token, items, Horizon: null);
+    }
+
+    /// <summary>
+    /// The ads this source holds (#2158, ADR 0173): every ad the user has a match row for, read, dismissed or behind the
+    /// watermark alike, while <see cref="NotificationFeedGate.Matches"/> holds. A later source leaves these ads out, so an ad
+    /// is one notification. The gate is inside the query, so a statement that composes it reads a match row only while the
+    /// gate holds in that statement.
+    /// </summary>
+    internal static IQueryable<JobAdId> HeldAdIds(IAppDbContext db, Guid userId)
+    {
+        var gated = NotificationFeedGate.Matches.Apply(db.JobSeekers);
+        return NewMatchSet.Matches(db, userId, since: null)
+            .Where(m => gated.Any(js => js.UserId == m.UserId))
+            .Select(m => m.JobAdId);
     }
 
     /// <summary>One match joined to its ad's display columns. Named because an anonymous type cannot cross the helper.</summary>

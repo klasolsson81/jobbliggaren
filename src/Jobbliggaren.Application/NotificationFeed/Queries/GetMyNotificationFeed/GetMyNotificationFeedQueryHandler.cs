@@ -13,10 +13,10 @@ namespace Jobbliggaren.Application.NotificationFeed.Queries.GetMyNotificationFee
 ///
 /// <para>
 /// The sources run one after another because they share one scoped <see cref="IAppDbContext"/>, which
-/// is not safe for concurrent use. The merge keeps one row per (source, ad). It selects every unread
-/// row first, up to the cap, and fills the rest with the newest read rows above the newest horizon a
-/// windowed source reported (see <see cref="NotificationSourceRead.Horizon"/>), so no read row can take
-/// the place of an unread one. The selection is shown newest first, ties broken by kind and then ad id.
+/// is not safe for concurrent use. The merge selects every unread row first, up to the cap, and fills the
+/// rest with the newest read rows above the newest horizon a windowed source reported (see
+/// <see cref="NotificationSourceRead.Horizon"/>), so no read row can take the place of an unread one. The
+/// selection is shown newest first, ties broken by kind and then ad id.
 /// </para>
 /// </summary>
 public sealed class GetMyNotificationFeedQueryHandler(

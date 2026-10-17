@@ -21,8 +21,8 @@ const BADGE_MAX = 99;
 
 /**
  * The header bell (#1666): the signed-in user's new matches and new ads from followed companies, read
- * by the shell's `NotificationFeedProvider` and shown in a non-modal popover. A notification is a
- * (source, ad) pair, so an ad can appear once per reason. Nothing is acknowledged by opening or reading.
+ * by the shell's `NotificationFeedProvider` and shown in a non-modal popover. Nothing is acknowledged by opening
+ * or reading.
  * The panel holds notifications and nothing else (#2130): its only links are the rows' own, to the ad.
  *
  * #2151 - every row carries an X, a button of its own beside the row link, that takes just that notification out of the
@@ -50,7 +50,7 @@ export function NotificationsBell() {
   const [markFailed, setMarkFailed] = useState(false);
   const [dismissFailed, setDismissFailed] = useState(false);
   // What the removal's polite region says after an X, with the title and the reason so that two removals in a row are two
-  // announcements, even of one ad listed for two reasons.
+  // announcements.
   const [dismissedNote, setDismissedNote] = useState("");
   // Set when a refused dismissal restores a row whose X should have focus again; an object, so asking twice runs the effect twice.
   const [restoreFocus, setRestoreFocus] = useState<{ readonly key: string } | null>(null);
@@ -385,7 +385,7 @@ function NotificationRow({
   );
 }
 
-/** Why the notification is there, in words: an ad can be listed once per reason, so the X's name must tell them apart. */
+/** Why the notification is there, in words. */
 function reasonOf(t: NotificationsT, item: NotificationFeedItem): string {
   return item.kind === "Match" ? t("reasonMatch") : t("reasonFollowed");
 }

@@ -76,7 +76,7 @@ function open() {
   return screen.getByRole("dialog", { name: "Notiser" });
 }
 
-// The name carries the reason (an ad can be listed once per reason), the title and the company.
+// The name carries the reason, the title and the company.
 const REASON: Record<string, string> = { Utvecklare: "Ny matchning", Tekniker: "Ny matchning", Testare: "Bevakat företag" };
 const dismissButton = (dialog: HTMLElement, title: string) =>
   within(dialog).getByRole("button", { name: `Ta bort notisen: ${REASON[title]}, ${title}, ${title} AB` });

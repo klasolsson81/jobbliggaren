@@ -20,8 +20,8 @@ namespace Jobbliggaren.Api.Endpoints;
 /// comes from the session only; no route, query or body carries one, so there is no IDOR surface.
 /// <list type="bullet">
 /// <item>One GET with no parameters: the feed. It writes nothing.</item>
-/// <item>Three POST marks: one row read, and everything read through a token (#2130), and one row taken out of the bell
-///   with its X (#2151). They set the source rows' own bell flags (<c>read_in_notification_feed</c>; the X also
+/// <item>Three POST marks: one notification read, and everything read through a token (#2130), and one notification
+///   taken out of the bell with its X (#2151). They set the source rows' own bell flags (<c>read_in_notification_feed</c>; the X also
 ///   <c>dismissed_from_notification_feed</c>) and move no watermark. 204 for every request from a signed-in owner,
 ///   whether or not the row exists, is theirs, or is still listed; they share their own bucket.</item>
 /// <item>Two PUT switches (#2130): whether a type reaches the bell. Delivery choices, never consents; each carries only
@@ -56,26 +56,27 @@ public static class MeNotificationFeedEndpoints
 
         // #2130 - one notification read. The ad id (non-PII, already in /jobb/{id}) is in the path; the owner is not.
         // 204 on Success, also when nothing changes (a missing or foreign row, or a match whose consent is withdrawn):
-        // never a 404, which would reveal whether the user has the row. A non-GUID id never matches the route.
+        // never a 404, which would reveal whether the user has the row. A non-GUID id never matches the route. The
+        // segment names the row the user acted on and stays a closed set; the mark reaches the ad in every source (#2158).
         group.MapPost("/{source}/{jobAdId:guid}/read", async (
             string source, Guid jobAdId, IMediator mediator, CancellationToken ct) =>
         {
-            if (!Sources.TryGetValue(source, out var kind))
+            if (!Sources.ContainsKey(source))
                 return UnknownSource();
 
-            var result = await mediator.Send(new MarkNotificationReadCommand(kind, jobAdId), ct);
+            var result = await mediator.Send(new MarkNotificationReadCommand(jobAdId), ct);
             return result.IsSuccess ? Results.NoContent() : result.Error.ToProblemResult();
         }).RequireRateLimiting(RateLimitingExtensions.NotificationFeedMarkPolicy);
 
-        // #2151 - the X on one notification: takes that (source, ad) pair out of the bell, nothing else. A POST and not a
-        // DELETE: no row is deleted (#2138 forbids it), a flag is set. Same 204 for every signed-in owner.
+        // #2151 - the X on one notification: takes that ad out of the bell, in every source (#2158), nothing else. A POST
+        // and not a DELETE: no row is deleted (#2138 forbids it), a flag is set. Same 204 for every signed-in owner.
         group.MapPost("/{source}/{jobAdId:guid}/dismiss", async (
             string source, Guid jobAdId, IMediator mediator, CancellationToken ct) =>
         {
-            if (!Sources.TryGetValue(source, out var kind))
+            if (!Sources.ContainsKey(source))
                 return UnknownSource();
 
-            var result = await mediator.Send(new DismissNotificationCommand(kind, jobAdId), ct);
+            var result = await mediator.Send(new DismissNotificationCommand(jobAdId), ct);
             return result.IsSuccess ? Results.NoContent() : result.Error.ToProblemResult();
         }).RequireRateLimiting(RateLimitingExtensions.NotificationFeedMarkPolicy);
 

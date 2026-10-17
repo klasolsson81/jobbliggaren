@@ -136,38 +136,28 @@ public class NotificationFeedMarkerTests
     }
 
     [Fact]
-    public async Task TheDismissHandler_AnswersSuccessForARowThatIsNotThere_AndRefusesWithoutASessionUser()
+    public async Task TheDismissHandler_RefusesWithoutASessionUser()
     {
         using var db = TestAppDbContextFactory.Create();
-        var userId = Guid.NewGuid();
-        _seed.Seeker(db, userId, backgroundMatchConsent: true);
-        var currentUser = Substitute.For<ICurrentUser>();
-        currentUser.UserId.Returns(userId);
-
-        (await new DismissNotificationCommandHandler(db, currentUser).Handle(
-            new DismissNotificationCommand(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid()), CancellationToken.None))
-            .IsSuccess.ShouldBeTrue();
-
         var anonymous = Substitute.For<ICurrentUser>();
         anonymous.UserId.Returns((Guid?)null);
+
         (await new DismissNotificationCommandHandler(db, anonymous).Handle(
-            new DismissNotificationCommand(NotificationFeedSourceKind.Match, Guid.NewGuid()), CancellationToken.None))
+            new DismissNotificationCommand(Guid.NewGuid()), CancellationToken.None))
             .Error.Code.ShouldBe("NotificationFeed.Unauthorized");
     }
 
     [Fact]
-    public void TheDismissValidator_RefusesAnUndefinedSourceAndAnEmptyAd_FromTheRequestAlone()
+    public void TheDismissValidator_RefusesAnEmptyAd_FromTheRequestAlone()
     {
         new DismissNotificationCommandValidator()
-            .Validate(new DismissNotificationCommand((NotificationFeedSourceKind)7, Guid.NewGuid())).IsValid.ShouldBeFalse();
+            .Validate(new DismissNotificationCommand(Guid.Empty)).IsValid.ShouldBeFalse();
         new DismissNotificationCommandValidator()
-            .Validate(new DismissNotificationCommand(NotificationFeedSourceKind.Match, Guid.Empty)).IsValid.ShouldBeFalse();
-        new DismissNotificationCommandValidator()
-            .Validate(new DismissNotificationCommand(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid())).IsValid.ShouldBeTrue();
+            .Validate(new DismissNotificationCommand(Guid.NewGuid())).IsValid.ShouldBeTrue();
     }
 
     [Fact]
-    public async Task TheCommandHandlers_ResolveTheOwnerFromTheSessionAndAnswerSuccessForARowThatIsNotThere()
+    public async Task TheBacklogHandler_ResolvesTheOwnerFromTheSession_AndAnswersSuccessForBothKinds()
     {
         using var db = TestAppDbContextFactory.Create();
         var userId = Guid.NewGuid();
@@ -176,11 +166,8 @@ public class NotificationFeedMarkerTests
         currentUser.UserId.Returns(userId);
 
         // A signed-in owner gets Success for every request: a row that is missing or foreign is not an error, so the answer
-        // says nothing about whether the user has it. (The match row mark and the through marks are ExecuteUpdate, which
-        // InMemory cannot run: their 204s are NotificationFeedReadStateEndpointTests'.)
-        (await new MarkNotificationReadCommandHandler(db, currentUser).Handle(
-            new MarkNotificationReadCommand(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid()), CancellationToken.None))
-            .IsSuccess.ShouldBeTrue();
+        // says nothing about whether the user has it. (The row marks reach the match source and the through marks are
+        // ExecuteUpdate, which InMemory cannot run: their 204s are NotificationFeedReadStateEndpointTests'.)
         (await new MarkNotificationFeedBacklogReadCommandHandler(db, currentUser).Handle(
             new MarkNotificationFeedBacklogReadCommand(NotificationFeedSourceKind.Match), CancellationToken.None))
             .IsSuccess.ShouldBeTrue();
@@ -191,8 +178,9 @@ public class NotificationFeedMarkerTests
 
     // security V6, declared unreachable: no request carries a signed-in user without a JobSeeker row (registration creates
     // both; over HTTP such a user is a 401, measured), so this asserts only that the handlers degrade safely if the invariant
-    // ever breaks: the same Success, never a NotFound that would say whether the user has a row. The match marks and the
-    // through marks are ExecuteUpdate, which InMemory cannot run.
+    // ever breaks: the same Success, never a NotFound that would say whether the user has a row. The row marks and the
+    // through marks reach ExecuteUpdate, which InMemory cannot run: the row marks' case is
+    // NotificationFeedOneNotificationPerAdTests'.
     [Fact]
     public async Task TheCommandHandlers_AnswerSuccessForASignedInUserWithoutAJobSeekerRow()
     {
@@ -201,9 +189,6 @@ public class NotificationFeedMarkerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(userId);
 
-        (await new MarkNotificationReadCommandHandler(db, currentUser).Handle(
-            new MarkNotificationReadCommand(NotificationFeedSourceKind.FollowedCompanyAd, Guid.NewGuid()), CancellationToken.None))
-            .IsSuccess.ShouldBeTrue();
         (await new MarkNotificationFeedBacklogReadCommandHandler(db, currentUser).Handle(
             new MarkNotificationFeedBacklogReadCommand(NotificationFeedSourceKind.Match), CancellationToken.None))
             .IsSuccess.ShouldBeTrue();
@@ -220,7 +205,7 @@ public class NotificationFeedMarkerTests
         currentUser.UserId.Returns((Guid?)null);
 
         (await new MarkNotificationReadCommandHandler(db, currentUser).Handle(
-            new MarkNotificationReadCommand(NotificationFeedSourceKind.Match, Guid.NewGuid()), CancellationToken.None))
+            new MarkNotificationReadCommand(Guid.NewGuid()), CancellationToken.None))
             .Error.Code.ShouldBe("NotificationFeed.Unauthorized");
         (await new MarkNotificationsReadThroughCommandHandler(db, currentUser).Handle(
             new MarkNotificationsReadThroughCommand(NotificationFeedSourceKind.Match, T0), CancellationToken.None))
@@ -236,9 +221,7 @@ public class NotificationFeedMarkerTests
         const NotificationFeedSourceKind undefined = (NotificationFeedSourceKind)7;
 
         new MarkNotificationReadCommandValidator()
-            .Validate(new MarkNotificationReadCommand(undefined, Guid.NewGuid())).IsValid.ShouldBeFalse();
-        new MarkNotificationReadCommandValidator()
-            .Validate(new MarkNotificationReadCommand(NotificationFeedSourceKind.Match, Guid.Empty)).IsValid.ShouldBeFalse();
+            .Validate(new MarkNotificationReadCommand(Guid.Empty)).IsValid.ShouldBeFalse();
         new MarkNotificationsReadThroughCommandValidator()
             .Validate(new MarkNotificationsReadThroughCommand(undefined, T0)).IsValid.ShouldBeFalse();
         new MarkNotificationsReadThroughCommandValidator()
@@ -247,7 +230,7 @@ public class NotificationFeedMarkerTests
             .Validate(new MarkNotificationFeedBacklogReadCommand(undefined)).IsValid.ShouldBeFalse();
 
         new MarkNotificationReadCommandValidator()
-            .Validate(new MarkNotificationReadCommand(NotificationFeedSourceKind.Match, Guid.NewGuid())).IsValid.ShouldBeTrue();
+            .Validate(new MarkNotificationReadCommand(Guid.NewGuid())).IsValid.ShouldBeTrue();
         new MarkNotificationsReadThroughCommandValidator()
             .Validate(new MarkNotificationsReadThroughCommand(NotificationFeedSourceKind.FollowedCompanyAd, T0)).IsValid.ShouldBeTrue();
     }

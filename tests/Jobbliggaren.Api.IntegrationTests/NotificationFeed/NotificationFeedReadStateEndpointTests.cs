@@ -1228,9 +1228,8 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
             ? [(await MatchRowAsync(userId, ad, ct)).DismissedFromNotificationFeed]
             : (await HitRowsAsync(userId, ad, ct)).Select(h => h.DismissedFromNotificationFeed).ToList();
 
-    // I6 with the X: the bell's unread is Översikt's count minus exactly the rows read OR dismissed in the bell.
     [Fact]
-    public async Task The_bells_count_is_Oversikts_count_minus_the_rows_read_or_dismissed_in_the_bell()
+    public async Task The_bells_count_is_Oversikts_count_minus_the_rows_read_or_dismissed_in_the_bell_when_no_followed_ad_is_a_match()
     {
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterUserAsync("dismiss-parity", ct);
@@ -1424,9 +1423,8 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         counter.Count.ShouldBe(11);
     }
 
-    // I6: per source the bell's unread is at most Översikt's, and exactly Översikt's minus the rows read one by one.
     [Fact]
-    public async Task The_bells_count_is_Oversikts_count_minus_exactly_the_rows_read_in_the_bell()
+    public async Task The_bells_count_is_Oversikts_count_minus_exactly_the_rows_read_in_the_bell_when_no_followed_ad_is_a_match()
     {
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterUserAsync("parity-flags", ct);

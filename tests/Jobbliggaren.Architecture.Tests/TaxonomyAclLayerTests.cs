@@ -172,6 +172,13 @@ public class TaxonomyAclLayerTests
             // handler, samma ResolveLabelsAsync-mönster; ingen Clean Arch-brott (§2.1).
             // (Sorterar före GetTaxonomyTree: "GetJ" < "GetT".)
             nameof(Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail.GetJobAdMatchDetailQueryHandler),
+            // #2090 S3 / ADR 0171 (2026-10-17) — the first ANONYMOUS consumer, read-side only: the public
+            // job-ad read resolves the kommun and län concept ids to their snapshot names for the public
+            // page and its JobPosting markup. The port is user-agnostic (a cached snapshot, no DB hop per
+            // request), the call is made only after the row is classified Listed (never for a 410/404),
+            // and the write-side invariant ("ALDRIG i command-/write-use-cases") is untouched. Sorts
+            // "GetP" between "GetJ" and "GetT".
+            nameof(Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd.GetPublicJobAdQueryHandler),
             nameof(Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree.GetTaxonomyTreeQueryHandler),
             // ADR 0060 (2026-05-20) — fjärde legitim konsument: RecentJobSearches-
             // listans label-berikning, identiskt mönster med SavedSearch-listan.

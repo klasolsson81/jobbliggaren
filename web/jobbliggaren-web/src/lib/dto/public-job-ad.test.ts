@@ -10,19 +10,48 @@ const WIRE = {
   publishedAt: "2026-10-01T08:00:00+00:00",
   expiresAt: "2026-11-01T08:00:00+00:00",
   municipalityConceptId: "m1",
+  municipalityName: "Kommunen",
   regionConceptId: "r1",
+  regionName: "Länet",
   occupationGroupConceptId: "o1",
   employmentTypeConceptId: "e1",
   worktimeExtentConceptId: "w1",
 };
 
 describe("publicJobAdDtoSchema", () => {
-  it("reads the seven members the page uses and strips the rest of the wire", () => {
+  it("reads the eleven members the page uses and strips the rest of the wire (the three unread concept ids among them)", () => {
     const parsed = publicJobAdDtoSchema.parse(WIRE);
 
     expect(Object.keys(parsed).sort()).toEqual(
-      ["companyName", "description", "expiresAt", "id", "publishedAt", "title", "url"].sort()
+      [
+        "companyName",
+        "description",
+        "expiresAt",
+        "id",
+        "publishedAt",
+        "title",
+        "url",
+        "municipalityName",
+        "regionName",
+        "employmentTypeConceptId",
+        "worktimeExtentConceptId",
+      ].sort()
     );
+    for (const unread of ["occupationGroupConceptId", "municipalityConceptId", "regionConceptId"]) {
+      expect(unread in parsed).toBe(false);
+    }
+  });
+
+  it("accepts a null name (an id the snapshot does not know) and an employment id the catalogue does not know", () => {
+    const parsed = publicJobAdDtoSchema.parse({
+      ...WIRE,
+      municipalityName: null,
+      regionName: null,
+      employmentTypeConceptId: "drifted_id",
+      worktimeExtentConceptId: null,
+    });
+    expect(parsed.municipalityName).toBeNull();
+    expect(parsed.employmentTypeConceptId).toBe("drifted_id");
   });
 
   it("strips a member nobody asked for, so a field added to the wire later cannot reach the page", () => {

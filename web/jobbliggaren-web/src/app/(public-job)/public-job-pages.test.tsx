@@ -30,6 +30,10 @@ const AD = {
   url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
   publishedAt: "2026-10-01T08:00:00Z",
   expiresAt: "2026-11-01T08:00:00Z",
+  municipalityName: "Stockholm",
+  regionName: "Stockholms län",
+  employmentTypeConceptId: "gro4_cWF_6D7",
+  worktimeExtentConceptId: "6YE1_gAC_R2G",
 };
 
 const params = (id = ID) => ({ params: Promise.resolve({ id }) });
@@ -83,6 +87,9 @@ describe("the public job page's metadata", () => {
     });
   });
 
+  // The JobPosting data block on the page DOES carry the description, by design and with Klas's and
+  // security-auditor's reading of 2026-10-17 (ADR 0171; ADR 0166 Amendment): its consumers are the
+  // search engines that already index the visible text. The metadata rule below is unchanged by that.
   it("never carries the free text: a name in the description is in no tag a link preview or a snippet could copy", async () => {
     getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: AD });
     const metadata = await generateMetadata(params());

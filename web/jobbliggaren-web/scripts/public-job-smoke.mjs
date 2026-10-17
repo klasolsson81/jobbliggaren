@@ -33,6 +33,8 @@ const ID = {
   outage: "66666666-6666-4666-8666-666666666666",
   raceOutage: "77777777-7777-4777-8777-777777777777",
   raceEnded: "88888888-8888-4888-8888-888888888888",
+  /** Listed, but with no resolved kommun: no JobPosting, still indexable (ADR 0171). */
+  listedNoKommun: "99999999-9999-4999-8999-999999999999",
   /** Hex digits that have a case, for the upper-case redirect; no read is ever made for it. */
   hexCase: "abcdefab-abcd-4abc-8abc-abcdefabcdef",
 };
@@ -45,11 +47,13 @@ const AD = {
   url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
   publishedAt: "2026-10-01T08:00:00+00:00",
   expiresAt: "2026-11-01T08:00:00+00:00",
-  municipalityConceptId: null,
-  regionConceptId: null,
+  municipalityConceptId: "AvNB_uwa_6n6",
+  municipalityName: "Stockholm",
+  regionConceptId: "CifL_Rzy_Mku",
+  regionName: "Stockholms län",
   occupationGroupConceptId: null,
-  employmentTypeConceptId: null,
-  worktimeExtentConceptId: null,
+  employmentTypeConceptId: "gro4_cWF_6D7", // Vikariat
+  worktimeExtentConceptId: "6YE1_gAC_R2G", // Heltid
 };
 
 const GONE_BODY = JSON.stringify({ title: "Annonsen är inte längre tillgänglig.", status: 410 });
@@ -77,6 +81,8 @@ function stubHandler(req, res) {
   switch (id) {
     case ID.listed:
       return send(200, JSON.stringify(AD));
+    case ID.listedNoKommun:
+      return send(200, JSON.stringify({ ...AD, id, municipalityConceptId: null, municipalityName: null }));
     case ID.ended:
     case ID.erased:
       return send(410, GONE_BODY);
@@ -133,6 +139,9 @@ async function get(origin, path, init = {}) {
 
 const publicCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/"));
 const callsFor = (id) => publicCalls().filter((r) => r.path.endsWith(`/${id}`));
+
+/** Every JSON-LD data block on a page, as text. */
+const jsonLdBlocks = (html) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 
 /** The part of a page that is the same for an ended and an erased ad, stripped of Next's per-request script ids. */
 function mainOf(html) {
@@ -201,6 +210,33 @@ try {
     assert.equal(res.headers.get("x-robots-tag"), null);
   });
 
+  await check("a listed, complete ad carries exactly one JobPosting data block that parses, matches the page and cannot close itself", async () => {
+    const res = await get(origin, `/jobb/${ID.listed}`);
+    const blocks = jsonLdBlocks(res.body);
+    assert.equal(blocks.length, 1, "one application/ld+json script");
+    assert.doesNotMatch(blocks[0], /<|<\/script/, "no literal < inside the data block");
+    const posting = JSON.parse(blocks[0]);
+    assert.equal(posting["@type"], "JobPosting");
+    assert.equal(posting.title, AD.title);
+    assert.equal(posting.hiringOrganization.name, AD.companyName);
+    assert.equal(posting.jobLocation.address.addressLocality, "Stockholm");
+    assert.equal(posting.jobLocation.address.addressCountry, "SE");
+    assert.deepEqual(posting.employmentType, ["FULL_TIME", "TEMPORARY"]);
+    assert.ok(posting.validThrough, "the ad has a deadline, so validThrough is present");
+    assert.equal(posting.url, undefined);
+    assert.match(res.body, /Stockholm, Stockholms län/, "the kommun and län are visible on the page");
+    assert.match(res.body, /Vikariat · Heltid/, "the employment type and extent are visible on the page");
+  });
+
+  await check("a listed ad without a resolved kommun has no JobPosting and stays indexable", async () => {
+    const res = await get(origin, `/jobb/${ID.listedNoKommun}`);
+    assert.equal(res.status, 200);
+    assert.equal(jsonLdBlocks(res.body).length, 0);
+    assert.doesNotMatch(res.body, /<meta name="robots" content="[^"]*noindex/);
+    assert.equal(res.headers.get("x-robots-tag"), null);
+    assert.match(res.body, /<h1[^>]*>Sjuksköterska till vårdcentral<\/h1>/);
+  });
+
   await check("a listed ad costs the API two reads (the probe, then the render), both for the visitor and with no credential", async () => {
     seen.length = 0;
     await get(origin, `/jobb/${ID.listed}`, { headers: { cookie: "other=1", authorization: "Bearer x" } });
@@ -225,6 +261,7 @@ try {
       assert.doesNotMatch(res.body, /Sjuksköterska|Region Exempel/);
     }
     assert.equal(mainOf(ended.body), mainOf(erased.body));
+    assert.equal(jsonLdBlocks(ended.body).length, 0, "no JobPosting on the 410 page");
     assert.equal(ended.headers.get("content-length") === null, erased.headers.get("content-length") === null);
     assert.equal(callsFor(ID.ended).length, 1);
     assert.equal(callsFor(ID.erased).length, 1);
@@ -252,6 +289,7 @@ try {
     assert.match(res.body, /Annonsen kan inte visas just nu/);
     assert.match(res.body, /<main[^>]*id="main"/);
     assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+    assert.equal(jsonLdBlocks(res.body).length, 0, "no JobPosting on the 503 page");
   });
 
   await check("an outage (an upstream 500) is a 503, never a 404 or a 410", async () => {

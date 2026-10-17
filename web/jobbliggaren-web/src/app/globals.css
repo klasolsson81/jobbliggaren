@@ -2969,14 +2969,29 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
 }
+/* The facts row under the dates on the public page (ADR 0171): kommun and län, employment type and
+   extent. Same geometry as the date row; its own name, because it is not a date. */
+.jp-modal__facts {
+  margin-top: 6px;
+}
 .jp-modal__date {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.jp-modal__date-icon {
+/* A fact value can wrap (a long anställningsform at 375 px); the icon stays on the first line. */
+.jp-modal__fact {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.jp-modal__date-icon,
+.jp-modal__fact-icon {
   flex-shrink: 0;
   color: var(--jp-ink-2);
+}
+.jp-modal__fact-icon {
+  margin-top: calc((1lh - 14px) / 2);
 }
 .jp-modal__date-value {
   font-variant-numeric: tabular-nums;

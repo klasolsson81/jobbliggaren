@@ -27,8 +27,8 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
     private static readonly string[] WireMembers =
     [
         "companyName", "description", "employmentTypeConceptId", "expiresAt", "id",
-        "municipalityConceptId", "occupationGroupConceptId", "publishedAt", "regionConceptId",
-        "title", "url", "worktimeExtentConceptId",
+        "municipalityConceptId", "municipalityName", "occupationGroupConceptId", "publishedAt",
+        "regionConceptId", "regionName", "title", "url", "worktimeExtentConceptId",
     ];
 
     private readonly HttpClient _anonymous = factory.CreateClient();
@@ -36,7 +36,8 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private async Task<Guid> ImportAsync(
-        int publishedDaysAgo, int? expiresInDays, Func<JobAd, IDateTimeProvider, Result>? then = null)
+        int publishedDaysAgo, int? expiresInDays, Func<JobAd, IDateTimeProvider, Result>? then = null,
+        string municipality = "mun_public", string region = "reg_public")
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -52,7 +53,7 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: payload,
             facets: TestFacets.From(
-                occupationGroup: "grp_public", municipality: "mun_public", region: "reg_public",
+                occupationGroup: "grp_public", municipality: municipality, region: region,
                 employmentType: "et_public", worktimeExtent: "wt_public", organizationNumber: "5560000000"),
             declaredContacts: [],
             publishedAt: clock.UtcNow.AddDays(-publishedDaysAgo),
@@ -111,6 +112,26 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
         body.GetProperty("companyName").GetString().ShouldBe("Exempelbolaget AB");
         body.GetProperty("municipalityConceptId").GetString().ShouldBe("mun_public");
         body.GetProperty("employmentTypeConceptId").GetString().ShouldBe("et_public");
+        // Ids the snapshot does not know: the name members are present and null, never dropped (ADR 0171).
+        body.GetProperty("municipalityName").ValueKind.ShouldBe(JsonValueKind.Null);
+        body.GetProperty("regionName").ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task A_listed_ad_with_snapshot_concept_ids_carries_the_kommun_and_lan_names_on_the_wire()
+    {
+        // Real ids from the seeded taxonomy snapshot (TaxonomySnapshotSeeder runs in the test host):
+        // Stockholm kommun under Stockholms län.
+        var id = await ImportAsync(publishedDaysAgo: 1, expiresInDays: 30,
+            municipality: "AvNB_uwa_6n6", region: "CifL_Rzy_Mku");
+
+        var response = await GetAsync(id);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        body.GetProperty("municipalityName").GetString().ShouldBe("Stockholm");
+        body.GetProperty("regionName").GetString().ShouldBe("Stockholms län");
+        body.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ToArray().ShouldBe(WireMembers);
     }
 
     [Fact]

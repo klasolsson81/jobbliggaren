@@ -348,3 +348,34 @@ three bearer-absence readings covers (a new register of accounts, sends or reade
 - Google Search Central, job posting structured data (updated 2026-09-08, read 2026-10-11):
   https://developers.google.com/search/docs/appearance/structured-data/job-posting
 - #2090 · #2091 · #2098 · #2123 · #841
+
+## Amendment 2026-10-17 (#2090 S3, ADR 0171) — the record is made true (Art. 5(2)); approved by Klas 2026-10-17, signed by `security-auditor` 2026-10-17
+
+D1–D11 and the earlier amendment stand and nothing above is rewritten. S3 puts a `JobPosting` data block on the listed `/jobb/<uuid>` page (ADR 0171). The block is built
+from the anonymous read the page already makes, with the description HTML-escaped and a pinned key set (ADR 0171 D4). This amendment makes the record say what the page does.
+It is made on `security-auditor`'s M2 of her plan read, `docs/reviews/2026-10-17-2090-s3-plan-security-auditor.md` (local).
+
+**(i) D5 and W4: what "metadata from structured fields only" covers.** D5's "metadata from structured fields only" and W4's "a preview carries no free text" cover link
+previews (OpenGraph and meta tags). The `JobPosting` data block carries the full description to search engines by design, as D2 foresaw when it rested necessity on S3's
+markup.
+
+**(ii) W4, what is left.** A copy shown in a search engine's job feature, removed by the 410 and by `validThrough`. Google states that the jobs experience can lag
+("Users can still access the page through the jobs experience on Google even though the job has expired", Google Search Central, job posting structured data, page dated
+2026-09-08, read 2026-10-17).
+
+**(iii) D10 gains three triggers,** so that the list keeps its single home. They continue the numbering of D10:
+
+5. Any **push** of a posting URL or its content to a third party: the Indexing API `URL_UPDATED`, an XML or job feed to an aggregator, or a Google partner submission.
+6. A `JobPosting` on **any page other than** the listed `/jobb/<uuid>`.
+7. A member **outside the pinned key set** of ADR 0171 D4, or any value the anonymous read does not carry.
+
+**(iv) D7's recipients line stands.** "The public, and search engines" covers Google for Jobs and Bing in their job features; "andra" in the notice covers aggregator copies.
+The `recruiterNotice` text is **not** changed (Klas's choice, 2026-10-17). How many aggregators ingest the markup is **not measured**.
+
+**Sign-off**
+
+**Controller approval:** Klas Olsson, 2026-10-17, in the session's chat, to `security-auditor`'s escalation relayed verbatim: "Ja, ingen trigger (Rek.)" (trigger 1 does not
+fire for S3) and "Ja, godkänt (Rek.)" (this amendment).
+**Signature:** `security-auditor`, 2026-10-17, on her scoped re-check of PR [#2160](https://github.com/klasolsson81/jobbliggaren/pull/2160) at head `144fda24c`: signs this amendment, points (i)–(iv) and D10 triggers 5–7, read with ADR 0171 D4 as delivered — the description HTML escaped per text run before any tag is wrapped and emitted only in the tag set `p`, `ul`, `li`, `br`; `hiringOrganization` as `{@type, name}` only; `jobLocation.address` as `addressLocality`, `addressRegion` and `addressCountry` only; no `url`. It does not re-sign D1–D11, which her signature of 2026-10-12 covers, and it does not cover the Amendment 2026-10-11, which she has not signed. It lapses with any D10 trigger, 5–7 included, and with any change to this amendment's text or to ADR 0171 D4's key set or escaping; the edit that writes this line and marks the amendment Accepted does not reopen it.
+
+ADR 0166 remains **Accepted** for D1–D11; this amendment is **Accepted** (approved by Klas and signed by `security-auditor`, both 2026-10-17).

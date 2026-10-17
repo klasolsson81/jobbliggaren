@@ -88,6 +88,29 @@ public class GetMyNotificationFeedQueryHandlerTests
         ]);
     }
 
+    [Fact]
+    public void Merge_WhenTheMatchGateTurnsOffBetweenTheTwoReads_KeepsBothRowsOfTheAd_AndBothCounts()
+    {
+        var shared = Guid.NewGuid();
+        var match = Read(NotificationFeedSourceKind.Match, 1, null,
+            Item(NotificationFeedSourceKind.Match, shared, T0.AddHours(2)));
+        var followed = Read(NotificationFeedSourceKind.FollowedCompanyAd, 1, null,
+            Item(NotificationFeedSourceKind.FollowedCompanyAd, shared, T0.AddHours(1)));
+
+        var feed = GetMyNotificationFeedQueryHandler.Merge([match, followed], maxItems: 20);
+
+        feed.Items.Select(i => (i.Kind, i.JobAdId)).ShouldBe(
+        [
+            (NotificationFeedSourceKind.Match, shared),
+            (NotificationFeedSourceKind.FollowedCompanyAd, shared),
+        ]);
+        feed.Sources.Select(s => (s.Kind, s.UnreadCount)).ShouldBe(
+        [
+            (NotificationFeedSourceKind.Match, (int?)1),
+            (NotificationFeedSourceKind.FollowedCompanyAd, (int?)1),
+        ]);
+    }
+
     // The followed ad has the lowest id of the three, so its place after both matches is the kind's doing, not the id's.
     [Fact]
     public void Merge_BreaksATieByKindThenAdId()

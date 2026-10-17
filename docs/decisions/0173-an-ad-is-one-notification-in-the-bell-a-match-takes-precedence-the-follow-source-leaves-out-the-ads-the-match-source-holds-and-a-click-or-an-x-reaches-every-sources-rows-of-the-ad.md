@@ -8,8 +8,8 @@ driving session's mechanism, reviewed by the mandatory panel in the PR. No rulin
 review.
 **Amends:** ADR 0162: the title's "one row per (source, ad)", D2, the effect of D3, D6's "The follow source is not gated", the Alternatives row "One merged row per ad across
 sources", Positive's "cannot disagree with Översikt" and s4. ADR 0168: D1's readers, D2's unread definition and its equality clause (I6 becomes I6'), D3's "a click reads the whole
-(source, ad) pair" and Alternative A's "the unit stays (kind, ad)". ADR 0169: the Context bullet "A follow notification is a (source, ad) pair", D4', D5' and s1; its Alternative G's
-objection is answered. Each stays as the record and carries one header line that points here.
+(source, ad) pair" and Alternative A's "the unit stays (kind, ad)". ADR 0169: the Context bullet "A follow notification is a (source, ad) pair", D4', D5' and s1.
+Each stays as the record and carries one header line that points here.
 **Related:** [#2158](https://github.com/klasolsson81/jobbliggaren/issues/2158) (this decision ships under it) · [#2163](https://github.com/klasolsson81/jobbliggaren/issues/2163)
 (the mail duplicate, not fixed here) · #1662 (the notification epic) · #1663 (the next source) · #1664 and #1665 (the other notification senders) · #2138 (the open GDPR Blocker) ·
 #2130 and ADR 0168 · #2151 and ADR 0169 · ADR 0009 (`IAppDbContext` exposes no `Database`) · 0045 · 0080 (Beslut 5) · 0113 · 0120 · 0161 ("Out of scope") · 0162 (D1, D2, D6) ·
@@ -125,8 +125,7 @@ as an unread follow notification for hits the button read. The match side of "Ma
   token are built from hit columns.
 - The follow source's own rows are still not consent-gated (0162 D6: produced for every active follow, the follow consent governs e-mail only). 0162 D6's "The follow source is
   not gated" stays true of its rows and is no longer true of its reads. The gate it reads is the bell's, the consent and the match switch, with no mail pause (0164 D1).
-- 0168 D9's list holds: no store copies a match row, no surface reads match rows without the gate, nothing is deleted, thinned or hidden on another surface, and no write reaches
-  a match row while the consent is withdrawn (D5). #2138 is not widened, and whatever Klas answers there the held set stores nothing: it is a read-time exclusion.
+- 0168 D9's list holds. #2138 is not widened, and whatever Klas answers there the held set stores nothing: it is a read-time exclusion.
 - The diff changes no processing register or policy text; whether the review finds one owed is for `security-auditor` to say in the PR.
 
 ### D7 — Precedence, for #1663 (Klas, answer 2). Extends 0162 D1
@@ -163,7 +162,7 @@ the precedence rule, so for #1663 it is carried by the docblock and the review.
   nothing is a false claim); an `IQueryable<JobAdId>? leaveOut` parameter beside the boolean (two bell-only parameters in `CompanyWatches` instead of the one `narrowing`); bounding
   "held" by the match token (it couples the two sources' state); materialising "held" as an id list (an added statement, and the `Contains` translation trap over the strongly typed
   id that `NewFollowedCompanyAdSet` already names).
-- **0169's Alternative G, answered.** 0169 rejected an ad-level keying for "a correlated NOT EXISTS in every statement". The same shape is accepted here and is bounded: four
+- **0169's Alternative G.** 0169 rejected an ad-level keying for "a correlated NOT EXISTS in every statement". The same shape is accepted here and is bounded: four
   statements, each an anti-join (`NOT EXISTS`, derived from `!held.Any(...)`) against the user's rows in `user_job_ad_matches`, which the unique index
   `ux_user_job_ad_matches_user_jobad` on `(user_id, job_ad_id)` can serve, and no added statement. The cost is derived from the schema and the LINQ and not measured; no plan was
   read (lapse trigger 9).
@@ -173,7 +172,7 @@ the precedence rule, so for #1663 it is carried by the docblock and the review.
 ### Positive
 
 - The bell cannot ring twice for one ad: one row, one count, one X and one read per ad while match notifications reach it. The rule is pinned by the oracle
-  `NotificationFeedOneNotificationPerAdTests` (Testcontainers Postgres and the production endpoints; the rule is a model in the test and no expected value is written by hand; it
+  `NotificationFeedOneNotificationPerAdTests` (Testcontainers Postgres and the production endpoints; the rule is a model in the test; it
   covers the common and the grade path, a click, an X, "Markera alla", both bell switches, the consent through its own endpoint and the list visits) and by the InMemory theory
   `FollowedCompanyAdFeedSourceHeldAdTests` (every combination of the match row's state, the gate's state and the path).
 - Held ads are never graded: the grade path's candidates are the narrowed hits, so no held ad is sent to the grader
@@ -210,7 +209,7 @@ the precedence rule, so for #1663 it is carried by the docblock and the review.
   turns refused: an empty pill, ADR 0120 clause 5. It needs a grade-path account with that many unacknowledged hits. Derived; not pinned.
 - **R10. A confirmed click patches by (kind, ad).** `withRowRead` and `withRowDismissed` find the row by kind and ad in the answer the client holds. If the next answer lists the ad
   under the other kind (R1, R4), the patch finds no row and the dot stays until the following read, by which time the server has written both sources' rows. The by-kind rule is
-  pinned by `use-notification-feed.patch.test.ts`; the cross-kind case is not.
+  pinned by `use-notification-feed.patch.test.ts`.
 
 **Decided, not residual:** the follow count below Översikt's by the held ads (D3); an already-matched ad never gets a "Bevakar" notification while the gate holds (D1); `{source}`
 on the row routes is a synonym kept for the wire (D5); and a click or an X on a follow row reaches the ad's match row while the consent is held, whatever the match switch says (D5).
@@ -243,9 +242,9 @@ One PR on `fix/bell-one-row-per-ad` (code commit `0f8dbb51b`, rebased onto `1542
 - **Frontend.** Comments only (`notifications-bell.tsx`, `lib/dto/notification-feed.ts`, two tests). DESIGN.md §6 loses the parenthetical "the reason tells two notifications of one
   ad apart" from the X's description.
 - **Tests.** New: `NotificationFeedOneNotificationPerAdTests` (Api.IntegrationTests) and `FollowedCompanyAdFeedSourceHeldAdTests` (Application.UnitTests). Edited for the new unit:
-  `FollowedCompanyAdFeedSourceReadStateTests`, `FollowedCompanyAdFeedSourceTests`, `GetMyNotificationFeedQueryHandlerTests` (the merge test no longer expects two rows for one ad),
-  `NotificationFeedMarkerTests` (the row commands lose their kind; the signed-in half moved to the oracle, because the X now reaches the match source's `ExecuteUpdate`, which
-  InMemory cannot run), and the lifecycle registry text for `NewMatchSet.Matches` in the Architecture tests (ADR 0113; no entry is added, since the held set composes that one call).
+  `FollowedCompanyAdFeedSourceReadStateTests`, `FollowedCompanyAdFeedSourceTests`, `GetMyNotificationFeedQueryHandlerTests`,
+  `NotificationFeedMarkerTests` (the row commands lose their kind), and the lifecycle registry text for `NewMatchSet.Matches` in the Architecture tests (ADR 0113; no entry is
+  added, since the held set composes that one call).
 - **Owed outside the diff.** The §9.2 panel reviews the implementation in the PR, with D6 written for `security-auditor`; its verdict table and the hand mutations are in the PR body.
 
 ## Klas's decisions, verbatim

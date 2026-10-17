@@ -36,7 +36,7 @@ namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 /// or an X reaches the ad in every source, each under its own gate. Against Testcontainers Postgres and the production
 /// endpoints.
 /// <para>
-/// No expected value is written by hand: <see cref="Expect"/> is the rule as a model, each scenario moves the model and the
+/// <see cref="Expect"/> is the rule as a model, each scenario moves the model and the
 /// server in step, every read of the feed is compared with the model, and every write is read back from the rows. Consent
 /// changes only through its own endpoint. Every user is fresh (the shared database is never reset) and reads the feed at
 /// most seven times, inside the feed's read bucket.
@@ -192,15 +192,17 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
             _patchable = false;
         }
 
-        public async Task HitAsync(string name, DateTimeOffset at)
+        public async Task<CompanyWatchId> WatchAsync() => await test.SeedWatchAsync(userId, Ct);
+
+        public async Task HitAsync(string name, DateTimeOffset at, CompanyWatchId? through = null)
         {
-            await test.SeedHitAsync(userId, Model.Ads[name].Id, watch, at, Ct);
+            await test.SeedHitAsync(userId, Model.Ads[name].Id, through ?? watch, at, Ct);
             Model.Ads[name].Hits.Add(new Row(at));
             _patchable = false;
         }
 
         /// <summary>Reads the feed and holds it against the model, and against the client's own patch of the last answer.</summary>
-        public async Task<FeedBody> ReadFeedAsync()
+        public async Task ReadFeedAsync()
         {
             var feed = await GetFeedAsync(client, Ct);
             var expected = Expect(Model);
@@ -226,7 +228,6 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
             _patches.Clear();
             _patchable = true;
             Shown = feed;
-            return feed;
         }
 
         public async Task OversiktAsync()
@@ -344,6 +345,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
             await GiveConsentAsync(client, enabled);
             Model.Consent = enabled;
             _patchable = false;
+            await AssertRowsAsync();
         }
 
         public async Task SeeMatchesThroughAsync(DateTimeOffset through)
@@ -352,6 +354,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
             Model.MatchSeen = Later(Model.MatchSeen, through);
             _patchable = false;
+            await AssertRowsAsync();
         }
 
         public async Task SeeFollowedAdsThroughAsync(DateTimeOffset through)
@@ -360,6 +363,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
             Model.FollowSeen = Later(Model.FollowSeen, through);
             _patchable = false;
+            await AssertRowsAsync();
         }
 
         private FeedItem ShownRow(string name)
@@ -558,6 +562,28 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         await s.OversiktAsync();
     }
 
+    [Fact]
+    public async Task A_click_or_an_X_on_the_match_row_reaches_the_ads_hits_through_both_of_its_watches()
+    {
+        var s = await StartAsync("one-two-watches", onlyMatched: false, consent: true);
+        var second = await s.WatchAsync();
+        foreach (var (name, n) in new[] { ("J1", 0), ("J2", 1) })
+        {
+            await s.AdAsync(name);
+            await s.MatchAsync(name, Base.AddMinutes(1 + n));
+            await s.HitAsync(name, Base.AddMinutes(10 + n));
+            await s.HitAsync(name, Base.AddMinutes(20 + n), through: second);
+        }
+
+        await s.ReadFeedAsync();
+        await s.OversiktAsync();
+        await s.ClickAsync("J1");
+        await s.DismissAsync("J2");
+        await s.ReadFeedAsync();
+        await s.MatchesAsync(false);
+        await s.ReadFeedAsync();
+    }
+
     // With the match switch off and the consent held, a click or an X on the follow row reaches the match row too: the
     // positive control for the withdrawn-consent case below.
     [Theory]
@@ -754,6 +780,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
 
         read.UnreadCount.ShouldBe(1);
         read.Items.Where(i => i.IsUnread).Select(i => (i.JobAdId, i.Title)).ShouldBe([(unread.Value, "Oläst")]);
+        read.Items.ShouldNotContain(i => i.JobAdId == held.Value);
         await search.Received(1).FilterToMatchingAsync(
             Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(), Arg.Any<CancellationToken>());
         await search.DidNotReceive().FilterToMatchingAsync(
@@ -794,6 +821,8 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     [Fact]
     public async Task The_match_gate_is_checked_in_each_statement_that_reads_a_match_row()
     {
+        var (other, _) = await RegisterUserAsync("held-race-other", Ct);
+        await GiveConsentAsync(other, true);
         var (client, userId) = await RegisterUserAsync("held-race", Ct);
         await GiveConsentAsync(client, true);
         var watch = await SeedWatchAsync(userId, Ct);
@@ -853,12 +882,16 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     [InlineData("follows-off")]
     public async Task The_follow_source_reads_a_match_row_only_while_the_match_gate_holds(string state)
     {
+        var (other, _) = await RegisterUserAsync($"held-sql-{state}-other", Ct);
+        await GiveConsentAsync(other, true);
         var (client, userId) = await RegisterUserAsync($"held-sql-{state}", Ct);
-        await GiveConsentAsync(client, state != "consent-off");
+        await GiveConsentAsync(client, true);
         var watch = await SeedWatchAsync(userId, Ct);
         var ad = await SeedAdAsync("J", Ct);
         await SeedMatchAsync(userId, ad, Base.AddMinutes(1), Ct);
         await SeedHitAsync(userId, ad, watch, Base.AddMinutes(10), Ct);
+        if (state == "consent-off")
+            await GiveConsentAsync(client, false);
         if (state == "matches-off")
             (await client.PutAsJsonAsync($"{Feed}/matches", new { enabled = false }, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);

@@ -302,11 +302,11 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
         restored.Items.ShouldContain(i => i.Kind == "Match" && i.JobAdId == ad.Value);
     }
 
-    // The bell's numbers are the existing definitions, not new ones. The seed carries what separates
-    // them: an archived ad in each source, an ad reached through two follows, and an "endast matchade"
-    // watch (this user states no occupation, so its filter is inert and every hit is included).
+    // The seed carries what separates them: an archived ad in each source, an ad reached through two
+    // follows, and an "endast matchade" watch (this user states no occupation, so its filter is inert
+    // and every hit is included).
     [Fact]
-    public async Task Each_sources_unread_count_equals_the_existing_new_count()
+    public async Task Each_sources_unread_count_equals_the_existing_new_count_when_no_followed_ad_is_a_match()
     {
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterUserAsync("feed-parity", ct);

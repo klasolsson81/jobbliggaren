@@ -114,7 +114,7 @@ internal sealed class MatchFeedSource : INotificationFeedSource, INotificationFe
     /// The ads this source holds (#2158, ADR 0173): every ad the user has a match row for, read, dismissed or behind the
     /// watermark alike, while <see cref="NotificationFeedGate.Matches"/> holds. A later source leaves these ads out, so an ad
     /// is one notification. The gate is inside the query, so a statement that composes it reads a match row only while the
-    /// gate holds in that statement; built on <see cref="NewMatchSet"/>, so it never names an ad this source cannot show.
+    /// gate holds in that statement.
     /// </summary>
     internal static IQueryable<JobAdId> HeldAdIds(IAppDbContext db, Guid userId)
     {

@@ -135,8 +135,6 @@ public class NotificationFeedMarkerTests
         db.FollowedCompanyAdHits.Single().DismissedFromNotificationFeed.ShouldBeTrue();
     }
 
-    // The signed-in half is NotificationFeedOneNotificationPerAdTests': since #2158 the X reaches the match source's
-    // ExecuteUpdate, which InMemory cannot run.
     [Fact]
     public async Task TheDismissHandler_RefusesWithoutASessionUser()
     {
@@ -159,7 +157,7 @@ public class NotificationFeedMarkerTests
     }
 
     [Fact]
-    public async Task TheCommandHandlers_ResolveTheOwnerFromTheSessionAndAnswerSuccessForARowThatIsNotThere()
+    public async Task TheBacklogHandler_ResolvesTheOwnerFromTheSession_AndAnswersSuccessForBothKinds()
     {
         using var db = TestAppDbContextFactory.Create();
         var userId = Guid.NewGuid();

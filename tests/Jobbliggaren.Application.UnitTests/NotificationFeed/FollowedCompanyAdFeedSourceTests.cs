@@ -360,7 +360,7 @@ public class FollowedCompanyAdFeedSourceTests
 
     // For ads that are no match, the bell's number is Översikt's "nya annonser från bevakade företag", not a second definition.
     [Fact]
-    public async Task ReadAsync_UnreadCount_EqualsTheOversiktCount_ForTheSameState()
+    public async Task ReadAsync_UnreadCount_EqualsTheOversiktCount_ForTheSameState_WhenNoFollowedAdIsAMatch()
     {
         using var db = TestAppDbContextFactory.Create();
         var userId = Guid.NewGuid();

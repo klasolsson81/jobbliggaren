@@ -164,9 +164,8 @@ internal static class NewFollowedCompanyAdSet
     /// grade path's load; past it the input is <see cref="CountInput.TooMany"/>. The Översikt count
     /// passes neither, and its SQL is the one it always ran.
     /// <para>
-    /// <paramref name="narrowing"/> leaves hits out of the set and nothing else: the bell passes what it no longer
-    /// counts (#2130, #2158). Översikt's count passes <c>null</c>, the composition adds nothing for it, and the bell's
-    /// reading never changes what it shows.
+    /// <paramref name="narrowing"/> leaves hits out of the set and nothing else (#2130, #2158). Översikt's count passes
+    /// <c>null</c>, the composition adds nothing for it, and the bell's reading never changes what it shows.
     /// </para>
     /// </summary>
     public static async Task<CountInput> LoadCountInputAsync(

@@ -29,7 +29,7 @@ warn() {
 }
 
 if [ ! -f "$IN" ]; then
-  warn "no assertion results at \`$IN\`; the lhci step did not reach its assert phase."
+  warn "no assertion results at \`$IN\`."
   exit 0
 fi
 
@@ -50,7 +50,7 @@ if [ "$(jq 'length' "$IN")" -eq 0 ]; then
 fi
 
 jq -r '
-  def num: if fabs >= 100 then round | tostring else (. * 10000 | round) / 10000 | tostring end;
+  def num: (. * 10000 | round) / 10000 | tostring;
   def mark: if .passed then "✓" elif .level == "warn" then "⚠" else "✗" end;
   def firsts: reduce .[] as $x ([]; if any(.[]; . == $x) then . else . + [$x] end);
 

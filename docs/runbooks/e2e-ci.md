@@ -6,9 +6,7 @@ workflow. Companion to [`local-dev-setup.md`](local-dev-setup.md) and
 
 ## What runs where
 
-- **Workflow:** [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml),
-  triggers on `push`/`pull_request` to `main` + `workflow_dispatch`. (They were pulled
-  back to dispatch-only in #814 while the suite was red; #813 restored them.)
+- **Workflow:** [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml)
 - **Specs:** `web/jobbliggaren-web/tests/e2e/*.spec.ts`
   (`applications`, `cv`, `delete-account`, `jobb`, `security-headers`, `auth`),
   single chromium project, serial (`workers: 1`).

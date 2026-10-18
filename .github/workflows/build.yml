@@ -38,7 +38,7 @@ permissions:
 # Avbryt äldre runs vid ny push på samma ref (sparar minutes på dependabot-PRs).
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # THE SUITE RUNS ONCE, in `coverage`. Until 2026-09-25 a `backend` job ran the identical suite

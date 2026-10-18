@@ -18,7 +18,7 @@
 #   assertion, total-blocking-time at warn level and maxNumericValue 100 instead of 200.
 #   The production budget produced no warn-level failure in the last 40 build runs
 #   (scanned 2026-10-18), so lhci was given a lower bound to emit the shape it emits
-#   whenever TBT exceeds 200.
+#   whenever TBT exceeds its budget.
 # Cases derive further inputs from these by deletion or truncation only, never by
 # editing a value.
 set -uo pipefail
@@ -50,7 +50,7 @@ render "$MIXED"
 expect      "exit 0"                         "$RC" 0
 expect_has  "byte header carries lhci's budget"   "$SUMMARY" "| URL | document.size <= 30720 | font.size <= 122880 |"
 expect_has  "a byte cell is lhci's aggregate"     "$SUMMARY" "| / | 12359 ✓ | 61250 ✓ |"
-expect_has  "a timing cell shows the runs"        "$SUMMARY" "| / | 0 ✓ (0 · 0 · 0) | 2931 ✗ (3007 · 2931 · 2926) |"
+expect_has  "a timing cell shows the runs"        "$SUMMARY" "| / | 0 ✓ (0 · 0 · 0) | 2930.6055 ✗ (3006.9885 · 2930.6055 · 2925.5882) |"
 expect_has  "timing points to §F, D0"             "$SUMMARY" "performance-measurement.md\` §F, D0."
 expect      "every URL is a row in both tables"   "$(printf '%s\n' "$SUMMARY" | grep -c '^| /')" 16
 expect_lacks "no warning"                         "$STDOUT" "::warning::"

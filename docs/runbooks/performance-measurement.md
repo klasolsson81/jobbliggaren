@@ -410,8 +410,10 @@ The assertions are in the job's summary, as one table for the bytes and one for 
   - A byte assertion that fails on the PR head and passes on main's latest run is a regression under
     AGENTS.md §2.5. Fix it, or STOPP with a justification.
   - LCP, CLS and TBT are not read per PR, because of D0 above.
-- **Monthly.** Klas, or a session he names, reads main's latest scheduled run. This catches drift from
-  PRs no session owns, such as Dependabot's automerged updates.
+- **Monthly.** Klas, or a session he names, reads main's latest completed run
+  (`gh run list --workflow build.yml --branch main --status completed --limit 1`), and dispatches one with
+  `gh workflow run build.yml --ref main` when it is older than a week. This catches drift from PRs no
+  session owns, such as Dependabot's automerged updates.
 
 ### Baseline — 2026-07-20 (#1011 CI run, job 88423824881)
 

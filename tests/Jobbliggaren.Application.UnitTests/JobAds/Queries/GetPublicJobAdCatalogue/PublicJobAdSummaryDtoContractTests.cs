@@ -7,7 +7,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetPublicJobAdCatalogue;
 
 /// <summary>
-/// Pins the catalogue row's exact member set (ADR 0175 F5). Every public instance property reaches an unauthenticated
+/// Pins the catalogue row's exact member set (ADR 0176 F5). Every public instance property reaches an unauthenticated
 /// response that lists the whole corpus, so the set is exhaustive rather than a list of banned names.
 /// </summary>
 public class PublicJobAdSummaryDtoContractTests

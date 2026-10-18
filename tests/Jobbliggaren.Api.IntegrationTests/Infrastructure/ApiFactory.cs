@@ -480,7 +480,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // ADR 0174 — the job sitemap's parts, the same 127.0.0.1 bucket for every anonymous test of them.
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdListedIds__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdListedIds__WindowSeconds", "60");
-        // ADR 0175 — the public catalogue's pages, the same 127.0.0.1 bucket for every anonymous test of them.
+        // ADR 0176 — the public catalogue's pages, the same 127.0.0.1 bucket for every anonymous test of them.
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdCatalogue__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdCatalogue__WindowSeconds", "60");
         // #1974 — the admin account directory's reads share one bucket per admin, and a paging or sorting

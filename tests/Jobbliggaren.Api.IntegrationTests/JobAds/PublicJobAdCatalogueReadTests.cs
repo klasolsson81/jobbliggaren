@@ -18,7 +18,7 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
-/// The catalogue's read on real Postgres (ADR 0175, M4): the real sampler is the reader, and the handler's content read
+/// The catalogue's read on real Postgres (ADR 0176, M4): the real sampler is the reader, and the handler's content read
 /// (<c>List&lt;JobAdId&gt;.Contains</c> on the key, composed with <c>JobAdPublication.IsListed</c>) translates and admits
 /// exactly the listed ads. Its own database per test, because the exact set and its order are the assertion.
 /// </summary>

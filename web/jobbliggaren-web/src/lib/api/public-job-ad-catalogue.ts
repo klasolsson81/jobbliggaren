@@ -11,7 +11,7 @@ import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 const PUBLIC_CATALOGUE_TIMEOUT_MS = 5_000;
 
 /**
- * What the catalogue page needs from the API (ADR 0175 F11). Three outcomes: render, a 404, or a 5xx. `unavailable`
+ * What the catalogue page needs from the API (ADR 0176 F11). Three outcomes: render, a 404, or a 5xx. `unavailable`
  * is a throw at the page and never a `notFound()`: a budget or an outage must not read as a page that does not exist.
  */
 export type PublicJobAdCatalogueResult =

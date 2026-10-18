@@ -6,7 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetPublicJobAdCatalogue;
 
 /// <summary>
-/// The depth cap is derived from the snapshot's ceiling (ADR 0175 F2): it must reach every ad the snapshot can hold, and
+/// The depth cap is derived from the snapshot's ceiling (ADR 0176 F2): it must reach every ad the snapshot can hold, and
 /// no further, so it bounds the URL space and never the listed set.
 /// </summary>
 public class PublicJobAdCatalogueLimitsTests

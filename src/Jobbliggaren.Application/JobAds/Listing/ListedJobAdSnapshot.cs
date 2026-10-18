@@ -3,7 +3,7 @@ using Jobbliggaren.Application.JobAds.Publication;
 namespace Jobbliggaren.Application.JobAds.Listing;
 
 /// <summary>
-/// The listed set as one read saw it (ADR 0174, ADR 0175): the ids of every ad <see cref="JobAdPublication.IsListed"/>
+/// The listed set as one read saw it (ADR 0174, ADR 0176): the ids of every ad <see cref="JobAdPublication.IsListed"/>
 /// admitted at <see cref="AsOf"/>, in two views of that one read. The sitemap's parts hold the ids in id order; the
 /// catalogue's order holds the same ids newest first. Immutable and replaced whole, so the stamp and both views always
 /// come from the same read. It holds ids only: no publication date is kept once the order is built.

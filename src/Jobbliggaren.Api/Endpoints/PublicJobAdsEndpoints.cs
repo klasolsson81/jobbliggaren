@@ -9,7 +9,7 @@ namespace Jobbliggaren.Api.Endpoints;
 
 /// <summary>
 /// The anonymous reads of job ads: one ad (ADR 0160), the ids of one job-sitemap part (ADR 0174) and one page of the
-/// public catalogue (ADR 0175). Their own group, outside the authenticated <c>/api/v1/job-ads</c>: anonymous by omitting
+/// public catalogue (ADR 0176). Their own group, outside the authenticated <c>/api/v1/job-ads</c>: anonymous by omitting
 /// <c>RequireAuthorization</c>, each with its own IP-partitioned policy.
 /// </summary>
 public static class PublicJobAdsEndpoints

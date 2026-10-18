@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
 
 /// <summary>
-/// One page of the public catalogue (ADR 0175). Membership, order and count come from the listed-ad snapshot that also
+/// One page of the public catalogue (ADR 0176). Membership, order and count come from the listed-ad snapshot that also
 /// serves the sitemap; each row's content is read now and classified again, so an ad that ended or was erased after
 /// the snapshot's read is absent from its page at once and is never served from memory.
 /// </summary>

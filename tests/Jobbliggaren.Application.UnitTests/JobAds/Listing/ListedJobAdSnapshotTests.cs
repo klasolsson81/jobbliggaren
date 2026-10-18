@@ -4,7 +4,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.JobAds.Listing;
 
 /// <summary>
-/// The listed-ad snapshot (ADR 0174, ADR 0175): one read's ids, split into the sitemap's parts in id order and held newest
+/// The listed-ad snapshot (ADR 0174, ADR 0176): one read's ids, split into the sitemap's parts in id order and held newest
 /// first for the catalogue, immutable, and served only inside its age bound, on both edges of it.
 /// </summary>
 public class ListedJobAdSnapshotTests

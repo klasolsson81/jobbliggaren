@@ -358,7 +358,7 @@ public static partial class RateLimitingExtensions
             // CPU, not the database.
             AddIpTokenBucketPolicy(options, PublicJobAdListedIdsPolicy, rateLimitOpts.PublicJobAdListedIds);
 
-            // Partition: IP. The public catalogue's pages (ADR 0175), its own budget beside the detail's and the
+            // Partition: IP. The public catalogue's pages (ADR 0176), its own budget beside the detail's and the
             // sitemap's, so a crawler walking the catalogue cannot drain the job pages' budget, or the reverse. Each
             // call reads at most a page of rows by primary key; the limit protects availability, not confidentiality.
             AddIpTokenBucketPolicy(options, PublicJobAdCataloguePolicy, rateLimitOpts.PublicJobAdCatalogue);
@@ -823,7 +823,7 @@ public static partial class RateLimitingExtensions
     }
 
     /// <summary>
-    /// The anonymous public job-ad reads' shared mechanism (ADR 0160 D5, ADR 0174 D5, ADR 0175): a TokenBucket per
+    /// The anonymous public job-ad reads' shared mechanism (ADR 0160 D5, ADR 0174 D5, ADR 0176): a TokenBucket per
     /// client IP, refilled in <see cref="RateLimitingOptions.PolicyOptions.SegmentsPerWindow"/> slices so a crawler that
     /// honours Retry-After recovers softly, with no queue. Never a per-user partition, which would give an anonymous
     /// caller NoLimiter. The IP is real only behind the trusted X-Forwarded-For; if the apex ever gets an AAAA record,

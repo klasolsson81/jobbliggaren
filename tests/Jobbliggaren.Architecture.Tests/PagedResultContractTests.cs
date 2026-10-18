@@ -47,7 +47,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>A third form, declared: a closed union whose page arm carries <see cref="PagedResult{T}"/></b> (ADR 0175, the
+/// <b>A third form, declared: a closed union whose page arm carries <see cref="PagedResult{T}"/></b> (ADR 0176, the
 /// public catalogue). <c>GetPublicJobAdCatalogueQuery</c> has <c>Page</c> and a constant page size, so the heuristic
 /// above does not see it. Its answer has two arms that are not a page: a page past the end (404) and a snapshot too old
 /// to answer (503), which is availability and no <c>ErrorKind</c>. The page arm still carries
@@ -107,7 +107,7 @@ public class PagedResultContractTests
     public void GetPublicJobAdCatalogueQuery_Available_arm_carries_PagedResult()
     {
         ReturnsPagedResult(typeof(GetPublicJobAdCatalogueQuery)).ShouldBeFalse(
-            "the catalogue answers a closed union, not a bare PagedResult (ADR 0175).");
+            "the catalogue answers a closed union, not a bare PagedResult (ADR 0176).");
 
         var available = typeof(PublicJobAdCataloguePage.Available).GetProperty(nameof(PublicJobAdCataloguePage.Available.Rows));
         available.ShouldNotBeNull();

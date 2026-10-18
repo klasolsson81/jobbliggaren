@@ -5,7 +5,7 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.RateLimiting;
 
 /// <summary>
-/// ADR 0175 — the public catalogue's bucket on a host with the production numbers: an anonymous burst past the budget
+/// ADR 0176 — the public catalogue's bucket on a host with the production numbers: an anonymous burst past the budget
 /// ends in a 429 with <c>Retry-After</c>, as uncacheable as every other answer under <c>/api/v1/public</c>. The answers
 /// before the refusal are 200 or 503 depending on whether this host's first read of the listed set has run; the limiter
 /// is in front of both.

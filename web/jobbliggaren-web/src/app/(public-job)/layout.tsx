@@ -7,7 +7,7 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { ReloadedAfterUpdateNotice } from "@/components/site/reloaded-after-update-notice";
 
 /**
- * Layout for the anonymous job-ad surface (ADR 0165, ADR 0175): the public job page and its states, which `proxy.ts`
+ * Layout for the anonymous job-ad surface (ADR 0165, ADR 0176): the public job page and its states, which `proxy.ts`
  * rewrites a cookieless `/jobb/<uuid>` into (a direct request for `/publik/**` is a 404), and the public catalogue at
  * `/lediga-jobb`, which is a URL of its own.
  *

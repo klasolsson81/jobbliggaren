@@ -12,7 +12,7 @@ interface PublicJobAdListProps {
 const named = (name: string | null): name is string => name !== null && name.trim() !== "";
 
 /**
- * The public catalogue's rows (ADR 0175 F5). Typed to the six-member summary, so it can render nothing else: never the
+ * The public catalogue's rows (ADR 0176 F5). Typed to the six-member summary, so it can render nothing else: never the
  * private `JobAdCard`, whose props carry save, follow, applied and match state.
  *
  * Each title is a plain `<a>`, never `next/link` (F10): a prefetched row would spend the visitor's job-page budget

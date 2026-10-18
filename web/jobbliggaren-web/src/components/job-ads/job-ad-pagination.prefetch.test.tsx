@@ -15,7 +15,7 @@ vi.mock("next/link", () => ({
 
 const buildHref = (p: number) => `/lediga-jobb?sida=${p}`;
 
-describe("JobAdPagination prefetch (ADR 0175 F10)", () => {
+describe("JobAdPagination prefetch (ADR 0176 F10)", () => {
   it("passes prefetch={false} to every link when the caller turns it off", () => {
     render(<JobAdPagination page={5} pageSize={20} totalCount={400} buildHref={buildHref} prefetch={false} />);
 

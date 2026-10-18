@@ -160,7 +160,7 @@ describe("the sitemap's marketing part", () => {
     ]);
   });
 
-  it("lists the catalogue's first page at exactly its canonical, and no other catalogue page (ADR 0175 F8)", () => {
+  it("lists the catalogue's first page at exactly its canonical, and no other catalogue page (ADR 0176 F8)", () => {
     expect(urls.at(-1)).toBe(publicCatalogueUrl(1));
     expect(urls.filter((u) => u.includes("sida="))).toEqual([]);
   });

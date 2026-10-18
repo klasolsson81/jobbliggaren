@@ -43,7 +43,7 @@ import { PUBLIC_CATALOGUE_PATH } from "@/lib/job-ads/public-catalogue-url";
  * The "Kom igång" column carries ONE entry per URL: `/logga-in` is both doors since
  * ADR 0142, and two differently named links to one URL make the user choose
  * between the same door twice (design-reviewer, #1738). "Lediga jobb" comes first,
- * a second door with its own public URL and its own name (ADR 0175 F15), and it
+ * a second door with its own public URL and its own name (ADR 0176 F15), and it
  * never prefetches: the catalogue is read per request, and the footer is on every page.
  */
 

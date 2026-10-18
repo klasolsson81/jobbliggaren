@@ -20,7 +20,7 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
-/// The public catalogue's pages <c>GET /api/v1/public/job-ads/catalogue</c> (ADR 0175) on the real host, anonymously.
+/// The public catalogue's pages <c>GET /api/v1/public/job-ads/catalogue</c> (ADR 0176) on the real host, anonymously.
 /// The timer is taken out of the host so the test drives the sampler itself; the clock is the host's own. The shared
 /// database holds other classes' rows, so an ad is looked up on the page the snapshot puts it on, and the exact set and
 /// order are asserted on a database of their own in <c>PublicJobAdCatalogueReadTests</c>.

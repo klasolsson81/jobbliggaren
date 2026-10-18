@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
 
 /// <summary>
-/// One row of the public catalogue (ADR 0175 F5): what a job-seeker needs to choose an ad, and nothing else.
+/// One row of the public catalogue (ADR 0176 F5): what a job-seeker needs to choose an ad, and nothing else.
 /// </summary>
 /// <remarks>
 /// Six members, pinned by <c>PublicJobAdSummaryDtoContractTests</c>. Never the description or an excerpt (a name in the

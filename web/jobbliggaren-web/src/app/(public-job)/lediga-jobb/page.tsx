@@ -12,7 +12,7 @@ interface PageProps {
 }
 
 /**
- * The public catalogue, `/lediga-jobb` (ADR 0175): every listed ad, newest first, 20 to a page. One page for everyone:
+ * The public catalogue, `/lediga-jobb` (ADR 0176): every listed ad, newest first, 20 to a page. One page for everyone:
  * it reads no cookie and no session. Only `sida` is read; every other parameter is ignored and kept out of the
  * canonical. `sida=1` is a 308 to the bare path, and a `sida` that is not a page is a 404 without asking the API.
  *

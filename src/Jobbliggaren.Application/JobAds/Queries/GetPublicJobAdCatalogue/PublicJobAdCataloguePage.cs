@@ -3,7 +3,7 @@ using Jobbliggaren.Application.Common;
 namespace Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
 
 /// <summary>
-/// What the catalogue query answers (ADR 0175). A closed union, so the endpoint maps it by type: besides a page there are
+/// What the catalogue query answers (ADR 0176). A closed union, so the endpoint maps it by type: besides a page there are
 /// two answers that are not a page, a page past the end (404) and a snapshot that is not fresh enough to answer (503).
 /// Neither is an <c>ErrorKind</c>: no rule about the request failed.
 /// </summary>

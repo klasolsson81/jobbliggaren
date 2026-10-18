@@ -74,7 +74,7 @@ public sealed class ForwardedClientBudgetTests
             .ShouldBe(StatusCodes.Status204NoContent);
     }
 
-    // ADR 0175 — the public catalogue's pages: the web relays the visitor's address on every call, so the bucket is per
+    // ADR 0176 — the public catalogue's pages: the web relays the visitor's address on every call, so the bucket is per
     // forwarded client, and its burst is exactly the budget.
     [Fact]
     public async Task PublicJobAdCatalogue_TrustedProxy_DistinctClients_ReceiveIndependentBudgets()

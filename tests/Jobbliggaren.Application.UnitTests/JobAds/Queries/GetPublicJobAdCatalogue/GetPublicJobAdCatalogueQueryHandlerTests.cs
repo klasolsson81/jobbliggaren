@@ -16,7 +16,7 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetPublicJobAdCatalo
 #pragma warning disable CA2012
 
 /// <summary>
-/// One catalogue page (ADR 0175): membership, order and count from the snapshot, content read now through the
+/// One catalogue page (ADR 0176): membership, order and count from the snapshot, content read now through the
 /// publication predicate. Premises come from production: ads through <c>JobAd.Import</c>, lifecycle changes through
 /// <c>Erase</c>, and a snapshot built from the same (id, publication date) rows the sampler's read projects. The
 /// taxonomy port is a substitute that keeps the real adapter's contract (one row per asked id, a null label for an id

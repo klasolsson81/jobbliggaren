@@ -1,6 +1,6 @@
 import { absoluteUrl } from "@/lib/site-url";
 
-/** The public catalogue's one path (ADR 0175 F1). Nothing lives below it in S5. */
+/** The public catalogue's one path (ADR 0176 F1). Nothing lives below it in S5. */
 export const PUBLIC_CATALOGUE_PATH = "/lediga-jobb" as const;
 
 /**

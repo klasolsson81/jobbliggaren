@@ -15,7 +15,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-describe("HeaderCatalogueLink (ADR 0175 F14, stage-A constraint 2)", () => {
+describe("HeaderCatalogueLink (ADR 0176 F14, stage-A constraint 2)", () => {
   it("links the catalogue without prefetch", () => {
     nav.pathname = "/";
     render(<HeaderCatalogueLink>Lediga jobb</HeaderCatalogueLink>);

@@ -5020,7 +5020,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-head__stats, .jp-head__sep { display: none; }
 }
 
-/* The header's one navigation link, "Lediga jobb" (ADR 0175 F14), beside the brand in the same <nav>. It reuses
+/* The header's one navigation link, "Lediga jobb" (ADR 0176 F14), beside the brand in the same <nav>. It reuses
    .jp-nav__link and its current-page bar, with three changes for this header. Ink in both states: the scoped selector
    (0,2,0), and (0,3,0) on hover, outranks the global link colour `a:not(…)` (0,1,1) and (0,2,1), so the label never
    turns accent (E2f, K2). The bar sits on the header's bottom edge: the link is centred in an 88px row (72px at

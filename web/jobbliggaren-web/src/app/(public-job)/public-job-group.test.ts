@@ -6,7 +6,7 @@ import enPublicJob from "../../../messages/en/publicjob.json";
 import svPublicJob from "../../../messages/sv/publicjob.json";
 
 /**
- * Fitness functions for the anonymous job-ad surface's route group (ADR 0165, ADR 0175): the public job page and its
+ * Fitness functions for the anonymous job-ad surface's route group (ADR 0165, ADR 0176): the public job page and its
  * states, and the public catalogue. Derived from the filesystem.
  *
  * What these protect is what a Server Component page cannot recover once it has started to stream: a
@@ -107,7 +107,7 @@ describe("(public-job) route group", () => {
     expect(below).toEqual([]);
   });
 
-  it("lets no catalogue link prefetch and renders each row as a plain anchor (ADR 0175 F10)", () => {
+  it("lets no catalogue link prefetch and renders each row as a plain anchor (ADR 0176 F10)", () => {
     const list = read(resolve(SRC, "components/job-ads/public-job-ad-list.tsx"));
     expect(list).not.toMatch(/from "next\/link"/);
     const catalogue = read(resolve(SRC, "components/job-ads/public-job-ad-catalogue.tsx"));

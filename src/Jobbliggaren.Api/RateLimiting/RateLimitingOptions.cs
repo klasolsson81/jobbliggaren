@@ -797,7 +797,7 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
-    /// The public catalogue's pages <c>GET /api/v1/public/job-ads/catalogue</c> (ADR 0175) — partitioned per client IP,
+    /// The public catalogue's pages <c>GET /api/v1/public/job-ads/catalogue</c> (ADR 0176) — partitioned per client IP,
     /// TokenBucket, the same starting numbers as the detail read. A starting number for a new endpoint, not a raise:
     /// ADR 0174 D5's readings measure it. security-auditor approved the numbers (2026-10-18).
     /// </summary>

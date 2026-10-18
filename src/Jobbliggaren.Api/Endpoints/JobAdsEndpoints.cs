@@ -22,7 +22,7 @@ public static class JobAdsEndpoints
 {
     public static void MapJobAdsEndpoints(this IEndpointRouteBuilder app)
     {
-        // Auth-gated by design. The anonymous catalogue is a separate surface (ADR 0175, PublicJobAdsEndpoints).
+        // Auth-gated by design. The anonymous catalogue is a separate surface (ADR 0176, PublicJobAdsEndpoints).
         var group = app.MapGroup("/api/v1/job-ads")
             .WithTags("JobAds")
             .RequireAuthorization();

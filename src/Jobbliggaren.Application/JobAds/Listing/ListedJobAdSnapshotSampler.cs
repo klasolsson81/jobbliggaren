@@ -9,7 +9,7 @@ namespace Jobbliggaren.Application.JobAds.Listing;
 
 /// <summary>
 /// Reads the listed set once per <see cref="SampleAsync"/> call and publishes it as the newest snapshot (ADR 0174, ADR
-/// 0175). The sitemap and the catalogue queries judge the snapshot's age against the clock when they read it; nothing is
+/// 0176). The sitemap and the catalogue queries judge the snapshot's age against the clock when they read it; nothing is
 /// judged here.
 ///
 /// <para>

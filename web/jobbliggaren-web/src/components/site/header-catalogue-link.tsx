@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { PUBLIC_CATALOGUE_PATH } from "@/lib/job-ads/public-catalogue-url";
 
 /**
- * The public header's one navigation link, "Lediga jobb" (ADR 0175 F14). A client island only to read the pathname:
+ * The public header's one navigation link, "Lediga jobb" (ADR 0176 F14). A client island only to read the pathname:
  * `aria-current="page"` holds when the path is exactly `/lediga-jobb`, never as a prefix, so a page added below it later
  * is not marked as this one (stage-A constraint 2). Every catalogue page is the current page; the query is not part of
  * the path. The label arrives as children from the server header, so this island reads no messages.

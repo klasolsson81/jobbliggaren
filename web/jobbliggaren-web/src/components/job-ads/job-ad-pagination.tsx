@@ -21,7 +21,7 @@ interface JobAdPaginationProps {
    */
   showTotalCount?: boolean;
   /**
-   * `false` turns off Next's prefetch on every link (ADR 0175 F10). Unset keeps Next's default, so `/jobb` is
+   * `false` turns off Next's prefetch on every link (ADR 0176 F10). Unset keeps Next's default, so `/jobb` is
    * unchanged. The public catalogue passes `false`: its pages are read per request, and a prefetch of each
    * visible page would spend the visitor's API budget before any click.
    */

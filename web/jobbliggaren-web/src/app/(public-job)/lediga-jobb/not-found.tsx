@@ -9,7 +9,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * The catalogue's own 404 (ADR 0175): a `sida` that is not a page, or a page past the end once the list has shrunk.
+ * The catalogue's own 404 (ADR 0176): a `sida` that is not a page, or a page past the end once the list has shrunk.
  * Its next step is the catalogue's first page, not the start page. It reads nothing from the API. A child segment
  * added below `/lediga-jobb` later inherits this boundary unless it brings its own.
  */

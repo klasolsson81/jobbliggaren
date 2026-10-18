@@ -7,7 +7,7 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// The public catalogue's wire (ADR 0175). The web parses each page with strict schemas, so a member the API adds or
+/// The public catalogue's wire (ADR 0176). The web parses each page with strict schemas, so a member the API adds or
 /// drops would answer every catalogue page with a 500, and only in production: the smoke runs against a stub that does
 /// not know the API. These hold the web's keys equal to the API's: the row to <see cref="PublicJobAdSummaryDto"/>, and
 /// the page to the five members <see cref="PagedResult{T}"/> serialises.

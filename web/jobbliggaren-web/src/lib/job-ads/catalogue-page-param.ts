@@ -1,5 +1,5 @@
 /**
- * How the catalogue reads its one parameter, `sida` (ADR 0175 F7, F11). Every other parameter is ignored.
+ * How the catalogue reads its one parameter, `sida` (ADR 0176 F7, F11). Every other parameter is ignored.
  *
  * - no `sida`: page 1;
  * - `sida=1`: a permanent redirect to the bare path, so page 1 has one address;

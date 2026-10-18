@@ -20,7 +20,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-describe("SiteFooter prefetch (ADR 0175 F10, F15)", () => {
+describe("SiteFooter prefetch (ADR 0176 F10, F15)", () => {
   it("never prefetches the catalogue, which is read per request on every page the footer is on", () => {
     render(<SiteFooter />);
 

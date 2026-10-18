@@ -35,7 +35,7 @@ import { type LandingStats } from "@/components/landing/landing-stats-format";
  * hairline after the stats no longer depends on whether a login action follows.
  *
  * A11y: the `<nav>` landmark carries the brand link and the one navigation link,
- * "Lediga jobb" (ADR 0175 F14; Klas approved breaking HANDOVER-v3 §6.4 for it on
+ * "Lediga jobb" (ADR 0176 F14; Klas approved breaking HANDOVER-v3 §6.4 for it on
  * 2026-10-18). The link is on every surface that mounts this header, visible at
  * every width, never in a menu and never shortened. The stats cluster sits
  * OUTSIDE the landmark — "45 580 aktiva annonser" is data, not navigation, and a

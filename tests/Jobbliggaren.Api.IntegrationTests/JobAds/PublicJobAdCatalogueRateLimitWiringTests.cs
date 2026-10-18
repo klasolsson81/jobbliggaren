@@ -9,7 +9,7 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
-/// ADR 0175 — the public catalogue's pages carry their own IP-partitioned policy, no authorization metadata, and the
+/// ADR 0176 — the public catalogue's pages carry their own IP-partitioned policy, no authorization metadata, and the
 /// policy sits on that route alone. Read from the built endpoint graph, since a policy name is referenced by string at
 /// both ends and a drift is a silent bypass, not a crash.
 /// </summary>

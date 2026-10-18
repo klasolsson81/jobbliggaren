@@ -86,7 +86,7 @@ public class RateLimitingOptionsTests
     [Fact]
     public void Defaults_PublicJobAdCatalogue_Is60Per60sIn6Segments()
     {
-        // ADR 0175 — the public catalogue's pages, IP-partitioned TokenBucket. security-auditor approved these numbers
+        // ADR 0176 — the public catalogue's pages, IP-partitioned TokenBucket. security-auditor approved these numbers
         // (2026-10-18); a change is a recalibration, not a refactor.
         var sut = new RateLimitingOptions();
 

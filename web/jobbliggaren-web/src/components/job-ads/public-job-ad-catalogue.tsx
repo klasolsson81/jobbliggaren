@@ -8,7 +8,7 @@ import { publicCatalogueHref } from "@/lib/job-ads/public-catalogue-url";
 const COUNT_ID = "catalogue-count";
 
 /**
- * One page of the public catalogue at `/lediga-jobb` (ADR 0175). The heading and the lede carry no number and stay
+ * One page of the public catalogue at `/lediga-jobb` (ADR 0176). The heading and the lede carry no number and stay
  * true at every tick, so they may be quoted in a search result. The count line, the list and the pager sit in ONE
  * `data-nosnippet` block: a quoted count or row goes stale within minutes in a copy we cannot update, and a row can
  * carry a sole trader's name (ADR 0166 W2, W4). On a count of 0 the page is the empty state, with no count line, no

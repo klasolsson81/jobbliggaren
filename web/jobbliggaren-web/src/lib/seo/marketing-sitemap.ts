@@ -26,7 +26,7 @@ export const MARKETING_PATHS = [
 
 /**
  * The pages part's locations: the marketing pages in the order above, then the public catalogue's first page, built by
- * the same function as that page's canonical (ADR 0175 F8). No other catalogue page is listed: a `?sida=n` address is a
+ * the same function as that page's canonical (ADR 0176 F8). No other catalogue page is listed: a `?sida=n` address is a
  * position in a moving list, not a document.
  */
 export function marketingSitemapLocs(): string[] {

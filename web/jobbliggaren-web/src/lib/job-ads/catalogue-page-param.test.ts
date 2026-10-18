@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseCataloguePageParam } from "./catalogue-page-param";
 
-describe("parseCataloguePageParam (ADR 0175 F11)", () => {
+describe("parseCataloguePageParam (ADR 0176 F11)", () => {
   it("reads no sida as page 1", () => {
     expect(parseCataloguePageParam(undefined)).toEqual({ kind: "page", page: 1 });
   });

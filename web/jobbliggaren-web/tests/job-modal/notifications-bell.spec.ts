@@ -264,3 +264,81 @@ test("a refused dismissal puts the row back with a notice", async ({ page }) => 
   await expect(panel.getByRole("link", { name: ADS.saved.title })).toBeVisible();
   await expect(page.getByRole("button", { name: "Notiser, 2 olästa" })).toBeVisible();
 });
+
+// ADR 0175 D9 (#1663 PR 1): the web knows the Branschbevakning kind before the API sends it. Its row is a plain
+// neutral tag, never the follow axis (ADR 0117 D2), and the panel holds all three kinds at every width and in
+// both themes. The figures are design-reviewer's form read of 2026-10-18: ink-2 text, the border token, no fill.
+const CRITERION_TOKEN = "2026-10-11T09:30:00.000002+00:00";
+const CRITERION_READ_AD = "19630000-0000-4000-8000-000000000199";
+
+const THREE_KIND_FEED = {
+  items: [
+    ...UNREAD_FEED.items,
+    {
+      kind: "CompanyWatchCriterionAd",
+      jobAdId: ADS.applied.id,
+      title: ADS.applied.title,
+      companyName: ADS.applied.company,
+      occurredAt: CRITERION_TOKEN,
+      isUnread: true,
+      grade: null,
+    },
+    {
+      kind: "CompanyWatchCriterionAd",
+      jobAdId: CRITERION_READ_AD,
+      title: "Driftansvarig, molnplattform",
+      companyName: "Bransch AB",
+      occurredAt: "2026-10-10T15:32:00+00:00",
+      isUnread: false,
+      grade: null,
+    },
+  ],
+  sources: [
+    ...UNREAD_FEED.sources,
+    { kind: "CompanyWatchCriterionAd", unreadCount: 1, acknowledgedThrough: CRITERION_TOKEN },
+  ],
+};
+
+for (const theme of ["light", "dark"] as const) {
+  for (const width of [1280, 375, 320]) {
+    test(`a Branschbevakning row is a plain neutral tag and fits ${width} px in the ${theme} theme`, async ({ page }) => {
+      harness.notificationFeed = THREE_KIND_FEED;
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/sparade");
+      if (theme === "dark") await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+
+      await page.getByRole("button", { name: "Notiser, 3 olästa" }).click();
+      const panel = page.getByRole("dialog", { name: "Notiser" });
+      const unreadRow = panel.locator("li").filter({ has: page.getByRole("link", { name: ADS.applied.title }) });
+      const readRow = panel.locator("li").filter({ has: page.getByRole("link", { name: "Driftansvarig, molnplattform" }) });
+
+      const tag = unreadRow.locator(".jp-tag", { hasText: "Branschbevakning" });
+      await expect(tag).toBeVisible();
+      await expect(tag).not.toHaveAttribute("data-tag");
+      const paint = await tag.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return { color: style.color, border: style.borderTopColor, background: style.backgroundColor };
+      });
+      expect(paint).toEqual({ color: "rgb(69, 83, 102)", border: "rgb(201, 210, 224)", background: "rgba(0, 0, 0, 0)" });
+
+      for (const row of [unreadRow, readRow]) await expect(row).not.toContainText(/Bevakar|Bevakat företag/i);
+      await expect(
+        unreadRow.getByRole("button", { name: `Ta bort notisen: Branschbevakning, ${ADS.applied.title}, ${ADS.applied.company}` }),
+      ).toBeVisible();
+      await expect(unreadRow.getByRole("link", { name: ADS.applied.title })).toHaveAccessibleDescription(/Branschbevakning/i);
+      await expect(unreadRow.locator(".jp-notif__dot")).toHaveCount(1);
+      await expect(readRow.locator(".jp-notif__dot")).toHaveCount(0);
+
+      const overflow = await panel.evaluate((el) => {
+        const rows = [...el.querySelectorAll("li")].map((li) => li.scrollWidth - li.clientWidth);
+        return { panel: el.scrollWidth - el.clientWidth, rows: Math.max(...rows) };
+      });
+      expect(overflow.panel).toBeLessThanOrEqual(0);
+      expect(overflow.rows).toBeLessThanOrEqual(0);
+      const pageOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(pageOverflow).toBeLessThanOrEqual(0);
+
+      await panel.screenshot({ path: test.info().outputPath(`bell-three-kinds-${theme}-${width}.png`) });
+    });
+  }
+}

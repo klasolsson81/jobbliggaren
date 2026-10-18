@@ -6,6 +6,7 @@ import { buildCriterionAdsHref } from "@/lib/company-criteria/criterion-ads-href
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type {
   CompanyWatchCriterion,
+  CriterionNewAdCounts,
   CriterionReference,
   ListCompanyWatchCriteriaResult,
 } from "@/lib/dto/company-criteria";
@@ -43,6 +44,16 @@ const ok = (items: CompanyWatchCriterion[]): ApiResult<ListCompanyWatchCriteriaR
 });
 const errored: ApiResult<ListCompanyWatchCriteriaResult> = { kind: "error" };
 
+// The count read answers one row per watch the account owns (`CriterionNewAdCountsDto`). The suites
+// that measure nothing about the pill pass a failed read, which renders the card without one.
+const COUNTS_UNREAD: ApiResult<CriterionNewAdCounts> = { kind: "error" };
+const counts = (
+  ...rows: ReadonlyArray<readonly [criterionId: string, newAds: number | null]>
+): ApiResult<CriterionNewAdCounts> => ({
+  kind: "ok",
+  data: { items: rows.map(([criterionId, newAds]) => ({ criterionId, newAds })) },
+});
+
 const REFERENCE: CriterionReference = {
   sniVersion: "SNI 2007",
   kommunVersion: "2025",
@@ -75,7 +86,7 @@ function text(el: Element | null): string {
 
 describe("CriteriaCard — one watch", () => {
   it("the matching count is the big number; name, breadth and the ads link beneath; the solid CTA goes to the matching ads", () => {
-    render(<CriteriaCard criteria={ok([criterion()])} reference={REFERENCE} />);
+    render(<CriteriaCard criteria={ok([criterion()])} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     expect(card()).toHaveAttribute("data-span", "4");
     expect(text(card().querySelector<HTMLElement>(".jp-ov-num__value"))).toBe("7");
     expect(text(card().querySelector<HTMLElement>(".jp-ov-num__unit"))).toBe("matchande annonser");
@@ -93,19 +104,19 @@ describe("CriteriaCard — one watch", () => {
   });
 
   it("the matching number is stated ONCE — as the big number, not again as a line", () => {
-    render(<CriteriaCard criteria={ok([criterion()])} reference={REFERENCE} />);
+    render(<CriteriaCard criteria={ok([criterion()])} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     expect(within(card()).queryByText(/matchande annonser just nu/)).toBeNull();
   });
 
   it("a counted matching zero renders 0 and no CTA — a zero has nowhere to lead", () => {
-    render(<CriteriaCard criteria={ok([criterion({ matching: matchCounted(0) })])} reference={REFERENCE} />);
+    render(<CriteriaCard criteria={ok([criterion({ matching: matchCounted(0) })])} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     expect(text(card().querySelector<HTMLElement>(".jp-ov-num__value"))).toBe("0");
     expect(within(card()).queryByRole("link", { name: COPY.cards.criteriaCtaAria })).toBeNull();
   });
 
   it("too broad: no number, the refusal stated once with its way forward, no CTA — never a zero", () => {
     render(
-      <CriteriaCard criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD })])} reference={REFERENCE} />,
+      <CriteriaCard criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD })])} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />,
     );
     expect(card().querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
     expect(within(card()).getAllByText(/fler företag än vi kan räkna annonser för/)).toHaveLength(1);
@@ -120,7 +131,7 @@ describe("CriteriaCard — one watch", () => {
   // The same guard-3 state as the N ≥ 2 case below, in the one-watch form: the row carries the FULL
   // matching refusal here, and it must name the ads, never the companies (design-reviewer, #1715).
   it("a refused matching beside a counted ad number at N = 1: the full sentence names the ads, never the companies", () => {
-    render(<CriteriaCard criteria={ok([criterion({ ads: counted(3000), matching: MATCH_TOO_BROAD })])} reference={REFERENCE} />);
+    render(<CriteriaCard criteria={ok([criterion({ ads: counted(3000), matching: MATCH_TOO_BROAD })])} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     expect(card().querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
     expect(text(card().querySelector<HTMLElement>("a.jp-countlink"))).toBe("3 000 aktiva annonser");
     expect(text(card())).toContain("Bevakningen har fler annonser än vi kan matcha.");
@@ -129,7 +140,7 @@ describe("CriteriaCard — one watch", () => {
   });
 
   it("not materialised: ignorance, not refusal — the ads link stands, the number waits, no advice", () => {
-    render(<CriteriaCard criteria={ok([criterion({ matching: MATCH_NOT_MATERIALISED })])} reference={REFERENCE} />);
+    render(<CriteriaCard criteria={ok([criterion({ matching: MATCH_NOT_MATERIALISED })])} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     expect(card().querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
     expect(within(card()).getByRole("link", { name: "42 aktiva annonser" })).toBeInTheDocument();
     expect(within(card()).getByText(/inte framräknad än/)).toBeInTheDocument();
@@ -137,7 +148,7 @@ describe("CriteriaCard — one watch", () => {
   });
 
   it("not assessed: no nudge to match settings, the ads link kept, no number", () => {
-    render(<CriteriaCard criteria={ok([criterion({ matching: MATCH_NOT_ASSESSED })])} reference={REFERENCE} />);
+    render(<CriteriaCard criteria={ok([criterion({ matching: MATCH_NOT_ASSESSED })])} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     expect(card().querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
     expect(within(card()).queryByRole("link", { name: "Ställ in matchning" })).toBeNull();
     expect(within(card()).queryByText(COPY.notices.calloutText)).toBeNull();
@@ -145,16 +156,16 @@ describe("CriteriaCard — one watch", () => {
   });
 
   it("a degraded reference tree keeps the numbers and falls back to the user's own label", () => {
-    render(<CriteriaCard criteria={ok([criterion()])} reference={null} />);
+    render(<CriteriaCard criteria={ok([criterion()])} reference={null} newAdCounts={COUNTS_UNREAD} />);
     expect(text(card().querySelector<HTMLElement>(".jp-ov-num__value"))).toBe("7");
     expect(within(card()).getByText("Utveckling i Göteborg")).toBeInTheDocument();
   });
 
   it("no user label: the derived label, and without a tree the neutral noun — never a blank line", () => {
-    const { unmount } = render(<CriteriaCard criteria={ok([criterion({ label: null })])} reference={REFERENCE} />);
+    const { unmount } = render(<CriteriaCard criteria={ok([criterion({ label: null })])} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     expect(within(card()).getByText("Dataprogrammering, datakonsultverksamhet o.d. · Göteborg")).toBeInTheDocument();
     unmount();
-    render(<CriteriaCard criteria={ok([criterion({ label: null })])} reference={null} />);
+    render(<CriteriaCard criteria={ok([criterion({ label: null })])} reference={null} newAdCounts={COUNTS_UNREAD} />);
     expect(within(card()).getByText("Branschbevakning", { selector: ".jp-ov-sub" })).toBeInTheDocument();
   });
 });
@@ -163,7 +174,7 @@ describe("CriteriaCard — two or more watches", () => {
   const two = ok([criterion({ id: "a", label: "Första" }), criterion({ id: "b", label: "Andra", matching: matchCounted(3) })]);
 
   it("reflows to a full row with one ledger row per watch, in handler order, and NO sum", () => {
-    render(<CriteriaCard criteria={two} reference={REFERENCE} />);
+    render(<CriteriaCard criteria={two} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     expect(card()).toHaveAttribute("data-span", "12");
     expect(card().querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
     const rows = [...card().querySelectorAll<HTMLElement>(".jp-ov-criteria__row")];
@@ -178,13 +189,13 @@ describe("CriteriaCard — two or more watches", () => {
   });
 
   it("the head carries the count, and the list is labelled by it", () => {
-    render(<CriteriaCard criteria={two} reference={REFERENCE} />);
+    render(<CriteriaCard criteria={two} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     expect(within(card()).getByText("2 branschbevakningar")).toBeInTheDocument();
     expect(within(card()).getByRole("list", { name: "2 branschbevakningar" })).toBeInTheDocument();
   });
 
   it("the CTA is an outline link to the catalogue — there is no summed target to be solid about", () => {
-    render(<CriteriaCard criteria={two} reference={REFERENCE} />);
+    render(<CriteriaCard criteria={two} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     const cta = within(card()).getByRole("link", { name: COPY.criteriaSummary.link });
     expect(cta).toHaveAttribute("href", "/foretag/branschbevakningar");
     expect(cta.className).toContain("jp-ov-cta--outline");
@@ -195,6 +206,7 @@ describe("CriteriaCard — two or more watches", () => {
       <CriteriaCard
         criteria={ok([criterion({ id: "a" }), criterion({ id: "b", ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD })])}
         reference={REFERENCE}
+        newAdCounts={COUNTS_UNREAD}
       />,
     );
     expect(within(card()).getByText(COPY.criteriaSummary.adsTooBroadAdvice, { exact: false })).toBeInTheDocument();
@@ -213,6 +225,7 @@ describe("CriteriaCard — two or more watches", () => {
       <CriteriaCard
         criteria={ok([criterion({ id: "a", ads: counted(3000), matching: MATCH_TOO_BROAD }), criterion({ id: "b" })])}
         reference={REFERENCE}
+        newAdCounts={COUNTS_UNREAD}
       />,
     );
     const rows = [...card().querySelectorAll<HTMLElement>(".jp-ov-criteria__row")];
@@ -235,6 +248,7 @@ describe("CriteriaCard — two or more watches", () => {
       <CriteriaCard
         criteria={ok([criterion({ id: "a", matching: MATCH_NOT_ASSESSED }), criterion({ id: "b", matching: MATCH_NOT_ASSESSED })])}
         reference={REFERENCE}
+        newAdCounts={COUNTS_UNREAD}
       />,
     );
     expect(within(card()).getAllByRole("link", { name: "42 aktiva annonser" })).toHaveLength(2);
@@ -252,7 +266,7 @@ describe("CriteriaCard — two or more watches", () => {
 
 describe("CriteriaCard — no watches, or none readable", () => {
   it("empty: the empty copy and an emphasised link to the catalogue, span 4", () => {
-    render(<CriteriaCard criteria={ok([])} reference={REFERENCE} />);
+    render(<CriteriaCard criteria={ok([])} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     expect(card()).toHaveAttribute("data-span", "4");
     expect(within(card()).getByText(COPY.criteriaSummary.emptyTitle)).toBeInTheDocument();
     expect(within(card()).getByRole("link", { name: COPY.criteriaSummary.emptyCta })).toHaveAttribute(
@@ -262,9 +276,138 @@ describe("CriteriaCard — no watches, or none readable", () => {
   });
 
   it("unavailable: an en-dash and the unavailable copy — never 'you have none'", () => {
-    render(<CriteriaCard criteria={errored} reference={REFERENCE} />);
+    render(<CriteriaCard criteria={errored} reference={REFERENCE} newAdCounts={COUNTS_UNREAD} />);
     expect(text(card().querySelector<HTMLElement>(".jp-ov-num__value"))).toBe(COPY.cards.unmeasured);
     expect(within(card()).getByText(COPY.criteriaSummary.unavailable)).toBeInTheDocument();
     expect(within(card()).queryByText(COPY.criteriaSummary.emptyTitle)).toBeNull();
+  });
+});
+
+describe("CriteriaCard — the 'N nya' pill (ADR 0175 D7)", () => {
+  const PILL = ".jp-ov-card__pill";
+  const nyaHref = (id: string) => `/foretag/branschbevakningar/${id}/nya`;
+
+  it("one watch: the pill sits in the head, reads 'N nya', is named after the watch and links to its /nya", () => {
+    render(<CriteriaCard criteria={ok([criterion()])} reference={REFERENCE} newAdCounts={counts([ID, 3])} />);
+    const pill = within(card()).getByRole("link", { name: /^3 nya annonser i branschbevakningen / });
+    expect(text(pill)).toBe("3 nya");
+    expect(pill).toHaveAccessibleName("3 nya annonser i branschbevakningen Utveckling i Göteborg");
+    expect(pill).toHaveAttribute("href", nyaHref(ID));
+    // In the head, never beside the matching number.
+    expect(pill.closest(".jp-ov-card__head")).not.toBeNull();
+    expect(text(card().querySelector<HTMLElement>(".jp-ov-num__value"))).toBe("7");
+  });
+
+  it("one new ad: the singular form, in the visible text and the name alike", () => {
+    render(<CriteriaCard criteria={ok([criterion()])} reference={REFERENCE} newAdCounts={counts([ID, 1])} />);
+    const pill = within(card()).getByRole("link", { name: "1 ny annons i branschbevakningen Utveckling i Göteborg" });
+    expect(text(pill)).toBe("1 ny");
+  });
+
+  it("the name is the card's own row name: without a user label, the derived one", () => {
+    render(
+      <CriteriaCard criteria={ok([criterion({ label: null })])} reference={REFERENCE} newAdCounts={counts([ID, 2])} />,
+    );
+    expect(
+      within(card()).getByRole("link", {
+        name: "2 nya annonser i branschbevakningen Dataprogrammering, datakonsultverksamhet o.d. · Göteborg",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("the pill shows even when the matching number is not there to carry", () => {
+    render(
+      <CriteriaCard
+        criteria={ok([criterion({ matching: MATCH_NOT_ASSESSED })])}
+        reference={REFERENCE}
+        newAdCounts={counts([ID, 4])}
+      />,
+    );
+    expect(card().querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
+    expect(within(card()).getByRole("link", { name: /^4 nya annonser i branschbevakningen / })).toHaveAttribute(
+      "href",
+      nyaHref(ID),
+    );
+  });
+
+  const noPill: ReadonlyArray<readonly [string, ApiResult<CriterionNewAdCounts>]> = [
+    ["a counted 0", counts([ID, 0])],
+    ["a null count (the last scan was not Scanned)", counts([ID, null])],
+    ["a failed count read", { kind: "error" }],
+    ["a rate-limited count read", { kind: "rateLimited", retryAfterSeconds: 60 }],
+    ["an unauthorized count read", { kind: "unauthorized" }],
+  ];
+  it.each(noPill)("%s: no pill, and no 0 in its place", (_, newAdCounts) => {
+    render(<CriteriaCard criteria={ok([criterion()])} reference={REFERENCE} newAdCounts={newAdCounts} />);
+    expect(card().querySelector(PILL)).toBeNull();
+    expect(text(card())).not.toMatch(/\d+ nya?\b/);
+    // The rest of the card is unchanged by the count read.
+    expect(text(card().querySelector<HTMLElement>(".jp-ov-num__value"))).toBe("7");
+  });
+
+  it("two or more: each row's pill follows its name on the name line; the head keeps only the count; never a sum", () => {
+    render(
+      <CriteriaCard
+        criteria={ok([
+          criterion({ id: "a", label: "Första" }),
+          criterion({ id: "b", label: "Andra", matching: MATCH_NOT_ASSESSED }),
+        ])}
+        reference={REFERENCE}
+        newAdCounts={counts(["a", 3], ["b", 2])}
+      />,
+    );
+    const head = card().querySelector<HTMLElement>(".jp-ov-card__head")!;
+    expect(head.querySelector(PILL)).toBeNull();
+    expect(text(head.querySelector<HTMLElement>(".jp-ov-card__count"))).toBe("2 branschbevakningar");
+
+    const rows = [...card().querySelectorAll<HTMLElement>(".jp-ov-criteria__row")];
+    const expected = [
+      { id: "a", name: "Första", visible: "3 nya", aria: "3 nya annonser i branschbevakningen Första" },
+      { id: "b", name: "Andra", visible: "2 nya", aria: "2 nya annonser i branschbevakningen Andra" },
+    ];
+    rows.forEach((row, i) => {
+      const want = expected[i]!;
+      const line = row.querySelector<HTMLElement>(".jp-ov-criteria__nameline")!;
+      // DOM order: the name, then its pill.
+      expect([...line.children].map((c) => c.className)).toEqual([
+        "jp-ov-criteria__name",
+        "jp-ov-card__pill tabular-nums",
+      ]);
+      expect(text(line.firstElementChild)).toBe(want.name);
+      const pill = within(line).getByRole("link", { name: want.aria });
+      expect(text(pill)).toBe(want.visible);
+      expect(pill).toHaveAttribute("href", nyaHref(want.id));
+    });
+    expect(card().querySelectorAll(PILL)).toHaveLength(2);
+    expect(text(card())).not.toMatch(/\b5 nya\b/);
+  });
+
+  it("two or more: only the rows with a number above 0 get a pill", () => {
+    render(
+      <CriteriaCard
+        criteria={ok([
+          criterion({ id: "a", label: "Första" }),
+          criterion({ id: "b", label: "Andra" }),
+          criterion({ id: "c", label: "Tredje", ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD }),
+        ])}
+        reference={REFERENCE}
+        newAdCounts={counts(["a", 3], ["b", 0], ["c", null])}
+      />,
+    );
+    const rows = [...card().querySelectorAll<HTMLElement>(".jp-ov-criteria__row")];
+    expect(rows.map((row) => row.querySelectorAll(PILL).length)).toEqual([1, 0, 0]);
+    expect(within(rows[0]!).getByRole("link", { name: "3 nya annonser i branschbevakningen Första" })).toBeInTheDocument();
+  });
+
+  it("two or more with a failed count read: no pill on any row", () => {
+    render(
+      <CriteriaCard
+        criteria={ok([criterion({ id: "a", label: "Första" }), criterion({ id: "b", label: "Andra" })])}
+        reference={REFERENCE}
+        newAdCounts={COUNTS_UNREAD}
+      />,
+    );
+    expect(card().querySelector(PILL)).toBeNull();
+    expect(card().querySelectorAll(".jp-ov-criteria__row")).toHaveLength(2);
   });
 });

@@ -11,6 +11,7 @@ import {
 } from "@/lib/api/company-follows";
 import {
   getCompanyWatchCriteria,
+  getCriterionNewAdCounts,
   getCriterionReference,
 } from "@/lib/api/company-criteria";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
@@ -78,6 +79,7 @@ export default async function OversiktRoute({
     recentSearches,
     matchCount,
     newFollowedCompanyAdCount,
+    criterionNewAdCounts,
     companyWatches,
     criteria,
   ] = await Promise.all([
@@ -103,6 +105,10 @@ export default async function OversiktRoute({
     // Degraderar CIVILT och OBEROENDE precis som `getMatchCount`: ett fel får
     // aldrig reject:a Promise.all eller redirecta — det löses till 0 nedan.
     getNewFollowedCompanyAdCount(),
+    // ADR 0175 D7 (#1663) — "N nya" per Branschbevakning, a delta read of its own. Unlike the row
+    // above it travels WHOLE and is never degraded to 0: only `ok` gives the card its pills, and
+    // every other kind, unauthorized included, renders the card without them and drives no redirect.
+    getCriterionNewAdCounts(),
     // #1558 — the followed-company list, for Foretagsbevakning's standing summary. The section's
     // only other source is the watermark delta above, which the visit to /foretag/bevakade/nya
     // advances, so after that visit it is 0 and the section rendered as empty for an
@@ -186,6 +192,7 @@ export default async function OversiktRoute({
         companyWatches={companyWatches}
         criteria={criteria}
         criterionReference={criterionReference}
+        criterionNewAdCounts={criterionNewAdCounts}
         setupUnavailable={setupRequest !== null && taxonomy === null}
       />
       <MatchSetupLauncher

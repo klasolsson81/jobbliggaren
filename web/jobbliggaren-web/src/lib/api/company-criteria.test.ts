@@ -21,7 +21,14 @@ import {
   createCriterion,
   updateCriterion,
   deleteCriterion,
+  getCriterionNewAdCounts,
+  getNewCriterionAds,
+  markCriterionNewAdsSeen,
 } from "./company-criteria";
+import {
+  criterionNewAdCountsSchema,
+  newCriterionAdsSchema,
+} from "@/lib/dto/company-criteria";
 
 const VALID_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -667,5 +674,253 @@ describe("deleteCriterion — hard delete", () => {
   it("401 → unauthorized", async () => {
     global.fetch = vi.fn().mockResolvedValue(emptyResponse(401));
     expect(await deleteCriterion(VALID_ID)).toEqual({ kind: "unauthorized" });
+  });
+});
+
+// ── "N nya" per Branschbevakning (ADR 0175 D7, #1663 PR 2) ─────────────────────
+
+describe("getCriterionNewAdCounts — Översikt's per-criterion count", () => {
+  it("no session → unauthorized without a backend round-trip", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getCriterionNewAdCounts()).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("200 → ok, a real 0 and a null staying distinct, from its own route", async () => {
+    // `null` is "the last scan was not Scanned"; 0 is a counted answer. Neither shows a pill, but
+    // they are different facts and the wire must keep them apart.
+    const body = {
+      items: [
+        { criterionId: "cr-1", newAds: 3 },
+        { criterionId: "cr-2", newAds: 0 },
+        { criterionId: "cr-3", newAds: null },
+      ],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(body));
+    global.fetch = fetchMock;
+    expect(await getCriterionNewAdCounts()).toEqual({ kind: "ok", data: body });
+    // Its own route, never a field on the criteria list.
+    expect(String(fetchMock.mock.calls[0]![0])).toBe(
+      "http://test-backend/api/v1/me/company-watch-criteria/new-ad-counts",
+    );
+  });
+
+  it("404 (collection endpoint) → error, never notFound", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(404));
+    expect(await getCriterionNewAdCounts()).toEqual({ kind: "error" });
+  });
+
+  it("429 → rateLimited", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(429));
+    expect((await getCriterionNewAdCounts()).kind).toBe("rateLimited");
+  });
+
+  it.each([-1, 1.5, "3"])("a count of %o → error, never a pill", async (newAds) => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ items: [{ criterionId: "cr-1", newAds }] }));
+    expect(await getCriterionNewAdCounts()).toEqual({ kind: "error" });
+  });
+
+  it("a fetch that throws → error", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("network"));
+    expect(await getCriterionNewAdCounts()).toEqual({ kind: "error" });
+  });
+});
+
+describe("getNewCriterionAds — one Branschbevakning's new ads", () => {
+  const criterion = {
+    id: VALID_ID,
+    sniCodes: ["62010"],
+    municipalityCodes: ["0180"],
+    label: null,
+  };
+  const ad = {
+    id: "aaaaaaaa-1111-2222-3333-444444444444",
+    title: "Systemingenjör",
+    companyName: "Acme AB",
+    url: "https://example.com/jobs/1",
+    source: "Platsbanken",
+    status: "Active",
+    publishedAt: "2026-10-17T08:00:00+00:00",
+    expiresAt: null,
+    createdAt: "2026-10-17T09:00:00+00:00",
+  };
+  // Microsecond precision, as the scan clock writes it.
+  const WINDOW = "2026-10-18T03:55:12.123456+00:00";
+  const scanned = {
+    criterion,
+    rows: [{ ad, matchesYou: true }],
+    matchingAssessed: true,
+    acknowledgedThrough: WINDOW,
+    truncated: false,
+    tooBroad: false,
+    notMaterialised: false,
+  };
+  /** `NewCriterionAdsDto.Refused` / `.NotScanned`. */
+  const closed = (flag: "tooBroad" | "notMaterialised") => ({
+    criterion,
+    rows: [],
+    matchingAssessed: false,
+    acknowledgedThrough: null,
+    truncated: false,
+    tooBroad: flag === "tooBroad",
+    notMaterialised: flag === "notMaterialised",
+  });
+
+  it("no session → unauthorized without a backend round-trip", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getNewCriterionAds(VALID_ID)).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("non-GUID id → notFound without a backend round-trip", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getNewCriterionAds("../admin")).toEqual({ kind: "notFound" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("200 window → ok, the token kept as the server wrote it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(scanned));
+    global.fetch = fetchMock;
+    const result = await getNewCriterionAds(VALID_ID);
+    expect(result).toEqual({ kind: "ok", data: scanned });
+    // A string, never a Date: the page hands it back verbatim, and a Date drops the microseconds.
+    if (result.kind === "ok") expect(result.data.acknowledgedThrough).toBe(WINDOW);
+    expect(String(fetchMock.mock.calls[0]![0])).toBe(
+      `http://test-backend/api/v1/me/company-watch-criteria/${VALID_ID}/new-ads`,
+    );
+  });
+
+  it.each(["tooBroad", "notMaterialised"] as const)(
+    "200 closed state %s → ok, so the page can say why there is no list",
+    async (flag) => {
+      global.fetch = vi.fn().mockResolvedValue(jsonResponse(closed(flag)));
+      expect(await getNewCriterionAds(VALID_ID)).toEqual({ kind: "ok", data: closed(flag) });
+    },
+  );
+
+  // UNREACHABLE STATES, declared: the `NewCriterionAdsDto` constructor throws on each of them, so the
+  // backend cannot send one. Asserted only as the ACL refusing it, which is the read side's safe arm.
+  it.each([
+    ["rows beside tooBroad", { ...closed("tooBroad"), rows: [{ ad, matchesYou: null }] }],
+    ["rows beside notMaterialised", { ...closed("notMaterialised"), rows: [{ ad, matchesYou: null }] }],
+    ["a token beside tooBroad", { ...closed("tooBroad"), acknowledgedThrough: WINDOW }],
+    ["a token beside notMaterialised", { ...closed("notMaterialised"), acknowledgedThrough: WINDOW }],
+    ["truncation beside notMaterialised", { ...closed("notMaterialised"), truncated: true }],
+    ["both closed states at once", { ...closed("tooBroad"), notMaterialised: true }],
+  ])("200 with %s → error, never rendered", async (_name, body) => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(body));
+    expect(await getNewCriterionAds(VALID_ID)).toEqual({ kind: "error" });
+  });
+
+  it("200 without the composed criterion → error, never a headless page", async () => {
+    // `undefined` does not survive JSON.stringify, so the member is absent on the wire.
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ ...scanned, criterion: undefined }));
+    expect(await getNewCriterionAds(VALID_ID)).toEqual({ kind: "error" });
+  });
+
+  it("200 with a token that is no instant → error", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ ...scanned, acknowledgedThrough: "igår" }));
+    expect(await getNewCriterionAds(VALID_ID)).toEqual({ kind: "error" });
+  });
+
+  it("404 (unknown OR cross-user id) → notFound", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(404));
+    expect(await getNewCriterionAds(VALID_ID)).toEqual({ kind: "notFound" });
+  });
+
+  it("429 → rateLimited", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(429));
+    expect((await getNewCriterionAds(VALID_ID)).kind).toBe("rateLimited");
+  });
+});
+
+describe("markCriterionNewAdsSeen — the acknowledgement", () => {
+  const WINDOW = "2026-10-18T03:55:12.123456Z";
+
+  it("POSTs the token verbatim with the explicit session, and never reads cookies", async () => {
+    getSessionIdMock.mockClear();
+    const fetchMock = vi.fn().mockResolvedValue(emptyResponse(204));
+    global.fetch = fetchMock;
+
+    expect(await markCriterionNewAdsSeen(VALID_ID, WINDOW, "session-abc")).toEqual({
+      kind: "ok",
+      data: undefined,
+    });
+
+    // `after()` cannot read cookies (#741), so the session the page read during render is the one sent.
+    expect(getSessionIdMock).not.toHaveBeenCalled();
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(
+      `http://test-backend/api/v1/me/company-watch-criteria/${VALID_ID}/new-ads/seen`,
+    );
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ seenThrough: WINDOW });
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer session-abc");
+  });
+
+  it("non-GUID id → notFound without a backend round-trip", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await markCriterionNewAdsSeen("../admin", WINDOW, "session-abc")).toEqual({
+      kind: "notFound",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [401, { kind: "unauthorized" }],
+    [403, { kind: "forbidden" }],
+    [404, { kind: "notFound" }],
+    [400, { kind: "error" }],
+    [500, { kind: "error" }],
+  ])("%s → %o", async (status, expected) => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(status));
+    expect(await markCriterionNewAdsSeen(VALID_ID, WINDOW, "session-abc")).toEqual(expected);
+  });
+
+  it("a fetch that throws → error, never a throw into the render", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("network"));
+    expect(await markCriterionNewAdsSeen(VALID_ID, WINDOW, "session-abc")).toEqual({
+      kind: "error",
+    });
+  });
+});
+
+describe("the two schemas, directly", () => {
+  const criterion = { id: VALID_ID, sniCodes: ["62010"], municipalityCodes: ["0180"], label: null };
+  /** `NewCriterionAdsDto.Nothing`: Scanned, and nothing new. */
+  const nothing = {
+    criterion,
+    rows: [],
+    matchingAssessed: false,
+    acknowledgedThrough: null,
+    truncated: false,
+    tooBroad: false,
+    notMaterialised: false,
+  };
+
+  it("newCriterionAdsSchema accepts a Scanned criterion with nothing new", () => {
+    expect(newCriterionAdsSchema.safeParse(nothing).success).toBe(true);
+  });
+
+  it("newCriterionAdsSchema rejects both closed states at once", () => {
+    expect(
+      newCriterionAdsSchema.safeParse({ ...nothing, tooBroad: true, notMaterialised: true }).success,
+    ).toBe(false);
+  });
+
+  it("criterionNewAdCountsSchema requires the items wrapper and a criterion id per row", () => {
+    expect(criterionNewAdCountsSchema.safeParse({ items: [] }).success).toBe(true);
+    expect(criterionNewAdCountsSchema.safeParse([]).success).toBe(false);
+    expect(criterionNewAdCountsSchema.safeParse({ items: [{ newAds: 1 }] }).success).toBe(false);
   });
 });

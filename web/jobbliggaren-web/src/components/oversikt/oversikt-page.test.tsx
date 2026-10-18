@@ -10,6 +10,7 @@ import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
 import type { ApplicationDto, PipelineGroupDto } from "@/lib/dto/applications";
 import type {
   CompanyWatchCriterion,
+  CriterionNewAdCounts,
   ListCompanyWatchCriteriaResult,
 } from "@/lib/dto/company-criteria";
 import type {
@@ -72,6 +73,7 @@ interface RenderOpts {
   readonly newFollowedCompanyAdCount?: number;
   readonly companyWatches?: ApiResult<ListCompanyWatchesResult>;
   readonly criteria?: ApiResult<ListCompanyWatchCriteriaResult>;
+  readonly criterionNewAdCounts?: ApiResult<CriterionNewAdCounts>;
   readonly profileOverrides?: Partial<JobSeekerProfileDto>;
   readonly pipeline?: ApiResult<PipelineGroupDto[]>;
 }
@@ -88,6 +90,7 @@ function renderOversikt(
     // andra korten, och en degraderad läsning ger ett kort med en en-dash i stället för ett
     // vars innehåll skulle sippra in i deras textassertions.
     criteria = errored,
+    criterionNewAdCounts = errored,
     profileOverrides = {},
     pipeline = errored,
   }: RenderOpts = {},
@@ -107,6 +110,7 @@ function renderOversikt(
       companyWatches={companyWatches}
       criteria={criteria}
       criterionReference={null}
+      criterionNewAdCounts={criterionNewAdCounts}
     />,
   );
 }
@@ -629,6 +633,38 @@ describe("OversiktPage — Branschbevakning-kortets inkoppling och reflow", () =
     renderOversikt(true, { matchCount: null, criteria: { kind: "error" } });
     expect(bigNumber(COPY.criteriaSummary.heading)).toBe(COPY.cards.unmeasured);
     expect(card(COPY.cards.matching)).toHaveAttribute("data-span", "4");
+  });
+
+  it("'N nya' når kortet ur criterionNewAdCounts-propen: pillen i huvudet, till bevakningens /nya", () => {
+    const id = "aaaa1111-0000-4000-8000-000000000001";
+    renderOversikt(true, {
+      matchCount: null,
+      criteria: { kind: "ok", data: [makeCriterion({ id })] },
+      criterionNewAdCounts: { kind: "ok", data: { items: [{ criterionId: id, newAds: 3 }] } },
+    });
+    const criteria = card(COPY.criteriaSummary.heading);
+    const pill = within(criteria).getByRole("link", { name: /^3 nya annonser i branschbevakningen / });
+    expect(pill).toHaveAttribute("href", `/foretag/branschbevakningar/${id}/nya`);
+    expect(pill.closest(".jp-ov-card__head")).not.toBeNull();
+  });
+
+  const failedCountReads: ReadonlyArray<readonly [string, ApiResult<CriterionNewAdCounts>]> = [
+    ["misslyckad", { kind: "error" }],
+    ["rate-limitad", { kind: "rateLimited", retryAfterSeconds: 60 }],
+  ];
+  it.each(failedCountReads)("en %s räkneläsning: inga pillar och ingen nolla, resten av kortet står kvar", (_, failed) => {
+    renderOversikt(true, {
+      matchCount: null,
+      criteria: {
+        kind: "ok",
+        data: [makeCriterion({ id: "a", label: "Första" }), makeCriterion({ id: "b", label: "Andra" })],
+      },
+      criterionNewAdCounts: failed,
+    });
+    const criteria = card(COPY.criteriaSummary.heading);
+    expect(criteria.querySelector<HTMLElement>(".jp-ov-card__pill")).toBeNull();
+    expect(text(criteria)).not.toMatch(/\d+ nya?\b/);
+    expect(criteria.querySelectorAll<HTMLElement>(".jp-ov-criteria__row")).toHaveLength(2);
   });
 });
 

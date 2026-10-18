@@ -10,6 +10,7 @@ import type { ListSavedJobAdsResult } from "@/lib/dto/saved-job-ads";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
 import type { ListCompanyWatchesResult } from "@/lib/dto/company-follows";
 import type {
+  CriterionNewAdCounts,
   CriterionReference,
   ListCompanyWatchCriteriaResult,
 } from "@/lib/dto/company-criteria";
@@ -88,6 +89,11 @@ interface OversiktPageProps {
    * do not depend on the tree and are always shown.
    */
   readonly criterionReference: CriterionReference | null;
+  /**
+   * "N nya" per industry watch, as a Result: only an answered read gives the card its pills, and a
+   * failed one renders the card without them, never with a 0.
+   */
+  readonly criterionNewAdCounts: ApiResult<CriterionNewAdCounts>;
   readonly setupUnavailable?: boolean;
 }
 
@@ -112,6 +118,7 @@ export function OversiktPage({
   companyWatches,
   criteria,
   criterionReference,
+  criterionNewAdCounts,
   setupUnavailable,
 }: OversiktPageProps) {
   const t = useTranslations("oversikt");
@@ -399,7 +406,11 @@ export function OversiktPage({
             newAdCount={newFollowedCompanyAdCount}
             span={siblingSpan}
           />
-          <CriteriaCard criteria={criteria} reference={criterionReference} />
+          <CriteriaCard
+            criteria={criteria}
+            reference={criterionReference}
+            newAdCounts={criterionNewAdCounts}
+          />
           <RecentEventsCard
             notices={infoNotices}
             headAction={<MarkAllReadRow notices={infoNotices} />}

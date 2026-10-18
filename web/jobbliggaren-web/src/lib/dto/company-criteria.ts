@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { pagedResultWithTotalPages } from "@/lib/dto/_helpers";
+import { pagedResultWithTotalPages, readableInstantSchema } from "@/lib/dto/_helpers";
 import { jobAdDtoSchema } from "@/lib/dto/job-ads";
 
 /**
@@ -286,6 +286,60 @@ export const criterionAdBrowseResponseSchema = z.object({
   criterion: criterionIdentitySchema,
 });
 export type CriterionAdBrowseResponse = z.infer<typeof criterionAdBrowseResponseSchema>;
+
+/**
+ * ADR 0175 D7 (#1663 PR 2) — "N nya" per Branschbevakning, for Översikt (mirrors the Api's
+ * `CriterionNewAdCountsDto`). `newAds === null` means the criterion's last scan was not `Scanned` —
+ * too broad, not materialised, or never scanned — so there is no number to show (ADR 0120). A real
+ * 0 is sent as 0, and renders nothing either.
+ */
+export const criterionNewAdCountSchema = z.object({
+  criterionId: z.string(),
+  newAds: z.number().int().nonnegative().nullable(),
+});
+export const criterionNewAdCountsSchema = z.object({
+  items: z.array(criterionNewAdCountSchema),
+});
+export type CriterionNewAdCounts = z.infer<typeof criterionNewAdCountsSchema>;
+
+/**
+ * One row on `/foretag/branschbevakningar/[id]/nya`. `matchesYou === null` is NOT ASSESSED (no stated
+ * occupation), never a false "no" — the follow page's row, same semantics.
+ */
+export const newCriterionAdRowSchema = z.object({
+  ad: jobAdDtoSchema,
+  matchesYou: z.boolean().nullable(),
+});
+
+/**
+ * ADR 0175 D7 — one Branschbevakning's new ads (mirrors the Api's `NewCriterionAdsDto`). Rows are
+ * newest first; `acknowledgedThrough` is the server's window token, sent back verbatim and never
+ * derived from an ad's own timestamp; `truncated` means the cap was hit and the rest returns next
+ * visit.
+ *
+ * `tooBroad` and `notMaterialised` are the closed states: the criterion was refused, or has not been
+ * scanned, so the page must say so rather than render "nothing new". The refinement mirrors the
+ * DTO's own constructor invariant — never both, and a closed state carries no rows, no token and no
+ * truncation — so a response that breaks it fails the parse instead of rendering a contradiction.
+ */
+export const newCriterionAdsSchema = z
+  .object({
+    criterion: criterionIdentitySchema,
+    rows: z.array(newCriterionAdRowSchema),
+    matchingAssessed: z.boolean(),
+    acknowledgedThrough: readableInstantSchema.nullable(),
+    truncated: z.boolean(),
+    tooBroad: z.boolean(),
+    notMaterialised: z.boolean(),
+  })
+  .refine(
+    (v) =>
+      !(v.tooBroad && v.notMaterialised) &&
+      (!(v.tooBroad || v.notMaterialised) ||
+        (v.rows.length === 0 && v.acknowledgedThrough === null && !v.truncated)),
+    { message: "a closed scan state carries no rows, no token and no truncation" },
+  );
+export type NewCriterionAds = z.infer<typeof newCriterionAdsSchema>;
 
 // ── The wire predicate (create / update / preview input) ────────────────────
 

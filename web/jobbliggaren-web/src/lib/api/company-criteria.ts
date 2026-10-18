@@ -11,7 +11,11 @@ import {
   criterionMagnitudeSchema,
   createCriterionResultSchema,
   occupationDivisionsSchema,
+  criterionNewAdCountsSchema,
+  newCriterionAdsSchema,
   type OccupationDivisions,
+  type CriterionNewAdCounts,
+  type NewCriterionAds,
   type ListCompanyWatchCriteriaResult,
   type CriterionReference,
   type CompanyBrowseResponse,
@@ -155,6 +159,83 @@ export async function browseCriterionAds(
       "GET /api/v1/me/company-watch-criteria/{id}/ads",
       { includeNotFound: true },
     );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * ADR 0175 D7 (#1663 PR 2) — "N nya" per Branschbevakning, for Översikt's fan-out. Its own route and
+ * bucket, never a field on the list. A failure is a failure: the card then renders no pills, never
+ * a 0.
+ */
+export async function getCriterionNewAdCounts(): Promise<ApiResult<CriterionNewAdCounts>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const res = await authedFetch(sessionId, `${BASE}/new-ad-counts`);
+    return await responseToResult(
+      res,
+      criterionNewAdCountsSchema,
+      "GET /api/v1/me/company-watch-criteria/new-ad-counts",
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * ADR 0175 D7 — the page of one Branschbevakning's new ads. 404 (unknown or another user's id, never
+ * an enumeration oracle) → `notFound`.
+ */
+export async function getNewCriterionAds(
+  criterionId: string,
+): Promise<ApiResult<NewCriterionAds>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  // Allowlist-guard: reject a non-GUID before it reaches the backend URL (SSRF/path-injection).
+  if (!isValidId(criterionId)) return { kind: "notFound" };
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `${BASE}/${encodeURIComponent(criterionId)}/new-ads`,
+    );
+    return await responseToResult(
+      res,
+      newCriterionAdsSchema,
+      "GET /api/v1/me/company-watch-criteria/{id}/new-ads",
+      { includeNotFound: true },
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * ADR 0175 D7 — acknowledge the window the page showed. `seenThrough` is the server's token, handed
+ * back verbatim; `session` is passed in because the page sends this from `after()`, which cannot read
+ * cookies (#741). Non-critical: a failure leaves the count where it was and never blocks the render.
+ */
+export async function markCriterionNewAdsSeen(
+  criterionId: string,
+  seenThrough: string,
+  session: string,
+): Promise<ApiResult<void>> {
+  if (!isValidId(criterionId)) return { kind: "notFound" };
+
+  try {
+    const res = await authedFetch(
+      session,
+      `${BASE}/${encodeURIComponent(criterionId)}/new-ads/seen`,
+      { method: "POST", body: JSON.stringify({ seenThrough }) },
+    );
+    if (res.status === 204) return { kind: "ok", data: undefined };
+    if (res.status === 401) return { kind: "unauthorized" };
+    if (res.status === 403) return { kind: "forbidden" };
+    if (res.status === 404) return { kind: "notFound" };
+    return { kind: "error" };
   } catch {
     return { kind: "error" };
   }

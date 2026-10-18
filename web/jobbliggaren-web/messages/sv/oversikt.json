@@ -61,6 +61,7 @@
     "criteriaCtaAria": "Visa matchande annonser i din branschbevakning",
     "newPill": "{count, plural, one {# ny} other {# nya}}",
     "newPillAria": "{count, plural, one {# ny annons} other {# nya annonser}} från bevakade företag sedan ditt senaste besök",
+    "criterionNewPillAria": "{count, plural, one {# ny annons} other {# nya annonser}} i branschbevakningen {name}",
     "matchingAdsUnit": "{count, plural, one {matchande annons} other {matchande annonser}}",
     "activeAdsUnit": "{count, plural, one {aktiv annons} other {aktiva annonser}}",
     "events": "Senaste händelser",

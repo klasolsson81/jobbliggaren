@@ -7,8 +7,9 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { ReloadedAfterUpdateNotice } from "@/components/site/reloaded-after-update-notice";
 
 /**
- * Layout for the public job page and its states (ADR 0165). The group is no URL of its own: `proxy.ts` rewrites a
- * cookieless `/jobb/<uuid>` into it, and a direct request for `/publik/**` is a 404.
+ * Layout for the anonymous job-ad surface (ADR 0165, ADR 0175): the public job page and its states, which `proxy.ts`
+ * rewrites a cookieless `/jobb/<uuid>` into (a direct request for `/publik/**` is a 404), and the public catalogue at
+ * `/lediga-jobb`, which is a URL of its own.
  *
  * The `(marketing-inner)` frame, so a visitor from a search result or a shared link is never outside the site's
  * frame. Each page owns its `<main id="main">`, which the header's skip link points at.

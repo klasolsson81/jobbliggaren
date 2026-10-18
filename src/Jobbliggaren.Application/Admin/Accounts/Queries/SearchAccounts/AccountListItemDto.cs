@@ -5,7 +5,8 @@ namespace Jobbliggaren.Application.Admin.Accounts.Queries.SearchAccounts;
 /// <summary>
 /// One row of the account list. <see cref="ApplicationCount"/> is null unless the account is active: the two
 /// deletion paths leave different rows live, and an account without a profile owns none.
-/// <see cref="DeletionEarliest"/> is set only while deletion is pending.
+/// <see cref="DeletionEarliest"/> is set only while deletion is pending. <see cref="LastLoginAt"/> and
+/// <see cref="LastActiveAt"/> are read for every status (ADR 0172), null where nothing is recorded.
 /// </summary>
 public sealed record AccountListItemDto(
     Guid Id,
@@ -19,5 +20,7 @@ public sealed record AccountListItemDto(
     bool IsSuspended = false)
 {
     public AccountDeletionTiming? Deletion { get; init; }
+    public DateTimeOffset? LastLoginAt { get; init; }
+    public DateTimeOffset? LastActiveAt { get; init; }
     public override string ToString() => $"AccountListItemDto({Id}, {Status})";
 }

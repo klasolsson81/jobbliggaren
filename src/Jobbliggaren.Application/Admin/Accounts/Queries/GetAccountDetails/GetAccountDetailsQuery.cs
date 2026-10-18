@@ -9,7 +9,7 @@ public sealed record GetAccountDetailsQuery(Guid UserId) : IQuery<AccountDetails
 
 /// <summary>
 /// The account panel's facts. The three counts are null unless the account is active, for the reason
-/// <c>AccountListItemDto</c> gives. Last login and last activity have no source, so they are not fields.
+/// <c>AccountListItemDto</c> gives.
 /// </summary>
 public sealed record AccountDetailsDto(
     Guid Id,
@@ -26,5 +26,7 @@ public sealed record AccountDetailsDto(
 {
     public AccountDeletionTiming? Deletion { get; init; }
     public AccountDeletionTiming? DeletionPreview { get; init; }
+    public DateTimeOffset? LastLoginAt { get; init; }
+    public DateTimeOffset? LastActiveAt { get; init; }
     public override string ToString() => $"AccountDetailsDto({Id}, {Status})";
 }

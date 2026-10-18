@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -143,6 +144,17 @@ internal static class AdminAccountsKit
 
     public static IReadOnlyList<string> Emails(JsonElement search) =>
         Items(search).Select(item => item.GetProperty("email").GetString()!).ToList();
+
+    public static Guid Id(JsonElement item) => item.GetProperty("id").GetGuid();
+
+    /// <summary>The account panel's facts, parsed, for an account the directory holds.</summary>
+    public static async Task<JsonElement> DetailOkAsync(HttpClient client, Guid id, CancellationToken ct)
+    {
+        var response = await client.GetAsync(DetailPath(id), ct);
+        var text = await response.Content.ReadAsStringAsync(ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, text);
+        return JsonDocument.Parse(text).RootElement.Clone();
+    }
 
     public static async Task<int> RecentSearchCountAsync(WebApplicationFactory<Program> factory, CancellationToken ct)
     {

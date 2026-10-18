@@ -42,7 +42,8 @@ public sealed record AccountDirectorySearch(
 
 /// <summary>
 /// One account as the directory reads it. <see cref="RegisteredAt"/> and <see cref="DeletedAt"/> come from the
-/// profile, so an account without one has neither.
+/// profile, so an account without one has neither. <see cref="LastLoginAt"/> and <see cref="LastActiveAt"/> come
+/// from the profile's activity row (ADR 0172), null for each value nothing has recorded.
 /// </summary>
 public sealed record AccountDirectoryEntry(
     Guid UserId,
@@ -55,7 +56,9 @@ public sealed record AccountDirectoryEntry(
     DateTimeOffset? DeletedAt,
     bool IsSuspended = false,
     long AccessRevision = 0,
-    long CredentialCutoff = 0)
+    long CredentialCutoff = 0,
+    DateTimeOffset? LastLoginAt = null,
+    DateTimeOffset? LastActiveAt = null)
 {
     public AccountDeletionTiming? Deletion => DeletedAt is { } deletedAt
         ? AccountDeletionTiming.From(deletedAt) : null;

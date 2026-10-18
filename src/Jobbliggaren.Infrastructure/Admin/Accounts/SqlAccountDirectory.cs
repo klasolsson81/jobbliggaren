@@ -16,7 +16,8 @@ namespace Jobbliggaren.Infrastructure.Admin.Accounts;
 
 /// <summary>
 /// The <see cref="IAccountDirectory"/> implementation (ADR 0151): raw, parameterised, read-only SQL over
-/// <c>identity."AspNetUsers"</c> joined to <c>job_seekers</c>, in the <c>CompanyRegisterSearchQuery</c> form.
+/// <c>identity."AspNetUsers"</c> joined to <c>job_seekers</c> and the profile's <c>account_activity</c> row
+/// (ADR 0172), in the <c>CompanyRegisterSearchQuery</c> form.
 /// One composer builds the counts, the page count and the page, so all three read the same predicate. The
 /// address is bound only as a parameter value; the status names, the ordering and the role name are fixed
 /// text or bound values, never the caller's input.
@@ -27,7 +28,7 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
     internal const int CommandTimeoutSeconds = 30;
 
     private const string Columns =
-        "user_id, email, email_confirmed, is_admin, job_seeker_id, registered_at, deleted_at, status, is_suspended, access_revision, credential_cutoff";
+        "user_id, email, email_confirmed, is_admin, job_seeker_id, registered_at, deleted_at, status, is_suspended, access_revision, credential_cutoff, last_login_at, last_active_at";
 
     public async Task<AccountDirectoryPage> SearchAsync(
         AccountDirectorySearch search, CancellationToken cancellationToken)
@@ -188,6 +189,8 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
                     js.id AS job_seeker_id,
                     js.created_at AS registered_at,
                     js.deleted_at AS deleted_at,
+                    aa.last_login_at AS last_login_at,
+                    aa.last_active_at AS last_active_at,
                     CASE
                         WHEN js.id IS NULL THEN @profile_missing
                         WHEN js.deleted_at IS NOT NULL THEN @pending_deletion
@@ -196,6 +199,7 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
                     END AS status
                 FROM identity."AspNetUsers" u
                 LEFT JOIN public.job_seekers js ON js.user_id = u.id
+                LEFT JOIN public.account_activity aa ON aa.job_seeker_id = js.id
             """);
         var predicates = new List<string>();
         if (address is not null)
@@ -236,6 +240,8 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
         AccountSort.RegisteredOldest => "registered_at ASC NULLS LAST, user_id",
         AccountSort.AddressAscending => "sort_address ASC NULLS LAST, user_id",
         AccountSort.AddressDescending => "sort_address DESC NULLS LAST, user_id",
+        AccountSort.LastActiveNewest => "last_active_at DESC NULLS LAST, user_id",
+        AccountSort.LastActiveOldest => "last_active_at ASC NULLS LAST, user_id",
         _ => throw new ArgumentOutOfRangeException(nameof(sort), sort, "No ordering for this sort."),
     };
 
@@ -274,7 +280,13 @@ internal sealed class SqlAccountDirectory(AppDbContext db, ILookupNormalizer nor
                 : reader.GetFieldValue<DateTimeOffset>(6),
             IsSuspended: reader.GetBoolean(8),
             AccessRevision: reader.GetInt64(9),
-            CredentialCutoff: reader.GetInt64(10));
+            CredentialCutoff: reader.GetInt64(10),
+            LastLoginAt: await reader.IsDBNullAsync(11, cancellationToken)
+                ? null
+                : reader.GetFieldValue<DateTimeOffset>(11),
+            LastActiveAt: await reader.IsDBNullAsync(12, cancellationToken)
+                ? null
+                : reader.GetFieldValue<DateTimeOffset>(12));
     }
 
     private async Task<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)

@@ -306,3 +306,18 @@ site root (ADR 0174 D3, D6). The `Sitemap:` line in `robots.txt` still names `/s
 training-crawler group and the absence of a `Disallow` for the internal prefix stand.
 
 ADR 0165 remains **Accepted**.
+
+## Amendment 2026-10-18 (#2090 S5, ADR 0176) — D3: the catalogue sends crawlers to job pages on the same budget; D6: robots.txt is unchanged
+
+D1–D7 and the earlier amendments stand and nothing above is rewritten. This amendment records two things the S5 PR settles; the reasoning is in ADR 0176.
+
+**1. D3: the catalogue sends crawlers to job pages, on the same budget.** The catalogue is the first public page that links to job pages. A crawler that follows its links reaches
+`/jobb/<uuid>` on the page's budget, which is unchanged: 60 per 60 s per IP (ADR 0160 D5), and a 200 view still costs two API reads, the probe and the render. The catalogue's own budget is
+separate (ADR 0176 D7). Row links are plain anchors, and nothing that links to `/lediga-jobb` prefetches (ADR 0176 D10). So a catalogue view spends nothing from the page's bucket, and a client
+navigation never reaches the twin's Flight path, which D2 records as not measured, or the `@modal` slot of D1. D3's "S4 measures again" is ADR 0174 D5's, now with the catalogue path.
+
+**2. D6: robots.txt is unchanged.** `/lediga-jobb` is matched by no rule: the `*` group's `/jobb$` and `/jobb?` entries do not prefix-match it, so the existing `allow: "/"` covers it. An
+unknown query parameter on the catalogue is left out of the canonical and is neither `noindex`ed nor disallowed (ADR 0176 D1), for D6's own reason that a blocked URL hides its canonical. The
+`Sitemap:` line is unchanged.
+
+ADR 0165 remains **Accepted**.

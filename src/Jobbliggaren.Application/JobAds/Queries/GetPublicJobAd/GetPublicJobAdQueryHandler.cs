@@ -79,7 +79,8 @@ public sealed class GetPublicJobAdQueryHandler(IAppDbContext db, ITaxonomyReadMo
 
         // Only a Listed ad reaches the taxonomy port (ADR 0171): the names are for the page and its
         // JobPosting, and a 410 carries no body. The names come from the second row's ids.
-        var names = await ResolveNamesAsync(row.MunicipalityConceptId, row.RegionConceptId, cancellationToken);
+        var names = await PublicPlaceNames.ResolveAsync(
+            taxonomy, [row.MunicipalityConceptId, row.RegionConceptId], cancellationToken);
 
         return Result.Success(new PublicJobAdDto(
             Id: query.Id,
@@ -90,41 +91,13 @@ public sealed class GetPublicJobAdQueryHandler(IAppDbContext db, ITaxonomyReadMo
             PublishedAt: row.PublishedAt,
             ExpiresAt: row.ExpiresAt,
             MunicipalityConceptId: row.MunicipalityConceptId,
-            MunicipalityName: NameOf(names, row.MunicipalityConceptId),
+            MunicipalityName: PublicPlaceNames.NameOf(names, row.MunicipalityConceptId),
             RegionConceptId: row.RegionConceptId,
-            RegionName: NameOf(names, row.RegionConceptId),
+            RegionName: PublicPlaceNames.NameOf(names, row.RegionConceptId),
             OccupationGroupConceptId: row.OccupationGroupConceptId,
             EmploymentTypeConceptId: row.EmploymentTypeConceptId,
             WorktimeExtentConceptId: row.WorktimeExtentConceptId));
     }
-
-    /// <summary>
-    /// Kommun and län names by concept id, through the ADR 0043 port. A null id is never sent, and
-    /// an id the snapshot does not know is absent from the result (the port answers it with a null
-    /// label, never a throw), so the DTO carries a null name for it.
-    /// </summary>
-    private async ValueTask<IReadOnlyDictionary<string, string>> ResolveNamesAsync(
-        string? municipalityConceptId, string? regionConceptId, CancellationToken cancellationToken)
-    {
-        var ids = new List<string>(2);
-        if (municipalityConceptId is not null)
-            ids.Add(municipalityConceptId);
-        if (regionConceptId is not null)
-            ids.Add(regionConceptId);
-        if (ids.Count == 0)
-            return EmptyNames;
-
-        var resolved = await taxonomy.ResolveLabelsAsync(ids.Distinct(StringComparer.Ordinal).ToList(), cancellationToken);
-        return resolved
-            .Where(l => l.Label is not null)
-            .ToDictionary(l => l.ConceptId, l => l.Label!, StringComparer.Ordinal);
-    }
-
-    private static string? NameOf(IReadOnlyDictionary<string, string> names, string? conceptId) =>
-        conceptId is not null && names.TryGetValue(conceptId, out var name) ? name : null;
-
-    private static readonly IReadOnlyDictionary<string, string> EmptyNames =
-        new Dictionary<string, string>(StringComparer.Ordinal);
 
     private static Result<PublicJobAdDto> Answer(JobAdPublicationState state) => state switch
     {

@@ -26,7 +26,7 @@ ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger tog
 
 ## 2. Före merge (pre-flight)
 
-- [ ] **main-CI grön** — `gh run list --workflow build --limit 1` → `success`
+- [ ] **main-CI grön** — `gh run list --workflow build.yml --branch main --status completed --limit 1` → `success`
       (frontend + coverage + ci alla gröna). Coverage-gaten
       (ADR 0044) får inte vara röd.
 - [ ] **Observe-only-signaler granskade** (ADR 0045) — `lighthouse` /

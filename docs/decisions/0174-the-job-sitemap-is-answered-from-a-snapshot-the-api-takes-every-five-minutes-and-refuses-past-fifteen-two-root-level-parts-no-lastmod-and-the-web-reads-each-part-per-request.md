@@ -447,3 +447,29 @@ amendments in the same PR.
 - Next 16.3.8: `docs/01-app/03-api-reference/03-file-conventions/dynamic-routes.md:18` · `docs/01-app/03-api-reference/04-functions/generate-sitemaps.md:20` ·
   `server/response-cache/index.js:301-316` · `server/lib/incremental-cache/file-system-cache.js:393-399`
 - #2090 · #2167 · #2121 · #1477
+
+## Amendment 2026-10-18 (#2090 S5, ADR 0176) — D1: the projection widens and the snapshot gains a second view; D3: the pages part holds 15 URLs; D5: the readings gain the catalogue path; D9: the legal pointer reads triggers 1–12
+
+D1–D9 and the earlier text stand and nothing above is rewritten. S5 is the snapshot's second consumer; the reasoning is in ADR 0176 (D3, D12, D13).
+
+**1. D1: the projection is `(Id, PublishedAt)`, and there is a second view.** The sampler's read keeps its SQL (`Where(IsListed(asOf))`, `OrderBy(Id)`, `Take(ceiling + 1)`), and "projected to
+the id" now reads "projected to `ListedJobAdRow(Id, PublishedAt)`". `ListedJobAdSnapshot.Create(asOf, IReadOnlyCollection<ListedJobAdRow>)` builds, from one read at one `AsOf`, the parts
+exactly as before and a second view: `CatalogueOrder`, the same ids newest first (ads published at the same instant keep the read's id order), and `Count`. The snapshot holds ids only. No
+`PublishedAt` is kept after sorting, and the members are exactly `AsOf`, `IdsIn`, `IsFreshAt`, `CatalogueOrder` and `Count`. The sitemap's properties are unchanged: the wire is exactly `ids`, the
+parts are in id order, membership is from `IsListed` only, the bound is two-edged and at most 15 minutes, publication is by compare-and-swap, and a failed or over-ceiling read publishes neither
+view. Two of S4's unit-test files change their arrange lines only, because the factory takes rows (ADR 0176 D3). No kommun or län is added and no generic keyed-view type: a hub adds its per-place
+view to the same read, in its own preparatory commit (ADR 0176 D14, trigger 2).
+
+**2. D3: the pages part holds 15 URLs.** The table row for `/sitemap-sidor.xml` ("the 14 marketing URLs") now holds 15: `/lediga-jobb`, the catalogue's page 1, joins the marketing URLs. The
+entry is `loc` only, and its `loc` is the page's canonical from `publicCatalogueUrl`. No `?sida=n` URL is in any sitemap (ADR 0176 D12). The index, the job parts and the partition are
+unchanged.
+
+**3. D5: the readings gain the catalogue path.** Readings 1 and 2 also count the rejections on the catalogue's endpoint, on its own path as for `listed-ids`:
+`grep -c 'Path=/api/v1/public/job-ads/catalogue Method='`. Catalogue 5xx are **not measurable on the box**: Caddy logs only its own 5xx, so Search Console is their only source. Klas's Search
+Console readings extend to catalogue crawl and indexing.
+
+**4. D9: the legal pointer reads triggers 1–12.** "The legal triggers are ADR 0166 D10's (1–9, …)" now reads 1–12, with 10–12 added by the ADR 0166 amendment of 2026-10-18 (#2090 S5, ADR
+0176). Trigger 1 of this list ("something outside the API process needs the listed set") now covers both consumers of the snapshot, the sitemap and the catalogue. The catalogue is in the API
+process and does not fire it.
+
+ADR 0174 remains **Accepted**.

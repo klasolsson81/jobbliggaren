@@ -16,5 +16,22 @@
   "busy": {
     "title": "Annonsen kan inte visas just nu",
     "body": "Försök igen om en stund."
+  },
+  "catalogue": {
+    "lede": "Annonser från Platsbanken, de senast publicerade först.",
+    "count": "{count, plural, one {ledigt jobb} other {lediga jobb}}",
+    "titlePaged": "{label} – sida {page, number}",
+    "metaDescription": "Bläddra bland lediga jobb från Platsbanken, de senast publicerade först. Öppna en annons för att läsa hela texten.",
+    "published": "Publicerad",
+    "location": "Ort",
+    "empty": {
+      "title": "Inga lediga jobb just nu",
+      "body": "Försök igen om en stund."
+    },
+    "notFound": {
+      "title": "Sidan finns inte",
+      "body": "Listan över lediga jobb har ingen sådan sida.",
+      "toCatalogue": "Till lediga jobb"
+    }
   }
 }

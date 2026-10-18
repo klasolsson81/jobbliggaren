@@ -1,6 +1,6 @@
 /**
- * The public job page's and the sitemap's HTTP contract, measured against a production build (ADR 0165 and ADR 0174,
- * SEO epic #2090 S2 and S4).
+ * The public job page's, the sitemap's and the public catalogue's HTTP contract, measured against a production build
+ * (ADR 0165, ADR 0174 and ADR 0176, SEO epic #2090 S2, S4 and S5).
  *
  * Why this is a script and not a unit test: the statuses are the contract a crawler reads (a 410 drops the URL from an
  * index, a 503 does not), and the page's are produced by a Next feature with no documented status contract:
@@ -13,7 +13,8 @@
  * HTTP. The stub answers the detail by id, so those cases are fixed: a listed ad, an ended and an erased one (both
  * 410), an unknown one, the budget (429), an outage (500), and the two races where the render's read disagrees with
  * the probe's. It answers the sitemap's parts in a mode a check sets: the ids, an outage, the budget, its own 503, ids
- * in the wrong case, or an answer held past the web's timeout.
+ * in the wrong case, or an answer held past the web's timeout. It answers the catalogue's pages in a mode too: three
+ * pages of rows, a page past the end, the budget, its own 503, an outage, or an answer held past the web's timeout.
  *
  * Usage (after `pnpm build`):  node scripts/public-job-smoke.mjs
  */
@@ -98,6 +99,46 @@ function answerListedIds(url, res, send) {
   }
 }
 
+/** The catalogue's rows by page: 41 listed ads, so three pages, the last of them short. */
+const CATALOGUE_TOTAL = 41;
+const catalogueRow = (n) => ({
+  id: `aaaaaaaa-0000-4000-8000-${String(n).padStart(12, "0")}`,
+  title: `Undersköterska ${n}`,
+  companyName: "Kommun Exempel",
+  municipalityName: n % 2 === 0 ? "Umeå" : null,
+  regionName: "Västerbottens län",
+  publishedAt: "2026-10-01T08:00:00+00:00",
+});
+/** How the stub answers a catalogue page; a check sets it, and the checks reset it to "ok". */
+const catalogue = { mode: "ok" };
+
+function answerCatalogue(url, res, send) {
+  const page = Number(url.searchParams.get("page"));
+  const pages = Math.ceil(CATALOGUE_TOTAL / 20);
+  switch (catalogue.mode) {
+    case "ok": {
+      if (!Number.isInteger(page) || page < 1) return send(400, "{}");
+      if (page > pages) return send(404, "");
+      const from = (page - 1) * 20 + 1;
+      const items = Array.from({ length: Math.min(20, CATALOGUE_TOTAL - from + 1) }, (_, i) => catalogueRow(from + i));
+      return send(200, JSON.stringify({ items, totalCount: CATALOGUE_TOTAL, page, pageSize: 20, totalPages: pages }));
+    }
+    case "budget":
+      return send(429, "{}", { "retry-after": "9" });
+    case "unavailable":
+      return send(503, "", { "retry-after": "60" });
+    case "timeout": {
+      const held = setTimeout(() => {
+        if (!res.destroyed) send(200, "{}");
+      }, 7_000);
+      res.on("close", () => clearTimeout(held));
+      return undefined;
+    }
+    default:
+      return send(500, "{}");
+  }
+}
+
 function stubHandler(req, res) {
   seen.push({ method: req.method, path: req.url, headers: { ...req.headers } });
 
@@ -107,6 +148,9 @@ function stubHandler(req, res) {
   const url = new URL(req.url ?? "/", "http://stub");
   if (url.pathname === "/api/v1/public/job-ads/listed-ids") {
     return answerListedIds(url, res, send);
+  }
+  if (url.pathname === "/api/v1/public/job-ads/catalogue") {
+    return answerCatalogue(url, res, send);
   }
 
   const match = /^\/api\/v1\/public\/job-ads\/([0-9a-f-]{36})$/.exec(req.url ?? "");
@@ -181,6 +225,18 @@ async function get(origin, path, init = {}) {
 const publicCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/"));
 const callsFor = (id) => publicCalls().filter((r) => r.path.endsWith(`/${id}`));
 const listedIdsCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/listed-ids"));
+const catalogueCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/catalogue"));
+
+/** The `<head>` of a page and what follows it, so a tag can be placed: metadata must sit in the head (M5). */
+function inHead(html, pattern) {
+  const end = html.indexOf("</head>");
+  assert.ok(end > 0, "the document has a </head>");
+  const at = html.search(pattern);
+  return at >= 0 && at < end;
+}
+
+const GOOGLEBOT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+const BROWSER = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36";
 
 /** Every `<loc>` of a sitemap file, as written. */
 const locsOf = (xml) => [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
@@ -441,15 +497,131 @@ try {
     assert.equal(res.status, 200);
   });
 
-  await check("the marketing part lists the 14 marketing pages, a loc each and nothing else", async () => {
+  await check("the pages part lists the 14 marketing pages and the catalogue's first page, a loc each and nothing else", async () => {
     const res = await get(origin, "/sitemap-sidor.xml");
     assert.equal(res.status, 200);
     assert.match(res.headers.get("cache-control") ?? "", /no-store/);
     const paths = locsOf(res.body).map(pathOf);
-    assert.equal(paths.length, 14);
+    assert.equal(paths.length, 15);
     assert.equal(paths[0], "/");
+    assert.equal(paths[14], "/lediga-jobb");
+    assert.ok(locsOf(res.body).every((loc) => !loc.includes("sida=")), "no catalogue page beyond the first");
     assert.doesNotMatch(res.body, /<(lastmod|changefreq|priority)>/);
   });
+
+  await check("the catalogue's first page is a 200, uncacheable, read per request for the visitor with no credential", async () => {
+    catalogue.mode = "ok";
+    seen.length = 0;
+    const res = await get(origin, "/lediga-jobb", { headers: { cookie: "other=1", authorization: "Bearer x" } });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+    assert.match(res.body, /<main[^>]*id="main"/);
+    assert.match(res.body, /<h1[^>]*>Lediga jobb<\/h1>/);
+    assert.match(res.body, /<link rel="canonical" href="[^"?]*\/lediga-jobb"/);
+    assert.doesNotMatch(res.body, /<meta name="robots" content="[^"]*noindex/);
+    assert.equal(res.headers.get("x-robots-tag"), null);
+    assert.equal(jsonLdBlocks(res.body).length, 0, "no structured data on a list page");
+    const calls = catalogueCalls();
+    assert.equal(calls.length, 1, "one read, shared by the metadata and the page");
+    assert.equal(new URL(calls[0].path, "http://stub").searchParams.toString(), "page=1");
+    assert.equal(calls[0].headers["x-forwarded-for"], CLIENT_IP);
+    assert.equal(calls[0].headers.cookie, undefined);
+    assert.equal(calls[0].headers.authorization, undefined);
+    console.log(`       (document size of /lediga-jobb: ${Buffer.byteLength(res.body)} bytes)`);
+  });
+
+  await check("the catalogue keeps the count, the list and the pager in one data-nosnippet block, and its rows link the job pages", async () => {
+    catalogue.mode = "ok";
+    const res = await get(origin, "/lediga-jobb");
+    // The RSC payload repeats the attribute inside a <script>; the rendered markup carries it on one element.
+    assert.equal((res.body.match(/<[a-z]+[^<>]*\sdata-nosnippet/g) ?? []).length, 1);
+    const block = /<div data-nosnippet[^>]*>([\s\S]*?)<\/main>/.exec(res.body);
+    assert.ok(block, "the block is inside main");
+    assert.match(block[1], /<b>41<\/b> (<!-- -->)?lediga jobb/, "React's server render may put a text marker between the two nodes");
+    assert.match(block[1], /<ol[^>]*class="jp-jobs/);
+    assert.match(block[1], /<nav[^>]*aria-label="Paginering"/);
+    assert.match(block[1], new RegExp(`<a href="/jobb/${catalogueRow(1).id}" class="jp-job__rowlink"`));
+    const head = res.body.slice(0, res.body.indexOf("</head>"));
+    assert.doesNotMatch(head, /Undersköterska|Kommun Exempel|\b41\b/, "no row value and no count in the head");
+  });
+
+  await check("the header marks /lediga-jobb as the current page there, and nowhere else", async () => {
+    catalogue.mode = "ok";
+    const catalogueRes = await get(origin, "/lediga-jobb?sida=2");
+    assert.match(catalogueRes.body, /<a[^>]*aria-current="page"[^>]*href="\/lediga-jobb"|<a[^>]*href="\/lediga-jobb"[^>]*aria-current="page"/);
+    const home = await get(origin, "/om");
+    assert.match(home.body, /<a[^>]*href="\/lediga-jobb"/);
+    assert.doesNotMatch(home.body, /<a[^>]*href="\/lediga-jobb"[^>]*aria-current|<a[^>]*aria-current="page"[^>]*href="\/lediga-jobb"/);
+  });
+
+  await check("a later catalogue page carries its own canonical and reads its own page", async () => {
+    catalogue.mode = "ok";
+    seen.length = 0;
+    const res = await get(origin, "/lediga-jobb?sida=2");
+    assert.equal(res.status, 200);
+    assert.match(res.body, /<link rel="canonical" href="[^"]*\/lediga-jobb\?sida=2"/);
+    assert.match(res.body, /<title>Lediga jobb – sida 2/);
+    assert.deepEqual(catalogueCalls().map((c) => new URL(c.path, "http://stub").searchParams.toString()), ["page=2"]);
+  });
+
+  await check("an unknown parameter is ignored and kept out of the canonical", async () => {
+    catalogue.mode = "ok";
+    const res = await get(origin, "/lediga-jobb?utm_source=x");
+    assert.equal(res.status, 200);
+    assert.match(res.body, /<link rel="canonical" href="[^"?]*\/lediga-jobb"/);
+    assert.doesNotMatch(res.body, /<meta name="robots" content="[^"]*noindex/);
+  });
+
+  await check("sida=1 is a permanent redirect to the bare address, with no read", async () => {
+    seen.length = 0;
+    const res = await get(origin, "/lediga-jobb?sida=1&utm_source=x");
+    assert.equal(res.status, 308);
+    assert.match(res.headers.get("location") ?? "", /\/lediga-jobb$/);
+    assert.equal(catalogueCalls().length, 0);
+  });
+
+  await check("a sida that is not a page is a real 404 in the site frame, with no read", async () => {
+    seen.length = 0;
+    for (const query of ["?sida=0", "?sida=abc", "?sida=02", "?sida=2&sida=3"]) {
+      const res = await get(origin, `/lediga-jobb${query}`);
+      assert.equal(res.status, 404, query);
+      assert.match(res.headers.get("cache-control") ?? "", /no-store/, query);
+      assert.match(res.body, /<meta name="robots" content="noindex"/, query);
+    }
+    assert.equal(catalogueCalls().length, 0);
+  });
+
+  await check("a page past the end is a real 404", async () => {
+    catalogue.mode = "ok";
+    const res = await get(origin, "/lediga-jobb?sida=9");
+    assert.equal(res.status, 404);
+    assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+    assert.match(res.body, /<meta name="robots" content="noindex"/);
+  });
+
+  for (const mode of ["outage", "budget", "unavailable", "timeout"]) {
+    await check(`a catalogue page the backend cannot give (${mode}) is a 5xx, never a 404`, async () => {
+      catalogue.mode = mode;
+      try {
+        const res = await get(origin, "/lediga-jobb");
+        assert.ok(res.status >= 500 && res.status < 600, `expected a 5xx, got ${res.status}`);
+        assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+      } finally {
+        catalogue.mode = "ok";
+      }
+    });
+  }
+
+  for (const [agent, ua] of [["a browser", BROWSER], ["Googlebot", GOOGLEBOT]]) {
+    await check(`the catalogue's title, description and canonical sit in the head for ${agent} (M5)`, async () => {
+      catalogue.mode = "ok";
+      const res = await get(origin, "/lediga-jobb?sida=2", { headers: { "user-agent": ua } });
+      assert.equal(res.status, 200);
+      assert.ok(inHead(res.body, /<title>/), "title in the head");
+      assert.ok(inHead(res.body, /<meta name="description"/), "description in the head");
+      assert.ok(inHead(res.body, /<link rel="canonical"/), "canonical in the head");
+    });
+  }
 
   await check("the job parts list every listed id once, at its page's canonical path, read per request with the crawler's address and no credential", async () => {
     listedIds.mode = "ok";

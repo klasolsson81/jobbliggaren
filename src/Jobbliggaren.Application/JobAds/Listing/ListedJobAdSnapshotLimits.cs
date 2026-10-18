@@ -1,9 +1,9 @@
 namespace Jobbliggaren.Application.JobAds.Listing;
 
 /// <summary>
-/// The bounds of the listed-ad snapshot behind the job sitemap (ADR 0174). Constants, not options: a setting could be
-/// made to disagree with the rule it serves (ADR 0159 D2), and the age bound is part of the legal record (ADR 0166
-/// D10). <c>ListedJobAdSnapshotLimitsTests</c> pins how they relate.
+/// The bounds of the listed-ad snapshot behind the job sitemap and the public catalogue (ADR 0174, ADR 0176).
+/// Constants, not options: a setting could be made to disagree with the rule it serves (ADR 0159 D2), and the age bound
+/// is part of the legal record (ADR 0166 D10). <c>ListedJobAdSnapshotLimitsTests</c> pins how they relate.
 /// </summary>
 public static class ListedJobAdSnapshotLimits
 {

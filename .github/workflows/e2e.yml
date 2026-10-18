@@ -21,6 +21,8 @@
 name: e2e
 
 on:
+  # Fires only for a human merge. An app merge starts no run (`release-images.yml` header,
+  # #1107/#1108), so main is read by the schedule below.
   push:
     branches: [main]
   # No base-branch filter (#861) — mirrors build.yml so a stacked PR gets the E2E
@@ -30,6 +32,9 @@ on:
   # outside `build.yml`'s `ci.needs` is why it is not part of that aggregate — the
   # required-check list is what makes it non-blocking. It only makes the signal exist.
   pull_request:
+  # Monday 05:51 UTC, a minute no other cron here uses.
+  schedule:
+    - cron: '51 5 * * 1'
   workflow_dispatch:
 
 permissions:

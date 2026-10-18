@@ -236,8 +236,8 @@ expect      "the https literals are the allow-list" \
 expect      "no http:// literal"                  "$(grep -c 'http://' "$SUT" "$WF" | awk -F: '{s+=$2} END {print s}')" 0
 code_lines() { grep -vE '^[[:space:]]*#' "$1"; }
 expect      "one curl call site"                  "$(code_lines "$SUT" | grep -cE '(^|[^a-z_-])curl ')" 1
-expect      "every method is GET or POST, literally" "$(code_lines "$SUT" | grep -oE '^[[:space:]]*call [^ ]+ [A-Z]+' | awk '{print $NF}' | sort -u | tr '\n' ' ')" "GET POST "
-expect      "and every call site names one"       "$(code_lines "$SUT" | grep -cE '^[[:space:]]*call [^ ]+ ')" "$(code_lines "$SUT" | grep -cE '^[[:space:]]*call [^ ]+ (GET|POST) ')"
+expect      "every method is GET or POST, literally" "$(code_lines "$SUT" | grep -oE '(^|[[:space:];&|(])call [^ <(]+ [A-Z]+' | awk '{print $NF}' | sort -u | tr '\n' ' ')" "GET POST "
+expect      "and every call site names one"       "$(code_lines "$SUT" | grep -oE '(^|[[:space:];&|(])call [^ <(]+ ' | wc -l | tr -d ' ')" "$(code_lines "$SUT" | grep -oE '(^|[[:space:];&|(])call [^ <(]+ (GET|POST)( |$)' | wc -l | tr -d ' ')"
 expect      "the endpoints built on the property" "$(code_lines "$SUT" | grep -oE '\$API[A-Za-z/]*' | LC_ALL=C sort -u | tr '\n' ' ')" '$API $API/searchAnalytics/query $API/sitemaps '
 expect      "the index parameter"                 "$(code_lines "$SUT" | grep -cxF "readonly INDEX_PARAM='sitemapIndex=https%3A%2F%2Fjobbliggaren.se%2Fsitemap.xml'")" 1
 expect      "no verbose, trace or body-on-fail flag" "$(code_lines "$SUT" | grep -cE -- '(^|[[:space:]])(-v|--verbose|--trace[a-z-]*|--fail-with-body|-x)([[:space:]]|$)|set -[a-z]*x')" 0

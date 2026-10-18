@@ -836,7 +836,7 @@ jobs:
         run: |
           echo "::notice::Load-test observe-only Fas 1 (ADR 0045 Beslut 4/5). NBomber-projekt compile-verifierat + baseline-runner exekverad. Hot-path-scenarier mot p95-budgetar (Beslut 1) finns implementerade (perf/Jobbliggaren.LoadTests/Scenarios/) men kräver ephemeral API-stack i CI för runtime-exekvering. Blockerar ej merge; flip→gate = Klas-GO-ratchet (Beslut 6)."
 
-  # Supply-chain audit — ADR 0045 Beslut 4/7. CVE-scan (CI-/Dependabot-formad
+  # Supply-chain audit — ADR 0045 Beslut 5. CVE-scan (CI-/Dependabot-formad
   # per security-auditor.md:292). Fail-signal vid High/Critical men OBSERVE-
   # ONLY Fas 1 (exit 0). Dependabot öppnar fix-PRs parallellt. security-
   # auditor behåller manuellt Blocker-veto oförändrat.

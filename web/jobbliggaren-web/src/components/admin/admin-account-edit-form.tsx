@@ -67,7 +67,7 @@ export function AdminAccountEditForm({
   onCancel,
 }: AdminAccountEditFormProps) {
   const t = useTranslations("admin.users");
-  const tp = useTranslations("pages");
+  const tp = useTranslations("pages.auth.passwordless.code");
   const {
     register,
     getValues,
@@ -212,8 +212,8 @@ export function AdminAccountEditForm({
           title={t("edit.heading")}
           description={t("edit.dialogDescription", { newEmail: pendingAddress, currentEmail: account.email })}
           currentEmail={selfEmail}
-          confirmLabel={tp("auth.passwordless.code.submit")}
-          pendingLabel={tp("auth.passwordless.code.submitting")}
+          confirmLabel={tp("submit")}
+          pendingLabel={tp("submitting")}
           cancelLabel={t("edit.cancel")}
           returnPath={returnPath}
           requestCode={requestCode}

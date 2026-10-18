@@ -1,0 +1,1 @@
+{"startDate":"2026-09-01","endDate":"2026-09-30","type":"web","dataState":"final","aggregationType":"auto","dimensionFilterGroups":[{"groupType":"and","filters":[{"dimension":"page","operator":"includingRegex","expression":"^https://jobbliggaren\\.se/$"}]}]}

@@ -100,11 +100,13 @@ Inspect admin policy paths separately, including
 `src/Jobbliggaren.Api/Authorization/AdminRoleAuthorizationHandler.cs`.
 
 The admin account directory (ADR 0151) reads across every account by design: each
-address, its status and its activity counts. The gate is the Admin HTTP policy,
-which resolves the role on every request, plus `IAdminRequest` in the pipeline, and
-an architecture test pins which handlers may inject `IAccountDirectory`. A hijacked
-admin session can read every address; the `admin-read` rate limit bounds the cost
-of reading, not the exfiltration.
+address, its status, its activity counts, and its last login and last active minute
+(ADR 0172). The gate is the Admin HTTP policy, which resolves the role on every
+request, plus `IAdminRequest` in the pipeline. One architecture test pins which
+handlers may inject `IAccountDirectory`, and another pins where the activity record
+may be read. A hijacked admin session can read every address and when each account
+last signed in and was last active; the `admin-read` rate limit bounds the cost of
+reading, not the exfiltration.
 
 The directory's status priority is ProfileMissing, PendingDeletion, Suspended,
 then Active. `isSuspended` is also returned separately: reinstating an account

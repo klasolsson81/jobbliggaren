@@ -6,6 +6,8 @@
 each by AskUserQuestion on 2026-10-17 · `senior-cto-advisor`, "the CTO" below (decision-maker under CLAUDE.md §9.2, report-only): the form-round ruling of 2026-10-17
 (`docs/reviews/2026-10-17-admin-activity-form-cto.md`, local)
 **Amends:** nothing. ADR 0150 (its D8 rows for "Senast inloggad" and "Senast aktiv") and ADR 0151 (D1, D3 and D4) are amended by #2161's part 2, in its own PR, not by this ADR.
+**Amended:** 2026-10-17 by [#2166](https://github.com/klasolsson81/jobbliggaren/issues/2166) (part 2): D1, D3, D7 and lapse triggers 5 and 7, each by a dated pointer in place (7 is new), and Klas's two
+part-2 answers, carried verbatim at the end. Where a pointer differs from the text it follows, the pointer governs and that text stays as the record.
 **Related:** [#2161](https://github.com/klasolsson81/jobbliggaren/issues/2161) (part 1 of 2; part 2 is the directory read and the UI) · #1984 (impersonation, not built) · ADR 0013 · 0024 ·
 0045 · 0120 · 0139 · 0142 · 0146 · 0150 · 0151 · 0155
 **Measured against:** `origin/main` at `911e48268` (#2155's merge), read on 2026-10-17. Nothing here is merged.
@@ -45,6 +47,17 @@ by any of the account's sessions; the web's background refresh while a tab is vi
 knowable, because accounts are older than the release and the writes are best effort (D5), so a missing value means only that nothing is recorded (D7). The instant the box first
 applied the release is not known when this ADR is written; part 2 records it here, as a dated pointer, once it is measured.
 
+*Measured 2026-10-17 (#2166, part 2).* This is the pointer that D1 promised. The instant was read on the box the same day, read-only and metadata only (CLAUDE.md §9.2 (a)):
+
+- `jobbliggaren-reconcile.sh --status` showed receipt sequence 1635, release `sha256:20f8cc31ed0d…`, source `013060324` (#2162, part 1's merge) and the verdict consistent.
+- The reconcile journal (`journalctl -u jobbliggaren-reconcile`) recorded "applying release 0130603…" at 18:49:52.76Z and "reconcile complete … applied" at 18:50:08.43Z.
+- `docker inspect` showed `jobbliggaren-migrate` started at 18:49:54.59Z and exited 0 at 18:49:56.27Z; it created the table. `jobbliggaren-api`, the first process able to write either value, was
+  created at 18:49:53.07Z and started at 2026-10-17T18:49:56.72Z, with RestartCount 0.
+
+Recording on the box starts at that API start. The web holds it as the constant `ACCOUNT_ACTIVITY_RECORDED_FROM = "2026-10-17T18:49:56Z"` in `web/jobbliggaren-web/src/lib/admin/account-activity.ts`, the start
+truncated to the second. The admin view shows it as 2026-10-17 20:49 (Europe/Stockholm, CEST): the minute in which that process started, truncated the way the cells are (G, D4), so no stored value falls before
+it. The instant is true of the box only. A local stack or a test records from its own start, and the never-deployed admin preview passes its own fixture start.
+
 ### D2 — One table, one row per profile, one migration (CTO Q2)
 
 `public.account_activity`: `job_seeker_id uuid` primary key, foreign key to `job_seekers(id)` ON DELETE CASCADE (declared from the dependent side, with no navigation);
@@ -66,6 +79,11 @@ stays in Infrastructure (AGENTS.md §2.1, axis 3). The upsert is forward-only: i
 no `deleted_at` predicate: the foreign key bounds the write, a session exists only while the account can authenticate, and a second definition of "live" is what ADR 0151 D4
 rejected. The values are truncated to the minute before they are written, so the stored precision is the shown precision. An architecture test pins the grant and the request
 middleware as the port's only consumers, so the stored values mean what those two writers make them mean. Only `SqlAccountDirectory` reads the table (part 2).
+
+*Pointer, 2026-10-17 (#2166, part 2).* That last sentence is now pinned by `tests/Jobbliggaren.Architecture.Tests/AccountActivityReaderTests.cs`, which scans the IL of the production assemblies. It admits three
+methods as loaders of a string that names `account_activity`: `AccountActivityConfiguration.Configure`, `SqlAccountActivityRecorder.WriteAsync` and `SqlAccountDirectory.Command`. EF migrations and model
+snapshots are admitted by kind, since every later migration carries the whole model. It admits only `AccountActivityConfiguration` as a referrer of the `AccountActivity` type. Any other consumer fails the test
+until it is reviewed. The test cannot see SQL assembled without the table's name, a view or function that a migration creates, or a read made outside the code (CLAUDE.md §9.2 (b)).
 
 ### D4 — The throttle: one write per account per UTC minute per process (CTO Q4)
 
@@ -100,6 +118,21 @@ A missing value renders the unknown state (an en-dash, read as "Uppgift saknas")
 recording-start date that nothing records. Values show for every status that can hold a row, Active, Suspended and PendingDeletion; ProfileMissing has none by construction. A
 timestamp is a past fact that no deletion path alters, unlike the counts ADR 0151 D4 withholds, where the deletion paths leave different rows live and a count would describe the
 path and not the account.
+
+*Pointer, 2026-10-17 (#2166, part 2).* One clause of D7 is replaced and the rest stands: "there is no 'registreras sedan' note, which would need a recording-start date that nothing records" gives way to a
+?-help. The CTO withdrew the clause in the part-2 form round (`docs/reviews/2026-10-17-admin-activity-pr2-form-cto.md`, local). Its reason, that nothing records the start, stopped holding when D1's instant was
+measured, and Klas's instruction for part 2, "Gissa inte; skriv vad kolumnen faktiskt betyder i UI-texten", decides that the UI states what the column means. Klas approved the text and the form on 2026-10-17
+("Ja, ?-knapp med den texten (Rek.)", question 1 under "Klas's answers").
+
+- **Form.** One `InfoDialog` in a `.jp-labelhelp` span at the "Senast inloggad" column header explains both columns (DESIGN.md §8 rule 5: explanations live behind the ?-help). The account panel has no trigger.
+- **Text.** It states three facts: the times are stored from the start, D1's instant; a missing time means nothing has been stored since then; and "Senast aktiv" also includes automatic updates while a tab with
+  the service is open and visible. The start comes from the web constant of D1, passed to the copy as `{start}` and formatted with the cells' own `formatDateTime`, with a no-break space between the date and
+  the time. The verb is "sparas" and never "registreras", because the next column is "Registrerad". "Senast aktiv" is not renamed, because two words cannot carry the qualifier.
+- **Unchanged.** The empty cell stays `<AdminUnknown />`, an en-dash that a screen reader reads as "Uppgift saknas". There is still no "Aldrig inloggad", and values still show for Active, Suspended and
+  PendingDeletion.
+- **Rejected in the same round.** No note, which leaves Klas's instruction unmet. A visible line in the lede or under the table, the form the copy skill rejects. A configured date on the wire, which turns an
+  observation into a hand-typed setting and needs a new option, a wire field and a box `.env` write for one help sentence on a product with one production (ADR 0154). A note without a date. The date typed
+  into the sv and en strings, which gives one instant two hand-typed homes. Renaming the label.
 
 ### D8 — Legal position and notice (CTO Q9 and condition 7; the assessment is the design pass)
 
@@ -176,7 +209,12 @@ A request made under impersonation (#1984, not built) records nothing for the im
 4. the directory reaches ADR 0151 D8's 10 000-account trigger: an index on `last_active_at` is reconsidered, at the cost of HOT updates (D2);
 5. a login series is wanted, such as the overview's "Inloggningar" and "Aktiva användare" cards, which stay unavailable until then: it is its own decision, an event table, because
    this record is a last value and not a series;
+   - *Pointer, 2026-10-17 (#2166, part 2), correcting this item for "Aktiva användare".* The CTO corrected its own reason in the part-2 form round. That card counts windows that end now (today, the last 7 days
+     and the last 30 days), which a last-value record could answer once a window lies after the start of recording (D1's instant). Only "Inloggningar" (today, yesterday, failed attempts) needs a series. Both
+     cards stay unavailable because building them is out of scope, not because of the record's form.
 6. the display precision changes from `HH:mm`: G changes with it (D4).
+7. the box's `account_activity` table is recreated, by a Down or by a restore from a backup older than D1's instant: D1's instant and the web constant `ACCOUNT_ACTIVITY_RECORDED_FROM` are re-taken together
+   (added 2026-10-17, #2166).
 
 ## Implementation
 
@@ -204,6 +242,13 @@ quoted.
 > 1. Källa för "Senast inloggad" och "Senast aktiv": vi sparar två tidpunkter per konto från och med driftsättningen. Den första är när kontot senast loggade in (varje lyckad inloggning, även registrering). Den andra är vilken minut kontot senast gjorde ett anrop mot tjänsten (även webbens bakgrundsuppdatering medan en flik är öppen och synlig). Bara senaste värdet sparas, ingen historik, och det raderas när kontot raderas. Integritetspolicyn får en egen mening om det. Konton som inte varit inne sedan driftsättningen visar "–" tills de kommer tillbaka, och inget fylls i i efterhand. Godkänner du det?
 > 2. Migrations-GO för exakt `AddAccountActivity` (AppDbContext, körs automatiskt av `migrate` vid nästa reconcile). Den skapar tabellen `account_activity` med kolumnerna `job_seeker_id` (primärnyckel, FK till `job_seekers`, ON DELETE CASCADE), `last_login_at` och `last_active_at`. Inget annat ändras och ingen data fylls i.
 > 3. `hotspot:i18n` innehas fortfarande av #1977 (Codex-spåret), trots att dess PR är mergad. PR 1 behöver `content-legal.json` (sv+en) för policymeningen. Får det här spåret ta över den?
+
+**Part 2 (#2166), 2026-10-17.** The CTO's two questions to Klas for part 2 are quoted in Swedish, as the part-2 ruling relays them, without edits (diffed against
+`docs/reviews/2026-10-17-admin-activity-pr2-form-cto.md`, "For Klas (relay verbatim)"). Klas answered each by AskUserQuestion on 2026-10-17: (1) "Ja, ?-knapp med den texten (Rek.)", (2) "Ja, ta över (Rek.)".
+The first approves the text and the form quoted, which D7's pointer describes. The second lets this track take over `hotspot:i18n` from #1977 for part 2 and release it when the PR merges.
+
+> 1. Förklaringen av Senast inloggad och Senast aktiv i användarlistan: en ?-knapp vid kolumnrubrikerna öppnar en ruta med rubriken ”Senast inloggad och Senast aktiv” och texten ”Tidpunkterna sparas från och med 2026-10-17 20:49. Saknas en tidpunkt har inget sparats sedan dess. I Senast aktiv ingår också automatiska uppdateringar medan en flik med tjänsten är öppen och syns.” Tiden är mätt på lådan i dag: då startade API:t som skriver tidpunkterna. Tomma celler visar strecket som i dag. Godkänner du det?
+> 2. Texten kräver fyra nya nycklar i messages/sv/admin.json och messages/en/admin.json. hotspot:i18n innehas fortfarande av #1977 (Codex-spåret, tilldelad dig). Får det här spåret ta över den för #2161 del 2 och släppa den när PR:en är mergad?
 
 ## References
 

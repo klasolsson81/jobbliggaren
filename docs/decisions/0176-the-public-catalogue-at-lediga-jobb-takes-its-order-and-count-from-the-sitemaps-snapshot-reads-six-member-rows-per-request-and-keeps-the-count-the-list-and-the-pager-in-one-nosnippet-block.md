@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-18
 **Status:** Accepted 2026-10-18 (the CTO's ruling under CLAUDE.md §9.2, its stage-A addendum and its triage of the plan reads, and Klas's answers of the same day, D13). The ADR 0166 amendment of
-the same date, which carries the legal outcome (D13), is **Proposed** until `security-auditor` signs it at her scoped re-check of the S5 PR's final head. The merge waits for that signature,
+the same date, which carries the legal outcome (D13), is Accepted: `security-auditor` signed it at her scoped re-check of the PR on 2026-10-18. The merge waits for that signature,
 because a merge is a go-live (ADR 0154).
 **Deciders:** Klas Olsson (controller and product owner; answers in chat on 2026-10-18, recorded in D13, and the hand-over of the `hotspot:i18n` token from #1977, "Ja, ta över (Rek.)") ·
 `senior-cto-advisor`, "the CTO" below (decision-maker under CLAUDE.md §9.2; ruling on forks F1–F18, report-only, `docs/reviews/2026-10-18-2090-s5-plan-cto.md`; its binding stage-A addendum from
@@ -391,7 +391,7 @@ The rules below are the decision; the strings live in `messages/{sv,en}` and are
 
 - **ADR 0166 D10 trigger 1 names "the S5 catalogue",** so it fires by its own text. The conclusion is withdrawn for the catalogue only; the page and the sitemap keep their conclusions. Klas
   re-takes it for the catalogue in a new dated amendment at the end of ADR 0166. **That amendment is the single home of the legal outcome;** this ADR points there and does not restate it
-  (CCP, Martin 2017, ch. 13; AGENTS.md §8 point 9: one decision, one home). It is **Proposed** until `security-auditor` signs it.
+  (CCP, Martin 2017, ch. 13; AGENTS.md §8 point 9: one decision, one home). It is Accepted: `security-auditor` signed it on 2026-10-18.
 - **The merge is gated.** S5 may not merge, and so may not go live (ADR 0154), until `security-auditor` has signed that amendment at her scoped re-check of the PR's final head, read with this
   ADR as delivered and with the third DPIA addendum as Klas approves its text. Merging without it is a Blocker (her M1): the processing would rest on a withdrawn conclusion, and the notice's
   "Vi har vägt de intressena mot dina rättigheter" would be untrue for it (Art. 12(1), 14(2)(b)).

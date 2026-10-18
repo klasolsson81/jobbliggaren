@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { REGISTRATION_PERIOD } from "./fixtures";
 import { APP_ORIGIN, HARNESS_PORTS, SESSION_COOKIE, SESSION_ID, startHarness } from "./servers";
 
 type Audit = { readonly numericValue?: number; readonly details?: { readonly items?: ReadonlyArray<Record<string, unknown>> } };
@@ -39,7 +40,7 @@ test("overview and registration directory meet local Lighthouse budgets", async 
     await context.addCookies([{ name: SESSION_COOKIE, value: SESSION_ID, url: APP_ORIGIN,
       secure: true, httpOnly: true, sameSite: "Strict" }]);
     const control = await context.newPage();
-    for (const path of ["/admin", "/admin/anvandare?registeredFrom=2026-09-01T22%3A00%3A00Z&registeredBefore=2026-10-08T10%3A00%3A00Z"]) {
+    for (const path of ["/admin", `/admin/anvandare?${new URLSearchParams(REGISTRATION_PERIOD)}`]) {
       await control.goto(APP_ORIGIN + path);
       if (path === "/admin") {
         await expect(control.getByRole("region", { name: "Användare totalt", exact: true })

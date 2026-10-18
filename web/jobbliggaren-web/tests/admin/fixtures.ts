@@ -8,6 +8,18 @@
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
+const DAY_MS = 86_400_000;
+
+/**
+ * The accounts' instants are counted back from the system clock as the module loads, and the overview counts
+ * its windows back from the same clock at each request (`accountOverview`). Every dated account sits at least
+ * eight days from any window's edge, so a run would have to last that long before one crossed it (#2171).
+ */
+const LOADED_AT = Date.now();
+const daysAgo = (days: number, hours: number, minutes = 0) =>
+  new Date(Math.floor(LOADED_AT / DAY_MS) * DAY_MS - days * DAY_MS + (hours * 60 + minutes) * 60_000)
+    .toISOString().replace(/\.000Z$/, "Z");
+
 export const ADMIN = { userId: id(901), email: "admin@example.test", roles: ["Admin"] };
 export const MEMBER = { userId: id(902), email: "medlem@example.test", roles: [] };
 
@@ -116,12 +128,12 @@ const account = (n: number, local: string, status: string, extra: Record<string,
   status,
   emailConfirmed: true,
   isSuspended: status === "Suspended",
-  registeredAt: `2026-09-${String(10 + n).padStart(2, "0")}T09:00:00Z`,
+  registeredAt: daysAgo(20 - n, 9),
   deletionEarliest: null,
   deletion: null as AccountDeletionState | null,
   applicationCount: status === "Active" ? n : null,
-  lastLoginAt: (status === "ProfileMissing" ? null : "2026-10-05T07:30:00Z") as string | null,
-  lastActiveAt: (status === "ProfileMissing" ? null : "2026-10-06T12:15:00Z") as string | null,
+  lastLoginAt: status === "ProfileMissing" ? null : daysAgo(4, 7, 30),
+  lastActiveAt: status === "ProfileMissing" ? null : daysAgo(3, 12, 15),
   ...extra,
 });
 
@@ -134,10 +146,13 @@ export const ACCOUNTS = [
   { ...account(1, "admin", "Active"), role: "Admin" },
 ];
 
+/** A registration period that holds every dated account above, for a directory address with a period. */
+export const REGISTRATION_PERIOD = { registeredFrom: daysAgo(30, 0), registeredBefore: daysAgo(1, 0) };
+
 /** Thirty more accounts, for a listing with a second page. */
 const MORE = Array.from({ length: 30 }, (_, index) =>
   account(100 + index, `konto.extra${String(index).padStart(2, "0")}`, "Active", {
-    registeredAt: "2026-08-01T09:00:00Z",
+    registeredAt: daysAgo(69, 9),
     applicationCount: 1,
   })
 );
@@ -225,8 +240,6 @@ export function accountDetails(accountId: string, gone: ReadonlySet<string> = ne
 
 /** The backend's clock: the summary's window is counted back from it. No submission is under 8 days old. */
 export const FEEDBACK_NOW = "2026-10-07T08:00:00Z";
-
-const DAY_MS = 86_400_000;
 
 export type FeedbackStatus = "New" | "InProgress" | "Resolved" | "Declined";
 export type FeedbackNoticeState = "Queued" | "Sending" | "Accepted" | "Failed" | "Unknown";

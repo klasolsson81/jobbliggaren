@@ -18,6 +18,9 @@ public class GetListedJobAdIdsQueryHandlerTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    private static ListedJobAdRow[] Rows(params Guid[] idsInIdOrder) =>
+        Array.ConvertAll(idsInIdOrder, id => new ListedJobAdRow(id, Now));
+
     private static async Task<ListedJobAdPart> Answer(ListedJobAdSnapshot? snapshot, int part = 1)
     {
         var reader = Substitute.For<IListedJobAdSnapshotReader>();
@@ -33,7 +36,7 @@ public class GetListedJobAdIdsQueryHandlerTests
     [Fact]
     public async Task Handle_AFreshSnapshot_AnswersTheIdsOfTheRequestedPart()
     {
-        var snapshot = ListedJobAdSnapshot.Create(Now.AddMinutes(-1), [InPartOne, InPartTwo]);
+        var snapshot = ListedJobAdSnapshot.Create(Now.AddMinutes(-1), Rows(InPartOne, InPartTwo));
 
         (await Answer(snapshot, part: 1)).ShouldBeOfType<ListedJobAdPart.Available>().Ids.ShouldBe([InPartOne]);
         (await Answer(snapshot, part: 2)).ShouldBeOfType<ListedJobAdPart.Available>().Ids.ShouldBe([InPartTwo]);
@@ -41,26 +44,26 @@ public class GetListedJobAdIdsQueryHandlerTests
 
     [Fact]
     public async Task Handle_AFreshSnapshotWithNoIdInThePart_AnswersAMeasuredZero() =>
-        (await Answer(ListedJobAdSnapshot.Create(Now, [InPartOne]), part: 2))
+        (await Answer(ListedJobAdSnapshot.Create(Now, Rows(InPartOne)), part: 2))
             .ShouldBeOfType<ListedJobAdPart.Available>().Ids.ShouldBeEmpty();
 
     [Fact]
     public async Task Handle_ASnapshotOlderThanItsBound_IsUnavailable() =>
         (await Answer(ListedJobAdSnapshot.Create(
-                Now - ListedJobAdSnapshotLimits.MaxAge - TimeSpan.FromTicks(1), [InPartOne])))
+                Now - ListedJobAdSnapshotLimits.MaxAge - TimeSpan.FromTicks(1), Rows(InPartOne))))
             .ShouldBeOfType<ListedJobAdPart.Unavailable>();
 
     [Fact]
     public async Task Handle_ASnapshotStampedAheadOfTheClockBeyondTheTolerance_IsUnavailable() =>
         (await Answer(ListedJobAdSnapshot.Create(
-                Now + ListedJobAdSnapshotLimits.FutureTolerance + TimeSpan.FromTicks(1), [InPartOne])))
+                Now + ListedJobAdSnapshotLimits.FutureTolerance + TimeSpan.FromTicks(1), Rows(InPartOne))))
             .ShouldBeOfType<ListedJobAdPart.Unavailable>();
 
     [Fact]
     public async Task Handle_ReadsTheSnapshotOnce_SoTheAgeAndTheIdsComeFromTheSameRead()
     {
         var reader = Substitute.For<IListedJobAdSnapshotReader>();
-        reader.Current.Returns(ListedJobAdSnapshot.Create(Now, [InPartOne]));
+        reader.Current.Returns(ListedJobAdSnapshot.Create(Now, Rows(InPartOne)));
 
         await new GetListedJobAdIdsQueryHandler(reader, FakeDateTimeProvider.Default)
             .Handle(new GetListedJobAdIdsQuery(1, ListedJobAdSnapshotLimits.PartCount), Ct);

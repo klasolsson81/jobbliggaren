@@ -6,7 +6,8 @@ import enPublicJob from "../../../messages/en/publicjob.json";
 import svPublicJob from "../../../messages/sv/publicjob.json";
 
 /**
- * Fitness functions for the public job page's route group (ADR 0165), derived from the filesystem.
+ * Fitness functions for the anonymous job-ad surface's route group (ADR 0165, ADR 0176): the public job page and its
+ * states, and the public catalogue. Derived from the filesystem.
  *
  * What these protect is what a Server Component page cannot recover once it has started to stream: a
  * `loading.tsx` or a Suspense boundary above a `notFound()` or a thrown error commits a 200 first, so the
@@ -36,17 +37,27 @@ const read = (file: string) => readFileSync(file, "utf8");
 const PUBLIC_SURFACE = [
   ...groupSources,
   resolve(SRC, "components/job-ads/public-job-ad.tsx"),
+  resolve(SRC, "components/job-ads/public-job-ad-catalogue.tsx"),
+  resolve(SRC, "components/job-ads/public-job-ad-list.tsx"),
   resolve(SRC, "components/job-ads/strip-bounce-marker.tsx"),
   resolve(SRC, "lib/api/public-job-ad.ts"),
+  resolve(SRC, "lib/api/public-job-ad-catalogue.ts"),
   resolve(SRC, "lib/api/public-job-ad-probe.ts"),
   resolve(SRC, "lib/auth/public-job-ad-route.ts"),
   resolve(SRC, "lib/job-ads/job-posting-json-ld.ts"),
+  resolve(SRC, "lib/job-ads/catalogue-page-param.ts"),
+  resolve(SRC, "lib/job-ads/public-catalogue-url.ts"),
 ];
 
 describe("(public-job) route group", () => {
   it("finds the group's pages (the derivation is not vacuous)", () => {
     const pages = groupFiles.map((f) => toPosix(relative(GROUP, f))).filter((f) => f.endsWith("/page.tsx"));
-    expect(pages.sort()).toEqual(["publik/borttagen/page.tsx", "publik/jobb/[id]/page.tsx", "publik/overbelastad/page.tsx"]);
+    expect(pages.sort()).toEqual([
+      "lediga-jobb/page.tsx",
+      "publik/borttagen/page.tsx",
+      "publik/jobb/[id]/page.tsx",
+      "publik/overbelastad/page.tsx",
+    ]);
   });
 
   it("has no loading.tsx anywhere: a Suspense fallback commits 200 before the status can be settled", () => {
@@ -80,9 +91,30 @@ describe("(public-job) route group", () => {
     expect(offenders.map((f) => toPosix(relative(SRC, f)))).toEqual([]);
   });
 
-  it("reads the ad through the one cached reader and nowhere else", () => {
+  it("reads the API through its own cached readers and nowhere else", () => {
     const readers = PUBLIC_SURFACE.filter((f) => /\/api\/v1\/public\/job-ads/.test(read(f))).map((f) => toPosix(relative(SRC, f)));
-    expect(readers.sort()).toEqual(["lib/api/public-job-ad-probe.ts", "lib/api/public-job-ad.ts"]);
+    expect(readers.sort()).toEqual([
+      "lib/api/public-job-ad-catalogue.ts",
+      "lib/api/public-job-ad-probe.ts",
+      "lib/api/public-job-ad.ts",
+    ]);
+  });
+
+  it("creates nothing below /lediga-jobb: no segment, no slug, no place (stage-A constraint 1)", () => {
+    const below = groupFiles
+      .map((f) => toPosix(relative(GROUP, f)))
+      .filter((f) => f.startsWith("lediga-jobb/") && f.split("/").length > 2);
+    expect(below).toEqual([]);
+  });
+
+  it("lets no catalogue link prefetch and renders each row as a plain anchor (ADR 0176 F10)", () => {
+    const list = read(resolve(SRC, "components/job-ads/public-job-ad-list.tsx"));
+    expect(list).not.toMatch(/from "next\/link"/);
+    const catalogue = read(resolve(SRC, "components/job-ads/public-job-ad-catalogue.tsx"));
+    expect(catalogue).toMatch(/prefetch=\{false\}/);
+    const segmentNotFound = read(resolve(GROUP, "lediga-jobb/not-found.tsx"));
+    expect(segmentNotFound).not.toMatch(/from "next\/link"/);
+    expect(segmentNotFound).not.toMatch(/getPublicJobAdCatalogue|fetch\(/);
   });
 
   it("logs nothing on the page's own path: no console call carries an ad's title, company or description", () => {

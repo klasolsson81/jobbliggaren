@@ -560,6 +560,7 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `GET /api/v1/job-ads/{id}/salary-stats` (SCB-data för SSYK)
 - `GET /api/v1/public/job-ads/{id}` (anonym läsning av en listad annons utanför den inloggade gruppen; avslutad och raderad annons ger samma 410, egen IP-partitionerad rate limit, `no-store` — ADR 0160)
 - `GET /api/v1/public/job-ads/listed-ids?part=&parts=` (anonym läsning av id:na i en del av jobbsitemapen, ur en ögonblicksbild som API:t läser var femte minut; en saknad eller över 15 minuter gammal ögonblicksbild ger 503 med `Retry-After`, egen IP-partitionerad rate limit, `no-store` — ADR 0174)
+- `GET /api/v1/public/job-ads/catalogue?page=` (anonym läsning av en sida i den publika katalogen `/lediga-jobb`: ordning och antal ur samma ögonblicksbild som jobbsitemapen, innehållet läst per anrop genom publiceringspredikatet, sex fält per rad; en sida efter den sista ger 404, en saknad eller för gammal ögonblicksbild 503 med `Retry-After`, egen IP-partitionerad rate limit, `no-store` — ADR 0176)
 
 **Saved searches**
 - `GET /api/v1/saved-searches`

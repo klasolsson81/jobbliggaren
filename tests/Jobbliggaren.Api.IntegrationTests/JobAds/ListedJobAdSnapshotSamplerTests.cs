@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -5,6 +6,7 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds;
 using Jobbliggaren.Application.JobAds.Listing;
 using Jobbliggaren.Application.JobAds.Publication;
+using Jobbliggaren.Application.JobAds.Queries.GetListedJobAdIds;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
@@ -44,15 +46,20 @@ public sealed class ListedJobAdSnapshotSamplerTests(SharedPostgresFixture postgr
     public async ValueTask InitializeAsync()
     {
         _connectionString = await postgres.CreateDatabaseAsync();
+        _provider = BuildProvider();
+    }
 
+    private ServiceProvider BuildProvider(params IInterceptor[] interceptors)
+    {
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(options => options
             .UseNpgsql(_connectionString,
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention()
+            .AddInterceptors(interceptors)
             .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
-        _provider = services.BuildServiceProvider();
+        return services.BuildServiceProvider();
     }
 
     public async ValueTask DisposeAsync()
@@ -61,8 +68,9 @@ public sealed class ListedJobAdSnapshotSamplerTests(SharedPostgresFixture postgr
         await postgres.DropDatabaseAsync(_connectionString);
     }
 
-    private ListedJobAdSnapshotSampler Sampler(ILogger<ListedJobAdSnapshotSampler>? logger = null, int? ceiling = null) =>
-        new(_provider.GetRequiredService<IServiceScopeFactory>(), _clock,
+    private ListedJobAdSnapshotSampler Sampler(
+        ILogger<ListedJobAdSnapshotSampler>? logger = null, int? ceiling = null, IServiceProvider? provider = null) =>
+        new((provider ?? _provider).GetRequiredService<IServiceScopeFactory>(), _clock,
             logger ?? NullLogger<ListedJobAdSnapshotSampler>.Instance, ceiling ?? ListedJobAdSnapshotLimits.Ceiling);
 
     [Fact]
@@ -70,9 +78,17 @@ public sealed class ListedJobAdSnapshotSamplerTests(SharedPostgresFixture postgr
     {
         var archivedPastDeadline = await AddAsync(NeverImported(Now.AddMicroseconds(-1)));
         await RunArchiverAsync(Now);
-        var noDeadline = await AddAsync(Imported(null));
-        var atTheInstant = await AddAsync(Imported(Now));
-        var afterTheInstant = await AddAsync(Imported(Now.AddMicroseconds(1)));
+        // Stored in descending id order and dated so the highest id is the newest: the table's storage order and its
+        // newest-first index (status, published_at DESC, id) then both give descending id order, so ascending id order
+        // can come only from the read's ORDER BY.
+        JobAd[] listedAds = [Imported(null), Imported(Now), Imported(Now.AddMicroseconds(1))];
+        var byIdDescending = listedAds.OrderByDescending(ad => ad.Id.Value.ToString("D"), StringComparer.Ordinal).ToList();
+        for (var i = 0; i < byIdDescending.Count; i++)
+        {
+            Redate(byIdDescending[i], Now.AddDays(-28 - i));
+            await AddAsync(byIdDescending[i]);
+        }
+        var (noDeadline, atTheInstant, afterTheInstant) = (listedAds[0].Id.Value, listedAds[1].Id.Value, listedAds[2].Id.Value);
         var pastDeadlineNotYetArchived = await AddAsync(Imported(Now.AddMicroseconds(-1)));
         var archived = await AddAsync(Imported(null), ad => ad.Archive(_clock).IsSuccess.ShouldBeTrue());
         var erased = await AddAsync(Imported(null), ad => ad.Erase(_clock).IsSuccess.ShouldBeTrue());
@@ -127,8 +143,8 @@ public sealed class ListedJobAdSnapshotSamplerTests(SharedPostgresFixture postgr
     {
         var logger = new RecordingLogger<ListedJobAdSnapshotSampler>();
         var sampler = Sampler(logger, ceiling: 2);
-        await AddAsync(Imported(null));
-        await AddAsync(Imported(null));
+        var first = await AddAsync(Imported(null));
+        var second = await AddAsync(Imported(null));
         await sampler.SampleAsync(Ct);
         var before = sampler.Current.ShouldNotBeNull();
         var third = await AddAsync(Imported(null));
@@ -138,8 +154,10 @@ public sealed class ListedJobAdSnapshotSamplerTests(SharedPostgresFixture postgr
         sampler.Current.ShouldBeSameAs(before, "a read past the ceiling replaces nothing");
         var line = logger.Records.ShouldHaveSingleItem();
         (line.Level, line.EventId.Id).ShouldBe((LogLevel.Error, 6234));
-        line.Message.ShouldContain("2");
-        line.Message.ShouldNotContain(third.ToString());
+        line.Properties.Where(p => p.Key != "{OriginalFormat}")
+            .ShouldBe([new KeyValuePair<string, object?>("Ceiling", 2)]);
+        foreach (var id in new[] { first, second, third })
+            line.Message.ShouldNotContain(id.ToString());
     }
 
     [Fact]
@@ -159,17 +177,72 @@ public sealed class ListedJobAdSnapshotSamplerTests(SharedPostgresFixture postgr
     }
 
     [Fact]
-    public async Task Sample_AnOlderReadNeverReplacesANewerOne()
+    public async Task Sample_TheNextTick_ReplacesTheSnapshot_WithExactlyWhatItRead()
     {
-        await AddAsync(Imported(null));
+        var erasedBetweenTicks = await AddAsync(Imported(null));
+        var kept = await AddAsync(Imported(null));
         var sampler = Sampler();
         await sampler.SampleAsync(Ct);
-        var newer = sampler.Current.ShouldNotBeNull();
-        _clock.UtcNow = Now.AddMinutes(-5);
+        var first = sampler.Current.ShouldNotBeNull();
+        await EraseAsync(erasedBetweenTicks);
+        var importedBetweenTicks = await AddAsync(Imported(null));
+        var nextTick = Now + ListedJobAdSnapshotLimits.SampleInterval;
+        _clock.UtcNow = nextTick;
 
         await sampler.SampleAsync(Ct);
 
-        sampler.Current.ShouldBeSameAs(newer);
+        var second = sampler.Current.ShouldNotBeNull();
+        second.ShouldNotBeSameAs(first);
+        second.AsOf.ShouldBe(nextTick);
+        AllIds(second).ShouldBe([kept, importedBetweenTicks], ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task Sample_AReadThatStartedEarlier_NeverReplacesOneThatStartedLater()
+    {
+        await AddAsync(Imported(null));
+        var gate = new HoldFirstRead();
+        await using var held = BuildProvider(gate);
+        var sampler = Sampler(provider: held);
+        ListedJobAdSnapshot later;
+
+        // Both reads carry the same stamp, so only the order the reads began in can tell them apart.
+        var earlier = sampler.SampleAsync(Ct);
+        try
+        {
+            await gate.Holding.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+            await sampler.SampleAsync(Ct);
+            later = sampler.Current.ShouldNotBeNull();
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        await earlier;
+
+        sampler.Current.ShouldBeSameAs(later, "the earlier read finished last and must not replace the later one");
+    }
+
+    [Fact]
+    public async Task Sample_AfterTheClockStepsBackFurtherThanTheBound_TheNextReadReplacesTheSnapshot_AndItsPartIsServed()
+    {
+        var listed = await AddAsync(Imported(null));
+        var sampler = Sampler();
+        await sampler.SampleAsync(Ct);
+        var beforeTheStep = sampler.Current.ShouldNotBeNull();
+        var steppedBack = Now - ListedJobAdSnapshotLimits.MaxAge - TimeSpan.FromMinutes(1);
+        _clock.UtcNow = steppedBack;
+
+        await sampler.SampleAsync(Ct);
+
+        var afterTheStep = sampler.Current.ShouldNotBeNull();
+        afterTheStep.ShouldNotBeSameAs(beforeTheStep, "a read is ordered by when it started, never by the wall clock");
+        afterTheStep.AsOf.ShouldBe(steppedBack);
+        const int parts = ListedJobAdSnapshotLimits.PartCount;
+        var answer = await new GetListedJobAdIdsQueryHandler(sampler, _clock)
+            .Handle(new GetListedJobAdIdsQuery(ListedJobAdPartition.PartOf(listed, parts), parts), Ct);
+        answer.ShouldBeOfType<ListedJobAdPart.Available>().Ids.ShouldContain(listed);
     }
 
     private static List<Guid> AllIds(ListedJobAdSnapshot snapshot) =>
@@ -210,6 +283,16 @@ public sealed class ListedJobAdSnapshotSamplerTests(SharedPostgresFixture postgr
         return ad.Id.Value;
     }
 
+    /// <summary>Erases an ad the way <c>EraseRecruiterAdsCommand</c> does: loaded, erased through the aggregate, saved.</summary>
+    private async Task EraseAsync(Guid id)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var ad = await db.JobAds.Where(j => j.Id == new JobAdId(id)).SingleAsync(Ct);
+        ad.Erase(_clock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(Ct);
+    }
+
     private async Task RunArchiverAsync(DateTimeOffset now)
     {
         using var scope = _provider.CreateScope();
@@ -238,6 +321,22 @@ public sealed class ListedJobAdSnapshotSamplerTests(SharedPostgresFixture postgr
             extractTerms: TestKeywordExtraction.None).Value;
     }
 
+    /// <summary>
+    /// Re-dates an imported ad through the importer's update path: <c>UpsertExternalJobAdCommandHandler</c> calls
+    /// <c>UpdateFromSource</c> with the date the source gives.
+    /// </summary>
+    private static void Redate(JobAd ad, DateTimeOffset publishedAt) =>
+        ad.UpdateFromSource(
+            title: ad.Title,
+            description: ad.Description,
+            url: ad.Url,
+            rawPayload: ad.RawPayload,
+            facets: TestFacets.None,
+            declaredContacts: [],
+            publishedAt: publishedAt,
+            expiresAt: ad.ExpiresAt,
+            extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
+
     private JobAd NeverImported(DateTimeOffset? expiresAt) =>
         JobAd.Create(
             title: "Backend-utvecklare",
@@ -248,4 +347,28 @@ public sealed class ListedJobAdSnapshotSamplerTests(SharedPostgresFixture postgr
             publishedAt: Now.AddDays(-10),
             expiresAt: expiresAt,
             clock: _clock).Value;
+
+    /// <summary>Holds the first query it sees until released, so a second read can start, finish and publish first.</summary>
+    private sealed class HoldFirstRead : DbCommandInterceptor
+    {
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _seen;
+
+        public TaskCompletionSource Holding { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Release() => _release.TrySetResult();
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _seen) == 1)
+            {
+                Holding.TrySetResult();
+                await _release.Task.WaitAsync(cancellationToken);
+            }
+
+            return result;
+        }
+    }
 }

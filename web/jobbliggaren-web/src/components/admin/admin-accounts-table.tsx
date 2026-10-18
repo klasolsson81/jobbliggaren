@@ -18,6 +18,7 @@ import { AdminRegionLine } from "./admin-region-line";
 import { AdminUnknown } from "./admin-unknown";
 
 const CAPTION_ID = "admin-users-caption";
+const LAST_LOGIN_ID = "admin-users-last-login";
 const COLUMN_COUNT = 7;
 
 interface AdminAccountsTableProps {
@@ -98,9 +99,9 @@ export function AdminAccountsTable({
             <th scope="col">{t("table.role")}</th>
             <th scope="col">{t("table.status")}</th>
             {sortHeader("registeredAt", t("table.registered"))}
-            <th scope="col">
+            <th scope="col" aria-labelledby={LAST_LOGIN_ID}>
               <span className="jp-labelhelp">
-                {t("table.lastLogin")}
+                <span id={LAST_LOGIN_ID}>{t("table.lastLogin")}</span>
                 <InfoDialog
                   title={t("activityHelp.title")}
                   ariaLabel={t("activityHelp.aria")}

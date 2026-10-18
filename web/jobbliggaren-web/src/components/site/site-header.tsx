@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { SkipLink } from "@/components/site/skip-link";
+import { HeaderCatalogueLink } from "@/components/site/header-catalogue-link";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { formatNumber } from "@/lib/i18n/format";
 import { type LandingStats } from "@/components/landing/landing-stats-format";
@@ -33,9 +34,12 @@ import { type LandingStats } from "@/components/landing/landing-stats-format";
  * 2026-08-23, HANDOVER-v3 §0 punkt 7 amended for public headers), so the
  * hairline after the stats no longer depends on whether a login action follows.
  *
- * A11y: the `<nav>` landmark carries the brand link. The stats cluster sits
- * OUTSIDE it — "45 580 aktiva annonser" is data, not navigation, and a reader
- * jumping to the landmark should not hear it first. The shared `<SkipLink>` is
+ * A11y: the `<nav>` landmark carries the brand link and the one navigation link,
+ * "Lediga jobb" (ADR 0175 F14; Klas approved breaking HANDOVER-v3 §6.4 for it on
+ * 2026-10-18). The link is on every surface that mounts this header, visible at
+ * every width, never in a menu and never shortened. The stats cluster sits
+ * OUTSIDE the landmark — "45 580 aktiva annonser" is data, not navigation, and a
+ * reader jumping to the landmark should not hear it first. The shared `<SkipLink>` is
  * rendered before the header, so every public surface gets the same
  * first-focusable jump to `#main` — which means a surface mounting this header
  * must NOT render a second one.
@@ -83,6 +87,7 @@ export function SiteHeader({
             >
               <BrandLogo />
             </Link>
+            <HeaderCatalogueLink>{t("common.catalogueLink")}</HeaderCatalogueLink>
           </nav>
           <div className="jp-head__right">
             {measured && (

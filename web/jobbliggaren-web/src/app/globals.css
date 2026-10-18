@@ -5020,6 +5020,24 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-head__stats, .jp-head__sep { display: none; }
 }
 
+/* The header's one navigation link, "Lediga jobb" (ADR 0175 F14), beside the brand in the same <nav>. It reuses
+   .jp-nav__link and its current-page bar, with three changes for this header. Ink in both states: the scoped selector
+   (0,2,0), and (0,3,0) on hover, outranks the global link colour `a:not(…)` (0,1,1) and (0,2,1), so the label never
+   turns accent (E2f, K2). The bar sits on the header's bottom edge: the link is centred in an 88px row (72px at
+   <= 760px), so the bar's offset is half the difference, the formula the switchable app header uses. And at <= 768px
+   the link meets the 44px touch floor (DESIGN.md §5). */
+.jp-head nav { display: flex; align-items: center; gap: 24px; }
+.jp-head .jp-nav__link { color: var(--jp-ink-1); }
+.jp-head .jp-nav__link:hover { color: var(--jp-ink-1); }
+.jp-head .jp-nav__link[aria-current="page"]::after { bottom: calc((100% - 88px) / 2); }
+@media (max-width: 768px) {
+  .jp-head .jp-nav__link { min-height: 44px; display: inline-flex; align-items: center; }
+}
+@media (max-width: 760px) {
+  .jp-head nav { gap: 12px; }
+  .jp-head .jp-nav__link[aria-current="page"]::after { bottom: calc((100% - 72px) / 2); }
+}
+
 /* Narrow-screen ladder for the public header, graded the way .jp-header__inner
    already is. It keys on the ROW, not the viewport: `--action` marks a surface
    that also carries an account link, and that cluster is the wider of the two, so
@@ -5029,27 +5047,40 @@ a.jp-adminnav__link[aria-current="page"]::after {
    name is just "Språk": `display: none` takes a node out of the a11y tree. */
 /* The stats rung above is UNGRADED, so both row forms drop the cluster at the
    same width — which this ladder's own rule says cannot be right, since the
-   `--action` cluster is the wider of the two. Measured 2026-08-24 with stats
-   present (six-digit count, four-digit delta): the action row's own text wraps
-   at <= 832px and is clean from 833 — the two stat labels break to two lines and
-   the brand tagline with them. `min-height: 88px` is a FLOOR, so none of that
-   moved the row's height, and no measurement of spill or height could see it
-   (design-reviewer, PR #1501). Re-measure by rendering `/` with stats present and
-   counting line boxes with a Range over each label's CONTENTS; an element's own
-   getClientRects() returns one rect per box and is blind to a wrap. */
-@media (max-width: 832px) {
+   `--action` cluster is the wider of the two. `min-height: 88px` is a FLOOR, so a
+   label that wraps moves no height, and no measurement of spill or height can see
+   it (design-reviewer, PR #1501). Re-measure by rendering `/` with stats present
+   and counting line boxes with a Range over each label's CONTENTS; an element's
+   own getClientRects() returns one rect per box and is blind to a wrap.
+   Every rung below was re-taken with the "Lediga jobb" link in the nav
+   (design-reviewer, #2172 plan read, 2026-10-18): no spill and no wrap, one row,
+   from 320 to 1920px in 1px steps, in Swedish and English, for the three row
+   forms, with the link at its widest (semibold, the current page). */
+@media (max-width: 980px) {
   .jp-head--action .jp-head__stats,
   .jp-head--action .jp-head__sep { display: none; }
 }
-@media (max-width: 640px) {
+@media (max-width: 680px) {
   .jp-head .jp-brand__tagline { display: none; }
 }
-@media (max-width: 480px) {
+@media (max-width: 620px) {
   .jp-head--action .jp-brand__lockup,
   .jp-head--action .jp-langname { display: none; }
 }
-@media (max-width: 360px) {
-  .jp-head .jp-brand__lockup { display: none; }
+@media (max-width: 520px) {
+  .jp-head .jp-brand__lockup,
+  .jp-head .jp-langname { display: none; }
+}
+/* The narrowest rung: every gap tightens, the language control loses its chevron
+   (`aria-haspopup` still says it opens a menu, as on the shell's <= 360px rung),
+   and the account button and the link take a narrower inline padding. */
+@media (max-width: 420px) {
+  .jp-head__inner { padding-inline: 16px; gap: 8px; }
+  .jp-head nav,
+  .jp-head__right { gap: 8px; }
+  .jp-head .jp-langchevron { display: none; }
+  .jp-head__right { --jp-btn-px: 12px; }
+  .jp-head .jp-nav__link { padding-inline: 8px; }
 }
 
 /* K2 (this block's own header): no grey ink on the public header. `.jp-btn--ghost`

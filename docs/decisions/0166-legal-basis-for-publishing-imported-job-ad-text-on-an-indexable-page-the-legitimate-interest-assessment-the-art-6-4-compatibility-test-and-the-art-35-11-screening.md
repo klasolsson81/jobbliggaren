@@ -379,3 +379,106 @@ fire for S3) and "Ja, godkänt (Rek.)" (this amendment).
 **Signature:** `security-auditor`, 2026-10-17, on her scoped re-check of PR [#2160](https://github.com/klasolsson81/jobbliggaren/pull/2160) at head `144fda24c`: signs this amendment, points (i)–(iv) and D10 triggers 5–7, read with ADR 0171 D4 as delivered — the description HTML escaped per text run before any tag is wrapped and emitted only in the tag set `p`, `ul`, `li`, `br`; `hiringOrganization` as `{@type, name}` only; `jobLocation.address` as `addressLocality`, `addressRegion` and `addressCountry` only; no `url`. It does not re-sign D1–D11, which her signature of 2026-10-12 covers, and it does not cover the Amendment 2026-10-11, which she has not signed. It lapses with any D10 trigger, 5–7 included, and with any change to this amendment's text or to ADR 0171 D4's key set or escaping; the edit that writes this line and marks the amendment Accepted does not reopen it.
 
 ADR 0166 remains **Accepted** for D1–D11; this amendment is **Accepted** (approved by Klas and signed by `security-auditor`, both 2026-10-17).
+
+## Amendment 2026-10-18 (#2090 S4, ADR 0174) — the D10 re-take for the job sitemap; approved by Klas 2026-10-18, Proposed until signed by `security-auditor`
+
+D1–D11 and the earlier amendments stand and nothing above is rewritten. D10's trigger 1 names "the S4 sitemap", so it fires for S4 by its own text and there is nothing to interpret. The
+conclusion is withdrawn **for the sitemap only**: the public list of every listed address, and the systematic discovery it produces. The page keeps its conclusion. The signatures of
+`security-auditor` of 2026-10-12 and 2026-10-17 lapse "with any D10 trigger", by their own words; read with D10's scope rule, that lapse withdraws nothing from the page. Klas took the
+conclusion again for the sitemap on 2026-10-18 (sign-off below). This amendment is the single home of the legal outcome for the sitemap: ADR 0174 D8 points here and does not restate it.
+It follows the order of `security-auditor`'s section 1, and her M1–M3 and m1–m4, in her plan read of 2026-10-18 (`docs/reviews/2026-10-18-2090-s4-plan-security-auditor.md`, local). The merge
+waits for her signature. Without it the processing would rest on a withdrawn conclusion, and the notice's "Vi har vägt de intressena mot dina rättigheter" would be untrue for it
+(Art. 5(1)(a), 12(1), 14(2)(b)).
+
+**(i) D1: unchanged,** and applied to the sitemap as written. The purpose is the same.
+
+**(ii) D2, necessity: re-taken.** D2 listed "No sitemap before S4" among the measures that met necessity. It is replaced and not deleted. The replacement is the sitemap's own minimisation:
+`loc` only; membership from `JobAdPublication.IsListed` only; no time of any kind; pull only (ADR 0174 D2, D3, D8).
+- *Why a sitemap is needed.* No public, crawlable page links to a job page before S5. `security-auditor` grepped `src/` on 2026-10-18: outside the signed-in app the only job link is the
+  `/gast` demo's `/gast/jobb/…`, and `robots.txt` disallows it. Without a sitemap, D1 is not met at scale.
+- *Alternatives.* No sitemap: the purpose is not met. A sitemap of recent ads only: it would confine W5 to early erasures, but older open ads would have no way in until S5, and its effect
+  on search is not measured; she does not require it. The Indexing API: more intrusive, and it fires trigger 5.
+
+**(iii) D4: W1, W2 and W4 are re-weighed at full scale, and W5 is new.** With a sitemap, being findable by name is the expected case within days, and no longer an incidental one. W3 is
+handled by (ix).
+- *W1 and W2.* A name in running text, and a sole trader's company name, become searchable at scale and quickly. Arbetsförmedlingen's own `robots.txt`, read 2026-10-18, admits crawlers to
+  `/platsbanken/annonser/` except two named bots and names no ad-level sitemap, so our copy may become the more discoverable copy of a recruiter's name. Whether Google indexes individual
+  Platsbanken ads is **not measured**, and neither is how large a share of the listed ads Google will index.
+- *W4.* The same text, unscrubbed, is available in bulk through Arbetsförmedlingen's open API, so the list adds little to bulk harvesting. A copy in a cache or an archive stays out of reach.
+- **W5 — The erasure inference, at scale.** ADR 0160 D3 recorded a measured limitation, not an acceptance and not a graded finding, and it stays one. What S4 changes:
+  1. enumeration of the listed ads becomes complete and free;
+  2. an erased ad's drop from the list is visible by comparing two reads taken minutes apart;
+  3. anyone who archives the sitemap can make the comparison later, against Arbetsförmedlingen's open historical dataset, and not only against its live API before the ad's deadline;
+  4. ads erased by one request drop out in the same tick, and the name they share points at the person who asked.
+
+  What does not change: the list cannot tell an ended ad from an erased one. Our list follows Arbetsförmedlingen's own removals within the 10-minute stream, so only an early drop,
+  relative to Arbetsförmedlingen, carries the signal. Joining our id to Arbetsförmedlingen's ad still needs one page read while the ad is listed: the link to Arbetsförmedlingen is on the
+  page and never in the sitemap, the wire or the `JobPosting`. Matching on the ad text joins them too, so the join is no protection to rely on. The design changes that would reduce the
+  inference are worse. Keeping an erased URL listed contradicts Art. 17(2) and ADR 0160 D6, and updating the list less often gains nothing, because an erasure usually comes days before
+  the deadline. No design change is required.
+
+  *What is done:* `loc` only; no time of any kind; ids in id order; no Arbetsförmedlingen id anywhere; the identical 410; the drop within the hard bound.
+  *What is left:* the inference, for an observer who joins and compares. How many ads have been erased on request so far is **not measured**.
+
+**(iv) D5 gains S4's safeguards:**
+- the minimisation in (ii);
+- the hard 15-minute bound: the API judges the snapshot's age when it is read and refuses an older one, a failed tick never re-stamps it, the web caches nothing, every answer is `no-store`,
+  and there is no CDN (ADR 0050, Amendment 2026-08-04);
+- the new rate limit, `public-job-ad-listed-ids`, 6 per 60 s per client address, approved by `security-auditor` on 2026-10-18;
+- the runbook step, `docs/runbooks/recruiter-pii-erasure.md` §2.4a, step 2: it checks that an erased address has left the sitemap, and a 503 never counts as a reading.
+
+**(v) D6(d), the possible consequences, is updated** to the expected case and to W5. The window in which an erased address can still be listed is at most 15 minutes, and the page answers
+410 from the moment of erasure. The list carries an address and not the ad, so a crawler that follows it in that window gets the 410. Art. 17(1) is met by `JobAd.Erase`, and Art. 17(2) by
+the drop within the bound and §2.4a. What is left is W5.
+
+**(vi) D7: no change.** The notice ("sökmotorer kan indexera den … kan hittas via en sökmotor"; "Mottagare är därför allmänheten och sökmotorerna") and the privacy-policy sentence stay true,
+and the `recruiterNotice` is not changed. Its sentence "Vi har vägt de intressena mot dina rättigheter" is true for the sitemap from Klas's approval below, so the merge cannot come before it.
+
+**(vii) D8: a second addendum to DPIA #456 §8-B,** and not a new full DPIA (Klas, answer 2). The addendum of 2026-10-12 rated R-842-3 Med × High on the assumption that discovery is
+incidental, and R-842-4 High × High as the residual, and it recorded no determination under Art. 36(1). The second addendum is a local file, written in the main copy by the driving session
+on these terms:
+1. R-842-3's likelihood is taken again for systematic discovery (`security-auditor`'s reading: High).
+2. R-842-9, the W5 inference, is added at Low × Med.
+3. R-842-8's stock is taken from the reading in (ix).
+4. The Art. 36(1) determination: **this is not a high risk in that sense, so no prior consultation with IMY is owed.** The reasons are that these are professional-role contact details,
+   published by the employer, who under Arbetsförmedlingen's terms must hold the contact person's consent (that consent is not our legal basis, D3); that the details are open at the
+   source; that Art. 21 is met in full; and that Tier B, the 410 and the removal requests are in place. On those reasons the severity of R-842-3 and R-842-4 is re-taken to Med. Had Klas
+   kept High × High, prior consultation would have been owed before S4 went live, and the question would already have applied to the public page.
+5. The Art. 9 row is untouched.
+
+**(viii) D10.** Trigger 1 fired for the S4 sitemap, and Klas took the conclusion again for the sitemap on 2026-10-18. This withdraws no finding and none of D4's residuals. Two triggers are
+added, continuing the numbering after the amendment of 2026-10-17 (triggers 5–7):
+
+8. A sitemap entry with any element besides `loc`, or a `loc` that is not the page's canonical.
+9. Membership of the sitemap from anything other than `JobAdPublication.IsListed`, or a list answer served older than 15 minutes: the bound raised, made configurable, or a cache put in
+   front of it.
+
+**Trigger 5 is not fired by S4** (Klas, answer 3). A sitemap that crawlers pull is publication and not a push "to a third party": we send nothing to anyone. Klas's manual submission of the
+index address in Search Console, or in Bing's sitemap tool, is also outside the trigger. It carries no posting URL and no content, it goes to recipients that D7 already names, and it
+repeats what `robots.txt` already says. Inside the trigger stay Bing URL Submission, IndexNow, the Indexing API, the Search Console API and any automated ping. Pull only also keeps this the
+search engines' own collection and not a transmission by us (Chapter V); a push would need its own Chapter V reading.
+
+**(ix) D11: the merge-day reading (W3).** D4 calls W3 a gate, ADR 0160 D9.1 puts a personnummer on the public page in the Blocker class, and the sitemap makes the whole listed stock a
+crawl target. The last reading was 2026-10-12 05:15 UTC (39 415 listed, validated 0). S4 takes a fresh S2-P3 reading on the day of the merge: the same query, counts only, before
+`agents-done`. The validated count must be 0, and it is recorded in two places: here, and in the record table of `docs/runbooks/public-job-page-publication-count.md`. A count above 0 fires
+trigger 2, and S4 stops.
+
+**PENDING — the merge-day reading.** The driving session enters the date and time (UTC), the release and the counts (listed, shaped, validated) here before `agents-done`. No count was taken
+for this amendment, and none is written until one is.
+
+**Sign-off**
+
+**Controller approval:** Klas Olsson, 2026-10-18, in the session's chat, to `security-auditor`'s escalation (`docs/reviews/2026-10-18-2090-s4-plan-security-auditor.md`, relayed verbatim by
+the driving session through AskUserQuestion). His four answers, quoted without edits:
+1. "Ja (Rek.)": the re-take of this ADR's conclusion for the sitemap, as (i)–(ix) list it.
+2. "Ja, andra tillägget (Rek.)": a second addendum to DPIA #456 §8-B and not a new full DPIA, on the Art. 36(1) determination and the ratings in (vii).
+3. "Ja, ingen trigger 5 (Rek.)": S4 does not fire trigger 5, on the reading in (viii).
+4. "Ja, behåll (Rek.)": outside S4, the signed-in page keeps showing an ended ad while an erased ad answers 410. It is recorded in the ADR 0106 amendment of the same date and does not
+   decide whether S4 can merge.
+
+**Signature:** PENDING — to be entered when `security-auditor` signs, at her scoped re-check of the S4 PR's final head, read with ADR 0174 D1–D5 as delivered. It lapses with any change to
+D1–D5 and with any D10 trigger, 8 and 9 included. It renews, for the page scope, her signature of 2026-10-12 (D1–D11 and signature 3; the notice is unchanged) and her signature of
+2026-10-17 (the S3 amendment). It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override.
+
+ADR 0166 remains **Accepted** for D1–D11 for the page. This amendment is **Proposed** until the signature above is entered; Klas approved it on 2026-10-18. The edit that enters the
+signature and marks the amendment Accepted does not reopen it.

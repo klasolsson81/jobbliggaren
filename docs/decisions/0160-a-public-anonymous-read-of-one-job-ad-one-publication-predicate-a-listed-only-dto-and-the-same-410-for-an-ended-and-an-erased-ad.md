@@ -350,3 +350,24 @@ after the second `Classify` returns Listed (never for a 410 or a 404). Employmen
 `coded-taxonomy.ts` (#1537). Occupation group is not resolved; it belongs to S6.
 
 ADR 0160 remains **Accepted**.
+
+## Amendment 2026-10-18 (#2090 S4, ADR 0174) — D2: `IsListed` ships; D5: the list endpoint has its own policy; D6: narrowed for the list answer only
+
+D1–D9 and the earlier amendments stand and nothing above is rewritten. This amendment records three things the S4 PR settles; the reasoning is in ADR 0174.
+
+**1. D2: the SQL form is delivered.** `JobAdPublication.IsListed(DateTimeOffset now)` is added in the same type as `Classify`, by its first list consumer, the job sitemap (ADR 0174 D1):
+`External != null && External.Source == PublishedSource && Status == Active && (ExpiresAt == null || ExpiresAt >= now)`. D2's two tests exist. The agreement test is
+`JobAdPublicationIsListedAgreementTests` (Application.UnitTests); it builds each reachable state through a production path and declares the cells that no path in `src/` produces as
+unreachable, asserting only that both forms exclude them (AGENTS.md §5, Tests). The Testcontainers test is `ListedJobAdSnapshotSamplerTests` (Api.IntegrationTests); it runs the real
+sampler against Postgres, at the deadline instant and one microsecond either side.
+
+**2. D5: the list endpoint has its own policy, and the page's numbers are unchanged.** `GET /api/v1/public/job-ads/listed-ids` is on `public-job-ad-listed-ids` (6 per 60 s per client IP),
+and not on `public-job-ad-read`. The page's budget stays 60 per 60 s per IP. D5's "raised later from measured crawl rates" is carried out by ADR 0174 D5: a dated baseline before the
+merge, two readings after, and the rule for when a raise is warranted. D5's remark that the corpus "becomes enumerable through S4's sitemap, by design" is now true, and the ADR 0166
+amendment of the same date weighs it.
+
+**3. D6: narrowed for the list answer only.** D6 governs the answer about one ad, and that stays per request, with the API authoritative for "now". The list of listed ads is answered from
+a snapshot that the API itself refuses to serve once it is older than 15 minutes, and every answer is still `no-store`. For that endpoint only, "now" is "now within 15 minutes". The
+snapshot's age is the only window, and it is bounded (ADR 0174 D1). The `no-store` prefix block is unchanged, and the new route sits under it.
+
+ADR 0160 remains **Accepted**.

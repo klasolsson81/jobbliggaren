@@ -178,6 +178,11 @@ public class TaxonomyAclLayerTests
             // request), the call is made only after the row is classified Listed (never for a 410/404),
             // and the write-side invariant ("ALDRIG i command-/write-use-cases") is untouched. Sorts
             // "GetP" between "GetJ" and "GetT".
+            // #2090 S5 / ADR 0176 (2026-10-18) — the second anonymous consumer, read-side only: the public
+            // catalogue names each row's kommun and län through the same port, one call per page, after the row is
+            // read through the publication predicate. It keeps the port in its own constructor (the shared helper
+            // PublicPlaceNames is static), so this list still sees it. Sorts "GetPublicJobAdC" before "GetPublicJobAdQ".
+            nameof(Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue.GetPublicJobAdCatalogueQueryHandler),
             nameof(Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd.GetPublicJobAdQueryHandler),
             nameof(Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree.GetTaxonomyTreeQueryHandler),
             // ADR 0060 (2026-05-20) — fjärde legitim konsument: RecentJobSearches-

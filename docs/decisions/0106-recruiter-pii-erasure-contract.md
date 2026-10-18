@@ -1360,3 +1360,26 @@ shows an ended ad and answers 410 for an erased one. A complaint reopens the que
 setting has on the box was **not measured** for this amendment; the compose default is the only source read. This answer does not decide whether S4 can merge.
 
 No supersession: ADR 0106 remains **Accepted**.
+
+## Amendment 2026-10-18 (#2090 S5, ADR 0176) — D9 read-path table: the catalogue's content read; and the sampler row's projection
+
+ADR 0176 adds a site that projects `JobAd` fields for the anonymous catalogue (`GET /api/v1/public/job-ads/catalogue`) and widens the sitemap sampler's projection. The D9 table gains one row
+and one cell is restated. They are recorded here, as the amendments of 2026-10-10 and 2026-10-18 above recorded theirs, and the table is not restated.
+
+**(a) One new row.**
+
+| Site | Surface | Projects | Gated on `Status != Erased`? | Issue |
+|---|---|---|---|---|
+| `GetPublicJobAdCatalogueQueryHandler` (the catalogue content read) | Anonymous public catalogue (through `catalogue`) | Id, Title, Company.Name, kommun and län ids, PublishedAt | ✅ Yes — `JobAdPublication.IsListed(now)` at request time (ADR 0176 D4): it admits only Active ads imported from the published source whose deadline has not passed, so an Erased row is never read | — |
+
+**(b) One cell restated.** The row that the amendment of 2026-10-18 above added for `ListedJobAdSnapshotSampler` reads "Id only" in its Projects column. From this amendment it reads **"Id,
+PublishedAt (order only, not retained)"**: the sampler's read now also projects the publication date, and the snapshot holds ids only (ADR 0176 D3). Its gate is unchanged. The earlier row is
+not edited.
+
+- The new handler is registered in `JobAdLifecycleReadRegistry` (ADR 0113) as an Active site, and the sampler's registry text names `(Id, PublishedAt)`.
+- **Tier B is how an erasure is honoured on the catalogue.** Each row's content is read and classified per request, so an erased ad is absent from its page at once, and the job page's neutral
+  410 is unchanged. The snapshot may still count and place the ad until the next tick, at most 15 minutes (ADR 0174 D1), so a page can be short by that ad. The snapshot holds the id and not
+  the ad.
+- The company name leaves in a row, as on the job page; the organization number never does (ADR 0087 D8(c)).
+
+No supersession: ADR 0106 remains **Accepted**.

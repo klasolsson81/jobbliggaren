@@ -20,6 +20,12 @@ interface JobAdPaginationProps {
    * rows exist. Those surfaces carry their honest number in their own magnitude line instead.
    */
   showTotalCount?: boolean;
+  /**
+   * `false` turns off Next's prefetch on every link (ADR 0176 F10). Unset keeps Next's default, so `/jobb` is
+   * unchanged. The public catalogue passes `false`: its pages are read per request, and a prefetch of each
+   * visible page would spend the visitor's API budget before any click.
+   */
+  prefetch?: false;
 }
 
 /**
@@ -37,6 +43,7 @@ export function JobAdPagination({
   totalCount,
   buildHref,
   showTotalCount = true,
+  prefetch,
 }: JobAdPaginationProps) {
   // Synchronous next-intl translator — keeps JobAdPagination a non-async RSC.
   const t = useTranslations("jobads.ui");
@@ -59,6 +66,7 @@ export function JobAdPagination({
           <li>
             <Link
               href={buildHref(page - 1)}
+              prefetch={prefetch}
               rel="prev"
               className="inline-flex items-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary [@media(max-width:768px)]:min-h-11"
             >
@@ -89,6 +97,7 @@ export function JobAdPagination({
             <li key={item}>
               <Link
                 href={buildHref(item)}
+                prefetch={prefetch}
                 className="inline-flex min-w-[2.5rem] items-center justify-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary [@media(max-width:768px)]:min-h-11 [@media(max-width:768px)]:min-w-11"
               >
                 <span className="sr-only">{t("pagination.pagePrefix")}</span>
@@ -101,6 +110,7 @@ export function JobAdPagination({
           <li>
             <Link
               href={buildHref(page + 1)}
+              prefetch={prefetch}
               rel="next"
               className="inline-flex items-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary [@media(max-width:768px)]:min-h-11"
             >

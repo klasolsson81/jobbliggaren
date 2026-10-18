@@ -350,6 +350,10 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
    503, wait the `Retry-After` and read again. At 200 with 0 in every part, go on. If the
    uuid is still listed at 200 sixteen minutes after the erasure, that is a defect: tell
    Klas, and go on to step 3 anyway, because the 410 is what removes the URL.
+
+   The public catalogue (`/lediga-jobb`, ADR 0176) needs no check: it reads and
+   classifies each row's content per request, so an erased ad is absent from its page at
+   once (`PublicJobAdCatalogueReadTests`, `PublicJobAdCatalogueEndpointTests`).
 3. **Search Console** (the Domain property): *Removals → New request → Temporary
    removal → Remove this URL only*, for each address. Per Google it takes effect within
    about a day and lasts about six months; the permanent removal is the 410, which Google
@@ -361,8 +365,10 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
 5. **Record in the case file, not in the repo:** the date, how many addresses, and who did
    it. Do not write the addresses or the names into an issue, a commit or a PR.
 6. **Say what cannot be reached**, in the reply: a link-preview cache, another search
-   engine, an archive and a copy someone else made are outside our reach, and
-   Arbetsförmedlingen keeps the original until the ad's own deadline. Since the page carries
+   engine, an archive and a copy someone else made are outside our reach, and so is a
+   search engine's index copy of a catalogue page (`/lediga-jobb`), refreshed at its next
+   crawl; the catalogue's rows are not quoted in snippets. Arbetsförmedlingen keeps the
+   original until the ad's own deadline. Since the page carries
    `JobPosting` markup (ADR 0171), Google's own jobs experience holds a listing too; it drops
    it on the 410 or on `validThrough`, with a lag Google itself states, and whether the
    Removals tool reaches that surface is not measured. The reply templates

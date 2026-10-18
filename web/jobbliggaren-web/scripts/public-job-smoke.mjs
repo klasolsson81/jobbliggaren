@@ -5,15 +5,15 @@
  * Why this is a script and not a unit test: the statuses are the contract a crawler reads (a 410 drops the URL from an
  * index, a 503 does not), and the page's are produced by a Next feature with no documented status contract:
  * `NextResponse.rewrite(url, { status })` in the proxy. It carried the status on Next 16.3.8 (`next start`,
- * 2026-10-11), and only a real server shows whether a later Next still does. The sitemap's files must be answered per
+ * 2026-10-11), and only a real server shows whether a later Next still does. The sitemap's job parts must be answered per
  * request from the backend, never prerendered at build, which only a production server shows. `e2e.yml` is
  * observe-only, so this runs in the blocking `frontend` job of `build.yml`, right after `pnpm build`.
  *
  * It starts a stub backend on a free port, starts the standalone server the image runs against it, and asserts over
  * HTTP. The stub answers the detail by id, so those cases are fixed: a listed ad, an ended and an erased one (both
  * 410), an unknown one, the budget (429), an outage (500), and the two races where the render's read disagrees with
- * the probe's. It answers the sitemap's parts in a mode a check sets: the ids, an outage, the budget, its own 503, or
- * ids in the wrong case.
+ * the probe's. It answers the sitemap's parts in a mode a check sets: the ids, an outage, the budget, its own 503, ids
+ * in the wrong case, or an answer held past the web's timeout.
  *
  * Usage (after `pnpm build`):  node scripts/public-job-smoke.mjs
  */
@@ -71,19 +71,28 @@ const LISTED_IDS = { 1: [ID.listed], 2: [ID.listedNoKommun] };
 /** How the stub answers a sitemap part; a check sets it, and the checks reset it to "ok". */
 const listedIds = { mode: "ok" };
 
-function answerListedIds(url, send) {
+function answerListedIds(url, res, send) {
   const part = Number(url.searchParams.get("part"));
   const ids = LISTED_IDS[part] ?? [];
   switch (listedIds.mode) {
     case "ok":
       return send(200, JSON.stringify({ ids }));
     case "upperCase":
+      // Today's API cannot send this (System.Text.Json writes a Guid in lower case); a later API release could.
       // An id with hex letters, so the upper-case form is a different string.
       return send(200, JSON.stringify({ ids: [ID.hexCase.toUpperCase()] }));
     case "budget":
       return send(429, "{}", { "retry-after": "9" });
     case "unavailable":
       return send(503, "", { "retry-after": "60" });
+    case "timeout": {
+      // Held past the web's 5-second timeout, so only the web's own clock can end the read.
+      const held = setTimeout(() => {
+        if (!res.destroyed) send(200, JSON.stringify({ ids }));
+      }, 7_000);
+      res.on("close", () => clearTimeout(held));
+      return undefined;
+    }
     default:
       return send(500, "{}");
   }
@@ -97,7 +106,7 @@ function stubHandler(req, res) {
 
   const url = new URL(req.url ?? "/", "http://stub");
   if (url.pathname === "/api/v1/public/job-ads/listed-ids") {
-    return answerListedIds(url, send);
+    return answerListedIds(url, res, send);
   }
 
   const match = /^\/api\/v1\/public\/job-ads\/([0-9a-f-]{36})$/.exec(req.url ?? "");
@@ -474,7 +483,7 @@ try {
     assert.match(res.body, new RegExp(`<link rel="canonical" href="${loc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
   });
 
-  for (const [mode, retryAfter] of [["outage", "30"], ["budget", "9"], ["unavailable", "60"], ["upperCase", "30"]]) {
+  for (const [mode, retryAfter] of [["outage", "30"], ["budget", "9"], ["unavailable", "60"], ["upperCase", "30"], ["timeout", "30"]]) {
     await check(`a job part the backend cannot give (${mode}) is a 503 with Retry-After ${retryAfter}, no body, never an empty part`, async () => {
       listedIds.mode = mode;
       try {

@@ -28,6 +28,7 @@ afterEach(() => {
 
 describe("getPublicJobAdIds", () => {
   it("reads the part from the API, uncached, with only the forwarding headers it was handed and no redirect followed", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
     fetchMock.mockResolvedValue(json({ ids: [ID] }));
 
     await getPublicJobAdIds(2, FORWARDED);
@@ -37,7 +38,8 @@ describe("getPublicJobAdIds", () => {
     expect(init?.cache).toBe("no-store");
     expect(init?.redirect).toBe("manual");
     expect(init?.headers).toEqual(FORWARDED);
-    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    expect(timeout).toHaveBeenCalledExactlyOnceWith(5_000);
+    expect(init?.signal).toBe(timeout.mock.results[0]?.value);
   });
 
   it("answers the part's ids", async () => {
@@ -70,16 +72,23 @@ describe("getPublicJobAdIds", () => {
     expect(await getPublicJobAdIds(1, {})).toEqual({ kind: "unavailable", retryAfterSeconds: 30 });
   });
 
+  // Today's API cannot send any of these: it answers JSON whose one member is `ids`, and System.Text.Json writes a
+  // Guid in lower case. Each row pins only that the web degrades safely if a later API release, or something
+  // answering in its place, did.
   it.each([
     ["a body that is not JSON", new Response("<html>", { status: 200 })],
     ["an upper-case id", json({ ids: [ID.toUpperCase()] })],
     ["a member besides ids", json({ ids: [ID], count: 1 })],
   ])("answers %s as the default wait, and logs no id", async (_, response) => {
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const others = (["warn", "info", "log", "debug"] as const).map((method) =>
+      vi.spyOn(console, method).mockImplementation(() => {})
+    );
     fetchMock.mockResolvedValue(response);
 
     expect(await getPublicJobAdIds(1, {})).toEqual({ kind: "unavailable", retryAfterSeconds: 30 });
-    for (const call of logged.mock.calls) expect(JSON.stringify(call)).not.toMatch(/0b0b0b0b|0B0B0B0B/);
+    for (const call of error.mock.calls) expect(call).toEqual([expect.not.stringMatching(/0b0b0b0b/i), { part: 1 }]);
+    for (const other of others) expect(other).not.toHaveBeenCalled();
   });
 
   it("answers a timeout or a network error as the default wait", async () => {

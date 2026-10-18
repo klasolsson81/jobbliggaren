@@ -105,6 +105,8 @@ describe("the sitemap's files", () => {
     expect(await response.text()).toBe("");
   });
 
+  // No API at this head sends such a part: its ceiling keeps each part under 50 000 ids (ADR 0174 D3). The row pins
+  // only that the web refuses one if a later API release did.
   it("a job part over a file's limit is a 503, logged by its count and nothing else", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     const ids = Array.from({ length: MAX_URLS_PER_SITEMAP + 1 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
@@ -114,8 +116,7 @@ describe("the sitemap's files", () => {
 
     expect(response.status).toBe(503);
     expect(response.headers.get("retry-after")).toBe("30");
-    expect(logged).toHaveBeenCalledTimes(1);
-    expect(logged.mock.calls[0]?.[1]).toEqual({ part: 1, count: MAX_URLS_PER_SITEMAP + 1 });
+    expect(logged).toHaveBeenCalledExactlyOnceWith(expect.any(String), { part: 1, count: MAX_URLS_PER_SITEMAP + 1 });
   });
 });
 

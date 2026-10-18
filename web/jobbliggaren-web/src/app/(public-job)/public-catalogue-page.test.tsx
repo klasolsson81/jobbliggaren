@@ -27,6 +27,7 @@ vi.mock("@/lib/api/public-job-ad-catalogue", () => ({
 }));
 
 import PublicCataloguePage, { generateMetadata } from "./lediga-jobb/page";
+import PublicCatalogueNotFound from "./lediga-jobb/not-found";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 import { absoluteUrl } from "@/lib/site-url";
 
@@ -77,6 +78,9 @@ describe("the public catalogue page", () => {
       expect(links).toHaveLength(1);
       expect(links[0]).toHaveAttribute("href", `/jobb/${row(i + 1).id}`);
       expect(links[0]).not.toHaveAttribute("data-next-link");
+      expect(links[0]!.textContent).toBe(row(i + 1).title);
+      expect(within(li).getByText(row(i + 1).companyName)).toBeInTheDocument();
+      expect(li.querySelector("time")).toHaveAttribute("datetime", row(i + 1).publishedAt);
     }
     expect(within(rows[0]!).getByText("Umeå")).toBeInTheDocument();
     expect(within(rows[1]!).getByText("Västerbottens län")).toBeInTheDocument();
@@ -213,5 +217,18 @@ describe("the public catalogue's metadata", () => {
     expect(await generateMetadata(props("abc"))).toEqual(await notFoundMetadata());
     getPublicJobAdCatalogue.mockResolvedValue({ kind: "notFound" });
     expect(await generateMetadata(props("9999"))).toEqual(await notFoundMetadata());
+  });
+});
+
+describe("the catalogue's 404", () => {
+  it("leads back to the catalogue's first page and reads nothing", async () => {
+    render(await PublicCatalogueNotFound());
+
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(sv.publicjob.catalogue.notFound.title);
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName(sv.publicjob.catalogue.notFound.toCatalogue);
+    expect(links[0]).toHaveAttribute("href", "/lediga-jobb");
+    expect(getPublicJobAdCatalogue).not.toHaveBeenCalled();
   });
 });

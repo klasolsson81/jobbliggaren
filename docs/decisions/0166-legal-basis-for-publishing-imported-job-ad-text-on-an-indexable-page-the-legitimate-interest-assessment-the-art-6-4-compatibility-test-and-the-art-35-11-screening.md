@@ -668,3 +668,99 @@ driving session through AskUserQuestion). His answers, quoted without edits:
 **Signature:** `security-auditor`, 2026-10-18, on her scoped re-check of PR [#2180](https://github.com/klasolsson81/jobbliggaren/pull/2180) at head `4a1efbe66`: signs this amendment, D1–D11 as re-taken for the catalogue, D10 triggers 10–12, the readings for triggers 5, 6, 8 and 9, and D11's merge-day reading of 2026-10-18 at 17:12 UTC (validated 0), read with ADR 0176 as delivered and with the third addendum to DPIA #456 §8-B as Klas approved its text on 2026-10-18 (local): a catalogue row carries exactly six members and its `id` is a lower-case GUID, and no `asOf` or stamp is on the wire or the page; every row's content is read per request through `JobAdPublication.IsListed(now)`, never from the snapshot or any cache; membership, order and count come from the one listed-ad snapshot that serves the sitemap, within its 15-minute bound and 5-second future tolerance, a missing or stale snapshot is a 503, and a failed read or a read over the ceiling publishes neither view; `no-store` is on the API's 200, 400, 404, 429 and 503 and on the web's 200, 404 and 500, and the web caches nothing; `public-job-ad-catalogue` allows 60 per 60 s per relayed client address, its own policy, never shared and never per user; the count line, the list and the pager sit in one `data-nosnippet` block, no row value and no count reach the title, meta, OpenGraph or Twitter tags, and there is no JSON-LD; row links are plain anchors, and nothing that links to `/lediga-jobb` prefetches; the fetcher relays only `pickForwardedHeaders`; no log line carries a title, an employer or an id; nothing is pushed to anyone. It renews, for the sitemap and page scope, her signature of 2026-10-18 for S4, both of its conditions holding at this head, and through it her signatures of 2026-10-12 and 2026-10-17 for the page. It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override. It lapses with any D10 trigger that fires after it, 5 and 8–12 included (trigger 1's "the S5 catalogue" is the firing this amendment answers), and with any change to this amendment's text, to the properties above or to that addendum. A merge after 2026-10-18 UTC needs a fresh reading appended to D11 under its own rule, which does not reopen it unless its validated count is above 0, which is trigger 2. The edit that writes this line and marks the amendment Accepted does not reopen it.
 
 ADR 0166 remains **Accepted** for D1–D11 for the page, and for the sitemap by the amendment of 2026-10-18 for S4. This amendment is **Accepted** (approved by Klas and signed by `security-auditor`, both 2026-10-18).
+
+## Amendment 2026-10-18 (#2090, ADR 0177) — the trigger-5 re-take for the Search Console read path; approved by Klas 2026-10-18, signed by `security-auditor` <PENDING>
+
+D1–D11 and the earlier amendments stand and nothing above is rewritten. D10's trigger 5 is "Any **push** of a posting URL or its content to a third party" (the amendment of 2026-10-17), and (viii) of the
+amendment of 2026-10-18 for S4 kept "the Search Console API" inside it. The CTO's stage-B ruling B11 (local) says the same. This amendment narrows that inclusion for exactly one read path, which ADR 0177
+designs, and keeps everything else inside. Klas took ADR 0166 again for that path on 2026-10-18 (sign-off below). No other D10 trigger fires: the path adds no public surface and no ad value anywhere.
+This amendment is the single home of the legal outcome for the path and of triggers 13 and 14: ADR 0177 D4 points here and does not restate them. The Chapter V and recipient determination is recorded
+once, in ADR 0177 D5, and point 5 points there. It follows the order of `security-auditor`'s section 1, points 1–8, in her plan read of 2026-10-18
+(`docs/reviews/2026-10-18-seo-measurement-automation-security-auditor.md`, local). The merge waits for her signature on the final head, and the first Search Console call waits for the merge: it is the
+first run on `main` after the merge, and no local test call and no agent call precedes it.
+
+**1. What is narrowed, as pinned form.** All of the following hold together, and anything outside them is not covered.
+- **Calls.** `sites.get` (GET), `searchAnalytics.query` (POST) and `sitemaps.list` (GET), each at its constant endpoint under
+  `https://www.googleapis.com/webmasters/v3/sites/sc-domain%3Ajobbliggaren.se`: the site itself, `/searchAnalytics/query` and `/sitemaps`.
+- **Bodies.** The five `searchAnalytics.query` bodies equal the golden files `.github/scripts/samples/search-console/request-*.json`, with the window's two dates as their only variable. None carries a
+  `dimensions` key, and none carries a filter that names a job-ad page or any posting URL. The one filter that matches a single page is `home`, `^https://jobbliggaren\.se/$`, which matches `/`, our own
+  page, with no ad on it. The other three match the path prefixes `/jobb/` and `/lediga-jobb`, and every page outside those two and the home page.
+- **`sitemaps.list`.** The parameters are only `siteUrl` and, on the second call, the fixed `sitemapIndex`, `https://jobbliggaren.se/sitemap.xml`.
+- **One credential.** Workload Identity Federation through the one service account, scope `https://www.googleapis.com/auth/webmasters.readonly`, Restricted on `sc-domain:jobbliggaren.se`.
+- **One caller.** The one workflow, `.github/workflows/search-console-read.yml`, on `main`, under `schedule` or `workflow_dispatch`.
+- **Output.** Only the named fields of the run's job summary, plus one outcome annotation. The annotation carries no aggregate and no response value: it names the permission level and the window, or the
+  request and the refusal class (ADR 0177 D1).
+
+This narrows, for exactly that form, the sentence in (viii) of the amendment for S4 that keeps "the Search Console API" inside trigger 5, and the line in the CTO's stage-B ruling B11 that says the API
+"stays inside trigger 5". The rest of B11 stands.
+
+**2. Why this is not a push.** The calls send the property id, the filter of each page-type request (regexes over our own path prefixes), a date window and the index address. Google already holds the
+index address: Klas submitted it, and `robots.txt` names it. No posting URL and no ad content goes to anyone. That is not a "push" in trigger 5's sense, by the same criterion S4's (viii) signed. Nothing
+is pushed.
+
+**3. What stays inside trigger 5.**
+- `urlInspection.index.inspect` (any call), `sitemaps.submit` and `sitemaps.delete`, and `sites.add` and `sites.delete`.
+- Any request carrying `dimensions`, whatever its value, and any filter that names a job-ad page or a posting URL.
+- Any other credential: an OAuth refresh token, a JSON key, a Full or Owner user, the `webmasters` scope.
+- Any other caller: an agent session, a cloud `/schedule`, a local machine, a second workflow.
+- Every other API (the Indexing API, IndexNow, Bing, PSI, CrUX) and every automated ping.
+
+**4. The residuals, written as residuals.** None of these is blocked by Google's permission model, and none is to be read as if it were.
+- The credential can call URL Inspection, and with it send a posting URL to Google. `urlInspection.index.inspect` accepts `webmasters.readonly` (Google's reference, last updated 2024-07-23), and a
+  Restricted user keeps URL Inspection (the CTO, ruling 6).
+- It can read query- and page-level Performance data, because Restricted sees all of Performance. Only the fixed request bodies keep it from doing so.
+- Every step in the job can mint the token: the OIDC request URL and bearer are set for the job, not for one step.
+- Google's permission model is not the barrier for URL Inspection. The barrier is ours: the code, the attribute condition, and a reader for every change. The attribute condition binds the workflow file
+  and not the script and the samples it runs, and its Google-side parts change without a diff. The reader is therefore two things: the exemption of `google-github-actions/auth` from Dependabot auto-merge
+  in `dependabot-automerge.yml` (Klas's answer 3), and the review rule in ADR 0177 D4, under which `security-auditor` reads, before merge, every change to the workflow, the script, its suite and its
+  samples, and every bump of an action the job runs. The suite's allow-list of `https://` literals puts a new endpoint in front of her.
+- Checkout's auto-merged bumps remain a residual. The class already exists repo-wide: the same `actions/checkout` SHA runs with `contents: write` in `dependabot-automerge.yml`.
+- The one limit Google does enforce is the Restricted level. Each run reads it with `sites.get` and stops on anything else (trigger 14).
+
+**5. Chapter V and recipients.** No transfer, no Art. 28 relationship and no Art. 30 row arise, and D7, the recruiter notice, the privacy policy and the register are unchanged. The determination, and the
+invariant it rests on, are recorded once, in ADR 0177 D5. The policy's own sentences stay true only while no dimension and no page or query value enters the path:
+`web/jobbliggaren-web/messages/sv/content-legal.json:113` ("Loggar du inte in med Google eller GitHub sker inga överföringar av dina personuppgifter till länder utanför EU/EES") and `:382` ("inga verktyg
+som Google Analytics"). Trigger 13 is what fires before that happens.
+
+**6. D10 gains two triggers,** numbered on from the amendments of 2026-10-17 (5–7), 2026-10-18 for S4 (8–9) and 2026-10-18 for S5 (10–12):
+
+13. Any change to the Search Console read path: its endpoints, methods, request bodies or query parameters; its OAuth scope; the service account's Search Console permission level; the kind of credential; the workload identity provider's attribute condition or attribute mapping, or the service account's IAM bindings or roles; or its callers, meaning any principal, workflow, event or agent session other than the one workflow on `main` under `schedule` or `workflow_dispatch`. The Google Cloud and Search Console parts are made outside any diff, and this trigger is read when Klas makes them.
+14. A run of the read workflow refused with the class `keys` (a row carrying `keys`), `rows` (more than one row) or `path` (a sitemap path outside the pinned pattern), or a permission check that reads anything other than `siteRestrictedUser`.
+
+*Why two triggers.* 13 is a change, read when it is proposed. 14 is an event, reported by a run. The CTO's single trigger ended in "a response that carries a query or a page value", which cannot be
+observed unless the refusal names its class (ADR 0177 D2). When 14 fires, the revocation in `docs/runbooks/search-console-read.md` §4 applies.
+
+The readings recorded with them:
+- **Trigger 5:** not fired by the pinned form (points 1–3). Everything point 3 lists fires it.
+- **Trigger 1:** not fired. The read path adds no public surface.
+- **Triggers 6–12:** not fired. None of them is touched: no JSON-LD, no sitemap entry or membership, no catalogue row, content or membership.
+
+**7. What kind of decision this is.** A D10 re-take by Klas, with `security-auditor`'s signature. It is not a CLAUDE.md §9.6 (3) acceptance: the bearers a widening would reach (searchers, and the
+recruiters named in ads) are third parties, so (3)'s bound cannot hold.
+
+**8. Sign-off**
+
+**Controller approval:** Klas Olsson, 2026-10-18, in the session's chat, to `security-auditor`'s escalation (`docs/reviews/2026-10-18-seo-measurement-automation-security-auditor.md`, relayed by the
+driving session through AskUserQuestion). The questions are quoted as asked, and his answers without edits:
+1. To the question on the read path:
+
+   > **Search Console-läsning i GitHub Actions.** API:t har ingen metod för Sidindexering, så fas 2-grindens fyra veckoläsningar gör du fortfarande själv i Search Console. Det som går att automatisera är månadens resultat per sidtyp (klick, visningar, CTR och position för startsidan, annonssidorna, /lediga-jobb och övriga sidor) och webbplatskartornas status (fel, varningar, senast hämtad). Ett schemalagt jobb på main skulle en gång i veckan kontrollera sin egen behörighet och sedan anropa två läsmetoder med fasta frågor. Ingen annonsadress skickas, inga sökfrågor eller sidadresser kommer tillbaka, och bara totaler hamnar i körningens sammanfattning. Den behörighet jobbet får kan ändå tekniskt sett skicka en annonsadress till URL-inspektionen och läsa sökfrågor. Det som hindrar det är inte Google utan vår egen granskade kod, och att bara just det här jobbet på main får logga in. Enligt ADR 0166 ligger hela Search Console-API:t inom trigger 5. Tar du om ADR 0166 för just den här läsvägen, så att den ligger utanför trigger 5 medan URL-inspektion, inskickning av webbplatskartor och allt annat stannar inom? security-auditor skriver under tillägget innan jobbet körs första gången. (Rek.: Ja.)
+
+   "Ja (Rek.)": trigger 5 is re-taken for exactly the narrow read path, as points 1–7 list it.
+2. To the question on how the job logs in to Google:
+
+   > **Hur jobbet loggar in hos Google.** I stället för en nyckel till ett tjänstekonto, sparad som GitHub-hemlighet, rekommenderar vi Workload Identity Federation. GitHub intygar att det är just det här jobbet på main, och Google lämnar då ut kortlivade token till det jobbet. Den som används mot Search Console gäller i fem minuter. Det finns ingen nyckel som kan läcka eller behöver bytas. Du skapar ett eget Google Cloud-projekt bara för detta, en identitetspool och ett tjänstekonto utan roller och utan nyckel, och lägger till tjänstekontot som användare med behörigheten Begränsad i Search Console. Det sista visar också om det går, vilket Google inte dokumenterar. Ska vi göra så? (Rek.: Ja, WIF.)
+
+   "Ja, WIF (Rek.)": Workload Identity Federation through one service account with no role and no key, a Restricted user in Search Console, as ADR 0177 D3 records it.
+3. To her question on Dependabot (her M1):
+
+   > **En fråga.** Dependabot slår i dag ihop uppdateringar av GitHub Actions av sig själv, utan att någon människa eller agent läser dem. Det mätte jag 2026-10-18: `dependabot-automerge.yml` släpper igenom `github_actions` på patch och minor, och main kräver ingen granskning. Inloggningssteget `google-github-actions/auth` kör med rätten att hämta jobbets Google-token. En ny version av det steget skulle alltså nå Google med vår behörighet utan att någon har läst den, och tillägget till ADR 0166 bygger på just den granskningen. **Ska `google-github-actions/auth` undantas från den automatiska sammanslagningen, på samma sätt som `github/codeql-action` undantogs 2026-08-08 (#1239)?** En uppdatering av steget blir då en vanlig PR som jag läser. Kostnaden är att den inte längre slås ihop av sig själv. Svarar du nej kan jag inte skriva under tillägget, eftersom det då påstår en granskning som inte sker. (Rek.: Ja.)
+
+   "Ja (Rek.)": `google-github-actions/auth` is exempted from Dependabot auto-merge by name.
+
+**Signature:** pending: `security-auditor` signs on PR B's final head before the first run.
+
+**The first run's reading.** It is appended here under its own rule, with its date: the permission level that `sites.get` returned, and the outcome of the shape checks, which is either accepted or the
+refusal class. A reading appended under this rule does not reopen the signature unless it fires trigger 14. Reading: pending: the first run on `main` after the merge.
+
+ADR 0166 remains Accepted for D1–D11; this amendment is Proposed until `security-auditor` signs it.

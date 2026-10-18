@@ -1,4 +1,5 @@
 import { useFormatter, useTranslations } from "next-intl";
+import { PublicCataloguePageFocus } from "@/components/job-ads/public-catalogue-page-focus";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { PublicJobAdList } from "@/components/job-ads/public-job-ad-list";
 import type { PublicJobAdCataloguePage } from "@/lib/dto/public-job-ad-catalogue";
@@ -21,6 +22,7 @@ export function PublicJobAdCatalogue({ page }: { page: PublicJobAdCataloguePage 
 
   return (
     <main id="main" tabIndex={-1} className="focus:outline-none">
+      <PublicCataloguePageFocus page={page.page} />
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">

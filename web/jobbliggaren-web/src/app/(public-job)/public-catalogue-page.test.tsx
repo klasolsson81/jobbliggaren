@@ -124,6 +124,17 @@ describe("the public catalogue page", () => {
     expect(pager.textContent).not.toMatch(/träffar/);
   });
 
+  it("moves focus to the page's main when the catalogue shows another page (design-reviewer Blocker 1)", async () => {
+    getPublicJobAdCatalogue.mockResolvedValueOnce(pageOf([row(1)], 200, 5));
+    const { rerender } = render(await PublicCataloguePage(props("5")));
+    expect(document.activeElement).not.toBe(document.getElementById("main"));
+
+    getPublicJobAdCatalogue.mockResolvedValueOnce(pageOf([row(2)], 200, 6));
+    rerender(await PublicCataloguePage(props("6")));
+
+    expect(document.activeElement).toBe(document.getElementById("main"));
+  });
+
   it("renders the empty state on a count of 0: no count line, no list, no pager", async () => {
     getPublicJobAdCatalogue.mockResolvedValue(pageOf([], 0));
     const { container } = render(await PublicCataloguePage(props()));

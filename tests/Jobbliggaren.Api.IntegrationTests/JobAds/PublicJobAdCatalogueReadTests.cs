@@ -186,7 +186,7 @@ public sealed class PublicJobAdCatalogueReadTests(SharedPostgresFixture postgres
             title, Company.Create("Exempelbolaget AB").Value, "Text som någon skrev själv.",
             "https://example.com/jobb/1", JobSource.Platsbanken, Now.AddDays(-1), null, _clock).Value;
 
-    /// <summary>The text of every command that reads <c>job_ads</c> by id, in the order EF sends them.</summary>
+    /// <summary>The text of every command that reads <c>job_ads</c>, in the order EF sends them.</summary>
     private sealed class CommandCapture : DbCommandInterceptor
     {
         private readonly List<string> _texts = [];

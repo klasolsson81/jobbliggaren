@@ -83,7 +83,7 @@ public class GetPublicJobAdCatalogueQueryHandlerTests
                 .OrderBy(r => r.Id.ToString("D"), StringComparer.Ordinal)
                 .ToList()));
 
-    /// <summary>A fresh snapshot of <paramref name="count"/> ids with no rows behind them, for the range rules alone.</summary>
+    /// <summary>A snapshot of <paramref name="count"/> ids with no rows behind them, for the range rules alone.</summary>
     private void SnapshotOfCount(int count, DateTimeOffset asOf) =>
         _reader.Current.Returns(ListedJobAdSnapshot.Create(
             asOf,
@@ -163,6 +163,26 @@ public class GetPublicJobAdCatalogueQueryHandlerTests
         SnapshotOfCount(0, Now.AddMinutes(-1));
 
         (await HandleAsync(await UnreadableDbAsync(), 2)).ShouldBeOfType<PublicJobAdCataloguePage.NoSuchPage>();
+    }
+
+    [Fact]
+    public async Task Handle_ThreePagesOfAds_EachPageIsItsOwnSliceOfTheNewestFirstOrder_AndTheLastPageIsShort()
+    {
+        var size = PublicJobAdCatalogueLimits.PageSize;
+        await using var db = TestAppDbContextFactory.Create();
+        var ads = await SeedAsync(db, [.. Enumerable.Range(0, 2 * size + 1)
+            .Select(i => Import($"Annons {i}", Now.AddMinutes(-1 - i), null, TestFacets.None))]);
+        SnapshotOf(Now.AddMinutes(-1), ads);
+        var newestFirst = ads.Select(a => a.Id.Value).ToArray();
+
+        foreach (var (page, from, count) in new[] { (1, 0, size), (2, size, size), (3, 2 * size, 1) })
+        {
+            var answer = (await HandleAsync(db, page)).ShouldBeOfType<PublicJobAdCataloguePage.Available>();
+            answer.Rows.Items.Select(r => r.Id).ShouldBe(newestFirst[from..(from + count)]);
+            answer.Rows.Page.ShouldBe(page);
+            answer.Rows.TotalPages.ShouldBe(3);
+        }
+        (await HandleAsync(db, 4)).ShouldBeOfType<PublicJobAdCataloguePage.NoSuchPage>();
     }
 
     [Fact]

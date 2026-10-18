@@ -159,13 +159,19 @@ public sealed class PublicJobAdCatalogueEndpointTests(ApiFactory factory)
         two.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
-    // The validator's road (a page outside 1..MaxPage) and the binder's road (no page, or one that does not parse).
+    // The validator's road: a page outside 1..MaxPage.
     [Theory]
-    [InlineData("?page=0")]
-    [InlineData("?page=4001")]
+    [InlineData(0)]
+    [InlineData(PublicJobAdCatalogueLimits.MaxPage + 1)]
+    public Task A_page_outside_the_cap_is_a_400_and_no_store(int page) => IsA400WithNoStoreAsync($"?page={page}");
+
+    // The binder's road: no page, or one that does not parse.
+    [Theory]
     [InlineData("?page=abc")]
     [InlineData("")]
-    public async Task A_page_outside_the_cap_or_one_that_does_not_parse_is_a_400_and_no_store(string query)
+    public Task A_page_that_does_not_parse_is_a_400_and_no_store(string query) => IsA400WithNoStoreAsync(query);
+
+    private async Task IsA400WithNoStoreAsync(string query)
     {
         using var client = factory.CreateClient();
 

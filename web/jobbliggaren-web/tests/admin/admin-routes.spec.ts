@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, win32 } from "node:path";
-import { STEP_UP_CHALLENGE, STEP_UP_GRANT } from "./fixtures";
+import { ACCOUNT_D_DELETION_EARLIEST, STEP_UP_CHALLENGE, STEP_UP_GRANT } from "./fixtures";
 import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 /**
@@ -235,7 +235,7 @@ test("reinstate under pending deletion leaves the deletion date and explicitly r
   await submitAccessCode(page, dialog, "reinstate");
 
   await expect(dialog).toBeHidden();
-  await expect(panel).toContainText("2026-10-30");
+  await expect(panel).toContainText(ACCOUNT_D_DELETION_EARLIEST);
   await expect(panel.getByText("Under radering", { exact: true })).toBeVisible();
   await expect(page.locator(".jp-toast")).toContainText("Raderingen fortsätter.");
   expect(harness.access.get(ACCOUNT_D)).toEqual({ isSuspended: false, accessRevision: 2 });
@@ -433,7 +433,7 @@ test("Användare lists the accounts with their counts, and searches by a body th
 
   await page.getByRole("searchbox", { name: "Sök på e-postadress" }).fill("konto.d");
   await expect(accountRows(page)).toHaveCount(1);
-  await expect(accountRows(page).first()).toContainText("Slutgiltigt tidigast 2026-10-30");
+  await expect(accountRows(page).first()).toContainText(`Slutgiltigt tidigast ${ACCOUNT_D_DELETION_EARLIEST}`);
   await expect(accountRows(page).first().locator(".jp-adminusers__date")).toHaveCSS("white-space", "nowrap");
 
   expect(new URL(page.url()).search).toBe("");

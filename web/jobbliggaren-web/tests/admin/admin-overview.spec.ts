@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve, win32 } from "node:path";
+import { REGISTRATION_PERIOD } from "./fixtures";
 import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 let harness: Harness;
@@ -110,12 +111,13 @@ test("date drill-down preserves dates through search, status, sorting and clears
   await expect(page.getByRole("radio", { name: "Aktiva (2)", exact: true })).toHaveAttribute("aria-checked", "true");
 });
 
-for (const query of [
-  "registeredFrom=2026-09-08T22%3A00%3A00.000Z&registeredBefore=2026-10-08T12%3A00%3A00.000Z",
-  "status=Suspended",
+for (const [filter, query, selected] of [
+  ["registration period", new URLSearchParams(REGISTRATION_PERIOD).toString(), "Alla (4)"],
+  ["status=Suspended", "status=Suspended", "Avstängda (0)"],
 ]) {
-  test(`header users navigation resets directory filters: ${query}`, async ({ page }) => {
+  test(`header users navigation resets directory filters: ${filter}`, async ({ page }) => {
     await page.goto(`/admin/anvandare?${query}`);
+    await expect(page.getByRole("radio", { name: selected, exact: true })).toHaveAttribute("aria-checked", "true");
     await expect(page.getByRole("table", { name: "Konton" })).not.toContainText("konto.c@example.test");
     await page.getByRole("link", { name: "Användare", exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/anvandare$/);

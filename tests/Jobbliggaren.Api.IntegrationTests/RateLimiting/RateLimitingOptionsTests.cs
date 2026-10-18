@@ -256,6 +256,42 @@ public class RateLimitingOptionsTests
         sut.MeListRead.SegmentsPerWindow.ShouldBe(6);
     }
 
+    [Theory]
+    [InlineData(nameof(RateLimitingOptions.CriterionNewAdCounts))]
+    [InlineData(nameof(RateLimitingOptions.CriterionNewAds))]
+    [InlineData(nameof(RateLimitingOptions.CriterionNewAdsSeen))]
+    public void Defaults_TheBranschbevakningNewAdPolicies_AreBurst20_Sustaining20PerMinute(string policy)
+    {
+        // ADR 0175 D7 (#1663 PR 2, security-auditor S-5): burst at most 20, sustained below
+        // floor(1 000 ms / p95) per minute. Each option's docblock carries its half 2. The derived
+        // quantities are asserted, not only the fields, because the sustained rate is what the
+        // derivation bounds and PermitLimit alone does not set it.
+        var options = (RateLimitingOptions.PolicyOptions)typeof(RateLimitingOptions)
+            .GetProperty(policy)!
+            .GetValue(new RateLimitingOptions())!;
+
+        options.PermitLimit.ShouldBe(20);
+        options.WindowSeconds.ShouldBe(60);
+        options.SegmentsPerWindow.ShouldBe(20);
+
+        var tokensPerPeriod = Math.Max(1, options.PermitLimit / options.SegmentsPerWindow);
+        var replenishmentSeconds = options.WindowSeconds / (double)options.SegmentsPerWindow;
+
+        tokensPerPeriod.ShouldBe(1);
+        replenishmentSeconds.ShouldBe(3d);
+        (tokensPerPeriod * 60d / replenishmentSeconds).ShouldBe(20d);
+    }
+
+    [Fact]
+    public void Defaults_TheSeenWrite_EqualsTheNewAdsPage()
+    {
+        // S-5: the page posts its seen window from an after() callback, where a 429 is silent. A
+        // smaller seen bucket than the page's would leave seen ads unacknowledged.
+        var sut = new RateLimitingOptions();
+
+        sut.CriterionNewAdsSeen.ShouldBeEquivalentTo(sut.CriterionNewAds);
+    }
+
     [Fact]
     public void Defaults_CriterionCountPreview_Is30Per10s()
     {
@@ -394,5 +430,8 @@ public class RateLimitingOptionsTests
         // ~380 ms worst-case read with no bucket at all.
         RateLimitingExtensions.CompanyWatchCriteriaListPolicy
             .ShouldBe("company-watch-criteria-list");
+        RateLimitingExtensions.CriterionNewAdCountsPolicy.ShouldBe("criterion-new-ad-counts");
+        RateLimitingExtensions.CriterionNewAdsPolicy.ShouldBe("criterion-new-ads");
+        RateLimitingExtensions.CriterionNewAdsSeenPolicy.ShouldBe("criterion-new-ads-seen");
     }
 }

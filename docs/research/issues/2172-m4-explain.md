@@ -23,7 +23,7 @@
 ## What it showed
 
 **The content read.**
-- It is a bitmap index scan on `pk_job_ads` with `id = ANY(…)` as the index condition: 20 index searches and 60 shared buffers, about 0.1 ms.
+- It is a bitmap index scan on `pk_job_ads` with `id = ANY(…)` as the index condition, about 0.1 ms.
 - Page 1 and page 2 000 read the same way, so depth costs nothing.
 - The ids travel as one `uuid[]` parameter.
 

@@ -554,16 +554,15 @@ catalogue (Art. 5(1)(a), 12(1), 14(2)(b)).
 - membership, order and count from the one snapshot, within the 15-minute bound and the 5-second future tolerance;
 - `no-store` on every answer;
 - the policy `public-job-ad-catalogue`;
-- `data-nosnippet` on the list (the wrapper also holds the count line and the pager, which is a stated delta against her plan-read condition that it be a `div` around the `<ol>` only; she
-  grades it at her re-check, ADR 0176 D9);
+- `data-nosnippet` on the list (the wrapper also holds the count line and the pager, which is a stated delta against her plan-read condition that it be a `div` around the `<ol>` only);
 - no row value and no count in metadata, and no JSON-LD;
 - plain anchors on rows, and nothing that links to `/lediga-jobb` prefetches;
 - no log line carrying a title, an employer or an id.
 
 **D5's transparency line is stated as delivered** (her m1). D5 says the recruiter notice is "linked from every public page". As delivered, the notice is linked from the job page
-(`public-job-ad.tsx:98`) and from the privacy policy (`integritet/page.tsx:77`), which every page's footer links (`site-footer.tsx:116`). The catalogue carries no ad text and no notice link.
+(`public-job-ad.tsx:98`) and from the privacy policy (`integritet/page.tsx:77`), which every page's footer links (`site-footer.tsx`). The catalogue carries no ad text and no notice link.
 The line was not true as delivered when it was signed on 2026-10-12, and this corrects the record (Art. 5(2)). Art. 14(5)(b) asks that the information be made publicly available, and it is.
-No code changes, and `DESIGN.md` §8 (`DESIGN.md:189`) is unchanged. The erasure runbook (`docs/runbooks/recruiter-pii-erasure.md` §2.4a) gains two sentences and no new check step: the
+No code changes, and `DESIGN.md` §8 is unchanged. The erasure runbook (`docs/runbooks/recruiter-pii-erasure.md` §2.4a) gains two sentences and no new check step: the
 catalogue needs no check, because each row is classified at request time (an integration test pins it) and a row's position is not addressable; and "what cannot be reached" gains a search
 engine's index copy of a list page, refreshed at its next crawl, whose rows are not quoted in snippets (her m4).
 
@@ -580,12 +579,11 @@ both addenda rate only "The recruiter". The third addendum is a local file, writ
 1. R-842-9 is re-taken for the catalogue. `security-auditor`'s reading: **Med × Med**. The join that names costs one catalogue walk, and 0 erasures have been measured to date.
 2. A new **R-842-10**: a sole trader's name in `company_name`, on the page, in `hiringOrganization` and in the catalogue. Her reading: **Low × Med**, with a stock of 0 of the 41 860 listed
    ads that carry an organization number and at most 410 unknown (2026-10-18, 12:57 UTC).
-3. The Art. 36(1) determination is re-confirmed: **not a high risk, on the second addendum's reasons, so no prior consultation with IMY is owed.**
+3. The Art. 36(1) determination is re-confirmed: **not a high risk, so no prior consultation with IMY is owed.**
 4. R-842-3, R-842-4 and R-842-8 are unchanged, because the catalogue carries no free text.
 5. The Art. 9 row is untouched.
 
-Klas approved the **form** of the addendum on 2026-10-18 (answer 2). **His approval of its text is still owed,** and `security-auditor` does not sign an amendment whose DPIA states a limit
-that the catalogue removes (her M3).
+Klas approved the **form** of the addendum on 2026-10-18 (answer 2), and its **text** the same day ("Ja (Rek.)"), with `security-auditor`'s corrections (a)–(d) applied (her M3).
 
 **D9: unchanged.**
 
@@ -644,8 +642,7 @@ two grounds: it "lapses with any D10 trigger that fires after it", and trigger 1
 `(Id, PublishedAt)` and a second view is added) and D3 (15 URLs in the pages part). Read with D10's scope rule, that lapse withdraws nothing from the sitemap or from the page. She **renews** it
 in the same signature, for the sitemap and page scope, on two conditions:
 - S4's tests pass unchanged. The pages part's 14 becoming 15 is a stated change. *A stated delta (the CTO's triage):* the snapshot's factory now takes rows, so only the arrange lines of
-  `ListedJobAdSnapshotTests.cs` and `GetListedJobAdIdsQueryHandlerTests.cs` change, `git diff -U0` shows no `Should*` line touched, and every other S4 test file is byte-identical; she grades
-  this at her re-check.
+  `ListedJobAdSnapshotTests.cs` and `GetListedJobAdIdsQueryHandlerTests.cs` change, `git diff -U0` shows no `Should*` line touched, and every other S4 test file is byte-identical.
 - The S4 properties are re-verified at the S5 head: every entry is `loc` only, and a job entry's `loc` comes from `publicJobAdUrl`; membership comes from `IsListed` only; the two-edged bound
   holds; a failed read or a read over the ceiling publishes nothing, and compare-and-swap is kept; the wire is exactly `ids`; the policy is 6 per 60 s; nothing is pushed.
 
@@ -663,10 +660,11 @@ reads it.
 **Sign-off**
 
 **Controller approval:** Klas Olsson, 2026-10-18, in the session's chat, to `security-auditor`'s escalation (`docs/reviews/2026-10-18-2090-s5-plan-security-auditor.md`, relayed verbatim by the
-driving session through AskUserQuestion). His two answers, quoted without edits:
+driving session through AskUserQuestion). His answers, quoted without edits:
 1. "Ja (Rek.)": the re-take of this ADR's conclusion for the catalogue, as D1–D11 above list it, including the trigger-5 reading in D10.
-2. "Ja, tredje tillägget (Rek.)": a third addendum to DPIA #456 §8-B and not a new full DPIA, and no Art. 36 prior consultation, on the ratings in D8. His approval of the addendum's text is
-   still owed.
+2. "Ja, tredje tillägget (Rek.)": a third addendum to DPIA #456 §8-B and not a new full DPIA, and no Art. 36 prior consultation, on the ratings in D8.
+3. "Ja (Rek.)", the same day, to her escalation in the PR review (`docs/reviews/2026-10-18-2172-security-auditor.md`): the addendum's text, with her corrections
+   (a)–(d) applied.
 
 **Signature:** pending — security-auditor signs at her scoped re-check of the S5 PR's final head.
 

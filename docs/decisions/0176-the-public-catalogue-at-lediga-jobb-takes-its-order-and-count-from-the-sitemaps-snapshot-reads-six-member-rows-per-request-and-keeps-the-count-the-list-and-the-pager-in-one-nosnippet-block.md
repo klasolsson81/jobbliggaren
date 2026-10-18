@@ -60,9 +60,9 @@ shape the decision.
   sitemap, until Klas takes it again and she signs (D13).
 - **ADR 0005 (local) sketches its own route to an anonymous catalogue.** Its lines 84–86 say an anonymous public surface "kan låsas upp senare via separat ADR", and its line 106 lists
   "ta bort `.RequireAuthorization()`" from the job-ad group. This ADR is the separate ADR, and it rejects that path (Alternatives).
-- **The record says two things the code does not.** `DESIGN.md:189` calls the anonymous job page "the only job-ad surface with a notice and no contact", and ADR 0166 D5 says the notice is
+- **The record says two things the code does not.** `DESIGN.md` §8 calls the anonymous job page "the only job-ad surface with a notice and no contact", and ADR 0166 D5 says the notice is
   "linked from every public page". Delivered, the notice is linked from the job page (`public-job-ad.tsx:98`) and from `/integritet` only (`integritet/page.tsx:77`); the footer links
-  `/integritet`, not the notice (`site-footer.tsx:116`) (the CTO, brief correction 7; `security-auditor` m1).
+  `/integritet`, not the notice (`site-footer.tsx`) (the CTO, brief correction 7; `security-auditor` m1).
 - **The SEO/AIO audit runs in parallel.** Klas answered "Ja, S5 väntar (Rek.)", relayed by that session: S5 waited for its stage-A phasing ruling before any code or commit. That ruling, the
   addendum, binds S5 on what it must not build in advance and on three constraints that keep the namespace open (D1, D3, D8, D11).
 
@@ -375,7 +375,7 @@ The rules below are the decision; the strings live in `messages/{sv,en}` and are
   to the catalogue with `prefetch={false}`, reads nothing from the API, and falls under `PUBLIC_SURFACE` automatically. Its docblock says a future child segment inherits it unless the child has
   its own, which keeps hubs open (stage B or S6 decides). The most likely 404 is a page past the end after the list shrank, and the group's not-found offers the start page, so this file offers
   the better next step. There is no shared 404 component: the two carry different next steps, and that is the whole difference (YAGNI).
-- **Tokens and DESIGN.md §8.** No token changes. `DESIGN.md:189` stays true and unchanged, because the catalogue carries no notice (D13).
+- **Tokens and DESIGN.md §8.** No token changes. `DESIGN.md` §8 stays true and unchanged, because the catalogue carries no notice (D13).
 
 ### D12 — The sitemap entry (CTO F8)
 
@@ -400,7 +400,7 @@ The rules below are the decision; the strings live in `messages/{sv,en}` and are
   | # | Asked by | His answer | What it decides | Recorded in |
   |---|---|---|---|---|
   | 1 | security-auditor, question 1 | "Ja (Rek.)" | the ADR 0166 D10 re-take for the catalogue, as her section 1 lists it | the ADR 0166 amendment |
-  | 2 | security-auditor, question 2 | "Ja, tredje tillägget (Rek.)" | a third addendum to DPIA #456 §8-B and not a new full DPIA: no high risk in the Art. 36(1) sense, so no prior consultation | the ADR 0166 amendment (D8), and the addendum, a local file the driving session writes in the main copy. **His approval of its text is still owed** |
+  | 2 | security-auditor, question 2 | "Ja, tredje tillägget (Rek.)" | a third addendum to DPIA #456 §8-B and not a new full DPIA: no high risk in the Art. 36(1) sense, so no prior consultation | the ADR 0166 amendment (D8), and the addendum, a local file the driving session writes in the main copy. He approved its text on 2026-10-18 ("Ja (Rek.)"), with her corrections (a)–(d) applied |
   | 3 | design-reviewer | "Ja (Rek.)" | the "Lediga jobb" link in the header's nav, departing HANDOVER-v3 §6.4, with the landing's stats hidden below 981 px | D11, `DESIGN.md` §6, and the local HANDOVER-v3 note |
   | 4 | relayed by the SEO/AIO-audit session, earlier | "Ja, S5 väntar (Rek.)" | S5 waited for that audit's stage-A phasing ruling | the stage-A addendum; D1, D3, D8, D11, D14 |
 
@@ -408,7 +408,7 @@ The rules below are the decision; the strings live in `messages/{sv,en}` and are
   - The merge-day S2-P3 reading (security-auditor M2; measurement M1): the ADR 0166 amendment's D11 item and the record table of `docs/runbooks/public-job-page-publication-count.md`. A validated
     count above 0 fires D10 trigger 2, and S5 stops.
   - The third addendum to DPIA #456 §8-B (M3): R-842-9 re-taken for the catalogue (her reading: Med × Med); a new R-842-10 for a sole trader's name in `company_name` on the page, in
-    `hiringOrganization` and in the catalogue (Low × Med); the Art. 36(1) determination re-confirmed as not a high risk, on the second addendum's reasons; R-842-3, R-842-4 and R-842-8 unchanged,
+    `hiringOrganization` and in the catalogue (Low × Med); the Art. 36(1) determination re-confirmed as not a high risk; R-842-3, R-842-4 and R-842-8 unchanged,
     because the catalogue carries no free text; the Art. 9 row untouched. She does not sign an amendment whose DPIA states a limit that the catalogue removes.
   - The ADR 0106 D9 read-path table (m2) and ADR 0174 D9's trigger pointer (m6): the dated amendments of the same date.
   - The erasure runbook (m4): `docs/runbooks/recruiter-pii-erasure.md` §2.4a gains two sentences and no new check step. The catalogue needs no check, because each row is classified at request
@@ -420,7 +420,7 @@ The rules below are the decision; the strings live in `messages/{sv,en}` and are
     metadata eftersom JobTech redan publicerat", the ground ADR 0166 D3 rejects, to point to W2.
   - `BUILD.md`'s endpoint line and `docs/threat-model.md`'s enumeration paragraph: the catalogue makes title-and-company enumeration cheap.
 - **No notice on the catalogue** (the CTO ruled it; `security-auditor` agreed). The catalogue publishes no free text, and the notice's grounding on the job page (ADR 0165 D4) is free text
-  that can name a person. Art. 14(5)(b) asks that the information be publicly available, and it is. `DESIGN.md:189` stays true. ADR 0166 D5's "linked from every public page" was not true as
+  that can name a person. Art. 14(5)(b) asks that the information be publicly available, and it is. `DESIGN.md` §8 stays true. ADR 0166 D5's "linked from every public page" was not true as
   delivered, and the amendment states the delivered fact (m1).
 - **Scope.** S5 adds no PII field, recipient, sub-processor, transfer, migration, package, compose change or ACL change (`security-auditor` verifies that at the diff). The release is image only
   (ADR 0154 §4). A diff under `deploy/`, a migration, a new package, or an edit to `proxy.ts` or `next.config.ts` is a stop that comes back to the CTO. It is one PR, lane BE+FE: an endpoint
@@ -555,7 +555,6 @@ whole.
 - **Ladder (b)** (stats ≤910 and tagline ≤980, landing only). Rejected (D11).
 - **A shared 404 component.** Rejected: YAGNI.
 - **Fixing the five `Contains` comments in S5** (triage). Rejected: a foreign change-reason across three contexts that would widen the diff she signs (D4).
-- **Filing or skipping the pager's number format** (triage; design m1). Rejected: the defect renders on S5's own surface in a file already in the diff.
 
 ### F18 — The record
 - **Amendments alone, with no ADR.** Rejected, as in ADR 0174 F5: one decision would be scattered over seven files with no home of its own, and ADR 0005 asks for a separate ADR.
@@ -583,7 +582,6 @@ whole.
 - **An SEO PR edits S4's snapshot,** as preparatory commits, and S4's two unit-test files change their arrange lines (D3).
 - **Twenty rows per page means about 2 112 pages** (D2).
 - **The landing loses its header stats at 833–980 px** (D11; triage).
-- **P5 changes `/jobb`'s pager for runs above 999 pages** (D10; triage).
 - **A second 404 file in the group** (D11; triage).
 - **The snapshot's retained memory about doubles** at the ceiling (computed, not measured; architect).
 - **Footer links have no touch floor at ≤768 px** (about 23 px against `DESIGN.md:121`, measured by design-reviewer's harness, 2026-10-18, `globals.css:5228-5229`), and the new link inherits it. Fixing
@@ -627,15 +625,15 @@ The triage's P5 (the pager's page numbers grouped) was withdrawn (D10); the slot
 - **The smoke script** covers: 200 with rows and a clean canonical; `?sida=2` with its canonical; `?sida=1` → 308; `0`, `abc`, `02` and a repeated `sida` → 404 with no API call; a stub 404 → 404;
   a stub 503, 429, 500 or timeout → a 5xx; `?utm_source=x` → 200 with the clean canonical; `no-store` on 200, 404 and 5xx; the stub sees the call at request time; and the document's byte
   size against the stub. That a row is a plain anchor and never `next/link` cannot be told apart in server HTML, so it is pinned by the page's render test and the group test instead.
-- **Backend tests** (Testcontainers Postgres, never InMemory). The exact set, the order and the erase-after-sample case run on their own database with the real sampler (the shared `[Collection("Api")]`
+- **Integration tests** (Testcontainers Postgres, never InMemory). The exact set, the order and the erase-after-sample case run on their own database with the real sampler (the shared `[Collection("Api")]`
   database holds other classes' listed ads, and its host has no snapshot); the endpoint runs on a derived host with no timer, which the test drives itself. They cover: a manual `Source =
   "Platsbanken"` row absent; an ad erased after the sample absent from its page at once while the snapshot still counts it; an ad whose deadline passes after the sample absent; 400, 404 and 503, and
   page 1 at 200 on an empty corpus; `no-store` on 200, 400, 404, 429 and 503; the exact wire keys; the rate-limit wiring and the forwarded budget (architect V4).
 - **Issues to file during S5, after a `gh issue list` dedup** (both are genuine defects in delivered code, so the filing cap does not count them, CLAUDE.md §9.6): (1) the five `Contains`
   comments, labelled `area:jobads-cv`, `area:matching`, `P3`, `BE`, no `mvp`, filed after M4 is green and with its date; (2) the footer links' missing touch floor, labelled `area:frontend`,
   `hotspot:css`, `P3`, `FE`, no `mvp`. #2172 closes at merge, and the readings ride #2090's phase-1-close row.
-- **Owed outside the diff:** the third DPIA addendum, the HANDOVER-v3 note and the processing-register sentence and correction, all local files in the main copy; Klas's approval of the
-  addendum's text; Klas's Search Console readings; and the measurements below.
+- **Outside the diff:** the third DPIA addendum, the HANDOVER-v3 note and the processing-register sentence and correction, all local files in the main copy; Klas's Search Console readings;
+  and the measurements below.
 
 ## Measurements
 
@@ -648,7 +646,7 @@ Each reading below is recorded here before the merge, with its date and its sour
 | M3 | the catalogue path's `grep -c` added to ADR 0174 D5's readings 1 and 2 | Not yet taken. |
 | M4 | the content read's SQL; `EXPLAIN (ANALYZE, BUFFERS)` of the content read and of the widened sampler read (before and after); whether the composed `Contains` translates | 2026-10-18, Testcontainers (Postgres 18), `PublicJobAdCatalogueReadTests` 4/0. **It translates**, as one array parameter and never an IN list: the command EF sends is `SELECT j.id, j.title, j.company_name, j.municipality_concept_id, j.region_concept_id, j.published_at FROM job_ads AS j WHERE j.id = ANY (@typedIds) AND j.external_id IS NOT NULL AND j.external_source IS NOT NULL AND j.external_source = 'Platsbanken' AND j.status = 'Active' AND (j.expires_at IS NULL OR j.expires_at >= @now)` (captured by a command interceptor; the test pins `= ANY (`, the predicate's columns and no `raw_payload` or `description`). `EXPLAIN (ANALYZE, BUFFERS)`, 2026-10-18 at 15:44 UTC, 45 000 listed rows seeded through `JobAd.Import`, then `ANALYZE`. **The content read** is a bitmap index scan on `pk_job_ads` with `id = ANY(…)` as the index condition, about 0.1 ms, the same on page 1 and page 2 000. **The sampler read** keeps its plan (sequential scan, sort on `id`, limit); only its target list widens. Its sort grows from 1 537 kB to 4 701 kB. That is an in-memory quicksort under the box's `work_mem` of 8 MB (`deploy/docker-compose.yml`) and an external merge to disk under the container default of 4 MB. Computed, not measured: near the 80 000 ceiling it would pass 8 MB and spill once per tick. The readings and the class that regenerates them are in `docs/research/issues/2172-m4-explain.md`. |
 | M5 | the statuses and the canonical's place in `<head>` under a browser and a Googlebot user agent | 2026-10-18, the smoke against the production build (Next 16.3.8, standalone), 43/43: on `/lediga-jobb?sida=2` the `<title>`, `<meta name="description">` and `<link rel="canonical">` sit before `</head>` for both a Chrome user agent and `Googlebot/2.1`. No STOPP. |
-| M6 | design-reviewer's rendered matrix, including the 500's framing | Not yet taken. |
+| M6 | design-reviewer's rendered matrix, including the 500's framing | 2026-10-18, design-reviewer's round 1 against `0e26aa01f` (`docs/reviews/2026-10-18-2172-design-reviewer.md`, local): the 500 from a stub 429, 503, 500 and a dead port renders inside the site frame, titled "Sidan kunde inte visas", with focus on the h1. Her matrix and its one Blocker are in that report, and the Blocker's fix is re-measured at her re-check. |
 | M7 | the document size, and a local Lighthouse run against the stub-backed production build | 2026-10-18, a stub page of 20 rows from the standalone build: 107 061 bytes uncompressed with Next's RSC payload (the smoke), and 12 427 bytes gzip-compressed as served (`curl` with `Accept-Encoding: gzip`, 15:39 UTC), against ADR 0045's document budget of 30 720 bytes. **Lighthouse 12.6.1** (the repository's pinned `@lhci/cli`), 2026-10-18 at 15:54–15:57 UTC, three runs each of page 1 and `?sida=2` against the same build and stub, with the default mobile emulation and simulated throttling: performance 0.94, accessibility 1.0, best practices 1.0, SEO 1.0, CLS 0, TBT 25–37 ms, document 13 846–13 950 bytes transferred, total 329–331 kB, no third-party request. LCP was 3 114–3 135 ms, and the LCP element is the first row's title link. In the same runs the landing measured 3 297–3 302 ms and `/matchning` 3 265–3 302 ms, so the catalogue is not slower than the pages already delivered. A local Windows lab run is not comparable to the CI runner's (ADR 0045's 2 500 ms is that job's observe-only threshold). The one accessibility audit flagged, at weight 0, is the footer brand link's `label-content-name-mismatch`, which predates this record. |
 
 ## References

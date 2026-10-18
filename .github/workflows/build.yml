@@ -357,6 +357,10 @@ jobs:
       - name: lighthouse-summary (fixturer)
         run: bash .github/scripts/lighthouse-summary.test.sh
 
+      # It also carries security-auditor's allow-list of every https:// literal the read path may use (ADR 0177).
+      - name: search-console-read (fixturer)
+        run: bash .github/scripts/search-console-read.test.sh
+
       # Ligger under deploy/ och inte .github/scripts/ därför att lådan klonar deploy/ — en
       # runtime-grind kan inte bo där runtime inte ser den. Fixturerna stubbar cosign, så
       # sviten behöver varken daemon, registry eller nätverk.

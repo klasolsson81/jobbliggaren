@@ -62,7 +62,7 @@ and the job page's budget does not change until it has been measured again. The 
   read is `AsNoTracking`, `Where(IsListed(asOf))`, `OrderBy` id, `Take(ceiling + 1)`, projected to the id. The sampler has no `try`/`catch` of its own: the hosted service's guard is the
   one place a failure is caught (architect).
   - A read that throws publishes nothing, so the previous snapshot is neither replaced nor re-stamped and ages out at the bound.
-  - A read that reaches the ceiling publishes nothing and logs event 6234 (Error), with the ceiling and nothing from a row.
+  - A read that exceeds the ceiling publishes nothing and logs event 6234 (Error), with the ceiling and nothing from a row.
   - A read that finds nothing is published as a measured zero (ADR 0120). `null` is the only state that means no read has succeeded.
   - It publishes by compare-and-swap, so an older read never replaces a newer one (architect: two overlapping calls are possible in a test host that keeps the timer, or after a later
     resample).
@@ -180,8 +180,8 @@ no count and no ad field, and a member-set test pins exactly `ids`.
   - The apex has no AAAA record (her public read, 2026-10-18), so per-address partitioning works. ADR 0160 D5's rule of one bucket per /64 applies if one is ever added.
 - **(b) The page's budget does not change:** 60 per 60 s per IP (ADR 0160 D5). Raising it now would be a guess, and a separate budget for the page probe would be the same raise under
   another name.
-- **(c) The measurement.** ADR 0160 D5 says the numbers are raised from measured crawl rates, and ADR 0165 D3 said that S4 measures again. A reading is counts only (CLAUDE.md §9.2 (a)). A
-  rate-limit log line carries the client address, so a reading uses `grep -c` and never prints a line (§9.2 (b)).
+- **(c) The measurement.** ADR 0160 D5 says the numbers are raised from measured crawl rates, and ADR 0165 D3 said that S4 measures again. A reading is counts only (CLAUDE.md §9.2 (a)): it
+  uses `grep -c` and never prints a line (§9.2 (b)).
   1. **Before the merge, one dated baseline,** taken with the commands the later readings use: rate-limit rejections per day on the job-detail endpoint, which the probe and the render both
      read, and the 503s per day that the site answers on `/jobb/<uuid>`, both since S2 went live. If the logs no longer cover part of that window, that part is recorded as not measured and
      never as an estimate.
@@ -195,14 +195,16 @@ no count and no ad field, and a member-set test pins exactly `ids`.
 
 | Reading | When | What | Recorded |
 |---|---|---|---|
-| Baseline | 2026-10-18 01:26 UTC, before the merge | the two counts above, per day, since S2 went live | See the three readings below this table. |
+| Baseline | 2026-10-18 05:34 UTC, before the merge | the two counts above, per day, since S2 went live | See the three readings below this table. |
 | Reading 1 | one week after Google first fetches a job part | the same, plus rejections on `public-job-ad-listed-ids`; Search Console (Klas) | Not yet taken. Appended to this ADR as a dated amendment. |
 | Reading 2 | four weeks after Google first fetches a job part | the same | Not yet taken. Appended to this ADR as a dated amendment. |
 
-The baseline, counts only, read over SSH on 2026-10-18 at 01:26 UTC:
+The baseline, counts only, read over SSH on 2026-10-18 at 05:34 UTC:
 
-- **Rate-limit rejections on the job-detail endpoint: 0.** These are the event 2001 lines for `/api/v1/public/job-ads/` in the `jobbliggaren-api` container's log.
-  - **The window is short.** That container started at 2026-10-17 19:50:16 UTC, so the window runs from then to the reading, about five and a half hours. The log holds 128 lines in that window.
+- **Rate-limit rejections on the job-detail endpoint: 0.** These are the event 2001 lines whose path is a uuid under `/api/v1/public/job-ads/`
+  (`grep -cE 'Path=/api/v1/public/job-ads/[0-9a-fA-F-]{36} Method='`) in the `jobbliggaren-api` container's log. Rejections on `public-job-ad-listed-ids` are counted
+  apart, on its own path (`grep -c 'Path=/api/v1/public/job-ads/listed-ids Method='`).
+  - **The window is short.** That container started at 2026-10-17 19:50:16 UTC, so the window runs from then to the reading, about nine and three-quarter hours. The log holds 184 lines in that window.
   - **Most of the window since S2 went live is not measured.** Container logs are `json-file` (3 × 10 MB) and do not survive a recreate, so 2026-10-12 05:35 to 2026-10-17 19:50 is not covered.
   - **The same limit binds the later readings.** Every release recreates the container, so the long window is Search Console's Crawl Stats, which Klas reads.
 - **503s the site answered on `/jobb/<uuid>`: not measured.** No log on the box records them.
@@ -229,7 +231,7 @@ The baseline, counts only, read over SSH on 2026-10-18 at 01:26 UTC:
   a person lands on. Klas may override this reading.
 - **`design-reviewer` is not invoked,** a named skip in the PR body: "S4 adds no rendered surface: XML only, and its refusals carry no document." The epic's rule "on every new public
   surface" exists for DESIGN.md and accessibility, and an XML file has neither. Klas may override.
-- **The smoke script** (`scripts/public-job-smoke.mjs`, in the blocking `frontend` job) runs 28 checks, 10 of them new for the sitemap. The index and the parts answer 200 XML with the
+- **The smoke script** (`scripts/public-job-smoke.mjs`, in the blocking `frontend` job): the index and the parts answer 200 XML with the
   pinned element set; a stub 429, 503, 500 or timeout gives a 503 with a bounded `Retry-After` and `no-store`; and the stub sees each part call at request time, so nothing was prerendered.
 
 ### D7 — One loop for the API's three samplers (CTO F1; ADR 0159 D2)
@@ -254,7 +256,7 @@ The baseline, counts only, read over SSH on 2026-10-18 at 01:26 UTC:
   systematic discovery it produces, and the page keeps its conclusion. Klas took the conclusion again on 2026-10-18, and `security-auditor` signs. **The single home of the legal outcome
   is the ADR 0166 amendment of 2026-10-18.** This ADR points there and does not restate it (CCP, Martin 2017, ch. 13; AGENTS.md §8 point 9: one decision, one home).
 - **The merge is gated.** S4 may not merge, and so may not go live (ADR 0154), until `security-auditor` has signed that amendment at her scoped re-check of the PR's final head, read with
-  D1–D5 as delivered. Merging without it is a Blocker (her M1).
+  D1–D6 as delivered. Merging without it is a Blocker (her M1).
 - **Klas's four answers, 2026-10-18,** to the escalation in `docs/reviews/2026-10-18-2090-s4-plan-security-auditor.md` (her block "Till Klas", relayed verbatim by the driving session
   through AskUserQuestion). They are quoted without edits:
 
@@ -300,7 +302,6 @@ The legal triggers are ADR 0166 D10's (1–9, with 8 and 9 added by the amendmen
 - How many aggregators read the sitemap.
 - The crawl rate, until the readings in D5 are taken; and the share of 503s on job URLs, which no log on the box records (D5, the baseline), so Search Console is its only source.
 - Whether Google indexes individual Platsbanken ads (`security-auditor`; it belongs in ADR 0166 W1).
-- How many ads have been erased on request so far (`security-auditor`; it can be read as a count under CLAUDE.md §9.2 (a)).
 - The value the registration setting has on the box (ADR 0106 amendment). The compose default is the only source read.
 
 ## Alternatives considered
@@ -408,7 +409,7 @@ amendments in the same PR.
   - `lib/api/public-job-ad-ids.ts` (per request, uncached, a 5-second timeout) and `lib/dto/public-job-ad-ids.ts`.
   - `lib/job-ads/public-job-ad-url.ts` (`publicJobAdUrl`), used by the page's canonical and by every `loc`.
   - The stale mentions of `app/sitemap.ts` in `lib/site-url.ts` and `app/robots.ts` are corrected, and the three older tests that called `sitemap()` point at the new builder.
-  - `scripts/public-job-smoke.mjs` (28 checks, 10 of them new), whose step in the `frontend` job of `.github/workflows/build.yml` now names the sitemap (a comment only).
+  - `scripts/public-job-smoke.mjs`, whose step in the `frontend` job of `.github/workflows/build.yml` now names the sitemap (a comment only).
 - **Tests.**
   - Application.UnitTests: `JobAdPublicationIsListedAgreementTests`, `ListedJobAdPartitionTests`, `ListedJobAdSnapshotTests`, `ListedJobAdSnapshotLimitsTests`,
     `GetListedJobAdIdsQueryHandlerTests` and `GetListedJobAdIdsQueryValidatorTests`. The agreement test builds each reachable state through a production path and declares the cells that

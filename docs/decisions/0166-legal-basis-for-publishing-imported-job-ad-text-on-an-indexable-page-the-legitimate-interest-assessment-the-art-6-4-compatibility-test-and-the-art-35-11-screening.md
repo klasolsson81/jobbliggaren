@@ -418,7 +418,7 @@ handled by (ix).
   the deadline. No design change is required.
 
   *What is done:* `loc` only; no time of any kind; ids in id order; no Arbetsförmedlingen id anywhere; the identical 410; the drop within the hard bound.
-  *What is left:* the inference, for an observer who joins and compares. How many ads have been erased on request so far is **not measured**.
+  *What is left:* the inference, for an observer who joins and compares.
 
 **(iv) D5 gains S4's safeguards:**
 - the minimisation in (ii);

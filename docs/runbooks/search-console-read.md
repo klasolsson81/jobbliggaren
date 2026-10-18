@@ -10,7 +10,7 @@ It writes only to its run's job summary. The design is ADR 0177. The governance,
 **Who:**
 - **Klas** does the setup in §1 and the revocation in §4.
 - **A session** records only what §1.12 lists.
-- **No agent session** opens the Search Console or Google Cloud Console UI, through the browser pane, Claude in Chrome or Codex. Those pages show query rows and the users list, which is the same channel as the API (ADR 0166 amendment, residuals).
+- **No agent session** opens the Search Console or Google Cloud Console UI, through the browser pane, Claude in Chrome or Codex. Those pages show query rows and the users list, which is the same channel as the API (ADR 0177 D5).
 
 ## §0 Fixed values
 
@@ -83,13 +83,15 @@ gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
   --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-actions/attribute.repository_id/1214215182"
 ```
 
-**8. Check that the account has no project role, no key and one binding.** Each of the first two commands must print nothing. The third must print exactly one `roles/iam.workloadIdentityUser` line, for the `principalSet` above.
+**8. Check that the account has no project role, no key and one binding, and that the pool has one provider.** Each of the first two commands must print nothing. The third must print exactly one `roles/iam.workloadIdentityUser` line, for the `principalSet` above. The fourth must print exactly `search-console-read`.
 ```sh
 gcloud projects get-iam-policy "$PROJECT_ID" --flatten='bindings[].members' \
   --filter="bindings.members:serviceAccount:${SA_EMAIL}" --format='value(bindings.role)'
 gcloud iam service-accounts keys list --iam-account="$SA_EMAIL" --managed-by=user --format='value(name)'
 gcloud iam service-accounts get-iam-policy "$SA_EMAIL" --flatten='bindings[].members' \
   --format='value(bindings.role,bindings.members)'
+gcloud iam workload-identity-pools providers list --location=global --workload-identity-pool=github-actions \
+  --format='value(name.basename())'
 ```
 "No key" is a setup record, not an enforced property: no organization policy forbids creating one later. **Never create one.**
 
@@ -105,6 +107,9 @@ gcloud iam service-accounts get-iam-policy "$SA_EMAIL" --flatten='bindings[].mem
 
 **11. The four identifiers.** They are not secrets. They go into the workflow file, where any change is a reviewed diff.
 ```sh
+PROJECT_ID=$(gcloud config get-value project)
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+SA_EMAIL="sc-read@${PROJECT_ID}.iam.gserviceaccount.com"
 echo "project number: $PROJECT_NUMBER"
 echo "pool:           github-actions"
 echo "provider:       projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-actions/providers/search-console-read"
@@ -142,11 +147,14 @@ The four identifiers are recorded in the workflow file itself.
 ## §4 Revocation
 
 **When:**
-- ADR 0166 D10 trigger 14 fires: a run refused with class `keys`, `rows` or `path`, or a permission check that reads anything other than `siteRestrictedUser`;
+- ADR 0166 D10 trigger 14 fires;
 - an action the job runs is suspected of compromise;
 - the automation is retired.
 
-**In this order:**
+**In this order,** in Cloud Shell, with the project id from the workflow's `service_account` (between `sc-read@` and `.iam`):
+```sh
+PROJECT_ID=jobbliggaren-sc-read
+```
 1. **Search Console:** Settings → Users and permissions → the service account → Remove access. This ends every Search Console right at once.
 2. **Disable the provider:**
    ```sh
@@ -169,3 +177,4 @@ The four identifiers are recorded in the workflow file itself.
 - The `webmasters` (write) scope.
 - Another API, including URL Inspection by script, sitemap submission, the Indexing API, IndexNow, Bing and CrUX.
 - Another caller: an agent session, a cloud `/schedule`, a local machine or a second workflow.
+- Another provider in the pool.

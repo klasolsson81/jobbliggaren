@@ -2,8 +2,7 @@
 
 **Date:** 2026-10-18
 **Status:** Accepted 2026-10-18 (the CTO's rulings 4–10, with `security-auditor` co-deciding ruling 6, and Klas's three answers of the same day, which the ADR 0166 amendment records). The
-ADR 0166 amendment of the same date, which carries the legal outcome, is Proposed until `security-auditor` signs it on PR B's final head. The merge waits for that signature, and the first
-Search Console call waits for the merge (Implementation).
+ADR 0166 amendment of the same date, which carries the legal outcome, is Proposed until `security-auditor` signs it on PR B's final head. The merge waits for that signature.
 **Deciders:** Klas Olsson (controller and product owner; three answers in chat on 2026-10-18, recorded in the ADR 0166 amendment) · `senior-cto-advisor`, "the CTO" below (decision-maker under
 CLAUDE.md §9.2; report-only ruling on rulings 1–10, `docs/reviews/2026-10-18-seo-measurement-automation-cto.md`, local) · `security-auditor` (plan read, report-only,
 `docs/reviews/2026-10-18-seo-measurement-automation-security-auditor.md`, local: her verdict, M1, m1–m3 and the escalation; she co-decides ruling 6, and where she differs from the CTO her position stands)
@@ -111,9 +110,9 @@ indexing report are out (D6). Each of them would be a new trust boundary, with a
 - **The mechanics.**
   - jq's stderr is discarded, at the script's one jq call site, because its diagnostics can echo input values (`security-auditor` m3).
   - Responses live only under `$RUNNER_TEMP`, are removed by `trap` and are never uploaded.
-  - The summary is written only after all eight calls are accepted, so a late refusal leaves no aggregate and only its own line.
+  - A late refusal leaves no aggregate and only its own line.
   - The token reaches curl on stdin as a config line and never in argv. There is no `-v`, no `--trace` and no `--fail-with-body`, no `set -x` and no `::debug::`.
-  - Nothing in the script takes an input that reaches a request, and `workflow_dispatch` takes no inputs.
+  - `workflow_dispatch` takes no inputs.
 - **Fixtures** (AGENTS.md §5, Tests). The success shapes follow Google's reference pages, which the suite's header names with their last-updated dates. The `*-hostile-*` samples are declared
   unreachable under the fixed bodies, and their cases assert only that the refusal names its class and that nothing of the response is printed.
 
@@ -141,14 +140,14 @@ The item numbers are hers. Her item 9 is D4.
   setup does not measure it.
 - **The workflow (item 6).**
   - Triggers are `schedule` and `workflow_dispatch`, with no inputs. `permissions: {}` is at the top.
-  - There is one job, on a GitHub-hosted runner, with `contents: read` and `id-token: write` and `timeout-minutes: 10`.
-  - Its steps are exactly `actions/checkout` (pinned by full SHA, `persist-credentials: false`), the auth action (pinned by full SHA) and the script. No artifact, no cache, no other action and no
-    `continue-on-error`. Her item 6 leaves a credential-less `git` fetch instead of checkout to `dotnet-architect`; the delivered form uses checkout.
+  - There is one job, on a GitHub-hosted runner, with `id-token: write` only and `timeout-minutes: 10`.
+  - Its steps are exactly a credential-less `git` fetch of `$GITHUB_SHA`, the auth action (pinned by full SHA) and the script. No artifact, no cache, no other action and no
+    `continue-on-error`.
 - **The auth inputs (item 7).** `token_format: access_token`; `access_token_scopes: https://www.googleapis.com/auth/webmasters.readonly`; `access_token_lifetime: 300s`;
   **`create_credentials_file: false` and `export_environment_variables: false`** (m1). The action's defaults write a credentials file that embeds the OIDC request token in a header, and export
   `GOOGLE_APPLICATION_CREDENTIALS` to every later step. The token reaches the script through the step's `env:` only, never through `${{ }}` inside `run:`.
 - **300 s is the service-account token's lifetime and nothing more (m2).** The federated token the action also holds has Google's own lifetime, and while the job runs any step can mint again,
-  because the OIDC request URL and bearer are set for the job and not for one step. The bound on the exposure is the job's `timeout-minutes: 10`. **No ADR, runbook or summary text gives five minutes as
+  because the OIDC request URL and bearer are set for the job and not for one step. **No ADR, runbook or summary text gives five minutes as
   the exposure.**
 - **The action (the CTO).** `google-github-actions/auth` v3.0.0, pinned at `7c6bc770dae815cd3e89ee6cdf493a5fab2cc093` (the latest release, 2025-08-28, measured 2026-10-18). It is acceptable as a
   dependency: it is Google's own token exchange, published under the `google-github-actions` organisation, it is the path Google Cloud's WIF page names, and it masks the token. "Not an officially
@@ -175,10 +174,9 @@ The item numbers are hers. Her item 9 is D4.
   triggers 13 and 14), so the trigger sits where the change is made.
 - **The allow-list test (her §5).** The suite asserts that the complete set of `https://` literals in the workflow and the script equals an allow-list, that every method is a literal `GET` or
   `POST`, that there is one curl call site and one jq call site, that the jq call discards stderr, that no verbose or trace flag and no `::debug::` is present, and the workflow's form (D3, item 6).
-  It is an allow-list of form over two files and not a deny-list of spellings. A new endpoint or regex fails it until the list changes in the same diff, which the review rule then puts in front of her.
+  It is an allow-list of form over two files and not a deny-list of spellings. A new endpoint fails it until the list changes in the same diff, which the review rule then puts in front of her.
 - **CODEOWNERS is not a gate.** It gates nothing: 0 approvals and no code-owner review were measured on 2026-10-18, and the file is `* @klasolsson81`. It is not used.
-- **Revocation** is in `docs/runbooks/search-console-read.md` §4, in order: remove the service account from Search Console's users, then disable the provider, and at retirement delete the pool, the
-  account and the project. It applies when trigger 14 fires, when an action in the job is suspected of compromise, and when the automation is retired.
+- **Revocation** is in `docs/runbooks/search-console-read.md` §4.
 - **The residuals** are written in the ADR 0166 amendment, point 4, and not here.
 
 ### D5 — The data-protection determination: nothing personal goes in either direction (`security-auditor` §2 and §3)
@@ -234,7 +232,7 @@ The determination rests on one invariant: **no dimension, and no page or query v
 - Whether the project's URL Inspection quota can be lowered. Google's limits page (2025-08-28) does not say. Setup step 10 reads it.
 - Whether Google's real responses match the shapes D2 accepts. The first run answers it (D7, (i)).
 
-**Owed:** the first run's reading, which is appended to the ADR 0166 amendment under its own rule, with its date. It is pending: the first run on `main` after the merge.
+**Owed:** the first run's reading, which is appended to the ADR 0166 amendment under its own rule, with its date.
 
 ## Alternatives considered
 
@@ -260,7 +258,7 @@ makes the lapse observable. **Against:** a one-time Google Cloud setup for Klas,
 
 ### Positive
 - No key exists, so none can leak or fall due for rotation. Google issues short-lived tokens to one job, on one branch, from one workflow file.
-- No agent ever holds the credential, and the first call is a run on `main` after `security-auditor`'s signature.
+- No agent ever holds the credential.
 - Each run measures the Restricted level with `sites.get` and stops on anything else.
 - The month's page-type numbers and the sitemaps' status reach a summary every week with no human or agent holding a credential.
 - A refusal names its class and never a value, so the lapse in trigger 14 can be observed from a run.
@@ -269,7 +267,7 @@ makes the lapse observable. **Against:** a one-time Google Cloud setup for Klas,
 - **PR B costs Klas a one-time Google Cloud setup and adds one third-party action.**
 - **The credential can technically inspect a URL, and read query- and page-level data.** The barrier is the code, the workflow binding and a reader for every change, and not Google's permission
   model. The residuals are in the ADR 0166 amendment, point 4.
-- **A bump of the auth action is no longer merged by itself** (`security-auditor` M1). Checkout's auto-merged bumps remain a residual that already exists repo-wide.
+- **A bump of the auth action is no longer merged by itself** (`security-auditor` M1).
 - **The gate's weekly reading stays manual.** The automation does not reach the one reading phase 2 waits on.
 - **§4 is still written by hand.**
 - **The page-type numbers are aggregated by page, as in the UI,** so they do not sum to the site total.
@@ -289,20 +287,18 @@ change.
 - **Also in the PR:** the `google-github-actions/auth` arm in `dependabot-automerge.yml`; `docs/runbooks/search-console-read.md`; `docs/runbooks/seo-measurement.md` (its rules block points to the
   amendment, and the "How" cells of the Performance and Sitemaps rows point to the summary); this ADR; the ADR 0166 amendment; and the README row. The ADR is promoted with `git add -f`.
 - **The suite runs in `build.yml`'s `scripts` job** (`security-auditor` §5), as a step beside the other `.github/scripts` suites.
-- **The identifiers.** On 2026-10-18 the workflow still carries the placeholders `PROJECT_NUMBER` and `PROJECT_ID`, and the suite's last form case fails while any placeholder is left. Klas's setup
+- **The identifiers.** Klas's setup
   returns the four identifiers (runbook §1, steps 11 and 12), and they go into the workflow file.
 - **The panel** (CTO ruling 9): `security-auditor` (an external integration, a credential, and her signature), `code-reviewer`, and `dotnet-architect` (more than five files, and an ADR).
 
-**The decision chain before the first Search Console call (the CTO), and where it stands on 2026-10-18:**
+**The decision chain (the CTO), and where it stands on 2026-10-18:**
 1. `senior-cto-advisor`: the ruling. Done.
 2. `security-auditor`: the plan read of rulings 4–7 and 9. Done.
 3. Klas: the three questions, relayed verbatim and recorded in the ADR 0166 amendment. Done.
-4. Klas: the Google Cloud setup, and adding the service account as Restricted. The session records only yes or no for each step (runbook §1, step 12). Not recorded at the time of writing: the
-   runbook's §3 table is empty. A refusal at step 9 is a STOPP back to steps 1 and 2.
+4. Klas: the Google Cloud setup, and adding the service account as Restricted. The session records only yes or no for each step (runbook §1, step 12). A refusal at step 9 is a STOPP back to steps 1 and 2.
 5. #2180 (S5) merges. Done: this branch contains `182e002ff`.
 6. PR B: the amendment, this ADR and the code; the panel; `security-auditor` signs the amendment on the final head; then the merge.
-7. One `workflow_dispatch` on `main`. Its summary is read, and its outcome is recorded with its date in the ADR 0166 amendment. That run is the first Search Console call. Nothing precedes it: no
-   local test call and no agent call.
+7. One `workflow_dispatch` on `main`. Its summary is read, and its outcome is recorded with its date in the ADR 0166 amendment.
 
 ## References
 

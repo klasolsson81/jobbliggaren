@@ -676,8 +676,7 @@ amendment of 2026-10-18 for S4 kept "the Search Console API" inside it. The CTO'
 designs, and keeps everything else inside. Klas took ADR 0166 again for that path on 2026-10-18 (sign-off below). No other D10 trigger fires: the path adds no public surface and no ad value anywhere.
 This amendment is the single home of the legal outcome for the path and of triggers 13 and 14: ADR 0177 D4 points here and does not restate them. The Chapter V and recipient determination is recorded
 once, in ADR 0177 D5, and point 5 points there. It follows the order of `security-auditor`'s section 1, points 1–8, in her plan read of 2026-10-18
-(`docs/reviews/2026-10-18-seo-measurement-automation-security-auditor.md`, local). The merge waits for her signature on the final head, and the first Search Console call waits for the merge: it is the
-first run on `main` after the merge, and no local test call and no agent call precedes it.
+(`docs/reviews/2026-10-18-seo-measurement-automation-security-auditor.md`, local). The merge waits for her signature on the final head.
 
 **1. What is narrowed, as pinned form.** All of the following hold together, and anything outside them is not covered.
 - **Calls.** `sites.get` (GET), `searchAnalytics.query` (POST) and `sitemaps.list` (GET), each at its constant endpoint under
@@ -713,8 +712,7 @@ is pushed.
 - Google's permission model is not the barrier for URL Inspection. The barrier is ours: the code, the attribute condition, and a reader for every change. The attribute condition binds the workflow file
   and not the script and the samples it runs, and its Google-side parts change without a diff. The reader is therefore two things: the exemption of `google-github-actions/auth` from Dependabot auto-merge
   in `dependabot-automerge.yml` (Klas's answer 3), and the review rule in ADR 0177 D4, under which `security-auditor` reads, before merge, every change to the workflow, the script, its suite and its
-  samples, and every bump of an action the job runs. The suite's allow-list of `https://` literals puts a new endpoint in front of her.
-- Checkout's auto-merged bumps remain a residual. The class already exists repo-wide: the same `actions/checkout` SHA runs with `contents: write` in `dependabot-automerge.yml`.
+  samples, and every bump of an action the job runs. The suite's allow-list puts a new endpoint in front of her.
 - The one limit Google does enforce is the Restricted level. Each run reads it with `sites.get` and stops on anything else (trigger 14).
 
 **5. Chapter V and recipients.** No transfer, no Art. 28 relationship and no Art. 30 row arise, and D7, the recruiter notice, the privacy policy and the register are unchanged. The determination, and the

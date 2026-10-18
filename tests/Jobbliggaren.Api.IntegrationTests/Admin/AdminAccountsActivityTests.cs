@@ -32,10 +32,6 @@ public sealed class AdminAccountsActivityTests(ApiFactory factory)
         return (await UserIdAsync(factory, email, Ct), sessionId);
     }
 
-    /// <summary>
-    /// An active account with an id the test picks, and a session: the Identity row and the profile the registrar
-    /// writes. Its audit row is left out, and the search reads none.
-    /// </summary>
     private async Task<string> OpenWithIdAsync(Guid userId, string email)
     {
         await using var scope = factory.Services.CreateAsyncScope();
@@ -157,8 +153,6 @@ public sealed class AdminAccountsActivityTests(ApiFactory factory)
             accounts[label] = await RegisteredAsync(Address(token, label));
         // Postgres orders a uuid by its bytes, which is the canonical string's order.
         var tied = new[] { Guid.NewGuid(), Guid.NewGuid() }.OrderBy(id => id.ToString(), StringComparer.Ordinal).ToList();
-        // The pair is opened, and then seen, in the reverse of its id order, so rows read back in the order they were
-        // written fail the tie. The registrar draws its ids at random and opens this order too.
         accounts["tie-b"] = (tied[1], await OpenWithIdAsync(tied[1], Address(token, "tie-b")));
         accounts["tie-a"] = (tied[0], await OpenWithIdAsync(tied[0], Address(token, "tie-a")));
         var idle = await OpenActiveAsync(factory, Address(token, "idle"), Ct);

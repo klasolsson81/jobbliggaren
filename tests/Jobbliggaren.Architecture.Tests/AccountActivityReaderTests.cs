@@ -44,8 +44,7 @@ public class AccountActivityReaderTests
         var projects = Directory.GetFiles(Path.Combine(RepoRoot(), "src"), "*.csproj", SearchOption.AllDirectories)
             .Select(path => Path.GetFileNameWithoutExtension(path));
 
-        ProductionAssemblyPaths.Select(path => Path.GetFileNameWithoutExtension(path)).ShouldBe(
-            projects, ignoreOrder: true, $"{Bound} A project under src/ that the scan skips can name the table unseen.");
+        ProductionAssemblyPaths.Select(path => Path.GetFileNameWithoutExtension(path)).ShouldBe(projects, ignoreOrder: true, Bound);
     }
 
     [Fact]
@@ -150,7 +149,6 @@ public class AccountActivityReaderTests
         _ => type.FullName == target,
     };
 
-    // thisFile = <repo>/tests/Jobbliggaren.Architecture.Tests/AccountActivityReaderTests.cs → up two = repo root.
     private static string RepoRoot([CallerFilePath] string thisFile = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(thisFile)!, "..", ".."));
 }

@@ -87,7 +87,10 @@ describe("getPublicJobAdIds", () => {
     fetchMock.mockResolvedValue(response);
 
     expect(await getPublicJobAdIds(1, {})).toEqual({ kind: "unavailable", retryAfterSeconds: 30 });
-    for (const call of error.mock.calls) expect(call).toEqual([expect.not.stringMatching(/0b0b0b0b/i), { part: 1 }]);
+    for (const call of error.mock.calls) {
+      expect(call).toEqual([expect.any(String), { part: 1 }]);
+      expect(JSON.stringify(call)).not.toMatch(/0b0b0b0b/i);
+    }
     for (const other of others) expect(other).not.toHaveBeenCalled();
   });
 

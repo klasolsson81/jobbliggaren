@@ -12,7 +12,7 @@ namespace Jobbliggaren.Application.JobAds.Listing;
 /// sitemap query judges the snapshot's age against the clock when it is read; nothing is judged here.
 ///
 /// <para>
-/// <b>Lifetime: singleton,</b> composed by the Api alone (<c>ListedJobAdSnapshotCompositionTests</c>) and called from its
+/// <b>Lifetime: singleton,</b> composed by the Api alone (<c>ListedJobAdSnapshotBoundaryTests</c>) and called from its
 /// hosted service. It opens one scope per read because <see cref="IAppDbContext"/> is scoped. It is not a Mediator
 /// message: a synthetic one per tick would put rows in the per-handler latency dataset.
 /// </para>

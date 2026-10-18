@@ -11,7 +11,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Hosting;
 /// <summary>
 /// The listed-ad snapshot's composition (ADR 0174): one singleton serving the reader and the tick, no scoped
 /// dependency for <c>ValidateScopes</c> to refuse, and the hosted service registered once. No web host: only the
-/// registration. That it is composed by the Api alone is <c>ListedJobAdSnapshotCompositionTests</c>'.
+/// registration. That it is composed by the Api alone is <c>ListedJobAdSnapshotBoundaryTests</c>'.
 /// </summary>
 public sealed class ListedJobAdSnapshotRegistrationTests
 {

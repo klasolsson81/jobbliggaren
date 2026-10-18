@@ -1,7 +1,9 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Notifications;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.Matching.Abstractions;
+using Jobbliggaren.Application.Matching.Queries;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
@@ -54,20 +56,13 @@ public sealed class ListNewFollowedCompanyAdsQueryHandler(
         if (scope is null)
             return NewFollowedCompanyAdsDto.Empty;
 
-        // OLDEST first, plus one row to detect truncation without a second count query. Oldest-first
-        // is not a preference: the acknowledgement window is the max over what we return, so taking
-        // the oldest leaves everything newer above the watermark for the next visit. Taking the
-        // newest would acknowledge past the rest and swallow it permanently.
-        // That rule binds the IMPLICIT acknowledgement a visit makes; the bell's explicit "Markera alla
-        // som lästa" over a number the user has seen acknowledges the whole counted set (ADR 0162).
-        var window = await (
+        // OLDEST first, MaxRows + 1 rows, no tiebreak: the read AcknowledgementWindow cuts (its docblock
+        // carries why). A JobAdId tiebreak could not split a tie anyway -- two hits on the SAME ad carry
+        // the same one -- and it is unsortable outside Postgres, which hid these specs from the in-memory
+        // suite.
+        var read = await (
                 from h in NewFollowedCompanyAdSet.NewHits(db, userId, scope.LastSeen)
                 join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
-                // No tiebreak, deliberately. Rows sharing a CreatedAt cannot be split across the
-                // cap: the boundary tie group is trimmed out whole below, so intra-tie order can
-                // never decide which hit survives. A JobAdId tiebreak would not have helped
-                // anyway -- two hits on the SAME ad carry the same one -- and it is unsortable
-                // outside Postgres, which hid these specs from the in-memory suite.
                 orderby h.CreatedAt
                 select new Row(
                     h.JobAdId,
@@ -86,43 +81,10 @@ public sealed class ListNewFollowedCompanyAdsQueryHandler(
             .Take(MaxRows + 1)
             .ToListAsync(cancellationToken);
 
-        var truncated = window.Count > MaxRows;
-
-        // The window must never be cut INSIDE a group of hits that share a CreatedAt. The read
-        // predicate is strict (h.CreatedAt > lastSeen), so acknowledging a timestamp that a row
-        // beyond the cap also carries would exclude that row FOR GOOD — the watermark only
-        // moves forward. Ties are reachable: CompanyWatchScanJob stamps clock.UtcNow per hit in a
-        // tight loop and timestamptz truncates to the microsecond. Worse, the conditions correlate:
-        // a window overflows the cap precisely when one scan wrote a burst, which is when
-        // neighbouring iterations land in the same microsecond.
-        //
-        // That reach covers a BOUNDARY tie of a few rows. It does not cover the degenerate branch
-        // below, which needs the whole capped window plus one to share a single value: the
-        // microsecond is a ceiling on resolution, not a floor on the loop, and each iteration pays
-        // a Guid and an EF Add. That branch is a guard, not a live path.
-        var boundaryIsWholeWindow = false;
-        if (truncated)
-        {
-            var firstExcluded = window[MaxRows].HitCreatedAt;
-            var capped = window.GetRange(0, MaxRows);
-            var trimmed = capped.Where(r => r.HitCreatedAt < firstExcluded).ToList();
-            boundaryIsWholeWindow = trimmed.Count == 0;
-            window = boundaryIsWholeWindow ? capped : trimmed;
-        }
-
+        var cut = AcknowledgementWindow.Apply(read, MaxRows, r => r.HitCreatedAt);
+        var window = cut.Rows;
         if (window.Count == 0)
             return NewFollowedCompanyAdsDto.Empty;
-
-        // The window is acknowledged in the SCAN clock's unit, over every row read — including rows
-        // the grade fork excludes below. Acknowledging only the included rows would hold the
-        // watermark down behind an excluded older hit and re-show the same included ads every visit.
-        //
-        // NULL in the degenerate case: the whole capped window carries ONE timestamp and more rows
-        // share it. A timestamp watermark cannot both show a partial group and acknowledge it, so
-        // this visit acknowledges NOTHING. The user sees the rows and the count stands; the next
-        // visit shows the same ones. No progress is the safe direction — silent loss is not.
-        DateTimeOffset? acknowledgedThrough =
-            boundaryIsWholeWindow ? null : window.Max(r => r.HitCreatedAt);
 
         var hits = window
             .Select(r => new NewFollowedCompanyAdSet.Hit(r.JobAdId, r.CompanyWatchId, r.HitCreatedAt))
@@ -131,7 +93,7 @@ public sealed class ListNewFollowedCompanyAdsQueryHandler(
         // Grade EVERY ad in the window, not only the OnlyMatched watches' ads: the inclusion rule
         // needs the latter, the per-row flag needs the former. One call, one SSOT, no second pass.
         var windowAdIds = hits.Select(h => h.JobAdId).Distinct().ToList();
-        var resolution = await NewFollowedCompanyAdSet.ResolveMatchingAsync(
+        var resolution = await ReadTimeMatching.ResolveAsync(
             profileBuilder, perUserSearch, windowAdIds, cancellationToken);
 
         var includedAdIds = NewFollowedCompanyAdSet.CollapseToAds(
@@ -157,7 +119,7 @@ public sealed class ListNewFollowedCompanyAdsQueryHandler(
             .ToList();
 
         return new NewFollowedCompanyAdsDto(
-            rows, resolution.Assessed, acknowledgedThrough, truncated);
+            rows, resolution.Assessed, cut.AcknowledgedThrough, cut.Truncated);
     }
 
     /// <summary>One hit joined to its ad. Named because an anonymous type cannot cross the projection.</summary>

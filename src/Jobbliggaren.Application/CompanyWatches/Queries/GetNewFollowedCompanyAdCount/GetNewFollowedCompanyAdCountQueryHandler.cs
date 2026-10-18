@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
+using Jobbliggaren.Application.Matching.Queries;
 using Mediator;
 
 namespace Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyAdCount;
@@ -74,7 +75,7 @@ public sealed class GetNewFollowedCompanyAdCountQueryHandler(
         if (input.Exact is { } exact)
             return new NewFollowedCompanyAdCountDto(exact);
 
-        var resolution = await NewFollowedCompanyAdSet.ResolveMatchingAsync(
+        var resolution = await ReadTimeMatching.ResolveAsync(
             profileBuilder,
             perUserSearch,
             NewFollowedCompanyAdSet.GradeCandidates(input.GradeHits, scope.GradeWatchIds),

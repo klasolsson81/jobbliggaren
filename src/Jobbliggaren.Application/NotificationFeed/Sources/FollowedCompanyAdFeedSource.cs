@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
+using Jobbliggaren.Application.Matching.Queries;
 using Jobbliggaren.Application.NotificationFeed.Queries.GetMyNotificationFeed;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
@@ -134,7 +135,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
             .Concat(NewFollowedCompanyAdSet.GradeCandidates(shownHits, scope.GradeWatchIds))
             .Distinct()
             .ToList();
-        var resolution = await NewFollowedCompanyAdSet.ResolveMatchingAsync(
+        var resolution = await ReadTimeMatching.ResolveAsync(
             context.ProfileBuilder, context.PerUserSearch, candidates, cancellationToken);
 
         var unreadCount = NewFollowedCompanyAdSet.CountAds(countInput, scope.GradeWatchIds, resolution.Matching);

@@ -1,0 +1,1362 @@
+[
+  {
+    "name": "maxNumericValue",
+    "expected": 2500,
+    "actual": 2930.6055499999998,
+    "values": [
+      3006.98845,
+      2930.6055499999998,
+      2925.58825
+    ],
+    "operator": "<=",
+    "passed": false,
+    "auditId": "largest-contentful-paint",
+    "level": "error",
+    "url": "http://localhost:3000/",
+    "auditTitle": "Largest Contentful Paint",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-largest-contentful-paint/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 0.1,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "cumulative-layout-shift",
+    "level": "error",
+    "url": "http://localhost:3000/",
+    "auditTitle": "Cumulative Layout Shift",
+    "auditDocumentationLink": "https://web.dev/articles/cls"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 200,
+    "actual": 165.99999999999977,
+    "values": [
+      257,
+      82.5,
+      165.99999999999977
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "total-blocking-time",
+    "level": "warn",
+    "url": "http://localhost:3000/",
+    "auditTitle": "Total Blocking Time",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 30720,
+    "actual": 12359,
+    "values": [
+      12357,
+      12362,
+      12359
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "document.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 358400,
+    "actual": 302343,
+    "values": [
+      302343,
+      302343,
+      302343
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "script.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 76800,
+    "actual": 32666,
+    "values": [
+      32666,
+      32666,
+      32666
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "stylesheet.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 204800,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "image.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 122880,
+    "actual": 61250,
+    "values": [
+      61250,
+      61250,
+      61250
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "font.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 819200,
+    "actual": 418952,
+    "values": [
+      418952,
+      419226,
+      418260
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "total.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 10,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "third-party.count",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 2500,
+    "actual": 3192.3238,
+    "values": [
+      3183.035,
+      3332.4871999999996,
+      3192.3238
+    ],
+    "operator": "<=",
+    "passed": false,
+    "auditId": "largest-contentful-paint",
+    "level": "error",
+    "url": "http://localhost:3000/matchning",
+    "auditTitle": "Largest Contentful Paint",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-largest-contentful-paint/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 0.1,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "cumulative-layout-shift",
+    "level": "error",
+    "url": "http://localhost:3000/matchning",
+    "auditTitle": "Cumulative Layout Shift",
+    "auditDocumentationLink": "https://web.dev/articles/cls"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 200,
+    "actual": 92,
+    "values": [
+      92,
+      87.93910000000051,
+      107
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "total-blocking-time",
+    "level": "warn",
+    "url": "http://localhost:3000/matchning",
+    "auditTitle": "Total Blocking Time",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 30720,
+    "actual": 16233,
+    "values": [
+      16233,
+      16234,
+      16231
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "document.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/matchning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 358400,
+    "actual": 303870,
+    "values": [
+      303870,
+      303870,
+      303870
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "script.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/matchning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 76800,
+    "actual": 33689,
+    "values": [
+      33689,
+      33689,
+      33689
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "stylesheet.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/matchning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 204800,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "image.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/matchning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 122880,
+    "actual": 61250,
+    "values": [
+      61250,
+      61250,
+      61250
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "font.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/matchning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 819200,
+    "actual": 425675,
+    "values": [
+      426410,
+      425497,
+      425675
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "total.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/matchning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 10,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "third-party.count",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/matchning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 2500,
+    "actual": 3183.2792,
+    "values": [
+      3183.2792,
+      3188.2313999999997,
+      3182.928
+    ],
+    "operator": "<=",
+    "passed": false,
+    "auditId": "largest-contentful-paint",
+    "level": "error",
+    "url": "http://localhost:3000/cv-granskning",
+    "auditTitle": "Largest Contentful Paint",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-largest-contentful-paint/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 0.1,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "cumulative-layout-shift",
+    "level": "error",
+    "url": "http://localhost:3000/cv-granskning",
+    "auditTitle": "Cumulative Layout Shift",
+    "auditDocumentationLink": "https://web.dev/articles/cls"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 200,
+    "actual": 106.99999999999955,
+    "values": [
+      106.99999999999955,
+      105.99999999999932,
+      127
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "total-blocking-time",
+    "level": "warn",
+    "url": "http://localhost:3000/cv-granskning",
+    "auditTitle": "Total Blocking Time",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 30720,
+    "actual": 16885,
+    "values": [
+      16885,
+      16886,
+      16877
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "document.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/cv-granskning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 358400,
+    "actual": 303870,
+    "values": [
+      303870,
+      303870,
+      303870
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "script.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/cv-granskning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 76800,
+    "actual": 33689,
+    "values": [
+      33689,
+      33689,
+      33689
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "stylesheet.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/cv-granskning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 204800,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "image.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/cv-granskning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 122880,
+    "actual": 61250,
+    "values": [
+      61250,
+      61250,
+      61250
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "font.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/cv-granskning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 819200,
+    "actual": 426493,
+    "values": [
+      426100,
+      426493,
+      426591
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "total.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/cv-granskning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 10,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "third-party.count",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/cv-granskning",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 2500,
+    "actual": 3043.9316,
+    "values": [
+      3043.9316,
+      3036.9432,
+      3195.8458
+    ],
+    "operator": "<=",
+    "passed": false,
+    "auditId": "largest-contentful-paint",
+    "level": "error",
+    "url": "http://localhost:3000/hjalpcenter",
+    "auditTitle": "Largest Contentful Paint",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-largest-contentful-paint/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 0.1,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "cumulative-layout-shift",
+    "level": "error",
+    "url": "http://localhost:3000/hjalpcenter",
+    "auditTitle": "Cumulative Layout Shift",
+    "auditDocumentationLink": "https://web.dev/articles/cls"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 200,
+    "actual": 95.5,
+    "values": [
+      95.5,
+      95.50000000000023,
+      89.5
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "total-blocking-time",
+    "level": "warn",
+    "url": "http://localhost:3000/hjalpcenter",
+    "auditTitle": "Total Blocking Time",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 30720,
+    "actual": 11771,
+    "values": [
+      11771,
+      11778,
+      11770
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "document.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/hjalpcenter",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 358400,
+    "actual": 303870,
+    "values": [
+      303870,
+      303870,
+      303870
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "script.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/hjalpcenter",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 76800,
+    "actual": 33689,
+    "values": [
+      33689,
+      33689,
+      33689
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "stylesheet.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/hjalpcenter",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 204800,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "image.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/hjalpcenter",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 122880,
+    "actual": 61250,
+    "values": [
+      61250,
+      61250,
+      61250
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "font.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/hjalpcenter",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 819200,
+    "actual": 432722,
+    "values": [
+      432722,
+      430819,
+      433378
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "total.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/hjalpcenter",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 10,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "third-party.count",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/hjalpcenter",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 2500,
+    "actual": 3029.9622,
+    "values": [
+      3029.9622,
+      3034.558,
+      3028.3468000000003
+    ],
+    "operator": "<=",
+    "passed": false,
+    "auditId": "largest-contentful-paint",
+    "level": "error",
+    "url": "http://localhost:3000/for-utvecklare",
+    "auditTitle": "Largest Contentful Paint",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-largest-contentful-paint/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 0.1,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "cumulative-layout-shift",
+    "level": "error",
+    "url": "http://localhost:3000/for-utvecklare",
+    "auditTitle": "Cumulative Layout Shift",
+    "auditDocumentationLink": "https://web.dev/articles/cls"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 200,
+    "actual": 100,
+    "values": [
+      100,
+      104.99999999999955,
+      90.00000000000045
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "total-blocking-time",
+    "level": "warn",
+    "url": "http://localhost:3000/for-utvecklare",
+    "auditTitle": "Total Blocking Time",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 30720,
+    "actual": 13089,
+    "values": [
+      13084,
+      13089,
+      13090
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "document.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/for-utvecklare",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 358400,
+    "actual": 303870,
+    "values": [
+      303870,
+      303870,
+      303870
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "script.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/for-utvecklare",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 76800,
+    "actual": 33689,
+    "values": [
+      33689,
+      33689,
+      33689
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "stylesheet.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/for-utvecklare",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 204800,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "image.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/for-utvecklare",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 122880,
+    "actual": 61250,
+    "values": [
+      61250,
+      61250,
+      61250
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "font.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/for-utvecklare",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 819200,
+    "actual": 422882,
+    "values": [
+      423636,
+      422882,
+      422429
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "total.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/for-utvecklare",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 10,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "third-party.count",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/for-utvecklare",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 2500,
+    "actual": 3248.2506000000008,
+    "values": [
+      3385.5899499999996,
+      3248.2506000000008,
+      3228.33005
+    ],
+    "operator": "<=",
+    "passed": false,
+    "auditId": "largest-contentful-paint",
+    "level": "error",
+    "url": "http://localhost:3000/gast/jobb",
+    "auditTitle": "Largest Contentful Paint",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-largest-contentful-paint/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 0.1,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "cumulative-layout-shift",
+    "level": "error",
+    "url": "http://localhost:3000/gast/jobb",
+    "auditTitle": "Cumulative Layout Shift",
+    "auditDocumentationLink": "https://web.dev/articles/cls"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 200,
+    "actual": 84.5,
+    "values": [
+      83.5,
+      90.5,
+      84.5
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "total-blocking-time",
+    "level": "warn",
+    "url": "http://localhost:3000/gast/jobb",
+    "auditTitle": "Total Blocking Time",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 30720,
+    "actual": 25007,
+    "values": [
+      25007,
+      25007,
+      25007
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "document.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/jobb",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 358400,
+    "actual": 315861,
+    "values": [
+      315861,
+      315861,
+      315861
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "script.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/jobb",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 76800,
+    "actual": 32666,
+    "values": [
+      32666,
+      32666,
+      32666
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "stylesheet.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/jobb",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 204800,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "image.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/jobb",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 122880,
+    "actual": 61250,
+    "values": [
+      61250,
+      61250,
+      61250
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "font.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/jobb",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 819200,
+    "actual": 454163,
+    "values": [
+      453296,
+      456086,
+      454163
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "total.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/jobb",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 10,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "third-party.count",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/jobb",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 2500,
+    "actual": 3381.77395,
+    "values": [
+      3381.77395,
+      3403.6092,
+      3375.3981999999996
+    ],
+    "operator": "<=",
+    "passed": false,
+    "auditId": "largest-contentful-paint",
+    "level": "error",
+    "url": "http://localhost:3000/gast/oversikt",
+    "auditTitle": "Largest Contentful Paint",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-largest-contentful-paint/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 0.1,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "cumulative-layout-shift",
+    "level": "error",
+    "url": "http://localhost:3000/gast/oversikt",
+    "auditTitle": "Cumulative Layout Shift",
+    "auditDocumentationLink": "https://web.dev/articles/cls"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 200,
+    "actual": 91,
+    "values": [
+      258.49999999999955,
+      91,
+      88
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "total-blocking-time",
+    "level": "warn",
+    "url": "http://localhost:3000/gast/oversikt",
+    "auditTitle": "Total Blocking Time",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 30720,
+    "actual": 25324,
+    "values": [
+      25327,
+      25324,
+      25324
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "document.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/oversikt",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 358400,
+    "actual": 321020,
+    "values": [
+      321020,
+      321020,
+      321020
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "script.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/oversikt",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 76800,
+    "actual": 32666,
+    "values": [
+      32666,
+      32666,
+      32666
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "stylesheet.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/oversikt",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 204800,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "image.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/oversikt",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 122880,
+    "actual": 61250,
+    "values": [
+      61250,
+      61250,
+      61250
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "font.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/oversikt",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 819200,
+    "actual": 462396,
+    "values": [
+      461848,
+      462396,
+      463136
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "total.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/oversikt",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 10,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "third-party.count",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/oversikt",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 2500,
+    "actual": 3231.5003500000003,
+    "values": [
+      3231.5003500000003,
+      3225.86495,
+      3239.4040999999993
+    ],
+    "operator": "<=",
+    "passed": false,
+    "auditId": "largest-contentful-paint",
+    "level": "error",
+    "url": "http://localhost:3000/gast/cv",
+    "auditTitle": "Largest Contentful Paint",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-largest-contentful-paint/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 0.1,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "cumulative-layout-shift",
+    "level": "error",
+    "url": "http://localhost:3000/gast/cv",
+    "auditTitle": "Cumulative Layout Shift",
+    "auditDocumentationLink": "https://web.dev/articles/cls"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 200,
+    "actual": 91,
+    "values": [
+      87,
+      91,
+      128
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditId": "total-blocking-time",
+    "level": "warn",
+    "url": "http://localhost:3000/gast/cv",
+    "auditTitle": "Total Blocking Time",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 30720,
+    "actual": 24016,
+    "values": [
+      24020,
+      24015,
+      24016
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "document.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/cv",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 358400,
+    "actual": 315861,
+    "values": [
+      315861,
+      315861,
+      315861
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "script.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/cv",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 76800,
+    "actual": 32666,
+    "values": [
+      32666,
+      32666,
+      32666
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "stylesheet.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/cv",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 204800,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "image.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/cv",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 122880,
+    "actual": 61250,
+    "values": [
+      61250,
+      61250,
+      61250
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "font.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/cv",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 819200,
+    "actual": 444437,
+    "values": [
+      445824,
+      444437,
+      443762
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "total.size",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/cv",
+    "auditTitle": "Resources Summary"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 10,
+    "actual": 0,
+    "values": [
+      0,
+      0,
+      0
+    ],
+    "operator": "<=",
+    "passed": true,
+    "auditProperty": "third-party.count",
+    "auditId": "resource-summary",
+    "level": "error",
+    "url": "http://localhost:3000/gast/cv",
+    "auditTitle": "Resources Summary"
+  }
+]

@@ -124,7 +124,8 @@ and the job page's budget does not change until it has been measured again. The 
   (`ListedJobAdPartition`). The split is uniform because both creation paths of a `JobAd` use `JobAdId.New()`, a v4 GUID (the CTO, at `d7b242b12`). Membership follows the id and never its
   position in a list. The index never changes, the index and the parts cannot disagree, and two parts fetched hours apart can neither skip nor repeat an ad.
 - **K.** K is the smallest power of two at which the measured peak listed count fills at most half a file, so the corpus can double before it reaches the cap. The peak is 41 548
-  (2026-10-11, ADR 0166). At K = 1 a file would sit at 83 % of the 50 000 limit, and at K = 2 each file sits at about 42 %. K exists in two places: the web's `JOB_SITEMAP_PART_COUNT` and
+  (2026-10-11, ADR 0166). At K = 1 a file would sit at 83 % of the 50 000 limit, and at K = 2 each file sits at about 42 %. The merge-day S2-P3 reading, 42 223 listed (2026-10-18), is above
+  that peak and changes neither figure by more than a point. K exists in two places: the web's `JOB_SITEMAP_PART_COUNT` and
   the API's `ListedJobAdSnapshotLimits.PartCount`, whose validator answers 400 for any other count (architect). `ListedJobAdSnapshotBoundaryTests` reads the web's constant and holds it equal
   to the API's, and in the supported set. Raising K therefore means changing both constants and adding route folders. The CTO's sentence said "a constant"; there are two.
 - **Routing.** Each part is its own static route folder, `app/(sitemaps)/sitemap-jobb-1.xml/route.ts` and `-2`, because Next's dynamic segments are whole folder names. A filesystem test
@@ -194,9 +195,20 @@ no count and no ad field, and a member-set test pins exactly `ids`.
 
 | Reading | When | What | Recorded |
 |---|---|---|---|
-| Baseline | before the merge | the two counts above, per day, since S2 went live | **PENDING — not yet taken.** The driving session enters the date, the window and the counts here before `agents-done`. |
+| Baseline | 2026-10-18 01:26 UTC, before the merge | the two counts above, per day, since S2 went live | See the three readings below this table. |
 | Reading 1 | one week after Google first fetches a job part | the same, plus rejections on `public-job-ad-listed-ids`; Search Console (Klas) | Not yet taken. Appended to this ADR as a dated amendment. |
 | Reading 2 | four weeks after Google first fetches a job part | the same | Not yet taken. Appended to this ADR as a dated amendment. |
+
+The baseline, counts only, read over SSH on 2026-10-18 at 01:26 UTC:
+
+- **Rate-limit rejections on the job-detail endpoint: 0.** These are the event 2001 lines for `/api/v1/public/job-ads/` in the `jobbliggaren-api` container's log.
+  - **The window is short.** That container started at 2026-10-17 19:50:16 UTC, so the window runs from then to the reading, about five and a half hours. The log holds 128 lines in that window.
+  - **Most of the window since S2 went live is not measured.** Container logs are `json-file` (3 × 10 MB) and do not survive a recreate, so 2026-10-12 05:35 to 2026-10-17 19:50 is not covered.
+  - **The same limit binds the later readings.** Every release recreates the container, so the long window is Search Console's Crawl Stats, which Klas reads.
+- **503s the site answered on `/jobb/<uuid>`: not measured.** No log on the box records them.
+  - Caddy has no access log. Its default logger writes `http.log.error` on a handler error, such as an unreachable upstream. A 503 that Next answers is a proxied response, not a handler error, and the web writes no access log.
+  - Caddy showed 0 error lines in the same window, which proves nothing about 503s.
+  - A 503 at the edge follows an API 429, which the count above covers, or an API failure or timeout, which it does not.
 
 ### D6 — The web: four route files, a pure XML module and an answer for every failure (CTO F1 and "Also ruled")
 
@@ -286,7 +298,7 @@ The legal triggers are ADR 0166 D10's (1–9, with 8 and 9 added by the amendmen
 
 - Google's uptake of the sitemap: whether and when it fetches the parts, and how large a share of the listed ads it indexes.
 - How many aggregators read the sitemap.
-- The crawl rate, and the share of 503s on job URLs, until the baseline is entered and the readings in D5 are taken.
+- The crawl rate, until the readings in D5 are taken; and the share of 503s on job URLs, which no log on the box records (D5, the baseline), so Search Console is its only source.
 - Whether Google indexes individual Platsbanken ads (`security-auditor`; it belongs in ADR 0166 W1).
 - How many ads have been erased on request so far (`security-auditor`; it can be read as a count under CLAUDE.md §9.2 (a)).
 - The value the registration setting has on the box (ADR 0106 amendment). The compose default is the only source read.
@@ -411,8 +423,9 @@ amendments in the same PR.
 - **Tests run on 2026-10-18** (the driving session's; none re-run for this ADR). Application unit, the new classes plus `JobAdPublicationTests`: 83/0. Api integration, the new and adjacent
   classes: 79/0, which includes `ListedJobAdSnapshotSamplerTests` on Testcontainers Postgres (the exact set, the deadline instant ±1 µs, the ceiling, a failed read keeping the stamp, the
   measured zero, and an older read never replacing a newer one). Architecture: 844/0. Web, the touched files: 263/0. `next build` is green, with the four routes dynamic. Smoke: 28/28.
-- **Owed outside the diff.** The baseline in D5; the merge-day S2-P3 reading (ADR 0166 D11 and the publication-count runbook); the second DPIA addendum and the processing-register sentence,
-  both local files in the main copy; Klas's two Search Console readings; and the reading dates in the phase-1-close row of #2090.
+- **Taken before the merge, 2026-10-18.** The baseline in D5, and the merge-day S2-P3 reading (ADR 0166 Amendment 2026-10-18 (ix) and the publication-count runbook's record table).
+- **Owed outside the diff.** The second DPIA addendum and the processing-register sentence, both local files in the main copy; Klas's two Search Console readings; and the reading dates in
+  the phase-1-close row of #2090.
 
 ## References
 

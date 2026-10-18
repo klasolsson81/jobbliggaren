@@ -463,8 +463,9 @@ crawl target. The last reading was 2026-10-12 05:15 UTC (39 415 listed, validate
 `agents-done`. The validated count must be 0, and it is recorded in two places: here, and in the record table of `docs/runbooks/public-job-page-publication-count.md`. A count above 0 fires
 trigger 2, and S4 stops.
 
-**PENDING — the merge-day reading.** The driving session enters the date and time (UTC), the release and the counts (listed, shaped, validated) here before `agents-done`. No count was taken
-for this amendment, and none is written until one is.
+**The merge-day reading (counts only).** 2026-10-18 01:27 UTC, release 1636 (`d7b242b12`), `--status` consistent, the same query blob as the earlier readings (`8c02e37`): listed 42 223, shaped
+231 (all in the description), **validated 0** in the title, the description, the company name and the link; link host other than Arbetsförmedlingen 0. The gate reads 0. If the merge slips
+past that UTC day, the reading is taken again before it.
 
 **Sign-off**
 

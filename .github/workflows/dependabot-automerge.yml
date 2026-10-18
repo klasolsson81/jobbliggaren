@@ -172,11 +172,7 @@ jobs:
             *github/codeql-action*) eco_ok=false; codeql_hit=true ;;
             *) codeql_hit=false ;;
           esac
-          # google-github-actions/auth ÄR OCKSÅ UNDANTAGEN VID NAMN, i samma form (Klas-beslut
-          # 2026-10-18, ADR 0177). Steget mintar Search Console-token i `search-console-read`-
-          # jobbet, som har `id-token: write`, och ADR 0166-tillägget för den läsvägen vilar på
-          # att security-auditor läser varje bump av en action jobbet kör. En auto-mergad bump
-          # vore en ändring utan läsare, och tillägget skulle då påstå en granskning som inte sker.
+          # google-github-actions/auth is exempted by name in the same form: ADR 0177 D4.
           case "${DEPS,,}" in
             *google-github-actions/auth*) eco_ok=false; auth_hit=true ;;
             *) auth_hit=false ;;
@@ -190,7 +186,7 @@ jobs:
             fi
           elif [[ "$auth_hit" == "true" ]]; then
             echo "eligible=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::google-github-actions/auth → steget som hämtar Search Console-token, security-auditor läser bumpen (ingen auto-merge)."
+            echo "::notice::google-github-actions/auth → mints the Search Console token, security-auditor reads the bump (no auto-merge)."
           elif [[ "$eco_ok" != "true" ]]; then
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             echo "::notice::ecosystem=${ECO:-<tomt>} står inte i allow-listan → manuell granskning (fail-closed)."

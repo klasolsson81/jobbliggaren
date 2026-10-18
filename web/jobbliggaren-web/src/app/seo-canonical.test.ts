@@ -13,12 +13,23 @@ import robots from "./robots";
  * layout names one that other routes would inherit.
  *
  * The indexable surface is DERIVED from the filesystem (every page in the two marketing
- * route groups) and must equal the set the sitemap lists, so a new public page fails
- * here until it is both listed and self-canonical.
+ * route groups, and every page of `(public-job)` that is a URL of its own, which is the
+ * catalogue: its internal `publik/` pages are reached by a rewrite and are no address)
+ * and must equal the set the sitemap lists, so a new public page fails here until it is
+ * both listed and self-canonical.
  */
 
 vi.mock("next-intl/server", () => ({
   getTranslations: async () => (key: string) => key,
+  getLocale: async () => "sv",
+}));
+
+// The catalogue's metadata reads its page through the cached reader; an empty page 1 is a real answer (a measured zero).
+vi.mock("@/lib/api/public-job-ad-catalogue", () => ({
+  getPublicJobAdCatalogue: async () => ({
+    kind: "ok",
+    page: { items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0 },
+  }),
 }));
 
 type PageModule = { generateMetadata?: () => Promise<Metadata> };
@@ -33,8 +44,10 @@ function routeOf(key: string): string {
   return `/${key.split("/").slice(2, -1).join("/")}`;
 }
 
+const isOwnPublicJobUrl = (key: string) => key.split("/")[1] === "(public-job)" && key.split("/")[2] !== "publik";
+
 const publicPages = Object.keys(pages)
-  .filter((key) => PUBLIC_GROUPS.has(key.split("/")[1] ?? ""))
+  .filter((key) => PUBLIC_GROUPS.has(key.split("/")[1] ?? "") || isOwnPublicJobUrl(key))
   .sort((a, b) => routeOf(a).localeCompare(routeOf(b)));
 
 const metadataByKey = new Map<string, Metadata | undefined>();

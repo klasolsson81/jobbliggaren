@@ -4,6 +4,7 @@ import { InformationLink } from "@/components/information/InformationLink";
 import { useTranslations } from "next-intl";
 import { Database } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { PUBLIC_CATALOGUE_PATH } from "@/lib/job-ads/public-catalogue-url";
 
 /**
  * SiteFooter — the shared deep-green footer (LP-3, #256). ONE footer mounted on
@@ -39,9 +40,11 @@ import { BrandLogo } from "@/components/brand/brand-logo";
  * is kept as forward-compat scaffolding for any FUTURE not-yet-built footer
  * link (CTO verdict 2026-06-30: the route series is demonstrably recurring, so
  * keeping the OCP extension point beats re-introducing it per route).
- * The "Kom igång" column carries ONE entry: `/logga-in` is both doors since
+ * The "Kom igång" column carries ONE entry per URL: `/logga-in` is both doors since
  * ADR 0142, and two differently named links to one URL make the user choose
- * between the same door twice (design-reviewer, #1738).
+ * between the same door twice (design-reviewer, #1738). "Lediga jobb" comes first,
+ * a second door with its own public URL and its own name (ADR 0175 F15), and it
+ * never prefetches: the catalogue is read per request, and the footer is on every page.
  */
 
 // Literal-union key types so next-intl keeps typed-message key-checking even
@@ -53,6 +56,7 @@ type FooterHeadKey =
   | "footer.colLegal";
 
 type FooterLinkKey =
+  | "common.catalogueLink"
   | "footer.start.auth"
   | "footer.support.help"
   | "footer.support.howMatching"
@@ -68,10 +72,12 @@ type FooterLinkKey =
   | "footer.legal.accessibility";
 
 type FooterLink = {
-  /** i18n key under `landing.footer.*` for the label. */
+  /** i18n key under `landing.*` for the label. The catalogue reads the one label its header link and page use. */
   readonly labelKey: FooterLinkKey;
   /** Live route, or `null` for a not-yet-built route (renders aria-disabled). */
   readonly href: string | null;
+  /** `false` turns off Next's prefetch for this link; unset keeps the default. */
+  readonly prefetch?: false;
 };
 
 type FooterColumn = {
@@ -86,7 +92,10 @@ const COLUMNS: readonly FooterColumn[] = [
   {
     key: "start",
     headKey: "footer.colStart",
-    links: [{ labelKey: "footer.start.auth", href: "/logga-in" }],
+    links: [
+      { labelKey: "common.catalogueLink", href: PUBLIC_CATALOGUE_PATH, prefetch: false },
+      { labelKey: "footer.start.auth", href: "/logga-in" },
+    ],
   },
   {
     key: "support",
@@ -160,7 +169,7 @@ export function SiteFooter({
                   {col.links.map((link) => (
                     <li key={link.labelKey}>
                       {link.href ? (
-                        <InformationLink id={`information-footer-${link.labelKey.replaceAll(".", "-")}`} href={link.href}>{t(link.labelKey)}</InformationLink>
+                        <InformationLink id={`information-footer-${link.labelKey.replaceAll(".", "-")}`} href={link.href} prefetch={link.prefetch}>{t(link.labelKey)}</InformationLink>
                       ) : (
                         <span className="opacity-70" aria-disabled="true">
                           {t(link.labelKey)}

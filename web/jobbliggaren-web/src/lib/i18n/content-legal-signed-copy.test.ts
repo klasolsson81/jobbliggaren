@@ -4,11 +4,6 @@ import en from "../../../messages/en/content-legal.json";
 
 const SIGNED: ReadonlyArray<{ key: string; sv: string; en: string }> = [
   {
-    key: "privacy.sections.6.paragraphs.2",
-    sv: "Du kan när som helst återkalla ett samtycke genom att stänga av det i dina inställningar. Återkallar du samtycket till matchning slutar vi matcha nya annonser mot din profil och mejla dig matchningar. Återkallar du samtycket till mejl om företag du följer slutar vi mejla dem till dig. Stänger du i stället av alla e-postnotiser, eller bara mejlen om toppmatchningar eller sammanfattningen, slutar vi skicka de mejlen, men dina samtycken står kvar och matchningen fortsätter i appen. Att du återkallar ett samtycke påverkar inte att behandlingen var laglig innan du återkallade det.",
-    en: "You can withdraw a consent at any time by turning it off in your settings. If you withdraw your consent to matching, we stop matching new job ads against your profile and emailing you matches. If you withdraw your consent to emails about companies you follow, we stop emailing them to you. If you instead turn off all email notifications, or only the emails about top matches or the summary, we stop sending those emails, but your consents remain and matching continues in the app. Withdrawing a consent does not affect the lawfulness of the processing before you withdrew it.",
-  },
-  {
     key: "privacy.sections.10.list.6",
     sv: "Återkalla samtycke. Där behandlingen grundas på ditt samtycke kan du återkalla samtycket när som helst, utan att det påverkar lagligheten av behandlingen dessförinnan. Samtycket till matchning och samtycket till mejl om företag du följer återkallar du genom att stänga av dem i dina inställningar. Har du skickat med teknisk information i en feedback kontaktar du oss på e-postadressen ovan, så raderar vi den.",
     en: "Withdraw consent. Where the processing is based on your consent, you can withdraw your consent at any time, without it affecting the lawfulness of the processing carried out beforehand. You withdraw your consent to matching and your consent to emails about companies you follow by turning them off in your settings. If you have included technical information with feedback, contact us at the email address above and we will delete it.",
@@ -55,6 +50,41 @@ const SIGNED_PUBLIC_PAGE: ReadonlyArray<{ key: string; sv: string; en: string }>
   },
 ];
 
+// Signature 4 (security-auditor, ADR 0175 D12, #1663 PR 2): following companies, Branschbevakningar and their
+// retention, the consent section's scope, and the withdrawal paragraph that replaces signature 2's.
+const SIGNED_COMPANY_WATCHES: ReadonlyArray<{ key: string; sv: string; en: string }> = [
+  {
+    key: "privacy.sections.2.list.6",
+    sv: "Företag du följer. Följer du ett företag sparar vi vilket företag det är och de val du gör i filtret för det, till exempel Endast annonser som matchar min profil eller vilka orter annonserna ska gälla. Varje natt går vi igenom nya annonser från företagen du följer och sparar en träff för varje ny annons som passar de orter du eventuellt har valt. Antalet nya annonser visas för dig på Översikt, och träffarna på sidan Nya annonser från bevakade företag och under Notiser. Vi jämför annonserna med dina matchningsönskemål, och resultatet sparas inte. Vi sparar också vad du har sett av dem, så att samma annons inte visas som ny igen. Det här ingår i tjänsten och kräver inget samtycke. E-post om företag du följer skickas bara med ditt samtycke, se avsnittet Bevakningsnotiser i bakgrunden.",
+    en: "Companies you follow. If you follow a company, we store which company it is and the choices you make in its filter, for example Only ads that match my profile or which locations the ads should cover. Every night we go through new ads from the companies you follow and store a hit for each new ad that fits any locations you have chosen. The number of new ads is shown to you on the Overview, and the hits on the page New ads from followed companies and under Notifications. We compare the ads with your matching preferences, and the result is not stored. We also store what you have seen of them, so that the same ad is not shown as new again. This is part of the service and requires no consent. Emails about companies you follow are only sent with your consent, see the section Background watch notifications.",
+  },
+  {
+    key: "privacy.sections.2.list.7",
+    sv: "Branschbevakningar. Skapar du en branschbevakning sparar vi de branscher och kommuner du väljer och det namn du eventuellt ger den. Vi använder dem för att visa företag i SCB:s företagsregister som har sitt säte i de kommunerna och hör till de branscherna, och annonserna från dem. Varje natt går vi igenom nya annonser från de företagen och sparar en träff för varje ny annons, oavsett om den matchar din profil. Antalet nya annonser visas på Översikt, och annonserna visas på bevakningens sida med nya annonser. Vilka av dem som matchar dina matchningsönskemål räknas fram när du öppnar sidan och sparas inte. Vi sparar också hur långt du har sett, när du senast ändrade bevakningens branscher eller kommuner och hur långt den nattliga genomgången har kommit, så att bara det som är nytt för dig räknas. Matchar en bevakning fler företag än vi kan gå igenom sparar vi inga nya träffar för den. Det här ingår i tjänsten och kräver inget samtycke. Vi mejlar inte om branschbevakningar, och inga uppgifter om dig lämnas till SCB.",
+    en: "Industry watches. If you create an industry watch, we store the industries and municipalities you choose and any name you give it. We use them to show companies in Statistics Sweden's business register that have their registered office in those municipalities and belong to those industries, and the ads from them. Every night we go through new ads from those companies and store a hit for each new ad, whether or not it matches your profile. The number of new ads is shown on the Overview, and the ads are shown on the watch's page of new ads. Which of them match your matching preferences is worked out when you open the page and is not stored. We also store how far you have seen, when you last changed the watch's industries or municipalities and how far the nightly run has got, so that only what is new to you is counted. If a watch matches more companies than we can go through, we store no new hits for it. This is part of the service and requires no consent. We do not email about industry watches, and no data about you is passed to Statistics Sweden.",
+  },
+  {
+    key: "privacy.sections.6.paragraphs.0",
+    sv: "Om du vill kan du slå på notiser om nya jobb som matchar dina önskemål och, som ett eget val, e-postnotiser om nya annonser från företag du följer. Behandlingen i det här avsnittet sker bara för det du själv aktivt slår på. Den rättsliga grunden är ditt samtycke (artikel 6.1 a). Båda är avstängda som standard. Slår du på något av dem sparar vi en uppgift om att och när du lämnade ditt samtycke till just det, så att vi kan visa att behandlingen är laglig. Nya annonser från företag du följer och från dina branschbevakningar visas i appen utan samtycke, eftersom det ingår i tjänsten. Det beskrivs i avsnittet Konto, profil och ansökningar.",
+    en: "If you want, you can turn on notifications about new jobs that match your preferences and, as a separate choice, email notifications about new ads from companies you follow. The processing in this section only takes place for what you actively turn on yourself. The legal basis is your consent (Article 6(1)(a)). Both are off by default. If you turn either of them on, we store a record that you gave your consent to it and when, so that we can demonstrate that the processing is lawful. New ads from companies you follow and from your industry watches are shown in the app without consent, because that is part of the service. This is described in the section Account, profile and applications.",
+  },
+  {
+    key: "privacy.sections.6.paragraphs.2",
+    sv: "Du kan när som helst återkalla ett samtycke genom att stänga av det i dina inställningar. Återkallar du samtycket till matchning slutar vi att i bakgrunden matcha nya annonser mot din profil och att mejla dig matchningar. Återkallar du samtycket till mejl om företag du följer slutar vi mejla dem till dig. Så länge det samtycket gäller och du har valt Endast annonser som matchar min profil för ett företag, jämför vi företagets nya annonser med din profil när mejlet skapas, även om du har återkallat samtycket till matchning. Stänger du i stället av alla e-postnotiser, eller bara mejlen om toppmatchningar eller sammanfattningen, slutar vi skicka de mejlen, men dina samtycken står kvar och matchningen fortsätter i appen. Att du återkallar ett samtycke påverkar inte att behandlingen var laglig innan du återkallade det.",
+    en: "You can withdraw a consent at any time by turning it off in your settings. If you withdraw your consent to matching, we stop matching new job ads against your profile in the background and emailing you matches. If you withdraw your consent to emails about companies you follow, we stop emailing them to you. As long as that consent applies and you have chosen Only ads that match my profile for a company, we compare the company's new ads with your profile when the email is created, even if you have withdrawn your consent to matching. If you instead turn off all email notifications, or only the emails about top matches or the summary, we stop sending those emails, but your consents remain and matching continues in the app. Withdrawing a consent does not affect the lawfulness of the processing before you withdrew it.",
+  },
+  {
+    key: "privacy.sections.9.list.10",
+    sv: "Företag du följer. Vilka företag du följer och träffarna på deras annonser sparas så länge ditt konto finns. Slutar du följa ett företag visas varken företaget eller dess träffar längre, men uppgifterna finns kvar tills ditt konto raderas enligt punkterna ovan.",
+    en: "Companies you follow. Which companies you follow and the hits on their ads are kept for as long as your account exists. If you stop following a company, neither the company nor its hits are shown any longer, but the data remains until your account is deleted in accordance with the points above.",
+  },
+  {
+    key: "privacy.sections.9.list.11",
+    sv: "Branschbevakningar. En branschbevakning sparas tills du tar bort den eller tills ditt konto raderas enligt punkterna ovan. Tar du bort den raderas den direkt, tillsammans med dess träffar och de företag vi har räknat fram för den. En träff rensas automatiskt vid den nattliga genomgången efter att annonsen har slutat vara aktiv, och den visas inte någonstans efter att annonsen har slutat vara aktiv.",
+    en: "Industry watches. An industry watch is kept until you remove it or until your account is deleted in accordance with the points above. If you remove it, it is deleted immediately, together with its hits and the companies we worked out for it. A hit is removed automatically in the nightly run after the ad has stopped being active, and it is not shown anywhere once the ad has stopped being active.",
+  },
+];
+
 function read(catalogue: unknown, key: string): unknown {
   return key
     .split(".")
@@ -76,6 +106,13 @@ describe("content-legal consent-withdrawal copy (ADR 0164 D8, security-auditor s
 
 describe("content-legal public-page notice (ADR 0166, security-auditor signature 3)", () => {
   it.each(SIGNED_PUBLIC_PAGE)("$key stands whole in sv and en", ({ key, sv: s, en: e }) => {
+    expect(read(sv, key)).toBe(s);
+    expect(read(en, key)).toBe(e);
+  });
+});
+
+describe("content-legal company watches and Branschbevakningar (ADR 0175, security-auditor signature 4)", () => {
+  it.each(SIGNED_COMPANY_WATCHES)("$key stands whole in sv and en", ({ key, sv: s, en: e }) => {
     expect(read(sv, key)).toBe(s);
     expect(read(en, key)).toBe(e);
   });

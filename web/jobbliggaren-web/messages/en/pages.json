@@ -364,7 +364,7 @@
     },
     "criteria": {
       "heading": "Industry watches",
-      "lede": "Saved industry and municipality searches, with no alerts of their own.",
+      "lede": "Saved industry and municipality searches. New ads from the companies are counted on Overview.",
       "newButton": "New industry watch",
       "listLabel": "Your industry watches",
       "emptyTitle": "You have no industry watches.",

@@ -1,12 +1,15 @@
 # Build + test pipeline (STEG 14a, BUILD.md §15.3).
 #
-# Kör på push till main + alla PRs. Inga AWS-anrop, inga deploys — ren CI-
-# validering. Deploy hanteras separat via deploy-dev.yml (tag-trigger).
+# Runs on every PR and weekly on main; `on:` says why main has no run per merge.
+# Inga AWS-anrop, inga deploys — ren CI-validering. Deploy hanteras separat via
+# deploy-dev.yml (tag-trigger).
 #
 # Backend-sviten (`coverage`) + frontend körs som parallella jobs för snabb fail-fast.
 name: build
 
 on:
+  # Fires only for a human merge. An app merge starts no run (`release-images.yml` header,
+  # #1107/#1108), so main is read by the schedule below.
   push:
     branches: [main]
   # NO base-branch filter on `pull_request` (#861). A `branches: [main]` filter here
@@ -22,6 +25,10 @@ on:
   # Cost: a stacked PR redundantly re-runs its parent's commits (they are in the branch
   # anyway); `concurrency: cancel-in-progress` below caps the waste.
   pull_request:
+  # Monday 05:37 UTC, a minute no other cron here uses. This is "main's latest run" for
+  # `performance-measurement.md` §F.
+  schedule:
+    - cron: '37 5 * * 1'
   workflow_dispatch:
 
 # Ren read-only — inga federation-tokens behövs i build-workflowen.

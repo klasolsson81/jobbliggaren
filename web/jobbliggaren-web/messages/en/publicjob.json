@@ -16,5 +16,22 @@
   "busy": {
     "title": "The job ad can't be shown right now",
     "body": "Try again in a moment."
+  },
+  "catalogue": {
+    "lede": "Job ads from Platsbanken, most recently published first.",
+    "count": "{count, plural, one {job vacancy} other {job vacancies}}",
+    "titlePaged": "{label} – page {page, number}",
+    "metaDescription": "Browse job vacancies from Platsbanken, most recently published first. Open an ad to read the full text.",
+    "published": "Published",
+    "location": "Location",
+    "empty": {
+      "title": "No job vacancies right now",
+      "body": "Try again in a moment."
+    },
+    "notFound": {
+      "title": "The page does not exist",
+      "body": "The list of job vacancies has no such page.",
+      "toCatalogue": "To job vacancies"
+    }
   }
 }

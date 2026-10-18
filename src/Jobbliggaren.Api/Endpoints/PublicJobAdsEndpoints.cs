@@ -2,19 +2,20 @@ using System.Diagnostics;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.JobAds.Queries.GetListedJobAdIds;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd;
+using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
 
 /// <summary>
-/// The anonymous reads of job ads: one ad (ADR 0160) and the ids of one job-sitemap part (ADR 0174). Their own
-/// group, outside the authenticated <c>/api/v1/job-ads</c>: anonymous by omitting <c>RequireAuthorization</c>, each
-/// with its own IP-partitioned policy.
+/// The anonymous reads of job ads: one ad (ADR 0160), the ids of one job-sitemap part (ADR 0174) and one page of the
+/// public catalogue (ADR 0176). Their own group, outside the authenticated <c>/api/v1/job-ads</c>: anonymous by omitting
+/// <c>RequireAuthorization</c>, each with its own IP-partitioned policy.
 /// </summary>
 public static class PublicJobAdsEndpoints
 {
     /// <summary>The snapshot is read every five minutes, so a minute is a short, honest wait.</summary>
-    private const string ListedIdsRetryAfterSeconds = "60";
+    private const string SnapshotRetryAfterSeconds = "60";
 
     public static void MapPublicJobAdsEndpoints(this IEndpointRouteBuilder app)
     {
@@ -37,12 +38,32 @@ public static class PublicJobAdsEndpoints
                     case ListedJobAdPart.Available available:
                         return Results.Ok(new ListedJobAdIdsDto(available.Ids));
                     case ListedJobAdPart.Unavailable:
-                        http.Response.Headers.RetryAfter = ListedIdsRetryAfterSeconds;
+                        http.Response.Headers.RetryAfter = SnapshotRetryAfterSeconds;
                         return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
                     default:
                         throw new UnreachableException($"Unmapped listed-ids answer {answer.GetType().Name}.");
                 }
             })
             .RequireRateLimiting(RateLimitingExtensions.PublicJobAdListedIdsPolicy);
+
+        // A page past the end is a 404: the list moves, and a crawler must drop that address. A snapshot outside its
+        // bound is the availability axis's 503, as for the sitemap.
+        group.MapGet("/catalogue", async (int page, HttpContext http, IMediator mediator, CancellationToken ct) =>
+            {
+                var answer = await mediator.Send(new GetPublicJobAdCatalogueQuery(page), ct);
+                switch (answer)
+                {
+                    case PublicJobAdCataloguePage.Available available:
+                        return Results.Ok(available.Rows);
+                    case PublicJobAdCataloguePage.NoSuchPage:
+                        return Results.NotFound();
+                    case PublicJobAdCataloguePage.Unavailable:
+                        http.Response.Headers.RetryAfter = SnapshotRetryAfterSeconds;
+                        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+                    default:
+                        throw new UnreachableException($"Unmapped catalogue answer {answer.GetType().Name}.");
+                }
+            })
+            .RequireRateLimiting(RateLimitingExtensions.PublicJobAdCataloguePolicy);
     }
 }

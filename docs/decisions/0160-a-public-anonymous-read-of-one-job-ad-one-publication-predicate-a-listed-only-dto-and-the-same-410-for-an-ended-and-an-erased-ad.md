@@ -371,3 +371,28 @@ a snapshot that the API itself refuses to serve once it is older than 15 minutes
 snapshot's age is the only window, and it is bounded (ADR 0174 D1). The `no-store` prefix block is unchanged, and the new route sits under it.
 
 ADR 0160 remains **Accepted**.
+
+## Amendment 2026-10-18 (#2090 S5, ADR 0176) — D2: `IsListed` gains a second consumer; D4: a second pinned public DTO; D5: a third policy; D6: order and count are list answers at most 15 minutes old, content is per request
+
+D1–D9 and the earlier amendments stand and nothing above is rewritten. This amendment records four things the S5 PR settles; the reasoning is in ADR 0176.
+
+**1. D2: `IsListed` gains a second consumer.** The first consumer is the listed-ad snapshot's sampler, which decides membership for the job sitemap (ADR 0174 D1). The second is the public
+catalogue's content read, which composes `JobAdPublication.IsListed(now)` over a typed-id set at request time (ADR 0176 D4). Neither holds a copy of the predicate; a hand-written SQL copy of it
+would fire ADR 0166 D10 trigger 11. The agreement test and the Testcontainers test of the amendment above stand, and the catalogue's own Testcontainers test (ADR 0176, measurement M4) runs the
+composed form against Postgres.
+
+**2. D4: a second pinned public DTO, with six members.** `PublicJobAdSummaryDto(Id, Title, CompanyName, MunicipalityName, RegionName, PublishedAt)` is the catalogue's row (ADR 0176 D5).
+`PublicJobAdSummaryDtoContractTests` pins the exact member set, a wire test pins the JSON keys, and the web's strict row schema is held equal to it by `PublicJobAdCatalogueBoundaryTests`. D4's
+"never carried" and "left out on purpose" lists hold for it, and it adds that a row carries no `Description` or excerpt, no `Url`, no `ExpiresAt` and no concept id. `PublicJobAdDto` and its 14
+members are unchanged.
+
+**3. D5: a third policy.** `GET /api/v1/public/job-ads/catalogue` is on `public-job-ad-catalogue` (`RateLimitingOptions.PublicJobAdCatalogue`): a TokenBucket per client IP, 60 per 60 s in 6
+segments, `QueueLimit` 0, approved by `security-auditor` on 2026-10-18. It is its own policy and shares neither `public-job-ad-read` nor `public-job-ad-listed-ids`; the page's budget is
+unchanged. D5's remark that the corpus becomes enumerable through the sitemap, by design, is now also true for title and employer, and the ADR 0166 amendment of the same date weighs it.
+
+**4. D6: order and count are list answers at most 15 minutes old; content is per request.** The amendment above narrowed D6 for the list answer. The catalogue splits its answer. Membership,
+order and count come from the same snapshot, which the API refuses to serve once it is older than 15 minutes (ADR 0174 D1). Each row's content is read per request through `IsListed(now)`, with
+the API authoritative for "now", so an ad erased after the sample is absent from its page at once while the count may still include it until the next tick. Every answer is `no-store`, and the
+new route sits under the existing prefix block.
+
+ADR 0160 remains **Accepted**.

@@ -32,6 +32,26 @@ describe("SiteHeader — the one public header (#1476)", () => {
     expect(container.querySelector("nav.jp-head__inner")).toBeNull();
   });
 
+  it("puts the one navigation link, Lediga jobb, in the landmark right after the brand, and no app nav", () => {
+    const { container } = render(<SiteHeader />);
+    const nav = screen.getByRole("navigation", { name: "Webbplatsnavigation" });
+
+    const children = [...nav.children];
+    expect(children).toHaveLength(2);
+    expect(children[0]).toHaveClass("jp-brand");
+    expect(children[1]).toHaveAttribute("href", "/lediga-jobb");
+    expect(children[1]?.textContent).toBe("Lediga jobb");
+    expect(container.querySelector(".jp-nav")).toBeNull();
+  });
+
+  it.each([{ showLogin: true }, { showLogin: false }])(
+    "carries the catalogue link on every row form (showLogin: $showLogin)",
+    ({ showLogin }) => {
+      render(<SiteHeader showLogin={showLogin} />);
+      expect(screen.getByRole("link", { name: "Lediga jobb" })).toHaveAttribute("href", "/lediga-jobb");
+    }
+  );
+
   it("links the brand to the landing root with an accessible name", () => {
     render(<SiteHeader />);
     const brand = screen.getByRole("link", { name: "Jobbliggaren, startsida" });
@@ -45,7 +65,7 @@ describe("SiteHeader — the one public header (#1476)", () => {
       "/logga-in",
     );
     // `jp-head--action` is the hinge the whole narrow-screen ladder turns on: the
-    // ≤480 step fires only on action rows. jsdom loads no CSS, so nothing else in
+    // ≤980 stats step and the ≤620 lockup step fire only on action rows. jsdom loads no CSS, so nothing else in
     // this suite can see the ladder — this class is the only thing it CAN see.
     // Bites on revert: inverting the ternary flips every public header's narrow
     // behaviour with no other test noticing.

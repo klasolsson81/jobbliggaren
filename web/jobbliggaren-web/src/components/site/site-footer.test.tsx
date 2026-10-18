@@ -43,6 +43,15 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
     expect(screen.queryByText("Påminnelser")).toBeNull();
   });
 
+  it("opens Kom igång with Lediga jobb, then the one auth door", () => {
+    render(<SiteFooter />);
+    const start = screen.getByRole("navigation", { name: "Kom igång" });
+    const links = within(start).getAllByRole("link");
+
+    expect(links.map((link) => link.textContent)).toEqual(["Lediga jobb", "Logga in eller skapa konto"]);
+    expect(links[0]).toHaveAttribute("href", "/lediga-jobb");
+  });
+
   it("renders the single free line exactly once (K5)", () => {
     render(<SiteFooter />);
     expect(

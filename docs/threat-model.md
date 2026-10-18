@@ -78,6 +78,19 @@ address. Every listed ad is enumerable by design (ADR 0160 D5), and the erasure
 inference that enumeration makes cheap is ADR 0166's W5. A change to the predicate,
 the snapshot's bound or the wire alters this boundary.
 
+`GET /api/v1/public/job-ads/catalogue` is the anonymous list behind the public
+catalogue at `/lediga-jobb` (ADR 0176): one page of 20 listed ads, newest first, from
+the same snapshot as the sitemap for the order and the count, with each row's content
+read and classified through `JobAdPublication.IsListed` per request, so an erased ad
+is absent from its page at once. A row has six pinned members (id, title, company
+name, kommun and län names, publication date), never the ad text, the deadline or the
+link to Arbetsförmedlingen. It makes the join from our id to a title and an employer
+cheap, one catalogue walk instead of a page read per ad (ADR 0166 W5, at catalogue
+scale), and puts a sole trader's name on list pages too (W2); the list is marked
+`data-nosnippet`. Its own IP-partitioned policy relies on the same forwarded client
+address. A change to the row's members, to where the content is read from, or to the
+order's or the count's source alters this boundary (ADR 0166 D10 triggers 10–12).
+
 The public job page (ADR 0165) is the first protected URL with an anonymous twin:
 `/jobb/<uuid>` is answered by the proxy when no session cookie is present, and takes
 the signed-in route untouched when one is. The proxy asks the read above once for a

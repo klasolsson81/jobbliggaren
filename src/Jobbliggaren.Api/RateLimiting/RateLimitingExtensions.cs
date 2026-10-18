@@ -31,6 +31,7 @@ public static partial class RateLimitingExtensions
     public const string HealthCheckPolicy = "health-check";
     public const string PublicJobAdReadPolicy = "public-job-ad-read";
     public const string PublicJobAdListedIdsPolicy = "public-job-ad-listed-ids";
+    public const string PublicJobAdCataloguePolicy = "public-job-ad-catalogue";
     public const string MeListReadPolicy = "me-list-read";
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
@@ -352,39 +353,18 @@ public static partial class RateLimitingExtensions
             // when the caller relays the trusted X-Forwarded-For; without it every call shares the
             // web container's bucket. TokenBucket so a crawler that honours Retry-After recovers
             // softly. The limit protects availability, not confidentiality.
-            options.AddPolicy(PublicJobAdReadPolicy, ctx =>
-            {
-                var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
-                return RateLimitPartition.GetTokenBucketLimiter(ip, _ =>
-                    new TokenBucketRateLimiterOptions
-                    {
-                        TokenLimit = rateLimitOpts.PublicJobAdRead.PermitLimit,
-                        TokensPerPeriod = Math.Max(1, rateLimitOpts.PublicJobAdRead.PermitLimit / rateLimitOpts.PublicJobAdRead.SegmentsPerWindow),
-                        ReplenishmentPeriod = TimeSpan.FromSeconds(
-                            rateLimitOpts.PublicJobAdRead.WindowSeconds / (double)rateLimitOpts.PublicJobAdRead.SegmentsPerWindow),
-                        QueueLimit = 0,
-                        AutoReplenishment = true,
-                    });
-            });
+            AddIpTokenBucketPolicy(options, PublicJobAdReadPolicy, rateLimitOpts.PublicJobAdRead);
 
             // Partition: IP. The job sitemap's parts (ADR 0174), its own budget beside the detail's so a crawler
             // reading the sitemap cannot drain the page budget, or the reverse. The web relays the crawler's address
             // on every call, so the bucket is per crawler. The endpoint does no I/O: the limit protects bandwidth and
             // CPU, not the database.
-            options.AddPolicy(PublicJobAdListedIdsPolicy, ctx =>
-            {
-                var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
-                return RateLimitPartition.GetTokenBucketLimiter(ip, _ =>
-                    new TokenBucketRateLimiterOptions
-                    {
-                        TokenLimit = rateLimitOpts.PublicJobAdListedIds.PermitLimit,
-                        TokensPerPeriod = Math.Max(1, rateLimitOpts.PublicJobAdListedIds.PermitLimit / rateLimitOpts.PublicJobAdListedIds.SegmentsPerWindow),
-                        ReplenishmentPeriod = TimeSpan.FromSeconds(
-                            rateLimitOpts.PublicJobAdListedIds.WindowSeconds / (double)rateLimitOpts.PublicJobAdListedIds.SegmentsPerWindow),
-                        QueueLimit = 0,
-                        AutoReplenishment = true,
-                    });
-            });
+            AddIpTokenBucketPolicy(options, PublicJobAdListedIdsPolicy, rateLimitOpts.PublicJobAdListedIds);
+
+            // Partition: IP. The public catalogue's pages (ADR 0176), its own budget beside the detail's and the
+            // sitemap's, so a crawler walking the catalogue cannot drain the job pages' budget, or the reverse. Each
+            // call reads at most a page of rows by primary key; the limit protects availability, not confidentiality.
+            AddIpTokenBucketPolicy(options, PublicJobAdCataloguePolicy, rateLimitOpts.PublicJobAdCatalogue);
 
             // Partition: UserId (claim "sub"). Auth-gated GET-ytor under /me/* +
             // /applications/pipeline + /resumes (Pre-4 STEG 5, TD-92). Egen policy
@@ -872,5 +852,30 @@ public static partial class RateLimitingExtensions
                 QueueLimit = 0,
                 AutoReplenishment = true,
             });
+    }
+
+    /// <summary>
+    /// The anonymous public job-ad reads' shared mechanism (ADR 0160 D5, ADR 0174 D5, ADR 0176): a TokenBucket per
+    /// client IP, refilled in <see cref="RateLimitingOptions.PolicyOptions.SegmentsPerWindow"/> slices so a crawler that
+    /// honours Retry-After recovers softly, with no queue. Never a per-user partition, which would give an anonymous
+    /// caller NoLimiter. The IP is real only behind the trusted X-Forwarded-For; if the apex ever gets an AAAA record,
+    /// the partition becomes the /64 here, once, for every surface that uses it.
+    /// </summary>
+    private static void AddIpTokenBucketPolicy(
+        RateLimiterOptions options, string policyName, RateLimitingOptions.PolicyOptions budget)
+    {
+        options.AddPolicy(policyName, ctx =>
+        {
+            var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+            return RateLimitPartition.GetTokenBucketLimiter(ip, _ =>
+                new TokenBucketRateLimiterOptions
+                {
+                    TokenLimit = budget.PermitLimit,
+                    TokensPerPeriod = Math.Max(1, budget.PermitLimit / budget.SegmentsPerWindow),
+                    ReplenishmentPeriod = TimeSpan.FromSeconds(budget.WindowSeconds / (double)budget.SegmentsPerWindow),
+                    QueueLimit = 0,
+                    AutoReplenishment = true,
+                });
+        });
     }
 }

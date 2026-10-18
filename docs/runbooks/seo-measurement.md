@@ -48,7 +48,7 @@ Change the list only by a dated row in §4 saying why. A changed list breaks com
 
 ## §3 Counting listed-ad supply per kommun
 
-The query counts listed ads by taxonomy concept id. It uses the same publication predicate as `public-job-page-publication-count.sql`: imported from Platsbanken, Active, deadline empty or not passed. It prints concept ids, counts and one boolean (`s_ok`, the S test of the hub gate). It never prints an ad, a title, a company name, or a figure about any single employer. A kommun or yrkesgrupp gets its own row only when it has at least 25 distinct employers (the gate's E). Those below that are counted in a total row.
+The query counts listed ads by taxonomy concept id. It uses the same publication predicate as `public-job-page-publication-count.sql`: imported from Platsbanken, Active, deadline empty or not passed. It prints concept ids, counts and one boolean (`s_ok`, the S test of the hub gate). It never prints an ad, a title, a company name, or a figure about any single employer. A kommun, län or yrkesgrupp gets its own row only when it has at least 25 distinct employers (the gate's E). Those below that are counted in a total row.
 
 ```bash
 ssh jp-vps 'sudo docker exec -i jobbliggaren-postgres psql -U postgres -d jobbliggaren -tA -F "|" -q -v ON_ERROR_STOP=1' \

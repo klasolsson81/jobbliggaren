@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ACCOUNT_ACTIVITY_RECORDED_FROM } from "@/lib/admin/account-activity";
 import type { AdminAccountRow } from "@/lib/admin/view-models";
 import { AdminAccountsTable } from "./admin-accounts-table";
 
@@ -17,7 +18,7 @@ const ROWS: ReadonlyArray<AdminAccountRow> = [
 ];
 
 /** The box's start of recording, as the live page passes it (ADR 0172 D1). */
-const START = "2026-10-17T18:49:56Z";
+const START = ACCOUNT_ACTIVITY_RECORDED_FROM;
 
 /** What a screen reader reads in a cell: the dash is hidden from it, and its words are not. */
 const UNKNOWN = "–Uppgift saknas";
@@ -122,6 +123,8 @@ describe("AdminAccountsTable (ADR 0150 D2/D3)", () => {
     const help = screen.getAllByRole("button", { name: "Om Senast inloggad och Senast aktiv" });
     expect(help).toHaveLength(1);
     expect(help[0]!.closest("th")).toHaveTextContent(/^Senast inloggad$/);
+    const named = document.getElementById(help[0]!.closest("th")!.getAttribute("aria-labelledby") ?? "");
+    expect(named).toHaveTextContent(/^Senast inloggad$/);
     await userEvent.click(help[0]!);
 
     const dialog = screen.getByRole("dialog", { name: "Senast inloggad och Senast aktiv" });

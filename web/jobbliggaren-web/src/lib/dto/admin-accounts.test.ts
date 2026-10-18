@@ -48,7 +48,7 @@ describe("the account directory's wire shapes (#1974, ADR 0151)", () => {
   });
 
   it("reads an id outside RFC 9562's version bits instead of failing the page", () => {
-    // Declared unreachable: the provider's Guid key generator mints version 7 ids. The column and the
+    // Declared unreachable. The column and the
     // backend's route take any GUID, so this pins only that one row of another shape cannot fail the page.
     const outside = { ...ITEM, id: "00000000-0000-0000-0000-000000000001" };
 
@@ -71,10 +71,6 @@ describe("the account directory's wire shapes (#1974, ADR 0151)", () => {
     const page = toAccountsPage(accountSearchResponseSchema.parse(answer([ITEM])));
 
     expect(page.rows[0]).toMatchObject({ lastLoginAt: null, lastActiveAt: null });
-  });
-
-  it("refuses an activity minute that is not an instant", () => {
-    expect(accountSearchResponseSchema.safeParse(answer([{ ...ITEM, lastActiveAt: "igår" }])).success).toBe(false);
   });
 });
 

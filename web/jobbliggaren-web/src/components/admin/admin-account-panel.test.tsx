@@ -343,9 +343,11 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
   it("names an unknown value for a screen reader, which skips a lone dash", () => {
     renderPanel(ACTIVE);
 
-    const lastLogin = screen.getByText("Senast inloggad").nextElementSibling;
-    expect(lastLogin?.querySelector('[aria-hidden="true"]')).toHaveTextContent("–");
-    expect(lastLogin?.querySelector(".sr-only")).toHaveTextContent("Uppgift saknas");
+    for (const label of ["Senast inloggad", "Senast aktiv"]) {
+      const value = screen.getByText(label).nextElementSibling;
+      expect(value?.querySelector('[aria-hidden="true"]')).toHaveTextContent("–");
+      expect(value?.querySelector(".sr-only")).toHaveTextContent("Uppgift saknas");
+    }
   });
 
   // ADR 0172 D7: a suspension or a pending deletion keeps the minutes recorded before it.

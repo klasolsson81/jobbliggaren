@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createFormatter } from "next-intl";
+import { ACCOUNT_ACTIVITY_RECORDED_FROM } from "@/lib/admin/account-activity";
 import type { AccountsListing } from "@/lib/admin/account-directory";
 import type { AdminAccessOperation, AdminAccessOutcome } from "@/lib/admin/account-access";
 import type { AdminDeletionOutcome } from "@/lib/admin/account-deletion";
@@ -12,6 +14,7 @@ import { dismissAdminToast, getAdminToastSnapshot } from "@/lib/admin/toast-stor
 import type { AdminSelf } from "@/lib/admin/view-models";
 import type { CodeProof, ReauthRequestResult } from "@/lib/auth/reauth-action-state";
 import { toAccountsPage, type AccountDetailsDto, type AccountSearchResponse } from "@/lib/dto/admin-accounts";
+import { formatDateTime } from "@/lib/i18n/format";
 
 const { requestActionMock, cancelActionMock, accessActionMock, deletionActionMock, requestReauthCodeMock } = vi.hoisted(() => ({
   requestActionMock: vi.fn<(accountId: string, newEmail: string, proof: CodeProof) => Promise<AdminEmailChangeRequestOutcome>>(),
@@ -591,6 +594,18 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
       { sort: "LastActiveNewest", page: 1 },
       { sort: "LastActiveOldest", page: 1 },
     ]);
+  });
+
+  it("tells the box's start of recording behind the activity help", async () => {
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Om Senast inloggad och Senast aktiv" }));
+
+    const format = createFormatter({ locale: "sv", timeZone: "Europe/Stockholm" });
+    const start = formatDateTime(format, ACCOUNT_ACTIVITY_RECORDED_FROM, "\u00a0");
+    expect(screen.getByRole("dialog", { name: "Senast inloggad och Senast aktiv" })).toHaveAccessibleDescription(
+      `Tidpunkterna sparas från och med ${start}. Saknas en tidpunkt har inget sparats sedan dess.`,
+    );
   });
 
   it.each([

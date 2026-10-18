@@ -31,8 +31,9 @@ ADR 0019 (`v*-dev`, `v*-rc*`, `v*`) är historik: `deploy-dev.yml`:s trigger tog
       (ADR 0044) får inte vara röd.
 - [ ] **Observe-only-signaler granskade** (ADR 0045) — `lighthouse` /
       `loadtest` / `audit`-jobben är observe-only och blockerar inte, men
-      deras `::warning::`/summary ska läsas inför release: ny CWV-regression,
-      p95-budget-överskridande eller High/Critical-CVE noteras och bedöms
+      `audit`-jobbets `::warning::`-rader och `lighthouse`-jobbets
+      assertion-rader (läses enligt `performance-measurement.md` §F) läses inför
+      release: High/Critical-CVE eller ett fallerande byte-budget noteras och bedöms
       (åtgärda eller medvetet acceptera + motivera).
 - [ ] **Inga öppna Klas-STOPP-flaggor** i `docs/current-work.md`.
 - [ ] **Öppna issues märkta `P0`/`P1`/`mvp` mot release-scope** genomgångna (GitHub Issues)

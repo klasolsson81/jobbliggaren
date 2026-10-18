@@ -658,9 +658,7 @@ jobs:
   #
   # ALLA tre jobben nedan är OBSERVE-ONLY: de ligger MEDVETET UTANFÖR ci.needs.
   # Coverage-gaten (ADR 0044) är orörd — dessa är rent additiva.
-  # continue-on-error + explicit
-  # exit 0 → de kan aldrig blockera merge Fas 1. Budget-överskridande/CVE-fynd
-  # emitteras som ::warning:: + job-summary, inte som fail.
+  # continue-on-error → de kan aldrig blockera merge Fas 1.
   #
   # Skäl (CTO roster-gap 2026-05-17 + ADR 0045 Beslut 5): "flaky perf-gate
   # sämre än ingen perf-gate". Delade GitHub-runners = web-verifierat brusig
@@ -873,7 +871,7 @@ jobs:
         run: dotnet restore Jobbliggaren.sln
 
       # dotnet list package --vulnerable: High/Critical → ::warning::, exit 0
-      # (observe-only Fas 1, ADR 0045 Beslut 7). Moderate/Low ignoreras
+      # (observe-only Fas 1, ADR 0045 Beslut 5). Moderate/Low ignoreras
       # medvetet (transitiv dev-brus utan runtime-exponering pre-launch).
       - name: NuGet vulnerability scan (observe-only)
         shell: bash
@@ -893,7 +891,7 @@ jobs:
           # anropsplatserna. Ingen merge hänger på den här: jobbet är `continue-on-error`
           # och ligger utanför `ci.needs`.
           if grep -Eiq '\b(High|Critical)\b' <<<"$out"; then
-            echo "::warning::NuGet High/Critical CVE upptäckt (ADR 0045 Beslut 7, observe-only Fas 1). Dependabot öppnar fix-PR. security-auditor manuellt Blocker-veto kvarstår."
+            echo "::warning::NuGet High/Critical CVE upptäckt (ADR 0045 Beslut 5, observe-only Fas 1). Dependabot öppnar fix-PR. security-auditor manuellt Blocker-veto kvarstår."
           else
             echo "::notice::Inga NuGet High/Critical-CVE:er (Moderate/Low ignoreras medvetet pre-launch)."
           fi
@@ -910,7 +908,7 @@ jobs:
           if pnpm audit --audit-level=high; then
             echo "::notice::pnpm audit: inga High/Critical."
           else
-            echo "::warning::pnpm audit High/Critical (ADR 0045 Beslut 7, observe-only Fas 1). Dependabot öppnar fix-PR."
+            echo "::warning::pnpm audit High/Critical (ADR 0045 Beslut 5, observe-only Fas 1). Dependabot öppnar fix-PR."
           fi
 
       # Watches the vuln gate's two escape hatches — `pnpm.auditConfig.ignoreGhsas`

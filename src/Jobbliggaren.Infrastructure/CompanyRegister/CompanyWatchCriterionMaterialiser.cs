@@ -430,7 +430,7 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
     [LoggerMessage(
         EventId = 6420,
         Level = LogLevel.Information,
-        Message = "Materialisering av smarta bevakningar är avstängd (CompanyWatchMaterialisation:Enabled=false). "
+        Message = "Materialisering av branschbevakningar är avstängd (CompanyWatchMaterialisation:Enabled=false). "
                 + "Befintliga medlemsmängder blir gamla och läsvägen ska rapportera det, aldrig en nolla.")]
     private static partial void LogDisabled(ILogger logger);
 

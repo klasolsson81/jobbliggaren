@@ -27,13 +27,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: read
       id-token: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
+      - name: Fetch this run's commit (git, no credential)
+        env:
+          GIT_CONFIG_NOSYSTEM: '1'
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          [[ $GITHUB_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::GITHUB_SHA is not a commit id"; exit 1; }
+          git init --quiet
+          git fetch --quiet --no-tags --depth=1 https://github.com/klasolsson81/jobbliggaren "$GITHUB_SHA"
+          git checkout --quiet --detach FETCH_HEAD
+          [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] || { echo "::error::fetched $(git rev-parse HEAD), not $GITHUB_SHA"; exit 1; }
+          git diff --quiet HEAD -- .github/scripts/search-console-read.sh || { echo "::error::the script is not the commit's"; exit 1; }
 
       # No credentials file and no exported variables: the access token is this step's output, and only the next
       # step receives it, through its env.

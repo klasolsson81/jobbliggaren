@@ -8,12 +8,12 @@
 #
 # Run by .github/workflows/search-console-read.yml, on main only. The calls are fixed: one permission check, five
 # searchAnalytics.query requests with no dimensions (four page types and the site total), and two sitemaps.list
-# requests. Nothing here takes an input that reaches a request.
+# requests.
 #
 # FAIL-CLOSED. A response is accepted only in the shapes checked below. Anything else prints one fixed line, naming the
 # request and a class from a closed set (http <code>, permission, shape, keys, rows, path), and fails the job. Never a
-# value and never a body: jq's stderr is discarded because its diagnostics can echo input, responses live only under
-# $RUNNER_TEMP and are removed on exit, and the summary is written only once every call has been accepted.
+# value and never a body: jq's stderr is discarded because its diagnostics can echo input, and responses live only
+# under $RUNNER_TEMP and are removed on exit.
 
 set -euo pipefail
 
@@ -66,7 +66,7 @@ refuse() { # refuse <request> <class>
 call() { # call <request> <GET|POST> <url> [<body file>]; leaves the response in $RESP
   local file=${1//[^a-z]/-} code
   RESP="$WORK/$file.json"
-  local args=(--proto '=https' --silent --max-time 30 --request "$2" --output "$RESP" --write-out '%{http_code}' --config -)
+  local args=(-q --proto '=https' --silent --max-time 30 --request "$2" --output "$RESP" --write-out '%{http_code}' --config -)
   if [ "$#" -eq 4 ]; then
     args+=(--header 'Content-Type: application/json' --data-binary "@$4")
   fi
@@ -74,6 +74,7 @@ call() { # call <request> <GET|POST> <url> [<body file>]; leaves the response in
     | curl "${args[@]}" "$3" 2>/dev/null) || code=000
   [[ $code =~ ^[0-9]{3}$ ]] || code=000
   [ "$code" = 200 ] || refuse "$1" "http $code"
+  [ "$(q -s length "$RESP")" = 1 ] || refuse "$1" shape
 }
 
 # 1. The permission check. Restricted is the only limit Google enforces; with `webmasters.readonly` the scope is ours.
@@ -130,7 +131,7 @@ for request in sitemaps.list sitemaps.list:index; do
   [ "$request" = sitemaps.list ] || url="$url?$INDEX_PARAM"
   call "$request" GET "$url"
   verdict=$(q -r '
-    def count: . == null or (type == "number" and . >= 0 and . == floor) or (type == "string" and test("^[0-9]{1,12}$"));
+    def count: . == null or (type == "number" and . >= 0 and . == floor) or (type == "string" and test("^[0-9]{1,12}\\z"));
     def entry: type == "object"
       and ((.lastDownloaded // null) | . == null or (type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}")))
       and ((.isPending // null) | . == null or type == "boolean")
@@ -140,7 +141,7 @@ for request in sitemaps.list sitemaps.list:index; do
     elif has("sitemap") | not then "none"
     elif (.sitemap | type) != "array" then "shape"
     elif any(.sitemap[]; type != "object" or (.path | type) != "string") then "shape"
-    elif any(.sitemap[]; .path | test("^https://jobbliggaren\\.se/sitemap[-a-z0-9]*\\.xml$") | not) then "path"
+    elif any(.sitemap[]; .path | test("^https://jobbliggaren\\.se/sitemap[-a-z0-9]*\\.xml\\z") | not) then "path"
     elif all(.sitemap[]; entry) then "ok"
     else "shape" end' "$RESP") || verdict=shape
   case "$verdict" in

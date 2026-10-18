@@ -1,6 +1,7 @@
 using System.Reflection;
 using Jobbliggaren.Application.Applications.Queries.GetApplications;
 using Jobbliggaren.Application.Common;
+using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Application.Resumes.Queries.GetResumes;
 using Mediator;
@@ -43,6 +44,14 @@ namespace Jobbliggaren.Architecture.Tests;
 /// ofiltrerad browse-all) och <c>GetLatestPendingParsedResumeQuery</c>. Läs alltså aldrig <c>T?</c> som
 /// "alltså 404" utan att läsa queryns egen docblock; de två formerna är omöjliga att skilja på
 /// signaturen ensam, och att harmonisera dem åt fel håll skulle 404:a en normal vy.
+/// </para>
+///
+/// <para>
+/// <b>A third form, declared: a closed union whose page arm carries <see cref="PagedResult{T}"/></b> (ADR 0175, the
+/// public catalogue). <c>GetPublicJobAdCatalogueQuery</c> has <c>Page</c> and a constant page size, so the heuristic
+/// above does not see it. Its answer has two arms that are not a page: a page past the end (404) and a snapshot too old
+/// to answer (503), which is availability and no <c>ErrorKind</c>. The page arm still carries
+/// <see cref="PagedResult{T}"/>, pinned by its own test below, so the exception is stated rather than missed.
 /// </para>
 /// </summary>
 public class PagedResultContractTests
@@ -92,6 +101,17 @@ public class PagedResultContractTests
         // F2-P7 (TD-56 stängd 2026-05-12). Tidigare opaginerad, nu paginerad.
         ReturnsPagedResult(typeof(ListJobAdsQuery)).ShouldBeTrue(
             "ListJobAdsQuery måste returnera PagedResult<JobAdDto>.");
+    }
+
+    [Fact]
+    public void GetPublicJobAdCatalogueQuery_Available_arm_carries_PagedResult()
+    {
+        ReturnsPagedResult(typeof(GetPublicJobAdCatalogueQuery)).ShouldBeFalse(
+            "the catalogue answers a closed union, not a bare PagedResult (ADR 0175).");
+
+        var available = typeof(PublicJobAdCataloguePage.Available).GetProperty(nameof(PublicJobAdCataloguePage.Available.Rows));
+        available.ShouldNotBeNull();
+        available.PropertyType.ShouldBe(typeof(PagedResult<PublicJobAdSummaryDto>));
     }
 
     private static bool IsMediatorQuery(Type type) =>

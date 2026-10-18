@@ -147,6 +147,11 @@ public static class JobAdLifecycleReadRegistry
                     + "set behind the job sitemap and the public catalogue (ADR 0174, ADR 0175). IsListed gates on "
                     + "Active, the Platsbanken provenance and the deadline, the SQL form of JobAdPublication.Classify; the "
                     + "read projects the id and the publication date, and the snapshot keeps the ids only.")),
+            ["Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue.GetPublicJobAdCatalogueQueryHandler.Handle"] =
+                One(Active(".Where(typedIds.Contains(j.Id)).Where(JobAdPublication.IsListed(now)) — one page of the "
+                    + "public catalogue (ADR 0175). The ids are a slice of the listed-ad snapshot; the content is read "
+                    + "and classified again now, so an ad that ended or was erased after the snapshot's read is absent. "
+                    + "A narrow row: id, title, company name, kommun and län ids, publication date.")),
             ["Jobbliggaren.Application.CompanyWatches.Queries.NewFollowedCompanyAdSet.NewHits"] =
                 One(Active("join JobAds where j.Status == Active — the single definition of the follow "
                     + "rail's new-ad set, shared by the /oversikt count and the destination it links to "

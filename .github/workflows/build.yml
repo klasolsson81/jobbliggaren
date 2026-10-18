@@ -223,8 +223,9 @@ jobs:
       # ADR 0165 (SEO epic #2090 S2): the public job page's statuses are the contract a crawler reads, and a 410
       # or a 503 with Retry-After comes from `NextResponse.rewrite(url, { status })` in the proxy, which Next does not
       # document. This starts the standalone server the image runs, against a stub backend, and asserts over HTTP, so
-      # a Next that stops carrying the status fails `ci` here instead of serving a 200 to Google. It lives in this
-      # blocking job because `e2e.yml` is observe-only. It needs the production build above and nothing else.
+      # a Next that stops carrying the status fails `ci` here instead of serving a 200 to Google. ADR 0174 (S4) adds
+      # the sitemap's job parts, which must be answered per request from the backend and never prerendered at build. It
+      # lives in this blocking job because `e2e.yml` is observe-only. It needs the production build above and nothing else.
       - name: Public job page smoke (ADR 0165)
         run: node scripts/public-job-smoke.mjs
 

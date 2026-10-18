@@ -342,6 +342,14 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
 2. **Check, anonymously, that the page answers 410:**
    `curl -s -o /dev/null -w "%{http_code}\n" https://jobbliggaren.se/jobb/<uuid>`.
    Anything but 410 is a stop: the erasure did not take, go back to 2.3.
+
+   **Then check that the address has left the job sitemap** (ADR 0174), in every part
+   `/sitemap-jobb-<n>.xml` the index `/sitemap.xml` lists, printing the status, the `Retry-After` and two counts:
+   `curl -s -o part.xml -w "%{http_code} %header{retry-after}\n" https://jobbliggaren.se/sitemap-jobb-<n>.xml; grep -c '<urlset' part.xml; grep -c '<uuid>' part.xml`.
+   A reading counts only at 200 with an XML `urlset`. A 503 body also counts 0, so on a
+   503, wait the `Retry-After` and read again. At 200 with 0 in every part, go on. If the
+   uuid is still listed at 200 sixteen minutes after the erasure, that is a defect: tell
+   Klas, and go on to step 3 anyway, because the 410 is what removes the URL.
 3. **Search Console** (the Domain property): *Removals → New request → Temporary
    removal → Remove this URL only*, for each address. Per Google it takes effect within
    about a day and lasts about six months; the permanent removal is the 410, which Google

@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 import type { Metadata } from "next";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { SITE_URL } from "@/lib/site-url";
+import { marketingSitemapLocs } from "@/lib/seo/marketing-sitemap";
 import { metadataBlock } from "@/test/metadata-source";
 import robots from "./robots";
-import sitemap from "./sitemap";
 
 /**
  * #2092: every indexable public page names itself as its canonical, absolutely, and no
@@ -53,8 +53,8 @@ beforeAll(async () => {
 
 describe("self-canonicals on the indexable public pages (#2092)", () => {
   it("derives exactly the pages the sitemap lists", () => {
-    const listed = sitemap()
-      .map((entry) => (entry.url === SITE_URL ? "/" : entry.url.slice(SITE_URL.length)))
+    const listed = marketingSitemapLocs()
+      .map((url) => (url === SITE_URL ? "/" : url.slice(SITE_URL.length)))
       .sort((a, b) => a.localeCompare(b));
 
     expect(publicPages.map(routeOf)).toEqual(listed);

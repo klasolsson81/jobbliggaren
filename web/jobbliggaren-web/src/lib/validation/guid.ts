@@ -18,3 +18,10 @@ export const GUID_REGEX =
 export function isValidId(value: string): boolean {
   return GUID_REGEX.test(value);
 }
+
+/**
+ * Only the lower-case form: the one spelling a public job page's URL has (ADR 0165 D1), so the one a job-sitemap `loc`
+ * may carry (ADR 0174).
+ */
+export const CANONICAL_GUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

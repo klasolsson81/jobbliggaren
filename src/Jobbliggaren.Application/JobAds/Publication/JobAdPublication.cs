@@ -1,11 +1,12 @@
+using System.Linq.Expressions;
 using Jobbliggaren.Domain.JobAds;
 
 namespace Jobbliggaren.Application.JobAds.Publication;
 
 /// <summary>
 /// The one publication predicate for job ads (ADR 0160). Every public surface — the anonymous
-/// detail read, and later the job page, <c>JobPosting</c>, sitemap and catalogue — asks this type
-/// whether an ad is public. None keeps a definition of its own.
+/// detail read, the job page, <c>JobPosting</c>, the sitemap and later the catalogue — asks this
+/// type whether an ad is public. None keeps a definition of its own.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -19,8 +20,9 @@ namespace Jobbliggaren.Application.JobAds.Publication;
 /// <c>ExpiresAt &lt; now</c>, so an ad is still listed at the instant <c>ExpiresAt == now</c>.
 /// </para>
 /// <para>
-/// The SQL form (<c>IsListed(now)</c>) is added here by its first list consumer, with a test that
-/// it agrees with <see cref="Classify"/> in every state.
+/// <see cref="IsListed"/> is the SQL form, added by its first list consumer (the sitemap, ADR 0174).
+/// The two forms share no code: an agreement test pins them in every state, and a Testcontainers
+/// test pins the SQL translation.
 /// </para>
 /// </remarks>
 public static class JobAdPublication
@@ -52,4 +54,17 @@ public static class JobAdPublication
 
         return JobAdPublicationState.Listed;
     }
+
+    /// <summary>
+    /// <see cref="Classify"/> returns <see cref="JobAdPublicationState.Listed"/>, as a query filter.
+    /// </summary>
+    /// <remarks>
+    /// <c>External != null</c> is redundant in SQL and is there for the compiled form: without it a
+    /// never-imported row would throw instead of being excluded.
+    /// </remarks>
+    public static Expression<Func<JobAd, bool>> IsListed(DateTimeOffset now) =>
+        j => j.External != null
+             && j.External.Source == PublishedSource
+             && j.Status == JobAdStatus.Active
+             && (j.ExpiresAt == null || j.ExpiresAt >= now);
 }

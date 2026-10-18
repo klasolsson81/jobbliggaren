@@ -4,8 +4,8 @@ import type { Metadata } from "next";
 import { PublicJobAd } from "@/components/job-ads/public-job-ad";
 import { getPublicJobAd } from "@/lib/api/public-job-ad";
 import { formatDate } from "@/lib/i18n/format";
+import { publicJobAdUrl } from "@/lib/job-ads/public-job-ad-url";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
-import { absoluteUrl } from "@/lib/site-url";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     deadline === null
       ? t("meta.description", { company: jobAd.companyName, title: jobAd.title, published })
       : t("meta.descriptionWithDeadline", { company: jobAd.companyName, title: jobAd.title, published, deadline });
-  const url = absoluteUrl(`/jobb/${jobAd.id}`);
+  const url = publicJobAdUrl(jobAd.id);
 
   return {
     title: documentTitle,

@@ -273,6 +273,29 @@ Implementerad och committed i HEAD `e6b08fa` (F6 P5 Punkt 3 PR1, 2026-05-23):
 >
 > **Amendment provenance:** the substance is ADR 0160 and the rulings it cites, structured, not constructed, by adr-keeper (Claude Code).
 
+## Amendment 2026-10-18 (#2090 S4, ADR 0174) — rule (d): the listed set is in this class, precomputed in the API process and not by the Worker through Redis
+
+*(Section language: English per CLAUDE.md §1, matching the amendment of 2026-10-10 above.)*
+
+**The class.** The amendment of 2026-10-10 kept two reads apart: a recurring read of the whole corpus, identical for every reader, which is precomputed (Beslut (a)), and a read of one
+record, which has nothing to precompute. The list of listed job ads behind the job sitemap (ADR 0174) reads the whole corpus (about 40 000 rows) and is identical for every reader, so by that
+amendment's own test it is in the first class. Read per request, it would be exactly what rule (d) moves out of the handler: each request a scan of the database that the signed-in product
+shares, on the one 8 GB box (ADR 0122). It is therefore precomputed.
+
+**The transport differs, and the rule holds.** The list is computed once per interval by a sampler in the API process and held in memory (ADR 0174 D1), and the handler never touches the
+database. A timer is not cache-aside: the read leaves the request handler and is computed once for every reader, which is the common principle of rule (d)'s legs. The Worker → Redis
+transport of Beslut (a) is not used, for two reasons.
+
+- **Fowler's First Law of Distributed Object Design** (PoEAA 2002, ch. 7). The API is both the producer and the only consumer, so putting the value in Redis spreads it over two processes
+  and gains nothing the sitemap needs. ADR 0158 Alternative B made the same trade the same way.
+- **The cost falls on every lane.** A change to the Redis ACL template needs Klas's escrow sitting before any box advance, and until that sitting every parallel lane's merges stop going
+  live (ADR 0154 §4; precedent #2003).
+
+If something outside the API process comes to need the listed set, the Worker → Redis shape becomes the right one (ADR 0174 D9, trigger 1).
+
+**What does NOT change:** Variant B's architecture, Beslut (a), (b) and (c), the four existing legs of (d), and the ban on in-handler cache-aside. No supersession: ADR 0064 remains
+**Accepted**.
+
 ## Referenser
 
 - CLAUDE.md §2.3 (CQRS — read-DTO ut, ingen Domain-objekt över gränsen), §3.3 (DTO = `record class`), §3.6 (`.AsNoTracking()` default + projektion), §5.4 (säkerhet — anonym DoS-yta), §8 punkt 9 (ADR = DoD vid arkitekturbeslut)

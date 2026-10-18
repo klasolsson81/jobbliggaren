@@ -30,6 +30,7 @@ public static partial class RateLimitingExtensions
     public const string LandingPublicReadPolicy = "landing-public-read";
     public const string HealthCheckPolicy = "health-check";
     public const string PublicJobAdReadPolicy = "public-job-ad-read";
+    public const string PublicJobAdListedIdsPolicy = "public-job-ad-listed-ids";
     public const string MeListReadPolicy = "me-list-read";
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
@@ -358,6 +359,25 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.PublicJobAdRead.PermitLimit / rateLimitOpts.PublicJobAdRead.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.PublicJobAdRead.WindowSeconds / (double)rateLimitOpts.PublicJobAdRead.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // Partition: IP. The job sitemap's parts (ADR 0174), its own budget beside the detail's so a crawler
+            // reading the sitemap cannot drain the page budget, or the reverse. The web relays the crawler's address
+            // on every call, so the bucket is per crawler. The endpoint does no I/O: the limit protects bandwidth and
+            // CPU, not the database.
+            options.AddPolicy(PublicJobAdListedIdsPolicy, ctx =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+                return RateLimitPartition.GetTokenBucketLimiter(ip, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.PublicJobAdListedIds.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.PublicJobAdListedIds.PermitLimit / rateLimitOpts.PublicJobAdListedIds.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.PublicJobAdListedIds.WindowSeconds / (double)rateLimitOpts.PublicJobAdListedIds.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

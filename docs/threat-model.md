@@ -68,6 +68,16 @@ reveal an erasure. Its own
 IP-partitioned policy relies on the trusted forwarded client address. A change to
 the predicate, the DTO or those answers alters this boundary.
 
+`GET /api/v1/public/job-ads/listed-ids` is the anonymous enumeration behind the job
+sitemap (ADR 0174): the ids of every ad `JobAdPublication.IsListed` admits, the SQL
+form of the same predicate, one sitemap part at a time, and nothing else. It answers
+from a snapshot the API reads every five minutes and refuses one older than fifteen
+with a 503, so an erased ad leaves the list within that bound while its page already
+answers the 410. Its own IP-partitioned policy relies on the same forwarded client
+address. Every listed ad is enumerable by design (ADR 0160 D5), and the erasure
+inference that enumeration makes cheap is ADR 0166's W5. A change to the predicate,
+the snapshot's bound or the wire alters this boundary.
+
 The public job page (ADR 0165) is the first protected URL with an anonymous twin:
 `/jobb/<uuid>` is answered by the proxy when no session cookie is present, and takes
 the signed-in route untouched when one is. The proxy asks the read above once for a

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svPages from "../../../../messages/sv/pages.json";
-import sitemap from "@/app/sitemap";
+import { marketingSitemapLocs } from "@/lib/seo/marketing-sitemap";
 
 // #1975 — /adressbyte as a document (design-reviewer item 9): its title and heading say what it is for and carry no
 // address, it asks not to be indexed and is not in the sitemap, and it is rendered per request.
@@ -37,6 +37,6 @@ describe("/adressbyte (#1975, ADR 0153)", () => {
   });
 
   it("is not in the sitemap", () => {
-    expect(sitemap().map((entry) => new URL(entry.url).pathname)).not.toContain("/adressbyte");
+    expect(marketingSitemapLocs().map((url) => new URL(url).pathname)).not.toContain("/adressbyte");
   });
 });

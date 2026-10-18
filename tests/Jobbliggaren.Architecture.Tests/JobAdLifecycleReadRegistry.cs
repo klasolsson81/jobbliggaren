@@ -142,6 +142,10 @@ public static class JobAdLifecycleReadRegistry
         new Dictionary<string, IReadOnlyList<JobAdSiteDecision>>(StringComparer.Ordinal)
         {
             // ════════════════════════════ ActiveOnly — the conforming reads ════════════════════════
+            ["Jobbliggaren.Application.JobAds.Listing.ListedJobAdSnapshotSampler.SampleAsync"] =
+                One(Active(".Where(JobAdPublication.IsListed(asOf)).OrderBy(Id).Select(Id) — the job sitemap's listed "
+                    + "set (ADR 0174). IsListed gates on Active, the Platsbanken provenance and the deadline, the SQL "
+                    + "form of JobAdPublication.Classify; the read projects ids and nothing else.")),
             ["Jobbliggaren.Application.CompanyWatches.Queries.NewFollowedCompanyAdSet.NewHits"] =
                 One(Active("join JobAds where j.Status == Active — the single definition of the follow "
                     + "rail's new-ad set, shared by the /oversikt count and the destination it links to "

@@ -51,7 +51,7 @@ shape the decision.
   company register caps its pages at 100 because OFFSET cost grows with depth (`ICompanyWatchBrowseQuery.cs:262-270`). `PagedResultContractTests` fires only for a query that has both `Page`
   and `PageSize` as inputs (the CTO, brief correction 1).
 - **The landing's header shows its stats only when given a `stats` prop,** and only the landing passes one. Footer links render through `InformationLink`, a client `<Link>` with Next's default
-  prefetch (`site-footer.tsx:163`), so a prefetch question applies to the shared chrome of every page of the site (the CTO, brief corrections 4 and 5).
+  prefetch (`site-footer.tsx`), so a prefetch question applies to the shared chrome of every page of the site (the CTO, brief corrections 4 and 5).
 - **Google's guidance (read by the CTO on 2026-10-18).** *Pagination and incremental page loading* (updated 2025-12-10): give each page its own canonical URL, do not use the first page as the
   canonical, and link to the next page and back to the first. The faceted-navigation page: a nonexistent pagination URL should answer 404. *Robots meta tag* (updated 2026-03-24):
   `data-nosnippet` is valid on `span`, `div` and `section`. Mueller (2017, through Search Engine Roundtable): a long-term `noindex, follow` is eventually treated as `nofollow`, which is a
@@ -663,7 +663,7 @@ Each reading below is recorded here before the merge, with its date and its sour
 - ADR 0005 (L84–86, L106; local) · ADR 0045 · ADR 0050 (Amendment 2026-08-04) · ADR 0064 (rule (d); the amendments of 2026-10-10 and 2026-10-18) · ADR 0106 (D9) · ADR 0113 · ADR 0120 (clauses 1
   and 4, and #1149) · ADR 0154 (§3, §4) · ADR 0160 (D1–D6) · ADR 0165 (D1–D4, D6) · ADR 0166 (D1–D11, W1–W5, and the amendments of 2026-10-11, 2026-10-17 and 2026-10-18) · ADR 0171 ·
   ADR 0174 (D1, D3–D5, D9)
-- AGENTS.md §2.1, §2.5, §3, §4, §5, §8, §10 · CLAUDE.md §6.5, §9.2, §9.6 · `DESIGN.md` §3, §5, §6, §8 (`DESIGN.md:121`, `:189`)
+- AGENTS.md §2.1, §2.5, §3, §4, §5, §8, §10 · CLAUDE.md §6.5, §9.2, §9.6 · `DESIGN.md` §3, §5, §6, §8 (`DESIGN.md:121`)
 - Martin, *Clean Architecture* (2017), ch. 7, 8, 13 and 22 · Fowler, *Refactoring*, 2nd ed. (2018), ch. 2 and 3 · Fowler, "Yagni", martinfowler.com bliki (2015) · Hunt/Thomas, *The Pragmatic
   Programmer* (1999), DRY · Nygard, *Release It!*, 2nd ed. (2018), ch. 5 · Ford/Parsons/Kua, *Building Evolutionary Architectures* (2017), ch. 2 · Saltzer & Schroeder (1975), least common
   mechanism · Winters/Manshreck/Wright, *Software Engineering at Google* (2020), ch. 9

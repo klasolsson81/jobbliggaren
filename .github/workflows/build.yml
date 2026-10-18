@@ -35,7 +35,6 @@ on:
 permissions:
   contents: read
 
-# Avbryt äldre runs vid ny push på samma ref (sparar minutes på dependabot-PRs).
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

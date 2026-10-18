@@ -610,7 +610,7 @@ without a page read. The last reading was 2026-10-18 01:27 UTC (42 223 listed, v
 reading on the day of the merge: the same query blob (`8c02e37`), counts only, on the merge's UTC day, before `agents-done`. The validated count must be 0. It is recorded in two places: here,
 and in the record table of `docs/runbooks/public-job-page-publication-count.md`. A count above 0 fires trigger 2, and S5 stops. If the merge slips past that UTC day, the reading is taken again.
 
-**The merge-day reading (counts only).** Not yet taken.
+**The merge-day reading (counts only).** 2026-10-18 at 17:12 UTC, query blob `8c02e37`, on release 1641 (`c14ac57a1`), `--status` consistent before (17:12:17Z) and after (17:12:44Z): listed 42 295, shaped 231 (all in the description), **validated 0**, link host not Arbetsförmedlingen 0.
 
 **What the signature reads with** (her section 2). She signs the S5 amendment at her scoped re-check of the S5 PR's final head, read with ADR 0176 as delivered and with the third DPIA addendum
 as Klas approves its text. The delivered properties:

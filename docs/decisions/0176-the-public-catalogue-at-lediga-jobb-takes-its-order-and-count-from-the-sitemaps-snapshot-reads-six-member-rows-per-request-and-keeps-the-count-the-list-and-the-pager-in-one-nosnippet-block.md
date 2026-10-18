@@ -331,12 +331,12 @@ The rules below are the decision; the strings live in `messages/{sv,en}` and are
 - **The pager's page-number links stay ungrouped** (the CTO's re-ruling of triage item 4, recorded in the triage report's addendum). The triage first ruled them grouped as P5, on
   design-reviewer's m1. The build found #1149's rule, documented and pinned in `job-ad-pagination.test.tsx:167-198`: a link label is a target you click, not a sentence about how many there are,
   so only the summary line is grouped. m1 does not hold, and nothing was built; design-reviewer closes it.
-- **Navigation.** After a pager click Next focuses the segment root (`layout-router.js:236`); the expected outcome is that `main#main` takes focus and the page scrolls up, which is walked
+- **Navigation.** After a pager click `main#main` takes focus and the page scrolls up, which is walked
   through and not assumed (M6).
 
 ### D11 — The entries: the header link, the footer entry, no hero link, and the segment's not-found (CTO F14–F16, as amended by design M3 and M4 and the triage; stage-A A2.2)
 
-- **The header.** One link, "Lediga jobb" → `/lediga-jobb`, `prefetch={false}`, is the second child of the existing `<nav>`, after the brand. It is navigation, so it belongs in the landmark;
+- **The header.** One link, "Lediga jobb" → `/lediga-jobb`, a plain `<a>`, is the second child of the existing `<nav>`, after the brand. It is navigation, so it belongs in the landmark;
   the stats stay outside it. It appears on every surface that mounts `SiteHeader`, the auth pages included, and it is visible at every width: it is never in a menu, never shortened and never
   hidden, because on a phone it is the landing's entry (WCAG 1.4.10). Tab order is skip link, brand, the link, language, "Logga in", one stop per row, the pager, the footer.
 - **Klas's approval** ("Ja (Rek.)", 2026-10-18) of `design-reviewer`'s escalation: the link goes in the header's nav on the landing and on every surface with `SiteHeader`, which departs from
@@ -363,7 +363,7 @@ The rules below are the decision; the strings live in `messages/{sv,en}` and are
   A new step at ≤420 px sets the gap to 8, the inner padding to 16, hides the language chevron, and reduces the right cluster's and the link's padding. **The CTO confirmed (a), her required
   table, over (b)** (stats ≤910 and tagline ≤980 on the landing only). Klas approved the link on (a)'s consequence, and (b) would hide the tagline on the landing across 681–980 px, which he
   was never asked about. One brand lockup at a given width on every page is also kept. If she substitutes (b) at code review, the consequence goes to Klas again before the merge.
-- **The footer** (F15). "Kom igång" gets "Lediga jobb" as its first entry, before the auth entry, through `InformationLink` with `prefetch={false}`. #1738's reason is "two differently named
+- **The footer** (F15). "Kom igång" gets "Lediga jobb" as its first entry, before the auth entry, as a plain `<a>`. #1738's reason is "two differently named
   links to one URL"; this is a second door with its own URL and its own name, so the reason does not bar it. #390's reason for no "Sök jobb" is that `/jobb` is auth-gated; `/lediga-jobb` is
   public, and the test that pins "no Sök jobb" still holds. `/lediga-jobb` is never added to `INFORMATION_PATHS`. The footer link also appears in `(app)`, `(admin)` and `(guest)`, under the
   "one footer" rule of #256.
@@ -372,7 +372,7 @@ The rules below are the decision; the strings live in `messages/{sv,en}` and are
   never primary, with `prefetch={false}`.
 - **The segment's not-found (design m2; triage item 5).** `lediga-jobb/not-found.tsx` is a file convention beside `page.tsx` in the same segment. It creates no URL, so it holds against
   constraint 1 of stage-A A2 (Next 16.3.8, `not-found.md`). An unmatched `/lediga-jobb/x` still renders the root not-found. It uses `notFoundMetadata()`, owns its `<main id="main">`, links back
-  to the catalogue with `prefetch={false}`, reads nothing from the API, and falls under `PUBLIC_SURFACE` automatically. Its docblock says a future child segment inherits it unless the child has
+  to the catalogue with a plain `<a>`, reads nothing from the API, and falls under `PUBLIC_SURFACE` automatically. Its docblock says a future child segment inherits it unless the child has
   its own, which keeps hubs open (stage B or S6 decides). The most likely 404 is a page past the end after the list shrank, and the group's not-found offers the start page, so this file offers
   the better next step. There is no shared 404 component: the two carry different next steps, and that is the whole difference (YAGNI).
 - **Tokens and DESIGN.md §8.** No token changes. `DESIGN.md` §8 stays true and unchanged, because the catalogue carries no notice (D13).

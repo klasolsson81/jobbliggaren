@@ -39,6 +39,8 @@
     "dismissedAnnounce": "The notification {title} ({reason}) was removed.",
     "reasonMatch": "New match",
     "reasonFollowed": "Followed company",
+    "reasonCriterion": "Industry watch",
+    "tagCriterion": "Industry watch",
     "loading": "Loading notifications…",
     "loadFailed": "The notifications could not be loaded.",
     "retry": "Try again",

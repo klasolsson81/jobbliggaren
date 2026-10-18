@@ -39,6 +39,8 @@
     "dismissedAnnounce": "Notisen {title} ({reason}) är borttagen.",
     "reasonMatch": "Ny matchning",
     "reasonFollowed": "Bevakat företag",
+    "reasonCriterion": "Branschbevakning",
+    "tagCriterion": "Branschbevakning",
     "loading": "Hämtar notiser…",
     "loadFailed": "Notiserna kunde inte hämtas.",
     "retry": "Försök igen",

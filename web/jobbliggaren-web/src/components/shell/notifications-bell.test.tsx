@@ -334,10 +334,54 @@ describe("NotificationsBell (#1666)", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Markera alla som lästa" }));
     await settle();
 
-    expect(markAllNotificationsReadAction).toHaveBeenCalledWith({ match: MATCH_TOKEN, followedCompanyAd: null });
+    expect(markAllNotificationsReadAction).toHaveBeenCalledWith({
+      match: MATCH_TOKEN,
+      followedCompanyAd: null,
+      companyWatchCriterionAd: null,
+    });
     expect(within(dialog).getByText("Inga olästa")).toBeInTheDocument();
     expect(within(dialog).getByText("Notiser", { selector: ".jp-notif__title" })).toHaveFocus();
     expect(document.querySelector(".jp-notif-badge")).toBeNull();
+  });
+
+  // ADR 0175: the web knows the third kind before the API sends it, and a Branschbevakning row never borrows the
+  // followed-company tag or reason (ADR 0117 D2).
+  it("names a Branschbevakning row by its own plain tag and reason, and marks its source read with its own token", async () => {
+    const criterionToken = "2026-10-11T09:30:00.000002+00:00";
+    const withCriterion = feed({
+      items: [
+        ...feed().items,
+        {
+          kind: "CompanyWatchCriterionAd",
+          jobAdId: "00000000-0000-4000-8000-000000000003",
+          title: "Systemutvecklare",
+          companyName: "Bransch AB",
+          occurredAt: criterionToken,
+          isUnread: true,
+          grade: null,
+        },
+      ],
+      sources: [...counts(1, 0), { kind: "CompanyWatchCriterionAd", unreadCount: 1, acknowledgedThrough: criterionToken }],
+    });
+    fetchMock.mockReturnValue(ok(withCriterion));
+    markAllNotificationsReadAction.mockResolvedValue({ success: true });
+    await renderBell();
+
+    const dialog = open();
+    const row = within(dialog).getByRole("link", { name: "Systemutvecklare" }).closest("li")!;
+    const tag = within(row).getByText("Branschbevakning");
+    expect(tag).toHaveClass("jp-tag", "jp-tag--neutral");
+    expect(tag).not.toHaveAttribute("data-tag");
+    expect(row).not.toHaveTextContent(/Bevakar|Bevakat företag/);
+    expect(within(row).getByRole("button", { name: "Ta bort notisen: Branschbevakning, Systemutvecklare, Bransch AB" })).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Markera alla som lästa" }));
+    await settle();
+    expect(markAllNotificationsReadAction).toHaveBeenCalledWith({
+      match: MATCH_TOKEN,
+      followedCompanyAd: null,
+      companyWatchCriterionAd: criterionToken,
+    });
   });
 
   it("says so when marking read failed, and keeps the control", async () => {

@@ -6,7 +6,7 @@ using Mediator;
 namespace Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatchCriteria;
 
 /// <summary>
-/// GET /api/v1/me/company-watch-criteria — the current user's criteria (the "smarta bevakningar"
+/// GET /api/v1/me/company-watch-criteria — the current user's criteria (the "Branschbevakningar"
 /// list on the bevakningar umbrella, CTO Fork G5). Unpaginated by design: the set is hard-capped at
 /// <c>CompanyWatchCriterion.MaxPerUser</c> (20) server-side, so there is no unbounded list to page
 /// (§5's rule targets unbounded fetches).

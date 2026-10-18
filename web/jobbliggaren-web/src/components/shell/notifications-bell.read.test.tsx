@@ -297,6 +297,7 @@ describe("NotificationsBell: click-to-read (#2130)", () => {
     expect(markAllNotificationsReadAction).toHaveBeenCalledExactlyOnceWith({
       match: TOKEN,
       followedCompanyAd: TOKEN,
+      companyWatchCriterionAd: null,
     });
     expect(markNotificationReadAction).not.toHaveBeenCalled();
     expect(within(dialog).getByText("Inga olästa")).toBeInTheDocument();

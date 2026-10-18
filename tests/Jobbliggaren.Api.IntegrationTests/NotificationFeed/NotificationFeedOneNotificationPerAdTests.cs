@@ -1,10 +1,6 @@
-using System.Data.Common;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
-using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyAdCount;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListNewFollowedCompanyAds;
@@ -14,19 +10,13 @@ using Jobbliggaren.Application.NotificationFeed.Commands.DismissNotification;
 using Jobbliggaren.Application.NotificationFeed.Commands.MarkNotificationRead;
 using Jobbliggaren.Application.NotificationFeed.Queries.GetMyNotificationFeed;
 using Jobbliggaren.Application.NotificationFeed.Sources;
-using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.Matching;
-using Jobbliggaren.Infrastructure.Identity;
-using Jobbliggaren.Infrastructure.Persistence;
-using Jobbliggaren.TestSupport;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
+using static Jobbliggaren.Api.IntegrationTests.NotificationFeed.NotificationFeedTestSeed;
 
 namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 
@@ -45,22 +35,8 @@ namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 [Collection("Api")]
 public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
 {
-    private const string Feed = "/api/v1/me/notification-feed";
     private const string Match = "Match";
     private const string Followed = "FollowedCompanyAd";
-
-    private sealed record FeedItem(
-        string Kind, Guid JobAdId, string Title, string CompanyName, DateTimeOffset OccurredAt, bool IsUnread, string? Grade);
-
-    private sealed record FeedSource(string Kind, int? UnreadCount, DateTimeOffset? AcknowledgedThrough);
-
-    private sealed record FeedBody(IReadOnlyList<FeedItem> Items, IReadOnlyList<FeedSource> Sources);
-
-    private sealed record CountResponse(int Count);
-
-    // Whole seconds in the past: the /seen setters clamp to now, and a seeded instant must survive timestamptz unchanged.
-    private static readonly DateTimeOffset Base =
-        DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.AddDays(-2).ToUnixTimeSeconds());
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -174,7 +150,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
 
     // ── the driver ───────────────────────────────────────────────────────────────────────────
 
-    private sealed class Scenario(NotificationFeedOneNotificationPerAdTests test, HttpClient client, Guid userId, CompanyWatchId watch)
+    private sealed class Scenario(ApiFactory factory, HttpClient client, Guid userId, CompanyWatchId watch)
     {
         private readonly List<(string Kind, Guid JobAdId, bool Dismissed)> _patches = [];
         private bool _patchable = true;
@@ -183,20 +159,20 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
 
         public FeedBody? Shown { get; private set; }
 
-        public async Task AdAsync(string name) => Model.Ads[name] = new Ad(await test.SeedAdAsync(name, Ct));
+        public async Task AdAsync(string name) => Model.Ads[name] = new Ad(await SeedAdAsync(factory, name, Ct));
 
         public async Task MatchAsync(string name, DateTimeOffset at)
         {
-            await test.SeedMatchAsync(userId, Model.Ads[name].Id, at, Ct);
+            await SeedMatchAsync(factory, userId, Model.Ads[name].Id, at, Ct);
             Model.Ads[name].Match = new Row(at);
             _patchable = false;
         }
 
-        public async Task<CompanyWatchId> WatchAsync() => await test.SeedWatchAsync(userId, Ct);
+        public async Task<CompanyWatchId> WatchAsync() => await SeedWatchAsync(factory, userId, Ct);
 
         public async Task HitAsync(string name, DateTimeOffset at, CompanyWatchId? through = null)
         {
-            await test.SeedHitAsync(userId, Model.Ads[name].Id, through ?? watch, at, Ct);
+            await SeedHitAsync(factory, userId, Model.Ads[name].Id, through ?? watch, at, Ct);
             Model.Ads[name].Hits.Add(new Row(at));
             _patchable = false;
         }
@@ -242,7 +218,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         {
             var row = ShownRow(name);
             row.IsUnread.ShouldBeTrue($"{name} is clicked only while it is listed as unread, as the bell does");
-            (await client.PostAsync($"{Feed}/{Segment(row.Kind)}/{row.JobAdId}/read", content: null, Ct))
+            (await client.PostAsync($"{FeedPath}/{Segment(row.Kind)}/{row.JobAdId}/read", content: null, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
             var ad = Model.Ads[name];
@@ -257,7 +233,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         public async Task DismissAsync(string name)
         {
             var row = ShownRow(name);
-            (await client.PostAsync($"{Feed}/{Segment(row.Kind)}/{row.JobAdId}/dismiss", content: null, Ct))
+            (await client.PostAsync($"{FeedPath}/{Segment(row.Kind)}/{row.JobAdId}/dismiss", content: null, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
             var ad = Model.Ads[name];
@@ -277,10 +253,10 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
             var matchToken = Source(shown, Match).AcknowledgedThrough;
             var followToken = Source(shown, Followed).AcknowledgedThrough;
             if (matchToken is { } mt)
-                (await client.PostAsJsonAsync($"{Feed}/matches/read", new { throughToken = mt.ToString("O") }, Ct))
+                (await client.PostAsJsonAsync($"{FeedPath}/matches/read", new { throughToken = mt.ToString("O") }, Ct))
                     .StatusCode.ShouldBe(HttpStatusCode.NoContent);
             if (followToken is { } ft)
-                (await client.PostAsJsonAsync($"{Feed}/followed-company-ads/read", new { throughToken = ft.ToString("O") }, Ct))
+                (await client.PostAsJsonAsync($"{FeedPath}/followed-company-ads/read", new { throughToken = ft.ToString("O") }, Ct))
                     .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
             foreach (var ad in Model.Ads.Values)
@@ -301,7 +277,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         public async Task MatchesAsync(bool on)
         {
             var before = DateTimeOffset.UtcNow;
-            (await client.PutAsJsonAsync($"{Feed}/matches", new { enabled = on }, Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            (await client.PutAsJsonAsync($"{FeedPath}/matches", new { enabled = on }, Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
             if (on)
             {
                 if (Model.MatchesOffAt is { } offAt && Model.Consent)
@@ -321,7 +297,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         public async Task FollowsAsync(bool on)
         {
             var before = DateTimeOffset.UtcNow;
-            (await client.PutAsJsonAsync($"{Feed}/followed-company-ads", new { enabled = on }, Ct))
+            (await client.PutAsJsonAsync($"{FeedPath}/followed-company-ads", new { enabled = on }, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
             if (on)
             {
@@ -381,14 +357,14 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
             {
                 if (ad.Match is { } match)
                 {
-                    var row = await test.MatchRowAsync(userId, ad.Id, Ct);
+                    var row = await MatchRowAsync(factory, userId, ad.Id, Ct);
                     (row.ReadInNotificationFeed, row.DismissedFromNotificationFeed)
                         .ShouldBe((match.Read, match.Dismissed), $"{name}'s match row");
                 }
 
                 if (ad.Hits.Count > 0)
                 {
-                    var hits = await test.HitRowsAsync(userId, ad.Id, Ct);
+                    var hits = await HitRowsAsync(factory, userId, ad.Id, Ct);
                     hits.Select(h => (h.CreatedAt, h.ReadInNotificationFeed, h.DismissedFromNotificationFeed)).OrderBy(h => h.CreatedAt)
                         .ShouldBe(ad.Hits.Select(h => (h.At, h.Read, h.Dismissed)).OrderBy(h => h.At), $"{name}'s hits");
                 }
@@ -398,11 +374,11 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
 
     private async Task<Scenario> StartAsync(string prefix, bool onlyMatched, bool consent)
     {
-        var (client, userId) = await RegisterUserAsync(prefix, Ct);
+        var (client, userId) = await RegisterUserAsync(factory, prefix, Ct);
         // An "endast matchade" watch puts the follow source on its grade path. The user states no occupation, so the
         // filter is inert and admits every hit: the path runs, and the rule above holds unchanged on it.
-        var watch = onlyMatched ? await SeedWatchOnlyMatchedAsync(userId, Ct) : await SeedWatchAsync(userId, Ct);
-        var scenario = new Scenario(this, client, userId, watch);
+        var watch = await SeedWatchAsync(factory, userId, onlyMatched, Ct);
+        var scenario = new Scenario(factory, client, userId, watch);
         if (consent)
             await scenario.ConsentAsync(true);
         return scenario;
@@ -615,7 +591,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     [InlineData(true)]
     public async Task With_the_consent_withdrawn_the_follow_rows_speak_and_no_write_reaches_a_match_row(bool onlyMatched)
     {
-        var (other, _) = await RegisterUserAsync("one-consent-other", Ct);
+        var (other, _) = await RegisterUserAsync(factory, "one-consent-other", Ct);
         await GiveConsentAsync(other, true);
         var s = await StartAsync("one-consent", onlyMatched, consent: true);
         foreach (var (name, n) in new[] { ("J1", 0), ("J2", 1) })
@@ -663,12 +639,12 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     [Fact]
     public async Task Another_users_match_row_holds_nothing_for_this_user()
     {
-        var (other, otherId) = await RegisterUserAsync("one-isolation-other", Ct);
+        var (other, otherId) = await RegisterUserAsync(factory, "one-isolation-other", Ct);
         await GiveConsentAsync(other, true);
         var s = await StartAsync("one-isolation", onlyMatched: false, consent: true);
         await s.AdAsync("J");
         await s.HitAsync("J", Base.AddMinutes(10));
-        await SeedMatchAsync(otherId, s.Model.Ads["J"].Id, Base.AddMinutes(1), Ct);
+        await SeedMatchAsync(factory, otherId, s.Model.Ads["J"].Id, Base.AddMinutes(1), Ct);
 
         await s.ReadFeedAsync();
     }
@@ -717,21 +693,21 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     [InlineData(true)]
     public async Task Held_hits_take_no_window_slot_and_move_no_horizon(bool onlyMatched)
     {
-        var (client, userId) = await RegisterUserAsync("held-window", Ct);
+        var (client, userId) = await RegisterUserAsync(factory, "held-window", Ct);
         await GiveConsentAsync(client, true);
-        var watch = onlyMatched ? await SeedWatchOnlyMatchedAsync(userId, Ct) : await SeedWatchAsync(userId, Ct);
+        var watch = await SeedWatchAsync(factory, userId, onlyMatched, Ct);
         for (var n = 1; n <= 7; n++)
         {
-            var held = await SeedAdAsync($"Hållen {n}", Ct);
-            await SeedMatchAsync(userId, held, Base.AddMinutes(60 + n), Ct);
-            await SeedHitAsync(userId, held, watch, Base.AddMinutes(60 + n), Ct);
+            var held = await SeedAdAsync(factory, $"Hållen {n}", Ct);
+            await SeedMatchAsync(factory, userId, held, Base.AddMinutes(60 + n), Ct);
+            await SeedHitAsync(factory, userId, held, watch, Base.AddMinutes(60 + n), Ct);
         }
 
-        var read = await SeedAdAsync("Läst", Ct);
-        await SeedHitAsync(userId, read, watch, Base.AddMinutes(30), Ct);
-        await ReadHitsInBellAsync(userId, read, Ct);
-        var unread = await SeedAdAsync("Oläst", Ct);
-        await SeedHitAsync(userId, unread, watch, Base.AddMinutes(20), Ct);
+        var read = await SeedAdAsync(factory, "Läst", Ct);
+        await SeedHitAsync(factory, userId, read, watch, Base.AddMinutes(30), Ct);
+        await ReadHitsInBellAsync(factory, userId, read, Ct);
+        var unread = await SeedAdAsync(factory, "Oläst", Ct);
+        await SeedHitAsync(factory, userId, unread, watch, Base.AddMinutes(20), Ct);
 
         using var scope = factory.Services.CreateScope();
         var counter = new StatementCounter();
@@ -793,18 +769,18 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     [Fact]
     public async Task The_count_bound_counts_no_held_hit()
     {
-        var (client, userId) = await RegisterUserAsync("held-bound", Ct);
+        var (client, userId) = await RegisterUserAsync(factory, "held-bound", Ct);
         await GiveConsentAsync(client, true);
-        var watch = await SeedWatchOnlyMatchedAsync(userId, Ct);
+        var watch = await SeedWatchAsync(factory, userId, onlyMatched: true, Ct);
         for (var n = 1; n <= 2; n++)
         {
-            var held = await SeedAdAsync($"Hållen {n}", Ct);
-            await SeedMatchAsync(userId, held, Base.AddMinutes(n), Ct);
-            await SeedHitAsync(userId, held, watch, Base.AddMinutes(10 + n), Ct);
+            var held = await SeedAdAsync(factory, $"Hållen {n}", Ct);
+            await SeedMatchAsync(factory, userId, held, Base.AddMinutes(n), Ct);
+            await SeedHitAsync(factory, userId, held, watch, Base.AddMinutes(10 + n), Ct);
         }
 
-        var unread = await SeedAdAsync("Oläst", Ct);
-        await SeedHitAsync(userId, unread, watch, Base.AddMinutes(5), Ct);
+        var unread = await SeedAdAsync(factory, "Oläst", Ct);
+        await SeedHitAsync(factory, userId, unread, watch, Base.AddMinutes(5), Ct);
 
         using var scope = factory.Services.CreateScope();
         await using var db = NewContext(scope);
@@ -821,14 +797,14 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     [Fact]
     public async Task The_match_gate_is_checked_in_each_statement_that_reads_a_match_row()
     {
-        var (other, _) = await RegisterUserAsync("held-race-other", Ct);
+        var (other, _) = await RegisterUserAsync(factory, "held-race-other", Ct);
         await GiveConsentAsync(other, true);
-        var (client, userId) = await RegisterUserAsync("held-race", Ct);
+        var (client, userId) = await RegisterUserAsync(factory, "held-race", Ct);
         await GiveConsentAsync(client, true);
-        var watch = await SeedWatchAsync(userId, Ct);
-        var ad = await SeedAdAsync("J", Ct);
-        await SeedMatchAsync(userId, ad, Base.AddMinutes(1), Ct);
-        await SeedHitAsync(userId, ad, watch, Base.AddMinutes(10), Ct);
+        var watch = await SeedWatchAsync(factory, userId, Ct);
+        var ad = await SeedAdAsync(factory, "J", Ct);
+        await SeedMatchAsync(factory, userId, ad, Base.AddMinutes(1), Ct);
+        await SeedHitAsync(factory, userId, ad, watch, Base.AddMinutes(10), Ct);
 
         using var scope = factory.Services.CreateScope();
         var withdraw = new AfterFirstMaxInterceptor(() => GiveConsentAsync(client, false));
@@ -849,12 +825,12 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     [Fact]
     public async Task Oversikts_followed_count_and_the_followed_list_never_read_a_match_row()
     {
-        var (client, userId) = await RegisterUserAsync("held-sql-oversikt", Ct);
+        var (client, userId) = await RegisterUserAsync(factory, "held-sql-oversikt", Ct);
         await GiveConsentAsync(client, true);
-        var watch = await SeedWatchAsync(userId, Ct);
-        var ad = await SeedAdAsync("J", Ct);
-        await SeedMatchAsync(userId, ad, Base.AddMinutes(1), Ct);
-        await SeedHitAsync(userId, ad, watch, Base.AddMinutes(10), Ct);
+        var watch = await SeedWatchAsync(factory, userId, Ct);
+        var ad = await SeedAdAsync(factory, "J", Ct);
+        await SeedMatchAsync(factory, userId, ad, Base.AddMinutes(1), Ct);
+        await SeedHitAsync(factory, userId, ad, watch, Base.AddMinutes(10), Ct);
 
         using var scope = factory.Services.CreateScope();
         var statements = new StatementText();
@@ -882,21 +858,21 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     [InlineData("follows-off")]
     public async Task The_follow_source_reads_a_match_row_only_while_the_match_gate_holds(string state)
     {
-        var (other, _) = await RegisterUserAsync($"held-sql-{state}-other", Ct);
+        var (other, _) = await RegisterUserAsync(factory, $"held-sql-{state}-other", Ct);
         await GiveConsentAsync(other, true);
-        var (client, userId) = await RegisterUserAsync($"held-sql-{state}", Ct);
+        var (client, userId) = await RegisterUserAsync(factory, $"held-sql-{state}", Ct);
         await GiveConsentAsync(client, true);
-        var watch = await SeedWatchAsync(userId, Ct);
-        var ad = await SeedAdAsync("J", Ct);
-        await SeedMatchAsync(userId, ad, Base.AddMinutes(1), Ct);
-        await SeedHitAsync(userId, ad, watch, Base.AddMinutes(10), Ct);
+        var watch = await SeedWatchAsync(factory, userId, Ct);
+        var ad = await SeedAdAsync(factory, "J", Ct);
+        await SeedMatchAsync(factory, userId, ad, Base.AddMinutes(1), Ct);
+        await SeedHitAsync(factory, userId, ad, watch, Base.AddMinutes(10), Ct);
         if (state == "consent-off")
             await GiveConsentAsync(client, false);
         if (state == "matches-off")
-            (await client.PutAsJsonAsync($"{Feed}/matches", new { enabled = false }, Ct))
+            (await client.PutAsJsonAsync($"{FeedPath}/matches", new { enabled = false }, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
         if (state == "follows-off")
-            (await client.PutAsJsonAsync($"{Feed}/followed-company-ads", new { enabled = false }, Ct))
+            (await client.PutAsJsonAsync($"{FeedPath}/followed-company-ads", new { enabled = false }, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         using var scope = factory.Services.CreateScope();
@@ -922,12 +898,12 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     [Fact]
     public async Task A_held_ad_costs_no_statement()
     {
-        var (client, userId) = await RegisterUserAsync("held-cost", Ct);
+        var (client, userId) = await RegisterUserAsync(factory, "held-cost", Ct);
         await GiveConsentAsync(client, true);
-        var watch = await SeedWatchAsync(userId, Ct);
-        var ad = await SeedAdAsync("J", Ct);
-        await SeedMatchAsync(userId, ad, Base.AddMinutes(1), Ct);
-        await SeedHitAsync(userId, ad, watch, Base.AddMinutes(10), Ct);
+        var watch = await SeedWatchAsync(factory, userId, Ct);
+        var ad = await SeedAdAsync(factory, "J", Ct);
+        await SeedMatchAsync(factory, userId, ad, Base.AddMinutes(1), Ct);
+        await SeedHitAsync(factory, userId, ad, watch, Base.AddMinutes(10), Ct);
 
         using var scope = factory.Services.CreateScope();
         var counter = new StatementCounter();
@@ -968,149 +944,27 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
     /// </summary>
     private async Task<(Guid UserId, JobAdId Held, JobAdId Unread)> SeedCrowdedWindowAsync(string prefix, bool onlyMatched)
     {
-        var (client, userId) = await RegisterUserAsync(prefix, Ct);
+        var (client, userId) = await RegisterUserAsync(factory, prefix, Ct);
         await GiveConsentAsync(client, true);
-        var watch = onlyMatched ? await SeedWatchOnlyMatchedAsync(userId, Ct) : await SeedWatchAsync(userId, Ct);
+        var watch = await SeedWatchAsync(factory, userId, onlyMatched, Ct);
         for (var n = 1; n <= 7; n++)
         {
-            var crowder = await SeedAdAsync($"Läst {n}", Ct);
-            await SeedHitAsync(userId, crowder, watch, Base.AddMinutes(60 + n), Ct);
-            await ReadHitsInBellAsync(userId, crowder, Ct);
+            var crowder = await SeedAdAsync(factory, $"Läst {n}", Ct);
+            await SeedHitAsync(factory, userId, crowder, watch, Base.AddMinutes(60 + n), Ct);
+            await ReadHitsInBellAsync(factory, userId, crowder, Ct);
         }
 
-        var held = await SeedAdAsync("Hållen", Ct);
-        await SeedMatchAsync(userId, held, Base.AddMinutes(40), Ct);
-        await SeedHitAsync(userId, held, watch, Base.AddMinutes(40), Ct);
-        var unread = await SeedAdAsync("Oläst", Ct);
-        await SeedHitAsync(userId, unread, watch, Base.AddMinutes(20), Ct);
+        var held = await SeedAdAsync(factory, "Hållen", Ct);
+        await SeedMatchAsync(factory, userId, held, Base.AddMinutes(40), Ct);
+        await SeedHitAsync(factory, userId, held, watch, Base.AddMinutes(40), Ct);
+        var unread = await SeedAdAsync(factory, "Oläst", Ct);
+        await SeedHitAsync(factory, userId, unread, watch, Base.AddMinutes(20), Ct);
         return (userId, held, unread);
-    }
-
-    private async Task<(HttpClient Client, Guid UserId)> RegisterUserAsync(string prefix, CancellationToken ct)
-    {
-        var client = factory.CreateClient();
-        var email = $"{prefix}-{Guid.NewGuid()}@example.com";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, email, ct: ct);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
-
-        using var scope = factory.Services.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var user = await userManager.FindByEmailAsync(email);
-        user.ShouldNotBeNull();
-        return (client, user.Id);
     }
 
     private static async Task GiveConsentAsync(HttpClient client, bool enabled) =>
         (await client.PutAsJsonAsync("/api/v1/me/background-match-notification-consent", new { enabled }, Ct))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-    private async Task<JobAdId> SeedAdAsync(string title, CancellationToken ct)
-    {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var clock = new FakeDateTimeProvider(Base.AddHours(-1));
-        var externalId = $"ext-{Guid.NewGuid():N}";
-        var payload = $"{{\"id\":\"{externalId}\"}}";
-        var jobAd = JobAd.Import(
-            title: title,
-            company: Company.Create("Bolag AB").Value,
-            description: "beskrivning",
-            url: $"https://example.com/jobs/{externalId}",
-            external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
-            rawPayload: payload,
-            facets: TestFacets.FromPayload(payload),
-            publishedAt: clock.UtcNow,
-            expiresAt: clock.UtcNow.AddDays(60),
-            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
-        db.JobAds.Add(jobAd);
-        await db.SaveChangesAsync(ct);
-        return jobAd.Id;
-    }
-
-    private async Task SeedMatchAsync(Guid userId, JobAdId adId, DateTimeOffset at, CancellationToken ct)
-    {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.UserJobAdMatches.Add(
-            UserJobAdMatch.Create(userId, adId, NotifiableMatchGrade.Strong, ["csharp"], new FakeDateTimeProvider(at)).Value);
-        await db.SaveChangesAsync(ct);
-    }
-
-    private async Task<CompanyWatchId> SeedWatchAsync(Guid userId, CancellationToken ct)
-    {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var watch = CompanyWatch.Follow(
-            userId, OrganizationNumber.Create(NewOrgNr()).Value, scope.ServiceProvider.GetRequiredService<IDateTimeProvider>()).Value;
-        db.CompanyWatches.Add(watch);
-        await db.SaveChangesAsync(ct);
-        return watch.Id;
-    }
-
-    private async Task<CompanyWatchId> SeedWatchOnlyMatchedAsync(Guid userId, CancellationToken ct)
-    {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var watch = CompanyWatch.Follow(
-            userId, OrganizationNumber.Create(NewOrgNr()).Value, scope.ServiceProvider.GetRequiredService<IDateTimeProvider>()).Value;
-        watch.SetFilter(WatchFilterSpec.Create([], [], onlyMatched: true).Value).IsSuccess.ShouldBeTrue();
-        db.CompanyWatches.Add(watch);
-        await db.SaveChangesAsync(ct);
-        return watch.Id;
-    }
-
-    private static string NewOrgNr() =>
-        "55" + (Math.Abs(Guid.NewGuid().GetHashCode()) % 100000000).ToString("D8", System.Globalization.CultureInfo.InvariantCulture);
-
-    private async Task SeedHitAsync(Guid userId, JobAdId adId, CompanyWatchId watchId, DateTimeOffset at, CancellationToken ct)
-    {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.FollowedCompanyAdHits.Add(FollowedCompanyAdHit.Create(userId, adId, watchId, new FakeDateTimeProvider(at)).Value);
-        await db.SaveChangesAsync(ct);
-    }
-
-    /// <summary>A click's effect on a followed ad's hits, through the aggregate, as the follow source writes it.</summary>
-    private async Task ReadHitsInBellAsync(Guid userId, JobAdId adId, CancellationToken ct)
-    {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        foreach (var hit in await db.FollowedCompanyAdHits.Where(h => h.UserId == userId && h.JobAdId == adId).ToListAsync(ct))
-            hit.MarkReadInNotificationFeed();
-        await db.SaveChangesAsync(ct);
-    }
-
-    // ── reading back ─────────────────────────────────────────────────────────────────────────
-
-    private async Task<UserJobAdMatch> MatchRowAsync(Guid userId, JobAdId adId, CancellationToken ct)
-    {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await db.UserJobAdMatches.AsNoTracking().SingleAsync(m => m.UserId == userId && m.JobAdId == adId, ct);
-    }
-
-    private async Task<List<FollowedCompanyAdHit>> HitRowsAsync(Guid userId, JobAdId adId, CancellationToken ct)
-    {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await db.FollowedCompanyAdHits.AsNoTracking().Where(h => h.UserId == userId && h.JobAdId == adId).ToListAsync(ct);
-    }
-
-    private static async Task<FeedBody> GetFeedAsync(HttpClient client, CancellationToken ct)
-    {
-        var response = await client.GetAsync(Feed, ct);
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<FeedBody>(ct))!;
-    }
-
-    private static FeedSource Source(FeedBody feed, string kind) => feed.Sources.Single(s => s.Kind == kind);
-
-    private static async Task<int> CountAsync(HttpClient client, string path, CancellationToken ct)
-    {
-        var response = await client.GetAsync(path, ct);
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<CountResponse>(ct))!.Count;
-    }
 
     // A profile with an occupation, so an "endast matchade" watch's candidates go to the grader below.
     private static IMatchProfileBuilder OccupationProfile()
@@ -1129,63 +983,5 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
                 Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(), Arg.Any<CancellationToken>())
             .Returns(call => (IReadOnlySet<JobAdId>)call.ArgAt<IReadOnlyCollection<JobAdId>>(1).ToHashSet());
         return search;
-    }
-
-    /// <summary>A fresh <see cref="AppDbContext"/> on the fixture's database with only the given interceptors.</summary>
-    private static AppDbContext NewContext(IServiceScope scope, params IInterceptor[] interceptors)
-    {
-        var connectionString = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetConnectionString();
-        var builder = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-            .UseSnakeCaseNamingConvention()
-            .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning));
-        if (interceptors.Length > 0)
-            builder = builder.AddInterceptors(interceptors);
-        return new AppDbContext(builder.Options);
-    }
-
-    private sealed class StatementCounter : DbCommandInterceptor
-    {
-        public int Count { get; private set; }
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            Count++;
-            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
-        }
-    }
-
-    private sealed class StatementText : DbCommandInterceptor
-    {
-        public List<string> Texts { get; } = [];
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            Texts.Add(command.CommandText);
-            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
-        }
-    }
-
-    /// <summary>Runs a change through the API right after the first <c>MAX</c> statement returns.</summary>
-    private sealed class AfterFirstMaxInterceptor(Func<Task> change) : DbCommandInterceptor
-    {
-        public bool Fired { get; private set; }
-
-        public override async ValueTask<DbDataReader> ReaderExecutedAsync(
-            DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
-            CancellationToken cancellationToken = default)
-        {
-            if (!Fired && command.CommandText.Contains("max(", StringComparison.OrdinalIgnoreCase))
-            {
-                Fired = true;
-                await change();
-            }
-
-            return result;
-        }
     }
 }

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms;
 using Shouldly;
@@ -123,7 +122,7 @@ public class SuggestionKindWireContractTests
     [Fact]
     public void TheApiRegistersNoEnumConverterGlobally()
     {
-        var apiRoot = Path.Combine(FindRepoRoot(), "src", "Jobbliggaren.Api");
+        var apiRoot = Path.Combine(RepoSourceText.Root(), "src", "Jobbliggaren.Api");
         var offenders = Directory
             .EnumerateFiles(apiRoot, "*.cs", SearchOption.AllDirectories)
             .Where(path => File.ReadAllText(path).Contains(
@@ -192,52 +191,8 @@ public class SuggestionKindWireContractTests
     /// </summary>
     private static string[] ReadFrontendKindOrder() => ReadFrontendArray(FrontendListName);
 
-    private static string[] ReadFrontendArray(string listName)
-    {
-        var source = File.ReadAllText(
-            Path.Combine(
-                FindRepoRoot(),
-                FrontendDtoRelativePath.Replace('/', Path.DirectorySeparatorChar)));
-
-        // \b so a future constant merely ENDING in this name cannot be read in its place - a
-        // wrong-but-successful read would bypass the throw below.
-        var body = Regex.Match(source, $@"\b{listName}\s*=\s*\[([^\]]*)\]").Groups[1];
-
-        if (!body.Success)
-            throw new InvalidOperationException(
-                $"Could not read {listName} out of {FrontendDtoRelativePath}. It was "
-                + "renamed or reshaped - re-make this join deliberately, do not delete it.");
-
-        // Drop comments before harvesting quoted names, so a commented-out member cannot be read
-        // as a live one. BOTH forms: an earlier version of this method stripped `//` only, and
-        // test-writer measured that a block-commented member then passed every fact in this class
-        // while the frontend decode table had silently lost it — the exact failure this stripping
-        // exists to prevent, in the class whose whole subject is that failure.
-        var withoutComments = Regex.Replace(
-            body.Value, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
-        withoutComments = Regex.Replace(withoutComments, @"//[^\n]*", string.Empty);
-
-        var names = Regex.Matches(withoutComments, "\"([^\"]+)\"")
-            .Select(m => m.Groups[1].Value)
-            .ToArray();
-
-        if (names.Length == 0)
-            throw new InvalidOperationException(
-                $"{listName} was found in {FrontendDtoRelativePath} but yielded no member "
-                + "names. The array shape changed - re-make this join deliberately.");
-
-        return names;
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "CLAUDE.md")))
-            dir = dir.Parent;
-
-        dir.ShouldNotBeNull(
-            "could not find the repo root (CLAUDE.md) walking up from the test bin - this class "
-            + "needs the source tree for its cross-language source-text scan");
-        return dir!.FullName;
-    }
+    // \b so a future constant merely ENDING in this name cannot be read in its place - a
+    // wrong-but-successful read would bypass the reader's throw.
+    private static string[] ReadFrontendArray(string listName) =>
+        RepoSourceText.QuotedList(FrontendDtoRelativePath, listName, $@"\b{listName}\s*=\s*\[([^\]]*)\]");
 }

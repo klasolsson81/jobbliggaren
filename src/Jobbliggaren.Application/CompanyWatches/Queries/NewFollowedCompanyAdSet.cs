@@ -1,7 +1,5 @@
 using System.Linq.Expressions;
 using Jobbliggaren.Application.Common.Abstractions;
-using Jobbliggaren.Application.JobAds.Abstractions;
-using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Microsoft.EntityFrameworkCore;
@@ -41,14 +39,6 @@ internal static class NewFollowedCompanyAdSet
     /// active follows" — both consumers answer empty rather than querying hits.
     /// </summary>
     internal sealed record Scope(DateTimeOffset? LastSeen, IReadOnlySet<CompanyWatchId> GradeWatchIds);
-
-    /// <summary>
-    /// The read-time grade answer. <c>Assessed == false</c> means the user stated no occupation, so
-    /// the OnlyMatched filter is INERT and <see cref="Matching"/> admits every candidate. A consumer
-    /// that RENDERS matching (rather than only counting it) must read <c>Assessed</c> and say "not
-    /// assessed" instead of claiming every row matches.
-    /// </summary>
-    internal sealed record GradeResolution(IReadOnlySet<JobAdId> Matching, bool Assessed);
 
     /// <summary>
     /// Watermark + active watches. <c>LastSeen == null</c> (never acknowledged) means every hit is
@@ -236,29 +226,6 @@ internal static class NewFollowedCompanyAdSet
         if (input.Refused)
             return null;
         return input.Exact ?? CollapseToAds(input.GradeHits, gradeWatchIds, matching).Count;
-    }
-
-    /// <summary>
-    /// Read-time at-least-Good membership via the shared SSOT. Api-side, so
-    /// <c>BuildFullForSortAsync</c> (ICurrentUser-scoped), NOT the Worker's
-    /// <c>BuildFullForUserIdAsync</c>. Branch on assessability BEFORE the call —
-    /// <c>FilterToMatchingAsync</c> fail-fasts on an empty-SSYK profile.
-    /// </summary>
-    public static async Task<GradeResolution> ResolveMatchingAsync(
-        IMatchProfileBuilder profileBuilder,
-        IPerUserJobAdSearchQuery perUserSearch,
-        IReadOnlyCollection<JobAdId> idsToGrade,
-        CancellationToken cancellationToken)
-    {
-        if (idsToGrade.Count == 0)
-            return new GradeResolution(new HashSet<JobAdId>(), Assessed: true);
-
-        var profile = await profileBuilder.BuildFullForSortAsync(cancellationToken);
-        if (profile.Fast.SsykGroupConceptIds.Count == 0)
-            return new GradeResolution(idsToGrade.ToHashSet(), Assessed: false);
-
-        var matching = await perUserSearch.FilterToMatchingAsync(profile, idsToGrade, cancellationToken);
-        return new GradeResolution(matching, Assessed: true);
     }
 
     /// <summary>

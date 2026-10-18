@@ -23,6 +23,7 @@ describe("markNotificationRead (#2130)", () => {
   it.each([
     ["Match", "matches"],
     ["FollowedCompanyAd", "followed-company-ads"],
+    ["CompanyWatchCriterionAd", "company-watch-criterion-ads"],
   ] as const)("posts the %s row to its own source segment, with no body", async (kind, segment) => {
     const result = await markNotificationRead(kind, AD_ID);
 
@@ -82,6 +83,7 @@ describe("dismissNotification (#2151)", () => {
   it.each([
     ["Match", "matches"],
     ["FollowedCompanyAd", "followed-company-ads"],
+    ["CompanyWatchCriterionAd", "company-watch-criterion-ads"],
   ] as const)("posts the %s row to its own source segment's dismiss route, with no body", async (kind, segment) => {
     const result = await dismissNotification(kind, AD_ID);
 
@@ -139,6 +141,16 @@ describe("markNotificationsReadThrough (#2130)", () => {
     expect(authedFetch).toHaveBeenCalledExactlyOnceWith(
       "sess-1",
       "/api/v1/me/notification-feed/followed-company-ads/read",
+      { method: "POST", body: JSON.stringify({ throughToken: TOKEN }) },
+    );
+  });
+
+  it("posts a Branschbevakning token to its own source segment (ADR 0175)", async () => {
+    await markNotificationsReadThrough("CompanyWatchCriterionAd", TOKEN);
+
+    expect(authedFetch).toHaveBeenCalledExactlyOnceWith(
+      "sess-1",
+      "/api/v1/me/notification-feed/company-watch-criterion-ads/read",
       { method: "POST", body: JSON.stringify({ throughToken: TOKEN }) },
     );
   });

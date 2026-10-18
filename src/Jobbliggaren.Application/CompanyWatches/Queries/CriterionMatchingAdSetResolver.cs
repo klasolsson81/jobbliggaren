@@ -314,7 +314,7 @@ public sealed class CriterionMatchingAdSetResolver(
         Guid criterionId, CompanyWatchCriteriaSpec criteria, CancellationToken cancellationToken)
     {
         // Api-side, so BuildFullForSortAsync (ICurrentUser-scoped), never the Worker's
-        // BuildFullForUserIdAsync — parity NewFollowedCompanyAdSet.ResolveMatchingAsync.
+        // BuildFullForUserIdAsync — parity ReadTimeMatching.ResolveAsync.
         var profile = await profileBuilder.BuildFullForSortAsync(cancellationToken);
         if (profile.Fast.SsykGroupConceptIds.Count == 0)
             return new CriterionMatchingAds.NotAssessed();

@@ -399,6 +399,20 @@ Consequence, stated plainly so it is not re-litigated: a change whose only claim
 sub-200 ms CI timing delta or a few KB of gzip has **no measured perf benefit**. #750 PR-2
 was declined on exactly this basis (−4,3 KB gzip → −55 ms LCP ceiling = noise).
 
+### Who reads the job, and when
+
+The ruling is senior-cto-advisor's, 2026-10-18 (#2090, the SEO/AIO audit's stage B).
+
+The assertion lines are in the lhci step's log and in the `lighthouse-results` artifact.
+
+- **Per PR.** The session that owns a PR touching `web/jobbliggaren-web/` reads the `resource-summary:*`
+  assertion lines before setting `agents-done`.
+  - A byte assertion that fails on the PR head and passes on main's latest run is a regression under
+    AGENTS.md §2.5. Fix it, or STOPP with a justification.
+  - LCP, CLS and TBT are not read per PR, because of D0 above.
+- **Monthly.** Klas, or a session he names, reads main's latest run. This catches drift from PRs no
+  session owns, such as Dependabot's automerged updates.
+
 ### Baseline — 2026-07-20 (#1011 CI run, job 88423824881)
 
 | URL | document | LCP |

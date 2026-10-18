@@ -80,6 +80,20 @@ base("login, then a client navigation inside the app shell, raise no CSP violati
   const seen = await watchViolations(page);
 
   await loginAs(page, runId);
+
+  // A seeded account has stated no occupation, so /oversikt opens the match-setup welcome over the
+  // shell (#2139). The test closes it as a new user does: the `__Host-` cookie that keeps it closed
+  // cannot be injected over http (helpers/session.ts). Closing also starts a transition that
+  // replaces the route, so the soft navigation below starts from a reloaded /oversikt instead.
+  const welcome = page.getByRole("dialog", { name: "Välkommen till Jobbliggaren" });
+  await expect(welcome).toBeVisible();
+  const closed = page.waitForResponse(
+    (r) => r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined
+  );
+  await welcome.getByRole("button", { name: "Gör det senare" }).click();
+  await closed;
+  await page.goto("/oversikt");
+  await expect(welcome).toHaveCount(0);
   await page.waitForLoadState("networkidle");
 
   // A soft navigation keeps the document: the marker survives it only if hydration worked.

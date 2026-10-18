@@ -91,10 +91,11 @@ base("login, then a client navigation inside the app shell, raise no CSP violati
     (r) => r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined
   );
   await welcome.getByRole("button", { name: "Gör det senare" }).click();
-  await closed;
+  expect((await closed).ok()).toBe(true);
   await page.goto("/oversikt");
-  await expect(welcome).toHaveCount(0);
   await page.waitForLoadState("networkidle");
+  // The dialog mounts in a client portal, so its absence means something only after hydration.
+  await expect(welcome).toHaveCount(0);
 
   // A soft navigation keeps the document: the marker survives it only if hydration worked.
   await page.evaluate(() => {

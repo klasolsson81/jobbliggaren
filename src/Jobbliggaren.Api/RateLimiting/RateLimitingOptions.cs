@@ -796,6 +796,17 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// The public catalogue's pages <c>GET /api/v1/public/job-ads/catalogue</c> (ADR 0175) — partitioned per client IP,
+    /// TokenBucket, the same starting numbers as the detail read. A starting number for a new endpoint, not a raise:
+    /// ADR 0174 D5's readings measure it. security-auditor approved the numbers (2026-10-18).
+    /// </summary>
+    public PolicyOptions PublicJobAdCatalogue { get; init; } = new()
+    {
+        PermitLimit = 60,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

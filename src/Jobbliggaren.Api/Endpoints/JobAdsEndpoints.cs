@@ -22,9 +22,7 @@ public static class JobAdsEndpoints
 {
     public static void MapJobAdsEndpoints(this IEndpointRouteBuilder app)
     {
-        // ADR 0005: JobAd-listning/sökning är auth-gated i Fas 2-start. Anonym
-        // publik katalog kan låsas upp senare via separat ADR efter mätning av
-        // JobTech-proxy-kostnad och bot-trafik.
+        // Auth-gated by design. The anonymous catalogue is a separate surface (ADR 0175, PublicJobAdsEndpoints).
         var group = app.MapGroup("/api/v1/job-ads")
             .WithTags("JobAds")
             .RequireAuthorization();

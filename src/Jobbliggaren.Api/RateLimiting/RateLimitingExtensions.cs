@@ -31,6 +31,7 @@ public static partial class RateLimitingExtensions
     public const string HealthCheckPolicy = "health-check";
     public const string PublicJobAdReadPolicy = "public-job-ad-read";
     public const string PublicJobAdListedIdsPolicy = "public-job-ad-listed-ids";
+    public const string PublicJobAdCataloguePolicy = "public-job-ad-catalogue";
     public const string MeListReadPolicy = "me-list-read";
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
@@ -356,6 +357,11 @@ public static partial class RateLimitingExtensions
             // on every call, so the bucket is per crawler. The endpoint does no I/O: the limit protects bandwidth and
             // CPU, not the database.
             AddIpTokenBucketPolicy(options, PublicJobAdListedIdsPolicy, rateLimitOpts.PublicJobAdListedIds);
+
+            // Partition: IP. The public catalogue's pages (ADR 0175), its own budget beside the detail's and the
+            // sitemap's, so a crawler walking the catalogue cannot drain the job pages' budget, or the reverse. Each
+            // call reads at most a page of rows by primary key; the limit protects availability, not confidentiality.
+            AddIpTokenBucketPolicy(options, PublicJobAdCataloguePolicy, rateLimitOpts.PublicJobAdCatalogue);
 
             // Partition: UserId (claim "sub"). Auth-gated GET-ytor under /me/* +
             // /applications/pipeline + /resumes (Pre-4 STEG 5, TD-92). Egen policy

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import { PUBLIC_CATALOGUE_PATH } from "@/lib/job-ads/public-catalogue-url";
@@ -25,9 +24,9 @@ export default async function PublicCatalogueNotFound() {
       <h1 className="jp-h1">{t("title")}</h1>
       <p className="jp-lede">{t("body")}</p>
       <div>
-        <Link href={PUBLIC_CATALOGUE_PATH} prefetch={false} className="jp-btn jp-btn--secondary">
+        <a href={PUBLIC_CATALOGUE_PATH} className="jp-btn jp-btn--secondary">
           {t("toCatalogue")}
-        </Link>
+        </a>
       </div>
     </main>
   );

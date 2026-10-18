@@ -113,7 +113,7 @@ describe("(public-job) route group", () => {
     const catalogue = read(resolve(SRC, "components/job-ads/public-job-ad-catalogue.tsx"));
     expect(catalogue).toMatch(/prefetch=\{false\}/);
     const segmentNotFound = read(resolve(GROUP, "lediga-jobb/not-found.tsx"));
-    expect(segmentNotFound).toMatch(/prefetch=\{false\}/);
+    expect(segmentNotFound).not.toMatch(/from "next\/link"/);
     expect(segmentNotFound).not.toMatch(/getPublicJobAdCatalogue|fetch\(/);
   });
 

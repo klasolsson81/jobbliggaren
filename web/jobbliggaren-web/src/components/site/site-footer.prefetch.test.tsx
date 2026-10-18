@@ -21,10 +21,12 @@ vi.mock("next/link", () => ({
 }));
 
 describe("SiteFooter prefetch (ADR 0176 F10, F15)", () => {
-  it("never prefetches the catalogue, which is read per request on every page the footer is on", () => {
+  it("links the catalogue with a plain anchor, a document load that never prefetches", () => {
     render(<SiteFooter />);
 
-    expect(screen.getByRole("link", { name: "Lediga jobb" })).toHaveAttribute("data-prefetch", "false");
+    const catalogue = screen.getByRole("link", { name: "Lediga jobb" });
+    expect(catalogue).toHaveAttribute("href", "/lediga-jobb");
+    expect(catalogue).not.toHaveAttribute("data-prefetch");
   });
 
   it("leaves every other footer link on Next's default", () => {

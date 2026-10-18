@@ -229,6 +229,7 @@ describe("the catalogue's 404", () => {
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAccessibleName(sv.publicjob.catalogue.notFound.toCatalogue);
     expect(links[0]).toHaveAttribute("href", "/lediga-jobb");
+    expect(links[0]).not.toHaveAttribute("data-next-link");
     expect(getPublicJobAdCatalogue).not.toHaveBeenCalled();
   });
 });

@@ -76,8 +76,8 @@ type FooterLink = {
   readonly labelKey: FooterLinkKey;
   /** Live route, or `null` for a not-yet-built route (renders aria-disabled). */
   readonly href: string | null;
-  /** `false` turns off Next's prefetch for this link; unset keeps the default. */
-  readonly prefetch?: false;
+  /** `true` renders a plain `<a>`: a document load, which never prefetches. Unset keeps the client link. */
+  readonly document?: true;
 };
 
 type FooterColumn = {
@@ -93,7 +93,7 @@ const COLUMNS: readonly FooterColumn[] = [
     key: "start",
     headKey: "footer.colStart",
     links: [
-      { labelKey: "common.catalogueLink", href: PUBLIC_CATALOGUE_PATH, prefetch: false },
+      { labelKey: "common.catalogueLink", href: PUBLIC_CATALOGUE_PATH, document: true },
       { labelKey: "footer.start.auth", href: "/logga-in" },
     ],
   },
@@ -168,8 +168,10 @@ export function SiteFooter({
                 <ul className="jp-foot__links">
                   {col.links.map((link) => (
                     <li key={link.labelKey}>
-                      {link.href ? (
-                        <InformationLink id={`information-footer-${link.labelKey.replaceAll(".", "-")}`} href={link.href} prefetch={link.prefetch}>{t(link.labelKey)}</InformationLink>
+                      {link.href && link.document ? (
+                        <a id={`information-footer-${link.labelKey.replaceAll(".", "-")}`} href={link.href}>{t(link.labelKey)}</a>
+                      ) : link.href ? (
+                        <InformationLink id={`information-footer-${link.labelKey.replaceAll(".", "-")}`} href={link.href}>{t(link.labelKey)}</InformationLink>
                       ) : (
                         <span className="opacity-70" aria-disabled="true">
                           {t(link.labelKey)}

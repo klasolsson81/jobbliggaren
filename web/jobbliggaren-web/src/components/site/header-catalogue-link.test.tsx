@@ -16,13 +16,13 @@ vi.mock("next/link", () => ({
 }));
 
 describe("HeaderCatalogueLink (ADR 0176 F14, stage-A constraint 2)", () => {
-  it("links the catalogue without prefetch", () => {
+  it("links the catalogue with a plain anchor, a document load that never prefetches", () => {
     nav.pathname = "/";
     render(<HeaderCatalogueLink>Lediga jobb</HeaderCatalogueLink>);
 
     const link = screen.getByRole("link", { name: "Lediga jobb" });
     expect(link).toHaveAttribute("href", "/lediga-jobb");
-    expect(link).toHaveAttribute("data-prefetch", "false");
+    expect(link).not.toHaveAttribute("data-prefetch");
     expect(link).toHaveClass("jp-nav__link");
   });
 

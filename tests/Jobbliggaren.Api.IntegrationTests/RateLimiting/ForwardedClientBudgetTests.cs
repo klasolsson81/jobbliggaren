@@ -74,6 +74,24 @@ public sealed class ForwardedClientBudgetTests
             .ShouldBe(StatusCodes.Status204NoContent);
     }
 
+    // ADR 0174 — the job sitemap's parts: the web relays the crawler's address on every call, so the bucket is per
+    // forwarded client, and its burst is exactly the budget.
+    [Fact]
+    public async Task PublicJobAdListedIds_TrustedProxy_DistinctClients_ReceiveIndependentBudgets()
+    {
+        using var host = await CreateHostAsync(RateLimitingExtensions.PublicJobAdListedIdsPolicy);
+        var server = host.GetTestServer();
+        var budget = new RateLimitingOptions().PublicJobAdListedIds.PermitLimit;
+        for (var i = 0; i < budget; i++)
+            (await SendAsync(server, "192.0.2.10", "198.51.100.1")).Response.StatusCode
+                .ShouldBe(StatusCodes.Status204NoContent);
+
+        (await SendAsync(server, "192.0.2.10", "198.51.100.1")).Response.StatusCode
+            .ShouldBe(StatusCodes.Status429TooManyRequests);
+        (await SendAsync(server, "192.0.2.10", "198.51.100.2")).Response.StatusCode
+            .ShouldBe(StatusCodes.Status204NoContent);
+    }
+
     [Fact]
     public async Task TrustedProxy_MissingHeader_PreservesConnectionAddress()
     {

@@ -785,6 +785,17 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// The job sitemap's parts <c>GET /api/v1/public/job-ads/listed-ids</c> (ADR 0174) — partitioned per client IP,
+    /// TokenBucket. A burst of six is three complete reads of the two parts, then one call per ten seconds.
+    /// security-auditor approved the numbers (2026-10-18).
+    /// </summary>
+    public PolicyOptions PublicJobAdListedIds { get; init; } = new()
+    {
+        PermitLimit = 6,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

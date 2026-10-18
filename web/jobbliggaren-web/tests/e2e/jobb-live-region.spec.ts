@@ -33,6 +33,10 @@ const SEARCH_FIELD_LABEL = "Sök efter yrke, arbetsgivare eller ort";
 // and no hero region can ever be its descendant, hydrated or not.
 const RESULTS_SECTION = "section[aria-labelledby='jobb-results-title']";
 const LOAD_REGION = `${RESULTS_SECTION} p[aria-live='polite'].sr-only[aria-atomic='true']`;
+// The count is scoped the same way, for a different race (#2165): React streams the results into a
+// `<div hidden id="S:…">` under `<body>` before they reach the section, and just after `load` both
+// copies exist. An unscoped locator trips strict mode on the hidden one.
+const RESULTS_COUNT = `${RESULTS_SECTION} .jp-results-count`;
 
 test.describe("/jobb — the load cycle announces through a region that precedes it", () => {
   test("the results section owns exactly one region, and the hero regions stay outside it", async ({
@@ -59,14 +63,14 @@ test.describe("/jobb — the load cycle announces through a region that precedes
 
     // The load has settled by the time the toolbar count is painted; the region holds the sentence
     // that closed it, so it is non-empty here rather than at first paint.
-    await expect(page.locator(".jp-results-count")).toBeVisible();
+    await expect(page.locator(RESULTS_COUNT)).toBeVisible();
     await expect(region).not.toHaveText("");
     const before = await region.elementHandle();
 
     await page.getByLabel(SEARCH_FIELD_LABEL).fill("utvecklare");
     await page.getByRole("button", { name: "Sök", exact: true }).click();
     await expect(page).toHaveURL(/[?&]q=utvecklare/);
-    await expect(page.locator(".jp-results-count")).toBeVisible();
+    await expect(page.locator(RESULTS_COUNT)).toBeVisible();
 
     const after = await region.elementHandle();
     // THE assertion. With the region inside the boundary, the search swaps the subtree and this
@@ -84,7 +88,7 @@ test.describe("/jobb — the load cycle announces through a region that precedes
 
   test("the visible count is not itself a live region", async ({ page }) => {
     await page.goto("/jobb");
-    const count = page.locator(".jp-results-count");
+    const count = page.locator(RESULTS_COUNT);
     await expect(count).toBeVisible();
 
     // The regression: restoring `role="status"` here re-creates the born-holding-its-text shape

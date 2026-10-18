@@ -1086,6 +1086,9 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.CompanyWatches.Abstractions.ICompanyWatchCriterionAdScan,
             CompanyRegister.CompanyWatchBrowseQuery>();
+        services.AddScoped<
+            Jobbliggaren.Application.CompanyWatches.Abstractions.ICompanyWatchCriterionAdHitStatistics,
+            CompanyRegister.CompanyWatchCriterionAdHitStatistics>();
 
         // Materialises which companies match each industry watch (ADR 0139). Registered here, not in
         // AddScbCompanyRegister, for the same reason as the browse above and one more: the

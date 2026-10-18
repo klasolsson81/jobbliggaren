@@ -1,6 +1,7 @@
 using Hangfire;
 using Jobbliggaren.Application.Admin.ServiceObservations;
 using Jobbliggaren.Application.BackgroundJobs;
+using Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchCriterionScan;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Worker.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -48,6 +49,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "30 5 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
+            Options.Create(new CompanyWatchCriterionScanOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -88,6 +90,7 @@ public class RecurringJobRegistrarParityTests
                 SweepCron = "*/7 * * * *",
             }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
+            Options.Create(new CompanyWatchCriterionScanOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -120,6 +123,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
+            Options.Create(new CompanyWatchCriterionScanOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -152,6 +156,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
+            Options.Create(new CompanyWatchCriterionScanOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -174,6 +179,40 @@ public class RecurringJobRegistrarParityTests
         ((string)call.GetArguments()[2]!).ShouldBe("11 11 * * *",
             "jobbet måste få CompanyWatchMaterialisation:CadenceCron, aldrig ScbRegister:SyncCadenceCron "
             + "-- att de är skilda sektioner är hela poängen med Major 3");
+    }
+
+    [Fact]
+    public async Task StartAsync_FeedsTheCriterionScanItsOwnCron_AndItsOwnWorkerType()
+    {
+        // ADR 0175 D11 — the Branschbevakning scan reads its cadence from its OWN section. Every cron here is
+        // distinguishable, so a registration cross-wired to the materialisation's cadence or to another wrapper
+        // fails this pin instead of reading plausibly.
+        var manager = Substitute.For<IRecurringJobManager>();
+        var registrar = new RecurringJobRegistrar(
+            manager,
+            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
+            Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
+            Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
+            Options.Create(new CompanyWatchCriterionScanOptions { CadenceCron = "44 4 * * *" }),
+            NullLogger<RecurringJobRegistrar>.Instance);
+
+        await registrar.StartAsync(CancellationToken.None);
+
+        var call = manager.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IRecurringJobManager.AddOrUpdate))
+            .Single(c => (string)c.GetArguments()[0]! == RecurringJobIds.ScanCompanyWatchCriteria);
+        var job = (Hangfire.Common.Job)call.GetArguments()[1]!;
+        job.Type.ShouldBe(typeof(CompanyWatchCriterionScanWorker));
+        job.Method.Name.ShouldBe(nameof(CompanyWatchCriterionScanWorker.RunAsync));
+        ((string)call.GetArguments()[2]!).ShouldBe("44 4 * * *");
+    }
+
+    [Fact]
+    public void The_criterion_scans_default_cadence_is_after_the_follow_scans_lock_wait()
+    {
+        // ADR 0175 D11: 03:55 UTC or later (the follow scan at 03:25 plus its 1 800-second lock wait), and before
+        // the 05:30 materialisation.
+        new CompanyWatchCriterionScanOptions().CadenceCron.ShouldBe("55 3 * * *");
     }
 
     [Fact]
@@ -214,6 +253,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "22 22 * * *" }),
+            Options.Create(new CompanyWatchCriterionScanOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);

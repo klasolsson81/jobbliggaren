@@ -79,6 +79,9 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker>
 // number, with no scorer.
 builder.Services.AddScoped<Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan.CompanyWatchScanJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.CompanyWatchScanWorker>();
+// The nightly Branschbevakning scan (ADR 0175): its options, job and wrapper in one registration that
+// WorkerTestFixture calls too.
+builder.Services.AddCompanyWatchCriterionScan(builder.Configuration);
 // The SCB company-register refresh (ADR 0091): orchestrator, bulk store and partition planner,
 // plus the certificate-based client with its process-wide rate limiter only when
 // ScbRegister:Enabled is true; otherwise a null source, so development and CI without a

@@ -67,7 +67,8 @@ public sealed partial class CompanyWatchScanJob(
 {
     // Cold-start ad floor: a user with no prior scan is matched only against ads ingested in the
     // last week (avoids a multi-hour first run + a first-digest spam burst). Parity BackgroundMatchingJob.
-    private const int ColdStartDays = 7;
+    // Public: the Branschbevakning scan takes its own floor from it (ADR 0175 D6), never a second literal.
+    public const int ColdStartDays = 7;
     private const int ProgressLogEvery = 50;
 
     public async Task RunAsync(CancellationToken cancellationToken)

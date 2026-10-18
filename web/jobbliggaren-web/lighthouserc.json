@@ -33,6 +33,8 @@
       "//score": "Composite perf-score: observe-only (loggas, ej assert) — ADR 0045 Beslut 2.",
       "//pageweight": "Page-weight-budget — ADR 0045 Beslut 2 (gate-intent/error), tidigare budget.json (retirerad, se //fix-2026-07-20). resourceType-namnen (document/script/stylesheet/image/font/total/third-party) är Lighthouse core's egna resource-summary-kategorier (core/computed/resource-summary.js) — inte uppfunna. aggregationMethod:median satt EXPLICIT (lhci:s default för resource-summary-assertions är annars 'optimistic' = bästa-av-3, vilket bryter mot projektets uttalade median-disciplin ovan för samma numberOfRuns:3-körning).",
       "//pageweight-note": "Civic-utility-sida utan tunga assets (DESIGN.md). Budgetar satta stramt — Jobbliggaren ska vara lätt. Kalibrerade mot uppmätt baslinje vid första gröna Lighthouse-runs (CTO: kalibrera mot fakta, ej gissning).",
+      "//includePassedAssertions": "Without it lhci 0.15.1 writes only failing rows to .lighthouseci/assertion-results.json, and the job summary (.github/scripts/lighthouse-summary.sh) renders that file.",
+      "includePassedAssertions": true,
       "assertions": {
         "largest-contentful-paint": ["error", { "maxNumericValue": 2500, "aggregationMethod": "median" }],
         "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1, "aggregationMethod": "median" }],

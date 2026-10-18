@@ -355,6 +355,9 @@ jobs:
       - name: audit-suppression-guard (fixturer)
         run: bash .github/scripts/audit-suppression-guard.test.sh
 
+      - name: lighthouse-summary (fixturer)
+        run: bash .github/scripts/lighthouse-summary.test.sh
+
       # Ligger under deploy/ och inte .github/scripts/ därför att lådan klonar deploy/ — en
       # runtime-grind kan inte bo där runtime inte ser den. Fixturerna stubbar cosign, så
       # sviten behöver varken daemon, registry eller nätverk.
@@ -742,6 +745,11 @@ jobs:
         id: lhci
         continue-on-error: true
         run: pnpm exec lhci autorun --config=lighthouserc.json
+
+      # The job summary is where `performance-measurement.md` §F's readers read the outcome.
+      - name: Lighthouse summary
+        if: always()
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/lighthouse-summary.sh" .lighthouseci/assertion-results.json "$GITHUB_STEP_SUMMARY"
 
       # Artifact-upload (ersätter treosh uploadArtifacts). path är workspace-
       # relativ — upload-artifact är ett uses-steg och ärver ej working-directory.

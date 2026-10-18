@@ -10,8 +10,12 @@ import { notifiableMatchGradeSchema } from "@/lib/dto/me-matches";
  * som lästa" sends it back unchanged.
  */
 
-/** Why a notification exists. */
-export const notificationFeedSourceKindSchema = z.enum(["Match", "FollowedCompanyAd"]);
+/**
+ * Why a notification exists. `CompanyWatchCriterionAd` (a new ad from a company a Branschbevakning matches) is
+ * known here before the API sends it (ADR 0175, ParallelChange): a tab that is open when the API starts sending
+ * a kind this list does not name fails the whole parse, and its bell goes dark until it reloads.
+ */
+export const notificationFeedSourceKindSchema = z.enum(["Match", "FollowedCompanyAd", "CompanyWatchCriterionAd"]);
 export type NotificationFeedSourceKind = z.infer<typeof notificationFeedSourceKindSchema>;
 
 export const notificationFeedItemSchema = z.object({
@@ -21,7 +25,7 @@ export const notificationFeedItemSchema = z.object({
   companyName: z.string(),
   occurredAt: readableInstantSchema,
   isUnread: z.boolean(),
-  /** The stored match grade on a `Match` row; `null` on a followed company's row. */
+  /** The stored match grade on a `Match` row; `null` on every other row. */
   grade: notifiableMatchGradeSchema.nullable(),
 });
 export type NotificationFeedItem = z.infer<typeof notificationFeedItemSchema>;

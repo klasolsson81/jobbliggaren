@@ -35,6 +35,7 @@ export async function getNotificationFeed(signal?: AbortSignal): Promise<ApiResu
 const SOURCE_SEGMENT: Record<NotificationFeedSourceKind, string> = {
   Match: "matches",
   FollowedCompanyAd: "followed-company-ads",
+  CompanyWatchCriterionAd: "company-watch-criterion-ads",
 };
 
 /**

@@ -70,17 +70,19 @@ export async function dismissNotificationAction(input: {
  * milliseconds, so a re-serialised token would land just below its own row and the badge would never
  * reach zero. A null or malformed token sends nothing for that source.
  *
- * Runs on a click only. The two calls are sequential and independent: one may succeed while the other
+ * Runs on a click only. The calls are sequential and independent: one may succeed while another
  * fails, and the bell fetches the feed again afterwards, so it shows what actually happened.
  */
 export async function markAllNotificationsReadAction(tokens: {
   match: string | null;
   followedCompanyAd: string | null;
+  companyWatchCriterionAd: string | null;
 }): Promise<ActionResult> {
   const t = await getTranslations("common.notifications");
   const sends = [
     { kind: "Match", token: tokens.match },
     { kind: "FollowedCompanyAd", token: tokens.followedCompanyAd },
+    { kind: "CompanyWatchCriterionAd", token: tokens.companyWatchCriterionAd },
   ] as const;
 
   let failed = false;

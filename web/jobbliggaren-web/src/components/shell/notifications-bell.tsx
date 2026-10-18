@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useTransition, type MouseEvent } from "react";
+import { useEffect, useId, useRef, useState, useTransition, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { Bell, X } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { MatchChip } from "@/components/job-ads/match-chip";
 import { useNotificationFeedContext } from "@/components/shell/notification-feed-provider";
 import { markAllNotificationsReadAction } from "@/lib/actions/notification-feed";
+import { assertNever } from "@/lib/dto/_helpers";
 import type { NotificationFeed, NotificationFeedItem, NotificationFeedSourceKind } from "@/lib/dto/notification-feed";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { readKey, unreadTotal } from "@/lib/hooks/use-notification-feed";
@@ -15,6 +16,7 @@ import { onPlainNav } from "@/lib/nav/modified-click";
 import { previousSwedishDateSlug, swedishDateSlug, swedishDaysBetween } from "@/lib/time/swedish-calendar";
 
 type NotificationsT = ReturnType<typeof useTranslations<"common.notifications">>;
+type TagsT = ReturnType<typeof useTranslations<"jobads.ui.tags">>;
 
 /** The badge shows the exact number up to this; above it, "99+" (ADR 0120 clause 2). */
 const BADGE_MAX = 99;
@@ -109,6 +111,7 @@ export function NotificationsBell() {
     const tokens = {
       match: tokenFor(feed, "Match"),
       followedCompanyAd: tokenFor(feed, "FollowedCompanyAd"),
+      companyWatchCriterionAd: tokenFor(feed, "CompanyWatchCriterionAd"),
     };
     setMarkFailed(false);
     startMarking(async () => {
@@ -335,13 +338,7 @@ function NotificationRow({
   return (
     <li className={unread ? "jp-notif__row jp-notif__row--unread" : "jp-notif__row"}>
       <div className="jp-notif__signal">
-        {item.kind === "Match" && item.grade !== null ? (
-          <MatchChip grade={item.grade} id={signalId} />
-        ) : (
-          <span id={signalId} className="jp-tag jp-tag--neutral" data-tag="followed">
-            {tTags("followed")}
-          </span>
-        )}
+        {signalOf(item, signalId, t, tTags)}
         <time id={timeId} className="jp-notif__time" dateTime={item.occurredAt}>
           {when}
         </time>
@@ -385,9 +382,44 @@ function NotificationRow({
   );
 }
 
+/**
+ * The tag that leads the row. A Branschbevakning is a plain neutral tag and never the follow axis: the follow
+ * axis means "you follow this employer" (ADR 0117 D2, DESIGN.md §6).
+ */
+function signalOf(item: NotificationFeedItem, id: string, t: NotificationsT, tTags: TagsT): ReactNode {
+  switch (item.kind) {
+    case "Match":
+    case "FollowedCompanyAd":
+      return item.kind === "Match" && item.grade !== null ? (
+        <MatchChip grade={item.grade} id={id} />
+      ) : (
+        <span id={id} className="jp-tag jp-tag--neutral" data-tag="followed">
+          {tTags("followed")}
+        </span>
+      );
+    case "CompanyWatchCriterionAd":
+      return (
+        <span id={id} className="jp-tag jp-tag--neutral">
+          {t("tagCriterion")}
+        </span>
+      );
+    default:
+      return assertNever(item.kind);
+  }
+}
+
 /** Why the notification is there, in words. */
 function reasonOf(t: NotificationsT, item: NotificationFeedItem): string {
-  return item.kind === "Match" ? t("reasonMatch") : t("reasonFollowed");
+  switch (item.kind) {
+    case "Match":
+      return t("reasonMatch");
+    case "FollowedCompanyAd":
+      return t("reasonFollowed");
+    case "CompanyWatchCriterionAd":
+      return t("reasonCriterion");
+    default:
+      return assertNever(item.kind);
+  }
 }
 
 function tokenFor(feed: NotificationFeed, kind: NotificationFeedSourceKind): string | null {

@@ -51,8 +51,9 @@ applied the release is not known when this ADR is written; part 2 records it her
 
 - `jobbliggaren-reconcile.sh --status` showed receipt sequence 1635, release `sha256:20f8cc31ed0d…`, source `013060324` (#2162, part 1's merge) and the verdict consistent.
 - The reconcile journal (`journalctl -u jobbliggaren-reconcile`) recorded "applying release 0130603…" at 18:49:52.76Z and "reconcile complete … applied" at 18:50:08.43Z.
-- `docker inspect` showed `jobbliggaren-migrate` started at 18:49:54.59Z and exited 0 at 18:49:56.27Z; it created the table. `jobbliggaren-api`, the first process able to write either value, was
-  created at 18:49:53.07Z and started at 2026-10-17T18:49:56.72Z, with RestartCount 0.
+- `docker inspect -f '{{.Name}} created={{.Created}} started={{.State.StartedAt}} finished={{.State.FinishedAt}} exit={{.State.ExitCode}}'` showed `jobbliggaren-migrate` started at 18:49:54.59Z and
+  exited 0 at 18:49:56.27Z; it created the table. `docker inspect -f '{{.Name}} created={{.Created}} started={{.State.StartedAt}} restarts={{.RestartCount}} image={{.Image}}'` showed `jobbliggaren-api`,
+  the first process able to write either value, created at 18:49:53.07Z and started at 2026-10-17T18:49:56.72Z, with RestartCount 0.
 
 Recording on the box starts at that API start. The web holds it as the constant `ACCOUNT_ACTIVITY_RECORDED_FROM = "2026-10-17T18:49:56Z"` in `web/jobbliggaren-web/src/lib/admin/account-activity.ts`, the start
 truncated to the second. The admin view shows it as 2026-10-17 20:49 (Europe/Stockholm, CEST): the minute in which that process started, truncated the way the cells are (G, D4), so no stored value falls before

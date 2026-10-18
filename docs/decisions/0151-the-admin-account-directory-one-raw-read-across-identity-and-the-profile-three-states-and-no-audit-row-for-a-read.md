@@ -347,8 +347,8 @@ above stand as written.
   `…_and_nothing_of_the_login`) and lists `lastLoginAt` and `lastActiveAt` among the fields of the list item and of the
   detail. It still asserts that neither response carries a provider subject or a security stamp.
   `Each_sort_s_sql_ends_on_the_account_id` covers the two new sorts. The tests in `AdminAccountsActivityTests` read rows
-  that only the production writers make, a code login through the session grant and requests through the middleware on
-  a host whose clock the test moves, and run both sorts against the migrated schema with a tie and with nulls. A second
+  that only the production writers make, a code login through the session grant and requests through the middleware,
+  and run both sorts against the migrated schema with a tie and with nulls. A second
   architecture pin, `AccountActivityReaderTests`, fixes where the table may be read (ADR 0172 D3):
   `SqlAccountDirectory.Command` is one of its three admitted loaders of the table's name.
 - **D8.** The "Senast aktiv" sorts add no index: `account_activity` has its primary key only (ADR 0172 D2), so a sort

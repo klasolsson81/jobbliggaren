@@ -1872,7 +1872,6 @@ ej publika, swap/core-dump-hygien) = gate M-6, hemvist [#196](https://github.com
 **Aktivt nu (PR-flöde per ADR 0065):**
 
 `build.yml` (`ci`-aggregat):
-- Trigger: PR mot `main`, push till `main`
 - Jobs: enumerated in `build.yml`'s `ci.needs` and nowhere else (ADR 0044 Beslut 4: a list of the tree goes stale, a rule does not)
 - Inga moln-anrop, inga deploys
 

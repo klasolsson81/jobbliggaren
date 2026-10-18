@@ -403,14 +403,16 @@ was declined on exactly this basis (−4,3 KB gzip → −55 ms LCP ceiling = no
 
 The ruling is senior-cto-advisor's, 2026-10-18 (#2090, the SEO/AIO audit's stage B).
 
-The assertion lines are in the lhci step's log and in the `lighthouse-results` artifact.
+The assertions are in the job's summary, as one table for the bytes and one for the timing.
 
 - **Per PR.** The session that owns a PR touching `web/jobbliggaren-web/` reads the `resource-summary:*`
-  assertion lines before setting `agents-done`.
+  assertions before setting `agents-done`.
   - A byte assertion that fails on the PR head and passes on main's latest run is a regression under
     AGENTS.md §2.5. Fix it, or STOPP with a justification.
   - LCP, CLS and TBT are not read per PR, because of D0 above.
-- **Monthly.** Klas, or a session he names, reads main's latest run. This catches drift from PRs no
+- **Monthly.** Klas, or a session he names, reads main's latest completed run
+  (`gh run list --workflow build.yml --branch main --status completed --limit 1`), and dispatches one with
+  `gh workflow run build.yml --ref main` when it is older than a week. This catches drift from PRs no
   session owns, such as Dependabot's automerged updates.
 
 ### Baseline — 2026-07-20 (#1011 CI run, job 88423824881)

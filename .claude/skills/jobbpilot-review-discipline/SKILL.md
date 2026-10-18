@@ -154,7 +154,9 @@ merging**. Before setting it:
    capped overflow route.
 2. The PR-body verdict table + verbatim escalations + §9.6's named skips are
    appended, in ONE edit.
-3. No unresolved Blocker/Major, and no §12 merge-blocking condition.
+3. No unresolved Blocker/Major, and no §12 merge-blocking condition. On a PR touching
+   `web/jobbliggaren-web/`, read the Lighthouse job's byte table first
+   (`docs/runbooks/performance-measurement.md` §F, "Who reads the job, and when").
 4. `git log --oneline -1` still matches the SHA the **last re-check** answered —
    check it immediately before setting the label, not before the final fixes.
 5. After the label, confirm it actually armed:

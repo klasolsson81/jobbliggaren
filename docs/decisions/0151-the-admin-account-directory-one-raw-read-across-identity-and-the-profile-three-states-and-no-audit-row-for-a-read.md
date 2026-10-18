@@ -354,3 +354,6 @@ above stand as written.
 - **D8.** The "Senast aktiv" sorts add no index: `account_activity` has its primary key only (ADR 0172 D2), so a sort
   rides the sequential plan that D8 already accepts for the substring search. ADR 0172's lapse trigger 4 reopens it at
   D8's own trigger, 10 000 accounts, when an index on `last_active_at` is reconsidered at the cost of HOT updates.
+- **Client messages.** The account route's provider carries `pages.auth.passwordless.code` instead of `pages`, because
+  the step-up dialog and the address-change form read only that subtree; it bounds document transport, as the
+  Amendment 2026-10-08 did for `settings`.

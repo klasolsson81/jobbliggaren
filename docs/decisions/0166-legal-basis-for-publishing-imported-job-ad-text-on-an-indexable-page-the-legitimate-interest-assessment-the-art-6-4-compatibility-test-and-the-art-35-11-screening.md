@@ -480,3 +480,195 @@ the driving session through AskUserQuestion). His four answers, quoted without e
 **Signature:** `security-auditor`, 2026-10-18, on her scoped re-check of PR [#2168](https://github.com/klasolsson81/jobbliggaren/pull/2168) at head `e7cf4bdbb`: signs this amendment, items (i)–(ix), D10 triggers 8 and 9 and the trigger-5 reading in (viii), read with ADR 0174 D1–D6 as delivered and with the second addendum to DPIA #456 §8-B as Klas approved its text on 2026-10-18 (local): every sitemap entry carries `loc` and nothing else, and a job entry's `loc` is the page's canonical from `publicJobAdUrl`; membership is from `JobAdPublication.IsListed` only; the API refuses a snapshot older than 15 minutes or stamped more than 5 seconds ahead of its clock, a read that fails or exceeds the ceiling publishes nothing, and a read that began earlier never replaces one that began later; every answer of `listed-ids` and of the four sitemap files is `no-store`, and the web caches nothing; the wire is exactly `ids`; `public-job-ad-listed-ids` allows 6 per 60 s per client address; nothing is pushed to anyone. It renews, for the page scope, her signature of 2026-10-12 (D1–D11 and signature 3; the notice is unchanged) and her signature of 2026-10-17 (the S3 amendment). It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override. It lapses with any D10 trigger that fires after it, 5, 8 and 9 included (trigger 1's "the S4 sitemap" is the firing this amendment answers), and with any change to this amendment's text, to the properties above or to that addendum; a merge-day reading appended to (ix) under its own rule does not reopen it unless its validated count is above 0, which is trigger 2. The edit that writes this line and marks the amendment Accepted does not reopen it.
 
 ADR 0166 remains **Accepted** for D1–D11 for the page; this amendment is **Accepted** (approved by Klas and signed by `security-auditor`, both 2026-10-18).
+
+## Amendment 2026-10-18 (#2090 S5, ADR 0176) — the D10 re-take for the public catalogue; approved by Klas 2026-10-18; Proposed until signed by `security-auditor`
+
+D1–D11 and the earlier amendments stand and nothing above is rewritten. D10's trigger 1 names "the S5 catalogue", so it fires for S5 by its own text and there is nothing to interpret. The
+conclusion is withdrawn **for the catalogue only**: the public paginated list of every listed ad's title and employer, and the reach it gives a reader. The page and the sitemap keep their
+conclusions. The signature of `security-auditor` of 2026-10-18 for the sitemap lapses "with any D10 trigger that fires after it", by its own words; read with D10's scope rule, that lapse
+withdraws nothing from the sitemap or the page, and it is renewed in the Signature below. Klas took the conclusion again for the catalogue on 2026-10-18 (sign-off below). This amendment is
+the single home of the legal outcome for the catalogue: ADR 0176 D13 points here and does not restate it. It follows the order of `security-auditor`'s section 1, and her M1–M3 and m1–m6, in her
+plan read of 2026-10-18 (`docs/reviews/2026-10-18-2090-s5-plan-security-auditor.md`, local). **Its status is Proposed until she signs it at her scoped re-check of the S5 PR's final head, and
+the merge waits for her signature.** Without it the processing would rest on a withdrawn conclusion, and the notice's "Vi har vägt de intressena mot dina rättigheter" would be untrue for the
+catalogue (Art. 5(1)(a), 12(1), 14(2)(b)).
+
+**D1: unchanged,** and applied to the catalogue as written. The purpose explicitly names a search "for the work or the employer". The employer column serves that purpose.
+
+**D2, necessity: re-taken.**
+- *Why the catalogue is needed.* After S4, crawlers find job pages through the sitemap. Two things are still missing: a visitor without an account has no way to browse open ads, and no public
+  page links to a job page. D1's "without an account, and … a place such a search lands" is therefore met for crawlers only.
+- *The catalogue's own minimisation:*
+  - six row members;
+  - no free text or excerpt;
+  - no `Url` and no Arbetsförmedlingen id;
+  - no deadline;
+  - no filter, sort or search;
+  - content classified per request;
+  - the list in `data-nosnippet`;
+  - no row value and no count in the title, meta, OpenGraph or Twitter tags.
+- *Alternatives the amendment names:*
+  - the sitemap alone: the human and link path is not met;
+  - titles without the employer: fails D1's "employer";
+  - an excerpt: W1 on hub pages;
+  - `noindex`: weighed under W4 below, and not required;
+  - behind sign-in: not public.
+
+**D3: unchanged.**
+
+**D4, the weights:**
+- **W1: unchanged by S5.** The catalogue carries no free text. Its links to every job page add no likelihood beyond what S4 made systematic.
+- **W2: re-weighed at hub scale.** The employer name is the catalogue's main personal datum, 20 to a page, on indexable URLs. Measured on 2026-10-18 at 12:57 UTC, counts only, on the box:
+  0 of the 41 860 listed ads that carry an organization number carry a personnummer-shaped one. The 410 listed ads without an organization number are of unknown kind, so the stock of sole
+  traders is at most 410 of 42 270. What the catalogue adds is a second, transient URL per name, not a new datum: a page's rows move every tick. Rows are kept out of snippets and AI answers
+  on both engines. *Left:* both engines still index the marked text, so a list URL can match a name until the next recrawl.
+- **W3:** handled by D11.
+- **W4: re-weighed.**
+  - *Done:* snippet and AI-answer copies are suppressed. Link previews carry no row, because the OpenGraph image is the shared one and the description is static.
+  - *Left:*
+    - the index association until recrawl;
+    - web-archive snapshots of list pages, which are a dated, permanent list of titles and employers and lie out of reach;
+    - bulk harvesting, to which the catalogue adds little: the same title and employer are in Arbetsförmedlingen's open API.
+- **W5 at catalogue scale.** What S5 changes:
+  1. We offer the join from our id to title, employer, kommun or län and publication date, without a page read. That is 20 ads per request, so about 2 112 requests cover the whole set,
+     against about 42 000 page views.
+  2. An erased ad is absent from its catalogue page at once.
+  3. Newest-first puts ads published together on one page, so ads erased by one request can vanish together from that page.
+  4. The ad's publication date is public per row. It was already on the page.
+
+  What does not change:
+  - The list cannot tell an ended ad from an erased one.
+  - Only an early drop, relative to Arbetsförmedlingen, carries the signal.
+  - No Arbetsförmedlingen id and no `Url` appear anywhere on the catalogue.
+  - **S4's sentence "Joining our id to Arbetsförmedlingen's ad still needs one page read" stays true of Arbetsförmedlingen's id. It is no longer true of the payload that names a person.** This
+    amendment says so, so that S4's sentence is not read as covering the catalogue.
+
+  The design changes that would reduce the inference are worse: content held in the snapshot would serve an erased ad's title and employer for up to 15 minutes, against Art. 17(1);
+  back-filling rows does not hide an absence; and dropping the employer fails D1. No design change is required. Measured on 2026-10-18, **0 ads have ever been erased**, so W5 has no data
+  subject yet and the rating is for the first erasure onward.
+
+  *Done:* six members; content per request through `IsListed(now)`; the identical 410; no `asOf` anywhere; no Arbetsförmedlingen id. *Left:* the inference, now cheaper.
+
+**D5 gains S5's safeguards:**
+- the six-member DTO, pinned by a contract test and a wire test;
+- content per request;
+- membership, order and count from the one snapshot, within the 15-minute bound and the 5-second future tolerance;
+- `no-store` on every answer;
+- the policy `public-job-ad-catalogue`;
+- `data-nosnippet` on the list (the wrapper also holds the count line and the pager, which is a stated delta against her plan-read condition that it be a `div` around the `<ol>` only; she
+  grades it at her re-check, ADR 0176 D9);
+- no row value and no count in metadata, and no JSON-LD;
+- plain anchors on rows, and nothing that links to `/lediga-jobb` prefetches;
+- no log line carrying a title, an employer or an id.
+
+**D5's transparency line is stated as delivered** (her m1). D5 says the recruiter notice is "linked from every public page". As delivered, the notice is linked from the job page
+(`public-job-ad.tsx:98`) and from the privacy policy (`integritet/page.tsx:77`), which every page's footer links (`site-footer.tsx:116`). The catalogue carries no ad text and no notice link.
+The line was not true as delivered when it was signed on 2026-10-12, and this corrects the record (Art. 5(2)). Art. 14(5)(b) asks that the information be made publicly available, and it is.
+No code changes, and `DESIGN.md` §8 (`DESIGN.md:189`) is unchanged. The erasure runbook (`docs/runbooks/recruiter-pii-erasure.md` §2.4a) gains two sentences and no new check step: the
+catalogue needs no check, because each row is classified at request time (an integration test pins it) and a row's position is not addressable; and "what cannot be reached" gains a search
+engine's index copy of a list page, refreshed at its next crawl, whose rows are not quoted in snippets (her m4).
+
+**D6:** (c) unchanged. (d) updated by W2, W4 and W5 above. (e) is D5. ADR 0160 D6 is read correctly: "now" holds for content, and order and count are list answers at most 15 minutes old.
+
+**D7: no change,** and both texts were measured. The notice's "Annonsen visas också på en publik sida … Mottagare är därför allmänheten och sökmotorerna" and the policy's "Annonserna visas
+också på en publik sida som sökmotorer kan indexera" stay true. The categories (title, employer) and the recipients are unchanged. The policy's organization-number paragraph
+(`content-legal.json:128`) already addresses a sole trader ("Står ditt eget personnummer som organisationsnummer, eller förekommer du i annonsen …"). The notice's "Vi har vägt de intressena
+mot dina rättigheter" becomes true for the catalogue only at Klas's approval, so the merge cannot come before it. Signature 3's pinned text does not change.
+
+**D8: a third addendum to DPIA #456 §8-B,** and not a new full DPIA (Klas, answer 2). The second addendum's R-842-9 rests on "Joining our id to Arbetsförmedlingen's ad needs one page read
+while the ad is listed" (`dpia-456 …:1166`), which the catalogue removes for the naming payload. Separately, the DPIA has never carried a row for W2, and W2 is the catalogue's main datum:
+both addenda rate only "The recruiter". The third addendum is a local file, written in the main copy by the driving session on these terms:
+1. R-842-9 is re-taken for the catalogue. `security-auditor`'s reading: **Med × Med**. The join that names costs one catalogue walk, and 0 erasures have been measured to date.
+2. A new **R-842-10**: a sole trader's name in `company_name`, on the page, in `hiringOrganization` and in the catalogue. Her reading: **Low × Med**, with a stock of 0 of the 41 860 listed
+   ads that carry an organization number and at most 410 unknown (2026-10-18, 12:57 UTC).
+3. The Art. 36(1) determination is re-confirmed: **not a high risk, on the second addendum's reasons, so no prior consultation with IMY is owed.**
+4. R-842-3, R-842-4 and R-842-8 are unchanged, because the catalogue carries no free text.
+5. The Art. 9 row is untouched.
+
+Klas approved the **form** of the addendum on 2026-10-18 (answer 2). **His approval of its text is still owed,** and `security-auditor` does not sign an amendment whose DPIA states a limit
+that the catalogue removes (her M3).
+
+**D9: unchanged.**
+
+**D10.** Trigger 1 fired for the S5 catalogue, and Klas took the conclusion again for the catalogue on 2026-10-18. This withdraws no finding and none of D4's residuals. Three triggers are
+added, continuing the numbering after the amendments of 2026-10-17 (5–7) and 2026-10-18 for S4 (8–9):
+
+10. A catalogue row member outside the six, or any other ad value anywhere on a catalogue page. Also: a row value or the count in the page's title, meta, OpenGraph or Twitter tags, or the
+    list rendered without `data-nosnippet`.
+11. A catalogue row whose content is not read and classified through `JobAdPublication.IsListed` at request time. That covers content from the snapshot, any process or Next cache, ISR, a
+    static render, a CDN, or a hand-written copy of the predicate.
+12. Catalogue membership, order or count from anything other than the listed-ad snapshot that serves the sitemap, within its bound. Also: a filter, sort, search or place parameter on the
+    catalogue. A place as a path is a new public page, which is trigger 1.
+
+The readings recorded with them:
+- **Trigger 5:** the catalogue pushes nothing. Klas's manual "Request indexing" of `/lediga-jobb` in Search Console, or submitting it in Bing's tool, is outside the trigger on S4's reasoning:
+  the engine fetches the page itself, and the submission goes to recipients D7 already names. An API, IndexNow or automated submission stays inside the trigger.
+- **Trigger 6:** not fired. The catalogue carries no JSON-LD, and the group test pins JSON-LD to one file.
+- **Trigger 8:** not fired. The entry is `loc` only, and its `loc` is page 1's canonical from `publicCatalogueUrl`. A test pins the two as equal.
+- **Trigger 9:** read as governing membership of the **job parts**. The pages part is a fixed list of site pages carrying no ad, and the hub is one of them. Read literally, the 14 marketing
+  URLs would already fire it.
+
+**D11: the merge-day reading (W3).** D11 is condition (1) of the conclusion being re-taken, and a reading is dated. The catalogue puts every listed title and employer on crawlable list pages
+without a page read. The last reading was 2026-10-18 01:27 UTC (42 223 listed, validated 0), and new imports arrive continuously: nothing measures W3 continuously. S5 takes a fresh S2-P3
+reading on the day of the merge: the same query blob (`8c02e37`), counts only, on the merge's UTC day, before `agents-done`. The validated count must be 0. It is recorded in two places: here,
+and in the record table of `docs/runbooks/public-job-page-publication-count.md`. A count above 0 fires trigger 2, and S5 stops. If the merge slips past that UTC day, the reading is taken again.
+
+**The merge-day reading (counts only).** Not yet taken.
+
+**What the signature reads with** (her section 2). She signs the S5 amendment at her scoped re-check of the S5 PR's final head, read with ADR 0176 as delivered and with the third DPIA addendum
+as Klas approves its text. The delivered properties:
+- **The row.** Exactly six members, pinned by a contract test and a wire test, and its `id` is a lower-case GUID. The 200 body has exactly five keys. There is no `asOf` or stamp on the wire or
+  on the page.
+- **Content per request.** Every row's content is read per request through `JobAdPublication.IsListed(now)`, never from the snapshot or any cache. An ad erased after the sample is absent from
+  its page at once (Testcontainers).
+- **Membership, order and count.** They come from the one snapshot that also serves the sitemap, within its bound. A missing or stale snapshot is a 503. A failed read publishes neither view,
+  and neither does a read over the ceiling.
+- **Caching.** `no-store` is on the API's 200, 400, 404, 429 and 503, and on the web's 200, 404 and 500. The web caches nothing: no ISR, no static render, no `generateStaticParams`, no fetch
+  revalidation.
+- **Rate limit.** `public-job-ad-catalogue` allows 60 per 60 s per relayed client address. It is its own policy, never shared and never per user.
+- **The page.** The list is in a `div data-nosnippet`. No row value and no number appear in the title, meta, OpenGraph or Twitter tags, and there is no JSON-LD. `sida` is the only parameter
+  read. The canonical, the pager links and the sitemap entry all come from `publicCatalogueUrl`. Row links are plain anchors, and nothing that links to `/lediga-jobb` prefetches.
+- **Logging.** No log line on either path carries a title, an employer or an id.
+- **No push.** Nothing is pushed to anyone.
+
+**The build conditions it also reads with** (her section 7):
+1. The content read composes `JobAdPublication.IsListed(now)` in LINQ. If measurement M4 shows `Contains` does not translate, the port's Infrastructure implementation is `FromSql` with an
+   interpolated, parameterised `= ANY(…)`, with `.Where(JobAdPublication.IsListed(now))` composed over it; never `FromSqlRaw` with concatenation (area 7, a Blocker) and never a hand-written SQL
+   copy of the predicate (trigger 11). A narrow projection only, and the entity is never materialised (`RawPayload`).
+2. The ceiling or a failed read publishes neither view, and S4's sampler tests run against the widened read.
+3. `EnableSensitiveDataLogging` appears nowhere in `src/` (grep), the handler logs nothing, and the new web modules have no `console` call; their thrown errors carry no body or value.
+4. The catalogue fetcher relays only `pickForwardedHeaders`, so no `Cookie` and no `Authorization` reach the API, and a test pins the key set.
+5. Scope: no new PII field, recipient, sub-processor, transfer, migration, package, `deploy/` diff or ACL change. Edge exposure is unchanged (Caddy proxies only `web:3000`).
+
+**Her S4 signature, and its renewal.** Her signature of 2026-10-18 for the sitemap (above, in the S4 amendment) does not survive as written, and does not need to. It lapses by its own words on
+two grounds: it "lapses with any D10 trigger that fires after it", and trigger 1 fires now; and it is "read with ADR 0174 D1–D6 as delivered", and S5 changes D1 (the projection widens to
+`(Id, PublishedAt)` and a second view is added) and D3 (15 URLs in the pages part). Read with D10's scope rule, that lapse withdraws nothing from the sitemap or from the page. She **renews** it
+in the same signature, for the sitemap and page scope, on two conditions:
+- S4's tests pass unchanged. The pages part's 14 becoming 15 is a stated change. *A stated delta (the CTO's triage):* the snapshot's factory now takes rows, so only the arrange lines of
+  `ListedJobAdSnapshotTests.cs` and `GetListedJobAdIdsQueryHandlerTests.cs` change, `git diff -U0` shows no `Should*` line touched, and every other S4 test file is byte-identical; she grades
+  this at her re-check.
+- The S4 properties are re-verified at the S5 head: every entry is `loc` only, and a job entry's `loc` comes from `publicJobAdUrl`; membership comes from `IsListed` only; the two-edged bound
+  holds; a failed read or a read over the ceiling publishes nothing, and compare-and-swap is kept; the wire is exactly `ids`; the policy is 6 per 60 s; nothing is pushed.
+
+Through that renewal, her signatures of 2026-10-12 and 2026-10-17 are renewed again for the page. None of these covers the Amendment 2026-10-11 (Art. 9).
+
+**Condition: one PR.** The snapshot widening is a preparatory commit inside the S5 PR and never merges ahead of it. Otherwise the sitemap's delivered D1 would change with no signature that
+reads it.
+
+**Other readings.**
+- **The Amendment 2026-10-11 (Art. 9).** None of its three triggers fires with S5: no complaint, no measurement asked for, no new register of bearers. Titles appear in rows, but each title is
+  already the job page's `<title>`. Her Blocker stands with its grade and remains unsigned. Its remedy (#2133) would reach the catalogue with no catalogue change, because both reads use
+  `IsListed`.
+- **Hubs (stage B).** Each hub is a new public page and fires trigger 1 by its own wording. W5 at kommun scale is that review's, not this one's.
+
+**Sign-off**
+
+**Controller approval:** Klas Olsson, 2026-10-18, in the session's chat, to `security-auditor`'s escalation (`docs/reviews/2026-10-18-2090-s5-plan-security-auditor.md`, relayed verbatim by the
+driving session through AskUserQuestion). His two answers, quoted without edits:
+1. "Ja (Rek.)": the re-take of this ADR's conclusion for the catalogue, as D1–D11 above list it, including the trigger-5 reading in D10.
+2. "Ja, tredje tillägget (Rek.)": a third addendum to DPIA #456 §8-B and not a new full DPIA, and no Art. 36 prior consultation, on the ratings in D8. His approval of the addendum's text is
+   still owed.
+
+**Signature:** pending — security-auditor signs at her scoped re-check of the S5 PR's final head.
+
+ADR 0166 remains **Accepted** for D1–D11 for the page, and for the sitemap by the amendment of 2026-10-18 for S4. This amendment is **Proposed**: approved by Klas on 2026-10-18 and not yet
+signed by `security-auditor`.

@@ -296,6 +296,21 @@ If something outside the API process comes to need the listed set, the Worker �
 **What does NOT change:** Variant B's architecture, Beslut (a), (b) and (c), the four existing legs of (d), and the ban on in-handler cache-aside. No supersession: ADR 0064 remains
 **Accepted**.
 
+## Amendment 2026-10-18 (#2090 S5, ADR 0176) — rule (d): the catalogue's order and count are precomputed in the snapshot; its content is in the per-record class
+
+*(Section language: English per CLAUDE.md §1, matching the amendments above.)*
+
+**Both classes in one answer.** The amendment of 2026-10-10 kept two reads apart: a recurring read of the whole corpus, identical for every reader, which is precomputed, and a read of one
+record, which has nothing to precompute. The public catalogue (ADR 0176) is one answer made of both. Its membership, order and count are a read of the whole corpus that is identical for every
+reader, so they are precomputed once per interval in the same API-process snapshot as the sitemap's list (the amendment above; ADR 0174 D1; ADR 0176 D3), and the handler never counts or sorts
+the corpus. Its content is at most 20 primary-key rows per request: the per-record class, with nothing to precompute, and not to be cached, because the erasure rule is absolute (ADR 0160 D6).
+
+**Rule (d) holds.** No COUNT and no OFFSET over the corpus in the request handler (a live OFFSET read was rejected, ADR 0176 Alternatives), no cache-aside, and no Worker → Redis transport, for
+the reasons of the amendment above. If something outside the API process comes to need the snapshot, ADR 0174 D9 trigger 1 and ADR 0176 D14 trigger 5 are where that is decided.
+
+**What does NOT change:** Variant B's architecture, Beslut (a), (b) and (c), the four existing legs of (d), and the ban on in-handler cache-aside. No supersession: ADR 0064 remains
+**Accepted**.
+
 ## Referenser
 
 - CLAUDE.md §2.3 (CQRS — read-DTO ut, ingen Domain-objekt över gränsen), §3.3 (DTO = `record class`), §3.6 (`.AsNoTracking()` default + projektion), §5.4 (säkerhet — anonym DoS-yta), §8 punkt 9 (ADR = DoD vid arkitekturbeslut)

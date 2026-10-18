@@ -513,5 +513,23 @@ public static class JobAdLifecycleReadRegistry
             + "the Erased Art. 17 tombstone, and any status added later, is excluded by construction rather than "
             + "by a '<>' that would silently admit it (#864 D4). No org.nr reaches C# scope: the aggregate is "
             + "computed server-side and only counts come back."),
+        // ADR 0175 D10 (#1663 PR 2) — the materialised ad reads, raw NpgsqlCommands built from ONE constant,
+        // MaterialisedAdsFromWhere (... FROM job_ads j WHERE j.organization_number = ANY(...members...) AND
+        // j.status = @ad_status), with @ad_status bound from JobAdStatus.Active.Value. Lifecycle decision for
+        // all four, in words: ActiveOnly, by a positive equality, so Archived, Erased and any later status are
+        // excluded by construction. Listed now because PR 2 adds the fourth; the first three were unlisted.
+        new("Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchBrowseQuery", "BrowseAdIdsAsync",
+            "The criterion's ad page: MaterialisedAdCountSql then MaterialisedAdIdsSql, both over "
+            + "MaterialisedAdsFromWhere, so the only ad-side exclusion is j.status = @ad_status (Active)."),
+        new("Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchBrowseQuery", "CountActiveAdsAsync",
+            "The criterion's ad magnitude: MaterialisedAdCountSql over MaterialisedAdsFromWhere, gated on the "
+            + "materialisation row; the ad-side exclusion is j.status = @ad_status (Active)."),
+        new("Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchBrowseQuery", "ListActiveAdIdsAsync",
+            "The criterion's whole ad-id set for read-time grading: MaterialisedAdIdSetSql over "
+            + "MaterialisedAdsFromWhere; the ad-side exclusion is j.status = @ad_status (Active)."),
+        new("Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchBrowseQuery", "ScanNewActiveAdIdsAsync",
+            "The nightly Branschbevakning scan's window: MaterialisedNewAdIdScanSql over "
+            + "MaterialisedAdsFromWhere plus a created_at window; Active only through j.status = @ad_status, "
+            + "and it returns ad ids, never an org.nr."),
     ];
 }

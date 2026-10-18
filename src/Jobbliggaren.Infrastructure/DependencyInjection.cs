@@ -1081,6 +1081,11 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.CompanyWatches.Abstractions.ICompanyWatchBrowseQuery,
             CompanyRegister.CompanyWatchBrowseQuery>();
+        // The nightly Branschbevakning scan's read (ADR 0175 D2): the same stateless class behind its own
+        // Worker-facing interface, registered here so the Worker resolves it through the real AddPersistence.
+        services.AddScoped<
+            Jobbliggaren.Application.CompanyWatches.Abstractions.ICompanyWatchCriterionAdScan,
+            CompanyRegister.CompanyWatchBrowseQuery>();
 
         // Materialises which companies match each industry watch (ADR 0139). Registered here, not in
         // AddScbCompanyRegister, for the same reason as the browse above and one more: the

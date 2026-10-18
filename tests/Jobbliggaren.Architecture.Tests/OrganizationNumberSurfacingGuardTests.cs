@@ -122,6 +122,9 @@ public class OrganizationNumberSurfacingGuardTests
         // scan is what makes "the browse never logs an org.nr" a build gate rather than a discipline.
         "src/Jobbliggaren.Application/CompanyWatches/Queries/BrowseCompanies/BrowseCompaniesQueryHandler.cs",
         "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchBrowseQuery.cs",
+        // #1663 PR 2 (ADR 0175 D11, DPIA §D9 M-D10) — the scan port over the same class; its contract is
+        // ad ids only, and this scan keeps any log line out of the file that states it.
+        "src/Jobbliggaren.Application/CompanyWatches/Abstractions/ICompanyWatchCriterionAdScan.cs",
         // #560 company-search wave (CTO F1) — the GENERAL register search mirrors the criterion
         // browse pair above exactly: the port impl materialises every matched company's raw
         // org.nr from company_register, the handler routes rows through CompanyBrowseDto.FromRow

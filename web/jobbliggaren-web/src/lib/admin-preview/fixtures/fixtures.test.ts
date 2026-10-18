@@ -4,10 +4,10 @@ import * as fixtures from "./index";
 
 /**
  * The preview's fixtures are fictional by construction (ADR 0150 D5): reserved-domain addresses,
- * documentation IP ranges, no name field, and the sentinel on every row. The two date exports are
- * the fixed clock and a value derived from it, not rows.
+ * documentation IP ranges, no name field, and the sentinel on every row. The three date exports are
+ * the fixed clock and values derived from it, not rows.
  */
-const NOT_ROWS = new Set(["FIXTURE_NOW", "PREVIEW_DELETION_EARLIEST"]);
+const NOT_ROWS = new Set(["FIXTURE_NOW", "PREVIEW_DELETION_EARLIEST", "PREVIEW_ACTIVITY_RECORDED_FROM"]);
 const exported = Object.entries(fixtures).filter(([name]) => !NOT_ROWS.has(name));
 
 function strings(value: unknown, acc: string[] = []): string[] {

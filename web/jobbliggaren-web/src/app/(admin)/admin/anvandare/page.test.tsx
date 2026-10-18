@@ -46,6 +46,8 @@ const RESPONSE: AccountSearchResponse = {
         registeredAt: "2026-09-28T12:02:00Z",
         deletionEarliest: null, deletion: null,
         applicationCount: 4,
+        lastLoginAt: "2026-10-17T19:05:00Z",
+        lastActiveAt: "2026-10-17T19:40:00Z",
       },
       {
         id: "00000000-0000-4000-8000-000000000002",
@@ -57,6 +59,8 @@ const RESPONSE: AccountSearchResponse = {
         registeredAt: null,
         deletionEarliest: null, deletion: null,
         applicationCount: null,
+        lastLoginAt: null,
+        lastActiveAt: null,
       },
       {
         id: "00000000-0000-4000-8000-000000000003",
@@ -68,6 +72,8 @@ const RESPONSE: AccountSearchResponse = {
         registeredAt: null,
         deletionEarliest: null, deletion: null,
         applicationCount: null,
+        lastLoginAt: null,
+        lastActiveAt: null,
       },
     ],
     totalCount: 3,

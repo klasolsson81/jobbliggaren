@@ -53,6 +53,8 @@ const A: Item = {
   registeredAt: "2026-09-28T12:02:00Z",
   deletionEarliest: null, deletion: null,
   applicationCount: 4,
+  lastLoginAt: "2026-10-17T19:05:00Z",
+  lastActiveAt: "2026-10-17T19:40:00Z",
 };
 
 const B: Item = {
@@ -65,6 +67,8 @@ const B: Item = {
   registeredAt: null,
   deletionEarliest: null, deletion: null,
   applicationCount: null,
+  lastLoginAt: null,
+  lastActiveAt: null,
 };
 
 const C: Item = { ...B, id: "00000000-0000-4000-8000-000000000003", email: "konto.c@example.test" };
@@ -571,6 +575,21 @@ describe("AccountsDirectory (#1974, ADR 0151)", () => {
       "RegisteredOldest",
       "AddressAscending",
       "AddressDescending",
+    ]);
+  });
+
+  it("sorts by Senast aktiv, the most recent first and then the oldest, each from the first page", async () => {
+    fetchMock.mockImplementation(async () => json(answer([A, B, C])));
+    render(<AccountsDirectory initial={FIRST} self={SELF} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Senast aktiv" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole("button", { name: "Senast aktiv" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    expect([0, 1].map((index) => call(index).body)).toMatchObject([
+      { sort: "LastActiveNewest", page: 1 },
+      { sort: "LastActiveOldest", page: 1 },
     ]);
   });
 

@@ -209,6 +209,12 @@
       "lastActive": "Last active",
       "applications": "Applications"
     },
+    "activityHelp": {
+      "title": "Last signed in and Last active",
+      "aria": "About Last signed in and Last active",
+      "since": "The times are stored from {start}. If a time is missing, nothing has been stored since then.",
+      "automatic": "Last active also includes automatic updates while a tab with the service is open and visible."
+    },
     "counter": "{shown} of {total, plural, one {# account} other {# accounts}}",
     "counterBusy": "Fetching accounts…",
     "role": {

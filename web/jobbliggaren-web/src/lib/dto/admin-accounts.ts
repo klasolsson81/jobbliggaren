@@ -43,6 +43,8 @@ const accountListItemSchema = z.object({
   deletionEarliest: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
   deletion: deletionTimingSchema.nullable().default(null),
   applicationCount: count.nullable(),
+  lastLoginAt: instant.nullable().default(null),
+  lastActiveAt: instant.nullable().default(null),
 });
 
 export const accountDetailsSchema = accountListItemSchema.extend({
@@ -69,7 +71,14 @@ export type AccountDetailsDto = z.infer<typeof accountDetailsSchema>;
 export type AccountStatusCountsDto = z.infer<typeof accountStatusCountsSchema>;
 
 /** The sort orders the directory knows; each ends on the account id. */
-export const ACCOUNT_SORTS = ["RegisteredNewest", "RegisteredOldest", "AddressAscending", "AddressDescending"] as const;
+export const ACCOUNT_SORTS = [
+  "RegisteredNewest",
+  "RegisteredOldest",
+  "AddressAscending",
+  "AddressDescending",
+  "LastActiveNewest",
+  "LastActiveOldest",
+] as const;
 export type AccountSort = (typeof ACCOUNT_SORTS)[number];
 
 /** The statuses a search can filter by: the ones the backend produces. */
@@ -106,6 +115,8 @@ export function toAccountRow(item: z.infer<typeof accountListItemSchema>): Admin
     applicationCount: item.applicationCount,
     deletionEarliest: item.deletionEarliest,
     deletion: item.deletion,
+    lastLoginAt: item.lastLoginAt,
+    lastActiveAt: item.lastActiveAt,
   };
 }
 

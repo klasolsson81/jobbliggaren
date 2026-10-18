@@ -25,6 +25,8 @@ const DETAIL = {
   applicationCount: 4,
   resumeCount: 2,
   savedSearchCount: 3,
+  lastLoginAt: "2026-10-17T19:05:00+00:00",
+  lastActiveAt: "2026-10-17T19:40:00+00:00",
 };
 
 function withSession(value: string | undefined) {

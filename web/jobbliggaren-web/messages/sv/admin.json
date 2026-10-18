@@ -209,6 +209,12 @@
       "lastActive": "Senast aktiv",
       "applications": "Ansökningar"
     },
+    "activityHelp": {
+      "title": "Senast inloggad och Senast aktiv",
+      "aria": "Om Senast inloggad och Senast aktiv",
+      "since": "Tidpunkterna sparas från och med {start}. Saknas en tidpunkt har inget sparats sedan dess.",
+      "automatic": "I Senast aktiv ingår också automatiska uppdateringar medan en flik med tjänsten är öppen och syns."
+    },
     "counter": "{shown} av {total, plural, one {# konto} other {# konton}}",
     "counterBusy": "Hämtar konton…",
     "role": {

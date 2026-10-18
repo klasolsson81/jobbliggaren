@@ -5,6 +5,7 @@ import { ADMIN_PREVIEW_ROUTE } from "@/lib/admin-preview/gate.cjs";
 import { requireAdminPreview } from "@/lib/admin-preview/runtime-gate";
 import {
   PREVIEW_ACCOUNTS,
+  PREVIEW_ACTIVITY_RECORDED_FROM,
   PREVIEW_DELETION_EARLIEST,
   PREVIEW_EMAIL_CHANGE_STARTED,
   PREVIEW_EMAIL_CHANGES,
@@ -27,6 +28,7 @@ export default async function AdminPreviewUsersPage() {
       <AdminPageHeader title={t("heading")} />
       <PreviewAccounts
         accounts={PREVIEW_ACCOUNTS}
+        activityRecordedFrom={PREVIEW_ACTIVITY_RECORDED_FROM}
         self={PREVIEW_SELF}
         deletionEarliest={PREVIEW_DELETION_EARLIEST}
         emailChanges={PREVIEW_EMAIL_CHANGES}

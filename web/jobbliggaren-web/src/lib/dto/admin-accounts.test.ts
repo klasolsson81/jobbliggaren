@@ -54,6 +54,28 @@ describe("the account directory's wire shapes (#1974, ADR 0151)", () => {
 
     expect(accountSearchResponseSchema.safeParse(answer([outside, ITEM])).success).toBe(true);
   });
+
+  it("reads each account's last login and last active minute, and a minute nothing recorded as null", () => {
+    const page = toAccountsPage(accountSearchResponseSchema.parse(answer([
+      { ...ITEM, lastLoginAt: "2026-10-17T19:05:00+00:00", lastActiveAt: "2026-10-17T19:40:00+00:00" },
+      { ...ITEM, lastLoginAt: null, lastActiveAt: "2026-10-17T20:15:00+00:00" },
+    ])));
+
+    expect(page.rows.map(({ lastLoginAt, lastActiveAt }) => ({ lastLoginAt, lastActiveAt }))).toEqual([
+      { lastLoginAt: "2026-10-17T19:05:00+00:00", lastActiveAt: "2026-10-17T19:40:00+00:00" },
+      { lastLoginAt: null, lastActiveAt: "2026-10-17T20:15:00+00:00" },
+    ]);
+  });
+
+  it("reads an answer from the release before #2161 part 2, which sends no activity minutes, as nothing recorded", () => {
+    const page = toAccountsPage(accountSearchResponseSchema.parse(answer([ITEM])));
+
+    expect(page.rows[0]).toMatchObject({ lastLoginAt: null, lastActiveAt: null });
+  });
+
+  it("refuses an activity minute that is not an instant", () => {
+    expect(accountSearchResponseSchema.safeParse(answer([{ ...ITEM, lastActiveAt: "igår" }])).success).toBe(false);
+  });
 });
 
 describe("the pending address change's wire shape (#1975, ADR 0153)", () => {

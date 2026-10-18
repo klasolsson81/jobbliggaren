@@ -45,12 +45,19 @@ const PREVIEW_CHALLENGE = "preview-step-up";
 
 const latency = () => new Promise((resolve) => setTimeout(resolve, SIMULATED_LATENCY_MS));
 
+const SORT_VALUE: Readonly<Record<AdminAccountSortKey, (row: AdminAccountRow) => string | null>> = {
+  email: (row) => row.email,
+  registeredAt: (row) => row.registeredAt,
+  lastActiveAt: (row) => row.lastActiveAt,
+};
+
 /** The directory's order: by the key, an unknown value last in both directions, then by id. */
 function compare(sort: AdminAccountSort) {
   const sign = sort.direction === "ascending" ? 1 : -1;
+  const value = SORT_VALUE[sort.key];
   return (a: AdminAccountRow, b: AdminAccountRow) => {
-    const left = sort.key === "email" ? a.email : a.registeredAt;
-    const right = sort.key === "email" ? b.email : b.registeredAt;
+    const left = value(a);
+    const right = value(b);
     if (left === null || right === null) {
       if (left !== right) return left === null ? 1 : -1;
       return a.id.localeCompare(b.id);
@@ -86,6 +93,7 @@ function applyCommand(
 /** The account list and panel over the fixtures, in the state the band chose. */
 export function PreviewAccounts({
   accounts,
+  activityRecordedFrom,
   self,
   deletionEarliest,
   emailChanges,
@@ -93,6 +101,8 @@ export function PreviewAccounts({
   returnPath,
 }: {
   readonly accounts: ReadonlyArray<AdminAccountDetail>;
+  /** The fixtures' own start of recording, earlier than every activity value they hold. */
+  readonly activityRecordedFrom: string;
   readonly self: AdminSelf;
   readonly deletionEarliest: string;
   /** The changes started before the fixed clock, by account. */
@@ -220,6 +230,7 @@ export function PreviewAccounts({
       {loaded ? <AdminAccountsSummary shown={filtered.length} total={matching.length} /> : null}
       <AdminAccountsTable
         region={region}
+        activityRecordedFrom={activityRecordedFrom}
         sort={loaded ? sort : undefined}
         onSort={loaded ? toggleSort : undefined}
         selectedId={openId}

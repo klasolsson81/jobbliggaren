@@ -47,10 +47,7 @@ export type AdminAccountRole = "user" | "admin";
  */
 export type AdminAccountStatus = "active" | "pendingDeletion" | "profileMissing" | "suspended";
 
-/**
- * An account names itself by its address alone: the account stores no name (ADR 0150 D3). Last
- * login and last activity have no source at all, so they are not fields here.
- */
+/** An account names itself by its address alone: the account stores no name (ADR 0150 D3). */
 export interface AdminAccountRow {
   readonly id: string;
   /** Null when Identity holds no address for the account. */
@@ -67,6 +64,10 @@ export interface AdminAccountRow {
   /** Legacy `YYYY-MM-DD` eligibility date; the actual schedule is carried by `deletion`. */
   readonly deletionEarliest: string | null;
   readonly deletion?: AdminDeletionTiming | null;
+  /** ISO minute of the last session the grant issued (ADR 0172); null when none is recorded. */
+  readonly lastLoginAt: string | null;
+  /** ISO minute of the last request any of the account's sessions made; null when none is recorded. */
+  readonly lastActiveAt: string | null;
 }
 
 export interface AdminAccountDetail extends AdminAccountRow {
@@ -75,8 +76,8 @@ export interface AdminAccountDetail extends AdminAccountRow {
   readonly resumeCount: number | null;
 }
 
-/** The ledger's two sortable columns and their direction. */
-export type AdminAccountSortKey = "email" | "registeredAt";
+/** The ledger's sortable columns and their direction. */
+export type AdminAccountSortKey = "email" | "registeredAt" | "lastActiveAt";
 
 export interface AdminAccountSort {
   readonly key: AdminAccountSortKey;

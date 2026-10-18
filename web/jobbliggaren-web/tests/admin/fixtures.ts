@@ -120,6 +120,8 @@ const account = (n: number, local: string, status: string, extra: Record<string,
   deletionEarliest: null,
   deletion: null as AccountDeletionState | null,
   applicationCount: status === "Active" ? n : null,
+  lastLoginAt: (status === "ProfileMissing" ? null : "2026-10-05T07:30:00Z") as string | null,
+  lastActiveAt: (status === "ProfileMissing" ? null : "2026-10-06T12:15:00Z") as string | null,
   ...extra,
 });
 
@@ -128,7 +130,7 @@ export const ACCOUNTS = [
   account(5, "konto.e", "Active"),
   account(4, "konto.d", "PendingDeletion", { deletionEarliest: "2026-10-30" }),
   account(3, "konto.c", "ProfileMissing", { registeredAt: null }),
-  account(2, "konto.b", "Active", { emailConfirmed: false }),
+  account(2, "konto.b", "Active", { emailConfirmed: false, lastLoginAt: null, lastActiveAt: null }),
   { ...account(1, "admin", "Active"), role: "Admin" },
 ];
 

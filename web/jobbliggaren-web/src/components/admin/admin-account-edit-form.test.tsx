@@ -21,6 +21,8 @@ const ACCOUNT: AdminAddressedAccount = {
   deletionEarliest: null,
   savedSearchCount: 3,
   resumeCount: 1,
+  lastLoginAt: null,
+  lastActiveAt: null,
 };
 
 const SELF_EMAIL = "admin@example.test";

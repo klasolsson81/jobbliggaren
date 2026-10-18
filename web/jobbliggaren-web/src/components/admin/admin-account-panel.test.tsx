@@ -29,6 +29,7 @@ import {
   type AdminLiveAction,
 } from "./admin-account-panel";
 
+/** An active account nothing has recorded since the start of recording: neither activity minute is known. */
 const ACTIVE: AdminAddressedAccount = {
   id: "a",
   email: "konto.a@example.test",
@@ -41,6 +42,8 @@ const ACTIVE: AdminAddressedAccount = {
   deletionEarliest: null,
   savedSearchCount: 3,
   resumeCount: 1,
+  lastLoginAt: null,
+  lastActiveAt: null,
 };
 
 /** A pending deletion as the directory reports it: a date, and no counts. */
@@ -340,9 +343,32 @@ describe("AdminAccountPanel (ADR 0150, handoff 10–12)", () => {
   it("names an unknown value for a screen reader, which skips a lone dash", () => {
     renderPanel(ACTIVE);
 
-    const lastLogin = screen.getByText("Senast inloggad").nextElementSibling;
-    expect(lastLogin?.querySelector('[aria-hidden="true"]')).toHaveTextContent("–");
-    expect(lastLogin?.querySelector(".sr-only")).toHaveTextContent("Uppgift saknas");
+    for (const label of ["Senast inloggad", "Senast aktiv"]) {
+      const value = screen.getByText(label).nextElementSibling;
+      expect(value?.querySelector('[aria-hidden="true"]')).toHaveTextContent("–");
+      expect(value?.querySelector(".sr-only")).toHaveTextContent("Uppgift saknas");
+    }
+  });
+
+  // ADR 0172 D7: a suspension or a pending deletion keeps the minutes recorded before it.
+  it.each([
+    ["an active account", { ...ACTIVE }],
+    ["a suspended account", { ...ACTIVE, status: "suspended" as const, isSuspended: true }],
+    ["a pending deletion", { ...PENDING }],
+  ])("shows the last login and the last active minute of %s", (_, account) => {
+    renderPanel({ ...account, lastLoginAt: "2026-10-17T19:05:00Z", lastActiveAt: "2026-10-17T19:40:00Z" });
+
+    const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
+    expect(within(dialog).getByText("Senast inloggad").nextElementSibling).toHaveTextContent(/^2026-10-17 21:05$/);
+    expect(within(dialog).getByText("Senast aktiv").nextElementSibling).toHaveTextContent(/^2026-10-17 21:40$/);
+  });
+
+  it("shows the last active minute alone under a session older than the start of recording", () => {
+    renderPanel({ ...ACTIVE, lastActiveAt: "2026-10-17T20:15:00Z" });
+
+    const dialog = screen.getByRole("dialog", { name: "konto.a@example.test" });
+    expect(within(dialog).getByText("Senast inloggad").nextElementSibling).toHaveTextContent("Uppgift saknas");
+    expect(within(dialog).getByText("Senast aktiv").nextElementSibling).toHaveTextContent(/^2026-10-17 22:15$/);
   });
 
   it("shows the row at once and a loading line until the details arrive, then the details", () => {

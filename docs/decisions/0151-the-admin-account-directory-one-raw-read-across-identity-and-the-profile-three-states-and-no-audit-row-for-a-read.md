@@ -319,3 +319,41 @@ alongside its required shared catalogs. The provider picker accepts literal subt
 fitness function checks coverage of full translation paths and rejects unused declarations. The shared admin
 catalog stays shared with the outer provider. This bounds document transport without changing the dialog's
 copy, command/security contract or the overview layout; the dated performance report records regeneration.
+
+## Amendment 2026-10-17 — Last login and last active minute (#2166, ADR 0172)
+
+`IAccountDirectory` now reads the two minutes that ADR 0172 stores for each profile. The record, what a value means and
+how it is written are ADR 0172's; this Amendment owns the directory's read, its two new sorts and their pins. D1 to D8
+above stand as written.
+
+- **D1.** The `classified` CTE left-joins `public.account_activity aa` on `aa.job_seeker_id = js.id`, the table's primary
+  key, so a profile matches at most one row. It selects `aa.last_login_at` and `aa.last_active_at`, and the page
+  statement's column list carries the two last, so no existing ordinal moves. The counts statement, the page count and
+  the overview statement read the same CTE, so they carry the join without reading either column.
+  `The_counts_and_the_overview_read_the_same_before_and_after_accounts_are_seen` pins the property that matters: the
+  status counts and the overview's account counts are identical before and after accounts have a row, and the list still
+  totals the four accounts the test created. This Amendment makes no claim about what the planner does with the join.
+- **D3.** Each of the two minutes has one source, as the registration time has: its column in `account_activity`, read
+  as stored and derived from no other timestamp. Both are null for an account with no row, which ProfileMissing never
+  has, since a row is keyed by a profile. The sorts `LastActiveNewest` and `LastActiveOldest` order by
+  `last_active_at DESC NULLS LAST, user_id` and `last_active_at ASC NULLS LAST, user_id`: an unknown minute sorts last in
+  both directions, as an unknown registration time does, and `user_id` breaks a tie. The default stays
+  `RegisteredNewest`.
+- **D4.** The contrast with the counts: the two minutes show for every status that can hold a row, Active, Suspended
+  and PendingDeletion, and the detail handler's non-active branch carries them, while the counts stay for active
+  accounts only. A timestamp is a past fact that no deletion path alters, where a count over a pending deletion would
+  describe the path and not the account (ADR 0172 D7).
+- **D6.** The wire pin is renamed `The_list_and_the_detail_carry_exactly_their_fields_and_no_login_credential` (it was
+  `…_and_nothing_of_the_login`) and lists `lastLoginAt` and `lastActiveAt` among the fields of the list item and of the
+  detail. It still asserts that neither response carries a provider subject or a security stamp.
+  `Each_sort_s_sql_ends_on_the_account_id` covers the two new sorts. The tests in `AdminAccountsActivityTests` read rows
+  that only the production writers make, a code login through the session grant and requests through the middleware,
+  and run both sorts against the migrated schema with a tie and with nulls. A second
+  architecture pin, `AccountActivityReaderTests`, fixes where the table may be read (ADR 0172 D3):
+  `SqlAccountDirectory.Command` is one of its three admitted loaders of the table's name.
+- **D8.** The "Senast aktiv" sorts add no index: `account_activity` has its primary key only (ADR 0172 D2), so a sort
+  rides the sequential plan that D8 already accepts for the substring search. ADR 0172's lapse trigger 4 reopens it at
+  D8's own trigger, 10 000 accounts, when an index on `last_active_at` is reconsidered at the cost of HOT updates.
+- **Client messages.** The account route's provider carries `pages.auth.passwordless.code` instead of `pages`, because
+  the step-up dialog and the address-change form read only that subtree; it bounds document transport, as the
+  Amendment 2026-10-08 did for `settings`.

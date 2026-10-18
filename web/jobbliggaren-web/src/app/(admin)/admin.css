@@ -375,6 +375,7 @@
   text-transform: none;
   color: var(--jp-ink-1);
 }
+.jp-adminusers thead .jp-labelhelp { white-space: nowrap; gap: 8px; }
 .jp-adminusers__sortbtn {
   display: inline-flex;
   align-items: center;

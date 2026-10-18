@@ -191,7 +191,7 @@ The handoff is a design reference, not production code. What ships departs from 
 | Handoff | Ships | Ground |
 |---|---|---|
 | Names, initials avatars, an Ort line | The address alone and a neutral account icon | D3; ADR 0142 D7 |
-| "Senast inloggad" and "Senast aktiv" values | Shown as unknown (an en-dash) | No login or activity telemetry exists; D2 |
+| "Senast inloggad" and "Senast aktiv" values | Shown as unknown (an en-dash) *(2026-10-17, ADR 0172, #2166: the stored minute, `YYYY-MM-DD HH:mm`, and the en-dash only where none is stored, now that a source exists; see the Amendment 2026-10-17 at the end of this file)* | No login or activity telemetry exists; D2 |
 | Counts in filter and tab labels | Omitted while unknown | D2; ADR 0120 |
 | Instruction lines such as "Klicka på en rad…" | Cut | DESIGN.md §8; ADR 0144 |
 | Deletion copy promising anonymisation in 30 days under Art. 17, and an undo until then | States the backend's earliest deletion date; no statutory claim and no undo claim | #1977 and the epic: the copy says only what the backend does; restore is #1983 (D4) |
@@ -361,3 +361,22 @@ This Amendment owns only the surface contract of the services card. The mechanis
 - D4's #1982 row is flipped in full: Backup (ADR 0157), Server (ADR 0158) and the services card (ADR 0159) are real. What stays
   outside it has an owner: the offsite copy, retention and restore drill (#197), mail outcomes (#1981).
 - This supersedes, for the services card, the sentence of the 2026-10-08 Amendment that "host/services ... remain unavailable".
+
+## Amendment 2026-10-17 — The two activity values are sourced (#2166, ADR 0172)
+
+This Amendment owns only the surface contract of the two activity values. The record, what a value means and how it
+is written are ADR 0172's, and the directory's read is ADR 0151's Amendment of the same date.
+
+- "Senast inloggad" and "Senast aktiv" are read from ADR 0172's record and shown as `YYYY-MM-DD HH:mm` in the list and
+  in the account panel, for every status that can hold a row (ADR 0172 D7). An account with nothing stored keeps the
+  en-dash of D2, which a screen reader reads as "Uppgift saknas". There is no "Aldrig inloggad".
+- One ?-help at the "Senast inloggad" column header explains both columns: since when the times are stored, that a
+  missing time means nothing has been stored since then, and that "Senast aktiv" also counts automatic updates while a
+  tab with the service is open and visible. It follows DESIGN.md §8 rule 5, which puts explanations behind the ?-help,
+  and Klas approved its text and form on 2026-10-17 (ADR 0172, "Klas's answers"). The account panel has no trigger of
+  its own, and the preview (D5) passes its own fixture start.
+- "Senast aktiv" is sortable. Its column header is a sort button that starts descending, and the list's default order
+  is unchanged.
+- The overview's "Aktiva användare" and "Inloggningar" cards stay unavailable, because building them is out of scope
+  and not because of the record's form (ADR 0172, lapse trigger 5).
+- D8's row for the two values carries a dated note that points here.

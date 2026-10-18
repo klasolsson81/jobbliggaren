@@ -837,13 +837,9 @@ function PanelContent({
         <dt>{t("table.registered")}</dt>
         <dd>{formatDateTime(format, detail.registeredAt) ?? <AdminUnknown />}</dd>
         <dt>{t("table.lastLogin")}</dt>
-        <dd>
-          <AdminUnknown />
-        </dd>
+        <dd>{formatDateTime(format, detail.lastLoginAt) ?? <AdminUnknown />}</dd>
         <dt>{t("table.lastActive")}</dt>
-        <dd>
-          <AdminUnknown />
-        </dd>
+        <dd>{formatDateTime(format, detail.lastActiveAt) ?? <AdminUnknown />}</dd>
         <dt>{t("panel.email")}</dt>
         <dd>{detail.emailConfirmed ? t("panel.emailConfirmed") : t("panel.emailUnconfirmed")}</dd>
         {/* A server's answer only, never the form's: a reload, a second tab and a second admin agree (#1975). */}

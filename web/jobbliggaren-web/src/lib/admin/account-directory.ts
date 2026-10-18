@@ -19,8 +19,14 @@ export type AccountsListing =
   | { readonly kind: "failed"; readonly failure: AccountsFailure };
 
 export function wireSort({ key, direction }: AdminAccountSort): AccountSort {
-  if (key === "email") return direction === "ascending" ? "AddressAscending" : "AddressDescending";
-  return direction === "descending" ? "RegisteredNewest" : "RegisteredOldest";
+  switch (key) {
+    case "email":
+      return direction === "ascending" ? "AddressAscending" : "AddressDescending";
+    case "registeredAt":
+      return direction === "descending" ? "RegisteredNewest" : "RegisteredOldest";
+    case "lastActiveAt":
+      return direction === "descending" ? "LastActiveNewest" : "LastActiveOldest";
+  }
 }
 
 const WIRE_STATUS: Readonly<Partial<Record<AdminAccountStatus, AccountSearchStatus>>> = {

@@ -48,7 +48,7 @@ public sealed class SearchAccountsQueryHandler(IAccountDirectory directory, IApp
                 entry.Status == AccountStatus.Active && entry.JobSeekerId is { } id
                     ? applications.GetValueOrDefault(id)
                     : null, entry.IsSuspended)
-            { Deletion = entry.Deletion })
+            { Deletion = entry.Deletion, LastLoginAt = entry.LastLoginAt, LastActiveAt = entry.LastActiveAt })
             .ToList();
 
         return new PagedResult<AccountListItemDto>(items, page.TotalCount, query.Page, query.PageSize);

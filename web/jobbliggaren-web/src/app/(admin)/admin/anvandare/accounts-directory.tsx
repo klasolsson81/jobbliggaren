@@ -21,6 +21,7 @@ import {
 import { cancelAccountEmailChangeAction, requestAccountEmailChangeAction, changeAccountAccessAction,
   scheduleAccountDeletionAction } from "@/lib/actions/admin-accounts";
 import type { AdminEmailChangeReread, AdminEmailChangeState } from "@/lib/admin/account-email-change";
+import { ACCOUNT_ACTIVITY_RECORDED_FROM } from "@/lib/admin/account-activity";
 import {
   ACCOUNTS_PAGE_SIZE,
   FIRST_SORT,
@@ -455,6 +456,7 @@ export function AccountsDirectory({ initial, self, initialFilters = {} }: {
       )}
       <AdminAccountsTable
         region={loaded === null ? { kind: "failed" } : listRegion(loaded.rows)}
+        activityRecordedFrom={ACCOUNT_ACTIVITY_RECORDED_FROM}
         failedMessage={listing.kind === "failed" ? failureText(listing.failure, t("regions.failed")) : undefined}
         failedAction={listing.kind === "failed" ? failedAction(listing.failure) : undefined}
         scrollRef={tableRegion}

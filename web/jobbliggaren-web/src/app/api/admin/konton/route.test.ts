@@ -102,6 +102,13 @@ describe("POST /api/admin/konton (#1974, ADR 0151)", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).address).toBe(longest);
   });
 
+  it.each(["LastActiveNewest", "LastActiveOldest"])("passes on the Senast aktiv sort %s", async (sort) => {
+    fetchMock.mockResolvedValue(backend(200));
+
+    expect((await POST(search({ sort }))).status).toBe(200);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).sort).toBe(sort);
+  });
+
   it("sends the defaults when the island leaves them out", async () => {
     fetchMock.mockResolvedValue(backend(200));
 

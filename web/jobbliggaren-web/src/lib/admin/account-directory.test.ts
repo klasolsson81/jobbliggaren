@@ -7,6 +7,8 @@ describe("the account list's wire names (#1974, ADR 0151)", () => {
     ["email", "descending", "AddressDescending"],
     ["registeredAt", "descending", "RegisteredNewest"],
     ["registeredAt", "ascending", "RegisteredOldest"],
+    ["lastActiveAt", "descending", "LastActiveNewest"],
+    ["lastActiveAt", "ascending", "LastActiveOldest"],
   ] as const)("asks for %s %s as %s", (key, direction, wire) => {
     expect(wireSort({ key, direction })).toBe(wire);
   });

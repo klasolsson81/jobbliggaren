@@ -14,4 +14,6 @@ public enum AccountSort
     RegisteredOldest,
     AddressAscending,
     AddressDescending,
+    LastActiveNewest,
+    LastActiveOldest,
 }

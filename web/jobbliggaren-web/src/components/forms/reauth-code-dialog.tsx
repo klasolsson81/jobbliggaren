@@ -142,7 +142,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
   onOpenChange,
 }: ReAuthCodeDialogProps<T, C>) {
   const t = useTranslations("settings.account.reauth");
-  const tp = useTranslations("pages");
+  const tp = useTranslations("pages.auth.passwordless.code");
   const tc = useTranslations("common");
 
   const [open, setOpen] = useState(false);
@@ -278,7 +278,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
     if (!current?.id) return;
     const parsed = codeInputSchema.safeParse(code);
     if (!parsed.success) {
-      showMessage(tp("auth.passwordless.code.malformedCode"), "field");
+      showMessage(tp("malformedCode"), "field");
       return;
     }
     const proof = { challengeId: current.id, code: parsed.data };
@@ -487,7 +487,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 <CodeField
                   id={codeId}
                   hintId={hintId}
-                  label={codeRecipientLabels?.field ?? tp("auth.passwordless.code.codeLabel")}
+                  label={codeRecipientLabels?.field ?? tp("codeLabel")}
                   hint={codeHint}
                   invalid={message?.channel === "field"}
                   errorId={messageId}
@@ -502,7 +502,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 <p className="text-body text-text-primary">
                   {dead === "burned"
                     ? t("burned")
-                    : tp("auth.passwordless.code.expired")}
+                    : tp("expired")}
                 </p>
               </div>
             )}
@@ -579,7 +579,7 @@ function ResendBlock({
   extra: ReactNode;
   onResend: () => void;
 }) {
-  const tp = useTranslations("pages");
+  const tp = useTranslations("pages.auth.passwordless.code");
   const seconds = useCountdown(clock.seconds, clock.from);
   const cooling = seconds > 0;
 
@@ -595,13 +595,13 @@ function ResendBlock({
           className="max-md:h-11"
         >
           {pending
-            ? tp("auth.passwordless.code.resend.sending")
-            : tp("auth.passwordless.code.resend.button")}
+            ? tp("resend.sending")
+            : tp("resend.button")}
         </Button>
       </div>
       {cooling && !blocked && (
         <p className="text-body-sm text-text-primary">
-          {tp("auth.passwordless.code.resend.cooldownHint", { seconds })}
+          {tp("resend.cooldownHint", { seconds })}
         </p>
       )}
       <div ref={noticeRef} tabIndex={-1} role="status" aria-live="polite">
@@ -613,7 +613,7 @@ function ResendBlock({
         )}
       </div>
       <p id={consequenceId} className="text-body-sm text-text-primary">
-        {tp("auth.passwordless.code.resend.consequence")}
+        {tp("resend.consequence")}
       </p>
     </div>
   );

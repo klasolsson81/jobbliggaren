@@ -11,16 +11,20 @@ import type {
   AdminRegion,
 } from "@/lib/admin/view-models";
 import { formatDateTime } from "@/lib/i18n/format";
+import { InfoDialog } from "@/components/common/info-dialog";
 import { AdminAccountStatusCell, AdminRolePill } from "./admin-account-status";
 import { AdminTableScroll } from "./admin-table-scroll";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminUnknown } from "./admin-unknown";
 
 const CAPTION_ID = "admin-users-caption";
+const LAST_LOGIN_ID = "admin-users-last-login";
 const COLUMN_COUNT = 7;
 
 interface AdminAccountsTableProps {
   readonly region: AdminRegion<ReadonlyArray<AdminAccountRow>>;
+  /** ISO instant from which the two activity values are stored, for the help that explains them (ADR 0172 D1). */
+  readonly activityRecordedFrom: string;
   readonly sort?: AdminAccountSort;
   /** Absent while the region is not built: the sort buttons are then disabled. */
   readonly onSort?: (key: AdminAccountSortKey) => void;
@@ -40,12 +44,13 @@ interface AdminAccountsTableProps {
 }
 
 /**
- * The account ledger (ADR 0150 D2/D3). An account names itself by its address; "Senast inloggad"
- * and "Senast aktiv" have no source, so they read as unknown on every row (D8). A row opens the
- * panel through a button in its first cell, never through a clickable `<tr>`.
+ * The account ledger (ADR 0150 D2/D3). An account names itself by its address. "Senast inloggad" and
+ * "Senast aktiv" are the minutes ADR 0172 records, unknown where none is, and one help at the first
+ * explains both. A row opens the panel through a button in its first cell, never through a clickable `<tr>`.
  */
 export function AdminAccountsTable({
   region: given,
+  activityRecordedFrom,
   sort,
   onSort,
   selectedId = null,
@@ -94,8 +99,23 @@ export function AdminAccountsTable({
             <th scope="col">{t("table.role")}</th>
             <th scope="col">{t("table.status")}</th>
             {sortHeader("registeredAt", t("table.registered"))}
-            <th scope="col">{t("table.lastLogin")}</th>
-            <th scope="col">{t("table.lastActive")}</th>
+            <th scope="col" aria-labelledby={LAST_LOGIN_ID}>
+              <span className="jp-labelhelp">
+                <span id={LAST_LOGIN_ID}>{t("table.lastLogin")}</span>
+                <InfoDialog
+                  title={t("activityHelp.title")}
+                  ariaLabel={t("activityHelp.aria")}
+                  paragraphs={[
+                    t("activityHelp.since", {
+                      start: formatDateTime(format, activityRecordedFrom, "\u00a0") ?? activityRecordedFrom,
+                    }),
+                    t("activityHelp.automatic"),
+                  ]}
+                  triggerClassName="jp-labelhelp__trigger"
+                />
+              </span>
+            </th>
+            {sortHeader("lastActiveAt", t("table.lastActive"))}
             <th scope="col" className="jp-adminusers__num">
               {t("table.applications")}
             </th>
@@ -138,10 +158,10 @@ export function AdminAccountsTable({
                   {formatDateTime(format, row.registeredAt) ?? <AdminUnknown />}
                 </td>
                 <td className="jp-adminusers__when">
-                  <AdminUnknown />
+                  {formatDateTime(format, row.lastLoginAt) ?? <AdminUnknown />}
                 </td>
                 <td className="jp-adminusers__when">
-                  <AdminUnknown />
+                  {formatDateTime(format, row.lastActiveAt) ?? <AdminUnknown />}
                 </td>
                 <td className="jp-adminusers__num">
                   {row.applicationCount === null ? <AdminUnknown /> : format.number(row.applicationCount)}

@@ -82,6 +82,64 @@ public sealed class AdminAccountQueriesTests
         details.SavedSearchCount.ShouldBeNull();
     }
 
+    private static readonly DateTimeOffset LoginMinute = new(2026, 10, 17, 18, 52, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset ActiveMinute = new(2026, 10, 17, 19, 7, 0, TimeSpan.Zero);
+
+    // The shapes an activity row can take (ADR 0172 D3): a login writes both minutes and a later request moves the
+    // active one; a request under a session older than the release writes no login; an account with no row has neither.
+    public static TheoryData<AccountStatus, DateTimeOffset?, DateTimeOffset?> RecordedMinutes() => new()
+    {
+        { AccountStatus.Active, LoginMinute, ActiveMinute },
+        { AccountStatus.Active, null, ActiveMinute },
+        { AccountStatus.Active, null, null },
+        { AccountStatus.Suspended, LoginMinute, ActiveMinute },
+        { AccountStatus.PendingDeletion, LoginMinute, ActiveMinute },
+    };
+
+    private static AccountDirectoryEntry Recorded(AccountStatus status, DateTimeOffset? lastLoginAt, DateTimeOffset? lastActiveAt) =>
+        Entry(status) with
+        {
+            IsSuspended = status == AccountStatus.Suspended,
+            LastLoginAt = lastLoginAt,
+            LastActiveAt = lastActiveAt,
+        };
+
+    [Theory]
+    [MemberData(nameof(RecordedMinutes))]
+    public async Task The_search_carries_the_recorded_minutes_whatever_the_status(
+        AccountStatus status, DateTimeOffset? lastLoginAt, DateTimeOffset? lastActiveAt)
+    {
+        var entry = Recorded(status, lastLoginAt, lastActiveAt);
+        var directory = Substitute.For<IAccountDirectory>();
+        directory.SearchAsync(Arg.Any<AccountDirectorySearch>(), Arg.Any<CancellationToken>())
+            .Returns(new AccountDirectoryPage([entry], 1));
+        await using var db = TestAppDbContextFactory.Create();
+
+        var row = (await new SearchAccountsQueryHandler(directory, db).Handle(
+            new SearchAccountsQuery(null, null, AccountSort.LastActiveNewest, 1, 25), Ct)).Items.Single();
+
+        row.LastLoginAt.ShouldBe(lastLoginAt);
+        row.LastActiveAt.ShouldBe(lastActiveAt);
+    }
+
+    [Theory]
+    [MemberData(nameof(RecordedMinutes))]
+    public async Task The_details_carry_the_recorded_minutes_whatever_the_status(
+        AccountStatus status, DateTimeOffset? lastLoginAt, DateTimeOffset? lastActiveAt)
+    {
+        var entry = Recorded(status, lastLoginAt, lastActiveAt);
+        var directory = Substitute.For<IAccountDirectory>();
+        directory.FindAsync(entry.UserId, Arg.Any<CancellationToken>()).Returns(entry);
+        await using var db = TestAppDbContextFactory.Create();
+
+        var details = await new GetAccountDetailsQueryHandler(directory, db, FakeDateTimeProvider.Default)
+            .Handle(new GetAccountDetailsQuery(entry.UserId), Ct);
+
+        details.ShouldNotBeNull();
+        details.LastLoginAt.ShouldBe(lastLoginAt);
+        details.LastActiveAt.ShouldBe(lastActiveAt);
+    }
+
     public static TheoryData<IMessage> AdminQueries() =>
     [
         new SearchAccountsQuery(Sentinel, null, AccountSort.RegisteredNewest, 1, 25),

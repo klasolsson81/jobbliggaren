@@ -191,13 +191,13 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         }
     }
 
-    // A pin on the SQL text: within a tie the rows already arrive in id order (UUIDv7 ids, a creation-ordered
-    // scan), so no fixture of rows can tell a dropped tie-break from a kept one.
     [Theory]
     [InlineData(AccountSort.RegisteredNewest, "registered_at DESC NULLS LAST, user_id")]
     [InlineData(AccountSort.RegisteredOldest, "registered_at ASC NULLS LAST, user_id")]
     [InlineData(AccountSort.AddressAscending, "sort_address ASC NULLS LAST, user_id")]
     [InlineData(AccountSort.AddressDescending, "sort_address DESC NULLS LAST, user_id")]
+    [InlineData(AccountSort.LastActiveNewest, "last_active_at DESC NULLS LAST, user_id")]
+    [InlineData(AccountSort.LastActiveOldest, "last_active_at ASC NULLS LAST, user_id")]
     public async Task Each_sort_s_sql_ends_on_the_account_id(AccountSort sort, string ordering)
     {
         await using var scope = factory.Services.CreateAsyncScope();
@@ -260,7 +260,7 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         var idle = await OpenActiveAsync(factory, Address(token, "idle"), Ct);
         var missing = await CreateWithoutProfileAsync(factory, Address(token, "missing"), Ct);
 
-        var detail = await DetailAsync(admin, busy);
+        var detail = await DetailOkAsync(admin, busy, Ct);
         detail.GetProperty("applicationCount").GetInt32().ShouldBe(2);
         detail.GetProperty("resumeCount").GetInt32().ShouldBe(1);
         detail.GetProperty("savedSearchCount").GetInt32().ShouldBe(3);
@@ -268,7 +268,7 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         rows[busy].GetProperty("applicationCount").GetInt32().ShouldBe(2);
         rows[idle].GetProperty("applicationCount").GetInt32().ShouldBe(0);
 
-        var none = await DetailAsync(admin, missing);
+        var none = await DetailOkAsync(admin, missing, Ct);
         none.GetProperty("status").GetString().ShouldBe("ProfileMissing");
         foreach (var count in new[] { "applicationCount", "resumeCount", "savedSearchCount" })
             none.GetProperty(count).ValueKind.ShouldBe(JsonValueKind.Null);
@@ -281,7 +281,7 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         var (admin, _, _) = await AdminAsync(factory, NewToken(), Ct);
         var pending = await CreatePendingDeletionAsync(factory, Address(token, "pending"), Ct);
 
-        var detail = await DetailAsync(admin, pending);
+        var detail = await DetailOkAsync(admin, pending, Ct);
 
         detail.GetProperty("status").GetString().ShouldBe("PendingDeletion");
         foreach (var count in new[] { "applicationCount", "resumeCount", "savedSearchCount" })
@@ -289,7 +289,7 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task The_list_and_the_detail_carry_exactly_their_fields_and_nothing_of_the_login()
+    public async Task The_list_and_the_detail_carry_exactly_their_fields_and_no_login_credential()
     {
         var token = NewToken();
         var (admin, _, _) = await AdminAsync(factory, NewToken(), Ct);
@@ -313,7 +313,10 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         var listText = JsonSerializer.Serialize(await SearchOkAsync(admin, new { address = token }, Ct));
         var item = Items(await SearchOkAsync(admin, new { address = token }, Ct)).Single();
         item.EnumerateObject().Select(property => property.Name).ShouldBe(
-            ["id", "email", "role", "status", "emailConfirmed", "registeredAt", "deletionEarliest", "applicationCount", "isSuspended", "deletion"],
+            [
+                "id", "email", "role", "status", "emailConfirmed", "registeredAt", "deletionEarliest", "applicationCount",
+                "isSuspended", "deletion", "lastLoginAt", "lastActiveAt",
+            ],
             ignoreOrder: true);
 
         var detailResponse = await admin.GetAsync(DetailPath(userId), Ct);
@@ -322,6 +325,7 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
             [
                 "id", "email", "role", "status", "emailConfirmed", "registeredAt", "deletionEarliest",
                 "applicationCount", "resumeCount", "savedSearchCount", "isSuspended", "deletion", "deletionPreview",
+                "lastLoginAt", "lastActiveAt",
             ],
             ignoreOrder: true);
 
@@ -376,16 +380,6 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
 
         (await RecentSearchCountAsync(factory, Ct)).ShouldBe(before);
     }
-
-    private static async Task<JsonElement> DetailAsync(HttpClient admin, Guid id)
-    {
-        var response = await admin.GetAsync(DetailPath(id), Ct);
-        var text = await response.Content.ReadAsStringAsync(Ct);
-        response.StatusCode.ShouldBe(HttpStatusCode.OK, text);
-        return JsonDocument.Parse(text).RootElement.Clone();
-    }
-
-    private static Guid Id(JsonElement item) => item.GetProperty("id").GetGuid();
 
     private static object SavedSearch(string name) => new
     {

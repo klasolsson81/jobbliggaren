@@ -70,22 +70,29 @@ function account(row: AdminAccountDetail): AdminAccountDetail {
   return marked(row);
 }
 
+/**
+ * The preview's start of recording (ADR 0172 D1): earlier than every activity value below, after some registrations.
+ * An account registered before it and not seen since has neither value, and one whose session predates it has a last
+ * active minute and no login.
+ */
+export const PREVIEW_ACTIVITY_RECORDED_FROM = daysAgo(20, 6, 30);
+
 export const PREVIEW_ACCOUNTS: ReadonlyArray<AdminAccountDetail> = [
-  account({ id: id(1), email: PREVIEW_ADMIN_EMAIL, role: "admin", status: "active", emailConfirmed: true, registeredAt: daysAgo(150, 7, 12), applicationCount: 2, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1 }),
-  account({ id: id(2), email: address("konto.a"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(6, 12, 2), applicationCount: 4, deletionEarliest: null, savedSearchCount: 3, resumeCount: 1 }),
-  account({ id: id(3), email: address("konto.b"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(4, 7, 15), applicationCount: 3, deletionEarliest: null, savedSearchCount: 2, resumeCount: 2 }),
-  account({ id: id(4), email: address("konto.c"), role: "user", status: "suspended", emailConfirmed: true, registeredAt: daysAgo(44, 9, 40), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 1 }),
-  account({ id: id(5), email: address("konto.d"), role: "user", status: "active", emailConfirmed: false, registeredAt: daysAgo(2, 17, 33), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 0 }),
-  account({ id: id(6), email: address("konto.e"), role: "user", status: "pendingDeletion", emailConfirmed: true, registeredAt: daysAgo(82, 8, 10), applicationCount: null, deletionEarliest: daysAhead(24).slice(0, 10), savedSearchCount: null, resumeCount: null }),
-  account({ id: id(7), email: address("konto.f"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(22, 10, 5), applicationCount: 11, deletionEarliest: null, savedSearchCount: 5, resumeCount: 3 }),
-  account({ id: id(8), email: address("konto.g"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(9, 19, 1), applicationCount: 7, deletionEarliest: null, savedSearchCount: 2, resumeCount: 1 }),
-  account({ id: id(9), email: address("konto.h"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(1, 13, 47), applicationCount: 1, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1 }),
-  account({ id: id(10), email: address("konto.i"), role: "user", status: "active", emailConfirmed: false, registeredAt: daysAgo(0, 6, 58), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 0 }),
-  account({ id: id(11), email: address("konto.j"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(27, 11, 22), applicationCount: 6, deletionEarliest: null, savedSearchCount: 2, resumeCount: 1 }),
-  account({ id: id(12), email: address("konto.k"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(15, 20, 14), applicationCount: 2, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1 }),
-  account({ id: id(13), email: address("konto.l"), role: "user", status: "suspended", emailConfirmed: true, registeredAt: daysAgo(61, 15, 3), applicationCount: 3, deletionEarliest: null, savedSearchCount: 1, resumeCount: 2 }),
-  account({ id: id(14), email: address("konto.m"), role: "user", status: "profileMissing", emailConfirmed: true, registeredAt: null, applicationCount: null, deletionEarliest: null, savedSearchCount: null, resumeCount: null }),
-  account({ id: id(15), email: address("konto.n.med.en.mycket.lang.adress.for.smala.skarmar"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(33, 10, 44), applicationCount: 1, deletionEarliest: null, savedSearchCount: 0, resumeCount: 1 }),
+  account({ id: id(1), email: PREVIEW_ADMIN_EMAIL, role: "admin", status: "active", emailConfirmed: true, registeredAt: daysAgo(150, 7, 12), applicationCount: 2, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1, lastLoginAt: daysAgo(0, 7, 2), lastActiveAt: daysAgo(0, 7, 58) }),
+  account({ id: id(2), email: address("konto.a"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(6, 12, 2), applicationCount: 4, deletionEarliest: null, savedSearchCount: 3, resumeCount: 1, lastLoginAt: daysAgo(1, 18, 12), lastActiveAt: daysAgo(0, 7, 41) }),
+  account({ id: id(3), email: address("konto.b"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(4, 7, 15), applicationCount: 3, deletionEarliest: null, savedSearchCount: 2, resumeCount: 2, lastLoginAt: daysAgo(4, 7, 16), lastActiveAt: daysAgo(2, 20, 5) }),
+  account({ id: id(4), email: address("konto.c"), role: "user", status: "suspended", emailConfirmed: true, registeredAt: daysAgo(44, 9, 40), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 1, lastLoginAt: daysAgo(12, 8, 30), lastActiveAt: daysAgo(12, 9, 14) }),
+  account({ id: id(5), email: address("konto.d"), role: "user", status: "active", emailConfirmed: false, registeredAt: daysAgo(2, 17, 33), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 0, lastLoginAt: daysAgo(2, 17, 33), lastActiveAt: daysAgo(1, 10, 3) }),
+  account({ id: id(6), email: address("konto.e"), role: "user", status: "pendingDeletion", emailConfirmed: true, registeredAt: daysAgo(82, 8, 10), applicationCount: null, deletionEarliest: daysAhead(24).slice(0, 10), savedSearchCount: null, resumeCount: null, lastLoginAt: daysAgo(6, 19, 40), lastActiveAt: daysAgo(6, 19, 52) }),
+  account({ id: id(7), email: address("konto.f"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(22, 10, 5), applicationCount: 11, deletionEarliest: null, savedSearchCount: 5, resumeCount: 3, lastLoginAt: daysAgo(3, 9, 0), lastActiveAt: daysAgo(0, 6, 15) }),
+  account({ id: id(8), email: address("konto.g"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(9, 19, 1), applicationCount: 7, deletionEarliest: null, savedSearchCount: 2, resumeCount: 1, lastLoginAt: daysAgo(9, 19, 2), lastActiveAt: daysAgo(5, 12, 30) }),
+  account({ id: id(9), email: address("konto.h"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(1, 13, 47), applicationCount: 1, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1, lastLoginAt: daysAgo(1, 13, 48), lastActiveAt: daysAgo(1, 14, 20) }),
+  account({ id: id(10), email: address("konto.i"), role: "user", status: "active", emailConfirmed: false, registeredAt: daysAgo(0, 6, 58), applicationCount: 0, deletionEarliest: null, savedSearchCount: 0, resumeCount: 0, lastLoginAt: daysAgo(0, 6, 58), lastActiveAt: daysAgo(0, 7, 10) }),
+  account({ id: id(11), email: address("konto.j"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(27, 11, 22), applicationCount: 6, deletionEarliest: null, savedSearchCount: 2, resumeCount: 1, lastLoginAt: null, lastActiveAt: null }),
+  account({ id: id(12), email: address("konto.k"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(15, 20, 14), applicationCount: 2, deletionEarliest: null, savedSearchCount: 1, resumeCount: 1, lastLoginAt: daysAgo(15, 20, 15), lastActiveAt: daysAgo(11, 8, 45) }),
+  account({ id: id(13), email: address("konto.l"), role: "user", status: "suspended", emailConfirmed: true, registeredAt: daysAgo(61, 15, 3), applicationCount: 3, deletionEarliest: null, savedSearchCount: 1, resumeCount: 2, lastLoginAt: daysAgo(19, 10, 0), lastActiveAt: daysAgo(19, 10, 7) }),
+  account({ id: id(14), email: address("konto.m"), role: "user", status: "profileMissing", emailConfirmed: true, registeredAt: null, applicationCount: null, deletionEarliest: null, savedSearchCount: null, resumeCount: null, lastLoginAt: null, lastActiveAt: null }),
+  account({ id: id(15), email: address("konto.n.med.en.mycket.lang.adress.for.smala.skarmar"), role: "user", status: "active", emailConfirmed: true, registeredAt: daysAgo(33, 10, 44), applicationCount: 1, deletionEarliest: null, savedSearchCount: 0, resumeCount: 1, lastLoginAt: null, lastActiveAt: daysAgo(2, 9, 30) }),
 ];
 
 /** The administrator the preview acts as: the first account, told by its id as the real page tells it (#1975). */

@@ -36,8 +36,6 @@ namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 [Collection("Api")]
 public class NotificationFeedEndpointTests(ApiFactory factory)
 {
-    private const string FeedEndpoint = "/api/v1/me/notification-feed";
-
     // ── seeding ──────────────────────────────────────────────────────────────────────────────
 
     private async Task SetBackgroundMatchConsentAsync(Guid userId, bool enabled, CancellationToken ct)
@@ -66,7 +64,7 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
     [Fact]
     public async Task An_anonymous_request_is_refused_with_401()
     {
-        var response = await factory.CreateClient().GetAsync(FeedEndpoint, TestContext.Current.CancellationToken);
+        var response = await factory.CreateClient().GetAsync(FeedPath, TestContext.Current.CancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -103,7 +101,7 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
         var watch = await SeedWatchAsync(factory, userId, onlyMatched: false, ct);
         await SeedHitAsync(factory, userId, followedAd, watch, Base.AddMinutes(2), ct);
 
-        var response = await client.GetAsync(FeedEndpoint, ct);
+        var response = await client.GetAsync(FeedPath, ct);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Headers.CacheControl!.Private.ShouldBeTrue();
         response.Headers.CacheControl.NoStore.ShouldBeTrue();

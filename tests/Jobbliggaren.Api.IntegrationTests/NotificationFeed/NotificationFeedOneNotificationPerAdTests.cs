@@ -35,7 +35,6 @@ namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 [Collection("Api")]
 public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
 {
-    private const string Feed = "/api/v1/me/notification-feed";
     private const string Match = "Match";
     private const string Followed = "FollowedCompanyAd";
 
@@ -219,7 +218,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         {
             var row = ShownRow(name);
             row.IsUnread.ShouldBeTrue($"{name} is clicked only while it is listed as unread, as the bell does");
-            (await client.PostAsync($"{Feed}/{Segment(row.Kind)}/{row.JobAdId}/read", content: null, Ct))
+            (await client.PostAsync($"{FeedPath}/{Segment(row.Kind)}/{row.JobAdId}/read", content: null, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
             var ad = Model.Ads[name];
@@ -234,7 +233,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         public async Task DismissAsync(string name)
         {
             var row = ShownRow(name);
-            (await client.PostAsync($"{Feed}/{Segment(row.Kind)}/{row.JobAdId}/dismiss", content: null, Ct))
+            (await client.PostAsync($"{FeedPath}/{Segment(row.Kind)}/{row.JobAdId}/dismiss", content: null, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
             var ad = Model.Ads[name];
@@ -254,10 +253,10 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
             var matchToken = Source(shown, Match).AcknowledgedThrough;
             var followToken = Source(shown, Followed).AcknowledgedThrough;
             if (matchToken is { } mt)
-                (await client.PostAsJsonAsync($"{Feed}/matches/read", new { throughToken = mt.ToString("O") }, Ct))
+                (await client.PostAsJsonAsync($"{FeedPath}/matches/read", new { throughToken = mt.ToString("O") }, Ct))
                     .StatusCode.ShouldBe(HttpStatusCode.NoContent);
             if (followToken is { } ft)
-                (await client.PostAsJsonAsync($"{Feed}/followed-company-ads/read", new { throughToken = ft.ToString("O") }, Ct))
+                (await client.PostAsJsonAsync($"{FeedPath}/followed-company-ads/read", new { throughToken = ft.ToString("O") }, Ct))
                     .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
             foreach (var ad in Model.Ads.Values)
@@ -278,7 +277,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         public async Task MatchesAsync(bool on)
         {
             var before = DateTimeOffset.UtcNow;
-            (await client.PutAsJsonAsync($"{Feed}/matches", new { enabled = on }, Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            (await client.PutAsJsonAsync($"{FeedPath}/matches", new { enabled = on }, Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
             if (on)
             {
                 if (Model.MatchesOffAt is { } offAt && Model.Consent)
@@ -298,7 +297,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         public async Task FollowsAsync(bool on)
         {
             var before = DateTimeOffset.UtcNow;
-            (await client.PutAsJsonAsync($"{Feed}/followed-company-ads", new { enabled = on }, Ct))
+            (await client.PutAsJsonAsync($"{FeedPath}/followed-company-ads", new { enabled = on }, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
             if (on)
             {
@@ -870,10 +869,10 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         if (state == "consent-off")
             await GiveConsentAsync(client, false);
         if (state == "matches-off")
-            (await client.PutAsJsonAsync($"{Feed}/matches", new { enabled = false }, Ct))
+            (await client.PutAsJsonAsync($"{FeedPath}/matches", new { enabled = false }, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
         if (state == "follows-off")
-            (await client.PutAsJsonAsync($"{Feed}/followed-company-ads", new { enabled = false }, Ct))
+            (await client.PutAsJsonAsync($"{FeedPath}/followed-company-ads", new { enabled = false }, Ct))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         using var scope = factory.Services.CreateScope();

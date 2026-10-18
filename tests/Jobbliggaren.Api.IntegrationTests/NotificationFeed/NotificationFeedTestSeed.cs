@@ -28,7 +28,7 @@ namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 /// </summary>
 internal static class NotificationFeedTestSeed
 {
-    private const string FeedPath = "/api/v1/me/notification-feed";
+    internal const string FeedPath = "/api/v1/me/notification-feed";
 
     public sealed record FeedItem(
         string Kind, Guid JobAdId, string Title, string CompanyName, DateTimeOffset OccurredAt, bool IsUnread, string? Grade);

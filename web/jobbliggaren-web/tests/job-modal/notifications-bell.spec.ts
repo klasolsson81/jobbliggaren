@@ -305,7 +305,10 @@ for (const theme of ["light", "dark"] as const) {
       harness.notificationFeed = THREE_KIND_FEED;
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/sparade");
-      if (theme === "dark") await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+      if (theme === "dark") {
+        await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+        await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+      }
 
       await page.getByRole("button", { name: "Notiser, 3 olästa" }).click();
       const panel = page.getByRole("dialog", { name: "Notiser" });
@@ -342,3 +345,23 @@ for (const theme of ["light", "dark"] as const) {
     });
   }
 }
+
+test("Markera alla som lästa sends each of the three tokens unchanged to its own source's endpoint", async ({ page }) => {
+  harness.notificationFeed = THREE_KIND_FEED;
+  await page.goto("/sparade");
+  await page.getByRole("button", { name: "Notiser, 3 olästa" }).click();
+  const panel = page.getByRole("dialog", { name: "Notiser" });
+  harness.notificationFeed = {
+    ...QUIET_NOTIFICATION_FEED,
+    items: THREE_KIND_FEED.items.map((item) => ({ ...item, isUnread: false })),
+  };
+
+  await panel.getByRole("button", { name: "Markera alla som lästa" }).click();
+
+  await expect(panel.getByText("Inga olästa")).toBeVisible();
+  expect(harness.readReceipts).toEqual([
+    { route: "POST /api/v1/me/notification-feed/matches/read", body: { throughToken: MATCH_TOKEN } },
+    { route: "POST /api/v1/me/notification-feed/followed-company-ads/read", body: { throughToken: FOLLOW_TOKEN } },
+    { route: "POST /api/v1/me/notification-feed/company-watch-criterion-ads/read", body: { throughToken: CRITERION_TOKEN } },
+  ]);
+});

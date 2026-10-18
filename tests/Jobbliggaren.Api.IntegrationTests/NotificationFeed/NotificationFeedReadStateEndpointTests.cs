@@ -42,7 +42,6 @@ namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 [Collection("Api")]
 public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
 {
-    private const string Feed = "/api/v1/me/notification-feed";
     private const string Matches = "matches";
     private const string FollowedAds = "followed-company-ads";
 
@@ -83,13 +82,13 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     }
 
     private static Task<HttpResponseMessage> MarkRowAsync(HttpClient client, string source, Guid adId, CancellationToken ct) =>
-        client.PostAsync($"{Feed}/{source}/{adId}/read", content: null, ct);
+        client.PostAsync($"{FeedPath}/{source}/{adId}/read", content: null, ct);
 
     private static Task<HttpResponseMessage> MarkThroughAsync(HttpClient client, string source, DateTimeOffset token, CancellationToken ct) =>
-        client.PostAsJsonAsync($"{Feed}/{source}/read", new { throughToken = token.ToString("O") }, ct);
+        client.PostAsJsonAsync($"{FeedPath}/{source}/read", new { throughToken = token.ToString("O") }, ct);
 
     private static Task<HttpResponseMessage> SwitchAsync(HttpClient client, string source, bool enabled, CancellationToken ct) =>
-        client.PutAsJsonAsync($"{Feed}/{source}", new { enabled }, ct);
+        client.PutAsJsonAsync($"{FeedPath}/{source}", new { enabled }, ct);
 
     private static async Task<bool> ProfileFlagAsync(HttpClient client, string name, CancellationToken ct)
     {
@@ -105,11 +104,11 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var anonymous = factory.CreateClient();
 
-        (await anonymous.PostAsync($"{Feed}/{Matches}/{Guid.NewGuid()}/read", null, ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        (await anonymous.PostAsJsonAsync($"{Feed}/{Matches}/read", new { throughToken = Base.ToString("O") }, ct))
+        (await anonymous.PostAsync($"{FeedPath}/{Matches}/{Guid.NewGuid()}/read", null, ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await anonymous.PostAsJsonAsync($"{FeedPath}/{Matches}/read", new { throughToken = Base.ToString("O") }, ct))
             .StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        (await anonymous.PutAsJsonAsync($"{Feed}/{Matches}", new { enabled = false }, ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        (await anonymous.PutAsJsonAsync($"{Feed}/{FollowedAds}", new { enabled = false }, ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await anonymous.PutAsJsonAsync($"{FeedPath}/{Matches}", new { enabled = false }, ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await anonymous.PutAsJsonAsync($"{FeedPath}/{FollowedAds}", new { enabled = false }, ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Theory]
@@ -151,8 +150,8 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
 
         foreach (var client in new[] { withRows, without })
         {
-            (await client.PostAsync($"{Feed}/{source}/{ad.Value}/read", null, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-            (await client.PostAsJsonAsync($"{Feed}/{source}/read", new { throughToken = Base.ToString("O") }, ct))
+            (await client.PostAsync($"{FeedPath}/{source}/{ad.Value}/read", null, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+            (await client.PostAsJsonAsync($"{FeedPath}/{source}/read", new { throughToken = Base.ToString("O") }, ct))
                 .StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         }
     }
@@ -164,13 +163,13 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         var (client, userId) = await RegisterUserAsync(factory, "mark-bad-input", ct);
         await ConsentAsync(userId, true, ct);
 
-        (await client.PostAsJsonAsync($"{Feed}/{Matches}/read", new { throughToken = "yesterday" }, ct))
+        (await client.PostAsJsonAsync($"{FeedPath}/{Matches}/read", new { throughToken = "yesterday" }, ct))
             .StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        (await client.PostAsJsonAsync($"{Feed}/{Matches}/read", new { }, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        (await client.PostAsJsonAsync($"{Feed}/{Matches}/read", new { throughToken = "0001-01-01T00:00:00+00:00" }, ct))
+        (await client.PostAsJsonAsync($"{FeedPath}/{Matches}/read", new { }, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await client.PostAsJsonAsync($"{FeedPath}/{Matches}/read", new { throughToken = "0001-01-01T00:00:00+00:00" }, ct))
             .StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await MarkRowAsync(client, Matches, Guid.Empty, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        (await client.PostAsync($"{Feed}/{Matches}/not-a-guid/read", null, ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await client.PostAsync($"{FeedPath}/{Matches}/not-a-guid/read", null, ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     // The answer is 204 for every request from a signed-in owner, so it says nothing about whether the row exists,
@@ -543,7 +542,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         var (client, userId) = await RegisterUserAsync(factory, $"switch-400-{source}", ct);
         var auditBefore = await AuditCountAsync(ct);
 
-        var response = await client.PutAsJsonAsync($"{Feed}/{source}", new { }, ct);
+        var response = await client.PutAsJsonAsync($"{FeedPath}/{source}", new { }, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var seeker = await SeekerAsync(userId, ct);
@@ -612,7 +611,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     // ── the X (#2151, ADR 0169) ──────────────────────────────────────────────────────────────
 
     private static Task<HttpResponseMessage> DismissAsync(HttpClient client, string source, Guid adId, CancellationToken ct) =>
-        client.PostAsync($"{Feed}/{source}/{adId}/dismiss", content: null, ct);
+        client.PostAsync($"{FeedPath}/{source}/{adId}/dismiss", content: null, ct);
 
     /// <summary>The user's X on a match as the command ends it, minus the consent predicate: used only to arrange state.</summary>
     private async Task DismissMatchRowDirectAsync(Guid userId, JobAdId adId, CancellationToken ct)
@@ -638,7 +637,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     public async Task The_dismiss_route_refuses_an_anonymous_caller_a_foreign_source_and_an_empty_id()
     {
         var ct = TestContext.Current.CancellationToken;
-        (await factory.CreateClient().PostAsync($"{Feed}/{Matches}/{Guid.NewGuid()}/dismiss", null, ct))
+        (await factory.CreateClient().PostAsync($"{FeedPath}/{Matches}/{Guid.NewGuid()}/dismiss", null, ct))
             .StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
         var (client, userId) = await RegisterUserAsync(factory, "dismiss-400", ct);
@@ -646,7 +645,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         foreach (var source in new[] { "7", "0", "Match", "FollowedCompanyAd", "application" })
             (await DismissAsync(client, source, Guid.NewGuid(), ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await DismissAsync(client, Matches, Guid.Empty, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        (await client.PostAsync($"{Feed}/{Matches}/not-a-guid/dismiss", null, ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await client.PostAsync($"{FeedPath}/{Matches}/not-a-guid/dismiss", null, ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]

@@ -1579,7 +1579,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       falska, vilket är den dyra riktningen.
       **The measurement covers both notification tables:** check whether any row has left `Pending`
       in `user_job_ad_matches` or `followed_company_ad_hits` — de två
-      tabellerna som ÄR notis-armen. ⚠ **Formen är `Pending`, aldrig `sent_at IS NULL`:** i
+      tabellerna som ÄR notis-armen. A third notification table, `company_watch_criterion_ad_hits`
+      (ADR 0175, #1663 PR 2), carries no mail state at all — no `Pending`, no `sent_at` — so this
+      measurement has nothing to read there. It joins the measurement when #1664 or #1665 give it a
+      mail status, and existing rows must then start in a status that cannot be mailed (ADR 0175 D5). ⚠ **Formen är `Pending`, aldrig `sent_at IS NULL`:** i
       claim-then-send-spinen sätts `MarkQueued` **före** utskicket, så en `Queued`-rad kan ha
       genererat ett utskick vars commit föll — det är vad `StrandedMatchReaperJob` finns för. Att
       läsa `sent_at` ensamt mäter alltså i den farliga riktningen.

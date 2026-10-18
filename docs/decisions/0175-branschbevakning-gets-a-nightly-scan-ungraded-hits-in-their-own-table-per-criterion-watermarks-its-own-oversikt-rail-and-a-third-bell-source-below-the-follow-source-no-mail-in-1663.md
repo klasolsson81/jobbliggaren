@@ -3,7 +3,8 @@
 **Date:** 2026-10-18
 **Status:** Accepted 2026-10-18 (the form decided by `senior-cto-advisor` under CLAUDE.md §9.2, and Klas's six answers of the same day, quoted under "Klas's decisions, verbatim").
 The two privacy-policy texts (D12) are **not** decided by it: each is signed with its PR. The DPIA Part D addendum (§D9; D12) was signed by `security-auditor` and
-approved by Klas on 2026-10-18, and its ruling (2) settles the third switch's default (D8). Nothing is built under it yet; PR 1 of three ships with it.
+approved by Klas on 2026-10-18, and its ruling (2) settles the third switch's default (D8). PR 1 of three shipped with it (#2173). PR 2 builds D2–D7 and D10–D12
+and changes D7's count to its own route (see D7).
 **Deciders:** Klas Olsson (six answers in chat on 2026-10-18) · `senior-cto-advisor`, "the CTO" below (decision-maker under §9.2; ruling on forks F1–F12 and an addendum that
 answers an adversarial check of it, report-only; `docs/reviews/2026-10-18-1663-plan-cto.md` and `…-plan-cto-addendum.md`; **where the two differ, the addendum governs**) ·
 `security-auditor` (plan read, report-only; `…-plan-security.md`: Blocker-class conditions B1–B9, Major M1–M12, Minor 1–9 and the escalations E1 and E2) · `dotnet-architect`
@@ -12,7 +13,7 @@ standing directions are applied here, not re-decided: the notification doctrine 
 nothing more in the bell until real users have given feedback) and his answer of 2026-10-17 that #2158 goes before #1663 (ADR 0173).
 **Amends:** ADR 0117 D1 (superseded in part) and ADR 0105 (RF-9 superseded, RF-7 extended to criteria). ADR 0162 (D1, D11, s10), ADR 0168 (D1, D5, D9 and its lapse clause), ADR 0169
 (D1', V20, lapse 1 and D4'), ADR 0173 (lapse 1, 4 and 9) and ADR 0125 (the restore-exposure grant, E2). In PR 2 also ADR 0018 (the `after()` residual list), ADR 0139 (the scan
-is a reader of the members; grant 4 re-measured) and ADR 0140 (Beslut 5's card gains a per-criterion pill). Each stays as the record and carries one header line that points here;
+is a reader of the members; grant 4 untouched, D7) and ADR 0140 (Beslut 5's card gains a per-criterion pill). Each stays as the record and carries one header line that points here;
 the first seven are added with this ADR, the last three with PR 2's code. See "Amendments to other ADRs".
 **Related:** [#1663](https://github.com/klasolsson81/jobbliggaren/issues/1663) (this decision ships under it; it closes after PR 3) · #1662 (the notification epic) · #1664 and #1665
 (the other notification senders; D13) · #2138 (the open GDPR Blocker) · #2115 (the policy does not describe following companies) · #2127 (a frozen watermark) · #2163 (the mail
@@ -83,7 +84,8 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
   `job_ads` are read in **one** statement.
 - **A closed result:** `Materialised(ids)`, `TooBroad` or `NotMaterialised`. The gate's C#-arm rule (`:303-316`) applies: an empty set read under a failed gate as "no new ads"
   would advance the watermark and swallow the window for good (ADR 0120).
-- **Ad ids only.** No org.nr leaves the port (ADR 0139's firewall). The hit's `UserId` comes from the loaded criterion row, never from a parameter.
+- **Ad ids only.** No org.nr leaves the port (ADR 0139's firewall). The hit's `UserId` comes from the loaded criterion row, never from a parameter:
+  `CompanyWatchCriterionAdHit.Create(criterion, jobAdId, clock)` takes the criterion itself, so no caller can pass an owner (D5).
 - **No shared materialisation lock.** `ReplaceAsync` is one transaction, so a single statement sees the old set or the new one. A lock would serialise the scan behind the
   every-minute sweep. The two-statement page form (`:412-418`, no gate) is not copied.
 - **No `LIMIT` and no size refusal. Why AGENTS.md §5's ban on unpaginated list fetches does not apply:** the read is a Worker batch of ids and never the answer to a request, and it
@@ -145,6 +147,12 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
   without relying on the copied owner id; `ix (user_id, job_ad_id)`, which serves the per-ad mark every click and X runs (its follow counterpart is
   `ux_…_user_jobad_watch`, `FollowedCompanyAdHitConfiguration.cs:100-102`); and `ix (user_id, created_at DESC)`. `db-migration-writer` confirms them against the plans of the scan, the
   count, the bell and the mark.
+- **Names, as PR 2's migration `AddCompanyWatchCriterionAdHits` fixes them:** the table `company_watch_criterion_ad_hits`; the FK
+  `fk_company_watch_criterion_ad_hits_company_watch_criterion_id`; `ux_company_watch_criterion_ad_hits_criterion_jobad`, `ix_company_watch_criterion_ad_hits_user_jobad` and
+  `ix_company_watch_criterion_ad_hits_user_created_at` (DESC); the CHECK `ck_company_watch_criterion_ad_hits_dismissed_implies_read`.
+- **The mixed-version window, accepted with Klas's migration GO.** Between `migrate` and the API's recreate the old API serves against the new schema (ADR 0149). Its criterion
+  INSERT names no `criteria_changed_at`, which is NOT NULL with no default, so a create in that window fails with 23502. It is bounded by one apply, only the create path
+  fails, it fails loud and nothing is persisted; expand/contract would cost a second serial migration through the most dangerous hotspot.
 - **Left out:** no grade, no mail columns, no `SeenAt`, no domain events. #1664 and #1665 own the mail state, and a later `NotificationStatus` column must give existing rows a
   non-mailable status (M10; D13).
 - **Rejected:** a nullable criterion id on `followed_company_ad_hits` (the follow digest's pending set has no watch join, `DigestDispatchJob.cs:322-328`, so it would drain criterion
@@ -160,13 +168,14 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
 | `ScannedThrough` | the scan only | how far the scan has read |
 | `LastScanOutcome` | the scan only | `Scanned`, `TooBroad` or `NotMaterialised` |
 | `CriteriaChangedAt` | `UpdateCriteria`, and only when the spec actually changes | the lower bound after an edit |
-| `NewAdsSeenThrough` | the destination's seen command | what the user has acknowledged |
+| `NewAdsSeenThrough` | the destination's seen command: one conditional `UPDATE` that only moves it forward, clamped to now | what the user has acknowledged |
 
 - **`UpdatedAt` is bumped only by `UpdateCriteria` and `Rename`** (`CompanyWatchCriterion.cs:181,195`), never by the scan or the seen command: the materialisation sweep prefilters on
   `updated_at` (`CompanyWatchCriterionMemberStore.cs:128`), so a scan that bumped it would re-materialise every scanned criterion. `Rename` bumps it, so it cannot carry
   `CriteriaChangedAt` either.
 - **Outcomes.** `Materialised`: advance `ScannedThrough` and persist `Scanned`. `TooBroad`: advance, and persist the outcome (so narrowing later does not burst). `NotMaterialised`:
-  hold. Hits and the watermark go in one `SaveChanges` per user; a lost advance only re-scans, which the unique key makes idempotent.
+  persist the outcome and hold `ScannedThrough`. A criterion whose read throws is held on its own, with no hits and no `RecordScan`, and the owner's other criteria still
+  advance. Hits and the watermark go in one `SaveChanges` per user; a lost advance only re-scans, which the unique key makes idempotent.
 - **`NewCriterionAdSet` is the one definition** behind the count, the destination and, in PR 3, the bell. Its lower bound is `max(NewAdsSeenThrough, CriteriaChangedAt)` and it takes
   only criteria whose `LastScanOutcome = Scanned`, so none of the three surfaces shows a criterion that is `TooBroad` or `NotMaterialised`. **Marks are not gated by it** (0168 D3: a
   hidden row's flags are kept). The same lower bound is the mechanism that keeps hits from a membership an edit replaced from surfacing as the edited criterion's (`security-auditor`
@@ -175,7 +184,8 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
   criteria backfill nothing. Existing criteria get at most seven days on their first scan.** The migration sets `criteria_changed_at = created_at`. Catch-up after an outage is
   capped at seven days too (R-e). A 7-day backfill per new criterion is rejected: criteria overlap, so it would make ADR 0169 s1 (a dismissed ad returns through a new hit) the normal
   case. For the existing criteria s1 cannot fire, because their first window runs before any criterion hit or dismissal can exist (the table is created in the same PR).
-- **#2127 cannot occur here by construction:** there is no per-user watermark that one criterion can freeze.
+- **#2127 cannot occur here by construction:** the watermarks are per criterion, and a criterion that fails is held alone (Outcomes above), so one criterion cannot freeze
+  another.
 
 ### D7 — Översikt and the destination: an own rail, a pill per criterion, never a sum (F7; addendum 6, 7)
 
@@ -186,13 +196,20 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
   `design-reviewer`'s. The shipped cards already put a graded number beside an ungraded one (`companies-card.tsx:23-27,61-87`, `criteria-card.tsx:114-134`); the pill's placement and
   name are what keep the two readable.
 - **It is shown only when `LastScanOutcome = Scanned` and N > 0**, never for `TooBroad`, `NotMaterialised` or an unscanned criterion (ADR 0120).
-- **The count** is `newAds` on the existing list DTO, from one grouped statement; Översikt's fan of calls is unchanged. The list bucket's recompute protocol runs and there is no
-  `PermitLimit` raise (`RateLimitingOptions.cs:537-555`); `security-auditor` re-signs it. **PR 2 re-runs Klas grant 4's protocol** (`0139:422-427`) on the list endpoint with the
-  `newAds` statement and dates the result in `docs/reviews/`. **If the composed-state p95 goes above 381,5 ms: STOPP to Klas**, since the grant accepted a figure for a query
-  (`0139:438-441`). If it stays within it, this ADR records the new figures and ADR 0139 gets a header pointer.
-- **The destination** `/foretag/branschbevakningar/[id]/nya`, oldest first, uses the PR 1 window helper (the #1576 rule lifted out of `ListNewFollowedCompanyAdsQueryHandler.cs:57-125`
-  at `8ce73fa36`) and carries the C-D2 attribution "Källa: SCB / egen bearbetning". Its list endpoint and its seen POST each get a derived rate-limit policy, and both are
-  owner-scoped with a 404 for a foreign id (B7; `CriterionOwnerScopedLoader.cs:50-88`). Rows carry the per-row "matches you" flag of D4.
+- **The count is its own route — a decision change in PR 2** (CTO D-1; Klas 2026-10-18, "Egen räknefråga (Rek.)"). `GET /me/company-watch-criteria/new-ad-counts`
+  returns `(criterionId, newAds)` per criterion from one grouped statement over `NewCriterionAdSet`; `newAds` is `null` unless the last outcome is `Scanned`, and a real 0 is
+  sent as 0. Översikt fetches it in its fan-out beside the follow count, and a failed read renders the card with no pills, never a 0. The list endpoint, its handler, its bucket
+  and Klas grant 4 are untouched, so grant 4's protocol is not re-run; the list bucket's half 1 names the Översikt ⇄ `/nya` round trip and `security-auditor` re-signs it.
+  **Why it changed.** This decision first put `newAds` on the list DTO and gated it on grant 4's protocol against 381,5 ms. The only valid comparison is 381,5 × Σ_new/Σ_old in
+  one process (`dotnet-architect`, `security-auditor` S-5), and under it any fourth term exceeds 381,5, so the gate could only STOPP. The catalogue page, which also calls the list,
+  would pay for a number it never shows, and a cheap count does not belong behind a bucket priced on the list's gate statements. The count and the page are measured instead
+  against ADR 0045 class (a), 300 ms p95: 23,7 ms and 10,8 ms at their ceilings on 2026-10-18 (`docs/reviews/2026-10-18-1663-pr2-latency.md`), and each has its own
+  per-user bucket derived from that run (`RateLimitingOptions.CriterionNewAdCounts`, `CriterionNewAds`, `CriterionNewAdsSeen`).
+- **The destination** `/foretag/branschbevakningar/[id]/nya`. Its window is cut oldest first by the PR 1 window helper (the #1576 rule lifted out of
+  `ListNewFollowedCompanyAdsQueryHandler.cs:57-125` at `8ce73fa36`), and its rows are shown newest first, as on the follow page. A `TooBroad` or not-scanned criterion gets a
+  closed state, never "nothing new". It carries the C-D2 attribution through the existing key `pages.foretag.criteria.ads.source` (CTO D-15). Its page GET and its seen POST
+  each get a derived rate-limit policy, and both are owner-scoped with a 404 for a foreign id (B7; `CriterionOwnerScopedLoader.cs:50-88`). Rows carry the per-row "matches
+  you" flag of D4.
 - **The seen write happens at render through `after()`** (parity with `foretag/bevakade/nya/page.tsx:65-71`), which needs an amendment of ADR 0018's residual list: "any new write at
   render … reopens this amendment" (`0018:283-284`; M11). The amendment lands with PR 2's code.
 - **`design-reviewer` reviews the card and `/nya` in PR 2,** including the zero, `TooBroad` and `NotMaterialised` states (AGENTS.md §8.4).
@@ -241,7 +258,8 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
 
 ### D10 — Retention, erasure and registries (F11; B8, M4, M5, M7)
 
-- **Retention.** The scan's per-user unit purges, with one set-based `ExecuteDelete` before it inserts, the user's hits whose ad is no longer Active. It writes no flag. Ad lifecycle is
+- **Retention.** The scan's per-user unit purges first, before the follow-bound hold and every read, the user's hits whose ad is no longer Active: one set-based
+  `ExecuteDelete` that commits on its own, whatever the outcome or hold (M-D9). It writes no flag. Ad lifecycle is
   monotone (`DigestDispatchJob.cs:434`; an ad only moves to Archived or Erased) and every reader already gates on Active (`NewFollowedCompanyAdSet.cs:134-135` parity), so the purge
   removes nothing a surface shows. E8(5)'s deferral does not carry over: its ground was the volume of single companies. The per-user bound is in D12.
 - **Account deletion.** A `CascadeMap` entry, a `RemoveRange` in `HardDeleteAccountAsync`, a line in the hand-listed negative test (`AccountHardDeleteCascadeFitnessTests`), and the
@@ -251,6 +269,9 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
   gap for `CompanyWatchBrowseQuery` in-block because PR 2 touches that class (ADR 0113). The release checklist's "both notification tables" (`release-checklist.md:1579-1581`) names
   the third table (Minor 4).
 - **A concurrent criterion delete** mid-scan fails that user's unit on the FK violation; the unit is isolated and the next night is clean.
+- **Statistics.** The job ANALYZEs `company_watch_criterion_ad_hits` once per completed run, through its own port `ICompanyWatchCriterionAdHitStatistics` (AGENTS.md §3.6:
+  the table is written by one periodic job and its columns reach `WHERE` and `ORDER BY`, and that autovacuum re-arms between runs cannot be shown before the table exists on
+  the box).
 
 ### D11 — The job: no retry, no overlap, a cron in options, a distinct due set (F12; addendum 8a)
 
@@ -261,9 +282,12 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
   materialisation. A required key triggers CLAUDE.md §11's dev-boot contract. The cadence is configurable so #1664 does not need a second scan.
 - **The due set** is DISTINCT `UserId` over criteria with the `JobSeeker` existence checked through its query filter, so an account under deletion produces no hits (Minor 8; parity
   `CompanyWatchScanJob.cs:140-143`). There is no per-user Hangfire fan-out (Minor 9; `0161:246-247`, V7).
-- Org.nr, a criterion label or code, and a `JobAdId` together with a `UserId` appear in no log, DTO or mail (B9; `0161:244-247`, V5 and V6).
+- Org.nr, a criterion label or code, and a `JobAdId` together with a `UserId` appear in no log, no bell DTO and no mail (B9; `0161:244-247`, V5 and V6; M-D10's scope).
+  The owner's own `/nya` response carries the ads and the criterion's codes by design, and the count carries criterion ids and numbers only.
   The new scan and port files go in `RawOrgNrReadingSourcePaths` (`OrganizationNumberSurfacingGuardTests.cs:58`).
-- **Worker wiring** is covered by a Worker integration test resolved through the real composition root (`ValidateOnBuild` is false); `RecurringJobIds.All` goes from 21 to 22.
+- **Worker wiring.** `AddCompanyWatchCriterionScan` registers the options (`CompanyWatchCriterionScan:CadenceCron`, default `55 3 * * *`), the job and its wrapper; both
+  `Program.cs` and `WorkerTestFixture` call it, which a source assertion pins, and a Worker integration test resolves the wrapper through it (`ValidateOnBuild` is false).
+  `RecurringJobIds.All` goes from 21 to 22.
 
 ### D12 — The privacy position, what must exist before each PR, and the restore-exposure grant (F10; `security-auditor` S1, S4, M1–M3; Klas, answers 4 and 5)
 
@@ -279,7 +303,8 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
   Branschbevakning mail sender, C-D9 on PR 3) and approved by Klas (answer 6), appended as §D9 to `docs/research/2026-07-12-dpia-560-smart-bevakning.md` (local); her review is
   `docs/reviews/2026-10-18-1663-dpia-security.md`.
 - **Copy and policy.** B1: `pages.json:367` (sv and en) is replaced in the same PR that first writes or surfaces hits (PR 2; a merge is a deploy). M2: PR 2 adds a policy paragraph
-  under Art. 13(1)(c), 13(2)(a) and 13(3) (criterion storage, the scan, in-app notices, retention) and corrects the follow half (Minor 5 and 6; closes #2115), and PR 3 adds the bell
+  under Art. 13(1)(c), 13(2)(a) and 13(3) (criterion storage, the scan, in-app notices, retention) and corrects the follow half (Minor 5 and 6). PR 2 is part of #2115, not its close: match-row retention, decided with #2138, and the follow rail's register entry stay
+  there (`security-auditor` Major 1). PR 3 adds the bell
   sentence. `security-auditor` signs each text, it rides its PR, and `CurrentPrivacyPolicyVersion` is set to the merge date (`TermsAcceptance.cs:37`). Klas's one GO (answer 5)
   covers both texts. M3: PR 2 rewrites the register entry (`:1866`, `:1869-1871`, `:1886`, `:1923`), lists the new table in Datafält and in the manual Art. 15 extract, and adds the mail
   type to "Utgående transaktionell e-post" purpose 1 (`:569`) when a mail sender is built.
@@ -289,7 +314,9 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
 - **The per-user magnitude, as the E2 text required.** A user's stock is at most the sum, over their 20 criteria at most, of the Active ads of each criterion's 2 500 member companies at
   most. The unique key makes one (criterion, ad) one row, and the purge of D10 bounds the stock to Active ads. **The ceiling is 20 × the Active ads**; the closest count measured is
   42 235 listed ads on the box at 07:09Z on 2026-10-18 (counts only; `docs/sessions/2026-10-17-1900-seo-s4-job-sitemap-2167.md`); **PR 2 measures the realistic figure** and
-  records it in the register entry.
+  records it in the register entry. Measured 2026-10-18T18:25Z on release `sha256:df4b0248…` (source `c14ac57a1`) with `security-auditor`'s S-2 statement: 42 302 Active ads,
+  so the ceiling was 846 040 rows per user; the per-user stock is not stated, because fewer than 5 users contribute; the pre-fixed gate "every user within 50 000" read true.
+  Her ruling that this discharges M-D9 is `docs/reviews/2026-10-18-1663-pr2-md9-ruling-security.md`; the row as printed is in the register entry (local).
 
 ### D13 — Mail is not in #1663; the conditions every criterion mail sender carries (F1; `security-auditor` S2, S3; Klas, answers 2 and 3)
 
@@ -350,8 +377,7 @@ Each fork's reasoning is in the D-section named; the line gives the verdict.
   bounded as in D12 and is large in the worst case.
 - **A new person-grained table** enters the restore-exposure list (E2) and the Art. 17 cascade, and it carries three indexes, which cost write amplification on a table that takes bulk
   inserts nightly.
-- **A second nightly job** (`RecurringJobIds.All` goes to 22) whose cost is derived and not measured until PR 2's EXPLAIN pin, and which depends one way on the follow scan's
-  watermark (D3).
+- **A second nightly job** (`RecurringJobIds.All` goes to 22), which depends one way on the follow scan's watermark (D3).
 - **The criterion scan depends on `job_seekers.LastCompanyWatchScanAt`** keeping its meaning (lapse 2).
 - **Hits from a replaced membership stay in the table** until their ad leaves Active; the lower bound of D6 hides them from every surface.
 - **Pre-PR 3 accumulation.** PR 2 writes hits for weeks before the bell can show them; PR 3's launch shows the unacknowledged ones (decided, D8).
@@ -364,7 +390,9 @@ Each fork's reasoning is in the D-section named; the line gives the verdict.
 - **R-d. A scan in flight while the user edits a criterion** can commit hits from the old membership. The window is milliseconds once a night, and it is **not** closed by a
   concurrency token, because that token would put a replay obligation on every edit.
 - **R-e. Catch-up is capped at seven days** after an outage; hits beyond that are lost, and `MaxReadAgeHours` (72, `CompanyWatchMaterialisationOptions.cs`) means a longer
-  materialisation outage holds every criterion's watermark and bursts later.
+  materialisation outage holds every criterion's watermark and bursts later. The follow coupling (D3) adds two holds: an owner who follows a company but has no follow
+  watermark yet is held whole, and with an active follow every window ends at the follow watermark, so a stalled follow scan stalls this one too. A criterion whose read fails night after night is
+  held alone (D6) and, past seven days, loses that part of its window.
 - Each of R-a to R-c is pinned by a test in PR 2 (the shape of 0173's R1 and R2 pins).
 
 **Decided, not residual:** the launch backlog (D8); an ad the follow source grades out is in the bell through neither source (D8); the pill's placement beside a graded number (D7);
@@ -395,7 +423,8 @@ Each target stays as the record and gets one dated header line that points here.
 - **ADR 0173:** lapse 1 (answered by D8's order), lapse 4 (answered by D3's bound) and lapse 9 (answered by PR 3's measurement).
 
 Added in PR 2 with the code they describe: **ADR 0018** (the `after()` write at render joins the residual list, D7), **ADR 0139** (the scan is a reader of the members and takes no lock;
-"nothing to hook" becomes false; grant 4 re-measured, D7) and **ADR 0140** (Beslut 5's criteria card gains a per-criterion pill and is still never summed, D7).
+"nothing to hook" becomes false; grant 4 is untouched, because the list is, D7) and **ADR 0140** (Beslut 5's criteria card gains a per-criterion pill and is still never summed,
+and its "inga per-användar-deltan" bullet no longer holds for that card, D7).
 
 ## Implementation
 
@@ -412,12 +441,12 @@ Three PRs on `feat/smart-watch-scan` and its successors, one session each; PR 1 
   - The two spellings of the old name in `CompanyWatchCriterionMaterialiser.cs:433` (an operational log) and `ListCompanyWatchCriteriaQuery.cs:9` (a comment) become Branschbevakning.
   - The DPIA Part D addendum is drafted and goes to `security-auditor` and then to Klas (D12).
 - **PR 2 (Klas's migration GO: one new table and four columns).** Aggregate, EF configuration, migration (`db-migration-writer`), the port, the scan job with its wrapper, registrar
-  entry and cron option, the registries and retention (D10), the pill, `newAds`, `/nya`, the seen command, the C-D2 attribution, the `after()` amendment, the grant-4 re-measurement,
+  entry and cron option, the registries and retention (D10), the pill, the count route, `/nya`, the seen command, the C-D2 attribution, the `after()` amendment, the latency measurement against ADR 0045,
   the copy correction, the policy paragraph, the register rewrite, and the pointers in 0018, 0139 and 0140. Owns `AppDbContext`, the migration token and the Worker composition root.
   Panel: `code-reviewer`, `dotnet-architect`, `db-migration-writer`, `test-writer`, `security-auditor` and `design-reviewer`.
 - **PR 3 (its own zero-DDL migration and its own GO).** The source, the third switch, the `{source}` segment, the buckets, statement pins 9 and 11, EXPLAIN (ANALYZE) and the bell
   sentence in the policy.
-- **Owed outside the diffs.** The DPIA addendum's signature and Klas's approval of its text before PR 2 is built; each policy text's signature in its PR; `security-auditor`'s
+- **Owed outside the diffs.** Each policy text's signature in its PR; `security-auditor`'s
   bucket signatures; the comments on #1664 and #1665 that point at D13.
 
 ## Klas's decisions, verbatim

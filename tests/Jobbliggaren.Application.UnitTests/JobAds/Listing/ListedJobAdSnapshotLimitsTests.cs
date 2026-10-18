@@ -16,8 +16,8 @@ public class ListedJobAdSnapshotLimitsTests
             "ADR 0166 D10 trigger 9: a list older than 15 minutes fires the trigger.");
 
     [Fact]
-    public void MaxAge_SpansAtLeastTwoIntervals_SoOneFailedReadDoesNotTakeTheSitemapDown() =>
-        ListedJobAdSnapshotLimits.MaxAge.ShouldBeGreaterThanOrEqualTo(2 * ListedJobAdSnapshotLimits.SampleInterval);
+    public void MaxAge_SpansMoreThanTwoIntervals_SoOneFailedReadDoesNotTakeTheSitemapDown() =>
+        ListedJobAdSnapshotLimits.MaxAge.ShouldBeGreaterThan(2 * ListedJobAdSnapshotLimits.SampleInterval);
 
     [Fact]
     public void FutureTolerance_IsShorterThanOneInterval() =>

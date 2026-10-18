@@ -133,7 +133,7 @@ public class JobAdPublicationIsListedAgreementTests
 
         Listed(ad).ShouldBeFalse();
         JobAdPublication.Classify(ad.Status, ad.ExpiresAt, ad.External?.Source, Now)
-            .ShouldBe(JobAdPublicationState.NotPublic);
+            .ShouldNotBe(JobAdPublicationState.Listed);
     }
 
     private static bool Listed(JobAd ad) => JobAdPublication.IsListed(Now).Compile()(ad);

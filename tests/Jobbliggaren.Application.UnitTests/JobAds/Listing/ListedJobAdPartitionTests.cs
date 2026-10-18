@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.JobAds.Listing;
+using Jobbliggaren.Domain.JobAds;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.JobAds.Listing;
@@ -40,6 +41,13 @@ public class ListedJobAdPartitionTests
         for (var part = 1; part <= runs.Length; part++)
             foreach (var digit in runs[part - 1])
                 ListedJobAdPartition.PartOf(IdStartingWith(digit), 4).ShouldBe(part, $"digit {digit}");
+    }
+
+    [Fact]
+    public void JobAdIds_AreRandomVersion4Guids_SoThePartsStayEven()
+    {
+        // A version-7 id leads with its timestamp, which would put every ad in the first part (ADR 0174 D3).
+        JobAdId.New().Value.Version.ShouldBe(4);
     }
 
     [Fact]

@@ -43,20 +43,38 @@ public sealed class ListedJobAdSnapshotServiceTests
     }
 
     [Fact]
-    public async Task Tick_ALoggedFailure_IsOneWarningCarryingTheTypeNameAndNotTheMessage()
+    public async Task Tick_ALoggedFailure_IsOneWarningCarryingTheTypeName_AndNeitherTheMessageNorTheException()
     {
         var sampler = Substitute.For<IListedJobAdSnapshotSampler>();
         sampler.SampleAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException(new InvalidOperationException("Host=db;Password=hunter2")));
-        var logger = new Jobbliggaren.TestSupport.RecordingLogger<ListedJobAdSnapshotService>();
+        var logger = new SinkLogger();
         using var service = new ListedJobAdSnapshotService(sampler, logger);
 
         await service.TickAsync(Ct);
 
-        var line = logger.Records.ShouldHaveSingleItem();
+        var line = logger.Lines.ShouldHaveSingleItem();
         (line.Level, line.EventId.Id).ShouldBe((LogLevel.Warning, 6233));
         line.Message.ShouldContain("InvalidOperationException");
         line.Message.ShouldNotContain("hunter2");
+        line.Exception.ShouldBeNull("a sink writes the exception argument, message included, which the formatted text never shows");
+    }
+
+    /// <summary>
+    /// What a sink receives, the <c>exception</c> argument included. The shared recorder keeps only the formatted text,
+    /// and a <c>[LoggerMessage]</c> formatter writes that text without the exception.
+    /// </summary>
+    private sealed class SinkLogger : ILogger<ListedJobAdSnapshotService>
+    {
+        public List<(LogLevel Level, EventId EventId, string Message, Exception? Exception)> Lines { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Lines.Add((logLevel, eventId, formatter(state, exception), exception));
     }
 
     private static async Task Eventually(Func<bool> condition, string because)

@@ -191,8 +191,6 @@ public sealed class AdminAccountsDirectoryTests(ApiFactory factory)
         }
     }
 
-    // A pin on the SQL text: within a tie the rows already arrive in id order (UUIDv7 ids, a creation-ordered
-    // scan), so no fixture of rows can tell a dropped tie-break from a kept one.
     [Theory]
     [InlineData(AccountSort.RegisteredNewest, "registered_at DESC NULLS LAST, user_id")]
     [InlineData(AccountSort.RegisteredOldest, "registered_at ASC NULLS LAST, user_id")]

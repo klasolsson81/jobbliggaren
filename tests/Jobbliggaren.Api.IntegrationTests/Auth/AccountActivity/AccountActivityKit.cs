@@ -19,7 +19,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth.AccountActivity;
 
 /// <summary>
 /// #2161 (ADR 0172) — the two writers of an activity row, as tests drive them: a real code login, whose session the
-/// grant issues, and an authenticated request through the middleware, on a host whose clock the test moves. The row
+/// grant issues, and an authenticated request through the middleware. The row
 /// itself is read straight from the table.
 /// </summary>
 internal static class AccountActivityKit

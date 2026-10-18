@@ -17,7 +17,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </summary>
 public sealed class UserJobAdMatchClaimerTests
 {
-    internal static readonly string[] ProductionAssemblyPaths =
+    private static readonly string[] ProductionAssemblyPaths =
     [
         typeof(UserJobAdMatch).Assembly.Location,
         typeof(TopMatchMailDispatcher).Assembly.Location,

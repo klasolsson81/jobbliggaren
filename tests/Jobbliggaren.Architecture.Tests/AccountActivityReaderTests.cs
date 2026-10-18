@@ -27,6 +27,27 @@ public class AccountActivityReaderTests
         "ADR 0172 D3: only SqlAccountDirectory reads account_activity; any other consumer is a new purpose "
         + "(security-auditor's bound (b), #2161) and needs its own review.";
 
+    private static readonly string[] ProductionAssemblyPaths =
+    [
+        typeof(Jobbliggaren.Domain.Matching.UserJobAdMatch).Assembly.Location,
+        typeof(Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.TopMatchMailDispatcher).Assembly.Location,
+        typeof(SqlAccountDirectory).Assembly.Location,
+        typeof(Jobbliggaren.Api.Endpoints.AuthProblem).Assembly.Location,
+        typeof(Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker).Assembly.Location,
+        typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly.Location,
+        typeof(Jobbliggaren.Migrate.Roles).Assembly.Location,
+    ];
+
+    [Fact]
+    public void The_scan_reads_every_project_under_src()
+    {
+        var projects = Directory.GetFiles(Path.Combine(RepoRoot(), "src"), "*.csproj", SearchOption.AllDirectories)
+            .Select(path => Path.GetFileNameWithoutExtension(path));
+
+        ProductionAssemblyPaths.Select(path => Path.GetFileNameWithoutExtension(path)).ShouldBe(
+            projects, ignoreOrder: true, $"{Bound} A project under src/ that the scan skips can name the table unseen.");
+    }
+
     [Fact]
     public void Only_the_configuration_the_recorder_and_the_directory_name_the_table()
     {
@@ -74,7 +95,7 @@ public class AccountActivityReaderTests
 
     private static IEnumerable<TypeDefinition> ProductionTypes()
     {
-        foreach (var path in UserJobAdMatchClaimerTests.ProductionAssemblyPaths)
+        foreach (var path in ProductionAssemblyPaths)
         {
             using var assembly = AssemblyDefinition.ReadAssembly(path);
             foreach (var type in assembly.Modules.SelectMany(module => module.GetTypes()))
@@ -128,4 +149,8 @@ public class AccountActivityReaderTests
         TypeSpecification specification => MentionsType(specification.ElementType, target),
         _ => type.FullName == target,
     };
+
+    // thisFile = <repo>/tests/Jobbliggaren.Architecture.Tests/AccountActivityReaderTests.cs → up two = repo root.
+    private static string RepoRoot([CallerFilePath] string thisFile = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(thisFile)!, "..", ".."));
 }

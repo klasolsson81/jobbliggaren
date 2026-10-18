@@ -780,9 +780,6 @@ $fn$ LANGUAGE plpgsql;";
         // That is exactly why the auditor made this oracle MANDATORY rather than recommended: it is
         // the ONLY thing in the repo that measures whether derived personal data about the user
         // survives her account deletion (Art. 17, Art. 5(1)(e)).
-        // Together with the SavedSearches/RecentJobSearches/SavedJobAds/ParsedResume
-        // tests above, all 10 CascadeMap aggregates are now covered both structurally
-        // (build-time) and behaviorally (here) — symmetric layers.
         var ct = TestContext.Current.CancellationToken;
         var now = DateTimeOffset.UtcNow;
         var oldDeletedAt = now.AddDays(-(RestoreWindowDays + 1));
@@ -836,11 +833,19 @@ $fn$ LANGUAGE plpgsql;";
             // stays, re-aimed at the strongest property still expressible here: the sweep is
             // SET-WIDE. With one row a cascade that erased only the first match would pass; with two
             // it cannot. (The retired mandate's actual successor is the iff-guard in
-            // AccountHardDeleteCascadeFitnessTests, which is build-time and covers all eleven arms.)
+            // AccountHardDeleteCascadeFitnessTests, which is build-time and covers every arm.)
             var secondCriteria = CompanyWatchCriteriaSpec.Create(["43210"], ["1480"]).Value;
             var secondCriterion = CompanyWatchCriterion.Create(
                 userId, secondCriteria, "El i Göteborg", seedClock).Value;
             db.CompanyWatchCriteria.Add(secondCriterion);
+
+            // CompanyWatchCriterionAdHit (ADR 0175 D10, #1663) — one hit per criterion, through the
+            // production factory. Erased by the explicit arm in HardDeleteAccountAsync, ordered before its
+            // criterion by the EF-modelled FK.
+            db.CompanyWatchCriterionAdHits.Add(
+                CompanyWatchCriterionAdHit.Create(criterion, JobAdId.New(), seedClock).Value);
+            db.CompanyWatchCriterionAdHits.Add(
+                CompanyWatchCriterionAdHit.Create(secondCriterion, JobAdId.New(), seedClock).Value);
 
             await db.SaveChangesAsync(ct);
 
@@ -931,6 +936,10 @@ $fn$ LANGUAGE plpgsql;";
                 "seed must persist exactly two company_watch_criteria rows before the job runs — "
                 + "two, so a cascade that erased only one would not pass");
 
+            (await preDb.CompanyWatchCriterionAdHits.AsNoTracking()
+                .Where(h => h.UserId == userId).CountAsync(ct)).ShouldBe(2,
+                "seed must persist one company_watch_criterion_ad_hits row per criterion before the job runs");
+
             // #1681 — the derived rows exist before the job runs. Without this pre-condition the
             // post-condition below would pass on an empty table, which is the vacuous-green shape
             // this suite already guards against everywhere else.
@@ -985,6 +994,11 @@ $fn$ LANGUAGE plpgsql;";
             "CompanyWatchCriterion (FK-löst by UserId, #560 Fork A1) ska hard-raderas vid konto-radering "
             + "(GDPR Art. 17, DPIA Part D C-D1) — annars orphan:as profileringsnära PII (vilka branscher "
             + "och orter användaren jobbsöker i) efter konto-radering");
+
+        (await verifyDb.CompanyWatchCriterionAdHits.AsNoTracking()
+            .Where(h => h.UserId == userId).CountAsync(ct)).ShouldBe(0,
+            "CompanyWatchCriterionAdHit (ADR 0175 D10) ska hard-raderas vid konto-radering (GDPR Art. 17) — "
+            + "raden visar vilka annonser som nådde användaren genom en branschbevakning");
 
         // #1681 (security-auditor Major 5(b)) — the derived tables go with the criterion, via the
         // DB-level FK cascade and nothing else. No line of HardDeleteAccountAsync names these

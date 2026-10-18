@@ -349,10 +349,27 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<DateTimeOffset>("CriteriaChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criteria_changed_at");
+
                     b.Property<string>("Label")
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)")
                         .HasColumnName("label");
+
+                    b.Property<string>("LastScanOutcome")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("last_scan_outcome");
+
+                    b.Property<DateTimeOffset?>("NewAdsSeenThrough")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("new_ads_seen_through");
+
+                    b.Property<DateTimeOffset?>("ScannedThrough")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("scanned_through");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -379,6 +396,60 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_company_watch_criteria_user_id");
 
                     b.ToTable("company_watch_criteria", (string)null);
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Domain.CompanyWatches.CompanyWatchCriterionAdHit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CompanyWatchCriterionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_watch_criterion_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("DismissedFromNotificationFeed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("dismissed_from_notification_feed");
+
+                    b.Property<Guid>("JobAdId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_ad_id");
+
+                    b.Property<bool>("ReadInNotificationFeed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("read_in_notification_feed");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_company_watch_criterion_ad_hits");
+
+                    b.HasIndex("CompanyWatchCriterionId", "JobAdId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_company_watch_criterion_ad_hits_criterion_jobad");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_company_watch_criterion_ad_hits_user_created_at");
+
+                    b.HasIndex("UserId", "JobAdId")
+                        .HasDatabaseName("ix_company_watch_criterion_ad_hits_user_jobad");
+
+                    b.ToTable("company_watch_criterion_ad_hits", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_company_watch_criterion_ad_hits_dismissed_implies_read", "NOT dismissed_from_notification_feed OR read_in_notification_feed");
+                        });
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.CompanyWatches.FollowedCompanyAdHit", b =>
@@ -1986,6 +2057,16 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_application_status_changes_applications_application_id");
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Domain.CompanyWatches.CompanyWatchCriterionAdHit", b =>
+                {
+                    b.HasOne("Jobbliggaren.Domain.CompanyWatches.CompanyWatchCriterion", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyWatchCriterionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_company_watch_criterion_ad_hits_company_watch_criterion_id");
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.Feedback.FeedbackSubmission", b =>

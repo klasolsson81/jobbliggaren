@@ -45,6 +45,9 @@ public interface IAppDbContext
     // firewall: no handler may join the register against personnummer-lookup output — pinned by
     // ScbCompanyRegisterLayerTests.IAppDbContext_exposes_only_Domain_types).
     DbSet<CompanyWatchCriterion> CompanyWatchCriteria { get; }
+    // ADR 0175 D5 (#1663) — Branschbevakning hits (written by CompanyWatchCriterionScanJob; read by the count,
+    // the page of new ads and, in PR 3, the bell).
+    DbSet<CompanyWatchCriterionAdHit> CompanyWatchCriterionAdHits { get; }
     // #1979 — user feedback, the operator notice for each submission, and the per-page prompt suppression.
     DbSet<FeedbackSubmission> FeedbackSubmissions { get; }
     DbSet<FeedbackScreenshot> FeedbackScreenshots { get; }

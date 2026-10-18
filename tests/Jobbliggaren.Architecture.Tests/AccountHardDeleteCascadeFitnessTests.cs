@@ -109,6 +109,7 @@ public class AccountHardDeleteCascadeFitnessTests
         [typeof(CompanyWatch)] = "CompanyWatches",
         [typeof(FollowedCompanyAdHit)] = "FollowedCompanyAdHits",
         [typeof(CompanyWatchCriterion)] = "CompanyWatchCriteria",
+        [typeof(CompanyWatchCriterionAdHit)] = "CompanyWatchCriterionAdHits",
         [typeof(FeedbackSubmission)] = "FeedbackSubmissions",
         [typeof(FeedbackScreenshot)] = "FeedbackScreenshots",
         [typeof(FeedbackNotification)] = "FeedbackNotifications",
@@ -366,6 +367,7 @@ public class AccountHardDeleteCascadeFitnessTests
                 db.SavedJobAds.RemoveRange(savedJobAds);
                 db.CompanyWatches.RemoveRange(companyWatches);
                 db.FollowedCompanyAdHits.RemoveRange(followedCompanyAdHits);
+                db.CompanyWatchCriterionAdHits.RemoveRange(companyWatchCriterionAdHits);
                 db.CompanyWatchCriteria.RemoveRange(companyWatchCriteria);
                 var queued = await db.UserJobAdMatches.Where(m => m.UserId == userId).CountAsync(ct);
                 await db.ParsedResumes.Where(p => p.JobSeekerId == jsId).ExecuteDeleteAsync(ct);

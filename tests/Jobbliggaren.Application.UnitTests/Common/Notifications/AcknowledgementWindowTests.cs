@@ -181,4 +181,26 @@ public class AcknowledgementWindowTests
                 () => AcknowledgementWindow.Apply(Read(Ascending(1)), maxRows, r => r.At))
             .ParamName.ShouldBe("maxRows");
     }
+
+    [Fact]
+    public void Apply_CapOfOne_KeepsTheOldestRowAndAcknowledgesIt()
+    {
+        var read = Read(Ascending(2));
+
+        var cut = AcknowledgementWindow.Apply(read, 1, r => r.At);
+
+        cut.Truncated.ShouldBeTrue();
+        cut.Rows.Select(r => r.Index).ShouldBe(Enumerable.Range(0, 1));
+        cut.AcknowledgedThrough.ShouldBe(T0);
+    }
+
+    // UNREACHABLE STATE, declared (§5 Tests:): the one caller orders its read ascending. This pins only that
+    // a read in any other order fails loudly instead of acknowledging past the rows it would hide.
+    [Fact]
+    public void Apply_ReadNotOldestFirst_Throws()
+    {
+        var read = Read(Ascending(2).Reverse());
+
+        Should.Throw<ArgumentException>(() => Apply(read)).ParamName.ShouldBe("oldestFirst");
+    }
 }

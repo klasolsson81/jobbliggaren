@@ -5,8 +5,7 @@ using Jobbliggaren.Domain.JobAds;
 namespace Jobbliggaren.Application.Matching.Queries;
 
 /// <summary>
-/// Read-time at-least-Good membership for a set of ads, shared by the request-scoped surfaces that grade
-/// the ads they show or count, so they cannot resolve it two ways.
+/// Read-time at-least-Good membership for a set of ads.
 /// </summary>
 internal static class ReadTimeMatching
 {

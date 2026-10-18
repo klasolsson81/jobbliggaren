@@ -53,6 +53,11 @@ internal static class AcknowledgementWindow
         ArgumentNullException.ThrowIfNull(oldestFirst);
         ArgumentNullException.ThrowIfNull(at);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxRows, 1);
+        for (var i = 1; i < oldestFirst.Count; i++)
+        {
+            if (at(oldestFirst[i]) < at(oldestFirst[i - 1]))
+                throw new ArgumentException("The read must be ordered oldest first.", nameof(oldestFirst));
+        }
 
         if (oldestFirst.Count <= maxRows)
         {

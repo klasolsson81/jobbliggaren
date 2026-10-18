@@ -469,6 +469,11 @@
         "matchingTooBroadAdviceOnList": "For watches with more ads than we can match, we do not show how many of them match you.",
         "tooBroadAdviceRemedy": "Fewer industries or municipalities mean fewer companies."
       },
+      "newAds": {
+        "lede": "New job ads from the companies matching your watch.",
+        "notScanned": "New job ads for this watch cannot be shown yet. We look for them once a night.",
+        "emptyBody": "All active job ads from the companies in the watch are still there."
+      },
       "browse": {
         "lede": "Active companies in the register that match your watch.",
         "magnitudeHeadline": "{count} companies match your watch",
@@ -516,6 +521,11 @@
       "ads": {
         "meta": {
           "title": "Ads from the watch"
+        }
+      },
+      "newAds": {
+        "meta": {
+          "title": "New ads from the watch"
         }
       },
       "detail": {

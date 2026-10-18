@@ -68,6 +68,7 @@ export const FEEDBACK_ROUTES: ReadonlyArray<FeedbackRoute> = [
   { pattern: "/foretag/branschbevakningar", key: "industry-watches" },
   { pattern: "/foretag/branschbevakningar/[id]", key: "industry-watches" },
   { pattern: "/foretag/branschbevakningar/[id]/annonser", key: "industry-watches" },
+  { pattern: "/foretag/branschbevakningar/[id]/nya", key: "industry-watches" },
   { pattern: "/foretag/historik", key: "application-history" },
   { pattern: "/cv", key: "cv" },
   { pattern: "/cv/importera", key: "cv-import" },

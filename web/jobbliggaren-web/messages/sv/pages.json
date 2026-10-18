@@ -469,6 +469,11 @@
         "matchingTooBroadAdviceOnList": "För bevakningar med fler annonser än vi kan matcha visas inte hur många av dem som matchar dig.",
         "tooBroadAdviceRemedy": "Färre branscher eller kommuner ger färre företag."
       },
+      "newAds": {
+        "lede": "Nya annonser från företagen som matchar din bevakning.",
+        "notScanned": "Nya annonser för bevakningen kan inte visas än. Vi letar efter dem en gång per natt.",
+        "emptyBody": "Alla aktiva annonser från företagen i bevakningen finns kvar."
+      },
       "browse": {
         "lede": "Aktiva företag i registret som matchar din bevakning.",
         "magnitudeHeadline": "{count} företag matchar din bevakning",
@@ -516,6 +521,11 @@
       "ads": {
         "meta": {
           "title": "Annonser från bevakningen"
+        }
+      },
+      "newAds": {
+        "meta": {
+          "title": "Nya annonser från bevakningen"
         }
       },
       "detail": {

@@ -4,10 +4,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
-using Jobbliggaren.Application.Auth.Access;
-using Jobbliggaren.Application.Auth.Registration;
-using Jobbliggaren.Application.Common.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using static Jobbliggaren.Api.IntegrationTests.Admin.AdminAccountsKit;
 using static Jobbliggaren.Api.IntegrationTests.Auth.AccountActivity.AccountActivityKit;
@@ -30,20 +26,6 @@ public sealed class AdminAccountsActivityTests(ApiFactory factory)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, email, ct: Ct);
         return (await UserIdAsync(factory, email, Ct), sessionId);
-    }
-
-    private async Task<string> OpenWithIdAsync(Guid userId, string email)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        await using (var access = await scope.ServiceProvider.GetRequiredService<IAccountAccessCoordinator>()
-            .BeginAsync([userId], false, Ct))
-        {
-            (await scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>()
-                .CreatePasswordlessUserAsync(userId, email, Ct)).IsSuccess.ShouldBeTrue();
-            await access.CommitAsync(Ct);
-        }
-        return await AuthTestHelpers.RegisterJobSeekerAndCreateSessionAsync(
-            scope.ServiceProvider, userId, SessionLifetime.Persistent, Ct);
     }
 
     private static void ShouldShow(JsonElement shown, ActivityRow row)
@@ -144,17 +126,13 @@ public sealed class AdminAccountsActivityTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task The_last_active_sorts_order_by_the_minute_with_nothing_recorded_last_and_a_tie_broken_on_the_id()
+    public async Task The_last_active_sorts_order_by_the_minute_with_nothing_recorded_last()
     {
         var token = NewToken();
         var (admin, _, _) = await AdminAsync(factory, NewToken(), Ct);
         var accounts = new Dictionary<string, (Guid UserId, string SessionId)>();
-        foreach (var label in new[] { "early", "middle", "late" })
+        foreach (var label in new[] { "early", "middle", "late", "tie-a", "tie-b" })
             accounts[label] = await RegisteredAsync(Address(token, label));
-        // Postgres orders a uuid by its bytes, which is the canonical string's order.
-        var tied = new[] { Guid.NewGuid(), Guid.NewGuid() }.OrderBy(id => id.ToString(), StringComparer.Ordinal).ToList();
-        accounts["tie-b"] = (tied[1], await OpenWithIdAsync(tied[1], Address(token, "tie-b")));
-        accounts["tie-a"] = (tied[0], await OpenWithIdAsync(tied[0], Address(token, "tie-a")));
         var idle = await OpenActiveAsync(factory, Address(token, "idle"), Ct);
         var (host, clock) = HostWithClock(factory);
         using (host)
@@ -162,13 +140,16 @@ public sealed class AdminAccountsActivityTests(ApiFactory factory)
             using var client = host.CreateClient();
             var start = clock.UtcNow;
             // The clock is the actor: each account's request falls in a minute of its own, and two share one.
-            foreach (var (label, minutes) in new[] { ("early", 1), ("middle", 2), ("late", 3), ("tie-b", 4), ("tie-a", 4) })
+            foreach (var (label, minutes) in new[] { ("early", 1), ("middle", 2), ("late", 3), ("tie-a", 4), ("tie-b", 4) })
             {
                 clock.UtcNow = start.AddMinutes(minutes);
                 (await MeAsync(client, accounts[label].SessionId, Ct)).ShouldBe(HttpStatusCode.OK);
             }
         }
 
+        // Postgres orders a uuid by its bytes, which is the canonical string's order.
+        var tied = new[] { accounts["tie-a"].UserId, accounts["tie-b"].UserId }
+            .OrderBy(id => id.ToString(), StringComparer.Ordinal).ToList();
         Items(await SearchOkAsync(admin, new { address = token, sort = "LastActiveNewest" }, Ct)).Select(Id).ShouldBe(
             [.. tied, accounts["late"].UserId, accounts["middle"].UserId, accounts["early"].UserId, idle]);
         Items(await SearchOkAsync(admin, new { address = token, sort = "LastActiveOldest" }, Ct)).Select(Id).ShouldBe(

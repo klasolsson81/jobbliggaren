@@ -731,6 +731,27 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>GET /api/v1/me/company-watch-criteria/new-ad-counts (ADR 0175 D7). PROVISIONAL.</summary>
+    public PolicyOptions CriterionNewAdCounts { get; init; } = new()
+    {
+        PermitLimit = 20,
+        WindowSeconds = 60,
+    };
+
+    /// <summary>GET /api/v1/me/company-watch-criteria/{id}/new-ads (ADR 0175 D7). PROVISIONAL.</summary>
+    public PolicyOptions CriterionNewAds { get; init; } = new()
+    {
+        PermitLimit = 20,
+        WindowSeconds = 60,
+    };
+
+    /// <summary>POST /api/v1/me/company-watch-criteria/{id}/new-ads/seen (ADR 0175 D7). PROVISIONAL.</summary>
+    public PolicyOptions CriterionNewAdsSeen { get; init; } = new()
+    {
+        PermitLimit = 20,
+        WindowSeconds = 60,
+    };
+
     /// <summary>
     /// POST /api/v1/companies/lookup (#454, ADR 0089 D7) — partitionerat per UserId (claim "sub"),
     /// anonym -> NoLimiter (RequireAuthorization-gated -> 401 fore endpoint). Egen policy (ej

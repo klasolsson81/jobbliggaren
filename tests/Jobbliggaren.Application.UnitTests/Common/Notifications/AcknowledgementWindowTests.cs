@@ -9,9 +9,9 @@ namespace Jobbliggaren.Application.UnitTests.Common.Notifications;
 /// proves the handler reaches the cut; this suite pins what the cut does.
 ///
 /// <para>
-/// Every read here has the shape the one caller's query delivers: ordered by the hit timestamp ascending
-/// (<c>orderby h.CreatedAt</c>), at most <see cref="Cap"/> + 1 rows (<c>Take(MaxRows + 1)</c>), cut at that
-/// caller's own cap. Ties are what <c>CompanyWatchScanJob</c> writes when two of its per-hit clock reads
+/// Every read here has the shape both callers' queries deliver: ordered by the hit timestamp ascending
+/// (<c>orderby h.CreatedAt</c>), at most <see cref="Cap"/> + 1 rows (<c>Take(MaxRows + 1)</c>), cut at the
+/// caller's own cap. The follow rail's and the Branschbevakning page's caps are equal, and a test pins it. Ties are what <c>CompanyWatchScanJob</c> writes when two of its per-hit clock reads
 /// (<c>FollowedCompanyAdHit.Create</c> stamps <c>clock.UtcNow</c>) fall in one microsecond, the resolution
 /// timestamptz keeps.
 /// </para>
@@ -19,6 +19,13 @@ namespace Jobbliggaren.Application.UnitTests.Common.Notifications;
 public class AcknowledgementWindowTests
 {
     private const int Cap = ListNewFollowedCompanyAdsQueryHandler.MaxRows;
+
+    [Fact]
+    public void Both_callers_cut_at_the_same_cap()
+    {
+        Jobbliggaren.Application.CompanyWatches.Queries.ListNewCriterionAds.ListNewCriterionAdsQueryHandler.MaxRows
+            .ShouldBe(Cap, "the specs below are written against one cap; a second one needs its own boundary specs");
+    }
 
     private static readonly DateTimeOffset T0 = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 

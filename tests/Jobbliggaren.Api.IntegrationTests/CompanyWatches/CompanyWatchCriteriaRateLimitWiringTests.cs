@@ -69,7 +69,7 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
         //                         2026-09-04). Splitting only /ads off would be 2x; this comment
         //                         said "a second bucket" while quoting the 3x figure until #1654
         //                         measured the two apart.
-        PolicyFor(routes, "GET", r => r.EndsWith("ads", StringComparison.Ordinal))
+        PolicyFor(routes, "GET", r => r.EndsWith("}/ads", StringComparison.Ordinal))
             .ShouldBe(RateLimitingExtensions.CompanyBrowsePolicy);
         // GET  /{id}/ad-count  -> the headline number alone; same bucket, same reason.
         PolicyFor(routes, "GET", r => r.EndsWith("ad-count", StringComparison.Ordinal))
@@ -81,6 +81,15 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
         // preview-count: the picker's two live reads must not be able to starve each other.
         PolicyFor(routes, "GET", r => r.EndsWith("occupation-divisions", StringComparison.Ordinal))
             .ShouldBe(RateLimitingExtensions.OccupationDivisionsPolicy);
+        // ADR 0175 D7 (#1663 PR 2) — the Branschbevakning count, page and seen write: three buckets of their
+        // own, derived in RateLimitingOptions. The page's matcher anchors on "new-ads", so it cannot also catch
+        // the "/ads" browse above.
+        PolicyFor(routes, "GET", r => r.EndsWith("new-ad-counts", StringComparison.Ordinal))
+            .ShouldBe(RateLimitingExtensions.CriterionNewAdCountsPolicy);
+        PolicyFor(routes, "GET", r => r.EndsWith("}/new-ads", StringComparison.Ordinal))
+            .ShouldBe(RateLimitingExtensions.CriterionNewAdsPolicy);
+        PolicyFor(routes, "POST", r => r.EndsWith("new-ads/seen", StringComparison.Ordinal))
+            .ShouldBe(RateLimitingExtensions.CriterionNewAdsSeenPolicy);
         // PATCH/DELETE /{id}   -> mutations (MeWrite).
         PolicyFor(routes, "PATCH", IsIdRoute).ShouldBe(RateLimitingExtensions.MeWritePolicy);
         PolicyFor(routes, "DELETE", IsIdRoute).ShouldBe(RateLimitingExtensions.MeWritePolicy);
@@ -97,8 +106,9 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
     }
 
     // GET base, POST base, GET /reference, GET /{id}/companies, GET /{id}/ads,
-    // GET /{id}/ad-count, POST /preview-count, GET /occupation-divisions, PATCH /{id}, DELETE /{id}.
-    private const int ExpectedRouteCount = 10;
+    // GET /{id}/ad-count, POST /preview-count, GET /occupation-divisions, PATCH /{id}, DELETE /{id},
+    // GET /new-ad-counts, GET /{id}/new-ads, POST /{id}/new-ads/seen.
+    private const int ExpectedRouteCount = 13;
 
     // The group root ".../company-watch-criteria" (both the GET list and the POST create map "/").
     private static bool IsBase(string raw) =>

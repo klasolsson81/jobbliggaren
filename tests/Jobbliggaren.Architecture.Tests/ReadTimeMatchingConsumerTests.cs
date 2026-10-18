@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyAdCount;
+using Jobbliggaren.Application.CompanyWatches.Queries.ListNewCriterionAds;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListNewFollowedCompanyAds;
 using Shouldly;
 
@@ -13,7 +14,7 @@ public class ReadTimeMatchingConsumerTests
     private const string ReadTimeMatching = "Jobbliggaren.Application.Matching.Queries.ReadTimeMatching";
 
     [Fact]
-    public void Only_the_followed_company_ad_handlers_and_feed_source_reference_it()
+    public void Only_the_new_ad_handlers_and_the_follow_feed_source_reference_it()
     {
         var consumers = Consumers();
 
@@ -21,6 +22,7 @@ public class ReadTimeMatchingConsumerTests
             [
                 typeof(GetNewFollowedCompanyAdCountQueryHandler).FullName!,
                 typeof(ListNewFollowedCompanyAdsQueryHandler).FullName!,
+                typeof(ListNewCriterionAdsQueryHandler).FullName!,
                 "Jobbliggaren.Application.NotificationFeed.Sources.FollowedCompanyAdFeedSource",
             ],
             ignoreOrder: true,

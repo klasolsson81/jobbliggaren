@@ -5,15 +5,18 @@ using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.CompanyWatches.Commands;
 using Jobbliggaren.Application.CompanyWatches.Commands.CreateCompanyWatchCriterion;
 using Jobbliggaren.Application.CompanyWatches.Commands.DeleteCompanyWatchCriterion;
+using Jobbliggaren.Application.CompanyWatches.Commands.SetNewCriterionAdsSeen;
 using Jobbliggaren.Application.CompanyWatches.Commands.UpdateCompanyWatchCriterion;
 using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies;
 using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionIdentity;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionMatchMagnitude;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionNewAdCounts;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionReference;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetMyMatchingAdCountForCriterion;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatchCriteria;
+using Jobbliggaren.Application.CompanyWatches.Queries.ListNewCriterionAds;
 using Jobbliggaren.Application.CompanyWatches.Queries.PreviewCriterionMatchMagnitude;
 using Jobbliggaren.Application.CompanyWatches.Queries.ResolveOccupationDivisions;
 using Jobbliggaren.Application.JobAds.Queries;
@@ -51,6 +54,16 @@ public static class CompanyWatchCriteriaEndpoints
             var result = await mediator.Send(new ListCompanyWatchCriteriaQuery(), ct);
             return Results.Ok(result);
         }).RequireRateLimiting(RateLimitingExtensions.CompanyWatchCriteriaListPolicy);
+
+        // ADR 0175 D7 (#1663 PR 2) — "N nya" per Branschbevakning, for Översikt. Its own route and bucket, not a
+        // field on the list above: the list's bucket is priced on its gate statements and its catalogue page shows
+        // no count. Per-user, so never cached. No {id}: "new-ad-counts" cannot collide with the {id:guid} routes.
+        group.MapGet("/new-ad-counts", async (HttpContext http, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetCriterionNewAdCountsQuery(), ct);
+            http.Response.Headers.CacheControl = "private, no-store";
+            return Results.Ok(result);
+        }).RequireRateLimiting(RateLimitingExtensions.CriterionNewAdCountsPolicy);
 
         // The SCB reference tree the picker renders (CTO Fork G2) — static per deploy, so the
         // taxonomy-endpoint mold applies verbatim: ETag + Cache-Control: private (auth-gated;
@@ -259,6 +272,26 @@ public static class CompanyWatchCriteriaEndpoints
                 : result.Error.ToProblemResult();
         }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
+        // ADR 0175 D7 — the page of one criterion's new ads, and the write that acknowledges the window it showed.
+        // A foreign or unknown id is 404 on both, and nothing is written. The GET carries a read-time mark derived
+        // from the profile, so it is never cached.
+        group.MapGet("/{id:guid}/new-ads", async (
+            Guid id, HttpContext http, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new ListNewCriterionAdsQuery(id), ct);
+            http.Response.Headers.CacheControl = "private, no-store";
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequireRateLimiting(RateLimitingExtensions.CriterionNewAdsPolicy);
+
+        group.MapPost("/{id:guid}/new-ads/seen", async (
+            Guid id, SetNewCriterionAdsSeenRequest? body, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new SetNewCriterionAdsSeenCommand(id, body?.SeenThrough), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireRateLimiting(RateLimitingExtensions.CriterionNewAdsSeenPolicy);
+
         // HARD delete (C-D8/G1 — the #782 template). Repeat delete → 404 (the row is gone),
         // unlike the idempotent soft-delete siblings.
         group.MapDelete("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
@@ -304,6 +337,9 @@ public static class CompanyWatchCriteriaEndpoints
         MyMatchingAdCountDto Matching);
 
     private sealed record UpdateCriterionBody(string? Label, UpdateCriterionCriteriaBody? Criteria);
+
+    /// <summary>The window the page showed, handed back verbatim (ADR 0175 D7). Required; see the command.</summary>
+    private sealed record SetNewCriterionAdsSeenRequest(DateTimeOffset? SeenThrough);
 
     private sealed record UpdateCriterionCriteriaBody(
         IReadOnlyList<string>? SniCodes,

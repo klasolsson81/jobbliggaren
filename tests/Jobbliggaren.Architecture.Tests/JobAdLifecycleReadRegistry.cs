@@ -203,6 +203,13 @@ public static class JobAdLifecycleReadRegistry
                     + "ListActiveAdIdsAsync carries the identical `AdsFromWhere`, and "
                     + "FilterToMatchingAsync re-applies Status == Active on top — so neither arm "
                     + "can hand this loader an archived ad.")),
+            ["Jobbliggaren.Application.CompanyWatches.Queries.NewCriterionAdSet.NewHits"] =
+                One(Active("ADR 0175 D7 - join j in db.JobAds where j.Status == Active: the one definition of a "
+                    + "Branschbevakning's new hits, behind the Översikt count and the page of new ads, so neither can "
+                    + "show an ad that left Active.")),
+            ["Jobbliggaren.Application.CompanyWatches.Queries.ListNewCriterionAds.ListNewCriterionAdsQueryHandler.Handle"] =
+                One(Active("ADR 0175 D7 - the projection join onto NewCriterionAdSet.NewHits, which already gates "
+                    + "j.Status == Active; the page renders only ads that set admits.")),
             ["Jobbliggaren.Application.CompanyWatches.Queries.NewCriterionAdSet.HitsWhoseAdLeftActive"] =
                 One(Active("ADR 0175 D10 - the Active ad ids whose COMPLEMENT the Branschbevakning scan purges from the "
                     + "hit table: positive polarity (j.Status == Active), so an Archived or Erased ad, any later "

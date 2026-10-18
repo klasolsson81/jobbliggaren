@@ -37,6 +37,9 @@ public static partial class RateLimitingExtensions
     public const string MeWritePolicy = "me-write";
     public const string CompanyBrowsePolicy = "company-watch-browse";
     public const string CompanyWatchCriteriaListPolicy = "company-watch-criteria-list";
+    public const string CriterionNewAdCountsPolicy = "criterion-new-ad-counts";
+    public const string CriterionNewAdsPolicy = "criterion-new-ads";
+    public const string CriterionNewAdsSeenPolicy = "criterion-new-ads-seen";
     public const string CriterionCountPreviewPolicy = "criterion-count-preview";
     public const string OccupationDivisionsPolicy = "occupation-divisions";
     public const string FollowSeenMarkPolicy = "follow-seen-mark";
@@ -628,9 +631,8 @@ public static partial class RateLimitingExtensions
             // Beslut A1. security-auditor BLOCKING verifierar tal (riktvärde 30/min).
             //
             // IF YOU EVER MOVE THIS AXIS TO THE CLIENT IP, read ForwardedHeadersConfig first.
-            // TWO of the three seen-marking writes behind this policy are reached from Next
-            // `after()` callbacks registered in the RENDER phase (the third,
-            // /me/followed-company-ads/seen, is awaited during render and does relay), and such
+            // The seen-marking writes behind this policy are reached from Next
+            // `after()` callbacks registered in the RENDER phase, and such
             // a callback cannot read
             // `headers()` at all (Next E839) — so no X-Forwarded-For arrives and an IP
             // partition would collapse those requests into the web container. Harmless while
@@ -837,8 +839,38 @@ public static partial class RateLimitingExtensions
                         AutoReplenishment = true,
                     });
             });
+
+            // ADR 0175 D7 (#1663 PR 2) — the Branschbevakning count, page and seen write. Each its own bucket,
+            // partitioned by UserId (claim "sub"); anonymous → NoLimiter, the group answers 401 first. TokenBucket,
+            // QueueLimit 0. The numbers and their derivation live in RateLimitingOptions, and only there.
+            // THE SEEN POST CANNOT BE PARTITIONED BY CLIENT IP, for the reason MeWritePolicy gives: it is sent from
+            // a Next `after()` callback registered in the render phase, which carries no X-Forwarded-For (#1202).
+            options.AddPolicy(CriterionNewAdCountsPolicy, ctx =>
+                PerUserTokenBucket(ctx, "anonymous-criterion-new-ad-counts", rateLimitOpts.CriterionNewAdCounts));
+            options.AddPolicy(CriterionNewAdsPolicy, ctx =>
+                PerUserTokenBucket(ctx, "anonymous-criterion-new-ads", rateLimitOpts.CriterionNewAds));
+            options.AddPolicy(CriterionNewAdsSeenPolicy, ctx =>
+                PerUserTokenBucket(ctx, "anonymous-criterion-new-ads-seen", rateLimitOpts.CriterionNewAdsSeen));
         });
 
         return services;
+    }
+
+    private static RateLimitPartition<string> PerUserTokenBucket(
+        HttpContext ctx, string anonymousPartition, RateLimitingOptions.PolicyOptions policy)
+    {
+        var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return RateLimitPartition.GetNoLimiter(anonymousPartition);
+
+        return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+            new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = policy.PermitLimit,
+                TokensPerPeriod = Math.Max(1, policy.PermitLimit / policy.SegmentsPerWindow),
+                ReplenishmentPeriod = TimeSpan.FromSeconds(policy.WindowSeconds / (double)policy.SegmentsPerWindow),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            });
     }
 }

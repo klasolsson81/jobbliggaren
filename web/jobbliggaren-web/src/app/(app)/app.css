@@ -2352,7 +2352,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   white-space: nowrap;
   transition: background 90ms linear;
 }
-.jp-ov-card__head .jp-ov-card__pill:hover { background: var(--jp-follow-hover); }
+.jp-ov-card__head .jp-ov-card__pill:hover { background: var(--jp-follow-hover); color: var(--jp-on-fill); }
 /* Branschbevakning's "N nya" (ADR 0175 D7): the info outline, one rule for the head and the row.
    (0,3,0) outranks the head's follow fill (0,2,0) whatever the source order, and the global link
    colour (0,1,1); the hover rule's (0,4,0) outranks that colour's (0,2,1) hover twin. */

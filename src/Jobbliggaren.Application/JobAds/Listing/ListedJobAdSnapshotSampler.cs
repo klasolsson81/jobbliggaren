@@ -8,8 +8,9 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Application.JobAds.Listing;
 
 /// <summary>
-/// Reads the listed set once per <see cref="SampleAsync"/> call and publishes it as the newest snapshot (ADR 0174). The
-/// sitemap query judges the snapshot's age against the clock when it is read; nothing is judged here.
+/// Reads the listed set once per <see cref="SampleAsync"/> call and publishes it as the newest snapshot (ADR 0174, ADR
+/// 0175). The sitemap and the catalogue queries judge the snapshot's age against the clock when they read it; nothing is
+/// judged here.
 ///
 /// <para>
 /// <b>Lifetime: singleton,</b> composed by the Api alone (<c>ListedJobAdSnapshotBoundaryTests</c>) and called from its
@@ -58,21 +59,21 @@ public sealed partial class ListedJobAdSnapshotSampler : IListedJobAdSnapshotRea
 
         await using var scope = _scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
-        var ids = await db.JobAds
+        var rows = await db.JobAds
             .AsNoTracking()
             .Where(JobAdPublication.IsListed(asOf))
             .OrderBy(j => j.Id)
             .Take(_ceiling + 1)
-            .Select(j => j.Id)
+            .Select(j => new ListedJobAdRow(j.Id.Value, j.PublishedAt))
             .ToListAsync(cancellationToken);
 
-        if (ids.Count > _ceiling)
+        if (rows.Count > _ceiling)
         {
             LogCeilingExceeded(_logger, _ceiling);
             return;
         }
 
-        Publish(new Published(read, ListedJobAdSnapshot.Create(asOf, ids.Select(id => id.Value))));
+        Publish(new Published(read, ListedJobAdSnapshot.Create(asOf, rows)));
     }
 
     private void Publish(Published next)
@@ -91,6 +92,6 @@ public sealed partial class ListedJobAdSnapshotSampler : IListedJobAdSnapshotRea
     private sealed record Published(long Read, ListedJobAdSnapshot Snapshot);
 
     [LoggerMessage(EventId = 6234, Level = LogLevel.Error,
-        Message = "ListedJobAdSnapshotSampler: the listed set exceeds the ceiling of {Ceiling} ids, so nothing was published; the sitemap answers 503 once the snapshot outlives its bound.")]
+        Message = "ListedJobAdSnapshotSampler: the listed set exceeds the ceiling of {Ceiling} ids, so nothing was published; the sitemap and the catalogue answer 503 once the snapshot outlives its bound.")]
     private static partial void LogCeilingExceeded(ILogger logger, int ceiling);
 }

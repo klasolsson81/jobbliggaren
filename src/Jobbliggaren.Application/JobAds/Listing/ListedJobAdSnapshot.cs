@@ -3,35 +3,55 @@ using Jobbliggaren.Application.JobAds.Publication;
 namespace Jobbliggaren.Application.JobAds.Listing;
 
 /// <summary>
-/// The listed set as one read saw it (ADR 0174): the ids of every ad <see cref="JobAdPublication.IsListed"/> admitted at
-/// <see cref="AsOf"/>, in id order, split into the sitemap's parts. Immutable and replaced whole, so the stamp and the
-/// ids always come from the same read.
+/// The listed set as one read saw it (ADR 0174, ADR 0175): the ids of every ad <see cref="JobAdPublication.IsListed"/>
+/// admitted at <see cref="AsOf"/>, in two views of that one read. The sitemap's parts hold the ids in id order; the
+/// catalogue's order holds the same ids newest first. Immutable and replaced whole, so the stamp and both views always
+/// come from the same read. It holds ids only: no publication date is kept once the order is built.
 /// </summary>
 public sealed class ListedJobAdSnapshot
 {
     private readonly IReadOnlyList<Guid>[] _parts;
+    private readonly IReadOnlyList<Guid> _catalogue;
 
-    private ListedJobAdSnapshot(DateTimeOffset asOf, IReadOnlyList<Guid>[] parts)
+    private ListedJobAdSnapshot(DateTimeOffset asOf, IReadOnlyList<Guid>[] parts, IReadOnlyList<Guid> catalogue)
     {
         AsOf = asOf;
         _parts = parts;
+        _catalogue = catalogue;
     }
 
     /// <summary>The instant the read passed to <see cref="JobAdPublication.IsListed"/>.</summary>
     public DateTimeOffset AsOf { get; }
 
-    public static ListedJobAdSnapshot Create(DateTimeOffset asOf, IEnumerable<Guid> idsInOrder)
+    /// <summary>
+    /// The ids newest first, by publication date. Ads published at the same instant keep the read's id order, because the
+    /// sort is stable over rows that arrive in it; no id is compared in memory.
+    /// </summary>
+    public IReadOnlyList<Guid> CatalogueOrder => _catalogue;
+
+    /// <summary>How many ads the read admitted.</summary>
+    public int Count => _catalogue.Count;
+
+    public static ListedJobAdSnapshot Create(DateTimeOffset asOf, IReadOnlyCollection<ListedJobAdRow> rowsInIdOrder)
     {
-        ArgumentNullException.ThrowIfNull(idsInOrder);
+        ArgumentNullException.ThrowIfNull(rowsInIdOrder);
 
         var parts = new List<Guid>[ListedJobAdSnapshotLimits.PartCount];
         for (var i = 0; i < parts.Length; i++)
-            parts[i] = [];
+            parts[i] = new List<Guid>(rowsInIdOrder.Count / parts.Length + 1);
 
-        foreach (var id in idsInOrder)
-            parts[ListedJobAdPartition.PartOf(id, ListedJobAdSnapshotLimits.PartCount) - 1].Add(id);
+        foreach (var row in rowsInIdOrder)
+            parts[ListedJobAdPartition.PartOf(row.Id, ListedJobAdSnapshotLimits.PartCount) - 1].Add(row.Id);
 
-        return new ListedJobAdSnapshot(asOf, Array.ConvertAll(parts, IReadOnlyList<Guid> (part) => part.AsReadOnly()));
+        var catalogue = rowsInIdOrder
+            .OrderByDescending(row => row.PublishedAt)
+            .Select(row => row.Id)
+            .ToArray();
+
+        return new ListedJobAdSnapshot(
+            asOf,
+            Array.ConvertAll(parts, IReadOnlyList<Guid> (part) => part.AsReadOnly()),
+            Array.AsReadOnly(catalogue));
     }
 
     /// <summary>The ids of one part, numbered from 1, in id order.</summary>
@@ -54,7 +74,13 @@ public sealed class ListedJobAdSnapshot
         && now - AsOf <= ListedJobAdSnapshotLimits.MaxAge;
 }
 
-/// <summary>Where the sitemap query reads the newest snapshot. It never reads the database; null is "no read has succeeded yet".</summary>
+/// <summary>One listed ad as the snapshot's read projects it: its id, and the date that orders the catalogue.</summary>
+public readonly record struct ListedJobAdRow(Guid Id, DateTimeOffset PublishedAt);
+
+/// <summary>
+/// Where the sitemap and the catalogue read the newest snapshot. It never reads the database; null is "no read has
+/// succeeded yet".
+/// </summary>
 public interface IListedJobAdSnapshotReader
 {
     ListedJobAdSnapshot? Current { get; }

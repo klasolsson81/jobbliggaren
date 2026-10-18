@@ -190,6 +190,14 @@ describe("the public catalogue's metadata", () => {
     expect(`${title} ${description} ${JSON.stringify(openGraph?.title)}`).not.toMatch(/\d/);
   });
 
+  it("titles an unavailable read as the error page it renders, never as a page that does not exist", async () => {
+    getPublicJobAdCatalogue.mockResolvedValue({ kind: "unavailable" });
+    const metadata = await generateMetadata(props());
+
+    expect(metadata.title).toBe(sv.fallback.errorTitle);
+    expect(metadata).not.toEqual(await notFoundMetadata());
+  });
+
   it("is the not-found metadata for a page that is not one, and for a page the API does not have", async () => {
     expect(await generateMetadata(props("abc"))).toEqual(await notFoundMetadata());
     getPublicJobAdCatalogue.mockResolvedValue({ kind: "notFound" });

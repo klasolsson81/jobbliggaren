@@ -25,7 +25,12 @@ export async function generateMetadata(props?: PageProps): Promise<Metadata> {
   if (param.kind !== "page") return notFoundMetadata();
 
   const result = await getPublicJobAdCatalogue(param.page);
-  if (result.kind !== "ok") return notFoundMetadata();
+  if (result.kind === "notFound") return notFoundMetadata();
+  if (result.kind === "unavailable") {
+    // The page throws and the group's error boundary answers; the tab says what that page says, never "not found".
+    const tFallback = await getTranslations("fallback");
+    return { title: tFallback("errorTitle") };
+  }
 
   const t = await getTranslations("publicjob.catalogue");
   const tLanding = await getTranslations("landing");

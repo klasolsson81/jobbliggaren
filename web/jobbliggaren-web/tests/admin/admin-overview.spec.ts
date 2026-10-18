@@ -111,12 +111,13 @@ test("date drill-down preserves dates through search, status, sorting and clears
   await expect(page.getByRole("radio", { name: "Aktiva (2)", exact: true })).toHaveAttribute("aria-checked", "true");
 });
 
-for (const [filter, query] of [
-  ["registration period", new URLSearchParams(REGISTRATION_PERIOD).toString()],
-  ["status=Suspended", "status=Suspended"],
+for (const [filter, query, selected] of [
+  ["registration period", new URLSearchParams(REGISTRATION_PERIOD).toString(), "Alla (4)"],
+  ["status=Suspended", "status=Suspended", "Avstängda (0)"],
 ]) {
   test(`header users navigation resets directory filters: ${filter}`, async ({ page }) => {
     await page.goto(`/admin/anvandare?${query}`);
+    await expect(page.getByRole("radio", { name: selected, exact: true })).toHaveAttribute("aria-checked", "true");
     await expect(page.getByRole("table", { name: "Konton" })).not.toContainText("konto.c@example.test");
     await page.getByRole("link", { name: "Användare", exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/anvandare$/);

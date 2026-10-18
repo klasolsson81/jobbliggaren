@@ -137,10 +137,12 @@ const account = (n: number, local: string, status: string, extra: Record<string,
   ...extra,
 });
 
+export const ACCOUNT_D_DELETION_EARLIEST = daysAgo(-28, 0).slice(0, 10);
+
 /** The account directory's answers (#1974): one search page with its counts, and one account's details. */
 export const ACCOUNTS = [
   account(5, "konto.e", "Active"),
-  account(4, "konto.d", "PendingDeletion", { deletionEarliest: "2026-10-30" }),
+  account(4, "konto.d", "PendingDeletion", { deletionEarliest: ACCOUNT_D_DELETION_EARLIEST }),
   account(3, "konto.c", "ProfileMissing", { registeredAt: null }),
   account(2, "konto.b", "Active", { emailConfirmed: false, lastLoginAt: null, lastActiveAt: null }),
   { ...account(1, "admin", "Active"), role: "Admin" },

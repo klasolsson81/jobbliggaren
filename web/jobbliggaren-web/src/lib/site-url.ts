@@ -1,6 +1,6 @@
 /**
  * The canonical absolute base URL of the public site, used by the SEO routes
- * (`app/robots.ts`, `app/sitemap.ts`) to emit absolute URLs. Mirrors the
+ * (`app/robots.ts`, the sitemap's files under `app/(sitemaps)/`) to emit absolute URLs. Mirrors the
  * `metadataBase` fallback in `app/layout.tsx` (single convention): production sets
  * `NEXT_PUBLIC_SITE_URL`; the dev fallback keeps local/dev builds valid.
  *

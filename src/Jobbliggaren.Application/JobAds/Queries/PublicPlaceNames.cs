@@ -22,10 +22,14 @@ internal static class PublicPlaceNames
         if (ids.Count == 0)
             return FrozenDictionary<string, string>.Empty;
 
-        var resolved = await taxonomy.ResolveLabelsAsync(ids, cancellationToken);
-        return resolved
-            .Where(l => l.Label is not null)
-            .ToDictionary(l => l.ConceptId, l => l.Label!, StringComparer.Ordinal);
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var resolved in await taxonomy.ResolveLabelsAsync(ids, cancellationToken))
+        {
+            if (resolved.Label is { } label)
+                names.Add(resolved.ConceptId, label);
+        }
+
+        return names;
     }
 
     public static string? NameOf(IReadOnlyDictionary<string, string> names, string? conceptId) =>

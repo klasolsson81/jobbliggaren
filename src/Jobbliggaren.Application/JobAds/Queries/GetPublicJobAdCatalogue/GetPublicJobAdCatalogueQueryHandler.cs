@@ -38,7 +38,7 @@ public sealed class GetPublicJobAdCatalogueQueryHandler(
             return Available([], snapshot.Count, query.Page);
 
         // List<JobAdId>.Contains on the key, composed with the publication predicate, translates on Postgres:
-        // GetPublicJobAdCatalogueQueryHandlerTests (Testcontainers) is the oracle. A narrow row, never the entity, because
+        // PublicJobAdCatalogueReadTests (Testcontainers) is the oracle. A narrow row, never the entity, because
         // RawPayload carries the org.nr and the pre-scrub text.
         var typedIds = slice.Select(id => new JobAdId(id)).ToList();
         var rows = await db.JobAds

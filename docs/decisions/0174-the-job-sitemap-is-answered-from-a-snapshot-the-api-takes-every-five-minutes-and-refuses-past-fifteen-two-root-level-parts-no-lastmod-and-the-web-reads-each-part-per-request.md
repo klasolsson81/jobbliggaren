@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-18
 **Status:** Accepted 2026-10-18 (the CTO's ruling under CLAUDE.md §9.2 and Klas's four answers of the same day, D8). The ADR 0166 amendment of the same date, which carries the legal
-outcome (D8), is Proposed until `security-auditor` signs it at her scoped re-check of the PR's final head. The merge waits for that signature, because a merge is a go-live (ADR 0154).
+outcome (D8), is Accepted: `security-auditor` signed it at her scoped re-check of the PR on 2026-10-18. The merge waits for that signature, because a merge is a go-live (ADR 0154).
 **Deciders:** Klas Olsson (controller and product owner; four answers in chat on 2026-10-18, recorded in D8) · `senior-cto-advisor`, "the CTO" below (decision-maker under CLAUDE.md §9.2;
 ruling on forks F1–F5, report-only; `docs/reviews/2026-10-18-2090-s4-plan-cto.md`) · `security-auditor` (plan read, report-only; `docs/reviews/2026-10-18-2090-s4-plan-security-auditor.md`:
 her verdict, M1–M3, m1–m4 and the escalation) · `dotnet-architect` (form read, report-only; `docs/reviews/2026-10-18-2090-s4-plan-dotnet-architect.md`)

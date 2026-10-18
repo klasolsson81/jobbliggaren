@@ -380,7 +380,7 @@ fire for S3) and "Ja, godkänt (Rek.)" (this amendment).
 
 ADR 0166 remains **Accepted** for D1–D11; this amendment is **Accepted** (approved by Klas and signed by `security-auditor`, both 2026-10-17).
 
-## Amendment 2026-10-18 (#2090 S4, ADR 0174) — the D10 re-take for the job sitemap; approved by Klas 2026-10-18, Proposed until signed by `security-auditor`
+## Amendment 2026-10-18 (#2090 S4, ADR 0174) — the D10 re-take for the job sitemap; approved by Klas 2026-10-18, signed by `security-auditor` 2026-10-18
 
 D1–D11 and the earlier amendments stand and nothing above is rewritten. D10's trigger 1 names "the S4 sitemap", so it fires for S4 by its own text and there is nothing to interpret. The
 conclusion is withdrawn **for the sitemap only**: the public list of every listed address, and the systematic discovery it produces. The page keeps its conclusion. The signatures of
@@ -477,9 +477,6 @@ the driving session through AskUserQuestion). His four answers, quoted without e
 4. "Ja, behåll (Rek.)": outside S4, the signed-in page keeps showing an ended ad while an erased ad answers 410. It is recorded in the ADR 0106 amendment of the same date and does not
    decide whether S4 can merge.
 
-**Signature:** PENDING — to be entered when `security-auditor` signs, at her scoped re-check of the S4 PR's final head, read with ADR 0174 D1–D5 as delivered. It lapses with any change to
-D1–D5 and with any D10 trigger, 8 and 9 included. It renews, for the page scope, her signature of 2026-10-12 (D1–D11 and signature 3; the notice is unchanged) and her signature of
-2026-10-17 (the S3 amendment). It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override.
+**Signature:** `security-auditor`, 2026-10-18, on her scoped re-check of PR [#2168](https://github.com/klasolsson81/jobbliggaren/pull/2168) at head `e7cf4bdbb`: signs this amendment, items (i)–(ix), D10 triggers 8 and 9 and the trigger-5 reading in (viii), read with ADR 0174 D1–D6 as delivered and with the second addendum to DPIA #456 §8-B as Klas approved its text on 2026-10-18 (local): every sitemap entry carries `loc` and nothing else, and a job entry's `loc` is the page's canonical from `publicJobAdUrl`; membership is from `JobAdPublication.IsListed` only; the API refuses a snapshot older than 15 minutes or stamped more than 5 seconds ahead of its clock, a read that fails or exceeds the ceiling publishes nothing, and a read that began earlier never replaces one that began later; every answer of `listed-ids` and of the four sitemap files is `no-store`, and the web caches nothing; the wire is exactly `ids`; `public-job-ad-listed-ids` allows 6 per 60 s per client address; nothing is pushed to anyone. It renews, for the page scope, her signature of 2026-10-12 (D1–D11 and signature 3; the notice is unchanged) and her signature of 2026-10-17 (the S3 amendment). It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override. It lapses with any D10 trigger that fires after it, 5, 8 and 9 included (trigger 1's "the S4 sitemap" is the firing this amendment answers), and with any change to this amendment's text, to the properties above or to that addendum; a merge-day reading appended to (ix) under its own rule does not reopen it unless its validated count is above 0, which is trigger 2. The edit that writes this line and marks the amendment Accepted does not reopen it.
 
-ADR 0166 remains **Accepted** for D1–D11 for the page. This amendment is **Proposed** until the signature above is entered; Klas approved it on 2026-10-18. The edit that enters the
-signature and marks the amendment Accepted does not reopen it.
+ADR 0166 remains **Accepted** for D1–D11 for the page; this amendment is **Accepted** (approved by Klas and signed by `security-auditor`, both 2026-10-18).

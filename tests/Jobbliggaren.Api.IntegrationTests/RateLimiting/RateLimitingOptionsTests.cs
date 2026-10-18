@@ -72,6 +72,18 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_PublicJobAdListedIds_Is6Per60sIn6Segments()
+    {
+        // ADR 0174 — the job sitemap's parts, IP-partitioned TokenBucket. security-auditor approved these
+        // numbers (2026-10-18); a change is a recalibration, not a refactor.
+        var sut = new RateLimitingOptions();
+
+        sut.PublicJobAdListedIds.PermitLimit.ShouldBe(6);
+        sut.PublicJobAdListedIds.WindowSeconds.ShouldBe(60);
+        sut.PublicJobAdListedIds.SegmentsPerWindow.ShouldBe(6);
+    }
+
+    [Fact]
     public void Defaults_AuthLoose_Is30Per60s()
     {
         var sut = new RateLimitingOptions();

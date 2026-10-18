@@ -238,3 +238,18 @@ dependency or deploy file.
 - Code: `src/Jobbliggaren.Application/Admin/ServiceObservations/` · `src/Jobbliggaren.Api/Hosting/ServiceObservationService.cs` ·
   `src/Jobbliggaren.Api/Endpoints/AdminServiceObservationEndpoints.cs` · `src/Jobbliggaren.Infrastructure/Admin/Services/SqlImportRunRecords.cs`
 - ADR 0150, 0157, 0158, 0154, 0023, 0009 · AGENTS.md §2.1, §3, §5 · CLAUDE.md §9.2
+
+## Amendment 2026-10-18 (#2090 S4, ADR 0174) — D2: the third sampler has arrived, and the loop is shared
+
+D1–D8 stand and nothing above is rewritten. D2 said that "the two Api samplers are not merged into one loop" and that "the third sampler is what would justify the extraction", and the
+Alternatives list deferred a shared loop to the third. The listed-ad snapshot sampler of ADR 0174 is the third sampler hosted in the Api, so the loop is shared.
+
+- **What moved.** `SamplerLoop` (`Api/Hosting/SamplerLoop.cs`) owns the control flow: the first tick at start, the `PeriodicTimer`, the shutdown filter and the nested guard around the
+  failure report. `HostObservationService`, `ServiceObservationService` and the new `ListedJobAdSnapshotService` run on it. It was extracted in a preparatory commit of the S4 PR
+  (`bd0f9fdc2`), before any S4 behaviour.
+- **What each service keeps.** Its own log line and event id: 6224 for the host service (the exception), 6232 for this ADR's services sampler (the exception's type name) and 6233 for the
+  listed-ad service (the type name). The synchronous and the asynchronous tick stay two shapes, `Guard` and `GuardAsync`.
+- **Zero behaviour change** is shown by the two existing services' tests, which pass unchanged.
+- **Unchanged from D2:** composition is the Api's alone, and the Worker keeps a guard of its own (`WorkerMemoryTrendService`), because it cannot reference the Api.
+
+ADR 0159 remains **Accepted**.

@@ -477,6 +477,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // shares the 127.0.0.1 bucket.
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRead__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRead__WindowSeconds", "60");
+        // ADR 0174 — the job sitemap's parts, the same 127.0.0.1 bucket for every anonymous test of them.
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdListedIds__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdListedIds__WindowSeconds", "60");
         // #1974 — the admin account directory's reads share one bucket per admin, and a paging or sorting
         // test calls them more often than the burst allows.
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__PermitLimit", "10000");
@@ -558,6 +561,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRead__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdListedIds__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdListedIds__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__FeedbackSubmit__PermitLimit", null);

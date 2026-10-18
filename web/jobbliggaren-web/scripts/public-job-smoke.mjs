@@ -1,15 +1,19 @@
 /**
- * The public job page's HTTP contract, measured against a production build (ADR 0165, SEO epic #2090 S2).
+ * The public job page's and the sitemap's HTTP contract, measured against a production build (ADR 0165 and ADR 0174,
+ * SEO epic #2090 S2 and S4).
  *
- * Why this is a script and not a unit test: the page's statuses are the contract a crawler reads (a 410 drops the
- * URL from an index, a 503 does not), and they are produced by a Next feature with no documented status contract:
+ * Why this is a script and not a unit test: the statuses are the contract a crawler reads (a 410 drops the URL from an
+ * index, a 503 does not), and the page's are produced by a Next feature with no documented status contract:
  * `NextResponse.rewrite(url, { status })` in the proxy. It carried the status on Next 16.3.8 (`next start`,
- * 2026-10-11), and only a real server shows whether a later Next still does. `e2e.yml` is observe-only, so this
- * runs in the blocking `frontend` job of `build.yml`, right after `pnpm build`.
+ * 2026-10-11), and only a real server shows whether a later Next still does. The sitemap's job parts must be answered per
+ * request from the backend, never prerendered at build, which only a production server shows. `e2e.yml` is
+ * observe-only, so this runs in the blocking `frontend` job of `build.yml`, right after `pnpm build`.
  *
- * It starts a stub backend on a free port, starts the standalone server the image runs against it, and asserts over HTTP. The stub
- * answers by id, so the cases are fixed: a listed ad, an ended and an erased one (both 410), an unknown one,
- * the budget (429), an outage (500), and the two races where the render's read disagrees with the probe's.
+ * It starts a stub backend on a free port, starts the standalone server the image runs against it, and asserts over
+ * HTTP. The stub answers the detail by id, so those cases are fixed: a listed ad, an ended and an erased one (both
+ * 410), an unknown one, the budget (429), an outage (500), and the two races where the render's read disagrees with
+ * the probe's. It answers the sitemap's parts in a mode a check sets: the ids, an outage, the budget, its own 503, ids
+ * in the wrong case, or an answer held past the web's timeout.
  *
  * Usage (after `pnpm build`):  node scripts/public-job-smoke.mjs
  */
@@ -62,8 +66,48 @@ const GONE_BODY = JSON.stringify({ title: "Annonsen är inte längre tillgängli
 const seen = [];
 const hitsByAd = new Map();
 
+/** The sitemap parts' ids, each in the part its first hex digit puts it in (0–7 → 1, 8–f → 2; ADR 0174). */
+const LISTED_IDS = { 1: [ID.listed], 2: [ID.listedNoKommun] };
+/** How the stub answers a sitemap part; a check sets it, and the checks reset it to "ok". */
+const listedIds = { mode: "ok" };
+
+function answerListedIds(url, res, send) {
+  const part = Number(url.searchParams.get("part"));
+  const ids = LISTED_IDS[part] ?? [];
+  switch (listedIds.mode) {
+    case "ok":
+      return send(200, JSON.stringify({ ids }));
+    case "upperCase":
+      // Today's API cannot send this (System.Text.Json writes a Guid in lower case); a later API release could.
+      // An id with hex letters, so the upper-case form is a different string.
+      return send(200, JSON.stringify({ ids: [ID.hexCase.toUpperCase()] }));
+    case "budget":
+      return send(429, "{}", { "retry-after": "9" });
+    case "unavailable":
+      return send(503, "", { "retry-after": "60" });
+    case "timeout": {
+      // Held past the web's 5-second timeout, so only the web's own clock can end the read.
+      const held = setTimeout(() => {
+        if (!res.destroyed) send(200, JSON.stringify({ ids }));
+      }, 7_000);
+      res.on("close", () => clearTimeout(held));
+      return undefined;
+    }
+    default:
+      return send(500, "{}");
+  }
+}
+
 function stubHandler(req, res) {
   seen.push({ method: req.method, path: req.url, headers: { ...req.headers } });
+
+  const send = (status, body = "", headers = {}) =>
+    res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", ...headers }).end(body);
+
+  const url = new URL(req.url ?? "/", "http://stub");
+  if (url.pathname === "/api/v1/public/job-ads/listed-ids") {
+    return answerListedIds(url, res, send);
+  }
 
   const match = /^\/api\/v1\/public\/job-ads\/([0-9a-f-]{36})$/.exec(req.url ?? "");
   if (match === null) {
@@ -74,9 +118,6 @@ function stubHandler(req, res) {
   const id = match[1];
   const hit = (hitsByAd.get(id) ?? 0) + 1;
   hitsByAd.set(id, hit);
-
-  const send = (status, body = "", headers = {}) =>
-    res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", ...headers }).end(body);
 
   switch (id) {
     case ID.listed:
@@ -139,6 +180,12 @@ async function get(origin, path, init = {}) {
 
 const publicCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/"));
 const callsFor = (id) => publicCalls().filter((r) => r.path.endsWith(`/${id}`));
+const listedIdsCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/listed-ids"));
+
+/** Every `<loc>` of a sitemap file, as written. */
+const locsOf = (xml) => [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
+/** A `<loc>` names the public host the build was given; only its path is fetched from this server. */
+const pathOf = (loc) => new URL(loc).pathname;
 
 /** Every JSON-LD data block on a page, as text. */
 const jsonLdBlocks = (html) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => m[1]);
@@ -375,6 +422,87 @@ try {
     assert.doesNotMatch(res.body, /Disallow: \/jobb\/\s/);
     assert.doesNotMatch(res.body, /publik/);
     assert.doesNotMatch(res.body, /Google-Extended/i);
+    assert.match(res.body, /Sitemap: \S+\/sitemap\.xml/);
+  });
+
+  await check("the sitemap index lists the marketing part and both job parts at the root, uncacheable, reading no data", async () => {
+    seen.length = 0;
+    const res = await get(origin, "/sitemap.xml");
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("content-type") ?? "", /^application\/xml/);
+    assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+    assert.match(res.body, /<sitemapindex xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
+    assert.deepEqual(locsOf(res.body).map(pathOf), ["/sitemap-sidor.xml", "/sitemap-jobb-1.xml", "/sitemap-jobb-2.xml"]);
+    assert.equal(listedIdsCalls().length, 0);
+  });
+
+  await check("a HEAD on the sitemap index is a 200", async () => {
+    const res = await get(origin, "/sitemap.xml", { method: "HEAD" });
+    assert.equal(res.status, 200);
+  });
+
+  await check("the marketing part lists the 14 marketing pages, a loc each and nothing else", async () => {
+    const res = await get(origin, "/sitemap-sidor.xml");
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+    const paths = locsOf(res.body).map(pathOf);
+    assert.equal(paths.length, 14);
+    assert.equal(paths[0], "/");
+    assert.doesNotMatch(res.body, /<(lastmod|changefreq|priority)>/);
+  });
+
+  await check("the job parts list every listed id once, at its page's canonical path, read per request with the crawler's address and no credential", async () => {
+    listedIds.mode = "ok";
+    seen.length = 0;
+    const locs = [];
+    for (const part of [1, 2]) {
+      const res = await get(origin, `/sitemap-jobb-${part}.xml?part=9`, { headers: { cookie: "other=1", authorization: "Bearer x" } });
+      assert.equal(res.status, 200, `part ${part}`);
+      assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+      assert.match(res.body, /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
+      assert.doesNotMatch(res.body, /<(lastmod|changefreq|priority)>/);
+      locs.push(...locsOf(res.body));
+    }
+    assert.deepEqual(locs.map(pathOf).sort(), [`/jobb/${ID.listed}`, `/jobb/${ID.listedNoKommun}`].sort());
+    const calls = listedIdsCalls();
+    assert.deepEqual(calls.map((c) => new URL(c.path, "http://stub").searchParams.toString()), ["part=1&parts=2", "part=2&parts=2"]);
+    for (const call of calls) {
+      assert.equal(call.headers["x-forwarded-for"], CLIENT_IP);
+      assert.equal(call.headers.cookie, undefined);
+      assert.equal(call.headers.authorization, undefined);
+    }
+  });
+
+  await check("a job part's location is the public page, a 200 with no noindex", async () => {
+    listedIds.mode = "ok";
+    const part = await get(origin, "/sitemap-jobb-1.xml");
+    const [loc] = locsOf(part.body);
+    const res = await get(origin, pathOf(loc));
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("x-robots-tag"), null);
+    assert.match(res.body, new RegExp(`<link rel="canonical" href="${loc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
+  });
+
+  for (const [mode, retryAfter] of [["outage", "30"], ["budget", "9"], ["unavailable", "60"], ["upperCase", "30"], ["timeout", "30"]]) {
+    await check(`a job part the backend cannot give (${mode}) is a 503 with Retry-After ${retryAfter}, no body, never an empty part`, async () => {
+      listedIds.mode = mode;
+      try {
+        const res = await get(origin, "/sitemap-jobb-2.xml");
+        assert.equal(res.status, 503);
+        assert.equal(res.headers.get("retry-after"), retryAfter);
+        assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+        assert.equal(res.body, "");
+      } finally {
+        listedIds.mode = "ok";
+      }
+    });
+  }
+
+  await check("a job part the sitemap does not declare is a 404", async () => {
+    seen.length = 0;
+    const res = await get(origin, "/sitemap-jobb-3.xml");
+    assert.equal(res.status, 404);
+    assert.equal(listedIdsCalls().length, 0);
   });
 
   const failed = results.filter((r) => !r.ok);

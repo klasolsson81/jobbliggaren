@@ -844,6 +844,8 @@ describe("proxy — the matcher", () => {
     "/admin/anvandare",
     "/robots.txt",
     "/sitemap.xml",
+    "/sitemap-sidor.xml",
+    "/sitemap-jobb-1.xml",
     "/icon.svg",
     "/opengraph-image",
     "/twitter-image",

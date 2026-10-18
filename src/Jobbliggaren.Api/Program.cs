@@ -110,6 +110,7 @@ builder.Services.AddScoped<IAuthorizationHandler, AdminRoleAuthorizationHandler>
 builder.Services.AddJobbliggarenRateLimiting(builder.Configuration);
 builder.Services.AddHostObservation(builder.Configuration);
 builder.Services.AddServiceObservation(builder.Configuration);
+builder.Services.AddListedJobAdSnapshot();
 
 // A Hangfire client only, with no server: the API enqueues jobs that the Worker's Hangfire
 // server runs from the same storage, so Hangfire never sits in the request path (ADR 0023).

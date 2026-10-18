@@ -16,7 +16,7 @@ import { PROTECTED_PREFIXES } from "@/lib/auth/protected-routes";
  * mirroring the middleware gate's segment-boundary match `pathname === P || pathname.startsWith(P + "/")`
  * (the `isProtectedPath` predicate, added in the middleware half, PR #598).
  * A bare `Disallow: /cv` uses prefix semantics and would ALSO shadow the PUBLIC `/cv-granskning`
- * marketing page (which `sitemap.ts` lists as canonical) — the #583 bug. `/cv$` + `/cv/` block `/cv`
+ * marketing page (which the sitemap lists as canonical) — the #583 bug. `/cv$` + `/cv/` block `/cv`
  * and `/cv/...` while leaving `/cv-granskning` (and any future public sibling that shares an authed
  * prefix) crawlable. The `$` end-anchor and `/` boundary are honoured by Google/Bing/Yandex (RFC
  * 9309) and degrade safely: a `$`-unaware crawler treats `/cv$` as a literal no-op and still never

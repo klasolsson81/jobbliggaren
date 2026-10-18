@@ -75,6 +75,7 @@ Re-run it against such a fixture after any change to the query.
 | 2026-10-12 03:54-03:55 | Release 1627 (`e41eac850`, holds #2137) applied 01:49:35Z; the 02:00 snapshot ran on it, evidenced by `job_ads` autovacuum 02:05:51Z and the miss-tracking write 02:05:51Z (the worker was recreated 03:49Z by 1628, so its log is gone). Query `23cc0a4b9` (blob `297bfe6`) | 39 390 | 177 | **0** | shaped 0 / 177 / 0 / 0; validated 0 / 0 / 0 / 0 | 0 | Claude Code |
 | 2026-10-12 04:27 | Release 1628 (`9ca862013`, holds #2137), `--status` consistent before (04:27:09Z) and after (04:27:31Z); the 02:00 snapshot ran on 1627 (evidence above). Query blob `8c02e37` (comment-only change from `297bfe6`: the length claim on shaped_ads removed) | 39 409 | 177 | **0** | shaped 177 in the description, no row printed for the others; validated: no row printed (0) | 0 | Claude Code |
 | 2026-10-12 05:15 | Release 1628 (`9ca862013`), `--status` consistent before (05:14:58Z) and after (05:15:14Z), the merge day; same query blob `8c02e37` | 39 415 | 177 | **0** | shaped 177 in the description; validated: no row printed (0) | 0 | Claude Code |
+| 2026-10-18 01:27 | Release 1636 (`d7b242b12`), `--status` consistent (01:27:54Z); the S4 merge day (ADR 0166 Amendment 2026-10-18 (ix)); same query blob `8c02e37` | 42 223 | 231 | **0** | shaped 231 in the description; validated: no row printed (0) | 0 | Claude Code |
 
 The record is also posted on [#2090](https://github.com/klasolsson81/jobbliggaren/issues/2090) with the same date.
 

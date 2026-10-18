@@ -292,3 +292,17 @@ class of holder, which ADR 0166 states in its amendment of the same date.
 therefore partly shown; occupation group, the explainer links and related ads stay with S6.
 
 ADR 0165 remains **Accepted**.
+
+## Amendment 2026-10-18 (#2090 S4, ADR 0174) — D3: "S4 measures again" is carried out; D6: the sitemap is no longer unchanged
+
+D1–D7 and the earlier amendment stand and nothing above is rewritten. This amendment records two things the S4 PR settles; the reasoning is in ADR 0174.
+
+**1. D3: "S4 measures again" is carried out by ADR 0174 D5.** The page's numbers are unchanged: 60 per 60 s per IP (ADR 0160 D5). ADR 0174 D5 sets what is measured (rate-limit
+rejections per day on the job-detail endpoint, which the probe and the render both read, and the 503s per day that the site answers on `/jobb/<uuid>`), a dated baseline before the merge,
+two readings after, and the rule for when a raise is warranted. D3's "no sitemap before S4" ends with the S4 merge.
+
+**2. D6: "The sitemap is unchanged (S4)" no longer holds.** `app/sitemap.ts` is deleted. `/sitemap.xml` is now an index over a marketing part and two job parts, which are route handlers at the
+site root (ADR 0174 D3, D6). The `Sitemap:` line in `robots.txt` still names `/sitemap.xml`, which is now the index, and it is not changed. Nothing else in D6 changes: the `*` group, the
+training-crawler group and the absence of a `Disallow` for the internal prefix stand.
+
+ADR 0165 remains **Accepted**.

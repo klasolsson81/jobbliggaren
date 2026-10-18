@@ -1337,3 +1337,26 @@ trader's org.nr written into an ad's text is the holder's personnummer, and the 
 ## Amendment 2026-10-12 (#2090 S2) — LIA K3
 
 LIA K3, the legitimate-interest assessment for the public page, is the assessment written as ADR 0166 (first numbered 0164). Klas approved its conclusion as controller on 2026-10-12, in the session's chat, and answered ADR 0166 D8 with an addendum to DPIA #456 §8-B. K3 is closed by that approval. The Art. 9 override in ADR 0166's Amendment 2026-10-11 is not part of it. K4 (the notice copy) and the other STOPP points are untouched.
+
+## Amendment 2026-10-18 (#2090 S4, ADR 0174) — D9 read-path table: `ListedJobAdSnapshotSampler`; and the premise of the signed-in ended/erased difference
+
+**(a) The D9 table gains one row.** ADR 0174 adds a site that projects `JobAd` ids for the anonymous job sitemap (`GET /api/v1/public/job-ads/listed-ids`). The row is added here, as the
+amendment of 2026-10-10 added its row, and the table is not restated.
+
+| Site | Surface | Projects | Gated on `Status != Erased`? | Issue |
+|---|---|---|---|---|
+| `ListedJobAdSnapshotSampler` | Anonymous public sitemap (through `listed-ids`) | Id only | ✅ Yes — `JobAdPublication.IsListed` (ADR 0174), the SQL form of `Classify`: it admits only Active ads imported from the published source whose deadline has not passed, so an Erased row is never read | — |
+
+- The site is registered `ActiveOnly` in `JobAdLifecycleReadRegistry` (ADR 0113), as `ListedJobAdSnapshotSampler.SampleAsync`.
+- **Tier B is how an erasure is honoured on the sitemap.** The public page answers the neutral 410 from the moment of erasure, and the address leaves the list at the next snapshot, within
+  15 minutes at the most (ADR 0174 D1). The list carries an address and not the ad, so a crawler that follows it in that window gets the 410. Nothing can re-import an Erased row (D7), so
+  the window is the only gap.
+
+**(b) The premise of the signed-in difference.** The amendment of 2026-10-10 kept this ADR's acceptance of the 200-versus-410 difference on the signed-in surface "because only signed-in
+users can see the difference", and ADR 0160 D3 added that registration was closed (#734). Registration has been open by compose default since #2121 (2026-10-11; `Auth__RegistrationsOpen`
+in `deploy/docker-compose.yml`), so that ground no longer holds as written. A person who registers can see, for an ad they have seen, whether it was erased on request, and see it more
+clearly there than the sitemap can show (`security-auditor`, 2026-10-18). **Klas keeps the difference** (2026-10-18, "Ja, behåll (Rek.)"): the signed-in `GET /api/v1/job-ads/{id}` still
+shows an ended ad and answers 410 for an erased one. A complaint reopens the question. Removing the difference would cost signed-in users the ended ads. The value that the registration
+setting has on the box was **not measured** for this amendment; the compose default is the only source read. This answer does not decide whether S4 can merge.
+
+No supersession: ADR 0106 remains **Accepted**.

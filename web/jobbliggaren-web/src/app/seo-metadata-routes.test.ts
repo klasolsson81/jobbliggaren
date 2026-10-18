@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { SITE_URL } from "@/lib/site-url";
 import robots from "./robots";
-import sitemap from "./sitemap";
+import { marketingSitemapLocs } from "@/lib/seo/marketing-sitemap";
+import { urlsetXml } from "@/lib/seo/sitemap-xml";
 import { PROTECTED_PREFIXES } from "@/lib/auth/protected-routes";
 
-// SEO foundation (#264) — pins the /robots.txt + /sitemap.xml App Router metadata routes:
-// the public marketing surface is indexable, the authed app + API + /gast demo are not, and
-// every emitted URL is absolute (SITE_URL-prefixed).
+// SEO foundation (#264) — pins /robots.txt and the sitemap's marketing part (ADR 0174): the public
+// marketing surface is indexable, the authed app + API + /gast demo are not, and every emitted URL is
+// absolute (SITE_URL-prefixed).
 
 /**
  * Google's matching, as robots.txt documents it (developers.google.com/search/docs/crawling-indexing/robots/
@@ -135,9 +136,8 @@ describe("robots.ts", () => {
   });
 });
 
-describe("sitemap.ts", () => {
-  const entries = sitemap();
-  const urls = entries.map((e) => e.url);
+describe("the sitemap's marketing part", () => {
+  const urls = marketingSitemapLocs();
 
   it("lists exactly the canonical public marketing pages, all absolute", () => {
     expect(urls).toEqual([
@@ -166,13 +166,10 @@ describe("sitemap.ts", () => {
     }
   });
 
-  it("gives the landing the highest priority + a tighter change frequency", () => {
-    const landing = entries.find((e) => e.url === SITE_URL);
-    expect(landing?.priority).toBe(1);
-    expect(landing?.changeFrequency).toBe("weekly");
-    for (const e of entries.filter((x) => x.url !== SITE_URL)) {
-      expect(e.priority).toBe(0.7);
-      expect(e.changeFrequency).toBe("monthly");
-    }
+  it("carries a loc for each page and nothing else: Google ignores priority and changefreq, and no lastmod is trustworthy", () => {
+    const xml = urlsetXml(urls);
+
+    expect(xml.match(/<loc>/g)).toHaveLength(urls.length);
+    expect(xml).not.toMatch(/<(lastmod|changefreq|priority)>/);
   });
 });

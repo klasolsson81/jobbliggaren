@@ -10,7 +10,7 @@ answers an adversarial check of it, report-only; `docs/reviews/2026-10-18-1663-p
 (form read, report-only; `…-plan-architect.md`) · the adversarial check (`…-plan-check.md`: twelve gaps hold and one holds in part; each is answered in the addendum). Klas's
 standing directions are applied here, not re-decided: the notification doctrine of 2026-09-05 (epic #1662: all three sources notify), his answer of 2026-10-12 (no "Visa alla" and
 nothing more in the bell until real users have given feedback) and his answer of 2026-10-17 that #2158 goes before #1663 (ADR 0173).
-**Amends:** ADR 0117 D1 (superseded in part) and ADR 0105 (RF-9 superseded, RF-7 extended to criteria). ADR 0162 (D1, D11, s10), ADR 0168 (D1, D9 and its lapse clause), ADR 0169
+**Amends:** ADR 0117 D1 (superseded in part) and ADR 0105 (RF-9 superseded, RF-7 extended to criteria). ADR 0162 (D1, D11, s10), ADR 0168 (D1, D5, D9 and its lapse clause), ADR 0169
 (D1', V20, lapse 1 and D4'), ADR 0173 (lapse 1, 4 and 9) and ADR 0125 (the restore-exposure grant, E2). In PR 2 also ADR 0018 (the `after()` residual list), ADR 0139 (the scan
 is a reader of the members; grant 4 re-measured) and ADR 0140 (Beslut 5's card gains a per-criterion pill). Each stays as the record and carries one header line that points here;
 the first seven are added with this ADR, the last three with PR 2's code. See "Amendments to other ADRs".
@@ -261,7 +261,7 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
   materialisation. A required key triggers CLAUDE.md §11's dev-boot contract. The cadence is configurable so #1664 does not need a second scan.
 - **The due set** is DISTINCT `UserId` over criteria with the `JobSeeker` existence checked through its query filter, so an account under deletion produces no hits (Minor 8; parity
   `CompanyWatchScanJob.cs:140-143`). There is no per-user Hangfire fan-out (Minor 9; `0161:246-247`, V7).
-- **Logs carry counts and user ids only.** Org.nr, a criterion label or code, and a `JobAdId` together with a `UserId` appear in no log, DTO or mail (B9; `0161:244-247`, V5 and V6).
+- Org.nr, a criterion label or code, and a `JobAdId` together with a `UserId` appear in no log, DTO or mail (B9; `0161:244-247`, V5 and V6).
   The new scan and port files go in `RawOrgNrReadingSourcePaths` (`OrganizationNumberSurfacingGuardTests.cs:58`).
 - **Worker wiring** is covered by a Worker integration test resolved through the real composition root (`ValidateOnBuild` is false); `RecurringJobIds.All` goes from 21 to 22.
 
@@ -288,8 +288,7 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
   user through their Branschbevakning, and a restored backup can show it.
 - **The per-user magnitude, as the E2 text required.** A user's stock is at most the sum, over their 20 criteria at most, of the Active ads of each criterion's 2 500 member companies at
   most. The unique key makes one (criterion, ad) one row, and the purge of D10 bounds the stock to Active ads. **The ceiling is 20 × the Active ads**; the closest count measured is
-  42 235 listed ads on the box at 07:09Z on 2026-10-18 (counts only; `docs/sessions/2026-10-17-1900-seo-s4-job-sitemap-2167.md`), so the ceiling is about 845 000 rows, which no real
-  criterion set approaches because a criterion is capped at 2 500 companies and not at the corpus. That figure is derived and is a ceiling; **PR 2 measures the realistic figure** and
+  42 235 listed ads on the box at 07:09Z on 2026-10-18 (counts only; `docs/sessions/2026-10-17-1900-seo-s4-job-sitemap-2167.md`); **PR 2 measures the realistic figure** and
   records it in the register entry.
 
 ### D13 — Mail is not in #1663; the conditions every criterion mail sender carries (F1; `security-auditor` S2, S3; Klas, answers 2 and 3)
@@ -391,7 +390,7 @@ Each target stays as the record and gets one dated header line that points here.
 - **ADR 0105:** RF-9 (9C, the criteria-notify freeze) superseded by Klas's directive of 2026-09-05; RF-7 (7C) extended to criterion hits; RF-3 stands.
 - **ADR 0125:** the restore-exposure list covers the Branschbevakning hit table (E2).
 - **ADR 0162:** D1 (a third source and its place), D11 (the "Visa alla" trigger is answered by Klas's 2026-10-12 answer), s10 (the buckets are re-derived when the source is built).
-- **ADR 0168:** D1 ("the two source classes" becomes "the source classes"), D9 (the "Visa alla" due-date is answered) and the lapse clause that names #1663, which has fired.
+- **ADR 0168:** D1 ("the two source classes" becomes "the source classes"), D5 (a third switch, on D5's terms: D8), D9 (the "Visa alla" due-date is answered) and the lapse clause that names #1663, which has fired.
 - **ADR 0169:** D1' and V20 and lapse 1 ("the two source classes" becomes "the source classes"); D4' is answered, since the criterion source implements `DismissRowAsync`.
 - **ADR 0173:** lapse 1 (answered by D8's order), lapse 4 (answered by D3's bound) and lapse 9 (answered by PR 3's measurement).
 
@@ -408,8 +407,7 @@ Three PRs on `feat/smart-watch-scan` and its successors, one session each; PR 1 
     helper, proposed as `Application/Common/Notifications/AcknowledgementWindow.cs`; the follow handler moves onto it and its tests stay unchanged and green.
   - The grade helper to a neutral home that the follow and the Branschbevakning sides share (`Application/Matching/Queries/` proposed; `dotnet-architect` confirms the name), with
     behaviour unchanged.
-  - The three NotificationFeed test seeders extracted as static helpers that take the factory or the client, with no shared base class; **the consent path stays a parameter** so the
-    one-per-ad class's premise, consent only through its own endpoint, stands (AGENTS.md §5, Tests); a fourth copy is a reject.
+  - The three NotificationFeed test seeders extracted as static helpers that take the factory or the client, with no shared base class; a fourth copy is a reject.
   - The web learns the kind and the segment (D9), behind the `hotspot:i18n` token (held by #2166 at the time of writing).
   - The two spellings of the old name in `CompanyWatchCriterionMaterialiser.cs:433` (an operational log) and `ListCompanyWatchCriteriaQuery.cs:9` (a comment) become Branschbevakning.
   - The DPIA Part D addendum is drafted and goes to `security-auditor` and then to Klas (D12).

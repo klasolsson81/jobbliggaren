@@ -398,6 +398,12 @@ services:
       Auth__OAuth__GitHub__ClientSecret_FILE: ${AUTH_OAUTH_GITHUB_CLIENT_SECRET_FILE:-}
       Auth__OAuth__LinkedIn__ClientId: ${AUTH_OAUTH_LINKEDIN_CLIENT_ID:-}
       Auth__OAuth__LinkedIn__ClientSecret_FILE: ${AUTH_OAUTH_LINKEDIN_CLIENT_SECRET_FILE:-}
+      # The delivery read key (#1981 PR 2): a Scaleway key of its own that reads every recipient's address, so
+      # api's alone. Inline and never in x-app-email, which the worker inherits, and its file lies in the
+      # api-only mount below, never in the shared secrets directory: the worker egresses. Empty by default and
+      # never `:?`: a blank pointer leaves the key absent, which the page shows as not configured, never a
+      # refused start. Pinned by DeployComposeScalewayReadKeyTests; the inject-first order is in deploy/.env.example.
+      Email__ScalewayRead__SecretKey_FILE: ${EMAIL_SCALEWAY_READ_SECRET_KEY_FILE:-}
       # Read by IdempotentAdminRoleSeeder at every Api START, never at registration: an
       # account created after this boot receives the role on the NEXT restart while the role
       # has no holder, and the boot in between logs "ingen matchande user hittades". Blank
@@ -447,6 +453,17 @@ services:
         read_only: true
         bind:
           create_host_path: true
+      # #1981 PR 2 — the delivery read key's directory, mounted into `api` and no other service, and never a parent
+      # or child of another bind source; DeployComposeScalewayReadKeyTests pins both. `create_host_path: false`, as
+      # for the Redis mounts: a secret directory Docker made itself would be 0755 rather than closed. Its absence
+      # still never stops api: jobbliggaren-reconcile.sh creates it empty before every apply, the tmpfiles line at
+      # every boot, and the injection on every run.
+      - type: bind
+        source: /run/jobbliggaren/api-secrets
+        target: /run/api-secrets
+        read_only: true
+        bind:
+          create_host_path: false
     mem_limit: 1024m
     # B-1 POSTURE, and do not remove this line. ADR 0050 Amendment 2026-08-04 §2
     # condition 4 attributes it explicitly: `mem_limit` binds only the memory axis, so a

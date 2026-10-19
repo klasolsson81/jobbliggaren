@@ -132,6 +132,15 @@ readonly -a OAUTH_CLIENT_SECRETS=(
   "Auth__OAuth__LinkedIn__ClientSecret|LINKEDIN"
 )
 
+# THE DELIVERY READ KEY IS api's ALONE, AND SO IS ITS DIRECTORY (#1981 PR 2). It reads every recipient's
+# address at the provider and the worker egresses, so it never enters SECRETS_DIR, which the worker mounts:
+# API_SECRETS_DIR is bind-mounted into api and no other service. Conditional for the reason the rows above
+# are, and without an expiry line: its date is recorded in docs/runbooks/master-key-ops.md, and a dead read
+# key shows as its own closed state on the one page that uses it. The condition's one home is
+# scaleway_read_key_required below.
+readonly API_SECRETS_DIR=/run/jobbliggaren/api-secrets
+readonly SCALEWAY_READ_SECRET_KEY="Email__ScalewayRead__SecretKey"
+
 # THE EXPIRY LEAD TIME, AND WHY AN EXPIRY CHECK EXISTS AT ALL (#183 E4, security-auditor Major 3).
 # Scaleway caps an API key's life at one year and there is no instance-role equivalent, so the
 # SecretKey above is long-lived by construction and dies on a DATE. Nothing on this box would
@@ -165,11 +174,14 @@ readonly -a OAUTH_CLIENT_SECRETS=(
 # visits are irregular, so the window widens rather than narrows. The real lead time lives on
 # #1267, where it is a reminder and not a page.
 #
-# DELIBERATELY NOT AN IAM LOOKUP. Asking Scaleway for expires_at would need either IAM read on the
-# sending key — widening it past Transactional Email, the only product its permission
-# sets name (the dated console reading is ADR 0178's) — or a second credential with its
-# own lifecycle. A static date is weaker information and a stronger control: no network, no
-# credential, and it fails closed when unset.
+# DELIBERATELY NOT AN IAM LOOKUP. Asking Scaleway for expires_at needs IAM read, which neither mail
+# key holds. The sending key's policy, jobbliggaren-tem-send, holds TransactionalEmailEmailApiCreate
+# and TransactionalEmailDomainReadOnly, plus TransactionalEmailOfferSubscriptionReadOnly until that set
+# moves to the read application, jobbliggaren-tem-read (ADR 0178 lapse trigger 4). The read application
+# holds TransactionalEmailEmailReadOnly and TransactionalEmailOfferSubscriptionReadOnly. The dated
+# console readings are ADR 0178's and ADR 0179's. Granting IAM read to either key would widen a
+# Transactional Email key for the sake of a date. A static date is weaker information and a stronger
+# control: no network, no credential, and it fails closed when unset.
 #
 # NAMED EXPIRY_NOTICE_DAYS, never *_WARN_DAYS: "warn" reads as an alarm lead time, and that is how
 # the semantics would drift back onto the fault surface.
@@ -316,6 +328,12 @@ oauth_credentials_required() {
 oauth_provider_name() {
   local name="${1#Auth__OAuth__}"
   printf '%s' "${name%%__*}"
+}
+
+# One condition: the pointer is set, and EnvFileSecretsConfiguration throws on a path it cannot read. A
+# blank pointer leaves the read key absent, which api treats as not configured and starts on.
+scaleway_read_key_required() {
+  [[ -n "$(env_value EMAIL_SCALEWAY_READ_SECRET_KEY_FILE)" ]]
 }
 
 # THE ABSENCE DETECTORS, AND THERE ARE TWO OF THEM — ONE PER SET, ONE PER OWNER (#1329).
@@ -652,6 +670,40 @@ if [[ "${1:-}" == "--check" ]]; then
     fi
   done
 
+  # The read key, in api's own directory. Mode and file each stop api alone; the owner is posture, as for
+  # SECRETS_DIR above, and is held to the same constant because the same `install -d -o` sets it.
+  if scaleway_read_key_required; then
+    if [[ ! -d "$API_SECRETS_DIR" ]]; then
+      log "MISSING: $API_SECRETS_DIR (directory does not exist) — required because ${ENV_FILE} has"
+      log "         EMAIL_SCALEWAY_READ_SECRET_KEY_FILE set. api refuses to START. Re-run this script"
+      log "         without arguments to create it and inject the read key."
+      api_refuses=1
+    else
+      api_dir_mode=$(stat -c '%a' "$API_SECRETS_DIR" 2>/dev/null || echo "?")
+      if [[ "$api_dir_mode" != "${DIR_MODE#0}" ]]; then
+        log "WRONG MODE: $API_SECRETS_DIR is $api_dir_mode, expected ${DIR_MODE#0} — api's group cannot"
+        log "            traverse it, so api refuses to START on the read key's pointer."
+        api_refuses=1
+      fi
+      if ! api_dir_uid=$(stat -c '%u' "$API_SECRETS_DIR" 2>/dev/null); then
+        log "CANNOT ANSWER: $API_SECRETS_DIR exists but its owner could not be read, so whether root"
+        log "               still owns the directory holding the read key is unknown."
+        posture=1
+      elif [[ "$api_dir_uid" != "$SECRETS_DIR_OWNER" ]]; then
+        log "WRONG OWNER: $API_SECRETS_DIR is owned by uid $api_dir_uid, expected $SECRETS_DIR_OWNER (root)."
+        log "             api still reads the key; the wrong owner can SUBSTITUTE it. Repair the directory only:"
+        log "               sudo chown ${SECRETS_DIR_OWNER}:$(stat -c '%g' "$API_SECRETS_DIR") $API_SECRETS_DIR"
+        posture=1
+      fi
+      if ! has_usable_content "${API_SECRETS_DIR}/${SCALEWAY_READ_SECRET_KEY}"; then
+        log "MISSING: ${API_SECRETS_DIR}/${SCALEWAY_READ_SECRET_KEY} — required because ${ENV_FILE} has"
+        log "         EMAIL_SCALEWAY_READ_SECRET_KEY_FILE set. api refuses to START. Re-run this script"
+        log "         without arguments to inject it."
+        api_refuses=1
+      fi
+    fi
+  fi
+
   # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
   # the mail branch above gained lines injection cannot fix — an INVALID provider value and an
   # unset EMAIL_SCALEWAY_* variable are edits to deploy/.env, not missing files. Telling an operator
@@ -814,7 +866,7 @@ log "container runtime ids measured from the api image: uid=${uid} gid=${gid}"
 
 install -d -m "$DIR_MODE" -o "$SECRETS_DIR_OWNER" -g "$gid" "$SECRETS_DIR"
 
-# Destination and owner are parameters rather than globals: the two directories have different
+# Destination and owner are parameters rather than globals: the directories have different
 # readers (a container process vs a host root process) and therefore different owners, and a
 # single function that knew only one of them would have needed a second copy of the same careful
 # install/printf sequence.
@@ -959,6 +1011,38 @@ complete one"
   write_secret "$SECRETS_DIR" "$uid" "$gid" "$key" "$value"
   unset value
 done
+
+# The delivery read key, with the same discipline, into api's own directory. JBL_INJECT_SCALEWAY_READ
+# places it before the .env edit that would otherwise refuse the next api start; the order is in
+# deploy/.env.example. The pointer alone also prompts, which is what lists it after a reboot. Every run
+# makes the directory exist, empty and closed when nothing is placed, because api's mount of it carries
+# create_host_path: false. An existing directory is left as it is unless the key is placed.
+inject_scaleway_read_key() {  # inject_scaleway_read_key <uid> <gid>
+  local value
+  if ! scaleway_read_key_required && [[ "${JBL_INJECT_SCALEWAY_READ:-}" != "1" ]]; then
+    [[ -d "$API_SECRETS_DIR" ]] || install -d -m 0700 "$API_SECRETS_DIR"
+    log "No EMAIL_SCALEWAY_READ_SECRET_KEY_FILE is set in ${ENV_FILE} — the read key is not prompted for."
+    log "To place it BEFORE setting that pointer, which is the order that avoids a refused api start,"
+    log "re-run with JBL_INJECT_SCALEWAY_READ=1."
+    return 0
+  fi
+  install -d -m "$DIR_MODE" -o "$SECRETS_DIR_OWNER" -g "$2" "$API_SECRETS_DIR"
+  if has_usable_content "${API_SECRETS_DIR}/${SCALEWAY_READ_SECRET_KEY}"; then
+    log "${SCALEWAY_READ_SECRET_KEY} already present — skipping (remove the file first to replace it)"
+    return 0
+  fi
+
+  printf 'Value for %s (api only): ' "$SCALEWAY_READ_SECRET_KEY" >&2
+  read -rs value
+  printf '\n' >&2
+  [[ -n "${value//[[:space:]]/}" ]] || die "${SCALEWAY_READ_SECRET_KEY} was empty or whitespace-only — nothing
+written, and the run is aborted so a partially injected directory is never mistaken for a
+complete one"
+
+  write_secret "$API_SECRETS_DIR" "$1" "$2" "$SCALEWAY_READ_SECRET_KEY" "$value"
+  unset value
+}
+inject_scaleway_read_key "$uid" "$gid"
 
 # ---------------------------------------------------------------------------------------------
 # The host-only secrets (#197). Same prompt discipline, different destination and a root owner:

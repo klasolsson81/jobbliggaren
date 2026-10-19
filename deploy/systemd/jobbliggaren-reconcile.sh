@@ -53,6 +53,8 @@ readonly REDIS_POLICY=/opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-policy
 
 # The injected crypto secrets, and the shared measurement that says who may read them (#1295).
 readonly SECRETS_DIR=/run/jobbliggaren/secrets
+# What api alone may read (#1981 PR 2): its bind source in the compose file, mounted into no other service.
+readonly API_SECRETS_DIR=/run/jobbliggaren/api-secrets
 readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
 # Reads compose's resolved model in the binding step.
 readonly PYTHON=/usr/bin/python3
@@ -433,25 +435,49 @@ if [ "$mode" != stage ]; then
 fi
 
 if [ "$mode" = apply ] || [ "$mode" = prepare ]; then
+  # THE API-ONLY DIRECTORY EXISTS BEFORE ANY `up` (#1981 PR 2). api's bind of it carries create_host_path:
+  # false, and a box the read key never reached has no such directory, nor does any box after a reboot until
+  # tmpfiles or the injection made one. The record's deploy hash binds this script and the compose file into
+  # one release, so no apply runs the mount without its creator. Created empty and closed, 0700 and owned by
+  # root, which this unit runs as. An existing directory is never adjusted: the injection's 0710 grant must
+  # survive. A link or a non-directory is refused, because the mount would follow it.
+  if [ -L "$API_SECRETS_DIR" ] || { [ -e "$API_SECRETS_DIR" ] && [ ! -d "$API_SECRETS_DIR" ]; }; then
+    refuse "$API_SECRETS_DIR is not a plain directory, and api's bind mount would follow it; nothing is applied"
+  fi
+  if [ ! -d "$API_SECRETS_DIR" ]; then
+    install -d -m 0700 "$API_SECRETS_DIR" || cannot_answer "could not create $API_SECRETS_DIR; nothing is applied"
+    log "created $API_SECRETS_DIR, empty: api's bind source, which the read key's injection fills"
+  fi
+
   # ---------------------------------------------------------------------------------------------------------
   # THE SECRETS GATE (#1295). The injected secrets are owned by the ids of the image that was current AT
   # INJECTION TIME; this release may bring a different one. A base-image bump that moves uid or gid makes
   # the read-only mount unreadable — the directory is 0710 root:<gid>, the files 0400 <uid> — and the app
   # then reports a MISSING KEY rather than a permission problem. Measuring the ids RUNS the image, so it
   # follows the verification above, and a refusal is never preceded by a line announcing an apply.
+  #
+  # Both directories a container reads injected files from, each joining the gate only when it holds a file:
+  # the api-only one is empty and root's on a box the read key never reached, and its group would otherwise
+  # fail the comparison below for a key that does not exist.
   # ---------------------------------------------------------------------------------------------------------
   regular_secrets=()
-  for f in "$SECRETS_DIR"/*; do
-    [ -e "$f" ] || continue
-    if [ -f "$f" ]; then
-      regular_secrets+=("$f")
-    fi
+  secret_dirs=()
+  for dir in "$SECRETS_DIR" "$API_SECRETS_DIR"; do
+    held=0
+    for f in "$dir"/*; do
+      [ -e "$f" ] || continue
+      if [ -f "$f" ]; then
+        regular_secrets+=("$f")
+        held=1
+      fi
+    done
+    [ "$held" -eq 0 ] || secret_dirs+=("$dir")
   done
 
   if [ "${#regular_secrets[@]}" -eq 0 ]; then
     # NOT A HOLE: if nothing has been injected there is nothing an image bump can make unreadable, and a
     # later injection measures the image this run is about to apply.
-    log "no injected secrets in $SECRETS_DIR — ownership gate skipped (nothing to be unreadable)"
+    log "no injected secrets in $SECRETS_DIR or $API_SECRETS_DIR — ownership gate skipped (nothing to be unreadable)"
   else
     ids_out=$("$RUNTIME_IDS" "$api_digest") || {
       log "CANNOT ANSWER: could not measure the runtime ids from the verified api image."
@@ -467,26 +493,28 @@ if [ "$mode" = apply ] || [ "$mode" = prepare ]; then
       exit 2
     fi
 
-    dir_gid=$(stat -c '%g' "$SECRETS_DIR") || {
-      log "CANNOT ANSWER: could not stat $SECRETS_DIR. Nothing is applied."
-      exit 2
-    }
-    if [ "$dir_gid" != "$want_gid" ]; then
-      log "REFUSING: the incoming api image cannot TRAVERSE $SECRETS_DIR."
-      log "  directory group is $dir_gid; the image runs as gid $want_gid. The directory is 0710,"
-      log "  so group traversal is the container's only way in — api and worker would report a"
-      log "  missing master key. Nothing is applied; the running containers stay up."
-      log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). Run the two"
-      log "  re-owning commands below, then start the unit. The files form is a find, not a glob:"
-      log "  0710 denies the read to every non-root user and YOUR shell expands a glob before"
-      log "  sudo elevates, so a glob reaches chown unexpanded. -mindepth 1 keeps the directory"
-      log "  out — root owns it, and a recursive chown would take it."
-      log "  These lines are long and journalctl's pager chops them; read with --no-pager."
-      log "    sudo chown root:$want_gid $SECRETS_DIR"
-      log "    sudo find $SECRETS_DIR -mindepth 1 -maxdepth 1 -exec chown $want_uid:$want_gid {} +"
-      log "    sudo systemctl start jobbliggaren-reconcile.service"
-      exit 1
-    fi
+    for dir in "${secret_dirs[@]}"; do
+      dir_gid=$(stat -c '%g' "$dir") || {
+        log "CANNOT ANSWER: could not stat $dir. Nothing is applied."
+        exit 2
+      }
+      if [ "$dir_gid" != "$want_gid" ]; then
+        log "REFUSING: the incoming api image cannot TRAVERSE $dir."
+        log "  directory group is $dir_gid; the image runs as gid $want_gid. The directory is 0710,"
+        log "  so group traversal is the container's only way in — every container that mounts it"
+        log "  would report a missing secret. Nothing is applied; the running containers stay up."
+        log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). Run the two"
+        log "  re-owning commands below, then start the unit. The files form is a find, not a glob:"
+        log "  0710 denies the read to every non-root user and YOUR shell expands a glob before"
+        log "  sudo elevates, so a glob reaches chown unexpanded. -mindepth 1 keeps the directory"
+        log "  out — root owns it, and a recursive chown would take it."
+        log "  These lines are long and journalctl's pager chops them; read with --no-pager."
+        log "    sudo chown root:$want_gid $dir"
+        log "    sudo find $dir -mindepth 1 -maxdepth 1 -exec chown $want_uid:$want_gid {} +"
+        log "    sudo systemctl start jobbliggaren-reconcile.service"
+        exit 1
+      fi
+    done
 
     for f in "${regular_secrets[@]}"; do
       file_meta=$(stat -c '%u %a' "$f") || {
@@ -504,14 +532,14 @@ if [ "$mode" = apply ] || [ "$mode" = prepare ]; then
         log "  not do: 0710 denies the read to every non-root user and YOUR shell expands a glob"
         log "  before sudo elevates, so it would reach chown unexpanded."
         log "  These lines are long and journalctl's pager chops them; read with --no-pager."
-        log "    sudo find $SECRETS_DIR -mindepth 1 -maxdepth 1 -exec chown $want_uid:$want_gid {} +"
+        log "    sudo find ${f%/*} -mindepth 1 -maxdepth 1 -exec chown $want_uid:$want_gid {} +"
         log "    sudo systemctl start jobbliggaren-reconcile.service"
         exit 1
       fi
       if (((8#$file_mode & 0400) == 0)); then
         log "REFUSING: $f is owned by the right uid ($file_uid) but its mode is $file_mode —"
-        log "  the owner cannot read it, so api and worker would report a missing master key"
-        log "  anyway. Nothing is applied; the running containers stay up."
+        log "  the owner cannot read it, so every container that mounts it would report a missing"
+        log "  secret anyway. Nothing is applied; the running containers stay up."
         log "    sudo chmod 0400 $f"
         log "    sudo systemctl start jobbliggaren-reconcile.service"
         exit 1

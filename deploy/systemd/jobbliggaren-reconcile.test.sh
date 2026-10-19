@@ -34,7 +34,7 @@ TMPROOT=$(mktemp -d)
 readonly TMPROOT
 trap 'rm -rf "$TMPROOT"' EXIT
 readonly BIN="$TMPROOT/bin" REG="$TMPROOT/registry" TOOLS="$TMPROOT/tools" CHECKOUT="$TMPROOT/checkout"
-readonly SECRETS="$TMPROOT/secrets" VAR="$TMPROOT/var" ETC="$TMPROOT/etc"
+readonly SECRETS="$TMPROOT/secrets" API_SECRETS="$TMPROOT/api-secrets" VAR="$TMPROOT/var" ETC="$TMPROOT/etc"
 mkdir -p "$BIN" "$REG" "$TOOLS" "$CHECKOUT/deploy/redis" "$VAR" "$ETC"
 
 pass=0
@@ -73,11 +73,13 @@ sed -e "s#^readonly CHECKOUT=.*#readonly CHECKOUT=$CHECKOUT#" \
   -e "s#^readonly REDIS_SECRETS=.*#readonly REDIS_SECRETS=$TOOLS/redis-secrets.sh#" \
   -e "s#^readonly REDIS_POLICY=.*#readonly REDIS_POLICY=$TOOLS/redis-policy.py#" \
   -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
+  -e "s#^readonly API_SECRETS_DIR=.*#readonly API_SECRETS_DIR=$API_SECRETS#" \
   -e "s#^readonly RUNTIME_IDS=.*#readonly RUNTIME_IDS=$FIXTURE_IDS#" \
   -e "s#^readonly PYTHON=.*#readonly PYTHON=$TOOLS/python3#" \
   -e "s#/usr/bin/docker#docker#g" \
   "$SUT" >"$FIXTURE_SUT"
-for want in "readonly SECRETS_DIR=$SECRETS" "readonly RUNTIME_IDS=$FIXTURE_IDS" "readonly RECEIPT=$RECEIPT" \
+for want in "readonly SECRETS_DIR=$SECRETS" "readonly API_SECRETS_DIR=$API_SECRETS" \
+  "readonly RUNTIME_IDS=$FIXTURE_IDS" "readonly RECEIPT=$RECEIPT" \
   "readonly PIN_FILE=$PIN" "readonly CHECKOUT=$CHECKOUT" "readonly RECORD_TOOL=$TOOLS/jobbliggaren-release-record.sh" \
   "readonly PYTHON=$TOOLS/python3" "readonly PREPARATION=$VAR/identity-preparation.env" \
   "readonly PREPARATION_UID=$FIXTURE_UID" "readonly MIGRATE_OVERRIDE_PATTERN=$VAR/migrate.XXXXXX.json" \
@@ -258,6 +260,8 @@ if [ "$1" = compose ]; then
     exit 0 ;;
   up)
     printf '%s\n' "$*" >"$REG/up-args"
+    # api's bind source as `up` met it: create_host_path is false, so an absent one refuses api's start.
+    if [ -d "__API_SECRETS__" ] && [ ! -L "__API_SECRETS__" ]; then echo present; else echo absent; fi >"$REG/up-saw-api-secrets"
     [ -f "$REG/up-fails" ] && exit 1
     if [ -f "$REG/healthy-after" ] && [[ " $* " == *" --wait "* ]]; then
       wait_timeout=0
@@ -380,7 +384,11 @@ esac
 echo "unexpected docker invocation: $*" >&2
 exit 99
 EOF
-sed -i "s#__REG__#$REG#" "$BIN/docker"
+sed -i -e "s#__REG__#$REG#" -e "s#__API_SECRETS__#$API_SECRETS#g" "$BIN/docker"
+grep -qF "[ -d \"$API_SECRETS\" ]" "$BIN/docker" || {
+  echo "FIXTURE BROKEN: the docker stub does not look for the api-only directory — the up-ordering cases would be vacuous" >&2
+  exit 1
+}
 chmod +x "$BIN/docker"
 
 # `flock` is absent on some developer hosts (Git Bash); the acquire path is stubbed there, and the two
@@ -481,7 +489,8 @@ reset() {
   printf candidate >"$REG/policy-active"
   default_compose
   printf 'POSTGRES_APP_PASSWORD=x\n#IMAGE_TAG=sha-0000000\n' >"$ENVF"
-  rm -rf "$SECRETS"
+  rm -rf "$SECRETS" "$API_SECRETS"
+  rm -f "$REG"/up-saw-api-secrets
   printf '%s\n%s\n' "$(id -u)" "$(id -g)" >"$REG/ids-out"
   printf '0' >"$REG/ids-exit"
 }
@@ -1248,6 +1257,75 @@ else
     expect_exit 0 "dir group != file owner, and the gate reads the RIGHT one of each"
   fi
 fi
+
+echo "-- the api-only directory exists before any up (#1981 PR 2)"
+# api's bind of it carries create_host_path: false, so a source absent at `up` refuses api's start. The
+# box this guards is one the read key never reached: advanced to a release that carries the mount,
+# applied by the unit, with no injection run since. reset() leaves exactly that box.
+modes_honoured() { local probe; probe=$(mktemp -d "$TMPROOT/modeprobe.XXX"); chmod 0710 "$probe" 2>/dev/null || true; [ "$(stat -c '%a' "$probe")" = 710 ]; }
+fresh
+expect_exit 0 "a box the read-key injection never reached is applied"
+check '[ "$(cat "$REG/up-saw-api-secrets")" = present ]' "and up met api's bind source already there"
+check 'applied_is "$SHA1" && [ -f "$RECEIPT" ]' "and the release is recorded as applied"
+check '[ -d "$API_SECRETS" ] && [ -z "$(ls -A "$API_SECRETS")" ] && said "created $API_SECRETS"' "the directory is created empty, on the journal"
+if modes_honoured; then
+  check '[ "$(stat -c "%a" "$API_SECRETS")" = 700 ]' "and closed: 0700, as the tmpfiles line creates it"
+else
+  skipped=$((skipped + 1))
+  echo "  SKIP the created directory's mode: this filesystem does not honour chmod (CI: JBL_REQUIRE_MODE_CASES)."
+  [ "${JBL_REQUIRE_MODE_CASES:-0}" != "1" ] || { fail=$((fail + 1)); echo "  FAIL JBL_REQUIRE_MODE_CASES=1 but chmod is not honoured" >&2; }
+fi
+
+reset
+REC=$(release "$SHA1" 10)
+channel "$REC"
+expect_exit 0 "the stage mode applies nothing" --stage
+check '[ ! -e "$API_SECRETS" ]' "and creates nothing"
+
+# The injection's grant must survive every apply: an existing directory is never adjusted.
+fresh
+mkdir -p "$API_SECRETS"
+printf '%s' seeded >"$API_SECRETS/Email__ScalewayRead__SecretKey"
+chmod 0710 "$API_SECRETS" 2>/dev/null || true
+before=$(stat -c '%a %u %g' "$API_SECRETS")
+expect_exit 0 "a box holding the read key is applied when the incoming image can read it"
+check '[ "$(stat -c "%a %u %g" "$API_SECRETS")" = "$before" ] && ! said "created $API_SECRETS"' "and the directory is left exactly as the injection set it"
+
+fresh
+printf '%s' not-a-directory >"$API_SECRETS"
+expect_exit 1 "a file where the directory belongs refuses"
+check 'said "not a plain directory" && nothing_tagged && ! applied' "naming it, with nothing tagged or applied"
+
+fresh
+mkdir -p "$TMPROOT/elsewhere"
+if ln -s "$TMPROOT/elsewhere" "$API_SECRETS" 2>/dev/null && [ -L "$API_SECRETS" ]; then
+  expect_exit 1 "a link where the directory belongs refuses: the mount would follow it"
+  check 'said "not a plain directory" && nothing_tagged && ! applied' "with nothing tagged or applied"
+else
+  skipped=$((skipped + 2))
+  echo "  SKIP the linked-directory case: this filesystem does not create symlinks (CI runs it)."
+  [ "${JBL_REQUIRE_MODE_CASES:-0}" != "1" ] || { fail=$((fail + 1)); echo "  FAIL JBL_REQUIRE_MODE_CASES=1 but no symlink" >&2; }
+fi
+rm -rf "$API_SECRETS" "$TMPROOT/elsewhere"
+
+# The ownership gate reads the api-only directory too, once it holds a file. The crypto directory is
+# left empty, so the api-only one is the only reason either refusal below can fire.
+read_key_only() { fresh; rm -rf "$SECRETS"; mkdir -p "$API_SECRETS"; printf '%s' seeded >"$API_SECRETS/Email__ScalewayRead__SecretKey"; }
+read_key_only
+stub_ids "$(($(id -u) + 1))" "$(id -g)"
+expect_exit 1 "uid drift on the read key alone → refuses"
+check 'said "cannot READ the injected secrets" && grep -qF -- "sudo find $API_SECRETS -mindepth 1 -maxdepth 1 -exec chown" "$TMPROOT/out"' \
+  "naming the api-only directory in its bounded re-own"
+check 'nothing_tagged && ! applied' "and nothing is tagged or applied"
+
+read_key_only
+stub_ids "$(id -u)" "$(($(id -g) + 1))"
+expect_exit 1 "gid drift on the api-only directory → refuses"
+check 'said "cannot TRAVERSE $API_SECRETS" && said "chown root:$(($(id -g) + 1)) $API_SECRETS"' "naming that directory and keeping root as its owner"
+
+read_key_only
+expect_exit 0 "ids agree with the read key alone → the apply proceeds"
+check '[ -f "$REG/idmeasured" ]' "and the image WAS measured for it"
 
 echo
 echo "passed: $pass   failed: $fail   skipped: $skipped"

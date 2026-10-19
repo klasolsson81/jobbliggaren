@@ -72,6 +72,7 @@ public sealed class BackfillJobAdRequirementsJobTests(ApiFactory factory)
             CompanyName: "Region Stockholm",
             Description: "Beskrivning av tjänsten.",
             Url: $"https://example.com/jobs/{externalId}",
+            ApplicationUrl: null,
             PublishedAt: new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero),
             ExpiresAt: new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero),
             SanitizedRawPayload: payload,
@@ -124,7 +125,7 @@ public sealed class BackfillJobAdRequirementsJobTests(ApiFactory factory)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
     }

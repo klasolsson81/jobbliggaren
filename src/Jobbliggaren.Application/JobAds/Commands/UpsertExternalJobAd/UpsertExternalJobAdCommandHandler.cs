@@ -62,7 +62,8 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
         var importResult = JobAd.Import(
             item.Title, companyResult.Value, item.Description, item.Url,
             extRefResult.Value, item.SanitizedRawPayload, item.Facets,
-            item.DeclaredContacts, item.PublishedAt, item.ExpiresAt, clock, Extract);
+            item.DeclaredContacts, item.PublishedAt, item.ExpiresAt, clock, Extract,
+            applicationUrl: item.ApplicationUrl);
 
         if (importResult.IsFailure)
         {
@@ -116,7 +117,8 @@ public sealed partial class UpsertExternalJobAdCommandHandler(
         var updateResult = existing.UpdateFromSource(
             item.Title, item.Description, item.Url,
             item.SanitizedRawPayload, item.Facets, item.DeclaredContacts,
-            item.PublishedAt, item.ExpiresAt, Extract);
+            item.PublishedAt, item.ExpiresAt, Extract,
+            applicationUrl: item.ApplicationUrl);
 
         if (updateResult.IsFailure)
         {

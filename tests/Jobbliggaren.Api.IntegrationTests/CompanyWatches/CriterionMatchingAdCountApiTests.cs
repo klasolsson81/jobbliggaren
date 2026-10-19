@@ -356,7 +356,7 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
                 expiresAt: published.AddDays(60),
                 clock: new FixedClock(published.AddDays(-offset)),
                 declaredContacts: [],
-                extractTerms: TestKeywordExtraction.None);
+                applicationUrl: null, extractTerms: TestKeywordExtraction.None);
             import.IsSuccess.ShouldBeTrue($"seed: JobAd.Import måste lyckas ({import.Error?.Code})");
             db.JobAds.Add(import.Value);
             offset++;

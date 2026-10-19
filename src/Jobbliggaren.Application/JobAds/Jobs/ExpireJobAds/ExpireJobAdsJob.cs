@@ -65,10 +65,12 @@ public sealed partial class ExpireJobAdsJob(
                 // aggregate, so the contact clear Archive() performs must be repeated HERE — one
                 // of the THREE archival writers the fitness test ("no non-Active ad holds a
                 // contact") binds together. The typed null cast is what makes the
-                // converter-mapped jsonb SetProperty translate.
+                // converter-mapped jsonb SetProperty translate. Archive() clears ApplicationUrl
+                // as well (#2191), so it is repeated here under the same fitness test.
                 s => s
                     .SetProperty(j => j.Status, _ => archivedStatus)
-                    .SetProperty(j => j.Contacts, _ => (AdContacts?)null),
+                    .SetProperty(j => j.Contacts, _ => (AdContacts?)null)
+                    .SetProperty(j => j.ApplicationUrl, _ => (ApplicationUrl?)null),
                 cancellationToken).ConfigureAwait(false);
 
         var completedAt = clock.UtcNow;

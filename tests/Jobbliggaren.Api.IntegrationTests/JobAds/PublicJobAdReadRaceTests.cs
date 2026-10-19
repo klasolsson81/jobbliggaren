@@ -80,7 +80,7 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
             publishedAt: Clock.UtcNow.AddDays(-2),
             expiresAt: Clock.UtcNow.AddDays(20),
             clock: Clock,
-            extractTerms: TestKeywordExtraction.None).Value;
+            applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(Ct);
         return jobAd.Id.Value;

@@ -47,7 +47,7 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
             facets: TestFacets.FromPayload($"{{\"id\":\"{ext}\"}}"),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
     }
@@ -98,7 +98,7 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
             facets: TestFacets.FromPayload(raw),
             publishedAt: clock.UtcNow.AddDays(-1),
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
     }

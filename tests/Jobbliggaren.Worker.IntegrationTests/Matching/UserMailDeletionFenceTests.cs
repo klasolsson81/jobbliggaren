@@ -296,7 +296,7 @@ public sealed class UserMailDeletionFenceTests(WorkerTestFixture fixture)
             ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: payload, facets: TestFacets.FromPayload(payload), declaredContacts: [],
             publishedAt: Now.AddDays(-1), expiresAt: Now.AddDays(60), clock: new FixedClock(Now),
-            extractTerms: TestKeywordExtraction.Returning(terms));
+            applicationUrl: null, extractTerms: TestKeywordExtraction.Returning(terms));
         imported.IsSuccess.ShouldBeTrue();
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

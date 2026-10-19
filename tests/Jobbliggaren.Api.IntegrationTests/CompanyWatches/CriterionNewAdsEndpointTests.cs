@@ -376,7 +376,7 @@ public class CriterionNewAdsEndpointTests(ApiFactory factory)
             facets: TestFacets.FromPayload(payload),
             publishedAt: ingested.UtcNow,
             expiresAt: ingested.UtcNow.AddDays(60),
-            clock: ingested, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: ingested, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(ad);
         var criterion = await db.CompanyWatchCriteria.AsNoTracking().SingleAsync(c => c.Id == criterionId, Ct);
         db.CompanyWatchCriterionAdHits.Add(

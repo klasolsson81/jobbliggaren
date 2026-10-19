@@ -291,6 +291,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
                      OR lower(title)        LIKE ANY({patterns})
                      OR lower(description)  LIKE ANY({patterns})
                      OR lower(company_name) LIKE ANY({patterns})
+                     OR lower(application_url) LIKE ANY({patterns})
                      OR EXISTS (
                           SELECT 1
                           FROM jsonb_path_query(contacts, '$.**') AS v
@@ -327,6 +328,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
                 Company = j.Company.Name,
                 j.OrganizationNumber,
                 j.Contacts,
+                j.ApplicationUrl,
             })
             .ToListAsync(cancellationToken);
 
@@ -361,7 +363,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
 
                 var (channel, excerpt) = matchedForm is not null
                     ? (ErasureMatchChannel.OrganizationNumber, matchedForm)
-                    : Evidence(r.Title, r.Description, r.Company, r.Contacts, terms);
+                    : Evidence(r.Title, r.Description, r.Company, r.Contacts, r.ApplicationUrl?.Value, terms);
 
                 // One flag, every channel that has an excerpt. Previously only the org.nr channel
                 // carried it, so a personnummer-shaped value reaching the operator through
@@ -397,7 +399,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
     /// </remarks>
     private static (ErasureMatchChannel Channel, string Excerpt) Evidence(
         string title, string? description, string company, Domain.JobAds.AdContacts? contacts,
-        IReadOnlyList<string> terms)
+        string? applicationUrl, IReadOnlyList<string> terms)
     {
         const int Window = 200;
         const int Lead = 60;
@@ -443,6 +445,10 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
                 .Where(f => f is not null);
             return (ErasureMatchChannel.ContactsMatch, string.Join(" · ", fields));
         }
+
+        if (applicationUrl is not null
+            && terms.Any(t => applicationUrl.Contains(t, StringComparison.OrdinalIgnoreCase)))
+            return (ErasureMatchChannel.ApplicationUrl, applicationUrl);
 
         // The hit came from the FTS lexemes or from raw_payload. There is no literal substring to
         // window, and pretending otherwise is the failure above.

@@ -522,7 +522,7 @@ public class DigestDispatchJobConsentRecheckTests(WorkerTestFixture fixture)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(60),
-            clock: new FixedClock(Now), declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: new FixedClock(Now), declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
     }
 
     private async Task<NotificationStatus> MatchStatusAsync(Guid userId, JobAdId jobAdId, CancellationToken ct)

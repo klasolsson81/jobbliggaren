@@ -177,7 +177,7 @@ public sealed class PublicJobAdCatalogueReadTests(SharedPostgresFixture postgres
             publishedAt: publishedAt,
             expiresAt: expiresAt,
             clock: _clock,
-            extractTerms: TestKeywordExtraction.None).Value;
+            applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
     }
 
     /// <summary>What <c>POST /api/v1/job-ads</c> stores: any source, and no import provenance.</summary>

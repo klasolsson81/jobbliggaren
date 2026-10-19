@@ -77,7 +77,7 @@ public sealed class PurgeStaleGradeGateMatchesMigrationTests(ApiFactory factory)
             declaredContacts: [],
             publishedAt: T0,
             expiresAt: T0.AddDays(30),
-            clock: ClockAt(T0), extractTerms: TestKeywordExtraction.None).Value;
+            clock: ClockAt(T0), applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id;

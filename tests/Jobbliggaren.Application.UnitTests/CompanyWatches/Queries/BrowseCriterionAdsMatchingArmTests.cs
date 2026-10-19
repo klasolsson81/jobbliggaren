@@ -412,7 +412,7 @@ public class BrowseCriterionAdsMatchingArmTests
             expiresAt: publishedAt.AddDays(60),
             clock: new FakeDateTimeProvider(publishedAt),
             declaredContacts: [],
-            extractTerms: TestKeywordExtraction.None);
+            applicationUrl: null, extractTerms: TestKeywordExtraction.None);
         import.IsSuccess.ShouldBeTrue($"seed: JobAd.Import måste lyckas ({import.Error?.Code})");
         db.JobAds.Add(import.Value);
         db.SaveChanges();

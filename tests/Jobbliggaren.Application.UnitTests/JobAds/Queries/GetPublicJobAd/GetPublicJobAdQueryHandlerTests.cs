@@ -63,7 +63,7 @@ public class GetPublicJobAdQueryHandlerTests
             publishedAt: publishedAt,
             expiresAt: expiresAt,
             clock: Clock,
-            extractTerms: TestKeywordExtraction.None).Value;
+            applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
     }
 
     /// <summary>Saves the ad, then applies an optional lifecycle change to the saved row, as production does.</summary>

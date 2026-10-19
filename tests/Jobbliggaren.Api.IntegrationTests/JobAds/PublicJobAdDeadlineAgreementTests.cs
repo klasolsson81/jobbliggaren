@@ -79,7 +79,7 @@ public sealed class PublicJobAdDeadlineAgreementTests(SharedPostgresFixture post
             publishedAt: clock.UtcNow,
             expiresAt: Deadline,
             clock: clock,
-            extractTerms: TestKeywordExtraction.None).Value;
+            applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(Ct);

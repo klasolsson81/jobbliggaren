@@ -133,7 +133,7 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
                 "https://example.com/jobb/" + i, external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
                 [],
                 new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
-                new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock, extractTerms: TestKeywordExtraction.None).Value;
+                new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock, applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
             // #874 — Import now folds extraction in, so each ad persists with Empty terms; the
             // never-extracted NULL state this backfill targets is legacy-only: produced by ingest
             // before #874, and unreachable through
@@ -307,7 +307,7 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
                 external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
                 [],
                 new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
-                new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock, extractTerms: TestKeywordExtraction.None).Value;
+                new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock, applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
             already.SetExtractedTerms(ExtractedTerms.Empty); // extracted (non-null)
             db.JobAds.Add(already);
             await db.SaveChangesAsync(ct);

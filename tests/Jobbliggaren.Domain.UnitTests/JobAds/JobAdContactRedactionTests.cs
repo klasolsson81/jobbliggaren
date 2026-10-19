@@ -34,7 +34,7 @@ public class JobAdContactRedactionTests
             declaredContacts: declaredContacts ?? [],
             publishedAt: Clock.UtcNow,
             expiresAt: null,
-            clock: Clock, extractTerms: TestKeywordExtraction.None).Value;
+            clock: Clock, applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
 
     [Fact]
     public void Import_scrubs_body_and_payload_and_promotes_the_detected_contact()
@@ -109,7 +109,7 @@ public class JobAdContactRedactionTests
             facets: TestFacets.None,
             declaredContacts: [],
             publishedAt: Clock.UtcNow,
-            expiresAt: null, extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
+            expiresAt: null, applicationUrl: null, extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
 
         ad.Description.ShouldBe(descriptionAfterFirst);
         ad.Contacts.ShouldBe(contactsAfterFirst);
@@ -137,7 +137,7 @@ public class JobAdContactRedactionTests
                 AdContact.TryCreate("Anna", null, "anna@acme.se", null, AdContactOrigin.Declared)!,
             ],
             publishedAt: Clock.UtcNow,
-            expiresAt: null, extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
+            expiresAt: null, applicationUrl: null, extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
 
         ad.Description.ShouldNotContain("jobb@acme.se"); // the body scrub runs in EVERY status
         ad.Contacts.ShouldBeNull(); // the Active-gate holds

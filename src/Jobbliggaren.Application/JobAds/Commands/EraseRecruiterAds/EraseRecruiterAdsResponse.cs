@@ -94,6 +94,13 @@ public enum ErasureMatchChannel
     /// fields — exactly the data under review, shown to the admin operator only.
     /// </summary>
     ContactsMatch,
+
+    /// <summary>
+    /// Literal hit in <c>job_ads.application_url</c>, the employer-chosen application address
+    /// (#2191). <c>MatchedExcerpt</c> is the address itself. Appended last: the enum serialises by
+    /// name, and nothing reorders it.
+    /// </summary>
+    ApplicationUrl,
 }
 
 /// <summary>

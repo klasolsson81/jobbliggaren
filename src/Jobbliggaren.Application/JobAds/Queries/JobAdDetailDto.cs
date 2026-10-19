@@ -25,6 +25,12 @@ namespace Jobbliggaren.Application.JobAds.Queries;
 /// <c>[]</c> when the ad holds none or retention cleared them. Each entry carries the R1(b)
 /// truth claim (<see cref="JobAdContactDto.IsDerived"/>) the UI must render.
 /// </para>
+/// <para>
+/// <b><see cref="ApplicationUrl"/> (#2191)</b> is the employer's own application page, rendered as the
+/// modal's "Ansök" link. Detail-only for the same reason as the contacts: no list surface links to it,
+/// and the public DTO never carries it (ADR 0166 D10, ADR 0171). Null when the ad has none, which
+/// includes every non-Active ad, since the aggregate clears it at archival.
+/// </para>
 /// </remarks>
 public sealed record JobAdDetailDto(
     Guid Id,
@@ -32,6 +38,7 @@ public sealed record JobAdDetailDto(
     string CompanyName,
     string Description,
     string Url,
+    string? ApplicationUrl,
     string Source,
     string Status,
     DateTimeOffset PublishedAt,

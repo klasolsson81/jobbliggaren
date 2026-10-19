@@ -117,7 +117,7 @@ public class GetNewFollowedCompanyAdCountQueryHandlerTests
             facets: TestFacets.FromPayload(payload),
             publishedAt: T0,
             expiresAt: T0.AddDays(60),
-            clock: _clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None);
+            clock: _clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None);
         import.IsSuccess.ShouldBeTrue($"seed: JobAd.Import måste lyckas ({import.Error?.Code})");
         db.JobAds.Add(import.Value);
         db.SaveChanges();

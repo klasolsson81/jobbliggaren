@@ -38,7 +38,7 @@ public class JobAdExtractionCouplingTests
             declaredContacts: [],
             publishedAt: Clock.UtcNow,
             expiresAt: null,
-            clock: Clock, extractTerms: extractTerms).Value;
+            clock: Clock, applicationUrl: null, extractTerms: extractTerms).Value;
 
     [Fact]
     public void Import_extracts_terms_from_the_post_scrub_description()
@@ -83,7 +83,7 @@ public class JobAdExtractionCouplingTests
             declaredContacts: [],
             publishedAt: Clock.UtcNow,
             expiresAt: null,
-            extractTerms: (_, description) => { seen = description; return OneKeyword("ny"); })
+            applicationUrl: null, extractTerms: (_, description) => { seen = description; return OneKeyword("ny"); })
             .IsSuccess.ShouldBeTrue();
 
         // MUTATION TARGET (#874 acceptance criterion 2): the terms are NOT stale — they track the
@@ -112,7 +112,7 @@ public class JobAdExtractionCouplingTests
             declaredContacts: [],
             publishedAt: Clock.UtcNow,
             expiresAt: null,
-            clock: Clock, extractTerms: null!));
+            clock: Clock, applicationUrl: null, extractTerms: null!));
     }
 
     [Fact]
@@ -129,6 +129,6 @@ public class JobAdExtractionCouplingTests
             declaredContacts: [],
             publishedAt: Clock.UtcNow,
             expiresAt: null,
-            extractTerms: null!));
+            applicationUrl: null, extractTerms: null!));
     }
 }

@@ -278,8 +278,12 @@ internal sealed partial class PlatsbankenJobSource(
         //
         // v2-prioritering: webpage_url är top-level i v2 (web-verifierat 2026-05-13).
         // source_links är v1-fallback om legacy JobTech återaktiveras. application_details.url
-        // är sista fallback (sällan satt — kan vara mailto).
+        // är sista fallback (kan vara mailto).
         var url = FirstNonMailtoUrl(hit.WebpageUrl, hit.SourceLinks, hit.ApplicationDetails?.Url);
+        // #2191 — the same application_details.url is also the employer's own application page.
+        // ApplicationUrl.FromSource owns every rule (scheme, '@', personnummer, length); the ACL does
+        // no filtering of its own, so there is one normaliser and no second one to forget.
+        var applicationUrl = ApplicationUrl.FromSource(hit.ApplicationDetails?.Url);
         var company = hit.Employer?.Name?.Trim();
         // Npgsql timestamptz requires Offset == 0.
         var publishedAt = hit.PublicationDate.Value.ToUniversalTime();
@@ -308,6 +312,7 @@ internal sealed partial class PlatsbankenJobSource(
             CompanyName: company,
             Description: description,
             Url: url,
+            ApplicationUrl: applicationUrl,
             PublishedAt: publishedAt,
             ExpiresAt: expiresAt,
             SanitizedRawPayload: sanitized,

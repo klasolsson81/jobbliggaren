@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Jobbliggaren.Infrastructure.Admin.Email;
 
 /// <summary>
-/// Registers the allowance figure's source (#1981, ADR 0177). Called from <c>AddInfrastructure</c>, the API's entry
+/// Registers the allowance figure's source (#1981, ADR 0178). Called from <c>AddInfrastructure</c>, the API's entry
 /// point, and after <c>AddEmailSender</c>, which binds and validates the Scaleway credentials this source reuses. The
 /// Worker calls neither, so it never reads the provider.
 /// </summary>

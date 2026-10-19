@@ -14,9 +14,9 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
 /// <summary>
-/// #1981 (ADR 0177) — the allowance source's registration, by pure <see cref="ServiceCollection"/> inspection: no host,
+/// #1981 (ADR 0178) — the allowance source's registration, by pure <see cref="ServiceCollection"/> inspection: no host,
 /// no network, no credential. It pins that the sender and the source read <c>Email:Provider</c> alike, that the
-/// Worker's path never registers the source, and that the options and the read client are what ADR 0177 says.
+/// Worker's path never registers the source, and that the options and the read client are what ADR 0178 says.
 /// </summary>
 public class EmailUsageSourceRegistrationTests
 {

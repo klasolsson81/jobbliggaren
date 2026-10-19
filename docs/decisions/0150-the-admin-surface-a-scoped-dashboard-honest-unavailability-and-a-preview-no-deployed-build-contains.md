@@ -394,7 +394,7 @@ This Amendment owns only the surface contract. The source, the terms, the cost a
   "Kommer snart", which says that nothing is built.
 - **The allowance region keeps the ledger form (D1):**
   - a section with an h2 ("Utskick i {month}", or "Utskick denna månad" where the month cannot be named);
-  - `.jp-adminmailsum` with "Skickade", "Ingår gratis" and "Beräknad kostnad före moms", and a note under it;
+  - `.jp-adminmailsum` with "Skickade", "Ingår gratis" and "Beräknad kostnad inkl. moms", and a note under it;
   - no card, no meter and no percentage.
   The count and the plan fail independently, and one failing never blanks the other (D2).
 - **D8, two rows added:**

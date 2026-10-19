@@ -10,18 +10,18 @@ export interface AllowanceFigures {
   readonly sent: number | null;
   /** The configured plan's free mails, shown only while the provider says that plan is in force. */
   readonly included: number | null;
-  /** The computed cost beyond the allowance, in whole cents, before VAT. A computed 0 is a value. */
-  readonly costCents: number | null;
+  /** The computed cost beyond the allowance, in whole öre, Swedish VAT included. A computed 0 is a value. */
+  readonly costOre: number | null;
 }
 
 export function allowanceFigures(allowance: EmailAllowanceDto): AllowanceFigures {
   const { usage, plan, terms } = allowance;
   // A deployment with no provider to ask has no figure at all, the configured terms included.
-  if (usage.status === "NotObserved") return { sent: null, included: null, costCents: null };
+  if (usage.status === "NotObserved") return { sent: null, included: null, costOre: null };
   return {
     sent: usage.status === "Observed" ? usage.sent : null,
     included: plan.status === "Observed" && plan.matches ? terms.includedMonthlyEmails : null,
-    costCents: usage.status === "Observed" ? usage.estimatedExtraCostCents : null,
+    costOre: usage.status === "Observed" ? usage.estimatedExtraCostOre : null,
   };
 }
 

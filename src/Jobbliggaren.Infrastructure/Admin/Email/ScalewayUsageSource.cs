@@ -9,10 +9,10 @@ using Microsoft.Extensions.Options;
 namespace Jobbliggaren.Infrastructure.Admin.Email;
 
 /// <summary>
-/// Reads Scaleway Transactional Email for the allowance figure (#1981, ADR 0177): <c>project-consumption</c> for
+/// Reads Scaleway Transactional Email for the allowance figure (#1981, ADR 0178): <c>project-consumption</c> for
 /// <c>monthly_emails_count</c> ("emails sent during the current month in the project") and <c>webhooks_count</c>, and
 /// <c>offer-subscriptions</c> for the plan's <c>offer_name</c>. Both need only <c>offer_subscription:read</c>
-/// (measured 2026-10-19, ADR 0177).
+/// (measured 2026-10-19, ADR 0178).
 /// <para>
 /// <b>What it never does.</b> It never reads the body of a refusal: an error payload is where a provider echoes what
 /// it was sent. It reads a 2xx body only up to <see cref="MaxBodyBytes"/>, and from it only the named fields:

@@ -1,21 +1,27 @@
 namespace Jobbliggaren.Application.Admin.Email;
 
 /// <summary>
-/// The allowance region's data as the browser receives it (#1981, ADR 0177). The terms are our own configured
+/// The allowance region's data as the browser receives it (#1981, ADR 0178). The terms are our own configured
 /// facts and are always present; the usage and the plan are closed unions that fail independently, so one failed read
 /// never blanks the rest (ADR 0150 D2). Every figure is computed here, and the page and the overview card only format
 /// it, so both read one definition. A test pins the serialised key set.
 /// </summary>
 public sealed record EmailAllowanceDto(EmailAllowanceTermsDto Terms, EmailAllowanceUsageDto Usage, EmailAllowancePlanDto Plan);
 
-/// <summary>The configured terms. No URL and no provider string reaches the browser.</summary>
+/// <summary>
+/// The configured terms: the price in <see cref="Currency"/> before VAT, and the rate the estimate is converted at. No URL
+/// and no provider string reaches the browser.
+/// </summary>
 public sealed record EmailAllowanceTermsDto(
     EmailPlan Plan,
     int IncludedMonthlyEmails,
     decimal PricePerThousandExtra,
     string Currency,
     DateOnly PriceReadOn,
-    int MonthlySendLimit);
+    int MonthlySendLimit,
+    string CostCurrency,
+    decimal SekPerEur,
+    DateOnly ExchangeRateOn);
 
 /// <summary>
 /// This month's usage, as a closed union: an observed reading carries its figures, a reading that is not observed
@@ -30,7 +36,7 @@ public sealed record EmailAllowanceUsageDto
         string? month,
         long? sent,
         long? billable,
-        long? estimatedExtraCostCents,
+        long? estimatedExtraCostOre,
         bool? aboveHalfOfSendLimit,
         int? webhooksCount)
     {
@@ -40,7 +46,7 @@ public sealed record EmailAllowanceUsageDto
         Month = month;
         Sent = sent;
         Billable = billable;
-        EstimatedExtraCostCents = estimatedExtraCostCents;
+        EstimatedExtraCostOre = estimatedExtraCostOre;
         AboveHalfOfSendLimit = aboveHalfOfSendLimit;
         WebhooksCount = webhooksCount;
     }
@@ -55,7 +61,7 @@ public sealed record EmailAllowanceUsageDto
 
     /// <summary>
     /// <c>YYYY-MM</c>, or absent where the provider's month cannot be named: its reset instant is unmeasured, so a
-    /// month is named only when UTC and Stockholm agree on it (ADR 0177).
+    /// month is named only when UTC and Stockholm agree on it (ADR 0178).
     /// </summary>
     public string? Month { get; }
 
@@ -65,8 +71,8 @@ public sealed record EmailAllowanceUsageDto
     /// <summary>Absent unless the plan in force is the configured one: the terms are that plan's.</summary>
     public long? Billable { get; }
 
-    /// <summary>Computed, rounded up to the whole cent, before VAT; never a billed amount. Absent like <see cref="Billable"/>.</summary>
-    public long? EstimatedExtraCostCents { get; }
+    /// <summary>Computed in kronor with Swedish VAT, in whole öre rounded up; never a billed amount. Absent like <see cref="Billable"/>.</summary>
+    public long? EstimatedExtraCostOre { get; }
 
     /// <summary>ADR 0161 D4 trigger 1.</summary>
     public bool? AboveHalfOfSendLimit { get; }
@@ -79,10 +85,10 @@ public sealed record EmailAllowanceUsageDto
         string? month,
         long sent,
         long? billable,
-        long? estimatedExtraCostCents,
+        long? estimatedExtraCostOre,
         bool aboveHalfOfSendLimit,
         int? webhooksCount) =>
-        new(EmailAllowanceStatus.Observed, null, observedAt, month, sent, billable, estimatedExtraCostCents,
+        new(EmailAllowanceStatus.Observed, null, observedAt, month, sent, billable, estimatedExtraCostOre,
             aboveHalfOfSendLimit, webhooksCount);
 
     public static EmailAllowanceUsageDto NotObserved() =>

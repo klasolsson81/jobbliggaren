@@ -48,7 +48,7 @@ internal static class ScalewayClientRegistration
     internal const string HttpClientName = "scaleway-transactional-email";
 
     /// <summary>
-    /// The named client the allowance read uses (#1981, ADR 0177). A client of its own, so nothing about the read can
+    /// The named client the allowance read uses (#1981, ADR 0178). A client of its own, so nothing about the read can
     /// reach the send path's handler chain, and the send client's no-resilience rule stays its own.
     /// </summary>
     internal const string UsageHttpClientName = "scaleway-transactional-email-usage";

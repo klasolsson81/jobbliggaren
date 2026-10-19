@@ -9,7 +9,7 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1981 (ADR 0177) — the allowance read's boundaries. The provider port has one reader, the admin query; Application
+/// #1981 (ADR 0178) — the allowance read's boundaries. The provider port has one reader, the admin query; Application
 /// owns the arithmetic and none of the transport; and the Worker, which sends mail, never reads the provider.
 /// </summary>
 public class EmailAllowanceBoundaryTests
@@ -43,7 +43,7 @@ public class EmailAllowanceBoundaryTests
             .ToList();
 
         consumers.ShouldBe([typeof(GetEmailAllowanceQueryHandler).FullName!],
-            "a new reader of the provider's usage needs the admin gate and ADR 0177's review. Found: " + string.Join(", ", consumers));
+            "a new reader of the provider's usage needs the admin gate and ADR 0178's review. Found: " + string.Join(", ", consumers));
     }
 
     [Fact]

@@ -478,7 +478,7 @@ describe("admin overview e-post source (#1981 PR 1)", () => {
     return result.data.email;
   };
   const failedUsage = { status: "Failed", reason: "Timeout", observedAt: null, month: null, sent: null, billable: null,
-    estimatedExtraCostCents: null, aboveHalfOfSendLimit: null, webhooksCount: null };
+    estimatedExtraCostOre: null, aboveHalfOfSendLimit: null, webhooksCount: null };
 
   it("asks for the allowance only after an admin read has succeeded (#2064)", async () => {
     let succeeded = 0;

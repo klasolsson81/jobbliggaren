@@ -21,7 +21,10 @@ public static class EmailAllowanceEvaluator
             options.PricePerThousandExtra,
             EmailAllowanceTerms.Currency,
             options.PriceReadOn,
-            options.MonthlySendLimit);
+            options.MonthlySendLimit,
+            EmailAllowanceTerms.CostCurrency,
+            options.SekPerEur,
+            options.ExchangeRateOn);
 
         var planDto = plan switch
         {
@@ -54,7 +57,9 @@ public static class EmailAllowanceEvaluator
             MonthLabel(observed.ObservedAt, calendar),
             sent,
             billable,
-            billable is { } extra ? EmailAllowanceCalculator.ExtraCostCents(extra, options.PricePerThousandExtra) : null,
+            billable is { } extra
+                ? EmailAllowanceCalculator.ExtraCostOre(extra, options.PricePerThousandExtra, options.VatRate, options.SekPerEur)
+                : null,
             EmailAllowanceCalculator.IsAboveHalfOfTheSendLimit(sent, options.MonthlySendLimit),
             observed.WebhooksCount);
     }

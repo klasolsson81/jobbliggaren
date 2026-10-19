@@ -10,7 +10,7 @@ what the figures mean and how they are kept true.
 |---|---|---|
 | Skickade | Scaleway, `project-consumption` → `monthly_emails_count` | Mail sent this month **in the project**, counted by the provider. Each recipient is one mail. |
 | Ingår gratis | `EmailAllowanceOptions.IncludedMonthlyEmails` | The plan's free tier. Shown only when the plan Scaleway names is the configured one. |
-| Beräknad kostnad före moms | computed | `max(0, sent − included) × price / 1000`, rounded **up** to the whole cent. An estimate, never the invoice. |
+| Beräknad kostnad inkl. moms | computed | `max(0, sent − included) × price / 1000`, plus Swedish VAT, at the configured kronor-per-euro rate, rounded **up** to the whole öre. An estimate, never the invoice: a card is charged at its own rate on the day. |
 | Sändgränsen | `EmailAllowanceOptions.MonthlySendLimit` | The project's monthly quota, shared with the sign-in codes. Above half of it is ADR 0161 D4 trigger 1. |
 | Webhooks | Scaleway, `project-consumption` → `webhooks_count` | None should exist (see the processing register). A line appears only when one does, or when the count could not be read. |
 
@@ -31,7 +31,10 @@ The terms are code defaults on `src/Jobbliggaren.Application/Admin/Email/EmailAl
    states prices before tax.
 2. If the free tier, the price per 1 000 mails or the plan's name has changed, change the defaults in a PR, and set
    `PriceReadOn` to the day you read it.
-3. If nothing changed, nothing is committed. The date on the page then shows how old the reading is.
+3. Re-read the rate at the same time: the ECB's euro reference rate for SEK
+   (<https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/eurofxref-graph-sek.en.html>).
+   Set `SekPerEur` and `ExchangeRateOn`, and change `VatRate` if Swedish VAT on the service changes.
+4. If nothing changed, nothing is committed. The dates on the page then show how old the readings are.
 
 **When the plan is changed in the console:** change `Plan` (and the terms) in the same PR or before it. Until then the page shows
 the mismatch and computes no cost.

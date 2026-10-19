@@ -45,6 +45,9 @@ public class EmailAllowanceEvaluatorTests
             terms.Currency.ShouldBe("EUR");
             terms.PriceReadOn.ShouldBe(new DateOnly(2026, 10, 18));
             terms.MonthlySendLimit.ShouldBe(10_000);
+            terms.CostCurrency.ShouldBe("SEK");
+            terms.SekPerEur.ShouldBe(11.1450m);
+            terms.ExchangeRateOn.ShouldBe(new DateOnly(2026, 10, 16));
         }
     }
 
@@ -59,7 +62,7 @@ public class EmailAllowanceEvaluatorTests
         usage.Reason.ShouldBeNull();
         usage.Sent.ShouldBe(184);
         usage.Billable.ShouldBe(0);
-        usage.EstimatedExtraCostCents.ShouldBe(0);
+        usage.EstimatedExtraCostOre.ShouldBe(0);
         usage.AboveHalfOfSendLimit.ShouldBe(false);
     }
 
@@ -69,7 +72,7 @@ public class EmailAllowanceEvaluatorTests
         var usage = Evaluate(Observed(1_301)).Usage;
 
         usage.Billable.ShouldBe(1_001);
-        usage.EstimatedExtraCostCents.ShouldBe(26);
+        usage.EstimatedExtraCostOre.ShouldBe(349);
     }
 
     [Fact]
@@ -121,7 +124,7 @@ public class EmailAllowanceEvaluatorTests
         dto.Usage.Status.ShouldBe(EmailAllowanceStatus.Observed);
         dto.Usage.Sent.ShouldBe(1_301);
         dto.Usage.Billable.ShouldBeNull();
-        dto.Usage.EstimatedExtraCostCents.ShouldBeNull();
+        dto.Usage.EstimatedExtraCostOre.ShouldBeNull();
         dto.Usage.AboveHalfOfSendLimit.ShouldBe(false);
     }
 
@@ -134,7 +137,7 @@ public class EmailAllowanceEvaluatorTests
         var dto = Evaluate(Observed(1), options, new EmailProviderPlanRead.Observed(EmailPlan.Unknown, MidMonth));
 
         dto.Plan.Matches.ShouldBe(false);
-        dto.Usage.EstimatedExtraCostCents.ShouldBeNull();
+        dto.Usage.EstimatedExtraCostOre.ShouldBeNull();
     }
 
     [Fact]
@@ -147,7 +150,7 @@ public class EmailAllowanceEvaluatorTests
         dto.Plan.Active.ShouldBeNull();
         dto.Plan.Matches.ShouldBeNull();
         dto.Usage.Sent.ShouldBe(184);
-        dto.Usage.EstimatedExtraCostCents.ShouldBeNull();
+        dto.Usage.EstimatedExtraCostOre.ShouldBeNull();
     }
 
     [Fact]
@@ -251,7 +254,7 @@ public class EmailAllowanceEvaluatorTests
         // An unknown count is never a zero, and an unknown cost is never 0,00 € (ADR 0150 D2).
         usage.Sent.ShouldBeNull();
         usage.Billable.ShouldBeNull();
-        usage.EstimatedExtraCostCents.ShouldBeNull();
+        usage.EstimatedExtraCostOre.ShouldBeNull();
         usage.AboveHalfOfSendLimit.ShouldBeNull();
         usage.WebhooksCount.ShouldBeNull();
         usage.ObservedAt.ShouldBeNull();

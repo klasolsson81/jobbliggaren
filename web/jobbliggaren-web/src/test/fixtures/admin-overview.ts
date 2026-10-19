@@ -65,11 +65,11 @@ export function emailAllowanceFixture(): EmailAllowanceDto {
   return {
     terms: {
       plan: "Essential", includedMonthlyEmails: 300, pricePerThousandExtra: 0.25, currency: "EUR",
-      priceReadOn: "2026-10-01", monthlySendLimit: 10_000,
+      priceReadOn: "2026-10-01", monthlySendLimit: 10_000, costCurrency: "SEK", sekPerEur: 11.145, exchangeRateOn: "2026-10-16",
     },
     usage: {
       status: "Observed", reason: null, observedAt: "2026-10-08T09:59:30+00:00", month: "2026-10",
-      sent: 1301, billable: 1001, estimatedExtraCostCents: 26, aboveHalfOfSendLimit: false, webhooksCount: 0,
+      sent: 1301, billable: 1001, estimatedExtraCostOre: 26, aboveHalfOfSendLimit: false, webhooksCount: 0,
     },
     plan: { status: "Observed", reason: null, active: "Essential", matches: true },
   };

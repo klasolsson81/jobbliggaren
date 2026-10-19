@@ -52,17 +52,23 @@ Two facts stay unmeasured, and the page claims neither:
 ### D2 — The plan's terms are configuration with a source and a date
 
 `EmailAllowanceOptions` holds the Essential plan's terms as **code defaults, with no appsettings entry**: the plan, 300 included
-mails, 0.25 per 1 000 extra, the day the price list was read (2026-10-18), and the monthly send limit (10 000, Scaleway's
-documented default). A test pins that the defaults pass validation, so a bad default fails CI rather than a production boot.
+mails, 0.25 EUR per 1 000 extra before VAT, the day the price list was read (2026-10-18), and the monthly send limit (10 000,
+Scaleway's documented default). For the cost Klas pays as a private person (his request of 2026-10-19), it also holds Swedish VAT
+(0.25) and a kronor-per-euro rate with its date: the ECB's euro reference rate for SEK, 11.1450 on 2026-10-16. The Riksbank's own
+pages showed no figure without a search. A test pins that the defaults pass validation, so a bad default fails CI rather than a
+production boot.
 
-The currency (EUR) and "before VAT" are constants, because each has exactly one legal value. The price list's URL lives in the
+The price's currency (EUR) and the cost's (SEK) are constants, because each has exactly one legal value. Klas chose a dated rate
+over a daily one ("Fast kurs med datum", 2026-10-19), so there is no exchange-rate integration. The price list's URL lives in the
 runbook, and no URL reaches the browser.
 
 ### D3 — The cost is computed, rounded up, and labelled as an estimate
 
-`max(0, sent − included) × price / 1000`, in `decimal`, rounded **up** to the whole cent and sent as integer cents. One extra mail
-costs a fortieth of a cent, so rounding to nearest would show a cost of nothing for the first twenty. A computed 0 is a value and is
-shown. An unknown cost is an en-dash, never 0 (ADR 0150 D2).
+`max(0, sent − included) × price / 1000 × (1 + VAT) × kronor per euro`, in `decimal`. It is rounded **up** once, at the end, to
+the whole öre, and sent as integer öre. One extra mail costs about a third of an öre, so rounding to nearest would show a cost of
+nothing for the first one. The page shows the cost in kronor with VAT ("Beräknad kostnad inkl. moms"), and its note states the euro
+price before VAT and the rate with its date. A card is charged at its own rate on the day, so the kronor are an estimate. A computed
+0 is a value and is shown. An unknown cost is an en-dash, never 0 (ADR 0150 D2).
 
 The Billing API is rejected. It needs organisation-wide `BillingReadOnly`, which is the cost of every product, and its figures are
 not real-time.
@@ -190,7 +196,8 @@ calculator's, and its docblock points at the trigger.
 Home: this ADR. Reader: Klas.
 
 1. **The plan is changed in the console.** Change `EmailAllowanceOptions` with it. The page shows the mismatch meanwhile (D4).
-2. **Scaleway's price list changes** (price, free tier or plan names). Re-read it and update the terms and `PriceReadOn`.
+2. **Scaleway's price list changes** (price, free tier or plan names). Re-read it and update the terms and `PriceReadOn`. Re-read
+   the rate with it, and update `SekPerEur` and `ExchangeRateOn`. The same applies when the VAT rate changes.
 3. **A second project in the organisation sends through Transactional Email.** The count no longer covers the free tier's whole
    population.
 4. **A PR needs to read mail objects.** That read gets its own application (D7), and `TransactionalEmailOfferSubscriptionReadOnly`

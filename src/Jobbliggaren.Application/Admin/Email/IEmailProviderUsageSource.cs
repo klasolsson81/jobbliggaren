@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.Admin.Email;
 
 /// <summary>
-/// The allowance figure's one source (#1981, ADR 0177): the provider's own count of this month's mail, and the plan
+/// The allowance figure's one source (#1981, ADR 0178): the provider's own count of this month's mail, and the plan
 /// the project is on, so a cost is computed only against the terms of the plan actually in force. Application defines
 /// the port; Infrastructure implements it. The only consumer is <c>GetEmailAllowanceQueryHandler</c>, which an
 /// architecture test pins.

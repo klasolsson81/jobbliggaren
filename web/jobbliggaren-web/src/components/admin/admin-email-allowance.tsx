@@ -46,15 +46,15 @@ export function AdminEmailAllowance({
   const usage = allowance?.usage ?? null;
   const figures = allowance === null ? null : allowanceFigures(allowance);
   const month = usage?.status === "Observed" ? usage.month : null;
-  const currency = allowance?.terms.currency ?? null;
+  const costCurrency = allowance?.terms.costCurrency ?? null;
 
   const money = (amount: number, code: string) => format.number(amount, { style: "currency", currency: code });
   const value = (shown: string | null): ReactNode => (shown === null ? <AdminUnknown /> : shown);
   const sent = figures === null || figures.sent === null ? null : format.number(figures.sent);
   const included = figures === null || figures.included === null ? null : format.number(figures.included);
-  const cost = figures === null || figures.costCents === null || currency === null
+  const cost = figures === null || figures.costOre === null || costCurrency === null
     ? null
-    : money(figures.costCents / 100, currency);
+    : money(figures.costOre / 100, costCurrency);
 
   const lines = stateLines();
   const failures = lines.filter((line) => line.failure).map((line) => line.text);
@@ -139,6 +139,12 @@ export function AdminEmailAllowance({
               price: money(allowance.terms.pricePerThousandExtra, allowance.terms.currency),
               per: format.number(1000),
               readOn: formatLedgerDate(format, allowance.terms.priceReadOn) ?? allowance.terms.priceReadOn,
+            })}
+          </p>
+          <p>
+            {t("conversion", {
+              rate: format.number(allowance.terms.sekPerEur, { maximumFractionDigits: 4 }),
+              rateOn: formatLedgerDate(format, allowance.terms.exchangeRateOn) ?? allowance.terms.exchangeRateOn,
             })}
           </p>
           {usage.status === "Observed" && !usage.aboveHalfOfSendLimit ? (

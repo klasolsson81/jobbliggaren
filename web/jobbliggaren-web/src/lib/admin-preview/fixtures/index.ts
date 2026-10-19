@@ -195,6 +195,9 @@ const ALLOWANCE_TERMS = marked({
   currency: "EUR" as const,
   priceReadOn: dayKey(6),
   monthlySendLimit: 10_000,
+  costCurrency: "SEK" as const,
+  sekPerEur: 11.145,
+  exchangeRateOn: "2026-10-16",
 });
 
 const FIXTURE_MONTH = FIXTURE_NOW.slice(0, 7);
@@ -215,14 +218,14 @@ function observedUsage(figures: {
     month: figures.month === undefined ? FIXTURE_MONTH : figures.month,
     sent: figures.sent,
     billable: figures.billable,
-    estimatedExtraCostCents: figures.cents,
+    estimatedExtraCostOre: figures.cents,
     aboveHalfOfSendLimit: figures.aboveHalf ?? false,
     webhooksCount: figures.webhooks === undefined ? 0 : figures.webhooks,
   });
 }
 
 const NO_USAGE = {
-  observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostCents: null,
+  observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostOre: null,
   aboveHalfOfSendLimit: null, webhooksCount: null,
 } as const;
 

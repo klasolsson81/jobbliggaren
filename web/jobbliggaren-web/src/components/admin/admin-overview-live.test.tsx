@@ -224,7 +224,7 @@ describe("admin overview visible refresh", () => {
     const failed = { ...fresh, email: { ...fresh.email, sampledAt: new Date(NOW + 60_000).toISOString(), data: {
       ...fresh.email.data,
       usage: { status: "Failed" as const, reason: "Timeout" as const, observedAt: null, month: null, sent: null, billable: null,
-        estimatedExtraCostCents: null, aboveHalfOfSendLimit: null, webhooksCount: null },
+        estimatedExtraCostOre: null, aboveHalfOfSendLimit: null, webhooksCount: null },
     } } };
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(failed)));
     show();

@@ -5,24 +5,24 @@ import { emailAllowanceSchema } from "./admin-email";
 const EXAMPLE = {
   terms: {
     plan: "Essential", includedMonthlyEmails: 300, pricePerThousandExtra: 0.25, currency: "EUR",
-    priceReadOn: "2026-10-18", monthlySendLimit: 10000,
+    priceReadOn: "2026-10-18", monthlySendLimit: 10000, costCurrency: "SEK", sekPerEur: 11.145, exchangeRateOn: "2026-10-16",
   },
   usage: {
     status: "Observed", reason: null, observedAt: "2026-10-18T19:30:40+00:00", month: "2026-10", sent: 1301,
-    billable: 1001, estimatedExtraCostCents: 26, aboveHalfOfSendLimit: false, webhooksCount: 0,
+    billable: 1001, estimatedExtraCostOre: 26, aboveHalfOfSendLimit: false, webhooksCount: 0,
   },
   plan: { status: "Observed", reason: null, active: "Essential", matches: true },
 };
 
 const NO_USAGE = {
-  observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostCents: null,
+  observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostOre: null,
   aboveHalfOfSendLimit: null, webhooksCount: null,
 };
 const notObservedUsage = { status: "NotObserved", reason: "NotConfigured", ...NO_USAGE };
 const notObservedPlan = { status: "NotObserved", reason: "NotConfigured", active: null, matches: null };
 const failedPlan = { status: "Failed", reason: "Forbidden", active: null, matches: null };
 const otherPlan = { status: "Observed", reason: null, active: "Scale", matches: false };
-const withoutCost = { ...EXAMPLE.usage, billable: null, estimatedExtraCostCents: null };
+const withoutCost = { ...EXAMPLE.usage, billable: null, estimatedExtraCostOre: null };
 
 const parses = (body: unknown) => emailAllowanceSchema.safeParse(body).success;
 
@@ -41,7 +41,7 @@ describe("emailAllowanceSchema (#1981 PR 1, ADR 0178)", () => {
     ["a count whose plan read failed, without a cost", { ...EXAMPLE, usage: withoutCost, plan: failedPlan }],
     ["a month that cannot be named and unreadable webhooks", { ...EXAMPLE, usage: { ...EXAMPLE.usage, month: null, webhooksCount: null } }],
     ["fractional seconds in the instant", { ...EXAMPLE, usage: { ...EXAMPLE.usage, observedAt: "2026-10-18T19:30:40.1234567+00:00" } }],
-    ["a computed zero cost", { ...EXAMPLE, usage: { ...EXAMPLE.usage, sent: 142, billable: 0, estimatedExtraCostCents: 0 } }],
+    ["a computed zero cost", { ...EXAMPLE, usage: { ...EXAMPLE.usage, sent: 142, billable: 0, estimatedExtraCostOre: 0 } }],
   ])("accepts %s", (_name, body) => {
     expect(parses(body)).toBe(true);
   });
@@ -55,7 +55,7 @@ describe("emailAllowanceSchema (#1981 PR 1, ADR 0178)", () => {
     ["a cost while the plan does not match", { ...EXAMPLE, plan: otherPlan }],
     ["a cost while the plan read failed", { ...EXAMPLE, plan: failedPlan }],
     ["no cost while the plan is in force", { ...EXAMPLE, usage: withoutCost }],
-    ["a billable count without its cost", { ...EXAMPLE, usage: { ...EXAMPLE.usage, estimatedExtraCostCents: null } }],
+    ["a billable count without its cost", { ...EXAMPLE, usage: { ...EXAMPLE.usage, estimatedExtraCostOre: null } }],
     ["NotConfigured as a failure of the count", { ...EXAMPLE, usage: { status: "Failed", reason: "NotConfigured", ...NO_USAGE } }],
     ["NotConfigured as a failure of the plan", { ...EXAMPLE, usage: withoutCost, plan: { ...failedPlan, reason: "NotConfigured" } }],
     ["a failure reason outside the set", { ...EXAMPLE, usage: { status: "Failed", reason: "Teapot", ...NO_USAGE } }],

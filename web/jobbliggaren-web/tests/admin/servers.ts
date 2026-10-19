@@ -151,16 +151,16 @@ function emailAnswer(scenario: EmailScenario): unknown {
   const at = (offset: number) => new Date(Date.now() + offset).toISOString().replace(/\.\d{3}Z$/, "+00:00");
   const terms = {
     plan: "Essential", includedMonthlyEmails: 300, pricePerThousandExtra: 0.25, currency: "EUR",
-    priceReadOn: "2026-10-18", monthlySendLimit: 10000,
+    priceReadOn: "2026-10-18", monthlySendLimit: 10000, costCurrency: "SEK", sekPerEur: 11.145, exchangeRateOn: "2026-10-16",
   };
   const noUsage = {
-    observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostCents: null,
+    observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostOre: null,
     aboveHalfOfSendLimit: null, webhooksCount: null,
   };
   const inForce = { status: "Observed", reason: null, active: "Essential", matches: true };
   const usage = (termsApply: boolean) => ({
     status: "Observed", reason: null, observedAt: at(-20_000), month: new Date().toISOString().slice(0, 7), sent: 142,
-    billable: termsApply ? 0 : null, estimatedExtraCostCents: termsApply ? 0 : null, aboveHalfOfSendLimit: false, webhooksCount: 0,
+    billable: termsApply ? 0 : null, estimatedExtraCostOre: termsApply ? 0 : null, aboveHalfOfSendLimit: false, webhooksCount: 0,
   });
   switch (scenario) {
     case "observed": return { terms, usage: usage(true), plan: inForce };

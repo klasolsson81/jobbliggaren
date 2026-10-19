@@ -9,7 +9,7 @@ const UNKNOWN = "–Uppgift saknas";
 const NBSP = " ";
 
 const NO_USAGE = {
-  observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostCents: null,
+  observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostOre: null,
   aboveHalfOfSendLimit: null, webhooksCount: null,
 } as const;
 
@@ -21,7 +21,7 @@ function withUsage(patch: Partial<typeof observed>): EmailAllowanceDto {
   return { ...base, usage: { ...observed, ...patch } };
 }
 function withPlan(plan: EmailAllowanceDto["plan"]): EmailAllowanceDto {
-  return { ...base, usage: { ...observed, billable: null, estimatedExtraCostCents: null }, plan };
+  return { ...base, usage: { ...observed, billable: null, estimatedExtraCostOre: null }, plan };
 }
 function failedUsage(reason: EmailAllowanceFailure, plan: EmailAllowanceDto["plan"] = base.plan): EmailAllowanceDto {
   return { ...base, usage: { status: "Failed", reason, ...NO_USAGE }, plan };
@@ -44,7 +44,8 @@ const noteLines = (region: HTMLElement) =>
   Array.from(region.querySelectorAll(".jp-adminmailsum__note p"), (line) => line.textContent);
 
 const SOURCE = "Räknat av Scaleway för projektet. Uppgift från 2026-10-08 11:59.";
-const PRICE = `Pris utöver gratiskvoten: 0,25${NBSP}€ per 1${NBSP}000 mejl, enligt Scaleways prislista läst 2026-10-01.`;
+const PRICE = `Pris utöver gratiskvoten: 0,25${NBSP}€ per 1${NBSP}000 mejl före moms, enligt Scaleways prislista läst 2026-10-01.`;
+const CONVERSION = "Kostnaden är omräknad till kronor med 11,145 kr per euro, ECB:s referenskurs 2026-10-16, och inkluderar svensk moms.";
 const LIMIT = `Sändgränsen är 10${NBSP}000 mejl i månaden.`;
 
 describe("AdminEmailAllowance — an observed month (#1981 PR 1, ADR 0150 Amendment 2026-10-19)", () => {
@@ -55,16 +56,16 @@ describe("AdminEmailAllowance — an observed month (#1981 PR 1, ADR 0150 Amendm
     expect(within(region).getAllByRole("term").map((term) => term.textContent)).toEqual([
       "Skickade",
       "Ingår gratis",
-      "Beräknad kostnad före moms",
+      "Beräknad kostnad inkl. moms",
     ]);
-    expect(values(region)).toEqual([`1${NBSP}301`, "300", `0,26${NBSP}€`]);
+    expect(values(region)).toEqual([`1${NBSP}301`, "300", `0,26${NBSP}kr`]);
     expect(region.querySelector("dl")).toHaveClass("jp-adminmailsum");
   });
 
   it("notes where the figures come from, the price and the send limit, and says nothing else", () => {
     const region = loaded(base);
 
-    expect(noteLines(region)).toEqual([SOURCE, PRICE, LIMIT]);
+    expect(noteLines(region)).toEqual([SOURCE, PRICE, CONVERSION, LIMIT]);
     expect(within(region).getByText("2026-10-08 11:59").tagName).toBe("TIME");
     expect(within(region).getByText("2026-10-08 11:59")).toHaveAttribute("datetime", observed.observedAt);
     expect(stateLines(region)).toEqual([]);
@@ -72,9 +73,9 @@ describe("AdminEmailAllowance — an observed month (#1981 PR 1, ADR 0150 Amendm
   });
 
   it.each([
-    ["within the free allowance", { sent: 142, billable: 0, estimatedExtraCostCents: 0 }, ["142", "300", `0,00${NBSP}€`]],
-    ["exactly the free allowance", { sent: 300, billable: 0, estimatedExtraCostCents: 0 }, ["300", "300", `0,00${NBSP}€`]],
-    ["nothing sent", { sent: 0, billable: 0, estimatedExtraCostCents: 0 }, ["0", "300", `0,00${NBSP}€`]],
+    ["within the free allowance", { sent: 142, billable: 0, estimatedExtraCostOre: 0 }, ["142", "300", `0,00${NBSP}kr`]],
+    ["exactly the free allowance", { sent: 300, billable: 0, estimatedExtraCostOre: 0 }, ["300", "300", `0,00${NBSP}kr`]],
+    ["nothing sent", { sent: 0, billable: 0, estimatedExtraCostOre: 0 }, ["0", "300", `0,00${NBSP}kr`]],
   ] as const)("shows a computed zero cost as a value %s", (_name, patch, expected) => {
     expect(values(loaded(withUsage(patch)))).toEqual(expected);
   });
@@ -94,10 +95,10 @@ describe("AdminEmailAllowance — an observed month (#1981 PR 1, ADR 0150 Amendm
   });
 
   it("says so in words when more than half of the send limit is used, and the plain limit sentence gives way", () => {
-    const region = loaded(withUsage({ sent: 5200, billable: 4900, estimatedExtraCostCents: 123, aboveHalfOfSendLimit: true }));
+    const region = loaded(withUsage({ sent: 5200, billable: 4900, estimatedExtraCostOre: 123, aboveHalfOfSendLimit: true }));
 
     expect(stateLines(region)).toEqual([`Över hälften av sändgränsen på 10${NBSP}000 mejl i månaden är använd.`]);
-    expect(noteLines(region)).toEqual([SOURCE, PRICE]);
+    expect(noteLines(region)).toEqual([SOURCE, PRICE, CONVERSION]);
   });
 
   it.each([
@@ -135,7 +136,7 @@ describe("AdminEmailAllowance — the plan in force", () => {
 
     expect(values(region)).toEqual([`1${NBSP}301`, UNKNOWN, UNKNOWN]);
     expect(stateLines(region)).toEqual([line]);
-    expect(noteLines(region)).toEqual([SOURCE, PRICE, LIMIT]);
+    expect(noteLines(region)).toEqual([SOURCE, PRICE, CONVERSION, LIMIT]);
   });
 
   it("announces a failed plan read once, as the source and its state, and keeps the region's own line quiet", () => {
@@ -181,10 +182,10 @@ describe("AdminEmailAllowance — the provider did not answer the count", () => 
 
     expect(values(region)).toEqual([UNKNOWN, "300", UNKNOWN]);
     expect(stateLines(region)).toEqual([line]);
-    expect(noteLines(region)).toEqual([PRICE]);
+    expect(noteLines(region)).toEqual([PRICE, CONVERSION]);
     expect(screen.getByRole("alert")).toHaveTextContent(`Utskick mot gratiskvoten: ${line}`);
     expect(region.querySelector(".jp-adminsoon")).not.toHaveAttribute("role");
-    expect(region.textContent).not.toContain(`0,00${NBSP}€`);
+    expect(region.textContent).not.toContain(`0,00${NBSP}kr`);
   });
 
   it("says both causes when the plan read failed too, and announces them in one message", () => {

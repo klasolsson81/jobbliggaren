@@ -88,7 +88,7 @@ describe("AdminOverview with its regions loaded (ADR 0150 D1/D2)", () => {
     render(<AdminOverview regions={LOADED} />);
 
     const email = card("E-post");
-    expect(email).toHaveTextContent("1 301av 300 gratis i oktober 2026Beräknad kostnad 0,26 € före moms");
+    expect(email).toHaveTextContent("1 301av 300 gratis i oktober 2026Beräknad kostnad 0,26 kr inkl. moms");
     expect(email).not.toHaveTextContent(/misslyckade|utan mottagare|senaste 24 tim/);
     expect(within(email).queryByRole("list")).toBeNull();
     expect(email.querySelector(".jp-admin-danger, .jp-admin-warning")).toBeNull();

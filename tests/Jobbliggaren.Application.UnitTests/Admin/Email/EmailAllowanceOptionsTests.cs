@@ -30,6 +30,9 @@ public class EmailAllowanceOptionsTests
         options.PricePerThousandExtra.ShouldBe(0.25m);
         options.PriceReadOn.ShouldBe(new DateOnly(2026, 10, 18));
         options.MonthlySendLimit.ShouldBe(10_000);
+        options.VatRate.ShouldBe(0.25m);
+        options.SekPerEur.ShouldBe(11.1450m);
+        options.ExchangeRateOn.ShouldBe(new DateOnly(2026, 10, 16));
     }
 
     [Fact]
@@ -69,4 +72,24 @@ public class EmailAllowanceOptionsTests
     public void Validate_ShouldRefuseASendLimitBelowOne(int limit) =>
         Validate(new EmailAllowanceOptions { MonthlySendLimit = limit })
             .ShouldContain(r => r.MemberNames.Contains(nameof(EmailAllowanceOptions.MonthlySendLimit)));
+
+    [Theory]
+    [InlineData("-0.01")]
+    [InlineData("1.01")]
+    public void Validate_ShouldRefuseAVatRateOutsideAFraction(string rate) =>
+        Validate(new EmailAllowanceOptions { VatRate = decimal.Parse(rate, System.Globalization.CultureInfo.InvariantCulture) })
+            .ShouldContain(r => r.MemberNames.Contains(nameof(EmailAllowanceOptions.VatRate)));
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("100.01")]
+    public void Validate_ShouldRefuseAnExchangeRateOutsideItsBounds(string rate) =>
+        Validate(new EmailAllowanceOptions { SekPerEur = decimal.Parse(rate, System.Globalization.CultureInfo.InvariantCulture) })
+            .ShouldContain(r => r.MemberNames.Contains(nameof(EmailAllowanceOptions.SekPerEur)));
+
+    [Fact]
+    public void Validate_ShouldRefuseAnUnsetExchangeRateDate() =>
+        Validate(new EmailAllowanceOptions { ExchangeRateOn = default })
+            .ShouldContain(r => r.MemberNames.Contains(nameof(EmailAllowanceOptions.ExchangeRateOn)));
 }

@@ -47,8 +47,8 @@ function EmailRows({ allowance, kind }: {
   }
 
   const included = figures.included === null ? null : format.number(figures.included);
-  const cost = figures.costCents === null ? null
-    : format.number(figures.costCents / 100, { style: "currency", currency: allowance.terms.currency });
+  const cost = figures.costOre === null ? null
+    : format.number(figures.costOre / 100, { style: "currency", currency: allowance.terms.costCurrency });
   const month = usage.status === "Observed" ? usage.month : null;
   const unit = month === null
     ? t.rich("unitThisMonth", { included: included ?? "", value: knownOr(included) })

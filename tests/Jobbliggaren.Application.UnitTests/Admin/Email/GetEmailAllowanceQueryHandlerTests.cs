@@ -58,7 +58,7 @@ public class GetEmailAllowanceQueryHandlerTests
         dto.Plan.Matches.ShouldBe(true);
         dto.Terms.IncludedMonthlyEmails.ShouldBe(1_000);
         dto.Usage.Billable.ShouldBe(301);
-        dto.Usage.EstimatedExtraCostCents.ShouldBe(8);
+        dto.Usage.EstimatedExtraCostOre.ShouldBe(105);
     }
 
     [Fact]

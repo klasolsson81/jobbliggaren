@@ -13,7 +13,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Email;
 
 /// <summary>
-/// The allowance read against Scaleway's <c>project-consumption</c> (#1981, ADR 0177), through the real composition
+/// The allowance read against Scaleway's <c>project-consumption</c> (#1981, ADR 0178), through the real composition
 /// (<see cref="EmailUsageSourceCollectionExtensions.AddEmailUsageSource"/> and the real named client) with only the
 /// transport replaced. Every log line from every category is captured, so "never logged" is measured on the whole
 /// process output and not on the adapter's own logger alone.

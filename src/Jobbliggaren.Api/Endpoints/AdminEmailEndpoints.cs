@@ -8,7 +8,7 @@ using Mediator;
 namespace Jobbliggaren.Api.Endpoints;
 
 /// <summary>
-/// This month's mail against the provider's free allowance, and the computed cost beyond it (#1981, ADR 0177). The
+/// This month's mail against the provider's free allowance, and the computed cost beyond it (#1981, ADR 0178). The
 /// e-post page and the overview's e-post card both read this one endpoint, so they share one definition.
 /// </summary>
 public static class AdminEmailEndpoints

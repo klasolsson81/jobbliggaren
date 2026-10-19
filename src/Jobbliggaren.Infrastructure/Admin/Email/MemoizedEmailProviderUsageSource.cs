@@ -4,7 +4,7 @@ using Jobbliggaren.Domain.Common;
 namespace Jobbliggaren.Infrastructure.Admin.Email;
 
 /// <summary>
-/// Reuses each provider read for every viewer, and lets only one of each be in flight (#1981, ADR 0177). The count
+/// Reuses each provider read for every viewer, and lets only one of each be in flight (#1981, ADR 0178). The count
 /// and the plan are remembered separately, so one failing never blanks the other.
 /// <list type="bullet">
 ///   <item>A success is reused until <see cref="EmailAllowanceLimits.ReuseFor"/> after its own observedAt, and never

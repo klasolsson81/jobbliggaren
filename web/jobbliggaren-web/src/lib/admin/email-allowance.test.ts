@@ -4,14 +4,14 @@ import type { EmailAllowanceDto } from "@/lib/dto/admin-email";
 import { allowanceFailureGroup, allowanceFigures, allowancePlanState, monthStart } from "./email-allowance";
 
 const NO_USAGE = {
-  observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostCents: null,
+  observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostOre: null,
   aboveHalfOfSendLimit: null, webhooksCount: null,
 } as const;
 
 const base = emailAllowanceFixture();
 const withPlan = (plan: EmailAllowanceDto["plan"]): EmailAllowanceDto => ({
   ...base,
-  usage: base.usage.status === "Observed" ? { ...base.usage, billable: null, estimatedExtraCostCents: null } : base.usage,
+  usage: base.usage.status === "Observed" ? { ...base.usage, billable: null, estimatedExtraCostOre: null } : base.usage,
   plan,
 });
 const failedUsage: EmailAllowanceDto = { ...base, usage: { status: "Failed", reason: "Timeout", ...NO_USAGE } };
@@ -23,20 +23,20 @@ const notConfigured: EmailAllowanceDto = {
 
 describe("allowanceFigures (#1981 PR 1)", () => {
   it("takes the count, the configured free mails and the cost while the plan in force is the configured one", () => {
-    expect(allowanceFigures(base)).toEqual({ sent: 1301, included: 300, costCents: 26 });
+    expect(allowanceFigures(base)).toEqual({ sent: 1301, included: 300, costOre: 26 });
   });
 
   it("keeps the count and leaves the allowance and the cost unknown under another plan", () => {
     expect(allowanceFigures(withPlan({ status: "Observed", reason: null, active: "Scale", matches: false })))
-      .toEqual({ sent: 1301, included: null, costCents: null });
+      .toEqual({ sent: 1301, included: null, costOre: null });
   });
 
   it("keeps the configured allowance when only the count failed, since the terms are ours", () => {
-    expect(allowanceFigures(failedUsage)).toEqual({ sent: null, included: 300, costCents: null });
+    expect(allowanceFigures(failedUsage)).toEqual({ sent: null, included: 300, costOre: null });
   });
 
   it("has no figure at all where no provider is configured", () => {
-    expect(allowanceFigures(notConfigured)).toEqual({ sent: null, included: null, costCents: null });
+    expect(allowanceFigures(notConfigured)).toEqual({ sent: null, included: null, costOre: null });
   });
 });
 

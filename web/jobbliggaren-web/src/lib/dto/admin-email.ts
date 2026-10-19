@@ -35,6 +35,9 @@ const termsSchema = z.strictObject({
   currency: z.literal("EUR"),
   priceReadOn: z.iso.date(),
   monthlySendLimit: count.positive(),
+  costCurrency: z.literal("SEK"),
+  sekPerEur: z.number().positive(),
+  exchangeRateOn: z.iso.date(),
 });
 
 const noUsage = {
@@ -42,7 +45,7 @@ const noUsage = {
   month: z.null(),
   sent: z.null(),
   billable: z.null(),
-  estimatedExtraCostCents: z.null(),
+  estimatedExtraCostOre: z.null(),
   aboveHalfOfSendLimit: z.null(),
   webhooksCount: z.null(),
 };
@@ -55,7 +58,7 @@ const usageSchema = z.discriminatedUnion("status", [
     month: month.nullable(),
     sent: count,
     billable: count.nullable(),
-    estimatedExtraCostCents: count.nullable(),
+    estimatedExtraCostOre: count.nullable(),
     aboveHalfOfSendLimit: z.boolean(),
     webhooksCount: count.nullable(),
   }),
@@ -80,7 +83,7 @@ export const emailAllowanceSchema = z
     if (usage.status !== "Observed") return;
     // A cost is computed only against the plan in force: billable and cost exist exactly when the terms apply.
     const termsApply = plan.status === "Observed" && plan.matches;
-    if ((usage.billable !== null) !== termsApply || (usage.estimatedExtraCostCents !== null) !== termsApply) {
+    if ((usage.billable !== null) !== termsApply || (usage.estimatedExtraCostOre !== null) !== termsApply) {
       ctx.addIssue({
         code: "custom",
         path: ["usage"],

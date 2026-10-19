@@ -7,7 +7,7 @@ import { AdminOverview } from "./admin-overview";
 
 const NOW = Date.parse(OVERVIEW_TIME);
 const NO_USAGE = {
-  observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostCents: null,
+  observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostOre: null,
   aboveHalfOfSendLimit: null, webhooksCount: null,
 } as const;
 
@@ -29,7 +29,7 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
 
     expect(value(card)).toBe("1 301");
     expect(card.querySelector(".jp-adminkpi__unit")).toHaveTextContent("av 300 gratis i oktober 2026");
-    expect(card).toHaveTextContent("Beräknad kostnad 0,26 € före moms");
+    expect(card).toHaveTextContent("Beräknad kostnad 0,26 kr inkl. moms");
     expect(card).toHaveTextContent("Uppgift från 2026-10-08 11:59");
     expect(within(card).getByRole("link", { name: "E-postleverans" })).toHaveAttribute("href", "/admin/e-post");
   });
@@ -42,10 +42,10 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
   });
 
   it("shows a computed zero cost as a value", () => {
-    const card = loaded({ ...base, usage: { ...observedUsage, sent: 142, billable: 0, estimatedExtraCostCents: 0 } });
+    const card = loaded({ ...base, usage: { ...observedUsage, sent: 142, billable: 0, estimatedExtraCostOre: 0 } });
 
     expect(value(card)).toBe("142");
-    expect(card).toHaveTextContent("Beräknad kostnad 0,00 € före moms");
+    expect(card).toHaveTextContent("Beräknad kostnad 0,00 kr inkl. moms");
   });
 
   it("says this month where the month cannot be named", () => {
@@ -57,13 +57,13 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
   it("keeps the count and en-dashes the allowance and the cost while another plan is in force", () => {
     const card = loaded({
       ...base,
-      usage: { ...observedUsage, billable: null, estimatedExtraCostCents: null },
+      usage: { ...observedUsage, billable: null, estimatedExtraCostOre: null },
       plan: { status: "Observed", reason: null, active: "Scale", matches: false },
     });
 
     expect(value(card)).toBe("1 301");
     expect(card.querySelector(".jp-adminkpi__unit")?.textContent).toBe("av –Uppgift saknas gratis i oktober 2026");
-    expect(card.querySelector(".jp-adminkpi__sub")?.textContent).toBe("Beräknad kostnad –Uppgift saknas före moms");
+    expect(card.querySelector(".jp-adminkpi__sub")?.textContent).toBe("Beräknad kostnad –Uppgift saknas inkl. moms");
   });
 
   it("says it is not counted here where no provider is configured: an en-dash, never Kommer snart or awaiting", () => {
@@ -105,7 +105,7 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
   });
 
   it("is never an attention item, and the attention card still says email errors cannot be judged", () => {
-    const card = loaded({ ...base, usage: { ...observedUsage, sent: 9000, billable: 8700, estimatedExtraCostCents: 218, aboveHalfOfSendLimit: true } });
+    const card = loaded({ ...base, usage: { ...observedUsage, sent: 9000, billable: 8700, estimatedExtraCostOre: 218, aboveHalfOfSendLimit: true } });
     const attention = screen.getByRole("region", { name: "Kräver uppmärksamhet" });
 
     expect(card.querySelector(".jp-admin-danger, .jp-admin-warning")).toBeNull();

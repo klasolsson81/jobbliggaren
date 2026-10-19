@@ -125,7 +125,7 @@
       "link": "E-postleverans",
       "unit": "av <value>{included}</value> gratis i {month}",
       "unitThisMonth": "av <value>{included}</value> gratis denna månad",
-      "cost": "Beräknad kostnad <value>{cost}</value> före moms"
+      "cost": "Beräknad kostnad <value>{cost}</value> inkl. moms"
     },
     "attention": {
       "title": "Kräver uppmärksamhet",
@@ -639,9 +639,10 @@
       "headingThisMonth": "Utskick denna månad",
       "sent": "Skickade",
       "included": "Ingår gratis",
-      "cost": "Beräknad kostnad före moms",
+      "cost": "Beräknad kostnad inkl. moms",
       "source": "Räknat av Scaleway för projektet. Uppgift från <time>{at}</time>.",
-      "price": "Pris utöver gratiskvoten: {price} per {per} mejl, enligt Scaleways prislista läst {readOn}.",
+      "price": "Pris utöver gratiskvoten: {price} per {per} mejl före moms, enligt Scaleways prislista läst {readOn}.",
+      "conversion": "Kostnaden är omräknad till kronor med {rate} kr per euro, ECB:s referenskurs {rateOn}, och inkluderar svensk moms.",
       "sendLimit": "Sändgränsen är {limit} mejl i månaden.",
       "sendLimitAboveHalf": "Över hälften av sändgränsen på {limit} mejl i månaden är använd.",
       "webhooks": "{count, plural, one {# webhook är registrerad} other {# webhooks är registrerade}} hos Scaleway. Ingen ska finnas, se runbooken för admin-e-post.",

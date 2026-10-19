@@ -87,8 +87,8 @@ for (const path of UNBUILT) {
 test("/admin/e-post shows the month against the free allowance first, and keeps Leverans unbuilt (#1981 PR 1)", async ({ page }) => {
   await page.goto("/admin/e-post");
   const allowance = page.getByRole("region", { name: /^Utskick (i |denna)/ });
-  await expect(allowance.getByRole("term")).toHaveText(["Skickade", "Ingår gratis", "Beräknad kostnad före moms"]);
-  await expect(allowance.getByRole("definition")).toHaveText(["142", "300", /^0,00\s€$/]);
+  await expect(allowance.getByRole("term")).toHaveText(["Skickade", "Ingår gratis", "Beräknad kostnad inkl. moms"]);
+  await expect(allowance.getByRole("definition")).toHaveText(["142", "300", /^0,00\skr$/]);
   await expect(allowance).toContainText("Räknat av Scaleway för projektet.");
   expect(harness.requests).toContain("GET /api/v1/admin/email/allowance");
 

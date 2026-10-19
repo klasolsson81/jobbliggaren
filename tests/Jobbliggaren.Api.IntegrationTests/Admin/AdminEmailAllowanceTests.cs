@@ -26,7 +26,7 @@ using static Jobbliggaren.Api.IntegrationTests.Admin.AdminAccountsKit;
 namespace Jobbliggaren.Api.IntegrationTests.Admin;
 
 /// <summary>
-/// #1981 (ADR 0177) — the allowance read, end to end through the real pipeline: who may call it, that every answer
+/// #1981 (ADR 0178) — the allowance read, end to end through the real pipeline: who may call it, that every answer
 /// including the refusals is private and uncacheable, and exactly what the browser receives. The provider is a
 /// scripted source on each host; ApiFactory's default answers "not configured".
 /// </summary>
@@ -143,7 +143,7 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
         usage.GetProperty("status").GetString().ShouldBe("NotObserved");
         usage.GetProperty("reason").GetString().ShouldBe("NotConfigured");
         usage.GetProperty("sent").ValueKind.ShouldBe(JsonValueKind.Null);
-        usage.GetProperty("estimatedExtraCostCents").ValueKind.ShouldBe(JsonValueKind.Null);
+        usage.GetProperty("estimatedExtraCostOre").ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
     [Fact]
@@ -168,6 +168,9 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
         terms.GetProperty("currency").GetString().ShouldBe("EUR");
         terms.GetProperty("priceReadOn").GetString().ShouldBe("2026-10-18");
         terms.GetProperty("monthlySendLimit").GetInt32().ShouldBe(10_000);
+        terms.GetProperty("costCurrency").GetString().ShouldBe("SEK");
+        terms.GetProperty("sekPerEur").GetDecimal().ShouldBe(11.1450m);
+        terms.GetProperty("exchangeRateOn").GetString().ShouldBe("2026-10-16");
 
         var usage = body.GetProperty("usage");
         usage.GetProperty("status").GetString().ShouldBe("Observed");
@@ -176,7 +179,7 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
         usage.GetProperty("month").GetString().ShouldBe("2026-10");
         usage.GetProperty("sent").GetInt64().ShouldBe(1_301);
         usage.GetProperty("billable").GetInt64().ShouldBe(1_001);
-        usage.GetProperty("estimatedExtraCostCents").GetInt64().ShouldBe(26);
+        usage.GetProperty("estimatedExtraCostOre").GetInt64().ShouldBe(349);
         usage.GetProperty("aboveHalfOfSendLimit").GetBoolean().ShouldBeFalse();
         usage.GetProperty("webhooksCount").GetInt32().ShouldBe(0);
 
@@ -200,7 +203,7 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
         body.GetProperty("plan").GetProperty("active").GetString().ShouldBe("Scale");
         body.GetProperty("plan").GetProperty("matches").GetBoolean().ShouldBeFalse();
         body.GetProperty("usage").GetProperty("sent").GetInt64().ShouldBe(1_301);
-        body.GetProperty("usage").GetProperty("estimatedExtraCostCents").ValueKind.ShouldBe(JsonValueKind.Null);
+        body.GetProperty("usage").GetProperty("estimatedExtraCostOre").ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
     [Fact]
@@ -216,9 +219,9 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
         Keys(document.RootElement).ShouldBe(["plan", "terms", "usage"]);
         Keys(document.RootElement.GetProperty("plan")).ShouldBe(["active", "matches", "reason", "status"]);
         Keys(document.RootElement.GetProperty("terms")).ShouldBe(
-            ["currency", "includedMonthlyEmails", "monthlySendLimit", "plan", "pricePerThousandExtra", "priceReadOn"]);
+            ["costCurrency", "currency", "exchangeRateOn", "includedMonthlyEmails", "monthlySendLimit", "plan", "pricePerThousandExtra", "priceReadOn", "sekPerEur"]);
         Keys(document.RootElement.GetProperty("usage")).ShouldBe(
-            ["aboveHalfOfSendLimit", "billable", "estimatedExtraCostCents", "month", "observedAt", "reason", "sent",
+            ["aboveHalfOfSendLimit", "billable", "estimatedExtraCostOre", "month", "observedAt", "reason", "sent",
              "status", "webhooksCount"]);
         foreach (var forbidden in new[] { "project", "scaleway.com", "http" })
         {

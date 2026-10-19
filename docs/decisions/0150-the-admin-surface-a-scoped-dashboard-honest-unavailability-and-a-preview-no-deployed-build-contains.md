@@ -380,3 +380,28 @@ is written are ADR 0172's, and the directory's read is ADR 0151's Amendment of t
 - The overview's "Aktiva användare" and "Inloggningar" cards stay unavailable, because building them is out of scope
   and not because of the record's form (ADR 0172, lapse trigger 5).
 - D8's row for the two values carries a dated note that points here.
+
+## Amendment 2026-10-19 — The email allowance (#1981 PR 1, ADR 0178)
+
+This Amendment owns only the surface contract. The source, the terms, the cost and the read are ADR 0178's.
+
+- **D4.** #1981's row is made real in part: this month's mail against the provider's free allowance, and the computed
+  cost beyond it, on `/admin/e-post` and as the headline of the overview's e-post card. Delivery totals, recent failures
+  and counts per mail kind stay "Kommer snart" until #1981's later PRs.
+- **A state for a deployment that has no provider to ask.** Where `Email:Provider` is not Scaleway (dev, CI, the
+  harness), the allowance region says "Räknas inte i den här miljön." and every value is an en-dash. This is
+  NotObservable, as on the Server card, and never `awaiting`, which promises an answer that will come, and never
+  "Kommer snart", which says that nothing is built.
+- **The allowance region keeps the ledger form (D1):**
+  - a section with an h2 ("Utskick i {month}", or "Utskick denna månad" where the month cannot be named);
+  - `.jp-adminmailsum` with "Skickade", "Ingår gratis" and "Beräknad kostnad före moms", and a note under it;
+  - no card, no meter and no percentage.
+  The count and the plan fail independently, and one failing never blanks the other (D2).
+- **D8, two rows added:**
+  - The handoff's period selector sat in the page header. It moves into the "Leverans" section's heading row, because a
+    24 h/3 d/7 d choice does not apply to a monthly figure.
+  - The handoff's e-post card led with the last 24 hours' sends. Its headline is now this month's sends against the free
+    allowance, with the estimated cost under it. Its failed, no-recipient and top-type lines are removed, not
+    en-dashed, until delivery is real.
+- The e-post card is never an attention item: passing the free allowance is a cost fact, not a fault. The attention
+  card's "E-postfel kan ännu inte bedömas." stays true and stays.

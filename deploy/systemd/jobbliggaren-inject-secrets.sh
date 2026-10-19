@@ -166,9 +166,9 @@ readonly -a OAUTH_CLIENT_SECRETS=(
 # #1267, where it is a reminder and not a page.
 #
 # DELIBERATELY NOT AN IAM LOOKUP. Asking Scaleway for expires_at would need either IAM read on the
-# sending key — widening it past TEM-send, which is the boundary the org/project binding exists to
-# hold (release-checklist.md §2.5 punkt 1 forutsattning 1) — or a second credential with its own
-# lifecycle. A static date is weaker information and a stronger control: no network, no
+# sending key — widening it past Transactional Email, the only product its permission
+# sets name (the dated console reading is ADR 0178's) — or a second credential with its
+# own lifecycle. A static date is weaker information and a stronger control: no network, no
 # credential, and it fails closed when unset.
 #
 # NAMED EXPIRY_NOTICE_DAYS, never *_WARN_DAYS: "warn" reads as an alarm lead time, and that is how

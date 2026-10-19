@@ -6,10 +6,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Jobbliggaren.Infrastructure.Admin.Email;
 
 /// <summary>
-/// Registers the provider reads (#1981): the allowance figure's source (ADR 0178), authenticated with the read
-/// application's own key (<see cref="ScalewayReadOptions"/>), never the sending key. Called from
-/// <c>AddInfrastructure</c>, the API's entry point. The Worker never calls it, so it never reads the provider.
-/// <see cref="ScalewayReadSelection"/> decides the branch once, from raw configuration.
+/// Registers the provider reads (#1981): the allowance figure's source (ADR 0178), the delivery statistics and the
+/// recent failures, each authenticated with the read application's own key (<see cref="ScalewayReadOptions"/>), never
+/// the sending key. Called from <c>AddInfrastructure</c>, the API's entry point. The Worker never calls it, so it never
+/// reads the provider. <see cref="ScalewayReadSelection"/> decides the branch once, from raw configuration.
 /// </summary>
 public static class EmailUsageSourceCollectionExtensions
 {
@@ -35,20 +35,32 @@ public static class EmailUsageSourceCollectionExtensions
                 services.AddSingleton<ScalewayReadTransport>();
                 services.AddSingleton<IProviderUsageAttemptSource, ScalewayUsageSource>();
                 services.AddSingleton<IEmailProviderUsageSource, MemoizedEmailProviderUsageSource>();
+                services.AddSingleton<IDeliveryStatisticsAttemptSource, ScalewayDeliveryStatisticsSource>();
+                services.AddSingleton<IEmailDeliveryStatisticsSource, MemoizedEmailDeliveryStatisticsSource>();
+                services.AddSingleton<IRecentFailuresAttemptSource, ScalewayRecentFailuresSource>();
+                services.AddSingleton<IEmailRecentFailuresSource, MemoizedEmailRecentFailuresSource>();
                 break;
 
             case ScalewayReadState.ReadKeyMissing:
-                var missing = new ReadKeyMissingEmailProviderReads();
-                services.AddSingleton<IEmailProviderUsageSource>(missing);
+                AddEveryReadPort(services, new ReadKeyMissingEmailProviderReads());
                 services.AddHostedService<ReadKeyMissingNotice>();
                 break;
 
             default:
-                services.AddSingleton<IEmailProviderUsageSource, NotConfiguredEmailProviderUsageSource>();
+                AddEveryReadPort(services, new NotConfiguredEmailProviderReads());
                 break;
         }
 
         return services;
+    }
+
+    /// <summary>One instance behind every read port, for the branches where nothing is read.</summary>
+    private static void AddEveryReadPort<TReads>(IServiceCollection services, TReads reads)
+        where TReads : class, IEmailProviderUsageSource, IEmailDeliveryStatisticsSource, IEmailRecentFailuresSource
+    {
+        services.AddSingleton<IEmailProviderUsageSource>(reads);
+        services.AddSingleton<IEmailDeliveryStatisticsSource>(reads);
+        services.AddSingleton<IEmailRecentFailuresSource>(reads);
     }
 }
 

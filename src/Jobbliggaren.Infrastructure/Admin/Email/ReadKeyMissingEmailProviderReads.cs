@@ -10,16 +10,29 @@ namespace Jobbliggaren.Infrastructure.Admin.Email;
 /// or memo ever produces this state. Nothing is read, and the sending key is never used in its place. One instance
 /// answers every read port.
 /// </summary>
-internal sealed class ReadKeyMissingEmailProviderReads : IEmailProviderUsageSource
+internal sealed class ReadKeyMissingEmailProviderReads
+    : IEmailProviderUsageSource, IEmailDeliveryStatisticsSource, IEmailRecentFailuresSource
 {
     private static readonly EmailProviderUsageRead NoUsage = new EmailProviderUsageRead.ReadKeyMissing();
     private static readonly EmailProviderPlanRead NoPlan = new EmailProviderPlanRead.ReadKeyMissing();
+    private static readonly EmailDeliveryStatisticsRead NoStatistics = new EmailDeliveryStatisticsRead.ReadKeyMissing();
+    private static readonly EmailRecentFailuresRead NoFailures = new EmailRecentFailuresRead.ReadKeyMissing();
 
     public ValueTask<EmailProviderUsageRead> ReadUsageAsync(CancellationToken cancellationToken) =>
         ValueTask.FromResult(NoUsage);
 
     public ValueTask<EmailProviderPlanRead> ReadPlanAsync(CancellationToken cancellationToken) =>
         ValueTask.FromResult(NoPlan);
+
+    public ValueTask<EmailDeliveryStatisticsRead> ReadAsync(EmailDeliveryPeriod period, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(NoStatistics);
+
+    public ValueTask<EmailDeliveryStatisticsRead> ReadSentinelAsync(CancellationToken cancellationToken) =>
+        ValueTask.FromResult(NoStatistics);
+
+    ValueTask<EmailRecentFailuresRead> IEmailRecentFailuresSource.ReadAsync(
+        EmailDeliveryPeriod period, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(NoFailures);
 }
 
 /// <summary>

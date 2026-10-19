@@ -1,9 +1,65 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Infrastructure.Admin.Email;
+using Jobbliggaren.Infrastructure.Email;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Jobbliggaren.Application.UnitTests.Email;
+
+/// <summary>
+/// The real provider-read composition (<see cref="EmailUsageSourceCollectionExtensions.AddEmailUsageSource"/> and the
+/// real named client) under Scaleway with a read key of its own, with only the transport replaced and every log line
+/// from every category captured. The sending key is configured and bound too, so a test can show it is never sent.
+/// </summary>
+internal static class ScalewayReadComposition
+{
+    internal const string Region = "fr-par";
+    internal const string ProjectId = "11111111-2222-3333-4444-555555555555";
+    internal const string SendKey = "SCW-SECRET-KEY-4711"; // gitleaks:allow
+    internal const string ReadKey = "SCW-READ-KEY-4712"; // gitleaks:allow
+    internal const string BaseAddress = $"https://api.scaleway.com/transactional-email/v1alpha1/regions/{Region}/";
+
+    internal static ServiceProvider Build(
+        ScriptedTransport transport, CapturingLogSink logs, IDateTimeProvider clock, TimeSpan? readTimeout = null)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Email:Provider"] = "Scaleway",
+                ["Email:Scaleway:Region"] = Region,
+                ["Email:Scaleway:SecretKey"] = SendKey,
+                ["Email:Scaleway:ProjectId"] = ProjectId,
+                ["Email:ScalewayRead:SecretKey"] = ReadKey,
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+        services.AddSingleton(clock);
+        services.AddOptions<ScalewayEmailOptions>().Bind(configuration.GetSection(ScalewayEmailOptions.SectionName));
+        services.AddEmailUsageSource(configuration);
+        var client = services.AddHttpClient(ScalewayClientRegistration.UsageHttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => transport);
+        if (readTimeout is { } timeout)
+        {
+            client.ConfigureHttpClient(c => c.Timeout = timeout);
+        }
+
+        return services.BuildServiceProvider();
+    }
+
+    /// <summary>The query string as ordered (name, value) pairs, each unescaped.</summary>
+    internal static IReadOnlyList<(string Name, string Value)> QueryOf(Uri? uri) =>
+        [.. uri!.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries).Select(pair =>
+        {
+            var parts = pair.Split('=', 2);
+            return (Uri.UnescapeDataString(parts[0]), Uri.UnescapeDataString(parts.Length > 1 ? parts[1] : string.Empty));
+        })];
+}
 
 internal sealed record CapturedRequest(HttpMethod Method, Uri? Uri, string? AuthToken);
 

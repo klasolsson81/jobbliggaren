@@ -98,7 +98,7 @@ public class EmailUsageSourceRegistrationTests
 
             var scaleway = SenderType(services) == typeof(ScalewayEmailSender);
             SourceType(services).ShouldBe(
-                !scaleway ? typeof(NotConfiguredEmailProviderUsageSource)
+                !scaleway ? typeof(NotConfiguredEmailProviderReads)
                 : readKey == ReadKeyShape.Present ? typeof(MemoizedEmailProviderUsageSource)
                 : typeof(ReadKeyMissingEmailProviderReads));
         }
@@ -113,7 +113,7 @@ public class EmailUsageSourceRegistrationTests
     {
         var services = ApiComposition(Config("Console", readKey));
 
-        SourceType(services).ShouldBe(typeof(NotConfiguredEmailProviderUsageSource));
+        SourceType(services).ShouldBe(typeof(NotConfiguredEmailProviderReads));
         services.ShouldNotContain(d => d.ServiceType == typeof(ScalewayReadTransport));
         services.ShouldNotContain(d => d.ImplementationType == typeof(ReadKeyMissingNotice));
     }
@@ -171,6 +171,39 @@ public class EmailUsageSourceRegistrationTests
         provider.GetRequiredService<IOptions<ScalewayReadOptions>>().Value.ProjectId.ShouldBe(ProjectId);
     }
 
+    [Theory]
+    [InlineData("Console", ReadKeyShape.Present, typeof(NotConfiguredEmailProviderReads))]
+    [InlineData("Scaleway", ReadKeyShape.Absent, typeof(ReadKeyMissingEmailProviderReads))]
+    public void WhereNothingIsRead_OneInstanceAnswersEveryReadPort(string provider, ReadKeyShape readKey, Type expected)
+    {
+        using var serviceProvider = ApiComposition(Config(provider, readKey)).BuildServiceProvider();
+
+        var usage = serviceProvider.GetRequiredService<IEmailProviderUsageSource>();
+        usage.ShouldBeOfType(expected);
+        serviceProvider.GetRequiredService<IEmailDeliveryStatisticsSource>().ShouldBeSameAs(usage);
+        serviceProvider.GetRequiredService<IEmailRecentFailuresSource>().ShouldBeSameAs(usage);
+    }
+
+    [Fact]
+    public void UnderScaleway_APresentReadKey_RegistersEachReadOnce_AsAMemoizedSingleton_OverItsAdapter()
+    {
+        var services = ApiComposition(Config("Scaleway"));
+
+        (Type Port, Type Memo, Type Attempt, Type Adapter)[] reads =
+        [
+            (typeof(IEmailProviderUsageSource), typeof(MemoizedEmailProviderUsageSource), typeof(IProviderUsageAttemptSource), typeof(ScalewayUsageSource)),
+            (typeof(IEmailDeliveryStatisticsSource), typeof(MemoizedEmailDeliveryStatisticsSource), typeof(IDeliveryStatisticsAttemptSource), typeof(ScalewayDeliveryStatisticsSource)),
+            (typeof(IEmailRecentFailuresSource), typeof(MemoizedEmailRecentFailuresSource), typeof(IRecentFailuresAttemptSource), typeof(ScalewayRecentFailuresSource)),
+        ];
+        foreach (var (port, memo, attempt, adapter) in reads)
+        {
+            var descriptor = services.Where(d => d.ServiceType == port).ShouldHaveSingleItem();
+            descriptor.ImplementationType.ShouldBe(memo);
+            descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+            services.Where(d => d.ServiceType == attempt).ShouldHaveSingleItem().ImplementationType.ShouldBe(adapter);
+        }
+    }
+
     [Fact]
     public void TheSourceIsRegisteredOnce_AsASingleton()
     {
@@ -190,6 +223,8 @@ public class EmailUsageSourceRegistrationTests
 
         services.ShouldNotContain(d => d.ServiceType == typeof(IEmailProviderUsageSource));
         services.ShouldNotContain(d => d.ServiceType == typeof(IProviderUsageAttemptSource));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IEmailDeliveryStatisticsSource));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IEmailRecentFailuresSource));
     }
 
     [Fact]
@@ -247,6 +282,8 @@ public class EmailUsageSourceRegistrationTests
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
         serviceProvider.GetRequiredService<IEmailProviderUsageSource>().ShouldNotBeNull();
+        serviceProvider.GetRequiredService<IEmailDeliveryStatisticsSource>().ShouldNotBeNull();
+        serviceProvider.GetRequiredService<IEmailRecentFailuresSource>().ShouldNotBeNull();
         serviceProvider.GetRequiredService<IOptions<EmailAllowanceOptions>>().Value.IncludedMonthlyEmails.ShouldBe(300);
     }
 

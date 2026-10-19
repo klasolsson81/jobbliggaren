@@ -460,17 +460,29 @@ test("the three log views show their rows and every view's count", async ({ page
   await expect(subnav.getByRole("link")).toHaveText(["Säkerhet", "Applikationsfel", "Platsbanken-import"]);
 });
 
-test("email delivery switches its figures with the period", async ({ page }) => {
+test("Leverans reads its period from the URL, as the live page does, and shows each scenario (#1981 PR 2)", async ({ page }) => {
   await page.goto(`${ROOT}/e-post`);
-  const totals = page.getByRole("region", { name: "Leverans", exact: true }).getByRole("definition");
-  await expect(totals.first()).toHaveText("384");
+  const leverans = page.getByRole("region", { name: "Leverans", exact: true });
+  const rows = page.getByRole("table", { name: /^Misslyckade utskick/ }).locator("tbody tr");
+  await expect(leverans.getByRole("definition")).toHaveText(["384", "5"]);
+  await expect(leverans.getByRole("link", { name: "7 dygn", exact: true })).toHaveAttribute("aria-current", "true");
 
-  await page.getByRole("radio", { name: "24 tim" }).click();
-  await expect(totals.first()).toHaveText("57");
-  await expect(page.getByRole("region", { name: "Senaste misslyckade utskick" }).getByRole("listitem")).toHaveCount(2);
+  await leverans.getByRole("link", { name: "24 tim", exact: true }).click();
+  await expect(page).toHaveURL(/\/e-post\?period=h24$/);
+  await expect(leverans.getByRole("definition")).toHaveText(["57", "2"]);
+  await expect(rows).toHaveCount(2);
 
-  await state(page, "Tom");
-  await expect(page.getByRole("table", { name: "Utskick per mejltyp" })).toContainText("Inga utskick under perioden.");
+  const scenario = page.getByLabel("Visa leverans");
+  await scenario.selectOption({ label: "Fler misslyckade än listan visar" });
+  await expect(rows).toHaveCount(10);
+  await expect(leverans).toContainText("Visar de 10 senaste.");
+  await scenario.selectOption({ label: "Läsnyckeln ser inga utskick" });
+  await expect(leverans).toContainText("Scaleway visar inga utskick för läsnyckeln de senaste 32 dagarna");
+  await expect(rows).toHaveText(["Uppgift saknas"]);
+  await expect(page.getByRole("table", { name: "Utskick per mejltyp" }).locator("tbody")).toHaveText("Kommer snart");
+
+  await state(page, "Fel");
+  await expect(leverans.getByText("Uppgifterna kunde inte hämtas. Försök igen om en stund.", { exact: true })).toHaveCount(2);
 });
 
 test("the month against the free allowance shows each fixture state, and follows the band only when it fails or loads", async ({ page }) => {

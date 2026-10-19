@@ -46,7 +46,8 @@ const PAGES = [
 ] as const;
 
 // Feedback is built (#1979) and has a spec of its own, admin-feedback.spec.ts. E-postleverans shows the month against
-// the free allowance (#1981 PR 1), so only its Leverans section is unbuilt; it has a test of its own below.
+// the free allowance (#1981 PR 1) and Leverans (#1981 PR 2, admin-email-delivery.spec.ts); only its per-type table is
+// unbuilt, which the test below pins.
 const UNBUILT = [
   "/admin/loggar",
   "/admin/loggar/applikationsfel",
@@ -84,7 +85,7 @@ for (const path of UNBUILT) {
   });
 }
 
-test("/admin/e-post shows the month against the free allowance first, and keeps Leverans unbuilt (#1981 PR 1)", async ({ page }) => {
+test("/admin/e-post shows the month against the free allowance first, then Leverans for 7 dygn (#1981)", async ({ page }) => {
   await page.goto("/admin/e-post");
   const allowance = page.getByRole("region", { name: /^Utskick (i |denna)/ });
   await expect(allowance.getByRole("term")).toHaveText(["Skickade", "Ingår gratis", "Beräknad kostnad inkl. moms"]);
@@ -92,12 +93,14 @@ test("/admin/e-post shows the month against the free allowance first, and keeps 
   await expect(allowance).toContainText("Räknat av Scaleway för projektet.");
   expect(harness.requests).toContain("GET /api/v1/admin/email/allowance");
 
+  // Leverans is built (#1981 PR 2): its own spec, admin-email-delivery.spec.ts, covers its states. Only the
+  // per-type table is not, and it still says so with no figure in it.
   const delivery = page.getByRole("region", { name: "Leverans", exact: true });
-  await expect(delivery.getByText("Kommer snart").first()).toBeVisible();
-  for (const option of await delivery.getByRole("radio").all()) await expect(option).toBeDisabled();
-  // No fabricated delivery figure: the section's only digits are its period labels.
-  const text = (await delivery.innerText()).replace(/\b(3|7) dygn\b|\b24 tim\b/gi, "");
-  expect(text).not.toMatch(/\d/);
+  await expect(delivery.getByRole("definition")).toHaveText(["384", "5"]);
+  await expect(delivery.getByRole("link", { name: "7 dygn", exact: true })).toHaveAttribute("aria-current", "true");
+  const types = page.getByRole("table", { name: "Utskick per mejltyp" });
+  await expect(types.locator("tbody")).toHaveText("Kommer snart");
+  expect(harness.emailQueries.sort()).toEqual(["/api/v1/admin/email/delivery?period=d7", "/api/v1/admin/email/failures?period=d7"]);
 });
 
 const EMAIL_STATES: ReadonlyArray<{ readonly name: string; readonly set: (h: Harness) => void; readonly line: string }> = [

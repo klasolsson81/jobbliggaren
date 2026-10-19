@@ -143,7 +143,8 @@ for (const width of [1280, 640]) {
         const rect = link.getBoundingClientRect();
         return { text: link.textContent, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
       }));
-      expect(targets).toHaveLength(empty ? 9 : 11);
+      // The failed-sends line is a link only while the provider counts failed sends (#1981 PR 2).
+      expect(targets).toHaveLength(empty ? 9 : 12);
       const minimum = width <= 768 ? 44 : 32;
       for (const target of targets) {
         expect(target.width, target.text ?? "link width").toBeGreaterThanOrEqual(minimum);

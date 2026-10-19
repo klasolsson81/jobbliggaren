@@ -308,6 +308,30 @@ public sealed class ScalewayRecentFailuresSourceTests : IDisposable
         (await AttemptAsync()).Read.ShouldBe(new EmailRecentFailuresRead.Failed(EmailProviderReadReason.Malformed));
     }
 
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(0, false)]
+    [InlineData(1, true)]
+    [InlineData(1, false)]
+    public async Task Attempt_ShouldReadABodyOfExactlyTheCap_AndNotOneByteMore(int overTheCap, bool withLengthHeader)
+    {
+        var page = Page(Item());
+        var body = page + new string(' ', ScalewayRecentFailuresSource.MaxBodyBytes + overTheCap - Encoding.UTF8.GetByteCount(page));
+        Encoding.UTF8.GetByteCount(body).ShouldBe(ScalewayRecentFailuresSource.MaxBodyBytes + overTheCap);
+        _transport.Respond(HttpStatusCode.OK, body, omitContentLength: !withLengthHeader);
+
+        var read = (await AttemptAsync()).Read;
+
+        if (overTheCap == 0)
+        {
+            read.ShouldBeOfType<EmailRecentFailuresRead.Observed>().Failures.ShouldHaveSingleItem();
+        }
+        else
+        {
+            read.ShouldBe(new EmailRecentFailuresRead.Failed(EmailProviderReadReason.Malformed));
+        }
+    }
+
     [Fact]
     public void TheCap_ShouldBeSixtyFourKibibytes() =>
         ScalewayRecentFailuresSource.MaxBodyBytes.ShouldBe(64 * 1024);
@@ -399,6 +423,8 @@ public sealed class ScalewayRecentFailuresSourceTests : IDisposable
         }
 
         _logs.Records.ShouldNotContain(r => r.Category.StartsWith("System.Net.Http", StringComparison.Ordinal));
+        // One line per failed read: the three malformed answers, the refusal and the transport failure.
+        _logs.Records.Count(r => r.EventId == 3020).ShouldBe(5);
         _logs.Records.Where(r => r.EventId == 3020).ShouldAllBe(r => r.Message.Contains("emails", StringComparison.Ordinal));
     }
 }

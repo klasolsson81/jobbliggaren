@@ -40,14 +40,19 @@ public class ReadMemoTests
         public ValueTask<ProviderAttempt<Answer>> Next(CancellationToken cancellationToken) => Next(Key.A, cancellationToken);
     }
 
-    /// <summary>Records each requested delay and lets the test decide when it has elapsed.</summary>
-    private sealed class Evictions
+    /// <summary>
+    /// Records each requested delay and lets the test decide when it has elapsed. With <paramref name="dropsInline"/> the
+    /// delay's task runs its continuations synchronously, so completed off any synchronization context,
+    /// <see cref="TaskCompletionSource.SetResult"/> returns only after the memo's drop has run.
+    /// </summary>
+    private sealed class Evictions(bool dropsInline = false)
     {
         public List<(TimeSpan Delay, TaskCompletionSource Elapsed)> Requested { get; } = [];
 
         public Task After(TimeSpan delay)
         {
-            var elapsed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var elapsed = new TaskCompletionSource(
+                dropsInline ? TaskCreationOptions.None : TaskCreationOptions.RunContinuationsAsynchronously);
             lock (Requested)
             {
                 Requested.Add((delay, elapsed));
@@ -116,19 +121,27 @@ public class ReadMemoTests
     {
         var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var attempts = new Attempts(n => new Answer(n, clock.UtcNow));
-        var evictions = new Evictions();
+        var evictions = new Evictions(dropsInline: true);
         var memo = new ReadMemo<Answer>(clock, attempts.Next, ObservedAtOf, evictions.After);
 
-        await memo.ReadAsync(Ct);
-        clock.UtcNow = T0.AddSeconds(60);
-        (await memo.ReadAsync(Ct)).N.ShouldBe(2);
+        // On the thread pool, so neither the memo's await nor SetResult sees the test's synchronization context.
+        await Task.Run(async () =>
+        {
+            await memo.ReadAsync(Ct);
+            clock.UtcNow = T0.AddSeconds(60);
+            (await memo.ReadAsync(Ct)).N.ShouldBe(2);
+            evictions.Requested.Count.ShouldBe(2);
 
-        evictions.Requested[0].Elapsed.SetResult();
-        await Task.Delay(50, Ct);
-        clock.UtcNow = T0.AddSeconds(70);
+            evictions.Requested[0].Elapsed.SetResult();
+            clock.UtcNow = T0.AddSeconds(70);
+            (await memo.ReadAsync(Ct)).N.ShouldBe(2, "the old entry's deadline must leave the newer entry in place");
+            attempts.Count.ShouldBe(2);
 
-        (await memo.ReadAsync(Ct)).N.ShouldBe(2);
-        attempts.Count.ShouldBe(2);
+            // The control: the same completion drops the newer entry before SetResult returns, so the read above ran
+            // after the old entry's drop had run, not before it.
+            evictions.Requested[1].Elapsed.SetResult();
+            (await memo.ReadAsync(Ct)).N.ShouldBe(3, "the newer entry is dropped at its own deadline");
+        }, Ct);
     }
 
     [Fact]

@@ -58,6 +58,18 @@ public class MaskedEmailAddressTests
         MaskedEmailAddress.Of("a@" + new string('d', 250) + ".com").Value.ShouldBe(MaskedEmailAddress.Hidden);
 
     [Fact]
+    public void Of_ShouldShowAValidDomainOfTheLongestLength_Whole_AndHideOneCharacterLonger()
+    {
+        // No label over 63 characters, so the domain is one DNS could hold.
+        static string Domain(int fourthLabel) => string.Join(
+            '.', new string('a', 63), new string('b', 63), new string('c', 63), new string('d', fourthLabel), "example", "com");
+        Domain(49).Length.ShouldBe(253);
+
+        MaskedEmailAddress.Of("z@" + Domain(49)).Value.ShouldBe("z•••@" + Domain(49));
+        MaskedEmailAddress.Of("z@" + Domain(50)).Value.ShouldBe(MaskedEmailAddress.Hidden);
+    }
+
+    [Fact]
     public void Of_ShouldNeverShowALoneSurrogate_AsTheFirstCharacter() =>
         MaskedEmailAddress.Of("\uD800bc@example.com").Value.ShouldBe("•••@example.com");
 

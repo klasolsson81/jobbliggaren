@@ -27,11 +27,15 @@ public class EmailUsageSourceRegistrationTests
     private const string ProjectId = "11111111-2222-3333-4444-555555555555";
     private const string ReadKeyName = "Email:ScalewayRead:SecretKey";
 
-    /// <summary>The read key's four shapes: absent, blank, its own value, and the sending key pasted in.</summary>
+    /// <summary>
+    /// The read key's five shapes: absent, blank, empty (what an empty secret file reads as), its own value, and the
+    /// sending key pasted in.
+    /// </summary>
     public enum ReadKeyShape
     {
         Absent,
         Blank,
+        Empty,
         Present,
         EqualToTheSendKey,
     }
@@ -48,6 +52,7 @@ public class EmailUsageSourceRegistrationTests
         values[ReadKeyName] = readKey switch
         {
             ReadKeyShape.Blank => " ",
+            ReadKeyShape.Empty => string.Empty,
             ReadKeyShape.Present => ReadKey,
             ReadKeyShape.EqualToTheSendKey => SecretKey,
             _ => null,
@@ -107,6 +112,7 @@ public class EmailUsageSourceRegistrationTests
     [Theory]
     [InlineData(ReadKeyShape.Absent)]
     [InlineData(ReadKeyShape.Blank)]
+    [InlineData(ReadKeyShape.Empty)]
     [InlineData(ReadKeyShape.Present)]
     [InlineData(ReadKeyShape.EqualToTheSendKey)]
     public void UnderConsole_EveryReadKeyShape_IsNotConfigured_AndNothingThrows(ReadKeyShape readKey)
@@ -129,10 +135,12 @@ public class EmailUsageSourceRegistrationTests
         services.ShouldNotContain(d => d.ServiceType == typeof(IProviderUsageAttemptSource));
     }
 
-    [Fact]
-    public void UnderScaleway_ABlankReadKey_FailsTheRegistration_NamingTheKey()
+    [Theory]
+    [InlineData(ReadKeyShape.Blank)]
+    [InlineData(ReadKeyShape.Empty)]
+    public void UnderScaleway_ABlankOrEmptyReadKey_FailsTheRegistration_NamingTheKey(ReadKeyShape readKey)
     {
-        var thrown = Should.Throw<InvalidOperationException>(() => ApiComposition(Config("Scaleway", ReadKeyShape.Blank)));
+        var thrown = Should.Throw<InvalidOperationException>(() => ApiComposition(Config("Scaleway", readKey)));
 
         thrown.Message.ShouldContain(ReadKeyName);
     }

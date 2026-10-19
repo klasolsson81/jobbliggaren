@@ -35,12 +35,12 @@ public sealed class ScalewayUsageSourceTests : IDisposable
 
     public ScalewayUsageSourceTests() => _provider = BuildProvider();
 
-    private ServiceProvider BuildProvider(TimeSpan? readTimeout = null, string? readKey = ReadKey)
+    private ServiceProvider BuildProvider(TimeSpan? readTimeout = null, string? readKey = ReadKey, string provider = "Scaleway")
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Email:Provider"] = "Scaleway",
+                ["Email:Provider"] = provider,
                 ["Email:Scaleway:Region"] = Region,
                 ["Email:Scaleway:SecretKey"] = SecretKey,
                 ["Email:Scaleway:ProjectId"] = ProjectId,
@@ -119,13 +119,62 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     public async Task WithoutAReadKey_NothingIsRead_AndTheSendKeyIsNeverUsedInItsPlace()
     {
         using var provider = BuildProvider(readKey: null);
-        var source = provider.GetRequiredService<IEmailProviderUsageSource>();
 
-        (await source.ReadUsageAsync(Ct)).ShouldBe(new EmailProviderUsageRead.ReadKeyMissing());
-        (await source.ReadPlanAsync(Ct)).ShouldBe(new EmailProviderPlanRead.ReadKeyMissing());
+        await ShouldAnswerEveryReadWithoutAskingAsync(
+            provider,
+            typeof(ReadKeyMissingEmailProviderReads),
+            new EmailProviderUsageRead.ReadKeyMissing(),
+            new EmailProviderPlanRead.ReadKeyMissing(),
+            new EmailDeliveryStatisticsRead.ReadKeyMissing(),
+            new EmailRecentFailuresRead.ReadKeyMissing());
+    }
+
+    [Fact]
+    public async Task UnderConsole_NothingIsRead_EvenWithAReadKey()
+    {
+        using var provider = BuildProvider(provider: "Console");
+
+        await ShouldAnswerEveryReadWithoutAskingAsync(
+            provider,
+            typeof(NotConfiguredEmailProviderReads),
+            new EmailProviderUsageRead.NotConfigured(),
+            new EmailProviderPlanRead.NotConfigured(),
+            new EmailDeliveryStatisticsRead.NotConfigured(),
+            new EmailRecentFailuresRead.NotConfigured());
+    }
+
+    /// <summary>
+    /// Every read port resolves to <paramref name="reads"/>, all five reads answer as given for every period, no request
+    /// leaves, and no attempt source is registered.
+    /// </summary>
+    private async Task ShouldAnswerEveryReadWithoutAskingAsync(
+        ServiceProvider provider,
+        Type reads,
+        EmailProviderUsageRead usage,
+        EmailProviderPlanRead plan,
+        EmailDeliveryStatisticsRead statistics,
+        EmailRecentFailuresRead failures)
+    {
+        var usageSource = provider.GetRequiredService<IEmailProviderUsageSource>();
+        var statisticsSource = provider.GetRequiredService<IEmailDeliveryStatisticsSource>();
+        var failuresSource = provider.GetRequiredService<IEmailRecentFailuresSource>();
+        usageSource.ShouldBeOfType(reads);
+        statisticsSource.ShouldBeOfType(reads);
+        failuresSource.ShouldBeOfType(reads);
+
+        (await usageSource.ReadUsageAsync(Ct)).ShouldBe(usage);
+        (await usageSource.ReadPlanAsync(Ct)).ShouldBe(plan);
+        (await statisticsSource.ReadSentinelAsync(Ct)).ShouldBe(statistics);
+        foreach (var period in Enum.GetValues<EmailDeliveryPeriod>())
+        {
+            (await statisticsSource.ReadAsync(period, Ct)).ShouldBe(statistics);
+            (await failuresSource.ReadAsync(period, Ct)).ShouldBe(failures);
+        }
 
         _transport.Requests.ShouldBeEmpty();
         provider.GetService<IProviderUsageAttemptSource>().ShouldBeNull();
+        provider.GetService<IDeliveryStatisticsAttemptSource>().ShouldBeNull();
+        provider.GetService<IRecentFailuresAttemptSource>().ShouldBeNull();
     }
 
     [Fact]

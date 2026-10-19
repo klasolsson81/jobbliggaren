@@ -216,6 +216,8 @@ public sealed class ScalewayDeliveryStatisticsSourceTests : IDisposable
         }
 
         _logs.Records.ShouldNotContain(r => r.Category.StartsWith("System.Net.Http", StringComparison.Ordinal));
+        // One line per failed read: the malformed answer, the refusal and the transport failure.
+        _logs.Records.Count(r => r.EventId == 3020).ShouldBe(3);
         _logs.Records.Where(r => r.EventId == 3020).ShouldAllBe(r => r.Message.Contains("statistics", StringComparison.Ordinal));
     }
 }

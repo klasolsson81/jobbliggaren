@@ -58,6 +58,6 @@ public enum EmailProviderReadReason
     /// <summary>The request never reached the provider: name resolution, connection, TLS.</summary>
     Unreachable,
 
-    /// <summary>A 2xx whose body is too large, not JSON, or without a non-negative count.</summary>
+    /// <summary>A 2xx whose body could not be read.</summary>
     Malformed,
 }

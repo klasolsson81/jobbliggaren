@@ -1,19 +1,25 @@
+using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Admin.Email;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailDelivery;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailRecentFailures;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Domain.Common;
 using Mediator;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
 using static Jobbliggaren.Api.IntegrationTests.Admin.AdminAccountsKit;
 
@@ -33,6 +39,7 @@ public sealed class AdminEmailDeliveryTests(ApiFactory factory)
     private const string SampledAtHeader = "X-Admin-Sampled-At";
     private const string MarkerLocalPart = "zz-marker-4711";
     private static readonly DateTimeOffset Observed = new(2026, 10, 19, 19, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Now = new(2026, 10, 19, 19, 1, 0, TimeSpan.Zero);
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static readonly EmailDeliveryStatisticsRead Counted = new EmailDeliveryStatisticsRead.Observed(40, 37, 3, Observed);
@@ -145,7 +152,10 @@ public sealed class AdminEmailDeliveryTests(ApiFactory factory)
         var data = new TheoryData<string, string>();
         foreach (var path in new[] { DeliveryPath, FailuresPath })
         {
-            foreach (var query in new[] { "", "?period=", "?period=H24", "?period=42", "?period=d30", "?period=Last24Hours" })
+            foreach (var query in new[]
+                     {
+                         "", "?period=", "?period=H24", "?period=42", "?period=d30", "?period=Last24Hours", "?period=h24&period=d7",
+                     })
             {
                 data.Add(path, query);
             }
@@ -181,6 +191,28 @@ public sealed class AdminEmailDeliveryTests(ApiFactory factory)
 
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
             (await ReadAsync(response)).GetProperty("period").GetString().ShouldBe(token);
+        }
+    }
+
+    [Fact]
+    public async Task Each_ShouldStampTheResponseWithTheApiClock()
+    {
+        var (_, _, session) = await AdminAsync(factory, NewToken(), Ct);
+        using var host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IDateTimeProvider>();
+            services.AddSingleton<IDateTimeProvider>(new MutableFakeDateTimeProvider { UtcNow = Now });
+        }));
+        using var client = host.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session);
+
+        foreach (var path in new[] { DeliveryPath, FailuresPath })
+        {
+            var response = await client.GetAsync(path + "?period=d7", Ct);
+
+            response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync(Ct));
+            response.Headers.GetValues(SampledAtHeader).ShouldHaveSingleItem()
+                .ShouldBe(Now.ToString("O", CultureInfo.InvariantCulture), path);
         }
     }
 

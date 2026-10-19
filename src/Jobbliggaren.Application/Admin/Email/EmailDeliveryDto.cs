@@ -12,8 +12,8 @@ public enum EmailDeliveryStatus
     NotObserved,
 
     /// <summary>
-    /// The provider answered, but the canary did not pass, so a zero or an empty list cannot be told from a key that
-    /// sees no mail. Produced by <see cref="EmailDeliveryEvaluator"/> alone; carries no reason.
+    /// The provider answered, but a zero or an empty list cannot be told from a key that sees no mail. Produced by
+    /// <see cref="EmailDeliveryEvaluator"/> alone; carries no reason.
     /// </summary>
     NotObservable,
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  accountOverviewFixture, emailAllowanceFixture, hostFixture, OVERVIEW_TIME, servicesFixture,
+  accountOverviewFixture, emailAllowanceFixture, emailDeliveryFixture, hostFixture, OVERVIEW_TIME, servicesFixture,
 } from "@/test/fixtures/admin-overview";
 
 const { session, transport } = vi.hoisted(() => ({ session: vi.fn(), transport: vi.fn() }));
@@ -20,6 +20,7 @@ const BACKUP = "/api/v1/admin/overview/backup";
 const HOST = "/api/v1/admin/overview/host";
 const SERVICES = "/api/v1/admin/overview/services";
 const EMAIL = "/api/v1/admin/email/allowance";
+const DELIVERY = "/api/v1/admin/email/delivery?period=h24";
 // The wire form of System.Text.Json for a DateTimeOffset in UTC: an offset, never a Z.
 const HOST_TIME = "2026-10-08T09:58:02+00:00";
 const backupObserved = {
@@ -38,6 +39,7 @@ function success(_session: string, path: string) {
       : path === HOST ? hostFixture()
       : path === SERVICES ? servicesFixture()
       : path === EMAIL ? emailAllowanceFixture()
+      : path === DELIVERY ? emailDeliveryFixture(2)
       : path.includes("overview") ? accountOverviewFixture() : path.includes("audit") ? audit : jobs));
 }
 beforeEach(() => { vi.clearAllMocks(); session.mockResolvedValue("synthetic-session"); transport.mockImplementation(success); });
@@ -49,7 +51,7 @@ describe("admin overview source reads", () => {
     expect(result.kind).toBe("ok");
     expect(transport.mock.calls.map((call) => call[1])).toEqual([
       "/api/v1/admin/overview/accounts", "/api/v1/admin/audit-log?page=1&pageSize=5", "/api/v1/admin/jobs/failed", BACKUP, HOST, SERVICES,
-      EMAIL,
+      EMAIL, DELIVERY,
     ]);
     expect(JSON.stringify(result)).not.toMatch(/ipAddress|userAgent|synthetic-agent|192.0.2.1|correlationId|userId|jobType|errorCategory/);
     if (result.kind !== "ok") throw new Error("Expected observed sources");
@@ -523,5 +525,73 @@ describe("admin overview e-post source (#1981 PR 1)", () => {
   it.each([401, 403])("answers %i when the allowance read does, wherever the other reads stand", async (status) => {
     transport.mockImplementation((_session: string, path: string) => path === EMAIL ? new Response(null, { status }) : success(_session, path));
     expect(await loadAdminOverview()).toEqual({ kind: status === 401 ? "unauthorized" : "forbidden" });
+  });
+});
+
+describe("admin overview failed-sends source (#1981 PR 2)", () => {
+  const deliveryAnswer = (body: unknown, stamp: string | null = OVERVIEW_TIME) =>
+    (_session: string, path: string) => path === DELIVERY ? Promise.resolve(response(body, stamp)) : success(_session, path);
+  const observedDelivery = async () => {
+    const result = await loadAdminOverview();
+    if (result.kind !== "ok") throw new Error("Expected partial observation");
+    return result.data.delivery;
+  };
+  const unjudged = { period: "h24", status: "NotObservable", reason: null, observedAt: null, sent: null, failed: null };
+
+  it("reads the provider's counts for the last 24 hours, and never the failures list", async () => {
+    await loadAdminOverview();
+    const paths = transport.mock.calls.map((call) => String(call[1]));
+    expect(paths).toContain(DELIVERY);
+    expect(paths.filter((path) => path.includes("/email/failures"))).toEqual([]);
+  });
+
+  it("asks only after an admin read has succeeded (#2064)", async () => {
+    let succeeded = 0;
+    transport.mockImplementation(async (_session: string, path: string) => {
+      if (path === DELIVERY) expect(succeeded).toBeGreaterThanOrEqual(1);
+      const result = await success(_session, path);
+      if (path !== DELIVERY && path !== EMAIL) succeeded++;
+      return result;
+    });
+    expect((await observedDelivery()).kind).toBe("loaded");
+  });
+
+  it("dates an observed count by when we asked the provider, never by the time of the read", async () => {
+    expect(await observedDelivery()).toEqual({
+      kind: "loaded", data: emailDeliveryFixture(2), sampledAt: "2026-10-08T09:59:30+00:00", refreshFailed: false,
+    });
+  });
+
+  it("dates an unjudged read by the API read instant: a loaded source in its own state, never a zero", async () => {
+    transport.mockImplementation(deliveryAnswer(unjudged));
+    expect(await observedDelivery()).toEqual({ kind: "loaded", data: unjudged, sampledAt: OVERVIEW_TIME, refreshFailed: false });
+  });
+
+  it.each([
+    ["another period's answer", { ...emailDeliveryFixture(2), period: "d7" }],
+    ["an extra property", { ...emailDeliveryFixture(2), canceled: 0 }],
+    ["a zero where nothing was observed", { ...unjudged, failed: 0 }],
+  ])("fails only the failed-sends source for %s", async (_name, body) => {
+    transport.mockImplementation(deliveryAnswer(body));
+    const result = await loadAdminOverview();
+    if (result.kind !== "ok") throw new Error("Expected partial observation");
+    expect(result.data.delivery).toEqual({ kind: "failed" });
+    expect(result.data.email.kind).toBe("loaded");
+  });
+
+  it.each([null, "invalid"])("fails the failed-sends source whose response header is %s", async (stamp) => {
+    transport.mockImplementation(deliveryAnswer(emailDeliveryFixture(2), stamp));
+    expect((await observedDelivery()).kind).toBe("failed");
+  });
+
+  it.each([401, 403])("answers %i when the delivery read does", async (status) => {
+    transport.mockImplementation((_session: string, path: string) => path === DELIVERY ? new Response(null, { status }) : success(_session, path));
+    expect(await loadAdminOverview()).toEqual({ kind: status === 401 ? "unauthorized" : "forbidden" });
+  });
+
+  it("lets the period, the state and the two counts cross to the browser, and nothing else", async () => {
+    const delivery = await observedDelivery();
+    if (delivery.kind !== "loaded") throw new Error("Expected a loaded source");
+    expect(Object.keys(delivery.data).sort()).toEqual(["failed", "observedAt", "period", "reason", "sent", "status"]);
   });
 });

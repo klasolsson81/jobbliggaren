@@ -134,12 +134,13 @@
       "empty": "Inget kräver uppmärksamhet just nu.",
       "failedJobs": "{count} bakgrundsjobb har misslyckats",
       "pendingDeletions": "{count, plural, one {# konto väntar på radering} other {# konton väntar på radering}}",
-      "failedEmails": "{count} utskick har misslyckats",
+      "failedEmails": "{count} utskick har misslyckats de senaste 24 timmarna",
       "noFailedJobs": "Inga misslyckade bakgrundsjobb.",
       "noPendingDeletions": "Inga konton väntar på radering.",
-      "emailUnknown": "E-postfel kan ännu inte bedömas.",
+      "noFailedEmails": "Inga misslyckade utskick hos Scaleway de senaste 24 timmarna.",
       "jobsSource": "Misslyckade bakgrundsjobb",
       "deletionsSource": "Väntande raderingar",
+      "emailsSource": "Misslyckade utskick",
       "sourceState": "{source}: {state}"
     },
     "events": {
@@ -169,7 +170,8 @@
         "backup": "Backup",
         "host": "Serverns mätvärden",
         "services": "Tjänster",
-        "email": "Utskick mot gratiskvoten"
+        "email": "Utskick mot gratiskvoten",
+        "delivery": "Misslyckade utskick"
       }
     },
     "registrationPeriods": {

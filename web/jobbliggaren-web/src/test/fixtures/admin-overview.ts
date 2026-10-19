@@ -1,7 +1,7 @@
 import type { AccountOverviewDto, AdminOverviewSnapshot, BackupObservationData } from "@/lib/dto/admin-overview";
 import type { HostObservationDto } from "@/lib/dto/admin-host";
 import type { ServicesObservationDto } from "@/lib/dto/admin-services";
-import type { EmailAllowanceDto } from "@/lib/dto/admin-email";
+import type { EmailAllowanceDto, EmailDeliveryDto } from "@/lib/dto/admin-email";
 
 export const OVERVIEW_TIME = "2026-10-08T10:00:00Z";
 
@@ -75,6 +75,11 @@ export function emailAllowanceFixture(): EmailAllowanceDto {
   };
 }
 
+/** The provider's counts for the last 24 hours as the API sends them (#1981 PR 2): asked 30 s before `OVERVIEW_TIME`. */
+export function emailDeliveryFixture(failed = 0): EmailDeliveryDto {
+  return { period: "h24", status: "Observed", reason: null, observedAt: "2026-10-08T09:59:30+00:00", sent: 57, failed };
+}
+
 export function overviewSnapshotFixture(): AdminOverviewSnapshot {
   return {
     accounts: { kind: "loaded", data: accountOverviewFixture(), sampledAt: OVERVIEW_TIME, refreshFailed: false },
@@ -87,5 +92,6 @@ export function overviewSnapshotFixture(): AdminOverviewSnapshot {
     host: { kind: "loaded", data: hostFixture(), sampledAt: "2026-10-08T09:59:30Z", refreshFailed: false },
     services: { kind: "loaded", data: servicesFixture(), sampledAt: "2026-10-08T09:59:30Z", refreshFailed: false },
     email: { kind: "loaded", data: emailAllowanceFixture(), sampledAt: "2026-10-08T09:59:30+00:00", refreshFailed: false },
+    delivery: { kind: "loaded", data: emailDeliveryFixture(), sampledAt: "2026-10-08T09:59:30+00:00", refreshFailed: false },
   };
 }

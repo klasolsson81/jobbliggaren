@@ -3,7 +3,7 @@ import type { AdminOverviewSnapshot } from "@/lib/dto/admin-overview";
 
 const LOADING: AdminOverviewSnapshot = {
   accounts: { kind: "loading" }, audit: { kind: "loading" }, jobs: { kind: "loading" }, backup: { kind: "loading" },
-  host: { kind: "loading" }, services: { kind: "loading" }, email: { kind: "loading" },
+  host: { kind: "loading" }, services: { kind: "loading" }, email: { kind: "loading" }, delivery: { kind: "loading" },
 };
 
 export default function AdminOverviewLoading() {

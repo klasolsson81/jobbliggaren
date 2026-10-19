@@ -15,7 +15,8 @@ import {
 } from "@/lib/dto/admin-overview";
 import { hostObservationSchema, type HostObservationDto } from "@/lib/dto/admin-host";
 import { servicesObservationSchema, type ServicesObservationDto } from "@/lib/dto/admin-services";
-import { emailAllowanceSchema, type EmailAllowanceDto } from "@/lib/dto/admin-email";
+import { emailAllowanceSchema, emailDeliverySchema, type EmailAllowanceDto, type EmailDeliveryDto } from "@/lib/dto/admin-email";
+import { ATTENTION_EMAIL_DELIVERY_PERIOD, withEmailPeriod } from "@/lib/admin/email-delivery";
 import type { AwaitingObservation, OverviewObservation } from "@/lib/admin/overview";
 
 /** Every admin source read gets this long, its own and the e-post page's alike (ADR 0150 Amendment 2026-10-08). */
@@ -124,6 +125,18 @@ function emailObservation(result: ApiResult<Observed<EmailAllowanceDto>>): Overv
   return { kind: "loaded", data: allowance, sampledAt, refreshFailed: false };
 }
 
+/**
+ * The attention card's failed sends (#1981 PR 2): the provider's counts for the last 24 hours, and nothing else; the
+ * overview never reads the failures list, so no recipient reaches it. Dated as the e-post card is: an observed count
+ * by when we asked the provider, any other state by the API read instant. An answer for another period fails.
+ */
+function deliveryObservation(result: ApiResult<Observed<EmailDeliveryDto>>): OverviewObservation<EmailDeliveryDto> {
+  if (result.kind !== "ok" || result.data.data.period !== ATTENTION_EMAIL_DELIVERY_PERIOD) return { kind: "failed" };
+  const delivery = result.data.data;
+  const sampledAt = delivery.status === "Observed" ? delivery.observedAt : result.data.sampledAt;
+  return { kind: "loaded", data: delivery, sampledAt, refreshFailed: false };
+}
+
 /** The newest of the parts' own sample times; null when none of them was sampled. */
 function newestSample(parts: ReadonlyArray<{ readonly sampledAt: string | null }>): string | null {
   const times = parts.flatMap((part) => (part.sampledAt === null ? [] : [part.sampledAt]));
@@ -163,9 +176,10 @@ export async function loadAdminOverview(signal?: AbortSignal): Promise<OverviewR
   const hostRead = gated("/api/v1/admin/overview/host", hostObservationSchema);
   const servicesRead = gated("/api/v1/admin/overview/services", servicesObservationSchema);
   const emailRead = gated("/api/v1/admin/email/allowance", emailAllowanceSchema);
-  const [accounts, audit, jobs, backup, host, services, email] =
-    await Promise.all([accountsRead, auditRead, jobsRead, backupRead, hostRead, servicesRead, emailRead]);
-  for (const result of [accounts, audit, jobs, backup, host, services, email]) {
+  const deliveryRead = gated(withEmailPeriod("/api/v1/admin/email/delivery", ATTENTION_EMAIL_DELIVERY_PERIOD), emailDeliverySchema);
+  const [accounts, audit, jobs, backup, host, services, email, delivery] =
+    await Promise.all([accountsRead, auditRead, jobsRead, backupRead, hostRead, servicesRead, emailRead, deliveryRead]);
+  for (const result of [accounts, audit, jobs, backup, host, services, email, delivery]) {
     if (result.kind === "unauthorized" || result.kind === "forbidden") return { kind: result.kind };
   }
 
@@ -191,6 +205,7 @@ export async function loadAdminOverview(signal?: AbortSignal): Promise<OverviewR
     data: {
       accounts: observed(accounts), audit: auditObservation, jobs: jobObservation, backup: backupObservation(backup),
       host: hostObservation(host), services: servicesObservation(services), email: emailObservation(email),
+      delivery: deliveryObservation(delivery),
     },
     loadedAt: Date.now(),
   };

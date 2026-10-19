@@ -1,4 +1,5 @@
 import type { BackupObservationData } from "@/lib/dto/admin-overview";
+import type { EmailDeliveryDto } from "@/lib/dto/admin-email";
 import type { ServicesObservationDto } from "@/lib/dto/admin-services";
 import type { AwaitingObservation, OverviewObservation } from "./overview";
 import {
@@ -91,6 +92,15 @@ export function servicesAttention(observation: OverviewObservation<ServicesObser
     undetermined: SERVICE_ROWS.filter((row) => services[row].kind === "unknown"),
     importOverdueAfterSeconds: services.importOverdueAfterSeconds,
   };
+}
+
+/**
+ * True when the provider counted failed sends in the last 24 hours (#1981 PR 2). Only an observed count above 0 raises
+ * the card; an unread or unjudgeable source raises nothing, and is never read as "no failures" either.
+ */
+export function failedSendsRaised(observation: OverviewObservation<EmailDeliveryDto>): boolean {
+  return (observation.kind === "loaded" || observation.kind === "empty")
+    && observation.data.status === "Observed" && observation.data.failed > 0;
 }
 
 /**

@@ -134,12 +134,13 @@
       "empty": "Nothing needs attention right now.",
       "failedJobs": "{count, plural, one {# background job has failed} other {# background jobs have failed}}",
       "pendingDeletions": "{count, plural, one {# account is pending deletion} other {# accounts are pending deletion}}",
-      "failedEmails": "{count, plural, one {# email has failed} other {# emails have failed}}",
+      "failedEmails": "{count, plural, one {# send has failed} other {# sends have failed}} in the last 24 hours",
       "noFailedJobs": "No failed background jobs.",
       "noPendingDeletions": "No accounts pending deletion.",
-      "emailUnknown": "Email failures cannot be assessed yet.",
+      "noFailedEmails": "No failed sends at Scaleway in the last 24 hours.",
       "jobsSource": "Failed background jobs",
       "deletionsSource": "Pending deletions",
+      "emailsSource": "Failed sends",
       "sourceState": "{source}: {state}"
     },
     "events": {
@@ -169,7 +170,8 @@
         "backup": "Backup",
         "host": "Server readings",
         "services": "Services",
-        "email": "Sends against the free allowance"
+        "email": "Sends against the free allowance",
+        "delivery": "Failed sends"
       }
     },
     "registrationPeriods": {

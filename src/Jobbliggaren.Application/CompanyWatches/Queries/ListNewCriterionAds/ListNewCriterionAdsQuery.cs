@@ -23,13 +23,6 @@ public sealed record NewCriterionAdRow(JobAdDto Ad, bool? MatchesYou);
 /// ADR 0175 D7 — the window of new ads, newest first, or the reason there is none.
 ///
 /// <para>
-/// <b>The criterion's state is closed.</b> <see cref="TooBroad"/> and <see cref="NotMaterialised"/> say the last
-/// scan did not answer Scanned — too broad, or no member set yet (never scanned included) — and then
-/// <see cref="Rows"/> is empty, <see cref="AcknowledgedThrough"/> is null and nothing is truncated: the page must not
-/// render "nothing new" for a criterion nobody read (ADR 0120), and the visit acknowledges nothing.
-/// </para>
-///
-/// <para>
 /// <b><see cref="AcknowledgedThrough"/> is the scan clock's, from the window the server cut</b>, and the client hands
 /// it back verbatim; a client-side value would sit below the hits it read (see <c>NewFollowedCompanyAdsDto</c>).
 /// </para>

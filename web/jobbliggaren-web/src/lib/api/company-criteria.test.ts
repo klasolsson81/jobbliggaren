@@ -689,8 +689,6 @@ describe("getCriterionNewAdCounts — Översikt's per-criterion count", () => {
   });
 
   it("200 → ok, a real 0 and a null staying distinct, from its own route", async () => {
-    // `null` is "the last scan was not Scanned"; 0 is a counted answer. Neither shows a pill, but
-    // they are different facts and the wire must keep them apart.
     const body = {
       items: [
         { criterionId: "cr-1", newAds: 3 },

@@ -121,8 +121,6 @@ export function CriteriaCard({ criteria, reference, newAdCounts }: CriteriaCardP
       : [],
   );
 
-  // A pill only for a number above zero: a counted 0, a `null` (the last scan was not Scanned) and
-  // a watch the read did not return all render nothing.
   const newAdsPill = (item: CompanyWatchCriterion): ReactNode => {
     const count = newAdsById.get(item.id);
     if (typeof count !== "number" || count <= 0) return null;

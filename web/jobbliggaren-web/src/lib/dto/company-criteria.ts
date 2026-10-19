@@ -287,12 +287,6 @@ export const criterionAdBrowseResponseSchema = z.object({
 });
 export type CriterionAdBrowseResponse = z.infer<typeof criterionAdBrowseResponseSchema>;
 
-/**
- * ADR 0175 D7 (#1663 PR 2) — "N nya" per Branschbevakning, for Översikt (mirrors the Api's
- * `CriterionNewAdCountsDto`). `newAds === null` means the criterion's last scan was not `Scanned` —
- * too broad, not materialised, or never scanned — so there is no number to show (ADR 0120). A real
- * 0 is sent as 0, and renders nothing either.
- */
 export const criterionNewAdCountSchema = z.object({
   criterionId: z.string(),
   newAds: z.number().int().nonnegative().nullable(),

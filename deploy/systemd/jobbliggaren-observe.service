@@ -31,7 +31,7 @@ Group=jbl-observe
 # and nothing else. The set is measured on the box with systemd-run before the timer is enabled
 # (docs/runbooks/host-observations.md), not assumed.
 ReadWritePaths=-/run/jobbliggaren/observations
-InaccessiblePaths=-/run/jobbliggaren/host-secrets -/run/jobbliggaren/secrets -/etc/jobbliggaren
+InaccessiblePaths=-/run/jobbliggaren/host-secrets -/run/jobbliggaren/secrets -/run/jobbliggaren/api-secrets -/etc/jobbliggaren
 ProtectSystem=strict
 ProtectHome=yes
 ProtectProc=invisible

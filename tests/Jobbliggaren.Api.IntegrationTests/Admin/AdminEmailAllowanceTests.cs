@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Admin.Email;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailAllowance;
@@ -14,7 +16,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
 using static Jobbliggaren.Api.IntegrationTests.Admin.AdminAccountsKit;
 
@@ -30,6 +34,7 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
 {
     private const string EndpointPath = "/api/v1/admin/email/allowance";
     private const string SampledAtHeader = "X-Admin-Sampled-At";
+    private static readonly DateTimeOffset Now = new(2026, 10, 18, 19, 31, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset Observed = new(2026, 10, 18, 19, 30, 40, TimeSpan.Zero);
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -143,20 +148,22 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
     [Fact]
     public async Task Allowance_ShouldAnswerTheProvidersCount_WithTheComputedCost_AndStampTheResponseWithTheApiClock()
     {
-        var (admin, _, _) = await AdminAsync(factory, NewToken(), Ct);
+        var (_, _, session) = await AdminAsync(factory, NewToken(), Ct);
         using var scripted = Scripted(new EmailProviderUsageRead.Observed(1_301, 0, Observed));
-        var clock = factory.Services.GetRequiredService<IDateTimeProvider>();
+        using var host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IDateTimeProvider>();
+            services.AddSingleton<IDateTimeProvider>(new MutableFakeDateTimeProvider { UtcNow = Now });
+        }));
+        using var client = host.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session);
 
-        var before = clock.UtcNow;
-        var response = await admin.GetAsync(EndpointPath, Ct);
-        var after = clock.UtcNow;
+        var response = await client.GetAsync(EndpointPath, Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync(Ct));
         ShouldBePrivate(response);
-        var sampledAt = response.Headers.GetValues(SampledAtHeader).ShouldHaveSingleItem();
-        var stamped = DateTimeOffset.ParseExact(sampledAt, "O", CultureInfo.InvariantCulture);
-        sampledAt.ShouldBe(stamped.ToString("O", CultureInfo.InvariantCulture));
-        stamped.ShouldBeInRange(before, after);
+        response.Headers.GetValues(SampledAtHeader).ShouldHaveSingleItem()
+            .ShouldBe(Now.ToString("O", CultureInfo.InvariantCulture));
 
         var body = await ReadAsync(response);
         var terms = body.GetProperty("terms");

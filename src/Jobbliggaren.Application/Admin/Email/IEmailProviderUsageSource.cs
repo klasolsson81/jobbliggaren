@@ -1,17 +1,52 @@
 namespace Jobbliggaren.Application.Admin.Email;
 
 /// <summary>
-/// The allowance figure's one source: the provider's own count of this month's mail (#1981, ADR 0177). Application
-/// defines the port; Infrastructure implements it. The only consumer is <c>GetEmailAllowanceQueryHandler</c>, which
-/// an architecture test pins.
+/// The allowance figure's one source (#1981, ADR 0177): the provider's own count of this month's mail, and the plan
+/// the project is on, so a cost is computed only against the terms of the plan actually in force. Application defines
+/// the port; Infrastructure implements it. The only consumer is <c>GetEmailAllowanceQueryHandler</c>, which an
+/// architecture test pins.
+/// <para>
+/// Neither method throws for a refusal, a timeout or a body it cannot read; those are reasons on the result. The one
+/// exception is <see cref="OperationCanceledException"/> when the caller's own token is cancelled. The two reads fail
+/// independently.
+/// </para>
 /// </summary>
 public interface IEmailProviderUsageSource
 {
-    /// <summary>
-    /// Never throws for a refusal, a timeout or a body it cannot read; those are reasons on the result. The one
-    /// exception is <see cref="OperationCanceledException"/> when the caller's own token is cancelled.
-    /// </summary>
     ValueTask<EmailProviderUsageRead> ReadUsageAsync(CancellationToken cancellationToken);
+
+    ValueTask<EmailProviderPlanRead> ReadPlanAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>What one read of the project's plan ends in: a closed set.</summary>
+public abstract record EmailProviderPlanRead
+{
+    private EmailProviderPlanRead() { }
+
+    /// <summary>
+    /// The provider answered. <paramref name="Plan"/> is <see cref="EmailPlan.Unknown"/> when it named a plan this code
+    /// does not know, or not exactly one.
+    /// </summary>
+    public sealed record Observed(EmailPlan Plan, DateTimeOffset ObservedAt) : EmailProviderPlanRead;
+
+    /// <summary>This deployment sends through no provider that can be asked.</summary>
+    public sealed record NotConfigured : EmailProviderPlanRead;
+
+    /// <summary>The read failed for <see cref="Reason"/>, which is never <see cref="EmailAllowanceReason.NotConfigured"/>.</summary>
+    public sealed record Failed : EmailProviderPlanRead
+    {
+        public Failed(EmailAllowanceReason reason)
+        {
+            if (reason == EmailAllowanceReason.NotConfigured || !Enum.IsDefined(reason))
+            {
+                throw new ArgumentException("A failure carries a failure reason.", nameof(reason));
+            }
+
+            Reason = reason;
+        }
+
+        public EmailAllowanceReason Reason { get; }
+    }
 }
 
 /// <summary>What one read of the provider ends in: a closed set.</summary>

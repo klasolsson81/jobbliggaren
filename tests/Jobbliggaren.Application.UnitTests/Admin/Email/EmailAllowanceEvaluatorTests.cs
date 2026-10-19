@@ -14,8 +14,11 @@ public class EmailAllowanceEvaluatorTests
     private static readonly SwedishCalendar Calendar = new();
     private static readonly DateTimeOffset MidMonth = new(2026, 10, 18, 19, 30, 0, TimeSpan.Zero);
 
-    private static EmailAllowanceDto Evaluate(EmailProviderUsageRead read, EmailAllowanceOptions? options = null) =>
-        EmailAllowanceEvaluator.Evaluate(read, options ?? new EmailAllowanceOptions(), Calendar);
+    private static readonly EmailProviderPlanRead Essential = new EmailProviderPlanRead.Observed(EmailPlan.Essential, MidMonth);
+
+    private static EmailAllowanceDto Evaluate(
+        EmailProviderUsageRead read, EmailAllowanceOptions? options = null, EmailProviderPlanRead? plan = null) =>
+        EmailAllowanceEvaluator.Evaluate(read, plan ?? Essential, options ?? new EmailAllowanceOptions(), Calendar);
 
     private static EmailProviderUsageRead.Observed Observed(long sent, int? webhooks = 0, DateTimeOffset? at = null) =>
         new EmailProviderUsageRead.Observed(sent, webhooks, at ?? MidMonth);
@@ -91,6 +94,81 @@ public class EmailAllowanceEvaluatorTests
         usage.Status.ShouldBe(EmailAllowanceStatus.Observed);
         usage.WebhooksCount.ShouldBeNull();
         usage.Sent.ShouldBe(184);
+    }
+
+    // ---- the plan guard ----
+
+    [Fact]
+    public void Evaluate_ShouldSayThePlanMatches_WhenTheProviderNamesTheConfiguredPlan()
+    {
+        var dto = Evaluate(Observed(184));
+
+        dto.Plan.Status.ShouldBe(EmailAllowanceStatus.Observed);
+        dto.Plan.Reason.ShouldBeNull();
+        dto.Plan.Active.ShouldBe(EmailPlan.Essential);
+        dto.Plan.Matches.ShouldBe(true);
+    }
+
+    [Theory]
+    [InlineData(EmailPlan.Scale)]
+    [InlineData(EmailPlan.Unknown)]
+    public void Evaluate_ShouldWithholdTheCost_ButKeepTheCount_WhenThePlanInForceIsNotTheConfiguredOne(EmailPlan active)
+    {
+        var dto = Evaluate(Observed(1_301), plan: new EmailProviderPlanRead.Observed(active, MidMonth));
+
+        dto.Plan.Active.ShouldBe(active);
+        dto.Plan.Matches.ShouldBe(false);
+        dto.Usage.Status.ShouldBe(EmailAllowanceStatus.Observed);
+        dto.Usage.Sent.ShouldBe(1_301);
+        dto.Usage.Billable.ShouldBeNull();
+        dto.Usage.EstimatedExtraCostCents.ShouldBeNull();
+        dto.Usage.AboveHalfOfSendLimit.ShouldBe(false);
+    }
+
+    [Fact]
+    public void Evaluate_ShouldNeverLetAnUnknownPlanMatch_EvenIfTheOptionsSaidUnknown()
+    {
+        // Validation refuses Unknown as a configured plan; this pins that the evaluator does not lean on that alone.
+        var options = new EmailAllowanceOptions { Plan = EmailPlan.Unknown };
+
+        var dto = Evaluate(Observed(1), options, new EmailProviderPlanRead.Observed(EmailPlan.Unknown, MidMonth));
+
+        dto.Plan.Matches.ShouldBe(false);
+        dto.Usage.EstimatedExtraCostCents.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Evaluate_ShouldWithholdTheCost_ButKeepTheCount_WhenThePlanReadFailed()
+    {
+        var dto = Evaluate(Observed(184), plan: new EmailProviderPlanRead.Failed(EmailAllowanceReason.Forbidden));
+
+        dto.Plan.Status.ShouldBe(EmailAllowanceStatus.Failed);
+        dto.Plan.Reason.ShouldBe(EmailAllowanceReason.Forbidden);
+        dto.Plan.Active.ShouldBeNull();
+        dto.Plan.Matches.ShouldBeNull();
+        dto.Usage.Sent.ShouldBe(184);
+        dto.Usage.EstimatedExtraCostCents.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Evaluate_ShouldKeepThePlan_WhenOnlyTheCountFailed()
+    {
+        var dto = Evaluate(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Timeout));
+
+        dto.Usage.Status.ShouldBe(EmailAllowanceStatus.Failed);
+        dto.Plan.Status.ShouldBe(EmailAllowanceStatus.Observed);
+        dto.Plan.Matches.ShouldBe(true);
+    }
+
+    [Fact]
+    public void Evaluate_ShouldReportBothReadsNotObserved_WhenNoProviderIsConfigured()
+    {
+        var dto = Evaluate(new EmailProviderUsageRead.NotConfigured(), plan: new EmailProviderPlanRead.NotConfigured());
+
+        dto.Plan.Status.ShouldBe(EmailAllowanceStatus.NotObserved);
+        dto.Plan.Reason.ShouldBe(EmailAllowanceReason.NotConfigured);
+        dto.Plan.Active.ShouldBeNull();
+        dto.Usage.Status.ShouldBe(EmailAllowanceStatus.NotObserved);
     }
 
     // ---- the month label ----

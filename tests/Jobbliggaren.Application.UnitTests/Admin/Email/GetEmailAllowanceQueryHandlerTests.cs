@@ -12,14 +12,28 @@ public class GetEmailAllowanceQueryHandlerTests
     private static readonly DateTimeOffset At = new(2026, 10, 18, 19, 30, 0, TimeSpan.Zero);
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private sealed class FakeSource(Func<CancellationToken, ValueTask<EmailProviderUsageRead>> read) : IEmailProviderUsageSource
+    private sealed class FakeSource(
+        Func<CancellationToken, ValueTask<EmailProviderUsageRead>> read,
+        Func<CancellationToken, ValueTask<EmailProviderPlanRead>>? plan = null) : IEmailProviderUsageSource
     {
         public int Reads { get; private set; }
+
+        public int PlanReads { get; private set; }
+
+        public List<CancellationToken> PlanTokens { get; } = [];
 
         public ValueTask<EmailProviderUsageRead> ReadUsageAsync(CancellationToken cancellationToken)
         {
             Reads++;
             return read(cancellationToken);
+        }
+
+        public ValueTask<EmailProviderPlanRead> ReadPlanAsync(CancellationToken cancellationToken)
+        {
+            PlanReads++;
+            PlanTokens.Add(cancellationToken);
+            return plan?.Invoke(cancellationToken)
+                ?? ValueTask.FromResult<EmailProviderPlanRead>(new EmailProviderPlanRead.Observed(EmailPlan.Essential, At));
         }
     }
 
@@ -40,6 +54,8 @@ public class GetEmailAllowanceQueryHandlerTests
             .Handle(new GetEmailAllowanceQuery(), Ct);
 
         source.Reads.ShouldBe(1);
+        source.PlanReads.ShouldBe(1);
+        dto.Plan.Matches.ShouldBe(true);
         dto.Terms.IncludedMonthlyEmails.ShouldBe(1_000);
         dto.Usage.Billable.ShouldBe(301);
         dto.Usage.EstimatedExtraCostCents.ShouldBe(8);
@@ -59,6 +75,20 @@ public class GetEmailAllowanceQueryHandlerTests
         await Handler(source).Handle(new GetEmailAllowanceQuery(), cancellation.Token);
 
         seen.ShouldBe(cancellation.Token);
+        source.PlanTokens.ShouldHaveSingleItem().ShouldBe(cancellation.Token);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldStartBothReads_BeforeEitherCompletes()
+    {
+        var usageGate = new TaskCompletionSource<EmailProviderUsageRead>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = new FakeSource(_ => new ValueTask<EmailProviderUsageRead>(usageGate.Task));
+
+        var handling = Handler(source).Handle(new GetEmailAllowanceQuery(), Ct).AsTask();
+
+        source.PlanReads.ShouldBe(1, "the plan read must not wait for the count read");
+        usageGate.SetResult(new EmailProviderUsageRead.Observed(1, 0, At));
+        (await handling).Usage.Sent.ShouldBe(1);
     }
 
     [Fact]

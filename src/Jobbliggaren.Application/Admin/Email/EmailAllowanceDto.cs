@@ -2,11 +2,11 @@ namespace Jobbliggaren.Application.Admin.Email;
 
 /// <summary>
 /// The allowance region's data as the browser receives it (#1981, ADR 0177). The terms are our own configured
-/// facts and are always present; the usage is a closed union, so a failed read never blanks the terms (ADR 0150 D2).
-/// Every figure is computed here, and the page and the overview card only format it, so both read one definition.
-/// A test pins the serialised key set.
+/// facts and are always present; the usage and the plan are closed unions that fail independently, so one failed read
+/// never blanks the rest (ADR 0150 D2). Every figure is computed here, and the page and the overview card only format
+/// it, so both read one definition. A test pins the serialised key set.
 /// </summary>
-public sealed record EmailAllowanceDto(EmailAllowanceTermsDto Terms, EmailAllowanceUsageDto Usage);
+public sealed record EmailAllowanceDto(EmailAllowanceTermsDto Terms, EmailAllowanceUsageDto Usage, EmailAllowancePlanDto Plan);
 
 /// <summary>The configured terms. No URL and no provider string reaches the browser.</summary>
 public sealed record EmailAllowanceTermsDto(
@@ -62,9 +62,10 @@ public sealed record EmailAllowanceUsageDto
     /// <summary>The provider's count of mail sent this month in the project.</summary>
     public long? Sent { get; }
 
+    /// <summary>Absent unless the plan in force is the configured one: the terms are that plan's.</summary>
     public long? Billable { get; }
 
-    /// <summary>Computed, rounded up to the whole cent, before VAT. Never a billed amount.</summary>
+    /// <summary>Computed, rounded up to the whole cent, before VAT; never a billed amount. Absent like <see cref="Billable"/>.</summary>
     public long? EstimatedExtraCostCents { get; }
 
     /// <summary>ADR 0161 D4 trigger 1.</summary>
@@ -77,8 +78,8 @@ public sealed record EmailAllowanceUsageDto
         DateTimeOffset observedAt,
         string? month,
         long sent,
-        long billable,
-        long estimatedExtraCostCents,
+        long? billable,
+        long? estimatedExtraCostCents,
         bool aboveHalfOfSendLimit,
         int? webhooksCount) =>
         new(EmailAllowanceStatus.Observed, null, observedAt, month, sent, billable, estimatedExtraCostCents,
@@ -91,4 +92,41 @@ public sealed record EmailAllowanceUsageDto
         reason == EmailAllowanceReason.NotConfigured
             ? throw new ArgumentException("A failure carries a failure reason.", nameof(reason))
             : new(EmailAllowanceStatus.Failed, reason, null, null, null, null, null, null, null);
+}
+
+/// <summary>
+/// The plan the provider says the project is on, against the configured one. A cost is computed only when they match;
+/// otherwise it is unknown and the page says why.
+/// </summary>
+public sealed record EmailAllowancePlanDto
+{
+    private EmailAllowancePlanDto(EmailAllowanceStatus status, EmailAllowanceReason? reason, EmailPlan? active, bool? matches)
+    {
+        Status = status;
+        Reason = reason;
+        Active = active;
+        Matches = matches;
+    }
+
+    public EmailAllowanceStatus Status { get; }
+
+    /// <summary>Present exactly when <see cref="Status"/> is not <see cref="EmailAllowanceStatus.Observed"/>.</summary>
+    public EmailAllowanceReason? Reason { get; }
+
+    /// <summary>The plan in force, <see cref="EmailPlan.Unknown"/> when the provider named none this code knows.</summary>
+    public EmailPlan? Active { get; }
+
+    /// <summary>Whether <see cref="Active"/> is the configured plan. An unknown plan never matches.</summary>
+    public bool? Matches { get; }
+
+    public static EmailAllowancePlanDto Observed(EmailPlan active, bool matches) =>
+        new(EmailAllowanceStatus.Observed, null, active, matches);
+
+    public static EmailAllowancePlanDto NotObserved() =>
+        new(EmailAllowanceStatus.NotObserved, EmailAllowanceReason.NotConfigured, null, null);
+
+    public static EmailAllowancePlanDto Failed(EmailAllowanceReason reason) =>
+        reason == EmailAllowanceReason.NotConfigured
+            ? throw new ArgumentException("A failure carries a failure reason.", nameof(reason))
+            : new(EmailAllowanceStatus.Failed, reason, null, null);
 }

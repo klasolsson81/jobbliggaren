@@ -33,4 +33,11 @@ public class EmailProviderUsageReadTests
     [Fact]
     public void Failed_ShouldRefuseAReasonOutsideTheEnum() =>
         Should.Throw<ArgumentException>(() => new EmailProviderUsageRead.Failed((EmailAllowanceReason)99));
+
+    [Fact]
+    public void AFailedPlanRead_ShouldRefuseNotConfiguredAndAReasonOutsideTheEnum()
+    {
+        Should.Throw<ArgumentException>(() => new EmailProviderPlanRead.Failed(EmailAllowanceReason.NotConfigured));
+        Should.Throw<ArgumentException>(() => new EmailProviderPlanRead.Failed((EmailAllowanceReason)99));
+    }
 }

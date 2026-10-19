@@ -11,7 +11,10 @@ public sealed class GetEmailAllowanceQueryHandler(
 {
     public async ValueTask<EmailAllowanceDto> Handle(GetEmailAllowanceQuery query, CancellationToken cancellationToken)
     {
-        var read = await source.ReadUsageAsync(cancellationToken);
-        return EmailAllowanceEvaluator.Evaluate(read, options.Value, calendar);
+        // Both reads run at once, inside the read client's one timeout.
+        var usage = source.ReadUsageAsync(cancellationToken).AsTask();
+        var plan = source.ReadPlanAsync(cancellationToken).AsTask();
+        await Task.WhenAll(usage, plan);
+        return EmailAllowanceEvaluator.Evaluate(await usage, await plan, options.Value, calendar);
     }
 }

@@ -16,8 +16,8 @@ export interface AllowanceFigures {
 
 export function allowanceFigures(allowance: EmailAllowanceDto): AllowanceFigures {
   const { usage, plan, terms } = allowance;
-  // A deployment with no provider to ask has no figure at all, the configured terms included.
-  if (usage.status === "NotObserved") return { sent: null, included: null, costOre: null };
+  // A deployment with no provider to ask, or no key to ask it with, has no figure at all, the configured terms included.
+  if (usage.status === "NotObserved" || usage.status === "ReadKeyMissing") return { sent: null, included: null, costOre: null };
   return {
     sent: usage.status === "Observed" ? usage.sent : null,
     included: plan.status === "Observed" && plan.matches ? terms.includedMonthlyEmails : null,
@@ -57,7 +57,8 @@ export type AllowancePlanState =
 
 export function allowancePlanState(allowance: EmailAllowanceDto): AllowancePlanState | null {
   const { usage, plan } = allowance;
-  if (usage.status === "NotObserved") return null;
+  // No provider to ask, or no read key to ask it with: each state has its own single line.
+  if (usage.status === "NotObserved" || usage.status === "ReadKeyMissing") return null;
   switch (plan.status) {
     case "Observed":
       if (plan.matches) return null;
@@ -65,7 +66,8 @@ export function allowancePlanState(allowance: EmailAllowanceDto): AllowancePlanS
     case "Failed":
       return { kind: "failed" };
     case "NotObserved":
-      // Not reachable while one setting selects both reads; if it ever is, the plan was not determined.
+    case "ReadKeyMissing":
+      // Not reachable while one setting and one key serve both reads; if it ever is, the plan was not determined.
       return { kind: "undetermined" };
   }
 }

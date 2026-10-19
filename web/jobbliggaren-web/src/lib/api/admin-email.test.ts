@@ -4,7 +4,14 @@ import { emailAllowanceFixture } from "@/test/fixtures/admin-overview";
 const { session, transport } = vi.hoisted(() => ({ session: vi.fn(), transport: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getSessionId: session }));
 vi.mock("@/lib/http/authed-fetch", () => ({ authedFetch: transport }));
-import { EMAIL_ALLOWANCE_PATH, loadEmailAllowance } from "./admin-email";
+import {
+  EMAIL_ALLOWANCE_PATH,
+  EMAIL_DELIVERY_PATH,
+  EMAIL_FAILURES_PATH,
+  loadEmailAllowance,
+  loadEmailDelivery,
+  loadEmailFailures,
+} from "./admin-email";
 
 const answer = (body: unknown, status = 200) =>
   Promise.resolve(new Response(body === null ? null : JSON.stringify(body), { status }));
@@ -88,5 +95,67 @@ describe("loadEmailAllowance (#1981 PR 1)", () => {
     const pending = loadEmailAllowance(caller.signal);
     caller.abort();
     expect(await pending).toEqual({ kind: "error" });
+  });
+});
+
+const DELIVERY = {
+  period: "h24", status: "Observed", reason: null, observedAt: "2026-10-19T18:59:46+00:00", sent: 57, failed: 2,
+} as const;
+const FAILURES = {
+  period: "h24", status: "Observed", reason: null, observedAt: "2026-10-19T18:59:46+00:00", limit: 10,
+  failures: [{ createdAt: "2026-10-19T14:32:51+00:00", recipient: "k•••@example.com", reason: "MailboxNotFound" }],
+} as const;
+
+describe.each([
+  ["loadEmailDelivery", loadEmailDelivery, EMAIL_DELIVERY_PATH, DELIVERY],
+  ["loadEmailFailures", loadEmailFailures, EMAIL_FAILURES_PATH, FAILURES],
+] as const)("%s (#1981 PR 2)", (_name, load, path, body) => {
+  beforeEach(() => {
+    transport.mockImplementation(() => answer(body));
+  });
+
+  it("asks for the period alone, and answers the body as the schema parsed it", async () => {
+    expect(await load("h24")).toEqual({ kind: "ok", data: body });
+    expect(transport).toHaveBeenCalledWith("synthetic-session", `${path}?period=h24`, expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
+  it("answers another period's body as an error: it is not this page's answer", async () => {
+    expect(await load("d7")).toEqual({ kind: "error" });
+  });
+
+  it("reads nothing without a session", async () => {
+    session.mockResolvedValue(null);
+    expect(await load("h24")).toEqual({ kind: "unauthorized" });
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [400, "error"],
+    [401, "unauthorized"],
+    [403, "forbidden"],
+    [429, "error"],
+    [500, "error"],
+  ] as const)("answers status %i as %s", async (status, kind) => {
+    transport.mockImplementation(() => answer(null, status));
+    expect(await load("h24")).toEqual({ kind });
+  });
+
+  it("answers a body outside the contract as an error, never as a guess", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    transport.mockImplementation(() => answer({ ...body, id: "provider-id" }));
+    expect(await load("h24")).toEqual({ kind: "error" });
+  });
+
+  it("answers a transport failure as an error and never throws", async () => {
+    transport.mockImplementation(() => Promise.reject(new TypeError("fetch failed")));
+    await expect(load("h24")).resolves.toEqual({ kind: "error" });
+  });
+});
+
+describe("loadEmailFailures and the mask (#1981 PR 2)", () => {
+  it("answers an address the API did not mask as an error, so the page never shows it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    transport.mockImplementation(() => answer({ ...FAILURES, failures: [{ ...FAILURES.failures[0], recipient: "konto@example.com" }] }));
+    expect(await loadEmailFailures("h24")).toEqual({ kind: "error" });
   });
 });

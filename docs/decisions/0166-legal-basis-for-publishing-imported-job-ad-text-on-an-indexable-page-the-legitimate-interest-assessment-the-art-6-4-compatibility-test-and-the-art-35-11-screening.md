@@ -669,7 +669,7 @@ driving session through AskUserQuestion). His answers, quoted without edits:
 
 ADR 0166 remains **Accepted** for D1–D11 for the page, and for the sitemap by the amendment of 2026-10-18 for S4. This amendment is **Accepted** (approved by Klas and signed by `security-auditor`, both 2026-10-18).
 
-## Amendment 2026-10-18 (#2090, ADR 0177) — the trigger-5 re-take for the Search Console read path; approved by Klas 2026-10-18, signed by `security-auditor` <PENDING>
+## Amendment 2026-10-18 (#2090, ADR 0177) — the trigger-5 re-take for the Search Console read path; approved by Klas 2026-10-18, signed by `security-auditor` 2026-10-19
 
 D1–D11 and the earlier amendments stand and nothing above is rewritten. D10's trigger 5 is "Any **push** of a posting URL or its content to a third party" (the amendment of 2026-10-17), and (viii) of the
 amendment of 2026-10-18 for S4 kept "the Search Console API" inside it. The CTO's stage-B ruling B11 (local) says the same. This amendment narrows that inclusion for exactly one read path, which ADR 0177
@@ -756,9 +756,40 @@ driving session through AskUserQuestion). The questions are quoted as asked, and
 
    "Ja (Rek.)": `google-github-actions/auth` is exempted from Dependabot auto-merge by name.
 
-**Signature:** pending: `security-auditor` signs on PR B's final head before the first run.
+**Signature:** `security-auditor`, 2026-10-19, on her scoped re-check of PR [#2189](https://github.com/klasolsson81/jobbliggaren/pull/2189) at head `94a2b6cb5`.
+
+**What it signs.** This amendment, points 1–8, D10 triggers 13 and 14, and the readings for triggers 1, 5 and 6–12 in point 6.
+
+**What it is read with.** ADR 0177 D1–D7 as delivered, including what that ADR records as not measured. And `docs/runbooks/search-console-read.md` §1 as Klas recorded it in §3 on 2026-10-18 and 2026-10-19: steps 1–9 yes, step 10 not done.
+
+**The properties it signs:**
+- **The calls** are exactly `sites.get` (GET), five `searchAnalytics.query` (POST) and two `sitemaps.list` (GET), each at its constant endpoint under `sc-domain:jobbliggaren.se`.
+- **The bodies.** The five equal the golden files, with the window's two dates as their only variable. None carries `dimensions`, and none carries a filter that names a job-ad page or a posting URL.
+- **The credential** is Workload Identity Federation through `projects/489674759620/locations/global/workloadIdentityPools/github-actions/providers/search-console-read` and `sc-read@jobbliggaren-sc-read.iam.gserviceaccount.com`, with scope `webmasters.readonly` and a lifetime of 300 s. There is no credentials file and no exported variable. The provider's condition is ADR 0177 D3's, and its mapping carries no `actor`.
+- **The workflow.** There is one, on `main`, under `schedule` or `workflow_dispatch`, with no inputs, `id-token: write` only and `timeout-minutes: 10`. It fetches its commit with `git` and no credential. It runs one action, `google-github-actions/auth` at `7c6bc770dae815cd3e89ee6cdf493a5fab2cc093`, which Dependabot does not auto-merge.
+- **The permission.** Every run proceeds only on `siteRestrictedUser`.
+- **The responses.** A response is accepted only as one JSON document in ADR 0177 D2's shapes. A refusal prints a request and a class from the closed set, never a value.
+- **The output.** The aggregates reach only the run's job summary, and the outcome annotation carries none of them.
+- **No agent** holds the credential, calls the API or opens either console.
+- **Nothing** is pushed to anyone.
+
+**What it signs only as stated:**
+- Point 4's residuals are signed as residuals, never as barriers.
+- The URL Inspection quota is no barrier, because step 10 was not done.
+- The Google-side parts are signed as Klas's setup record states them. She did not measure them, and the first run measures the Restricted level.
+
+**What it does not cover.** It renews no earlier signature, and it changes nothing in D1–D11 or in the S3, S4 and S5 amendments. It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override.
+
+**What it lapses with:**
+- any D10 trigger that fires after it, 5, 13 and 14 included;
+- any change to this amendment's text or to the properties above;
+- any change to the workflow, the script, its suite or its samples, and any bump of an action the job runs, that merges without her read.
+
+**What does not reopen it:**
+- The first run's reading, appended under its own rule, unless it fires trigger 14.
+- The edit that writes this line, replaces `<PENDING>` in the heading and marks the amendment Accepted.
 
 **The first run's reading.** It is appended here under its own rule, with its date: the permission level that `sites.get` returned, and the outcome of the shape checks, which is either accepted or the
 refusal class. A reading appended under this rule does not reopen the signature unless it fires trigger 14. Reading: pending: the first run on `main` after the merge.
 
-ADR 0166 remains Accepted for D1–D11; this amendment is Proposed until `security-auditor` signs it.
+ADR 0166 remains Accepted for D1–D11; this amendment is **Accepted** (approved by Klas 2026-10-18 and signed by `security-auditor` 2026-10-19).

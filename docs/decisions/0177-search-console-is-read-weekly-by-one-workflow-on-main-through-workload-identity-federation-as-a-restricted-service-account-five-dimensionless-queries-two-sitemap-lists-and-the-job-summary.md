@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-18
 **Status:** Accepted 2026-10-18 (the CTO's rulings 4–10, with `security-auditor` co-deciding ruling 6, and Klas's three answers of the same day, which the ADR 0166 amendment records). The
-ADR 0166 amendment of the same date, which carries the legal outcome, is Proposed until `security-auditor` signs it on PR B's final head. The merge waits for that signature.
+ADR 0166 amendment of the same date, which carries the legal outcome, is Accepted (approved by Klas 2026-10-18 and signed by `security-auditor` 2026-10-19).
 **Deciders:** Klas Olsson (controller and product owner; three answers in chat on 2026-10-18, recorded in the ADR 0166 amendment) · `senior-cto-advisor`, "the CTO" below (decision-maker under
 CLAUDE.md §9.2; report-only ruling on rulings 1–10, `docs/reviews/2026-10-18-seo-measurement-automation-cto.md`, local) · `security-auditor` (plan read, report-only,
 `docs/reviews/2026-10-18-seo-measurement-automation-security-auditor.md`, local: her verdict, M1, m1–m3 and the escalation; she co-decides ruling 6, and where she differs from the CTO her position stands)

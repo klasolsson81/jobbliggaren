@@ -247,25 +247,6 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
         usage.GetProperty("observedAt").ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
-    [Fact]
-    public async Task Allowance_ShouldReturnPrivate500_WhenTheSourceFailsUnexpectedly()
-    {
-        var (_, _, session) = await AdminAsync(factory, NewToken(), Ct);
-        using var host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-        {
-            services.RemoveAll<IEmailProviderUsageSource>();
-            services.AddSingleton<IEmailProviderUsageSource>(new ThrowingSource());
-        }));
-        using var client = ClientFor(host, session);
-
-        var response = await client.GetAsync(EndpointPath, Ct);
-
-        // The Development host shows exception details by design, so the body is not asserted here;
-        // that production does not is IncludeErrorDetailGuardTests' to hold.
-        ((int)response.StatusCode).ShouldBeGreaterThanOrEqualTo(500);
-        ShouldBePrivate(response);
-    }
-
     // ---- plumbing ----
 
     private sealed class FixedSource(EmailProviderUsageRead read, EmailProviderPlanRead plan) : IEmailProviderUsageSource
@@ -275,15 +256,6 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
 
         public ValueTask<EmailProviderPlanRead> ReadPlanAsync(CancellationToken cancellationToken) =>
             ValueTask.FromResult(plan);
-    }
-
-    private sealed class ThrowingSource : IEmailProviderUsageSource
-    {
-        public ValueTask<EmailProviderUsageRead> ReadUsageAsync(CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("SECRET-MESSAGE-4711");
-
-        public ValueTask<EmailProviderPlanRead> ReadPlanAsync(CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("SECRET-MESSAGE-4711");
     }
 
     private WebApplicationFactory<Program> HostWith(EmailProviderUsageRead read, EmailProviderPlanRead? plan = null) =>

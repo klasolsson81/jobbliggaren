@@ -289,10 +289,11 @@ What it does, in order:
 > ⚠ **AN EMPTY RESULT DOES NOT MEAN THE DEFAULT IS CORRECT, AND SINCE 2026-08-15 THIS BOX IS THE
 > COUNTEREXAMPLE.** An earlier version of this line said it did. `user_data_keys` is empty
 > whenever no DEK has been minted yet — which is true both before the first rotation *and* after
-> a rotation performed while the table was empty. **This box has been rotated**, so the identity
-> in force is **`local-v2`** while the query returns nothing. (Stated by name and not as "the
-> second state": the table below has its own numbering, and its second row is the branch that
-> destroys data.) Accepting the default would stamp
+> a rotation performed while the table was empty. **This box has been rotated**: on 2026-08-15
+> the identity in force became **`local-v2`** while the query returned nothing. It has been
+> rotated again since: the identity in force is **`local-v3`**, and the query names it (read
+> 2026-10-19 during the reboot recovery). (Stated by name and not as "the second state": the table
+> below has its own numbering, and its second row is the branch that destroys data.) Accepting the default would stamp
 > `local-v1` onto v2 bytes — the path `jobbliggaren-inject-secrets.sh` calls, in the comment above
 > its identity block, *"a data-loss path, not an inconvenience"*: the next rotation's `cmk_key_id`
 > predicate would skip exactly the rows it must not.

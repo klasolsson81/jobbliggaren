@@ -169,7 +169,7 @@ calculator's, and its docblock points at the trigger.
 ## Alternatives considered
 
 - **Our own send log as the source.** Rejected for this question. It starts mid-month, needs a migration, sees one send path, and
-  would disagree with the invoice. It returns in PR 4 for counts per mail kind, never as the allowance figure.
+  would disagree with the invoice. It returns for counts per mail kind, never as the allowance figure.
 - **The Billing API for the cost.** Rejected in D3.
 - **`TransactionalEmailReadOnly` for the read.** Never: it carries `EmailReadOnly`, which reads every recipient.
   security-auditor does not sign it.
@@ -244,5 +244,8 @@ Lapse trigger 4 fired: #1981 PR 2 reads mail objects, through the read applicati
   a state of its own with its own line. NotConfigured keeps its meaning: the provider is not Scaleway.
 - **Failure lines.** A refused read key (401) no longer means that sending is probably dead too: the two keys are separate.
   The page's line says the read key was refused.
+- **Renames.** `EmailAllowanceReason` is `EmailProviderReadReason`, `EmailAllowanceLimits` is `EmailProviderReadLimits`,
+  and `NotConfiguredEmailProviderUsageSource` is `NotConfiguredEmailProviderReads`. The Implementation list above names
+  what PR 1 shipped.
 - **Rollback.** An image older than #1981 PR 2 reads the allowance with the sending key. After the sending application has
   lost the set, that image shows the allowance as refused (403) until the set is given back to the sending application.

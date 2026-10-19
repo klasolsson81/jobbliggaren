@@ -331,7 +331,7 @@ oauth_provider_name() {
 }
 
 # One condition: the pointer is set, and EnvFileSecretsConfiguration throws on a path it cannot read. A
-# blank pointer leaves the read key absent, which api treats as not configured and starts on.
+# blank pointer leaves the read key absent, which api reports as a missing read key and starts on.
 scaleway_read_key_required() {
   [[ -n "$(env_value EMAIL_SCALEWAY_READ_SECRET_KEY_FILE)" ]]
 }

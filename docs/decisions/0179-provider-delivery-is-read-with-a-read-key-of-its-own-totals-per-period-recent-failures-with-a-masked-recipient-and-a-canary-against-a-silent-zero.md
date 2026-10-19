@@ -82,8 +82,7 @@ this ADR's instrument for 4b on our side.
 
 The periods are rolling: the last 24 hours, 72 hours and 168 hours, with `since` computed on the server from the period.
 The client chooses a period token (`h24`, `d3`, `d7`) and nothing else. Only `project_id` and `since` are sent. All six
-counts are read and must be present as uint32, else the read is Malformed; only `sent` and `failed` cross the port, and
-`total` serves the canary (D4).
+counts are read and must be present as uint32, else the read is Malformed.
 
 Measured with the read key (probe 9, 2026-10-19, about 19:00 UTC): the month to date read 149, equal to
 `project-consumption`'s `monthly_emails_count` read with the same key; 32 days 162; 7 days 60; 3 days 16; 24 hours 12;
@@ -194,7 +193,6 @@ Home: this ADR. Reader: Klas.
 
 1. **The recent-failures read is removed.** `TransactionalEmailEmailReadOnly` is withdrawn, or the read application is
    deleted and the allowance moves to an application holding only `TransactionalEmailOfferSubscriptionReadOnly`.
-   `statistics` then answers ReadKeyMissing or NotConfigured.
 2. **4b changes.** A read endpoint starts returning content, or a template puts a code, link or token in its subject.
 3. **The read key is rotated.** Re-read the API reference for content-bearing reads, re-run the schema probe in the
    runbook's form, and re-derive the cap if a failed item is seen.

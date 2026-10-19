@@ -93,20 +93,26 @@ container mounts. The worker never sees it. The value passes only through your o
    (`up -d --pull never api`). Never `docker restart`: a restart does not re-read `.env`.
 5. Read `/admin/e-post`: the allowance and Leverans show figures, not "Läsnyckeln är inte installerad".
 
-**The first time only (G5):** in the same sitting, remove `TransactionalEmailOfferSubscriptionReadOnly` from
-the policy `jobbliggaren-tem-send` on the application `Jobbliggaren`, then send a sign-in code to your own address and check that it arrives. Record the date in the
-processing register.
+**The first time only (G5):** in the same sitting:
+1. Remove `TransactionalEmailOfferSubscriptionReadOnly` from the policy `jobbliggaren-tem-send` on the application
+   `Jobbliggaren`.
+2. Read the policy back in the console: it holds exactly `TransactionalEmailEmailApiCreate` and
+   `TransactionalEmailDomainReadOnly`. Write down the names only, with the date, in ADR 0179.
+3. Send a sign-in code to your own address and check that it arrives.
+4. Read `/admin/e-post` again: the allowance still shows figures.
+5. Record the date in the processing register.
 
 **Rotating it** (the key expires on its date in `master-key-ops.md`; nothing pages anyone before then):
 1. In the console, generate a new API key for `jobbliggaren-tem-read` and delete the old one in the same visit, so the
    application has exactly one key. Note the new expiry.
-2. Place it as above.
+2. Remove the old file, because the injection script skips a file that is already present:
+   `sudo rm /run/jobbliggaren/api-secrets/Email__ScalewayRead__SecretKey`. Then place the new key as above.
 3. Re-read the API reference for any read that returns message content, and re-run the schema probe in the form below
    (ADR 0179 lapse trigger 3). If a failed send exists, note its size against the cap in ADR 0179 D5.
 4. Update the row in `master-key-ops.md`.
 
 **Removing it:** delete the key (or the application) in the console, clear `EMAIL_SCALEWAY_READ_SECRET_KEY_FILE` in `.env`,
-and recreate the api. The page then reads "Läsnyckeln är inte installerad" everywhere.
+remove the file (`sudo rm /run/jobbliggaren/api-secrets/Email__ScalewayRead__SecretKey`), and recreate the api. The page then reads "Läsnyckeln är inte installerad" everywhere.
 
 **Rollback across #1981 PR 2.** An image older than PR 2 reads the allowance with the sending key. Once the sending
 application has lost `TransactionalEmailOfferSubscriptionReadOnly`, that image shows the allowance as refused (403) until
@@ -121,7 +127,7 @@ the set is given back to it.
 | "Scaleway begränsar läsningarna…" | RateLimited (429) | Wait. Each read holds the failure for the provider's `Retry-After`, at most 15 minutes. |
 | "Scaleway svarade inte…" | Timeout, Unreachable, ProviderError | Transient. A lasting one: check Scaleway's status page. |
 | "Scaleways svar kunde inte läsas…" | Malformed | The API's answer changed shape, or the failures list broke its contract (a non-failed item, a wrong order, an item older than the period, more than ten, more than 64 KiB). A code change; the adapters are in `src/Jobbliggaren.Infrastructure/Admin/Email/`. |
-| "Scaleway visar inga utskick för läsnyckeln de senaste 32 dagarna…" | NotObservable | Either nothing was sent for 32 days, or the read key cannot see mails. Check the read key's sets; send a sign-in code to yourself and read the page again after a few minutes. |
+| "Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen…" | NotObservable | Either nothing was sent for 32 days, or the read key cannot see mails. Check the read key's sets; send a sign-in code to yourself and read the page again after a few minutes. |
 | "Läsnyckeln är inte installerad…" | ReadKeyMissing | Place the read key (above). |
 | "Räknas inte i den här miljön." | NotConfigured | Expected in dev, CI and the harness: `Email:Provider` is not Scaleway. |
 

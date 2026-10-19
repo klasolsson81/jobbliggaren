@@ -401,7 +401,7 @@ services:
       # The delivery read key (#1981 PR 2): a Scaleway key of its own that reads every recipient's address, so
       # api's alone. Inline and never in x-app-email, which the worker inherits, and its file lies in the
       # api-only mount below, never in the shared secrets directory: the worker egresses. Empty by default and
-      # never `:?`: a blank pointer leaves the key absent, which the page shows as not configured, never a
+      # never `:?`: a blank pointer leaves the key absent, which the page shows as a missing read key, never a
       # refused start. Pinned by DeployComposeScalewayReadKeyTests; the inject-first order is in deploy/.env.example.
       Email__ScalewayRead__SecretKey_FILE: ${EMAIL_SCALEWAY_READ_SECRET_KEY_FILE:-}
       # Read by IdempotentAdminRoleSeeder at every Api START, never at registration: an

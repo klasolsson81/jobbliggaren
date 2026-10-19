@@ -45,10 +45,11 @@ const ROBOTS_LOCAL_DISALLOW = ["/api/", "/gast/", "/admin$", "/admin/"] as const
 const PUBLIC_DETAIL_PREFIXES: readonly string[] = ["/jobb"];
 
 /**
- * Training crawlers (Klas 2026-10-10): a token that collects content for AI training is blocked; a vendor's search
+ * Training crawlers (Klas 2026-10-10): a vendor's training crawler or training opt-out token is blocked; its search
  * and user crawlers (Claude-SearchBot, Applebot, Amzn-SearchBot, Meta-WebIndexer and the like) and Google-Extended
  * are allowed by not being named. They get a group of their own, because a crawler uses one group only and `*` is
- * not merged into it. A later training crawler joins by the same rule, with its vendor page cited in the PR (#2177).
+ * not merged into it. A later training crawler joins by the same rule, with its vendor page cited in an ADR 0165
+ * amendment.
  */
 const TRAINING_CRAWLERS = [
   "GPTBot",

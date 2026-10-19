@@ -289,7 +289,7 @@ as `Lax` would allow:
 cross-site navigation.
 
 - **Writes at render** (measured 2026-10-10, `grep -rn "after(" "src/app/(app)" "src/app/(admin)" src/components`
-  in `web/jobbliggaren-web`; re-measured 2026-10-18 on `cf1afb2e0` for the amendment below). Another site that opens these pages in a top-level window can make the signed-in
+  in `web/jobbliggaren-web`; re-measured 2026-10-19 on `e9579a640` for the amendment below). Another site that opens these pages in a top-level window can make the signed-in
   user's own page do what opening it does:
   - `/matchningar` marks the matches seen;
   - `/jobb` marks the listed ads seen;
@@ -335,8 +335,7 @@ reopening, for one write.
   a 404, a closed state or an empty page.
 - **The residual it adds**, written into "Writes at render" above: another site that opens the page in a top-level
   window can make the signed-in user's page acknowledge that Branschbevakning's new ads, and it chooses the
-  criterion by its id. A foreign or unknown id is the same 404, writes nothing and is logged as a cross-user
-  attempt. The write only moves the mark forward, clamped to now, and never past the window the page showed. It is
+  criterion by its id. A foreign or unknown id is the same 404 and writes nothing. The write only moves the mark forward, clamped to now, and never past the window the page showed. It is
   an integrity effect on the user's own notices, as for the other pages, not a disclosure.
 - **Failed-access log lines** now include the Branschbevakning pages, which log a cross-user attempt through
   `CriterionOwnerScopedLoader` (`security-auditor` Minor 2); written into the bullet above.

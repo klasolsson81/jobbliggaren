@@ -35,6 +35,7 @@
       "planUnknown": "Okänt abonnemang",
       "planFailed": "Abonnemanget kunde inte läsas",
       "notConfigured": "Räknas inte i miljön",
+      "readKeyMissing": "Läsnyckeln saknas",
       "noAnswer": "Scaleway svarar inte",
       "rateLimited": "Scaleway begränsar läsningarna",
       "keyRefused": "Scaleway nekar nyckeln",
@@ -43,6 +44,22 @@
       "noMonth": "Månaden kan inte namnges",
       "webhooks": "En webhook registrerad",
       "webhooksUnreadable": "Webhooks kunde inte läsas"
+    },
+    "deliveryLabel": "Visa leverans",
+    "deliveryScenarios": {
+      "observed": "Misslyckade utskick finns",
+      "capped": "Fler misslyckade än listan visar",
+      "noneFailed": "Inga misslyckade utskick",
+      "nothingSent": "Inga utskick",
+      "listUnjudged": "Listan kan inte bedömas",
+      "notConfigured": "Räknas inte i miljön",
+      "notObservable": "Läsnyckeln ser inga utskick",
+      "readKeyMissing": "Läsnyckeln saknas",
+      "noAnswer": "Scaleway svarar inte",
+      "rateLimited": "Scaleway begränsar läsningarna",
+      "keyRefused": "Scaleway nekar läsnyckeln",
+      "refused": "Scaleway nekar läsningen",
+      "malformed": "Oläsbart svar från Scaleway"
     }
   }
 }

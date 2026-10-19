@@ -5,8 +5,8 @@ import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import type {
   AdminEmailAllowance,
-  AdminEmailDelivery as Delivery,
   AdminEmailPeriod,
+  AdminEmailRead,
   AdminErrorLogRow,
   AdminFeedbackAvailability,
   AdminFeedbackItem,
@@ -31,7 +31,12 @@ import { AdminEmailAllowance as AllowanceRegion, type AdminEmailAllowanceRegion 
 import { AdminEmailDelivery } from "@/components/admin/admin-email-delivery";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminLogsView, type AdminLogView } from "@/components/admin/admin-logs-view";
-import type { PreviewAllowanceScenario, PreviewOverviewData } from "@/lib/admin-preview/fixtures";
+import type {
+  PreviewAllowanceScenario,
+  PreviewDelivery,
+  PreviewDeliveryScenario,
+  PreviewOverviewData,
+} from "@/lib/admin-preview/fixtures";
 import { usePreviewState } from "./preview-shell.preview";
 
 /** Long enough for the pending state to show. */
@@ -299,8 +304,17 @@ function allowanceRegion(kind: AdminRegionKind, chosen: AdminEmailAllowance): Ad
   return kind === "failed" || kind === "loading" ? { kind } : { kind: "loaded", data: chosen };
 }
 
+/** One of Leverans's reads in the band's state: built like the allowance, so only failed and loading change it. */
+function deliveryRead<T>(kind: AdminRegionKind, chosen: T): AdminEmailRead<T> {
+  return kind === "failed" || kind === "loading" ? { kind } : { kind: "loaded", data: chosen };
+}
+
 function isScenario(value: string): value is PreviewAllowanceScenario {
   return SCENARIOS.some((scenario) => scenario === value);
+}
+
+function isDeliveryScenario(value: string): value is PreviewDeliveryScenario {
+  return DELIVERY_SCENARIOS.some((scenario) => scenario === value);
 }
 
 /** The allowance scenarios, in the order the preview's choice lists them. */
@@ -314,6 +328,7 @@ const SCENARIOS: ReadonlyArray<PreviewAllowanceScenario> = [
   "planUnknown",
   "planFailed",
   "notConfigured",
+  "readKeyMissing",
   "noAnswer",
   "rateLimited",
   "keyRefused",
@@ -324,21 +339,46 @@ const SCENARIOS: ReadonlyArray<PreviewAllowanceScenario> = [
   "webhooksUnreadable",
 ];
 
+/** The Leverans scenarios, in the order the preview's second choice lists them. */
+const DELIVERY_SCENARIOS: ReadonlyArray<PreviewDeliveryScenario> = [
+  "observed",
+  "capped",
+  "noneFailed",
+  "nothingSent",
+  "listUnjudged",
+  "notConfigured",
+  "notObservable",
+  "readKeyMissing",
+  "noAnswer",
+  "rateLimited",
+  "keyRefused",
+  "refused",
+  "malformed",
+];
+
+/**
+ * The e-post page over fictional reads. The allowance and Leverans each take a scenario of their own, and Leverans's
+ * period is the URL's, as on the live page: its links navigate, and the chosen scenarios stay.
+ */
 export function PreviewEmail({
   allowances,
-  byPeriod,
-  zero,
+  deliveries,
+  period,
+  pagePath,
 }: {
   readonly allowances: Readonly<Record<PreviewAllowanceScenario, AdminEmailAllowance>>;
-  readonly byPeriod: Readonly<Record<AdminEmailPeriod, Delivery>>;
-  readonly zero: Delivery;
+  readonly deliveries: Readonly<Record<PreviewDeliveryScenario, Readonly<Record<AdminEmailPeriod, PreviewDelivery>>>>;
+  readonly period: AdminEmailPeriod;
+  readonly pagePath: string;
 }) {
   const { kind } = usePreviewState();
   const t = useTranslations("admin");
   const preview = useTranslations("admin-preview.email");
   const selectId = useId();
+  const deliverySelectId = useId();
   const [scenario, setScenario] = useState<PreviewAllowanceScenario>("withinQuota");
-  const [period, setPeriod] = useState<AdminEmailPeriod>("d7");
+  const [deliveryScenario, setDeliveryScenario] = useState<PreviewDeliveryScenario>("observed");
+  const delivery = deliveries[deliveryScenario][period];
   return (
     <div className="flex flex-col gap-8">
       <AdminPageHeader title={t("email.heading")} lede={t("email.lede")} />
@@ -360,10 +400,28 @@ export function PreviewEmail({
         </select>
       </div>
       <AllowanceRegion region={allowanceRegion(kind, allowances[scenario])} />
+      <div className="jp-adminpreview-scenario">
+        <label htmlFor={deliverySelectId}>{preview("deliveryLabel")}</label>
+        <select
+          id={deliverySelectId}
+          value={deliveryScenario}
+          onChange={(event) => {
+            const chosen = event.target.value;
+            if (isDeliveryScenario(chosen)) setDeliveryScenario(chosen);
+          }}
+        >
+          {DELIVERY_SCENARIOS.map((option) => (
+            <option key={option} value={option}>
+              {preview(`deliveryScenarios.${option}`)}
+            </option>
+          ))}
+        </select>
+      </div>
       <AdminEmailDelivery
-        region={value(kind, byPeriod[period], zero)}
+        pagePath={pagePath}
         period={period}
-        onPeriodChange={setPeriod}
+        summary={deliveryRead(kind, delivery.summary)}
+        failures={deliveryRead(kind, delivery.failures)}
       />
     </div>
   );

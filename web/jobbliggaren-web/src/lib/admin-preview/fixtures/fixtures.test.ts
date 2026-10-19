@@ -45,10 +45,12 @@ describe("the admin preview's fixtures (ADR 0150 D5)", () => {
     for (const row of rows) expect(JSON.stringify(row)).toContain(ADMIN_PREVIEW_SENTINEL);
   });
 
-  it("uses addresses on the sentinel's reserved domain only", () => {
+  it("uses addresses on the sentinel's reserved domain, or a name under it, only", () => {
     const addresses = allStrings.filter((value) => /@/.test(value));
+    const domain = (value: string) => value.slice(value.lastIndexOf("@") + 1);
     expect(addresses.length).toBeGreaterThan(0);
-    expect(addresses.filter((value) => !value.endsWith(`@${ADMIN_PREVIEW_SENTINEL}`))).toEqual([]);
+    expect(addresses.filter((value) =>
+      domain(value) !== ADMIN_PREVIEW_SENTINEL && !domain(value).endsWith(`.${ADMIN_PREVIEW_SENTINEL}`))).toEqual([]);
   });
 
   it("uses documentation IP ranges only", () => {

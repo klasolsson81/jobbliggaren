@@ -109,9 +109,22 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
     expect(value(card)).toBe("–Uppgift saknas");
     expect(card.querySelector(".jp-adminkpi__unit")).toBeNull();
     expect(card).toHaveTextContent(
-      "Scaleway nekade läsningen. Kontrollera nyckelns behörighet enligt runbooken för admin-e-post.",
+      "Scaleway nekade läsningen. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post.",
     );
     expect(card).not.toHaveTextContent("Beräknad kostnad");
+  });
+
+  it("says the read key is not installed, never that the environment does not count (#1981 PR 2)", () => {
+    const card = loaded({
+      ...base,
+      usage: { status: "ReadKeyMissing", reason: null, ...NO_USAGE },
+      plan: { status: "ReadKeyMissing", reason: null, active: null, matches: null },
+    }, OVERVIEW_TIME);
+
+    expect(value(card)).toBe("–Uppgift saknas");
+    expect(card.querySelector(".jp-adminkpi__unit")).toBeNull();
+    expect(card).toHaveTextContent("Läsnyckeln är inte installerad, så uppgifterna kan inte hämtas. Se runbooken för admin-e-post.");
+    expect(card).not.toHaveTextContent(/Räknas inte|Beräknad kostnad/);
   });
 
   it("shows our own failed read as the source's failure, quietly, beside the page's one announcement", () => {

@@ -36,6 +36,7 @@ function EmailRows({ allowance, kind }: {
   if (allowance === null || usage === null || figures === null || figures.sent === null) {
     const why = kind !== "loaded" ? <AdminRegionLine quiet kind={kind} className="jp-adminkpi__sub" />
       : usage?.status === "Failed" ? <p className="jp-adminkpi__sub">{lines(`failure.${allowanceFailureGroup(usage.reason)}`)}</p>
+      : usage?.status === "ReadKeyMissing" ? <p className="jp-adminkpi__sub">{lines("readKeyMissing")}</p>
       : <p className="jp-adminkpi__sub">{lines("notConfigured")}</p>;
     return (
       <>

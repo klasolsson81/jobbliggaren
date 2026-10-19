@@ -71,6 +71,8 @@ export type Harness = {
   jobAdReadGate: Promise<void> | null;
   /** Listed ads erased under Art. 17 after the list rendered: their detail answers 410. */
   readonly erasedAds: Set<string>;
+  /** #2191 — the employer's application page per ad, served on the detail route only; none by default. */
+  readonly applicationPages: Map<string, string>;
   /** Ads whose listed application answers 404 when it is read. */
   readonly unavailableApplications: Set<string>;
   /** Every backend path the app asked for that the fixtures do not answer. */
@@ -276,6 +278,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
     occupationStated: true,
     jobAdReadGate: null,
     erasedAds: new Set(),
+    applicationPages: new Map(),
     unavailableApplications: new Set(),
     misses,
     requests,
@@ -324,6 +327,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
       harness.occupationStated = true;
       harness.jobAdReadGate = null;
       harness.erasedAds.clear();
+      harness.applicationPages.clear();
       harness.unavailableApplications.clear();
       applied = new Map(ads.filter((ad) => ad.appliedBeforeVisit).map((ad) => [ad.id, randomUUID()]));
       saved = new Set(ads.filter((ad) => ad.saved).map((ad) => ad.id));
@@ -535,7 +539,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
     if (ad && route === `GET /api/v1/job-ads/${ad.id}`) {
       await harness.jobAdReadGate;
       if (harness.erasedAds.has(ad.id)) return json(410, { title: "Gone", status: 410 });
-      return json(200, { ...summary(ad), description: informationFlows ? Array.from({ length: 24 }, () => DESCRIPTION).join("\n\n") : DESCRIPTION, contacts: informationFlows ? [{ name: "Testkontakt", role: "Rekryterare", email: "contact@example.test", phone: null, isDerived: false }] : [], applicationUrl: ad.applicationUrl ?? null });
+      return json(200, { ...summary(ad), description: informationFlows ? Array.from({ length: 24 }, () => DESCRIPTION).join("\n\n") : DESCRIPTION, contacts: informationFlows ? [{ name: "Testkontakt", role: "Rekryterare", email: "contact@example.test", phone: null, isDerived: false }] : [], applicationUrl: harness.applicationPages.get(ad.id) ?? null });
     }
     if (ad && route === `GET /api/v1/me/job-ad-match-tags/${ad.id}`)
       return json(200, matchDetail(harness.occupationStated));

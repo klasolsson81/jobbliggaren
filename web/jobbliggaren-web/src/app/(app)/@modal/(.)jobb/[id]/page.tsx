@@ -8,6 +8,7 @@ import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { JobAdModalShell } from "@/components/job-ads/job-ad-modal-shell";
 import { JobAdModalMessage } from "@/components/job-ads/job-ad-modal-message";
 import { JobAdDetailMeta } from "@/components/job-ads/job-ad-detail-meta";
+import { JobAdSourceLink } from "@/components/job-ads/job-ad-source-link";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -66,7 +67,12 @@ export default async function InterceptedJobbModal({
         <JobAdModalShell
           title={result.jobAd.title}
           company={result.jobAd.companyName}
-          meta={<JobAdDetailMeta jobAd={result.jobAd} />}
+          meta={
+            <>
+              <JobAdDetailMeta jobAd={result.jobAd} />
+              <JobAdSourceLink jobAd={result.jobAd} />
+            </>
+          }
         >
           <JobAdDetail
             jobAd={result.jobAd}

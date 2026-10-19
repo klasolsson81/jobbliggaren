@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
@@ -39,6 +40,7 @@ internal static class NewCriterionAdSet
         join c in db.CompanyWatchCriteria.AsNoTracking() on h.CompanyWatchCriterionId equals c.Id
         where c.UserId == userId
               && c.LastScanOutcome == CompanyWatchCriterionScanOutcome.Scanned
+              && c.ScannedThrough > c.CriteriaChangedAt
               && h.CreatedAt > c.CriteriaChangedAt
               && (c.NewAdsSeenThrough == null || h.CreatedAt > c.NewAdsSeenThrough)
         join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
@@ -46,18 +48,21 @@ internal static class NewCriterionAdSet
         select h;
 
     /// <summary>
-    /// The count of <see cref="NewHits"/> per criterion, one grouped statement. A criterion with none is absent from
-    /// the map; whether that absence is a zero or "not scanned" is the caller's to decide from the criterion's
-    /// outcome. One (criterion, ad) is one row (the UNIQUE key), so the count is of distinct ads.
+    /// The outcome the handlers act on: the last scan's answer while that scan read the current predicate, and
+    /// <c>null</c>, as for a criterion never scanned, once an edit has moved <c>CriteriaChangedAt</c> past it.
     /// </summary>
-    internal static async Task<IReadOnlyDictionary<CompanyWatchCriterionId, int>> CountPerCriterionAsync(
-        IAppDbContext db, Guid userId, CancellationToken cancellationToken)
+    internal static readonly Expression<Func<CompanyWatchCriterion, CriterionOutcome>> CurrentOutcome =
+        c => new CriterionOutcome
+        {
+            Id = c.Id,
+            Outcome = c.ScannedThrough > c.CriteriaChangedAt ? c.LastScanOutcome : null,
+        };
+
+    /// <summary>One row of <see cref="CurrentOutcome"/>.</summary>
+    internal sealed class CriterionOutcome
     {
-        var counts = await NewHits(db, userId)
-            .GroupBy(h => h.CompanyWatchCriterionId)
-            .Select(g => new { CriterionId = g.Key, Count = g.Count() })
-            .ToListAsync(cancellationToken);
-        return counts.ToDictionary(x => x.CriterionId, x => x.Count);
+        public CompanyWatchCriterionId Id { get; init; }
+        public CompanyWatchCriterionScanOutcome? Outcome { get; init; }
     }
 
     /// <summary>

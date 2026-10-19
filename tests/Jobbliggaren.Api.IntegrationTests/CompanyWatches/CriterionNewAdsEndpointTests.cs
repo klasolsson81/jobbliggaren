@@ -137,6 +137,7 @@ public class CriterionNewAdsEndpointTests(ApiFactory factory)
         var criterion = await SeedCriterionAsync(user.UserId, CompanyWatchCriterionScanOutcome.Scanned);
         await SeedHitAsync(criterion, Created.AddHours(1));
         await SeedHitAsync(criterion, Created.AddHours(2));
+        var updatedAt = await UpdatedAtAsync(criterion);
 
         (await PostSeenAsync(user.Client, criterion, Created.AddHours(2).ToString("O"))).StatusCode
             .ShouldBe(HttpStatusCode.NoContent);
@@ -144,6 +145,7 @@ public class CriterionNewAdsEndpointTests(ApiFactory factory)
             .ShouldBe(HttpStatusCode.NoContent);
 
         (await SeenThroughAsync(criterion)).ShouldBe(Created.AddHours(2));
+        (await UpdatedAtAsync(criterion)).ShouldBe(updatedAt);
         (await CountsAsync(user.Client))[criterion.Value].ShouldBe(0);
     }
 
@@ -200,10 +202,38 @@ public class CriterionNewAdsEndpointTests(ApiFactory factory)
         await SeedHitAsync(criterion, Created.AddHours(1));
         (await CountsAsync(user.Client))[criterion.Value].ShouldBe(1);
 
-        await EditCriterionAsync(criterion, Created.AddHours(2));
+        await EditCriterionAsync(criterion, Created.AddHours(2), ["63910", "63920"]);
+
+        (await CountsAsync(user.Client))[criterion.Value].ShouldBeNull();
+        var beforeTheNextScan = await PageAsync(user.Client, criterion);
+        beforeTheNextScan.GetProperty("notMaterialised").GetBoolean().ShouldBeTrue();
+        beforeTheNextScan.GetProperty("tooBroad").GetBoolean().ShouldBeFalse();
+        beforeTheNextScan.GetProperty("rows").GetArrayLength().ShouldBe(0);
+        beforeTheNextScan.GetProperty("acknowledgedThrough").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        await RecordScanAsync(criterion, CompanyWatchCriterionScanOutcome.Scanned, Created.AddHours(3));
 
         (await CountsAsync(user.Client))[criterion.Value].ShouldBe(0);
-        (await PageAsync(user.Client, criterion)).GetProperty("rows").GetArrayLength().ShouldBe(0);
+        var afterTheNextScan = await PageAsync(user.Client, criterion);
+        afterTheNextScan.GetProperty("notMaterialised").GetBoolean().ShouldBeFalse();
+        afterTheNextScan.GetProperty("rows").GetArrayLength().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_refused_criterion_narrowed_by_an_edit_is_not_scanned_rather_than_refused()
+    {
+        var user = await RegisterAsync();
+        var criterion = await SeedCriterionAsync(
+            user.UserId, CompanyWatchCriterionScanOutcome.TooBroad, sniCodes: ["63910", "63920"]);
+
+        await EditCriterionAsync(criterion, Created.AddHours(2), ["63910"]);
+
+        (await CountsAsync(user.Client))[criterion.Value].ShouldBeNull();
+        var page = await PageAsync(user.Client, criterion);
+        page.GetProperty("tooBroad").GetBoolean().ShouldBeFalse();
+        page.GetProperty("notMaterialised").GetBoolean().ShouldBeTrue();
+        page.GetProperty("rows").GetArrayLength().ShouldBe(0);
+        page.GetProperty("acknowledgedThrough").ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
     [Fact]
@@ -257,6 +287,25 @@ public class CriterionNewAdsEndpointTests(ApiFactory factory)
         (await NewCriterionAdSet.NewHits(db, user.UserId).CountAsync(Ct)).ShouldBe(0);
     }
 
+    [Fact]
+    public async Task The_set_itself_holds_no_hit_of_a_scan_run_in_flight_across_an_edit()
+    {
+        var user = await RegisterAsync();
+        var criterion = await SeedCriterionAsync(user.UserId);
+        var until = Created.AddHours(1);
+        await EditCriterionAsync(criterion, until.AddMinutes(1), ["63910", "63920"]);
+        var ad = await SeedHitAsync(criterion, until.AddMinutes(2));
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var scanned = await db.CompanyWatchCriteria.SingleAsync(c => c.Id == criterion, Ct);
+        scanned.RecordScan(
+            CompanyWatchCriterionScanOutcome.Scanned, until, new FakeDateTimeProvider(until.AddMinutes(3)));
+        await db.SaveChangesAsync(Ct);
+
+        (await NewCriterionAdSet.NewHits(db, user.UserId).AnyAsync(h => h.JobAdId == ad, Ct)).ShouldBeFalse();
+    }
+
     // ─────────────────────────── Seeding through the production writers
 
     private sealed record User(HttpClient Client, Guid UserId);
@@ -276,12 +325,12 @@ public class CriterionNewAdsEndpointTests(ApiFactory factory)
 
     // A criterion created three days back; with an outcome, the nightly scan has recorded it.
     private async Task<CompanyWatchCriterionId> SeedCriterionAsync(
-        Guid userId, CompanyWatchCriterionScanOutcome? outcome = null)
+        Guid userId, CompanyWatchCriterionScanOutcome? outcome = null, string[]? sniCodes = null)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var criterion = CompanyWatchCriterion.Create(
-            userId, CompanyWatchCriteriaSpec.Create(["63910"], ["0180"]).Value, null,
+            userId, CompanyWatchCriteriaSpec.Create(sniCodes ?? ["63910"], ["0180"]).Value, null,
             new FakeDateTimeProvider(Created)).Value;
         if (outcome is { } o)
             criterion.RecordScan(o, Created.AddMinutes(30), new FakeDateTimeProvider(Created.AddMinutes(30)));
@@ -290,12 +339,12 @@ public class CriterionNewAdsEndpointTests(ApiFactory factory)
         return criterion.Id;
     }
 
-    private async Task EditCriterionAsync(CompanyWatchCriterionId id, DateTimeOffset at)
+    private async Task EditCriterionAsync(CompanyWatchCriterionId id, DateTimeOffset at, string[] sniCodes)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var criterion = await db.CompanyWatchCriteria.SingleAsync(c => c.Id == id, Ct);
-        criterion.UpdateCriteria(CompanyWatchCriteriaSpec.Create(["63910", "63920"], ["0180"]).Value,
+        criterion.UpdateCriteria(CompanyWatchCriteriaSpec.Create(sniCodes, ["0180"]).Value,
             new FakeDateTimeProvider(at)).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(Ct);
     }
@@ -378,5 +427,12 @@ public class CriterionNewAdsEndpointTests(ApiFactory factory)
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return (await db.CompanyWatchCriteria.AsNoTracking().SingleAsync(c => c.Id == id, Ct)).NewAdsSeenThrough;
+    }
+
+    private async Task<DateTimeOffset> UpdatedAtAsync(CompanyWatchCriterionId id)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return (await db.CompanyWatchCriteria.AsNoTracking().SingleAsync(c => c.Id == id, Ct)).UpdatedAt;
     }
 }

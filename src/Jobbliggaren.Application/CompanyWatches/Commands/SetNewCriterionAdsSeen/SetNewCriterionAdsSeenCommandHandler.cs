@@ -51,8 +51,14 @@ public sealed class SetNewCriterionAdsSeenCommandHandler(
             return Result.Failure(DomainError.NotFound("CompanyWatchCriterion", command.CriterionId));
         }
 
+        if (command.SeenThrough is not { } requested)
+        {
+            return Result.Failure(DomainError.Validation(
+                nameof(SetNewCriterionAdsSeenCommand.SeenThrough), "SeenThrough krävs."));
+        }
+
         // UTC before binding: Npgsql refuses a timestamptz carrying another offset.
-        var seenThrough = command.SeenThrough!.Value.ToUniversalTime();
+        var seenThrough = requested.ToUniversalTime();
         var now = clock.UtcNow;
         if (seenThrough > now)
             seenThrough = now;

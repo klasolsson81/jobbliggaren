@@ -41,6 +41,9 @@ public sealed class ListNewCriterionAdsQueryHandler(
     /// <summary>The cap that satisfies AGENTS.md §5 without pagination; parity with the follow rail's page.</summary>
     public const int MaxRows = 100;
 
+    private static readonly Func<CompanyWatchCriterion, NewCriterionAdSet.CriterionOutcome> OutcomeOf =
+        NewCriterionAdSet.CurrentOutcome.Compile();
+
     public async ValueTask<NewCriterionAdsDto?> Handle(
         ListNewCriterionAdsQuery query, CancellationToken cancellationToken)
     {
@@ -53,7 +56,7 @@ public sealed class ListNewCriterionAdsQueryHandler(
         var identity = new CriterionIdentityDto(
             criterion.Id.Value, criterion.Criteria.SniCodes, criterion.Criteria.MunicipalityCodes, criterion.Label);
 
-        switch (criterion.LastScanOutcome)
+        switch (OutcomeOf(criterion).Outcome)
         {
             case CompanyWatchCriterionScanOutcome.TooBroad:
                 return NewCriterionAdsDto.Refused(identity);

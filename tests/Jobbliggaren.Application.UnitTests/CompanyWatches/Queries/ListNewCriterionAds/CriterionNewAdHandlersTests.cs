@@ -85,7 +85,6 @@ public class CriterionNewAdHandlersTests
     [Theory]
     [InlineData(CompanyWatchCriterionScanOutcome.TooBroad, true, false)]
     [InlineData(CompanyWatchCriterionScanOutcome.NotMaterialised, false, true)]
-    [InlineData(null, false, true)]
     public async Task Page_NamesAnUnscannedOrRefusedCriterion_AndReadsNoHit(
         CompanyWatchCriterionScanOutcome? outcome, bool tooBroad, bool notMaterialised)
     {
@@ -198,7 +197,7 @@ public class CriterionNewAdHandlersTests
         var criterion = CompanyWatchCriterion.Create(
             userId, CompanyWatchCriteriaSpec.Create(["63910"], ["0180"]).Value, null, new FixedClock(T0)).Value;
         if (outcome is { } o)
-            criterion.RecordScan(o, T0, new FixedClock(T0));
+            criterion.RecordScan(o, T0.AddMinutes(30), new FixedClock(T0.AddMinutes(30)));
         db.CompanyWatchCriteria.Add(criterion);
         return criterion;
     }

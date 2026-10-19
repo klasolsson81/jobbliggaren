@@ -229,6 +229,20 @@ public class EmailTemplatesMatchNotificationTests
 
     // --- A direct mail bundling several Top matches of one run (ADR 0161) ---
 
+    [Fact]
+    public void MatchNotification_ShouldCarryNoLinkOrAdIdInTheSubject_ForEitherKind()
+    {
+        foreach (var content in new[]
+                 {
+                     Direct(Item()),
+                     BundledDirect(),
+                     Digest(3, DigestCadence.Weekly, Item(), Item("Frontend", "Beta AB", "Stark match")),
+                 })
+        {
+            MailSubject.ShouldCarryNoCodeLinkOrToken(EmailTemplates.MatchNotification(BaseUrl, content), AdId.ToString());
+        }
+    }
+
     private static MatchNotificationEmail BundledDirect() =>
         Direct(
             Item("Systemutvecklare", "Volvo Cars", "Toppmatch"),

@@ -105,6 +105,10 @@ public class EmailTemplatesEmailChangedNotificationTests
     }
 
     [Fact]
+    public void EmailChangedNotification_ShouldCarryNoLinkInTheSubject() =>
+        MailSubject.ShouldCarryNoCodeLinkOrToken(EmailTemplates.EmailChangedNotification());
+
+    [Fact]
     public void EmailChangedNotification_ShouldUseChangedSubject()
         => EmailTemplates.EmailChangedNotification()
             .Subject.ShouldBe("Din e-postadress har ändrats");

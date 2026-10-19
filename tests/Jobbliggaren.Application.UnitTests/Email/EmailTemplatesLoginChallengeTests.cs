@@ -128,6 +128,17 @@ public sealed class EmailTemplatesLoginChallengeTests
     }
 
     [Theory]
+    [MemberData(nameof(Variants))]
+    public void No_variant_carries_its_code_its_link_or_the_links_token_in_the_subject(string variant)
+    {
+        var rendered = RenderVariant(variant);
+
+        // The provider read key reaches every mail's subject (#1981 PR 2, probe 9), and a code or a link is good for
+        // up to 15 minutes, so a subject carrying either would make that key a way past the sign-in.
+        MailSubject.ShouldCarryNoCodeLinkOrToken(rendered, SampleCode, Token);
+    }
+
+    [Theory]
     [MemberData(nameof(CodeBearingVariants))]
     public void Every_code_bearing_variant_shows_the_code_once_in_each_part_and_in_html_at_the_code_rung(string variant)
     {

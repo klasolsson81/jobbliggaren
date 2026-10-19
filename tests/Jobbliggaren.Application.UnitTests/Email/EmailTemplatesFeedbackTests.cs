@@ -42,6 +42,16 @@ public class EmailTemplatesFeedbackTests
             FeedbackReplyText.Create(text).Value));
 
     [Fact]
+    public void NeitherFeedbackMail_CarriesALinkOrTheFeedbackIdInItsSubject()
+    {
+        MailSubject.ShouldCarryNoCodeLinkOrToken(
+            EmailTemplates.FeedbackReceivedNotification("https://jobbliggaren.se",
+                new FeedbackReceivedNotificationEmail(FeedbackPage.Matches, 4, DateTimeOffset.UnixEpoch, FeedbackId)),
+            FeedbackId.ToString());
+        MailSubject.ShouldCarryNoCodeLinkOrToken(Reply("Se https://jobbliggaren.se/jobb för fler annonser."));
+    }
+
+    [Fact]
     public void FeedbackReply_CarriesTheTextAndSaysWhichFeedbackItAnswers()
     {
         var mail = Reply("Tack för din feedback.");

@@ -1,0 +1,62 @@
+# Reads Search Console aggregates once a week and writes them to this run's job summary (ADR 0177).
+#
+# GOVERNANCE. This read path is outside ADR 0166 D10 trigger 5 only as the ADR 0166 amendment for it pins it, and
+# triggers 13 and 14 there reopen it. ADR 0177 holds the review rule: security-auditor reads every change to this file,
+# to .github/scripts/search-console-read.sh, its test and its samples, and every bump of an action this job runs,
+# before merge. Dependabot does not auto-merge the auth action (dependabot-automerge.yml).
+#
+# The Google side is bound to this file: the workload identity provider admits only this repository's `main`, this
+# workflow file, the `schedule` and `workflow_dispatch` events and a GitHub-hosted runner. Moving or renaming the file
+# is therefore trigger 13. Setup, the identifiers below and revocation: docs/runbooks/search-console-read.md.
+#
+# The identifiers are not secrets; they live here rather than in a repository variable so that any change to them is
+# a reviewed diff.
+name: search-console-read
+
+on:
+  schedule:
+    # Wednesday 06:13 UTC, a minute no other cron here uses.
+    - cron: '13 6 * * 3'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  read:
+    name: search console read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+    steps:
+      - name: Fetch this run's commit (git, no credential)
+        env:
+          GIT_CONFIG_NOSYSTEM: '1'
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          [[ $GITHUB_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::GITHUB_SHA is not a commit id"; exit 1; }
+          git init --quiet
+          git fetch --quiet --no-tags --depth=1 https://github.com/klasolsson81/jobbliggaren "$GITHUB_SHA"
+          git checkout --quiet --detach FETCH_HEAD
+          [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] || { echo "::error::fetched $(git rev-parse HEAD), not $GITHUB_SHA"; exit 1; }
+          git diff --quiet HEAD -- .github/scripts/search-console-read.sh || { echo "::error::the script is not the commit's"; exit 1; }
+
+      # No credentials file and no exported variables: the access token is this step's output, and only the next
+      # step receives it, through its env.
+      - name: Authenticate (Workload Identity Federation, Restricted service account)
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: projects/489674759620/locations/global/workloadIdentityPools/github-actions/providers/search-console-read
+          service_account: sc-read@jobbliggaren-sc-read.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/webmasters.readonly
+          access_token_lifetime: 300s
+          create_credentials_file: false
+          export_environment_variables: false
+
+      - name: Read Search Console aggregates
+        run: bash .github/scripts/search-console-read.sh
+        env:
+          SEARCH_CONSOLE_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}

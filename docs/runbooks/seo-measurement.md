@@ -7,11 +7,12 @@
   - Core Web Vitals and Lighthouse: `performance-measurement.md` §F.
   - The job sitemap's crawl readings: ADR 0174 D5.
   - The personnummer gate on listed ads: `public-job-page-publication-count.md`.
+  - The Search Console read workflow, its setup and its revocation: `search-console-read.md`.
 
 ## Rules that bind every row below
 
 - **Reading the production box** follows CLAUDE.md §9.2: counts only, grouped by fields that name no person, and a failed run prints nothing.
-- **Nothing here pushes a job-ad URL or ad content to a third party.** ADR 0166 D10 trigger 5 keeps the following out of this runbook until a step proposes them and Klas takes ADR 0166 again: all of the Search Console API (read-only calls included), URL Inspection by script, Bing URL Submission, IndexNow and the Indexing API.
+- **Nothing here pushes a job-ad URL or ad content to a third party.** ADR 0166 D10 trigger 5 keeps the following out of this runbook until a step proposes them and Klas takes ADR 0166 again: URL Inspection by script, Bing URL Submission, IndexNow, the Indexing API, and every Search Console API call except the one read path that ADR 0166's amendment for it (#2090, ADR 0177) pins, which triggers 13 and 14 reopen.
 - **No URL that carries ad data goes into a third-party tool**, such as PageSpeed Insights, an SEO crawler or a commissioned site audit. Those URLs are:
   - `/jobb/<uuid>`;
   - `/lediga-jobb` with every `?sida`, and any place page under it;
@@ -27,8 +28,8 @@
 | Signal | Who | When | How | Written to |
 |---|---|---|---|---|
 | Page indexing for job URLs: indexed vs not indexed, with the reasons, especially "Crawled – currently not indexed" and "Duplicate, Google chose different canonical" | Klas (Search Console UI) | weekly for the first four weeks after Google first fetches a job part, then monthly | Indexing → Pages, filtered to the sitemap `sitemap-jobb-*.xml`; counts per reason | §4 |
-| Sitemaps report: discovered URLs per part, errors | Klas | as above | Indexing → Sitemaps | §4 |
-| Performance by page type: clicks, impressions, CTR, average position for `/`, the marketing pages, `/jobb/` and (later) `/lediga-jobb` | Klas | monthly | Performance → Search results, page filter (regex) per type; totals only | §4 |
+| Sitemaps report: discovered URLs per part, errors | Klas | as above | the `search-console-read` workflow's job summary (`search-console-read.md` §2) | §4 |
+| Performance by page type: clicks, impressions, CTR, average position for `/`, the marketing pages, `/jobb/` and (later) `/lediga-jobb` | Klas | monthly | the `search-console-read` workflow's job summary (`search-console-read.md` §2) | §4 |
 | Crawl stats | Klas | at the ADR 0174 D5 readings | Settings → Crawl stats | ADR 0174 D5 |
 | Generative-AI visibility in Google: impressions in AI Overviews and AI Mode by page type; and the "Search generative AI features" setting, which should read Include | Klas | monthly | Search Console's generative-AI performance report; Settings → Search generative AI | §4 |
 | Bing: index coverage, search performance, and AI performance where the property shows it | Klas | monthly | Bing Webmaster Tools UI | §4 |

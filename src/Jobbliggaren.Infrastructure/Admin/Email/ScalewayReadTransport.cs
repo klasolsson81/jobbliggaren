@@ -9,7 +9,8 @@ using Microsoft.Extensions.Options;
 namespace Jobbliggaren.Infrastructure.Admin.Email;
 
 /// <summary>
-/// The one GET every Scaleway Transactional Email read goes through (#1981, ADR 0178).
+/// The one GET every Scaleway Transactional Email read goes through (#1981, ADR 0178), authenticated with the read
+/// application's key (<see cref="ScalewayReadOptions"/>). It holds no reference to the sending key.
 /// <para>
 /// <b>What it never does.</b> It never reads the body of a refusal: an error payload is where a provider echoes what
 /// it was sent. It logs which read failed, the reason and the status, never the URI (which carries the project id),
@@ -19,7 +20,7 @@ namespace Jobbliggaren.Infrastructure.Admin.Email;
 /// </summary>
 internal sealed partial class ScalewayReadTransport(
     IHttpClientFactory httpClientFactory,
-    IOptions<ScalewayEmailOptions> scalewayOptions,
+    IOptions<ScalewayReadOptions> readOptions,
     IDateTimeProvider clock,
     ILogger<ScalewayReadTransport> logger)
 {
@@ -28,7 +29,7 @@ internal sealed partial class ScalewayReadTransport(
     /// <summary>The status logged when there was no response at all; zero is not a status, which is the point.</summary>
     private const int NoHttpStatus = 0;
 
-    private readonly ScalewayEmailOptions _scaleway = scalewayOptions.Value;
+    private readonly ScalewayReadOptions _read = readOptions.Value;
 
     internal async ValueTask<ProviderAttempt<TRead>> GetAsync<TRead>(
         string path,
@@ -42,7 +43,7 @@ internal sealed partial class ScalewayReadTransport(
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, RequestUri(path, query));
-            request.Headers.TryAddWithoutValidation(AuthHeaderName, _scaleway.SecretKey);
+            request.Headers.TryAddWithoutValidation(AuthHeaderName, _read.SecretKey);
 
             var client = httpClientFactory.CreateClient(ScalewayClientRegistration.UsageHttpClientName);
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -93,7 +94,7 @@ internal sealed partial class ScalewayReadTransport(
     {
         var uri = new StringBuilder(path)
             .Append("?project_id=")
-            .Append(Uri.EscapeDataString(_scaleway.ProjectId));
+            .Append(Uri.EscapeDataString(_read.ProjectId));
         foreach (var (name, value) in query)
         {
             uri.Append('&').Append(Uri.EscapeDataString(name)).Append('=').Append(Uri.EscapeDataString(value));

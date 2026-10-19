@@ -249,6 +249,34 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
         usage.GetProperty("observedAt").ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
+    [Fact]
+    public async Task Allowance_ShouldSayReadKeyMissing_WithNoReasonAndNoFigures_WhenTheReadKeyIsNotConfigured()
+    {
+        var (admin, _, _) = await AdminAsync(factory, NewToken(), Ct);
+        using var scripted = factory.EmailProviderReads.Script(
+            new EmailProviderUsageRead.ReadKeyMissing(), new EmailProviderPlanRead.ReadKeyMissing());
+
+        var response = await admin.GetAsync(EndpointPath, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        ShouldBePrivate(response);
+        var body = await ReadAsync(response);
+        body.GetProperty("terms").GetProperty("includedMonthlyEmails").GetInt32().ShouldBe(300);
+        var usage = body.GetProperty("usage");
+        usage.GetProperty("status").GetString().ShouldBe("ReadKeyMissing");
+        foreach (var figure in new[] { "reason", "observedAt", "month", "sent", "billable", "estimatedExtraCostOre", "aboveHalfOfSendLimit", "webhooksCount" })
+        {
+            usage.GetProperty(figure).ValueKind.ShouldBe(JsonValueKind.Null, figure);
+        }
+
+        var plan = body.GetProperty("plan");
+        plan.GetProperty("status").GetString().ShouldBe("ReadKeyMissing");
+        foreach (var figure in new[] { "reason", "active", "matches" })
+        {
+            plan.GetProperty(figure).ValueKind.ShouldBe(JsonValueKind.Null, figure);
+        }
+    }
+
     // ---- plumbing ----
 
     private IDisposable Scripted(EmailProviderUsageRead read, EmailProviderPlanRead? plan = null) =>

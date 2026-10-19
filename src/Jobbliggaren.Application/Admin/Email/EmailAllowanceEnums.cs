@@ -23,12 +23,16 @@ public enum EmailAllowanceStatus
     /// <summary>This deployment sends through no provider that can be asked. Expected in dev and CI, never an error.</summary>
     NotObserved,
 
+    /// <summary>The deployment sends through Scaleway, but the read key is not configured. Carries no reason.</summary>
+    ReadKeyMissing,
+
     Failed,
 }
 
 /// <summary>
 /// Why there is no reading. One closed set from the adapter to the browser, so each cause has one wording and
-/// 401 and 403 stay apart: under a send key that also reads, a 401 means sending is probably dead too.
+/// 401 and 403 stay apart: a 401 is the read key itself refused (expired, revoked or mistyped), a 403 a read key the
+/// provider knows but that lacks the permission. Neither says anything about the sending key.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter<EmailProviderReadReason>))]
 public enum EmailProviderReadReason

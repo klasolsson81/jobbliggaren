@@ -32,6 +32,12 @@ public abstract record EmailProviderPlanRead
     /// <summary>This deployment sends through no provider that can be asked.</summary>
     public sealed record NotConfigured : EmailProviderPlanRead;
 
+    /// <summary>
+    /// The deployment sends through Scaleway, but the read application's key is not configured: an operator step owed,
+    /// not a property of the deployment and not a failure. Nothing was read.
+    /// </summary>
+    public sealed record ReadKeyMissing : EmailProviderPlanRead;
+
     /// <summary>The read failed for <see cref="Reason"/>, which is never <see cref="EmailProviderReadReason.NotConfigured"/>.</summary>
     public sealed record Failed : EmailProviderPlanRead
     {
@@ -82,6 +88,9 @@ public abstract record EmailProviderUsageRead
 
     /// <summary>This deployment sends through no provider that can be asked.</summary>
     public sealed record NotConfigured : EmailProviderUsageRead;
+
+    /// <inheritdoc cref="EmailProviderPlanRead.ReadKeyMissing"/>
+    public sealed record ReadKeyMissing : EmailProviderUsageRead;
 
     /// <summary>The read failed for <see cref="Reason"/>, which is never <see cref="EmailProviderReadReason.NotConfigured"/>.</summary>
     public sealed record Failed : EmailProviderUsageRead

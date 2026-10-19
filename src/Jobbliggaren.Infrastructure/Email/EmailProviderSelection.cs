@@ -4,8 +4,8 @@ namespace Jobbliggaren.Infrastructure.Email;
 
 /// <summary>
 /// The one reading of <c>Email:Provider</c>. <c>AddEmailSender</c> chooses the sender from it and
-/// <c>AddEmailUsageSource</c> chooses the allowance source from it, so the two cannot disagree about which provider
-/// is configured; <c>EmailUsageSourceRegistrationTests.TheSourceIsScalewaysExactly_WhenTheSenderIs</c> pins that they do not.
+/// <c>AddEmailUsageSource</c> chooses the provider reads from it, so the two cannot disagree about which provider
+/// is configured; <c>EmailUsageSourceRegistrationTests.TheSource_FollowsTheSenderAndTheReadKey</c> pins that they do not.
 /// </summary>
 internal static class EmailProviderSelection
 {

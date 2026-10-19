@@ -51,7 +51,7 @@ namespace Jobbliggaren.Infrastructure.Configuration;
 /// Without that, this source would read <em>every</em> <c>*_FILE</c> variable in the process
 /// environment — <c>SSL_CERT_FILE</c> is the common one in Linux containers — and one pointing
 /// at an unreadable path would refuse the host's boot for a file that has nothing to do with
-/// this application. All five production keys are section-qualified; the incidental ones are
+/// this application. Every production key is section-qualified; the incidental ones are
 /// not. This also bounds the blast radius in test hosts, which inherit the ambient environment
 /// of whatever machine runs them.
 /// </para>

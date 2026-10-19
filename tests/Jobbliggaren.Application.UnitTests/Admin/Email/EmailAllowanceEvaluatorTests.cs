@@ -227,6 +227,20 @@ public class EmailAllowanceEvaluatorTests
         AssertNoFigures(usage);
     }
 
+    [Fact]
+    public void Evaluate_ShouldReportAMissingReadKey_AsItsOwnStatus_WithNoReasonAndNoFigures()
+    {
+        var dto = Evaluate(new EmailProviderUsageRead.ReadKeyMissing(), plan: new EmailProviderPlanRead.ReadKeyMissing());
+
+        dto.Usage.Status.ShouldBe(EmailAllowanceStatus.ReadKeyMissing);
+        dto.Usage.Reason.ShouldBeNull();
+        AssertNoFigures(dto.Usage);
+        dto.Plan.Status.ShouldBe(EmailAllowanceStatus.ReadKeyMissing);
+        dto.Plan.Reason.ShouldBeNull();
+        dto.Plan.Active.ShouldBeNull();
+        dto.Plan.Matches.ShouldBeNull();
+    }
+
     [Theory]
     [MemberData(nameof(FailureReasons))]
     public void Evaluate_ShouldReportEachFailureWithItsOwnReason_AndCarryNoFigures(EmailProviderReadReason reason)

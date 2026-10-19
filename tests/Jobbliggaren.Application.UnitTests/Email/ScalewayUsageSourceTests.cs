@@ -7,6 +7,7 @@ using Jobbliggaren.Infrastructure.Admin.Email;
 using Jobbliggaren.Infrastructure.Email;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 
@@ -23,6 +24,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     private const string Region = "fr-par";
     private const string ProjectId = "11111111-2222-3333-4444-555555555555";
     private const string SecretKey = "SCW-SECRET-KEY-4711"; // gitleaks:allow
+    private const string ReadKey = "SCW-READ-KEY-4712"; // gitleaks:allow
     private const string BodyMarker = "BODY-MARKER-4711";
     private static readonly DateTimeOffset Now = new(2026, 10, 18, 19, 30, 0, TimeSpan.Zero);
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -33,7 +35,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
 
     public ScalewayUsageSourceTests() => _provider = BuildProvider();
 
-    private ServiceProvider BuildProvider(TimeSpan? readTimeout = null)
+    private ServiceProvider BuildProvider(TimeSpan? readTimeout = null, string? readKey = ReadKey)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -42,6 +44,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
                 ["Email:Scaleway:Region"] = Region,
                 ["Email:Scaleway:SecretKey"] = SecretKey,
                 ["Email:Scaleway:ProjectId"] = ProjectId,
+                ["Email:ScalewayRead:SecretKey"] = readKey,
             })
             .Build();
 
@@ -94,7 +97,54 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         request.Method.ShouldBe(HttpMethod.Get);
         request.Uri.ShouldBe(new Uri(
             $"https://api.scaleway.com/transactional-email/v1alpha1/regions/{Region}/project-consumption?project_id={ProjectId}"));
-        request.AuthToken.ShouldBe(SecretKey);
+        request.AuthToken.ShouldBe(ReadKey);
+    }
+
+    [Fact]
+    public async Task EveryRead_SendsTheReadKey_NeverTheSendKey()
+    {
+        _transport.Respond(HttpStatusCode.OK, ConsumptionBody());
+        await AttemptAsync();
+        _transport.Respond(HttpStatusCode.OK, SubscriptionsBody("essential"));
+        await PlanAsync();
+        _transport.Respond(HttpStatusCode.Unauthorized, "{}");
+        await AttemptAsync();
+        await PlanAsync();
+
+        _transport.Requests.Count.ShouldBe(4);
+        _transport.Requests.ShouldAllBe(request => request.AuthToken == ReadKey);
+    }
+
+    [Fact]
+    public async Task WithoutAReadKey_NothingIsRead_AndTheSendKeyIsNeverUsedInItsPlace()
+    {
+        using var provider = BuildProvider(readKey: null);
+        var source = provider.GetRequiredService<IEmailProviderUsageSource>();
+
+        (await source.ReadUsageAsync(Ct)).ShouldBe(new EmailProviderUsageRead.ReadKeyMissing());
+        (await source.ReadPlanAsync(Ct)).ShouldBe(new EmailProviderPlanRead.ReadKeyMissing());
+
+        _transport.Requests.ShouldBeEmpty();
+        provider.GetService<IProviderUsageAttemptSource>().ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task WithoutAReadKey_StartupWritesOneInformationLine_NamingTheKey_AndNoValue()
+    {
+        using var provider = BuildProvider(readKey: null);
+
+        foreach (var service in provider.GetServices<IHostedService>())
+        {
+            await service.StartAsync(Ct);
+        }
+
+        var line = _logs.Records.Where(r => r.EventId == 3021).ShouldHaveSingleItem();
+        line.Level.ShouldBe(LogLevel.Information);
+        line.Message.ShouldContain("Email:ScalewayRead:SecretKey");
+        foreach (var forbidden in new[] { SecretKey, ProjectId })
+        {
+            _logs.Lines.ShouldAllBe(text => !text.Contains(forbidden, StringComparison.Ordinal));
+        }
     }
 
     [Fact]
@@ -197,7 +247,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         request.Method.ShouldBe(HttpMethod.Get);
         request.Uri.ShouldBe(new Uri(
             $"https://api.scaleway.com/transactional-email/v1alpha1/regions/{Region}/offer-subscriptions?project_id={ProjectId}"));
-        request.AuthToken.ShouldBe(SecretKey);
+        request.AuthToken.ShouldBe(ReadKey);
     }
 
     [Theory]
@@ -389,7 +439,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         _transport.Respond(HttpStatusCode.Forbidden, "{\"echo\":\"" + BodyMarker + "\"}");
         await PlanAsync();
 
-        foreach (var forbidden in new[] { ProjectId, SecretKey, BodyMarker, "project_id", "organization_id" })
+        foreach (var forbidden in new[] { ProjectId, SecretKey, ReadKey, BodyMarker, "project_id", "organization_id" })
         {
             _logs.Lines.ShouldAllBe(line => !line.Contains(forbidden, StringComparison.Ordinal));
         }

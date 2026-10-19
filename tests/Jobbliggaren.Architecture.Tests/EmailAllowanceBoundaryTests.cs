@@ -2,6 +2,7 @@ using System.Reflection;
 using Jobbliggaren.Application.Admin.Email;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailAllowance;
 using Jobbliggaren.Infrastructure.Admin.Email;
+using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Worker.Auditing;
 using NetArchTest.Rules;
 using Shouldly;
@@ -9,17 +10,13 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1981 (ADR 0178) — the allowance read's boundaries. The provider port has one reader, the admin query; Application
-/// owns the arithmetic and none of the transport; and the Worker, which sends mail, never reads the provider.
+/// #1981 (ADR 0178) — the provider reads' boundaries. The provider port has one reader, the admin query; Application
+/// owns the arithmetic and none of the transport; the reads never reach the sending key's options; and the Worker,
+/// which sends mail, never reads the provider.
 /// </summary>
 public class EmailAllowanceBoundaryTests
 {
-    private static readonly string[] ProviderReadTypes =
-    [
-        typeof(ScalewayUsageSource).FullName!,
-        typeof(MemoizedEmailProviderUsageSource).FullName!,
-        typeof(EmailUsageSourceCollectionExtensions).FullName!,
-    ];
+    private static readonly string ProviderReadNamespace = typeof(EmailUsageSourceCollectionExtensions).Namespace!;
 
     [Fact]
     public void TheProviderPort_IsInjectedOnlyIntoItsOneQueryHandler()
@@ -63,13 +60,28 @@ public class EmailAllowanceBoundaryTests
     }
 
     [Fact]
-    public void TheWorker_ShouldNotReferenceTheProviderRead()
+    public void NoReadSideType_DependsOnTheSendingKeysOptions_ExceptTheRegistration()
+    {
+        var readSide = Types.InAssembly(typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly)
+            .That().ResideInNamespace(ProviderReadNamespace)
+            .And().DoNotHaveName(nameof(EmailUsageSourceCollectionExtensions));
+        readSide.GetTypes().ShouldContain(typeof(ScalewayReadTransport), "the rule must see the transport, or it pins nothing");
+
+        var result = readSide.ShouldNot().HaveDependencyOn(typeof(ScalewayEmailOptions).FullName!).GetResult();
+
+        result.IsSuccessful.ShouldBeTrue(
+            "a provider read authenticates with the read key alone (ScalewayReadOptions), never the sending key's options: "
+            + string.Join(", ", result.FailingTypeNames ?? []));
+    }
+
+    [Fact]
+    public void TheWorker_ShouldNotReferenceTheProviderReads()
     {
         var result = Types.InAssembly(typeof(WorkerSystemUser).Assembly)
-            .ShouldNot().HaveDependencyOnAny(ProviderReadTypes)
+            .ShouldNot().HaveDependencyOnAny(ProviderReadNamespace)
             .GetResult();
 
         result.IsSuccessful.ShouldBeTrue(
-            $"The allowance read is Api-only, the Worker references it: {string.Join(", ", result.FailingTypeNames ?? [])}");
+            $"The provider reads are Api-only, the Worker references them: {string.Join(", ", result.FailingTypeNames ?? [])}");
     }
 }

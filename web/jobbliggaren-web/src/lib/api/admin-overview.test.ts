@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { accountOverviewFixture, hostFixture, OVERVIEW_TIME, servicesFixture } from "@/test/fixtures/admin-overview";
+import {
+  accountOverviewFixture, emailAllowanceFixture, hostFixture, OVERVIEW_TIME, servicesFixture,
+} from "@/test/fixtures/admin-overview";
 
 const { session, transport } = vi.hoisted(() => ({ session: vi.fn(), transport: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getSessionId: session }));
@@ -17,6 +19,7 @@ const jobs = { totalCount: 3, returned: 50, items: [{ jobId: "1", jobType: "Matc
 const BACKUP = "/api/v1/admin/overview/backup";
 const HOST = "/api/v1/admin/overview/host";
 const SERVICES = "/api/v1/admin/overview/services";
+const EMAIL = "/api/v1/admin/email/allowance";
 // The wire form of System.Text.Json for a DateTimeOffset in UTC: an offset, never a Z.
 const HOST_TIME = "2026-10-08T09:58:02+00:00";
 const backupObserved = {
@@ -34,6 +37,7 @@ function success(_session: string, path: string) {
     path === BACKUP ? backupObserved
       : path === HOST ? hostFixture()
       : path === SERVICES ? servicesFixture()
+      : path === EMAIL ? emailAllowanceFixture()
       : path.includes("overview") ? accountOverviewFixture() : path.includes("audit") ? audit : jobs));
 }
 beforeEach(() => { vi.clearAllMocks(); session.mockResolvedValue("synthetic-session"); transport.mockImplementation(success); });
@@ -45,6 +49,7 @@ describe("admin overview source reads", () => {
     expect(result.kind).toBe("ok");
     expect(transport.mock.calls.map((call) => call[1])).toEqual([
       "/api/v1/admin/overview/accounts", "/api/v1/admin/audit-log?page=1&pageSize=5", "/api/v1/admin/jobs/failed", BACKUP, HOST, SERVICES,
+      EMAIL,
     ]);
     expect(JSON.stringify(result)).not.toMatch(/ipAddress|userAgent|synthetic-agent|192.0.2.1|correlationId|userId|jobType|errorCategory/);
     if (result.kind !== "ok") throw new Error("Expected observed sources");
@@ -94,7 +99,7 @@ describe("admin overview source reads", () => {
       kind: "ok",
       data: {
         accounts: { kind: "failed" }, audit: { kind: "failed" }, jobs: { kind: "failed" }, backup: { kind: "failed" }, host: { kind: "failed" },
-        services: { kind: "failed" },
+        services: { kind: "failed" }, email: { kind: "failed" },
       },
     });
     expect(deadlines).toEqual([10_000, 10_000, 10_000]);
@@ -168,9 +173,11 @@ describe("admin overview Backup source (#1982)", () => {
     expect(result.data.backup).toEqual({ kind: "failed" });
     expect(result.data.host).toEqual({ kind: "failed" });
     expect(result.data.services).toEqual({ kind: "failed" });
+    expect(result.data.email).toEqual({ kind: "failed" });
     expect(transport.mock.calls.map((call) => call[1])).not.toContain(BACKUP);
     expect(transport.mock.calls.map((call) => call[1])).not.toContain(HOST);
     expect(transport.mock.calls.map((call) => call[1])).not.toContain(SERVICES);
+    expect(transport.mock.calls.map((call) => call[1])).not.toContain(EMAIL);
   });
   it.each([401, 403])("answers %i when one first-step source does, wherever the host read stands (a role revoked in flight)", async (status) => {
     transport.mockImplementation((_session: string, path: string) => path.includes("audit") ? new Response(null, { status }) : success(_session, path));
@@ -459,5 +466,62 @@ describe("admin overview Services source (#1982)", () => {
       "backgroundJobs", "importOverdueAfterSeconds", "jobImport", "staleAfterSeconds", "volatileStore", "workerAliveWithinSeconds",
     ]);
     expect(services.data).toEqual(servicesFixture());
+  });
+});
+
+describe("admin overview e-post source (#1981 PR 1)", () => {
+  const emailAnswer = (body: unknown, stamp: string | null = OVERVIEW_TIME) =>
+    (_session: string, path: string) => path === EMAIL ? Promise.resolve(response(body, stamp)) : success(_session, path);
+  const observedEmail = async () => {
+    const result = await loadAdminOverview();
+    if (result.kind !== "ok") throw new Error("Expected partial observation");
+    return result.data.email;
+  };
+  const failedUsage = { status: "Failed", reason: "Timeout", observedAt: null, month: null, sent: null, billable: null,
+    estimatedExtraCostOre: null, aboveHalfOfSendLimit: null, webhooksCount: null };
+
+  it("asks for the allowance only after an admin read has succeeded (#2064)", async () => {
+    let succeeded = 0;
+    let emailAsked = false;
+    transport.mockImplementation(async (_session: string, path: string) => {
+      if (path === EMAIL) {
+        expect(succeeded).toBeGreaterThanOrEqual(1);
+        emailAsked = true;
+        return success(_session, path);
+      }
+      const result = await success(_session, path);
+      succeeded++;
+      return result;
+    });
+    await loadAdminOverview();
+    expect(emailAsked).toBe(true);
+  });
+  it("dates an observed count by when the provider answered, never by the time of the read", async () => {
+    expect(await observedEmail()).toEqual({
+      kind: "loaded", data: emailAllowanceFixture(), sampledAt: "2026-10-08T09:59:30+00:00", refreshFailed: false,
+    });
+  });
+  it("dates a provider failure by the API read instant: a loaded source whose usage failed, not a failed source", async () => {
+    transport.mockImplementation(emailAnswer({ ...emailAllowanceFixture(), usage: failedUsage }));
+    expect(await observedEmail()).toMatchObject({ kind: "loaded", sampledAt: OVERVIEW_TIME, data: { usage: { status: "Failed" } } });
+  });
+  it.each([
+    ["an extra property", { ...emailAllowanceFixture(), projectId: "p" }],
+    ["a cost without the plan in force", { ...emailAllowanceFixture(), plan: { status: "Observed", reason: null, active: "Scale", matches: false } }],
+    ["NotConfigured given as a failure", { ...emailAllowanceFixture(), usage: { ...failedUsage, reason: "NotConfigured" } }],
+  ])("fails only the e-post source for %s", async (_name, body) => {
+    transport.mockImplementation(emailAnswer(body));
+    const result = await loadAdminOverview();
+    if (result.kind !== "ok") throw new Error("Expected partial observation");
+    expect(result.data.email).toEqual({ kind: "failed" });
+    expect(result.data.accounts.kind).toBe("loaded");
+  });
+  it.each([null, "invalid"])("fails the e-post source whose response header is %s", async (stamp) => {
+    transport.mockImplementation(emailAnswer(emailAllowanceFixture(), stamp));
+    expect((await observedEmail()).kind).toBe("failed");
+  });
+  it.each([401, 403])("answers %i when the allowance read does, wherever the other reads stand", async (status) => {
+    transport.mockImplementation((_session: string, path: string) => path === EMAIL ? new Response(null, { status }) : success(_session, path));
+    expect(await loadAdminOverview()).toEqual({ kind: status === 401 ? "unauthorized" : "forbidden" });
   });
 });

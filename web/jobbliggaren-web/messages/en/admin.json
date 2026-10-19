@@ -123,10 +123,11 @@
     "email": {
       "title": "Email",
       "link": "Email delivery",
-      "unit": "last 24 h",
-      "failed": "{count} failed",
-      "noRecipient": "{count} without recipient",
-      "topTypes": "Most sent email types"
+      "unit": "of <value>{included}</value> free in {month}",
+      "unitThisMonth": "of <value>{included}</value> free this month",
+      "unitSentOnly": "sent in {month}",
+      "unitSentOnlyThisMonth": "sent this month",
+      "cost": "Estimated cost <value>{cost}</value> incl. VAT"
     },
     "attention": {
       "title": "Needs attention",
@@ -167,7 +168,8 @@
         "jobs": "Failed background jobs",
         "backup": "Backup",
         "host": "Server readings",
-        "services": "Services"
+        "services": "Services",
+        "email": "Sends against the free allowance"
       }
     },
     "registrationPeriods": {
@@ -633,7 +635,37 @@
       "title": "Email delivery"
     },
     "heading": "Email delivery",
-    "lede": "Sends per email type.",
+    "lede": "Sends against the free allowance and per email type.",
+    "allowance": {
+      "heading": "Sends in {month}",
+      "headingThisMonth": "Sends this month",
+      "sent": "Sent",
+      "included": "Included free",
+      "cost": "Estimated cost incl. VAT",
+      "source": "Counted by Scaleway for the project. Observed at <time>{at}</time>.",
+      "price": "Price beyond the free allowance: {price} per {per} emails before VAT, according to Scaleway's price list read {readOn}.",
+      "conversion": "The cost is converted to kronor at {rate} SEK per euro, the ECB reference rate of {rateOn}, and includes Swedish VAT.",
+      "sendLimit": "The send limit is {limit} emails a month.",
+      "sendLimitAboveHalf": "More than half of the send limit of {limit} emails a month is used.",
+      "webhooks": "{count, plural, one {# webhook is registered} other {# webhooks are registered}} at Scaleway. There should be none, see the admin email runbook.",
+      "webhooksUnreadable": "The number of webhooks could not be read.",
+      "notConfigured": "Not counted in this environment.",
+      "plan": {
+        "differs": "Scaleway states the plan {active}, but the terms are for {configured}. The cost is not calculated.",
+        "undetermined": "The plan at Scaleway could not be determined. The cost is not calculated.",
+        "failed": "The plan could not be read from Scaleway. The cost is not calculated."
+      },
+      "failure": {
+        "noAnswer": "Scaleway did not answer. Try again in a moment.",
+        "rateLimited": "Scaleway is limiting the reads right now. Try again in a moment.",
+        "keyRefused": "Scaleway refused the key, and then the sends are probably stopped too. Check the key's expiry date as the admin email runbook describes.",
+        "readRefused": "Scaleway refused the read. Check the key's permission as the admin email runbook describes.",
+        "malformed": "Scaleway's answer could not be read. See the admin email runbook."
+      }
+    },
+    "delivery": {
+      "heading": "Delivery"
+    },
     "period": {
       "label": "Period",
       "h24": "24 h",

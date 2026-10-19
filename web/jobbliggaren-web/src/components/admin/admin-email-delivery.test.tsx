@@ -25,6 +25,19 @@ const DELIVERY: Delivery = {
   ],
 };
 
+describe("AdminEmailDelivery as the page's Leverans section (#1981 PR 1)", () => {
+  it("is a section headed Leverans, with the period group in its own heading row and the failures under an h3", () => {
+    render(<AdminEmailDelivery region={{ kind: "unavailable" }} />);
+
+    const section = screen.getByRole("region", { name: "Leverans" });
+    const heading = within(section).getByRole("heading", { level: 2, name: "Leverans" });
+    expect(heading.parentElement).toHaveClass("jp-adminsection__head");
+    expect(within(heading.parentElement!).getByRole("radiogroup", { name: "Period" })).toBeInTheDocument();
+    expect(within(section).getByRole("heading", { level: 3, name: "Senaste misslyckade utskick" })).toHaveClass("jp-adminh3");
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+  });
+});
+
 describe("AdminEmailDelivery with outcomes", () => {
   it("shows the totals, a failure count above zero in the danger colour", () => {
     render(<AdminEmailDelivery region={{ kind: "loaded", data: DELIVERY }} />);

@@ -47,6 +47,12 @@ internal static class ScalewayClientRegistration
     /// </summary>
     internal const string HttpClientName = "scaleway-transactional-email";
 
+    /// <summary>
+    /// The named client the allowance read uses (#1981, ADR 0178). A client of its own, so nothing about the read can
+    /// reach the send path's handler chain, and the send client's no-resilience rule stays its own.
+    /// </summary>
+    internal const string UsageHttpClientName = "scaleway-transactional-email-usage";
+
     private const string ApiHost = "https://api.scaleway.com";
 
     /// <summary>
@@ -57,6 +63,12 @@ internal static class ScalewayClientRegistration
     /// rescued by waiting longer; the reaper owns the recovery, not the transport.
     /// </summary>
     private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Bounds one allowance read. Strictly shorter than the web's 10 s per-source deadline, so the API's own typed
+    /// Timeout reaches the browser instead of the deadline firing at the same moment.
+    /// </summary>
+    internal static readonly TimeSpan UsageTimeout = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// Registers the named client with the region built into its base address, and refuses a region
@@ -90,6 +102,32 @@ internal static class ScalewayClientRegistration
             client.BaseAddress = new Uri($"{ApiHost}/transactional-email/v1alpha1/regions/{region}/");
             client.Timeout = SendTimeout;
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the allowance read's client, behind the same region allow-list as the send client.
+    /// <para>
+    /// <b>No resilience handler and no retry.</b> The memo in front of the read is the retry: it holds a failure for
+    /// at least a minute, longer when the provider asks, so a refusing provider is not asked again by this path.
+    /// <b>No loggers.</b> The request URI carries the project id in its query; the read's own failure log carries the
+    /// reason and the status, which is everything actionable.
+    /// </para>
+    /// </summary>
+    internal static IServiceCollection AddScalewayUsageClient(
+        this IServiceCollection services,
+        string region)
+    {
+        EnsureAllowedRegion(region);
+
+        services.AddHttpClient(UsageHttpClientName, client =>
+        {
+            client.BaseAddress = new Uri($"{ApiHost}/transactional-email/v1alpha1/regions/{region}/");
+            client.Timeout = UsageTimeout;
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
+        .RemoveAllLoggers();
 
         return services;
     }

@@ -33,7 +33,8 @@ export function AdminRegionLine({
   /** Leaves failure and loading unannounced, for a page that announces them once for all its regions. */
   readonly quiet?: boolean;
 }) {
-  const t = useTranslations("admin");
+  const regions = useTranslations("admin.regions");
+  const unavailable = useTranslations("admin.unavailable");
   const lineClass = className ?? (region ? "jp-adminsoon jp-adminsoon--region" : "jp-adminsoon");
   switch (kind) {
     case "unavailable":
@@ -41,7 +42,7 @@ export function AdminRegionLine({
         <ComingSoon id={soonId} region={region} />
       ) : (
         <p id={soonId} className={className}>
-          {t("unavailable.comingSoon")}
+          {unavailable("comingSoon")}
         </p>
       );
     case "empty":
@@ -49,13 +50,13 @@ export function AdminRegionLine({
     case "failed":
       return (
         <p className={lineClass} role={quiet ? undefined : "alert"}>
-          {failed ?? t("regions.failed")}
+          {failed ?? regions("failed")}
         </p>
       );
     case "loading":
       return (
         <p className={lineClass} role={quiet ? undefined : "status"}>
-          {loading ?? t("regions.loading")}
+          {loading ?? regions("loading")}
         </p>
       );
   }

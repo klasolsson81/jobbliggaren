@@ -128,7 +128,8 @@ transaction and committing in a later one, or the measured maximum approaches 12
   quota is shared with the sign-in codes (ADR 0142).
 - **Lapse triggers** (home: this ADR; reader: Klas):
   1. Monthly sent volume above 50 % of the shared quota: add a global rolling 24-hour budget (precedent:
-     `FeedbackNotificationDispatchJob.DailyBudget`).
+     `FeedbackNotificationDispatchJob.DailyBudget`). Instrument (2026-10-19): `/admin/e-post` says in words when the month's
+     count is above half the configured send limit (ADR 0178 D9).
   2. More than 12 Top mails to one recipient in a rolling 24 hours, measured as a single maximum under §9.2 (a): a non-zero gap,
      decided with Klas.
 

@@ -123,10 +123,11 @@
     "email": {
       "title": "E-post",
       "link": "E-postleverans",
-      "unit": "senaste 24 tim",
-      "failed": "{count, plural, one {# misslyckat} other {# misslyckade}}",
-      "noRecipient": "{count} utan mottagare",
-      "topTypes": "Mest skickade mejltyper"
+      "unit": "av <value>{included}</value> gratis i {month}",
+      "unitThisMonth": "av <value>{included}</value> gratis denna månad",
+      "unitSentOnly": "skickade i {month}",
+      "unitSentOnlyThisMonth": "skickade denna månad",
+      "cost": "Beräknad kostnad <value>{cost}</value> inkl. moms"
     },
     "attention": {
       "title": "Kräver uppmärksamhet",
@@ -167,7 +168,8 @@
         "jobs": "Misslyckade bakgrundsjobb",
         "backup": "Backup",
         "host": "Serverns mätvärden",
-        "services": "Tjänster"
+        "services": "Tjänster",
+        "email": "Utskick mot gratiskvoten"
       }
     },
     "registrationPeriods": {
@@ -633,7 +635,37 @@
       "title": "E-postleverans"
     },
     "heading": "E-postleverans",
-    "lede": "Utskick per mejltyp.",
+    "lede": "Utskick mot gratiskvoten och per mejltyp.",
+    "allowance": {
+      "heading": "Utskick i {month}",
+      "headingThisMonth": "Utskick denna månad",
+      "sent": "Skickade",
+      "included": "Ingår gratis",
+      "cost": "Beräknad kostnad inkl. moms",
+      "source": "Räknat av Scaleway för projektet. Uppgift från <time>{at}</time>.",
+      "price": "Pris utöver gratiskvoten: {price} per {per} mejl före moms, enligt Scaleways prislista läst {readOn}.",
+      "conversion": "Kostnaden är omräknad till kronor med {rate} kr per euro, ECB:s referenskurs {rateOn}, och inkluderar svensk moms.",
+      "sendLimit": "Sändgränsen är {limit} mejl i månaden.",
+      "sendLimitAboveHalf": "Över hälften av sändgränsen på {limit} mejl i månaden är använd.",
+      "webhooks": "{count, plural, one {# webhook är registrerad} other {# webhooks är registrerade}} hos Scaleway. Ingen ska finnas, se runbooken för admin-e-post.",
+      "webhooksUnreadable": "Antalet webhooks kunde inte läsas.",
+      "notConfigured": "Räknas inte i den här miljön.",
+      "plan": {
+        "differs": "Scaleway anger abonnemanget {active}, men villkoren gäller {configured}. Kostnaden beräknas inte.",
+        "undetermined": "Abonnemanget hos Scaleway kunde inte bestämmas. Kostnaden beräknas inte.",
+        "failed": "Abonnemanget kunde inte läsas från Scaleway. Kostnaden beräknas inte."
+      },
+      "failure": {
+        "noAnswer": "Scaleway svarade inte. Försök igen om en stund.",
+        "rateLimited": "Scaleway begränsar läsningarna just nu. Försök igen om en stund.",
+        "keyRefused": "Scaleway nekade nyckeln, och då stoppas troligen även utskicken. Kontrollera nyckelns utgångsdatum enligt runbooken för admin-e-post.",
+        "readRefused": "Scaleway nekade läsningen. Kontrollera nyckelns behörighet enligt runbooken för admin-e-post.",
+        "malformed": "Scaleways svar kunde inte läsas. Se runbooken för admin-e-post."
+      }
+    },
+    "delivery": {
+      "heading": "Leverans"
+    },
     "period": {
       "label": "Period",
       "h24": "24 tim",

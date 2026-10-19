@@ -1,6 +1,7 @@
 /** The admin surface's view models (ADR 0150). */
 import type { AdminDeletionTiming } from "./account-deletion";
 import type { BackupObservationData } from "@/lib/dto/admin-overview";
+import type { EmailAllowanceDto } from "@/lib/dto/admin-email";
 import type { AdminServerReading } from "./host-observation";
 import type { AdminServicesReading } from "./service-observation";
 
@@ -160,16 +161,11 @@ export type { AdminServicesReading } from "./service-observation";
  */
 export type AdminBackupStatus = BackupObservationData;
 
-export interface AdminEmailTotals {
-  readonly sent: number;
-  readonly failed: number;
-  readonly noRecipient: number;
-}
-
-export interface AdminEmailOverview extends AdminEmailTotals {
-  /** The most sent email types of the last 24 hours, most first. */
-  readonly topTypes: ReadonlyArray<{ readonly type: string; readonly sent: number }>;
-}
+/**
+ * This month's mail against the provider's free allowance (#1981 PR 1, ADR 0178): the e-post page's first region and
+ * the overview's e-post card. The DTO as the API sends it; both surfaces only format it.
+ */
+export type AdminEmailAllowance = EmailAllowanceDto;
 
 export type AdminAttentionKind = "failedJobs" | "pendingDeletions" | "failedEmails";
 
@@ -205,7 +201,7 @@ export interface AdminOverviewRegions {
   readonly services: AdminValueRegion<AdminServicesReading>;
   readonly server: AdminValueRegion<AdminServerReading>;
   readonly backup: AdminValueRegion<AdminBackupStatus>;
-  readonly email: AdminValueRegion<AdminEmailOverview>;
+  readonly email: AdminValueRegion<AdminEmailAllowance>;
   readonly attention: AdminRegion<ReadonlyArray<AdminAttentionItem>>;
   readonly events: AdminRegion<ReadonlyArray<AdminRecentEvent>>;
 }
@@ -397,6 +393,12 @@ export interface AdminImportLogRow {
 // ── Email delivery (#1981) ──────────────────────────────────────────────────────────────────
 
 export type AdminEmailPeriod = "h24" | "d3" | "d7";
+
+export interface AdminEmailTotals {
+  readonly sent: number;
+  readonly failed: number;
+  readonly noRecipient: number;
+}
 
 export interface AdminEmailTypeRow {
   readonly type: string;

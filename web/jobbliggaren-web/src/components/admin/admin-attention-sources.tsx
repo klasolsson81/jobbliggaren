@@ -16,7 +16,8 @@ import { withWholeInstant } from "./admin-services-body";
  */
 export function BackupAttentionLines({ observation }: { readonly observation: AwaitingObservation<BackupObservationData> }) {
   const t = useTranslations("admin.overview");
-  const shared = useTranslations("admin");
+  const regions = useTranslations("admin.regions");
+  const unavailable = useTranslations("admin.unavailable");
   const attention = backupAttention(observation);
   const source = t("backup.title");
 
@@ -24,7 +25,7 @@ export function BackupAttentionLines({ observation }: { readonly observation: Aw
     return (
       <Unread label={source}>
         {attention.why === "awaiting"
-          ? <p className="jp-adminsoon">{shared("regions.awaiting")}</p>
+          ? <p className="jp-adminsoon">{regions("awaiting")}</p>
           : <AdminRegionLine kind={attention.why} quiet />}
       </Unread>
     );
@@ -36,7 +37,7 @@ export function BackupAttentionLines({ observation }: { readonly observation: Aw
       ))}
       {attention.timerUnknown ? (
         <Unread label={t("attention.sourceState", { source, state: t("backup.next") })}>
-          <p className="jp-adminsoon">{shared("unavailable.unknownSpoken")}</p>
+          <p className="jp-adminsoon">{unavailable("unknownSpoken")}</p>
         </Unread>
       ) : null}
     </>

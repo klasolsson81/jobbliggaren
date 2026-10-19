@@ -22,5 +22,27 @@
       "loading": "Laddar"
     },
     "impersonation": "Visa läget Agera som användaren"
+  },
+  "email": {
+    "scenarioLabel": "Visa utskick mot gratiskvoten",
+    "scenarios": {
+      "withinQuota": "Inom gratiskvoten",
+      "nothingSent": "Inga utskick",
+      "atQuota": "Exakt gratiskvoten",
+      "overQuota": "Över gratiskvoten",
+      "aboveHalf": "Över halva sändgränsen",
+      "planDiffers": "Annat abonnemang",
+      "planUnknown": "Okänt abonnemang",
+      "planFailed": "Abonnemanget kunde inte läsas",
+      "notConfigured": "Räknas inte i miljön",
+      "noAnswer": "Scaleway svarar inte",
+      "rateLimited": "Scaleway begränsar läsningarna",
+      "keyRefused": "Scaleway nekar nyckeln",
+      "refused": "Scaleway nekar läsningen",
+      "malformed": "Oläsbart svar från Scaleway",
+      "noMonth": "Månaden kan inte namnges",
+      "webhooks": "En webhook registrerad",
+      "webhooksUnreadable": "Webhooks kunde inte läsas"
+    }
   }
 }

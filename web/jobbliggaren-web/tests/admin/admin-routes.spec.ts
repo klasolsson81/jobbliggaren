@@ -45,12 +45,12 @@ const PAGES = [
   { label: "Granskning", path: "/admin/granskning", heading: "Granskning" },
 ] as const;
 
-// Feedback is built (#1979) and has a spec of its own, admin-feedback.spec.ts.
+// Feedback is built (#1979) and has a spec of its own, admin-feedback.spec.ts. E-postleverans shows the month against
+// the free allowance (#1981 PR 1), so only its Leverans section is unbuilt; it has a test of its own below.
 const UNBUILT = [
   "/admin/loggar",
   "/admin/loggar/applikationsfel",
   "/admin/loggar/platsbanken-import",
-  "/admin/e-post",
 ] as const;
 
 const adminNav = (page: Page) => page.getByRole("navigation", { name: "Admin-navigation" });
@@ -81,6 +81,56 @@ for (const path of UNBUILT) {
     // ("24 tim", which the mono-caps header renders upper-case).
     const text = (await main.innerText()).replace(/\b(3|7|30|90) dygn\b|\b24 tim\b/gi, "");
     expect(text).not.toMatch(/\d/);
+  });
+}
+
+test("/admin/e-post shows the month against the free allowance first, and keeps Leverans unbuilt (#1981 PR 1)", async ({ page }) => {
+  await page.goto("/admin/e-post");
+  const allowance = page.getByRole("region", { name: /^Utskick (i |denna)/ });
+  await expect(allowance.getByRole("term")).toHaveText(["Skickade", "Ingår gratis", "Beräknad kostnad inkl. moms"]);
+  await expect(allowance.getByRole("definition")).toHaveText(["142", "300", /^0,00\skr$/]);
+  await expect(allowance).toContainText("Räknat av Scaleway för projektet.");
+  expect(harness.requests).toContain("GET /api/v1/admin/email/allowance");
+
+  const delivery = page.getByRole("region", { name: "Leverans", exact: true });
+  await expect(delivery.getByText("Kommer snart").first()).toBeVisible();
+  for (const option of await delivery.getByRole("radio").all()) await expect(option).toBeDisabled();
+  // No fabricated delivery figure: the section's only digits are its period labels.
+  const text = (await delivery.innerText()).replace(/\b(3|7) dygn\b|\b24 tim\b/gi, "");
+  expect(text).not.toMatch(/\d/);
+});
+
+const EMAIL_STATES: ReadonlyArray<{ readonly name: string; readonly set: (h: Harness) => void; readonly line: string }> = [
+  {
+    name: "no provider in this deployment",
+    set: (h) => { h.overviewEmail = "notConfigured"; },
+    line: "Räknas inte i den här miljön.",
+  },
+  {
+    name: "a count the provider did not answer",
+    set: (h) => { h.overviewEmail = "providerFailed"; },
+    line: "Scaleway svarade inte. Försök igen om en stund.",
+  },
+  {
+    name: "a count under another plan",
+    set: (h) => { h.overviewEmail = "planDiffers"; },
+    line: "Scaleway anger abonnemanget Scale, men villkoren gäller Essential. Kostnaden beräknas inte.",
+  },
+  {
+    name: "our own failed read",
+    set: (h) => { h.overviewReads.email = "error"; },
+    line: "Uppgifterna kunde inte hämtas. Försök igen om en stund.",
+  },
+];
+
+for (const state of EMAIL_STATES) {
+  test(`/admin/e-post says why the allowance is incomplete for ${state.name} (#1981 PR 1)`, async ({ page }) => {
+    state.set(harness);
+    await page.goto("/admin/e-post");
+
+    const allowance = page.getByRole("region", { name: /^Utskick (i |denna)/ });
+    await expect(allowance.getByText(state.line, { exact: true })).toBeVisible();
+    expect(harness.requests).toContain("GET /api/v1/admin/email/allowance");
   });
 }
 

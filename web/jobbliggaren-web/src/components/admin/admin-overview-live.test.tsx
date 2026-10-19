@@ -218,6 +218,25 @@ describe("admin overview visible refresh", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Tjänster: Uppdateringen misslyckades. Senaste uppgiften visas.");
     expect(screen.getByRole("status")).not.toHaveTextContent("Serverns mätvärden");
   });
+  it("announces the provider's own failure on the e-post card in the card's words, and its recovery (#1981)", async () => {
+    const fresh = sampledNow(overviewSnapshotFixture());
+    if (fresh.email.kind !== "loaded") throw new Error("Expected a loaded e-post source");
+    const failed = { ...fresh, email: { ...fresh.email, sampledAt: new Date(NOW + 60_000).toISOString(), data: {
+      ...fresh.email.data,
+      usage: { status: "Failed" as const, reason: "Timeout" as const, observedAt: null, month: null, sent: null, billable: null,
+        estimatedExtraCostOre: null, aboveHalfOfSendLimit: null, webhooksCount: null },
+    } } };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(failed)));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Utskick mot gratiskvoten: Scaleway svarade inte. Försök igen om en stund.");
+    expect(screen.getByRole("region", { name: "E-post" })).toHaveTextContent("Scaleway svarade inte.");
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(fresh)));
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(screen.getByRole("status")).toHaveTextContent("Utskick mot gratiskvoten: Uppgifterna är aktuella.");
+  });
   it("replaces kept services rows with the API's own news once it answers again (#1982)", async () => {
     const quiet = sampledNow(overviewSnapshotFixture());
     if (quiet.services.kind !== "loaded") throw new Error("Expected loaded services");

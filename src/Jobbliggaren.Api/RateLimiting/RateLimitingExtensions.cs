@@ -843,16 +843,18 @@ public static partial class RateLimitingExtensions
         if (string.IsNullOrEmpty(userId))
             return RateLimitPartition.GetNoLimiter(anonymousPartition);
 
-        return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
-            new TokenBucketRateLimiterOptions
-            {
-                TokenLimit = policy.PermitLimit,
-                TokensPerPeriod = Math.Max(1, policy.PermitLimit / policy.SegmentsPerWindow),
-                ReplenishmentPeriod = TimeSpan.FromSeconds(policy.WindowSeconds / (double)policy.SegmentsPerWindow),
-                QueueLimit = 0,
-                AutoReplenishment = true,
-            });
+        return RateLimitPartition.GetTokenBucketLimiter(userId, _ => PerUserTokenBucketOptions(policy));
     }
+
+    internal static TokenBucketRateLimiterOptions PerUserTokenBucketOptions(RateLimitingOptions.PolicyOptions policy) =>
+        new()
+        {
+            TokenLimit = policy.PermitLimit,
+            TokensPerPeriod = Math.Max(1, policy.PermitLimit / policy.SegmentsPerWindow),
+            ReplenishmentPeriod = TimeSpan.FromSeconds(policy.WindowSeconds / (double)policy.SegmentsPerWindow),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        };
 
     /// <summary>
     /// The anonymous public job-ad reads' shared mechanism (ADR 0160 D5, ADR 0174 D5, ADR 0176): a TokenBucket per

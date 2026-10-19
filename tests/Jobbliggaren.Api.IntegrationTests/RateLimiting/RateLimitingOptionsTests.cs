@@ -269,12 +269,13 @@ public class RateLimitingOptionsTests
     }
 
     [Theory]
-    [InlineData(nameof(RateLimitingOptions.CriterionNewAdCounts))]
-    [InlineData(nameof(RateLimitingOptions.CriterionNewAds))]
-    [InlineData(nameof(RateLimitingOptions.CriterionNewAdsSeen))]
-    public void Defaults_TheBranschbevakningNewAdPolicies_AreBurst20_Sustaining20PerMinute(string policy)
+    [InlineData(nameof(RateLimitingOptions.CriterionNewAdCounts), 20, 3_000d)]
+    [InlineData(nameof(RateLimitingOptions.CriterionNewAds), 20, 3_000d)]
+    [InlineData(nameof(RateLimitingOptions.CriterionNewAdsSeen), 20, 3_000d)]
+    public void Defaults_TheBranschbevakningNewAdPolicies_BuildTheirDerivedTokenBucket(
+        string policy, int burst, double replenishmentMilliseconds)
     {
-        // ADR 0175 D7 (#1663 PR 2, security-auditor S-5): burst at most 20, sustained below
+        // ADR 0175 D7 (#1663 PR 2, security-auditor S-5): burst at most 20, sustained at most
         // floor(1 000 ms / p95) per minute. Each option's docblock carries its half 2. The derived
         // quantities are asserted, not only the fields, because the sustained rate is what the
         // derivation bounds and PermitLimit alone does not set it.
@@ -282,16 +283,16 @@ public class RateLimitingOptionsTests
             .GetProperty(policy)!
             .GetValue(new RateLimitingOptions())!;
 
-        options.PermitLimit.ShouldBe(20);
+        options.PermitLimit.ShouldBe(burst);
         options.WindowSeconds.ShouldBe(60);
-        options.SegmentsPerWindow.ShouldBe(20);
+        options.SegmentsPerWindow.ShouldBe(burst);
 
-        var tokensPerPeriod = Math.Max(1, options.PermitLimit / options.SegmentsPerWindow);
-        var replenishmentSeconds = options.WindowSeconds / (double)options.SegmentsPerWindow;
+        var limiter = RateLimitingExtensions.PerUserTokenBucketOptions(options);
 
-        tokensPerPeriod.ShouldBe(1);
-        replenishmentSeconds.ShouldBe(3d);
-        (tokensPerPeriod * 60d / replenishmentSeconds).ShouldBe(20d);
+        limiter.TokenLimit.ShouldBe(burst);
+        limiter.TokensPerPeriod.ShouldBe(1);
+        limiter.ReplenishmentPeriod.TotalMilliseconds.ShouldBe(replenishmentMilliseconds, 0.01);
+        limiter.QueueLimit.ShouldBe(0);
     }
 
     [Fact]

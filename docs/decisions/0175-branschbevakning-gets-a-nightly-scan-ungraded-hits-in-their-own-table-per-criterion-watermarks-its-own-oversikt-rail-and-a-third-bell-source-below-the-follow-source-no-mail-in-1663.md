@@ -203,7 +203,7 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
   **Why it changed.** This decision first put `newAds` on the list DTO and gated it on grant 4's protocol against 381,5 ms. The only valid comparison is 381,5 × Σ_new/Σ_old in
   one process (`dotnet-architect`, `security-auditor` S-5), and under it any fourth term exceeds 381,5, so the gate could only STOPP. The catalogue page, which also calls the list,
   would pay for a number it never shows, and a cheap count does not belong behind a bucket priced on the list's gate statements. The count and the page are measured instead
-  against ADR 0045 class (a), 300 ms p95: 23,7 ms and 10,8 ms at their ceilings on 2026-10-18 (`docs/reviews/2026-10-18-1663-pr2-latency.md`), and each has its own
+  against ADR 0045 class (a), 300 ms p95 (`docs/reviews/2026-10-18-1663-pr2-latency.md`), and each has its own
   per-user bucket derived from that run (`RateLimitingOptions.CriterionNewAdCounts`, `CriterionNewAds`, `CriterionNewAdsSeen`).
 - **The destination** `/foretag/branschbevakningar/[id]/nya`. Its window is cut oldest first by the PR 1 window helper (the #1576 rule lifted out of
   `ListNewFollowedCompanyAdsQueryHandler.cs:57-125` at `8ce73fa36`), and its rows are shown newest first, as on the follow page. A `TooBroad` or not-scanned criterion gets a

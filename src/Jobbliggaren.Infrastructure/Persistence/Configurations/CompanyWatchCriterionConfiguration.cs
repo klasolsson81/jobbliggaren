@@ -101,6 +101,15 @@ public sealed class CompanyWatchCriterionConfiguration : IEntityTypeConfiguratio
         builder.Property(c => c.CreatedAt).IsRequired();
         builder.Property(c => c.UpdatedAt).IsRequired();
 
+        // ADR 0175 D6 — the Branschbevakning scan's state. LastScanOutcome is stored by name (reorder-safe);
+        // null = never scanned. CriteriaChangedAt is NOT NULL: the migration fills it from created_at.
+        builder.Property(c => c.ScannedThrough);
+        builder.Property(c => c.LastScanOutcome)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+        builder.Property(c => c.CriteriaChangedAt).IsRequired();
+        builder.Property(c => c.NewAdsSeenThrough);
+
         // NO QUERY FILTER, deliberately — this aggregate has no lifecycle state to filter on. User
         // delete is HARD (C-D8/G1): the row is gone, not hidden. The vestigial
         // `deleted_at IS NULL` filter PR-3 carried was demolished together with the column and the

@@ -43,7 +43,7 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 internal sealed class CompanyWatchBrowseQuery(
     AppDbContext db,
     IOptions<CompanyWatchMaterialisationOptions> materialisationOptions,
-    IDateTimeProvider clock) : ICompanyWatchBrowseQuery
+    IDateTimeProvider clock) : ICompanyWatchBrowseQuery, ICompanyWatchCriterionAdScan
 {
     /// <summary>
     /// Explicit, reviewed — never inherited (security-auditor Minor, 2026-07-13). A raw
@@ -410,6 +410,38 @@ internal sealed class CompanyWatchBrowseQuery(
         """;
 
     /// <summary>
+    /// ADR 0175 D2 — the nightly Branschbevakning scan's window over the materialised member set: the id-set
+    /// statement's shape (gate, members and ads in ONE statement, the state row kept by the LEFT JOIN
+    /// LATERAL), narrowed to <c>sinceExclusive &lt; created_at &lt;= untilInclusive</c> and with no LIMIT.
+    ///
+    /// <para>
+    /// <c>created_at</c> has no index, so it is a residual filter over the criterion's member ads and the
+    /// statement's cost grows with that ad history. That is derived rather than measured, acceptable at the
+    /// criterion's bound, and the EXPLAIN pin in <c>CompanyWatchBrowseQueryPlanTests</c> keeps the plan's
+    /// shape visible. The order is published on the OUTER query, for the reason
+    /// <see cref="MaterialisedAdIdSetSql"/> gives: a lateral's inner order is a plan shape, not a contract.
+    /// </para>
+    /// </summary>
+    private const string MaterialisedNewAdIdScanSql =
+        """
+        SELECT m.state, m.criteria_fingerprint, m.materialised_at, a.id
+        FROM company_watch_criterion_materialisations m
+        LEFT JOIN LATERAL (
+        """
+        // Every fragment on this seam ends in an ordinary quoted string with a trailing space, for the
+        // reason MaterialisedAdIdSetSql gives.
+        + "SELECT j.id, j.created_at "
+        + MaterialisedAdsFromWhere
+        + " AND "
+        + MaterialisedGate
+        + " AND j.created_at > @since_exclusive AND j.created_at <= @until_inclusive"
+        + """
+        ) a ON true
+        WHERE m.criterion_id = @criterion_id
+        ORDER BY a.created_at, a.id;
+        """;
+
+    /// <summary>
     /// One PAGE of ad ids. Unlike its two siblings this statement carries no state gate, and
     /// deliberately: <see cref="BrowseAdIdsAsync"/> reads the state via
     /// <see cref="MaterialisedAdCountSql"/> first (it needs the capped total anyway) and only issues
@@ -591,6 +623,56 @@ internal sealed class CompanyWatchBrowseQuery(
         return MaterialisedAdIds.Resolved(ids);
     }
 
+    public async ValueTask<MaterialisedNewAdIds> ScanNewActiveAdIdsAsync(
+        CompanyWatchCriterionId criterionId, CriteriaFingerprint fingerprint,
+        DateTimeOffset sinceExclusive, DateTimeOffset untilInclusive, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(sinceExclusive, untilInclusive);
+
+        var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        // One instant, bound and compared — see ReadAdCountAsync.
+        var minMaterialisedAt = MinMaterialisedAt();
+        await using var cmd = BuildNewAdIdScanCommand(
+            connection, criterionId, fingerprint, minMaterialisedAt, sinceExclusive, untilInclusive);
+        await using var reader = await cmd
+            .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            return MaterialisedNewAdIds.NotMaterialised;
+
+        var state = reader.GetString(0);
+        var storedFingerprint = reader.GetString(1);
+        var materialisedAt = reader.GetFieldValue<DateTimeOffset>(2);
+
+        // Fingerprint, then age, then state: the order ListActiveAdIdsAsync keeps, for its reasons.
+        if (!string.Equals(storedFingerprint, fingerprint.Value, StringComparison.Ordinal))
+            return MaterialisedNewAdIds.NotMaterialised;
+
+        if (materialisedAt < minMaterialisedAt)
+            return MaterialisedNewAdIds.NotMaterialised;
+
+        if (state == MaterialisationState.TooBroad.ToString())
+            return MaterialisedNewAdIds.TooBroad;
+
+        // An explicit Materialised arm, which the Api readers do without: for this reader an empty answer is
+        // not a rendered zero but an advanced watermark, so a state this code does not know must hold the
+        // window rather than read as "nothing new" (ADR 0175 D2). Unreachable while MaterialisationState has
+        // two members; the arm is what keeps a third from swallowing a night's ads.
+        if (state != MaterialisationState.Materialised.ToString())
+            return MaterialisedNewAdIds.NotMaterialised;
+
+        var ids = new List<JobAdId>();
+        if (await reader.IsDBNullAsync(3, cancellationToken).ConfigureAwait(false))
+            return MaterialisedNewAdIds.Resolved(ids);
+
+        ids.Add(new JobAdId(reader.GetGuid(3)));
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            ids.Add(new JobAdId(reader.GetGuid(3)));
+
+        return MaterialisedNewAdIds.Resolved(ids);
+    }
+
     /// <summary>
     /// The whole-set query, exactly as production emits it (the EXPLAIN pin covers this command too).
     /// <c>@set_limit</c> is bound to <c>maxSetSize + 1</c>: the statement deliberately asks for ONE
@@ -606,6 +688,24 @@ internal sealed class CompanyWatchBrowseQuery(
         cmd.CommandText = MaterialisedAdIdSetSql;
         BindMaterialisedGate(cmd, criterionId, fingerprint, minMaterialisedAt);
         cmd.Parameters.AddWithValue("@set_limit", NpgsqlDbType.Integer, maxSetSize + 1);
+        return cmd;
+    }
+
+    /// <summary>
+    /// The scan-window query, exactly as production emits it (the EXPLAIN pin covers this command too). Both
+    /// bounds are bound as UTC: Npgsql refuses a <c>timestamptz</c> parameter carrying another offset.
+    /// </summary>
+    internal static NpgsqlCommand BuildNewAdIdScanCommand(
+        NpgsqlConnection connection, CompanyWatchCriterionId criterionId,
+        CriteriaFingerprint fingerprint, DateTimeOffset minMaterialisedAt,
+        DateTimeOffset sinceExclusive, DateTimeOffset untilInclusive)
+    {
+        var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        cmd.CommandText = MaterialisedNewAdIdScanSql;
+        BindMaterialisedGate(cmd, criterionId, fingerprint, minMaterialisedAt);
+        cmd.Parameters.AddWithValue("@since_exclusive", NpgsqlDbType.TimestampTz, sinceExclusive.ToUniversalTime());
+        cmd.Parameters.AddWithValue("@until_inclusive", NpgsqlDbType.TimestampTz, untilInclusive.ToUniversalTime());
         return cmd;
     }
 

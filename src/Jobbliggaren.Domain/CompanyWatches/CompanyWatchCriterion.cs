@@ -87,13 +87,13 @@ public sealed class CompanyWatchCriterion : AggregateRoot<CompanyWatchCriterionI
     /// magic numbers); the ENFORCEMENT lives in the Application create-handler (PR-3), because a
     /// cross-instance rule is one a single aggregate cannot see — the
     /// <c>RecentJobSearch.MaxPerSeeker</c> precedent. Why cap at all (SavedSearch does not): every
-    /// criterion drives a browse — and, once RF-9 unfreezes, a notification scan — over ~1.17M
-    /// register rows. The per-user cap is what keeps that cost bounded.
+    /// criterion drives a browse over ~1.17M register rows, a materialisation and a nightly scan of its
+    /// member companies' ads (ADR 0175). The per-user cap is what keeps that cost bounded.
     /// </summary>
     public const int MaxPerUser = 20;
 
-    // The MAPPED state: two Postgres text[] columns (Fork A1: text[], NOT a jsonb VO — the future
-    // notification scan wants to invert the predicate, `@company_sni && sni_codes`, which is
+    // The MAPPED state: two Postgres text[] columns (Fork A1: text[], NOT a jsonb VO — inverting the
+    // predicate, `@company_sni && sni_codes`, is
     // GIN-indexable on text[] and impossible on jsonb). Npgsql auto-maps List<string> → text[];
     // IReadOnlyList<string> is NOT auto-mapped, so the backing FIELD is the concrete List and the
     // value object below is EF-ignored (architect bind 2026-07-13 Q1; RecentJobSearch precedent).
@@ -119,6 +119,29 @@ public sealed class CompanyWatchCriterion : AggregateRoot<CompanyWatchCriterionI
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    // ADR 0175 D6 — the Branschbevakning scan's state. Four columns, each with one writer, and none of them
+    // bumps UpdatedAt: the materialisation sweep re-materialises every criterion whose updated_at is newer
+    // than its members (CompanyWatchCriterionMemberStore), so a scan that touched it would re-materialise
+    // every criterion it scanned.
+
+    /// <summary>How far the nightly scan has read (exclusive lower bound of its next window). Written only by
+    /// <see cref="RecordScan"/>; <c>null</c> until the first answered scan.</summary>
+    public DateTimeOffset? ScannedThrough { get; private set; }
+
+    /// <summary>The scan's last answer; <c>null</c> = never scanned. Written only by <see cref="RecordScan"/>.</summary>
+    public CompanyWatchCriterionScanOutcome? LastScanOutcome { get; private set; }
+
+    /// <summary>When the predicate last changed: <see cref="CreatedAt"/>, then every <see cref="UpdateCriteria"/>
+    /// that changes the codes. It is the lower bound of both the scan's window and of what counts as new, so a
+    /// new or edited criterion backfills nothing and hits from a membership an edit replaced never surface.
+    /// <see cref="Rename"/> does not move it.</summary>
+    public DateTimeOffset CriteriaChangedAt { get; private set; }
+
+    /// <summary>What the user has acknowledged on the criterion's page of new ads. Its one writer is the seen
+    /// command's conditional <c>UPDATE</c> (ADR 0175 D6): the table has no concurrency token, so the
+    /// "only forward" rule is held by that one statement rather than by a method here.</summary>
+    public DateTimeOffset? NewAdsSeenThrough { get; private set; }
+
     // EF Core constructor
     private CompanyWatchCriterion() { }
 
@@ -133,6 +156,7 @@ public sealed class CompanyWatchCriterion : AggregateRoot<CompanyWatchCriterionI
         Label = label;
         CreatedAt = createdAt;
         UpdatedAt = createdAt;
+        CriteriaChangedAt = createdAt;
         ApplyCriteria(criteria);
     }
 
@@ -177,9 +201,54 @@ public sealed class CompanyWatchCriterion : AggregateRoot<CompanyWatchCriterionI
             return Result.Failure(DomainError.Validation(
                 "CompanyWatchCriterion.CriteriaRequired", "Bevakningens kriterier krävs."));
 
+        var now = clock.UtcNow;
+        var changed = !Criteria.Equals(criteria);
         ApplyCriteria(criteria);
-        UpdatedAt = clock.UtcNow;
+        UpdatedAt = now;
+        if (changed)
+            CriteriaChangedAt = now;
         return Result.Success();
+    }
+
+    /// <summary>
+    /// Records what the nightly scan answered for the window it read through <paramref name="scannedThrough"/>
+    /// (ADR 0175 D6). <see cref="CompanyWatchCriterionScanOutcome.Scanned"/> and
+    /// <see cref="CompanyWatchCriterionScanOutcome.TooBroad"/> advance <see cref="ScannedThrough"/>, clamped to
+    /// now and never backwards (TooBroad advances so that narrowing the criterion later does not burst).
+    /// <see cref="CompanyWatchCriterionScanOutcome.NotMaterialised"/> holds it: the window is read once the
+    /// member set exists, and a held window must not read as a complete one. The outcome is recorded either way.
+    /// </summary>
+    public void RecordScan(
+        CompanyWatchCriterionScanOutcome outcome,
+        DateTimeOffset scannedThrough,
+        IDateTimeProvider clock)
+    {
+        if (!Enum.IsDefined(outcome))
+            throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Unknown scan outcome.");
+
+        LastScanOutcome = outcome;
+        if (outcome == CompanyWatchCriterionScanOutcome.NotMaterialised)
+            return;
+
+        var now = clock.UtcNow;
+        if (scannedThrough > now)
+            scannedThrough = now;
+
+        if (ScannedThrough is { } current && scannedThrough <= current)
+            return;
+
+        ScannedThrough = scannedThrough;
+    }
+
+    /// <summary>
+    /// The exclusive lower bound of the scan's next window: the latest of how far it has read, the last
+    /// predicate change and <paramref name="coldStartFloor"/> (ADR 0175 D6). A first scan of an existing
+    /// criterion therefore reaches back at most to the floor, and a new or edited one reaches back nothing.
+    /// </summary>
+    public DateTimeOffset ScanWindowStart(DateTimeOffset coldStartFloor)
+    {
+        var start = ScannedThrough is { } through && through > CriteriaChangedAt ? through : CriteriaChangedAt;
+        return start > coldStartFloor ? start : coldStartFloor;
     }
 
     /// <summary>

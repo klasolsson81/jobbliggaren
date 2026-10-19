@@ -84,6 +84,9 @@ public sealed class WorkerTestFixture : IAsyncLifetime
                 // #1682 — the same discipline for the profile job's own section: a value that is neither
                 // the shipped default (35 3) nor any sibling's, so a bind against the wrong section shows.
                 ["OccupationDivisionProfile:CadenceCron"] = "22 22 * * *",
+                // ADR 0175 D11 — the Branschbevakning scan's own section, with a value no sibling and not the
+                // shipped default carries, so the wiring test can tell the real binding apart.
+                ["CompanyWatchCriterionScan:CadenceCron"] = "44 4 * * *",
                 ["ScbRegister:SyncCadenceCron"] = "0 6 * * 6",
                 ["ScbRegister:Enabled"] = "false",
                 // ADR 0066 — lokal envelope. FieldEncryptionOptionsValidator har
@@ -175,6 +178,10 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         // Program.cs DI — it registers explicitly).
         services.AddScoped<Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper.StrandedMatchReaperJob>();
         services.AddScoped<Jobbliggaren.Worker.Hosting.StrandedMatchReaperWorker>();
+
+        // ADR 0175 D11 — NOT a mirror: the same registration Worker/Program.cs makes.
+        Jobbliggaren.Worker.Hosting.CompanyWatchCriterionScanRegistration.AddCompanyWatchCriterionScan(
+            services, configuration);
 
         // TD-111: same — register the ParsedResume retention sweep so its integration test resolves it.
         services.AddScoped<Jobbliggaren.Application.Resumes.Jobs.ParsedResumeRetention.ParsedResumeRetentionJob>();

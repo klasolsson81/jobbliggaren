@@ -35,10 +35,10 @@ import svMetadata from "../../../messages/sv/metadata.json";
  * PREMISE (§5 `Tests:`). The mocked loaders stand in for the real ones, and
  * `{ kind: "notFound" }` is a value those real adapters emit on two paths rather than a
  * shape invented here: the pre-flight GUID guard returns it for a malformed id
- * (`if (!isValidId(id)) return { kind: "notFound" }`, present in all five adapters), and
+ * (`if (!isValidId(id)) return { kind: "notFound" }`, present in every adapter below), and
  * `responseToResult(..., { includeNotFound: true })` maps the endpoint's genuine 404 —
  * and its 410 — to it. Every assertion below rests on the discriminator alone:
- * `generateMetadata` reads `result.kind` and nothing else on all five routes, so no `ok`
+ * `generateMetadata` reads `result.kind` and nothing else on every route, so no `ok`
  * body is fabricated.
  */
 
@@ -67,6 +67,7 @@ const getResumeById = vi.fn();
 const getParsedResume = vi.fn();
 const browseCriterionCompanies = vi.fn();
 const browseCriterionAds = vi.fn();
+const getNewCriterionAds = vi.fn();
 
 // Spread the real module and override one export: the pages import siblings from these
 // same modules, and a bare factory would blank them.
@@ -88,6 +89,7 @@ vi.mock("@/lib/api/company-criteria", async (importOriginal) => ({
   browseCriterionCompanies: (...args: unknown[]) =>
     browseCriterionCompanies(...args),
   browseCriterionAds: (...args: unknown[]) => browseCriterionAds(...args),
+  getNewCriterionAds: (...args: unknown[]) => getNewCriterionAds(...args),
 }));
 
 /**
@@ -118,7 +120,7 @@ interface DetailRoute {
   readonly path: string;
   readonly loader: ReturnType<typeof vi.fn>;
   readonly ownTitle: string;
-  /** Arguments the route's existence read takes after the id; empty for four of five. */
+  /** Arguments the route's existence read takes after the id; empty unless it is paginated. */
   readonly extraLoaderArgs: readonly unknown[];
   readonly importer: () => Promise<PageModule>;
 }
@@ -126,10 +128,10 @@ interface DetailRoute {
 interface PageModule {
   generateMetadata?: (props: {
     // Both dynamic segment names the table covers, rather than `{ id: string }`: the
-    // fifth route's segment is `[parsedId]`, and the route is not the thing to bend
-    // here. NOT `Record<string, string>` — a parameter type is contravariant, so the
-    // index signature is not assignable to any route's narrower `Props` and `tsc`
-    // rejects every importer. A sixth segment name is added here and nowhere else.
+    // `/cv/granska/[parsedId]` route's segment is `[parsedId]`, and the route is not the
+    // thing to bend here. NOT `Record<string, string>` — a parameter type is contravariant,
+    // so the index signature is not assignable to any route's narrower `Props` and `tsc`
+    // rejects every importer. A third segment name is added here and nowhere else.
     params: Promise<{ id: string; parsedId: string }>;
     searchParams: Promise<SearchParams>;
   }) => Promise<Metadata>;
@@ -182,6 +184,14 @@ const ROUTES: readonly DetailRoute[] = [
     // question, or they stop collapsing into one request and the route costs two.
     extraLoaderArgs: [1, false],
     importer: () => import("./foretag/branschbevakningar/[id]/annonser/page"),
+  },
+  {
+    path: "/foretag/branschbevakningar/[id]/nya",
+    loader: getNewCriterionAds,
+    ownTitle: svPages.foretag.smartaBevakningar.newAds.meta.title,
+    // An unpaginated window, so the existence read takes the id alone.
+    extraLoaderArgs: [],
+    importer: () => import("./foretag/branschbevakningar/[id]/nya/page"),
   },
 ];
 

@@ -2248,6 +2248,9 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   align-items: center;
   gap: 12px;
 }
+/* At 320 the icon, "Branschbevakningar" and a 44px pill do not fit one line: the pill wraps
+   beneath instead of clipping the title (WCAG 1.4.10). */
+.jp-ov-card--info .jp-ov-card__head { flex-wrap: wrap; }
 /* "Markera alla som lästa" i kortets rubrikrad: höger, på rubrikens rad. Kvittot är en
    live-region och förblir monterad men visuellt dold — knappen försvinner själv när
    inget avfärdbart återstår. */
@@ -2329,7 +2332,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   color: var(--jp-ink-1);
   font-size: var(--text-body);
 }
-/* "N nya": sidans enda pill, och en LÄNK till annonserna den räknar (#1576). margin-left auto
+/* "N nya": en LÄNK till annonserna den räknar (#1576). margin-left auto
    sätter den vid huvudets högerkant. Scopad under huvudet (0,2,0) för att vinna över den globala
    länkfärgen `a:not(.jp-btn, …)` (0,1,1) — mätt 2026-09-13: utan scopet renderade texten i
    accent-700 på teal, 1,6:1. */
@@ -2349,7 +2352,30 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   white-space: nowrap;
   transition: background 90ms linear;
 }
-.jp-ov-card__head .jp-ov-card__pill:hover { background: var(--jp-follow-hover); }
+.jp-ov-card__head .jp-ov-card__pill:hover { background: var(--jp-follow-hover); color: var(--jp-on-fill); }
+/* Branschbevakning's "N nya" (ADR 0175 D7): the info outline, one rule for the head and the row.
+   (0,3,0) outranks the head's follow fill (0,2,0) whatever the source order, and the global link
+   colour (0,1,1); the hover rule's (0,4,0) outranks that colour's (0,2,1) hover twin. */
+.jp-ov-card.jp-ov-card--info .jp-ov-card__pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--jp-info);
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-surface);
+  color: var(--jp-info);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 90ms linear;
+}
+.jp-ov-card.jp-ov-card--info .jp-ov-card__pill:hover {
+  background: var(--jp-surface-2);
+  color: var(--jp-info);
+}
 
 /* Det stora talet. Enheten är baseline-alignad efter talet; ett omätt tal renderas som en
    en-dash och utan enhet (HeaderStats-doktrinen). */
@@ -2632,6 +2658,13 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   font-weight: var(--jp-fw-semibold);
   color: var(--jp-ink-1);
 }
+/* The row's "N nya" pill follows its name, never the row's far edge. */
+.jp-ov-criteria__nameline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 /* Löpande prosa kapas vid ~68ch (jobbpilot-design-a11y §8); i ett kort äger kortet avståndet. */
 .jp-ov-card .jp-matchline {
   margin-top: 6px;
@@ -2687,7 +2720,8 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   .jp-ov-event .jp-notice__dismiss { width: 44px; height: 44px; }
   /* Pillen är en länk och kortets enda väg till de nya annonserna — samma 44px-golv som varje
      annan kontroll här (DESIGN.md §5; design-reviewer Blocker 1). */
-  .jp-ov-card__head .jp-ov-card__pill { height: 44px; padding: 0 14px; }
+  .jp-ov-card__head .jp-ov-card__pill,
+  .jp-ov-card.jp-ov-card--info .jp-ov-card__pill { height: 44px; padding: 0 14px; }
 }
 
 /* ── Page feedback (#1979 PR3): the rating row at the end of a page, and the feedback dialog ──

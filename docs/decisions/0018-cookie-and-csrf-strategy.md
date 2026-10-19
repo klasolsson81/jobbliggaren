@@ -289,17 +289,20 @@ as `Lax` would allow:
 cross-site navigation.
 
 - **Writes at render** (measured 2026-10-10, `grep -rn "after(" "src/app/(app)" "src/app/(admin)" src/components`
-  in `web/jobbliggaren-web`). Another site that opens these pages in a top-level window can make the signed-in
+  in `web/jobbliggaren-web`; re-measured 2026-10-19 on `e9579a640` for the amendment below). Another site that opens these pages in a top-level window can make the signed-in
   user's own page do what opening it does:
   - `/matchningar` marks the matches seen;
   - `/jobb` marks the listed ads seen;
   - `/jobb/{id}` marks a followed company's hit for that ad seen, and the other site chooses the ad by its id
     (the modal route does the same, but is reached only from inside the app);
-  - `/foretag/bevakade/nya` consumes the set of new ads.
+  - `/foretag/bevakade/nya` consumes the set of new ads;
+  - `/foretag/branschbevakningar/{id}/nya` marks that Branschbevakning's shown window seen, and the other site
+    chooses the criterion by its id (Amendment 2026-10-18).
 
   Each is an integrity effect on the user's own notices, not a disclosure. `(admin)` writes nothing at render. The
   target drops the query, so a planted `/jobb?q=…&commit=true` recent search does not reach the page.
-- **Failed-access log lines.** Another site can open `/cv/{id}` or `/ansokningar/{id}` with an id the signed-in user
+- **Failed-access log lines.** Another site can open `/cv/{id}`, `/ansokningar/{id}` or a Branschbevakning page
+  (`/foretag/branschbevakningar/{id}`, its `/annonser` and `/nya`; Amendment 2026-10-18) with an id the signed-in user
   does not own, and the cross-user attempt is logged against that user (`IFailedAccessLogger`). Such a line is no
   longer evidence of what the logged user meant to do.
 - **Whether the user is signed in.** The page the hop leads to now depends on the session. COOP `same-origin` on the
@@ -320,3 +323,24 @@ answers with the login redirect and its `next`, and clears the session and refre
 model records the premise this rests on.
 
 Additive amendment, apart from layer 1's sentence, which is marked in place.
+
+## Amendment 2026-10-18 (#1663 PR 2, ADR 0175 D7) — a new write at render, `/foretag/branschbevakningar/{id}/nya`
+
+The amendment of 2026-10-10 says any new write at render under `(app)` or `(admin)` reopens it. This is that
+reopening, for one write.
+
+- **The write.** `/foretag/branschbevakningar/{id}/nya` acknowledges the window it rendered: an `after()` callback
+  posts the server's token to `POST /api/v1/me/company-watch-criteria/{id}/new-ads/seen`, and only when the read
+  succeeded, returned a token, and the criterion is neither refused nor unscanned. Nothing is written for an error,
+  a 404, a closed state or an empty page.
+- **The residual it adds**, written into "Writes at render" above: another site that opens the page in a top-level
+  window can make the signed-in user's page acknowledge that Branschbevakning's new ads, and it chooses the
+  criterion by its id. A foreign or unknown id is the same 404 and writes nothing. The write only moves the mark forward, clamped to now, and never past the window the page showed. It is
+  an integrity effect on the user's own notices, as for the other pages, not a disclosure.
+- **Failed-access log lines** now include the Branschbevakning pages, which log a cross-user attempt through
+  `CriterionOwnerScopedLoader` (`security-auditor` Minor 2); written into the bullet above.
+- **No `/jobb/{id}` stamp for criterion hits.** Opening an ad marks no Branschbevakning hit seen; the `/jobb/{id}`
+  write above stays the follow hit's alone (`security-auditor` S-6).
+- `strict-cookie-bounce-render-writes.test.ts` accepts the new page, and a further write still reopens this.
+
+Additive amendment, apart from the two bullets above that it extends in place.

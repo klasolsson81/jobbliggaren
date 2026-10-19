@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 /**
  * #2094 (dotnet-architect): since the Strict-cookie bounce, another site that opens a protected or admin page in a
  * top-level window gets that page rendered signed in, so a write the page makes at render is one another site can
- * trigger. ADR 0018 Amendment 2026-10-10 accepts the writes listed here and no others; a new one reopens it.
+ * trigger. ADR 0018's amendments of 2026-10-10 and 2026-10-18 accept the writes listed here and no others; a new one
+ * reopens them.
  *
  * What this sees: a deferred `after(() => …)` call in a page or component under `(app)`, `(admin)` or
  * `src/components`, which is how every render-time write is made today. It does not see a write awaited directly
@@ -18,6 +19,7 @@ const SCANNED = ["app/(app)", "app/(admin)", "components"].map((dir) => join(SRC
 const ACCEPTED = [
   "app/(app)/@modal/(.)jobb/[id]/page.tsx",
   "app/(app)/foretag/bevakade/nya/page.tsx",
+  "app/(app)/foretag/branschbevakningar/[id]/nya/page.tsx",
   "app/(app)/jobb/[id]/page.tsx",
   "app/(app)/matchningar/page.tsx",
   "components/job-ads/jobb-results.tsx",
@@ -34,7 +36,7 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe("render-time writes another site can trigger through the bounce", () => {
-  it("are exactly the ones ADR 0018 Amendment 2026-10-10 accepts", () => {
+  it("are exactly the ones ADR 0018's amendments accept", () => {
     const writers = SCANNED.flatMap(sourceFiles)
       .filter((file) => AFTER_CALL.test(readFileSync(file, "utf8")))
       .map((file) => relative(SRC, file).split(sep).join("/"))

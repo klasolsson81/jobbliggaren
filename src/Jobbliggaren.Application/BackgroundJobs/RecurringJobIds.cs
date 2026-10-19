@@ -86,6 +86,13 @@ public static class RecurringJobIds
     public const string FeedbackRetention = "feedback-retention";
 
     /// <summary>
+    /// ADR 0175 (#1663) — the nightly Branschbevakning scan: each criterion's new Active member-company ads
+    /// become hits. Cron is config-driven (<c>CompanyWatchCriterionScan:CadenceCron</c>, default 03:55 UTC) on its
+    /// own options section.
+    /// </summary>
+    public const string ScanCompanyWatchCriteria = "scan-company-watch-criteria";
+
+    /// <summary>
     /// The closed set of triggerable recurring-job ids. Ordinal comparison — these
     /// are stable internal slugs, not user text.
     /// </summary>
@@ -112,5 +119,6 @@ public static class RecurringJobIds
         BuildOccupationDivisionProfile,
         DispatchFeedbackNotifications,
         FeedbackRetention,
+        ScanCompanyWatchCriteria,
     }.ToFrozenSet(StringComparer.Ordinal);
 }

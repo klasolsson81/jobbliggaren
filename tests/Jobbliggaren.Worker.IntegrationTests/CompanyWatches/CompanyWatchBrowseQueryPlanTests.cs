@@ -723,6 +723,224 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         page.Page.Items.Distinct().Count().ShouldBe(AdRows);
     }
 
+    // ---------------------------------------------------------------
+    // ADR 0175 D2 (#1663 PR 2) — the nightly Branschbevakning scan's window
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task NewAdIdScan_ReadsTheMaterialisedMemberSet_AndNeverTheRegister()
+    {
+        // The fourth materialised command text, and the one with no LIMIT: its cost grows with the criterion's
+        // ad history, because created_at has no index and is a residual filter (ADR 0175 D2). The pin claims
+        // only what an EXPLAIN can see: the member PK serves the member lookup and the register is not read.
+        // It claims no index for created_at.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
+        var until = DateTimeOffset.UtcNow;
+
+        var plan = await ExplainMaterialisedAsync(
+            ctx,
+            (conn, id, fp) => CompanyWatchBrowseQuery.BuildNewAdIdScanCommand(
+                conn, id, fp, FreshEnough, until.AddDays(-7), until),
+            ct);
+
+        AssertReadsTheMemberSet(plan, "new-ad scan");
+    }
+
+    [Fact]
+    public async Task NewAdIdScan_ReturnsTheWindowsActiveMemberAds_ExclusiveAtSinceInclusiveAtUntil_OldestFirst()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+        var at = await SpreadProbeAdCreatedAtAsync(ctx, ct);
+        var port = PortFor(ctx.Db);
+
+        // since = the 2nd ad's instant (excluded), until = the 4th's (included).
+        var result = await port.ScanNewActiveAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, at[1], at[3], ct);
+
+        result.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        result.Ids.ShouldBe([await ProbeAdIdAsync(ctx, 3, ct), await ProbeAdIdAsync(ctx, 4, ct)]);
+    }
+
+    [Fact]
+    public async Task NewAdIdScan_ReturnsAnHonestEmptySet_WhenTheWindowHoldsNoAd()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+        var at = await SpreadProbeAdCreatedAtAsync(ctx, ct);
+
+        var result = await PortFor(ctx.Db).ScanNewActiveAdIdsAsync(
+            ctx.CriterionId, ctx.Fingerprint, at[AdRows - 1], at[AdRows - 1].AddHours(1), ct);
+
+        result.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        result.Ids.ShouldNotBeNull();
+        result.Ids.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task NewAdIdScan_ReturnsEveryIdInTheWindow_WithNoCap()
+    {
+        // No LIMIT and no refusal (ADR 0175 D2): a refusal would freeze the scan's watermark. More ads than the
+        // read-time set bound refuses, all returned.
+        var ct = TestContext.Current.CancellationToken;
+        var many = CriterionMatchingAdSetResolver.MaxSetSize + 50;
+        await using var ctx = await SeededContextWithAdsAsync(ct, probeAds: many);
+        var now = DateTimeOffset.UtcNow;
+
+        var result = await PortFor(ctx.Db).ScanNewActiveAdIdsAsync(
+            ctx.CriterionId, ctx.Fingerprint, now.AddDays(-1), now.AddMinutes(5), ct);
+
+        result.Ids!.Count.ShouldBe(many);
+        result.Ids.Distinct().Count().ShouldBe(many);
+    }
+
+    [Fact]
+    public async Task NewAdIdScan_ReportsNotMaterialised_WhenNoRunHasStampedTheCriterion()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+        var fresh = await SeedCriterionAsync([ProbeSni], [SeededKommun], ct);
+        var now = DateTimeOffset.UtcNow;
+        var port = PortFor(ctx.Db);
+
+        (await port.ScanNewActiveAdIdsAsync(fresh, ProbeFingerprint, now.AddDays(-7), now, ct))
+            .State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+
+        // Negative control: the materialised criterion answers on the same data.
+        (await port.ScanNewActiveAdIdsAsync(
+                ctx.CriterionId, ctx.Fingerprint, now.AddDays(-7), now.AddMinutes(5), ct))
+            .Ids!.Count.ShouldBe(AdRows);
+    }
+
+    [Fact]
+    public async Task NewAdIdScan_ReportsTooBroad_ForACriterionTheBreadthGateRefused()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+        var broadSpec = CompanyWatchCriteriaSpec.Create([ProbeSni, FillerSni], [SeededKommun]).Value;
+        var broad = await SeedCriterionAsync([ProbeSni, FillerSni], [SeededKommun], ct);
+        await RunMaterialiserAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+
+        var result = await PortFor(ctx.Db).ScanNewActiveAdIdsAsync(
+            broad, CriteriaFingerprint.Of(broadSpec), now.AddDays(-7), now, ct);
+
+        result.State.ShouldBe(CriterionMaterialisationState.TooBroad);
+        result.Ids.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task NewAdIdScan_ReportsNotMaterialised_AfterThePredicateIsEdited()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+        var edited = CompanyWatchCriteriaSpec.Create([ProbeSni], [OtherKommun]).Value;
+        await UpdateCriteriaAsync(ctx.CriterionId, edited, ct);
+        var now = DateTimeOffset.UtcNow;
+
+        (await PortFor(ctx.Db).ScanNewActiveAdIdsAsync(
+                ctx.CriterionId, CriteriaFingerprint.Of(edited), now.AddDays(-7), now.AddMinutes(5), ct))
+            .State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+    }
+
+    [Fact]
+    public async Task NewAdIdScan_ReportsNotMaterialised_WhenTheRowIsOlderThanTheReadAgeBound()
+    {
+        // The over-age row is written by the production materialiser driven by an earlier clock: the state a run
+        // that succeeded then, with no later run, leaves behind (the premise is set out in
+        // AdQueries_ReportNotMaterialised_WhenTheRowIsOlderThanTheReadAgeBound).
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+        var port = PortFor(ctx.Db);
+        (await port.ScanNewActiveAdIdsAsync(
+                ctx.CriterionId, ctx.Fingerprint, now.AddDays(-7), now.AddMinutes(5), ct))
+            .Ids!.Count.ShouldBe(AdRows);
+
+        await RunMaterialiserAsAtAsync(now.AddHours(-(ReadAgeHours + 24)), ct);
+
+        (await port.ScanNewActiveAdIdsAsync(
+                ctx.CriterionId, ctx.Fingerprint, now.AddDays(-7), now.AddMinutes(5), ct))
+            .State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+    }
+
+    [Fact]
+    public async Task NewAdIdScan_HoldsOnAMaterialisationStateItDoesNotKnow()
+    {
+        // TEST PREMISE (AGENTS.md §5 Tests). DECLARED UNREACHABLE: no path in src/ writes a state other than
+        // Materialised or TooBroad (MaterialisationState has two members, written by
+        // CompanyWatchCriterionMemberStore from that enum). The row is poked here only to assert that the read
+        // degrades safely if that invariant ever breaks, to NotMaterialised, which holds the scan's watermark;
+        // it asserts nothing about what production does.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+        await ctx.Db.Database.ExecuteSqlRawAsync(
+            "UPDATE company_watch_criterion_materialisations SET state = 'Pending' WHERE criterion_id = {0};",
+            [ctx.CriterionId.Value], ct);
+        var now = DateTimeOffset.UtcNow;
+
+        (await PortFor(ctx.Db).ScanNewActiveAdIdsAsync(
+                ctx.CriterionId, ctx.Fingerprint, now.AddDays(-7), now.AddMinutes(5), ct))
+            .State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+    }
+
+    [Fact]
+    public async Task NewAdIdScan_ExcludesAnAdThatLeftActive()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+        var port = PortFor(ctx.Db);
+        (await port.ScanNewActiveAdIdsAsync(
+                ctx.CriterionId, ctx.Fingerprint, now.AddDays(-7), now.AddMinutes(5), ct))
+            .Ids!.Count.ShouldBe(AdRows);
+
+        await ctx.Db.Database.ExecuteSqlRawAsync(
+            "UPDATE job_ads SET status = {0} WHERE organization_number = {1};",
+            [JobAdStatus.Archived.Value, AdOrgNr], ct);
+
+        var after = await port.ScanNewActiveAdIdsAsync(
+            ctx.CriterionId, ctx.Fingerprint, now.AddDays(-7), now.AddMinutes(5), ct);
+        after.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        after.Ids.ShouldNotBeNull();
+        after.Ids.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task NewAdIdScan_RefusesAnEmptyWindow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
+            await PortFor(ctx.Db).ScanNewActiveAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, now, now, ct));
+    }
+
+    // The probe ads' ingest instants, one hour apart and in their external-id order, so a window can be cut
+    // between them. A spread of created_at is what ingest produces; the seed writes them all as now().
+    private static async Task<DateTimeOffset[]> SpreadProbeAdCreatedAtAsync(ScopedContext ctx, CancellationToken ct)
+    {
+        var start = new DateTimeOffset(DateTimeOffset.UtcNow.AddDays(-2).Date, TimeSpan.Zero);
+        var at = Enumerable.Range(0, AdRows).Select(i => start.AddHours(i)).ToArray();
+        for (var i = 0; i < AdRows; i++)
+        {
+            await ctx.Db.Database.ExecuteSqlRawAsync(
+                "UPDATE job_ads SET created_at = {0} WHERE external_id = {1};", [at[i], "ext-" + (i + 1)], ct);
+        }
+
+        return at;
+    }
+
+    private static async Task<JobAdId> ProbeAdIdAsync(ScopedContext ctx, int ordinal, CancellationToken ct)
+    {
+        var externalId = "ext-" + ordinal;
+        var id = await ctx.Db.Database
+            .SqlQuery<Guid>($"SELECT id AS \"Value\" FROM job_ads WHERE external_id = {externalId}")
+            .SingleAsync(ct);
+        return new JobAdId(id);
+    }
+
     [Fact]
     public async Task AdQueries_ExcludeArchivedAds()
     {

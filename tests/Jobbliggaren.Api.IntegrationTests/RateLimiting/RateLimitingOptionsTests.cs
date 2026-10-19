@@ -268,6 +268,43 @@ public class RateLimitingOptionsTests
         sut.MeListRead.SegmentsPerWindow.ShouldBe(6);
     }
 
+    [Theory]
+    [InlineData(nameof(RateLimitingOptions.CriterionNewAdCounts), 20, 3_000d)]
+    [InlineData(nameof(RateLimitingOptions.CriterionNewAds), 20, 3_000d)]
+    [InlineData(nameof(RateLimitingOptions.CriterionNewAdsSeen), 20, 3_000d)]
+    public void Defaults_TheBranschbevakningNewAdPolicies_BuildTheirDerivedTokenBucket(
+        string policy, int burst, double replenishmentMilliseconds)
+    {
+        // ADR 0175 D7 (#1663 PR 2, security-auditor S-5): burst at most 20, sustained at most
+        // floor(1 000 ms / p95) per minute. Each option's docblock carries its half 2. The derived
+        // quantities are asserted, not only the fields, because the sustained rate is what the
+        // derivation bounds and PermitLimit alone does not set it.
+        var options = (RateLimitingOptions.PolicyOptions)typeof(RateLimitingOptions)
+            .GetProperty(policy)!
+            .GetValue(new RateLimitingOptions())!;
+
+        options.PermitLimit.ShouldBe(burst);
+        options.WindowSeconds.ShouldBe(60);
+        options.SegmentsPerWindow.ShouldBe(burst);
+
+        var limiter = RateLimitingExtensions.PerUserTokenBucketOptions(options);
+
+        limiter.TokenLimit.ShouldBe(burst);
+        limiter.TokensPerPeriod.ShouldBe(1);
+        limiter.ReplenishmentPeriod.TotalMilliseconds.ShouldBe(replenishmentMilliseconds, 0.01);
+        limiter.QueueLimit.ShouldBe(0);
+    }
+
+    [Fact]
+    public void Defaults_TheSeenWrite_EqualsTheNewAdsPage()
+    {
+        // S-5: the page posts its seen window from an after() callback, where a 429 is silent. A
+        // smaller seen bucket than the page's would leave seen ads unacknowledged.
+        var sut = new RateLimitingOptions();
+
+        sut.CriterionNewAdsSeen.ShouldBeEquivalentTo(sut.CriterionNewAds);
+    }
+
     [Fact]
     public void Defaults_CriterionCountPreview_Is30Per10s()
     {
@@ -406,5 +443,8 @@ public class RateLimitingOptionsTests
         // ~380 ms worst-case read with no bucket at all.
         RateLimitingExtensions.CompanyWatchCriteriaListPolicy
             .ShouldBe("company-watch-criteria-list");
+        RateLimitingExtensions.CriterionNewAdCountsPolicy.ShouldBe("criterion-new-ad-counts");
+        RateLimitingExtensions.CriterionNewAdsPolicy.ShouldBe("criterion-new-ads");
+        RateLimitingExtensions.CriterionNewAdsSeenPolicy.ShouldBe("criterion-new-ads-seen");
     }
 }

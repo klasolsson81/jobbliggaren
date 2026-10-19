@@ -12,7 +12,7 @@ interface OversiktCardProps {
   /** Column span in the 12-column grid. Every card collapses to 12 under 1024px (CSS). */
   readonly span: 4 | 6 | 8 | 12;
   readonly icon: LucideIcon;
-  /** Right-hand slot in the head row — the "N nya" pill on Bevakade företag. */
+  /** Right-hand slot in the head row: an "N nya" pill, or the wide Branschbevakning card's count. */
   readonly aside?: ReactNode;
   readonly focusableTitle?: boolean;
   readonly children: ReactNode;

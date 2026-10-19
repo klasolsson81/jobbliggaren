@@ -283,6 +283,164 @@ public class CompanyWatchCriterionTests
     }
 
     // ---------------------------------------------------------------
+    // ADR 0175 D6 — the Branschbevakning scan's state
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Create_SetsCriteriaChangedAtToCreatedAt_AndLeavesTheScanAndSeenStateEmpty()
+    {
+        var criterion = CreateValid();
+
+        criterion.CriteriaChangedAt.ShouldBe(criterion.CreatedAt);
+        criterion.ScannedThrough.ShouldBeNull();
+        criterion.LastScanOutcome.ShouldBeNull();
+        criterion.NewAdsSeenThrough.ShouldBeNull();
+    }
+
+    [Fact]
+    public void UpdateCriteria_WithAChangedSpec_StampsCriteriaChangedAt()
+    {
+        var criterion = CreateValid();
+        var later = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(3));
+
+        criterion.UpdateCriteria(ConsultingInGoteborg(), later).IsSuccess.ShouldBeTrue();
+
+        criterion.CriteriaChangedAt.ShouldBe(later.UtcNow);
+    }
+
+    [Fact]
+    public void UpdateCriteria_WithAnEqualSpecInAnotherOrder_LeavesCriteriaChangedAt_ButStampsUpdatedAt()
+    {
+        var criterion = CompanyWatchCriterion.Create(
+            ValidUserId, CompanyWatchCriteriaSpec.Create(["62010", "62020"], ["0180"]).Value, null, Clock).Value;
+        var later = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(3));
+
+        // A save that re-sends the same codes reordered and duplicated is not a predicate change: it must not
+        // empty the count of new ads by moving its lower bound.
+        var sameCodes = CompanyWatchCriteriaSpec.Create(["62020", "62010", "62010"], ["0180"]).Value;
+        criterion.UpdateCriteria(sameCodes, later).IsSuccess.ShouldBeTrue();
+
+        criterion.CriteriaChangedAt.ShouldBe(Clock.UtcNow);
+        criterion.UpdatedAt.ShouldBe(later.UtcNow);
+    }
+
+    [Fact]
+    public void Rename_LeavesCriteriaChangedAt()
+    {
+        var criterion = CreateValid();
+
+        criterion.Rename("Nytt namn", FakeDateTimeProvider.At(Clock.UtcNow.AddHours(3))).IsSuccess.ShouldBeTrue();
+
+        criterion.CriteriaChangedAt.ShouldBe(Clock.UtcNow);
+    }
+
+    [Theory]
+    [InlineData(CompanyWatchCriterionScanOutcome.Scanned)]
+    [InlineData(CompanyWatchCriterionScanOutcome.TooBroad)]
+    public void RecordScan_AnAnsweredOutcome_AdvancesScannedThroughAndRecordsTheOutcome_WithoutTouchingUpdatedAt(
+        CompanyWatchCriterionScanOutcome outcome)
+    {
+        var criterion = CreateValid();
+        var now = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(1));
+        var through = now.UtcNow.AddMinutes(-2);
+
+        criterion.RecordScan(outcome, through, now);
+
+        criterion.ScannedThrough.ShouldBe(through);
+        criterion.LastScanOutcome.ShouldBe(outcome);
+        criterion.UpdatedAt.ShouldBe(Clock.UtcNow);
+        criterion.CriteriaChangedAt.ShouldBe(Clock.UtcNow);
+    }
+
+    [Fact]
+    public void RecordScan_NotMaterialised_HoldsScannedThrough_AndRecordsTheOutcome()
+    {
+        var criterion = CreateValid();
+        var day1 = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(1));
+        criterion.RecordScan(CompanyWatchCriterionScanOutcome.Scanned, day1.UtcNow, day1);
+        var day2 = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(2));
+
+        criterion.RecordScan(CompanyWatchCriterionScanOutcome.NotMaterialised, day2.UtcNow, day2);
+
+        criterion.ScannedThrough.ShouldBe(day1.UtcNow);
+        criterion.LastScanOutcome.ShouldBe(CompanyWatchCriterionScanOutcome.NotMaterialised);
+    }
+
+    [Fact]
+    public void RecordScan_NeverMovesScannedThroughBackward()
+    {
+        var criterion = CreateValid();
+        var now = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(2));
+        criterion.RecordScan(CompanyWatchCriterionScanOutcome.Scanned, now.UtcNow.AddHours(-1), now);
+
+        criterion.RecordScan(CompanyWatchCriterionScanOutcome.Scanned, now.UtcNow.AddHours(-5), now);
+
+        criterion.ScannedThrough.ShouldBe(now.UtcNow.AddHours(-1));
+    }
+
+    [Fact]
+    public void RecordScan_WhenTheClockStepsBackMidRun_ClampsTheBoundToNow()
+    {
+        var criterion = CreateValid();
+        var now = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(1));
+
+        criterion.RecordScan(CompanyWatchCriterionScanOutcome.Scanned, now.UtcNow.AddHours(4), now);
+
+        criterion.ScannedThrough.ShouldBe(now.UtcNow);
+    }
+
+    [Fact]
+    public void RecordScan_WithAnUndefinedOutcome_Throws_AndRecordsNothing()
+    {
+        var criterion = CreateValid();
+
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => criterion.RecordScan((CompanyWatchCriterionScanOutcome)99, Clock.UtcNow, Clock));
+
+        criterion.LastScanOutcome.ShouldBeNull();
+        criterion.ScannedThrough.ShouldBeNull();
+    }
+
+    [Fact]
+    public void ScanWindowStart_ForANeverScannedCriterion_IsItsLastChange_WhenThatIsAfterTheFloor()
+    {
+        var criterion = CreateValid();
+
+        criterion.ScanWindowStart(Clock.UtcNow.AddDays(-7)).ShouldBe(Clock.UtcNow);
+    }
+
+    [Fact]
+    public void ScanWindowStart_ForAnOldCriterion_IsTheFloor()
+    {
+        var criterion = CreateValid();
+        var floor = Clock.UtcNow.AddDays(30);
+
+        criterion.ScanWindowStart(floor).ShouldBe(floor);
+    }
+
+    [Fact]
+    public void ScanWindowStart_AfterAScan_IsHowFarTheScanRead()
+    {
+        var criterion = CreateValid();
+        var now = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(1));
+        criterion.RecordScan(CompanyWatchCriterionScanOutcome.Scanned, now.UtcNow, now);
+
+        criterion.ScanWindowStart(Clock.UtcNow.AddDays(-7)).ShouldBe(now.UtcNow);
+    }
+
+    [Fact]
+    public void ScanWindowStart_AfterAnEditLaterThanTheLastScan_IsTheEdit()
+    {
+        var criterion = CreateValid();
+        var scanned = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(1));
+        criterion.RecordScan(CompanyWatchCriterionScanOutcome.Scanned, scanned.UtcNow, scanned);
+        var edited = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(1).AddHours(5));
+        criterion.UpdateCriteria(ConsultingInGoteborg(), edited).IsSuccess.ShouldBeTrue();
+
+        criterion.ScanWindowStart(Clock.UtcNow.AddDays(-7)).ShouldBe(edited.UtcNow);
+    }
+
+    // ---------------------------------------------------------------
     // The cross-instance cap lives here as a CONSTANT, enforced in Application (PR-3)
     // ---------------------------------------------------------------
 
@@ -290,8 +448,8 @@ public class CompanyWatchCriterionTests
     public void MaxPerUser_IsTwenty()
     {
         // Value pin (the ScbCompanyRegisterStore timeout-constant idiom): the number bounds the
-        // browse — and, once RF-9 unfreezes, a notification scan — over ~1.17M register rows per
-        // criterion. Domain OWNS the rule (CLAUDE.md §5: no magic numbers); a single aggregate
+        // browse over ~1.17M register rows per criterion, and the nightly scan of its members'
+        // ads (ADR 0175). Domain OWNS the rule (CLAUDE.md §5: no magic numbers); a single aggregate
         // cannot see across instances, so the create-handler ENFORCES it (PR-3, the
         // RecentJobSearch.MaxPerSeeker precedent). Changing the number must be a conscious edit.
         CompanyWatchCriterion.MaxPerUser.ShouldBe(20);

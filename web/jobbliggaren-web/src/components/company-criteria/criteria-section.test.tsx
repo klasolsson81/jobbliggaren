@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { CriteriaSection } from "./criteria-section";
+import svPages from "../../../messages/sv/pages.json";
 import type {
   CompanyWatchCriterion,
   CriterionReference,
@@ -301,7 +302,7 @@ describe("CriteriaSection", () => {
   it("upprepar inte sidans ingress", () => {
     render(<CriteriaSection items={[]} reference={REFERENCE} />);
 
-    expect(visibleText()).not.toContain("En sparad sökning på bransch och kommun");
+    expect(visibleText()).not.toContain(svPages.foretag.criteria.lede);
     expect(screen.getByRole("button", { name: "Ny branschbevakning" })).toBeTruthy();
   });
 

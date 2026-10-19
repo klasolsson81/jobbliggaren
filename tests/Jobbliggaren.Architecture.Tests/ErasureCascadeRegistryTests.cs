@@ -127,6 +127,11 @@ public class ErasureCascadeRegistryTests
             + "through HasConversion<string> into varchar(20) and written only by the scan and "
             + "dispatch jobs. The row records THAT a followed company posted an ad; the ad's own "
             + "text is classified under job_ads.",
+        // ADR 0175 D10 (#1663).
+        ["company_watch_criterion_ad_hits"] = "A LINK ROW: (user_id, job_ad_id, "
+            + "company_watch_criterion_id), created_at and the bell's two booleans. No text-bearing "
+            + "column at all: the ad is an opaque id, its own text is classified under job_ads, and the "
+            + "nightly scan purges the row once the ad leaves Active.",
 
         // #1979 — the feedback bookkeeping around the one searched column, feedback_submissions.comment.
         ["feedback_notifications"] = "Delivery bookkeeping for the operator notice about a "

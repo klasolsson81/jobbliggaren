@@ -7,14 +7,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   ALL_ADS,
+  CRITERION_REFERENCE,
   DESCRIPTION,
   EXPIRES_AT,
   MATCHES,
   PUBLISHED_AT,
   TAXONOMY,
   USER,
+  criterionSiblingAnswers,
   matchDetail,
+  newCriterionAdsAnswers,
   profile,
+  type FixtureAnswer,
   type HarnessAd,
 } from "./fixtures";
 
@@ -79,7 +83,7 @@ export type Harness = {
   readonly feedbackReceipts: FeedbackReceipt[];
   /** #1666 — what the bell's feed answers; quiet by default, so every other spec renders a bell with no badge. */
   notificationFeed: unknown;
-  /** #1666 — the bodies the two existing /seen endpoints received, in order. */
+  /** #1666 — the bodies the /seen endpoints received, in order: matches, followed-company ads, and (#1663 PR 2) a criterion's new ads. */
   readonly seenReceipts: { route: string; body: Record<string, unknown> }[];
   /** #2107 — the notification settings the profile reports; each settings PUT writes its own value. */
   notificationSettings: NotificationSettings;
@@ -95,6 +99,15 @@ export type Harness = {
   readMarkDelayMs: number;
   /** #2130 — the next read mark answers 500 and marks nothing. */
   refuseNextReadMark: boolean;
+  /** #1663 PR 2 — `GET /api/v1/me/company-watch-criteria`: none by default, so every other page renders without them. */
+  criteria: unknown[];
+  /** #1663 PR 2 — `GET /api/v1/me/company-watch-criteria/new-ad-counts`; an empty list by default. */
+  criterionNewAdCounts: FixtureAnswer;
+  /** #1663 PR 2 — `GET /api/v1/me/company-watch-criteria/{id}/new-ads`, per id; an id it lacks is a miss. */
+  readonly criterionNewAds: Map<string, FixtureAnswer>;
+  /** #1663 PR 2 — Översikt's Bevakade företag: the followed companies, and the new-ad count its follow pill shows. */
+  companyWatches: unknown[];
+  followedCompanyAdNewCount: number;
   reset(): void;
   stop(): Promise<void>;
 };
@@ -255,6 +268,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
   }))];
   let applied = new Map<string, string>();
   let saved = new Set<string>();
+  const criterionSiblings = criterionSiblingAnswers();
 
   const adById = (adId: string) => ads.find((ad) => ad.id === adId);
 
@@ -278,7 +292,18 @@ export async function startHarness(informationFlows = false, applicationCopies =
     readReceipts,
     readMarkDelayMs: 0,
     refuseNextReadMark: false,
+    criteria: [],
+    criterionNewAdCounts: { status: 200, body: { items: [] } },
+    criterionNewAds: newCriterionAdsAnswers(),
+    companyWatches: [],
+    followedCompanyAdNewCount: 0,
     reset() {
+      harness.criteria = [];
+      harness.criterionNewAdCounts = { status: 200, body: { items: [] } };
+      harness.criterionNewAds.clear();
+      for (const [criterion, answer] of newCriterionAdsAnswers()) harness.criterionNewAds.set(criterion, answer);
+      harness.companyWatches = [];
+      harness.followedCompanyAdNewCount = 0;
       misses.length = 0;
       requests.length = 0;
       syntheticUploadReceipts.length = 0;
@@ -391,6 +416,28 @@ export async function startHarness(informationFlows = false, applicationCopies =
       if (hold > 0) await new Promise((resolve) => setTimeout(resolve, hold));
       return refuse ? json(500, { title: "Internal Server Error", status: 500 }) : json(204);
     }
+    // #1663 PR 2 — the Branschbevakningar: Översikt's list and counts, and /nya's window and its seen write.
+    const answer = async (fixture: FixtureAnswer) => {
+      if (fixture.delayMs) await new Promise((resolve) => setTimeout(resolve, fixture.delayMs));
+      response.writeHead(fixture.status, { "Content-Type": "application/json", ...fixture.headers });
+      return response.end(fixture.status === 204 ? "" : JSON.stringify(fixture.body ?? null));
+    };
+    if (route === "GET /api/v1/me/company-watch-criteria") return json(200, harness.criteria);
+    if (route === "GET /api/v1/me/company-watch-criteria/reference") return json(200, CRITERION_REFERENCE);
+    if (route === "GET /api/v1/me/company-watch-criteria/new-ad-counts") return answer(harness.criterionNewAdCounts);
+    const newAds = route === `GET /api/v1/me/company-watch-criteria/${pathId}/new-ads` && harness.criterionNewAds.get(pathId);
+    if (newAds) return answer(newAds);
+    if (route === `POST /api/v1/me/company-watch-criteria/${pathId}/new-ads/seen` && harness.criterionNewAds.has(pathId)) {
+      seenReceipts.push({ route, body: await bodyOf(request) });
+      return json(204);
+    }
+    const sibling = route.match(/^GET \/api\/v1\/me\/company-watch-criteria\/[0-9a-f-]{36}\/(companies|ad-count|ads)$/)?.[1];
+    const siblingReads = sibling ? criterionSiblings.get(pathId) : undefined;
+    // The pattern's group admits exactly the three keys.
+    if (sibling && siblingReads) return json(200, siblingReads[sibling as keyof typeof siblingReads]);
+    if (route === "GET /api/v1/me/company-watches") return json(200, harness.companyWatches);
+    if (route === "GET /api/v1/me/followed-company-ads/new-count") return json(200, { count: harness.followedCompanyAdNewCount });
+    if (route === "GET /api/v1/me/match-count") return json(200, { count: harness.occupationStated ? ads.length : 0 });
     const setting = SETTINGS_WRITES[route];
     if (setting) {
       const body = await bodyOf(request);

@@ -61,6 +61,7 @@
     "criteriaCtaAria": "View matching job ads in your industry watch",
     "newPill": "{count, plural, one {# new} other {# new}}",
     "newPillAria": "{count, plural, one {# new ad} other {# new ads}} from followed companies since your last visit",
+    "criterionNewPillAria": "{count, plural, one {# new ad} other {# new ads}} in the industry watch {name}",
     "matchingAdsUnit": "{count, plural, one {matching job ad} other {matching job ads}}",
     "activeAdsUnit": "{count, plural, one {active job ad} other {active job ads}}",
     "events": "Recent events",

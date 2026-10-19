@@ -59,6 +59,8 @@ public class JobAdHardDeleteGuardTests
             """).ShouldBeTrue("a quoted schema and table");
 
         HardDeletesAJobAd("db.SavedJobAds.Remove(saved);").ShouldBeFalse("a bookmark is not the ad");
+        HardDeletesAJobAd("await NewCriterionAdSet.HitsWhoseAdLeftActive(db, userId).ExecuteDeleteAsync(ct);")
+            .ShouldBeFalse("the Branschbevakning purge deletes hits, not ads (ADR 0175 D10)");
         HardDeletesAJobAd("migrationBuilder.Sql(\"DELETE FROM saved_job_ads;\");").ShouldBeFalse();
         HardDeletesAJobAd("await db.JobAds.Where(j => j.Id == id).ExecuteUpdateAsync(s => s, ct);")
             .ShouldBeFalse("an update is not a delete");

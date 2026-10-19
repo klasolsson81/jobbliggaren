@@ -222,14 +222,21 @@ public sealed partial class AccountHardDeleter(
         //
         // NO IgnoreQueryFilters, and that is enforced, not merely intended: the aggregate declares no
         // query filter (delete is HARD — C-D8/G1), so the call would be a no-op asserting a filter
-        // that does not exist. It joins the other unfiltered arms — RecentJobSearches, SavedJobAds,
-        // UserJobAdMatches and FollowedCompanyAdHits above (the last two unfiltered since #868), and
-        // ResumeFiles below — which likewise omit it. The iff-invariant (filtered ⇔ call present) is
+        // that does not exist. The iff-invariant (filtered ⇔ call present) is
         // machine-checked for every arm by AccountHardDeleteCascadeFitnessTests — which is what
         // actually closes the "a filter added tomorrow silently narrows this read" hazard, for every
         // aggregate in the cascade rather than this one.
         var companyWatchCriteria = await db.CompanyWatchCriteria
             .Where(c => c.UserId == userId)
+            .ToListAsync(cancellationToken);
+
+        // ADR 0175 D10 (#1663) — CompanyWatchCriterionAdHit: which ads reached the user through a
+        // Branschbevakning. Its FK to the criterion is modelled in EF, so the tracked deletes below remove
+        // the hits before their criterion; without the model the database cascade could empty the hits'
+        // own DELETE first and fail this job with DbUpdateConcurrencyException (ADR 0175 D5). No query
+        // filter, so no IgnoreQueryFilters.
+        var companyWatchCriterionAdHits = await db.CompanyWatchCriterionAdHits
+            .Where(h => h.UserId == userId)
             .ToListAsync(cancellationToken);
 
         try
@@ -247,6 +254,7 @@ public sealed partial class AccountHardDeleter(
             db.UserJobAdMatches.RemoveRange(userJobAdMatches);
             db.CompanyWatches.RemoveRange(companyWatches);
             db.FollowedCompanyAdHits.RemoveRange(followedCompanyAdHits);
+            db.CompanyWatchCriterionAdHits.RemoveRange(companyWatchCriterionAdHits);
             db.CompanyWatchCriteria.RemoveRange(companyWatchCriteria);
             db.JobSeekers.Remove(jobSeeker);
 

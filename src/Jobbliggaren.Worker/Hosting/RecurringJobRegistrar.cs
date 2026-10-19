@@ -2,6 +2,7 @@ using Hangfire;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.BackgroundJobs;
 using Jobbliggaren.Application.Common.Auditing.Jobs.AuditLogRetention;
+using Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchCriterionScan;
 using Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds;
 using Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 using Jobbliggaren.Application.JobAds.Jobs.RetainPlatsbankenJobAds;
@@ -27,6 +28,7 @@ namespace Jobbliggaren.Worker.Hosting;
 ///   03:15   — retain-platsbanken-job-ads (snapshot-miss-retention, ADR 0032-amend 2026-05-23)
 ///   03:25   — company-watch-scan (per-user följnings-scan: JobAds IN watched org.nr → FollowedCompanyAdHit, ADR 0087 D5)
 ///   03:45   — expire-job-ads (ExpiresAt-cron, defense-in-depth, ADR 0032-amend 2026-05-23)
+///   03:55   — scan-company-watch-criteria (Branschbevakning → CompanyWatchCriterionAdHit, ADR 0175; EGEN options-sektion)
 ///   04:00   — hard-delete-accounts (1h efter retention)
 ///   04:30   — purge-stale-raw-payloads (30-min padding efter hard-delete)
 ///   05:00   — backfill-field-encryption (30-min padding efter purge)
@@ -51,6 +53,7 @@ public sealed partial class RecurringJobRegistrar(
     IOptions<ScbRegisterOptions> scbOptions,
     IOptions<CompanyWatchMaterialisationOptions> materialisationOptions,
     IOptions<OccupationDivisionProfileOptions> profileOptions,
+    IOptions<CompanyWatchCriterionScanOptions> criterionScanOptions,
     ILogger<RecurringJobRegistrar> logger) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
@@ -92,6 +95,14 @@ public sealed partial class RecurringJobRegistrar(
             RecurringJobIds.ExpireJobAds,
             job => job.RunAsync(CancellationToken.None),
             "45 3 * * *");  // 03:45 UTC — defense-in-depth ExpiresAt-cron (ADR 0032-amend 2026-05-23)
+
+        // ADR 0175 (#1663) — the nightly Branschbevakning scan. Its own cron
+        // (CompanyWatchCriterionScan:CadenceCron, default 03:55 UTC): after the follow scan at 03:25 and its
+        // 1 800-second lock wait, before the 05:30 materialisation. The slot is a latency choice only.
+        manager.AddOrUpdate<CompanyWatchCriterionScanWorker>(
+            RecurringJobIds.ScanCompanyWatchCriteria,
+            job => job.RunAsync(CancellationToken.None),
+            criterionScanOptions.Value.CadenceCron);
 
         manager.AddOrUpdate<HardDeleteAccountsJob>(
             RecurringJobIds.HardDeleteAccounts,

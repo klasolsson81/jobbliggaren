@@ -38,6 +38,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<FollowedCompanyAdHit> FollowedCompanyAdHits => Set<FollowedCompanyAdHit>();
     // #560 Fork A1 — criteria-based company watches (SNI ∧ kommun discovery predicate).
     public DbSet<CompanyWatchCriterion> CompanyWatchCriteria => Set<CompanyWatchCriterion>();
+    // ADR 0175 D5 (#1663) — Branschbevakning hits, written by the nightly criterion scan.
+    public DbSet<CompanyWatchCriterionAdHit> CompanyWatchCriterionAdHits => Set<CompanyWatchCriterionAdHit>();
     // #1979 — user feedback, the operator notice for each submission, and the per-page prompt suppression.
     public DbSet<FeedbackSubmission> FeedbackSubmissions => Set<FeedbackSubmission>();
     public DbSet<FeedbackScreenshot> FeedbackScreenshots => Set<FeedbackScreenshot>();

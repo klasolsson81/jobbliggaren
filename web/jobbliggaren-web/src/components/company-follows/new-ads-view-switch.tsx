@@ -1,6 +1,7 @@
 "use client";
 
-// The matching arm on `/foretag/bevakade/nya` HAS to be client state, and that is not a preference.
+// The matching arm on `/foretag/bevakade/nya` and `/foretag/branschbevakningar/[id]/nya` HAS to be client state,
+// and that is not a preference.
 // Arriving on the route moves the seen-watermark in `after()`, and the read is `CreatedAt > lastSeen`
 // — so a `<Link href="?matchande=on">` would re-render the route server-side against a watermark the
 // first render already advanced, and land on the EMPTY state instead of the filtered view
@@ -9,7 +10,7 @@
 // `JobAdList`/`JobAdCard` are Server Components, so this component cannot render them: both views
 // arrive as already-rendered `ReactNode` slots and it only chooses which one to mount. Cost: the
 // matching subset is serialised into the RSC payload a second time — bounded by the server's row cap
-// (`ListNewFollowedCompanyAdsQueryHandler.MaxRows`) and paid once per page load. The alternative is a
+// (each page's handler's `MaxRows`) and paid once per page load. The alternative is a
 // second request, which is the divergence this whole route exists to close.
 
 import { useState } from "react";

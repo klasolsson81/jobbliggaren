@@ -3,6 +3,7 @@ import { render } from "@testing-library/react";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { SkillGroup } from "@/lib/dto/skills";
 import type { JobSeekerProfileDto } from "@/lib/types/me";
+import type { CriterionNewAdCounts } from "@/lib/dto/company-criteria";
 
 const getMyProfile = vi.fn<() => Promise<ApiResult<JobSeekerProfileDto>>>();
 const resolveSkillLabels = vi.fn<(ids: ReadonlyArray<string>) => Promise<ApiResult<SkillGroup[]>>>();
@@ -10,6 +11,7 @@ const launcherProps = vi.fn();
 const overviewProps = vi.fn();
 const hasSeenSetupWelcome = vi.fn();
 const getTaxonomyTree = vi.fn();
+const getCriterionNewAdCounts = vi.fn<() => Promise<ApiResult<CriterionNewAdCounts>>>();
 
 vi.mock("@/lib/auth/session", () => ({
   getServerSession: async () => ({ email: "klas@example.se", roles: [] }),
@@ -31,6 +33,7 @@ vi.mock("@/lib/api/company-follows", () => ({
 vi.mock("@/lib/api/company-criteria", () => ({
   getCompanyWatchCriteria: async () => ({ kind: "error" }),
   getCriterionReference: async () => ({ kind: "error" }),
+  getCriterionNewAdCounts: () => getCriterionNewAdCounts(),
 }));
 vi.mock("@/lib/api/taxonomy", () => ({
   getTaxonomyTree: () => getTaxonomyTree(),
@@ -94,6 +97,7 @@ describe("OversiktRoute (/oversikt) — the match-setup rail", () => {
     overviewProps.mockReset();
     hasSeenSetupWelcome.mockReset().mockResolvedValue(false);
     getTaxonomyTree.mockReset().mockResolvedValue({ kind: "ok", data: { occupationFields: [], regions: [], employmentTypes: [] } });
+    getCriterionNewAdCounts.mockReset().mockResolvedValue({ kind: "error" });
   });
 
   it("resolves the saved skills to named groups and hands them to the rail (ADR 0047)", async () => {
@@ -183,5 +187,41 @@ describe("OversiktRoute (/oversikt) — the match-setup rail", () => {
     await renderRoute("1");
     expect(overviewProps).toHaveBeenLastCalledWith(expect.objectContaining({ setupUnavailable: false }));
     expect(launcherProps).toHaveBeenLastCalledWith(expect.objectContaining({ request: "resume", data: expect.any(Object) }));
+  });
+});
+
+describe("OversiktRoute (/oversikt) — the 'N nya' read per Branschbevakning (ADR 0175 D7)", () => {
+  beforeEach(() => {
+    getMyProfile.mockReset().mockResolvedValue(profile(true));
+    overviewProps.mockReset();
+    hasSeenSetupWelcome.mockReset().mockResolvedValue(true);
+    getTaxonomyTree.mockReset().mockResolvedValue({ kind: "error" });
+    getCriterionNewAdCounts.mockReset();
+  });
+
+  it("fans the count read out with the rest and hands its Result to the overview whole", async () => {
+    const answered: ApiResult<CriterionNewAdCounts> = {
+      kind: "ok",
+      data: { items: [{ criterionId: "aaaa1111-0000-4000-8000-000000000001", newAds: 3 }] },
+    };
+    getCriterionNewAdCounts.mockResolvedValue(answered);
+
+    await renderRoute();
+
+    expect(getCriterionNewAdCounts).toHaveBeenCalledTimes(1);
+    expect(overviewProps).toHaveBeenLastCalledWith(expect.objectContaining({ criterionNewAdCounts: answered }));
+  });
+
+  const unanswered: ReadonlyArray<ApiResult<CriterionNewAdCounts>> = [
+    { kind: "error" },
+    { kind: "unauthorized" },
+    { kind: "rateLimited", retryAfterSeconds: 60 },
+  ];
+  it.each(unanswered)("a $kind count read neither redirects nor becomes a number: the Result travels as it is", async (failed) => {
+    getCriterionNewAdCounts.mockResolvedValue(failed);
+
+    await renderRoute();
+
+    expect(overviewProps).toHaveBeenLastCalledWith(expect.objectContaining({ criterionNewAdCounts: failed }));
   });
 });

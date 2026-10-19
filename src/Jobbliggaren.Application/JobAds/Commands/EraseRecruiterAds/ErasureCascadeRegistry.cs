@@ -437,6 +437,8 @@ public static class ErasureCascadeRegistry
 
             ["company_watch_criteria.sni_codes"] = ErasureColumnDisposition.NotRecruiterData,
             ["company_watch_criteria.kommun_codes"] = ErasureColumnDisposition.NotRecruiterData,
+            // ADR 0175 D6 (#1663) — the scan's last answer, a closed enum it writes itself.
+            ["company_watch_criteria.last_scan_outcome"] = ErasureColumnDisposition.NotRecruiterData,
 
             // #1681 (ADR 0139) — the criterion's two MATERIALISED tables. Both are written ONLY by
             // CompanyWatchCriterionMaterialiser out of company_register; no request body, no user
@@ -1106,8 +1108,11 @@ public static class ErasureCascadeRegistry
 
             ["company_watch_criteria:NotRecruiterData"] =
                 "Closed domain: sni_codes and kommun_codes are SCB/SNI industry codes and kommun "
-                + "codes from fixed code lists. The criterion IS its codes; the only free-text column "
-                + "on this table is `label`, which is searched.",
+                + "codes from fixed code lists. The criterion IS its codes. `last_scan_outcome` "
+                + "(ADR 0175) is the three-member CompanyWatchCriterionScanOutcome enum (Scanned / "
+                + "TooBroad / NotMaterialised) stored BY NAME (HasConversion<string>, max 20), written "
+                + "only by the nightly Branschbevakning scan from the answer it computed, never from a "
+                + "request body. The only free-text column on this table is `label`, which is searched.",
 
             ["company_watch_criterion_members:NotRecruiterData"] =
                 "Closed domain: `organization_number` is a ten-digit legal-entity org.nr, and the "

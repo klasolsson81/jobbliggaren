@@ -8,6 +8,7 @@ import AktivitetsrapportLoading from "./(app)/aktivitetsrapport/loading";
 import CvImportLoading from "./(app)/cv/importera/loading";
 import CriterionLoading from "./(app)/foretag/branschbevakningar/[id]/loading";
 import CriterionAdsLoading from "./(app)/foretag/branschbevakningar/[id]/annonser/loading";
+import CriterionNewAdsLoading from "./(app)/foretag/branschbevakningar/[id]/nya/loading";
 
 const STATIC_CASES = [
   { route: "/statistik", Loading: StatistikLoading, copy: (catalogue: typeof sv) => catalogue.statistik },
@@ -17,6 +18,7 @@ const STATIC_CASES = [
 const DYNAMIC_CASES = [
   { route: "/foretag/branschbevakningar/[id]", Loading: CriterionLoading, copy: (catalogue: typeof sv) => catalogue.pages.foretag.criteria.browse.lede },
   { route: "/foretag/branschbevakningar/[id]/annonser", Loading: CriterionAdsLoading, copy: (catalogue: typeof sv) => catalogue.pages.foretag.criteria.ads.lede },
+  { route: "/foretag/branschbevakningar/[id]/nya", Loading: CriterionNewAdsLoading, copy: (catalogue: typeof sv) => catalogue.pages.foretag.criteria.newAds.lede },
 ];
 
 describe.each(["sv", "en"] as const)("route-owned loading bands (%s, #1917)", (locale) => {

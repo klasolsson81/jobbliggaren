@@ -467,6 +467,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             "RateLimiting__CompanyWatchCriteriaList__PermitLimit", "10000");
         Environment.SetEnvironmentVariable(
             "RateLimiting__CompanyWatchCriteriaList__WindowSeconds", "60");
+        // ADR 0175 D7 — the Branschbevakning count, page and seen write each have a derived per-user bucket, and
+        // the shared collection reaches them more often with one user than a person would. Raised here, never by
+        // rounding the production numbers.
+        foreach (var policy in (string[])["CriterionNewAdCounts", "CriterionNewAds", "CriterionNewAdsSeen"])
+        {
+            Environment.SetEnvironmentVariable($"RateLimiting__{policy}__PermitLimit", "10000");
+            Environment.SetEnvironmentVariable($"RateLimiting__{policy}__WindowSeconds", "60");
+        }
         // #483 — HealthCheck is IP-partitioned FixedWindow like the anonymous policies above; the
         // shared [Collection("Api")] motions /api/ready (HealthCheckEndpointsTests + AdminRole*
         // readiness probes) through the same 127.0.0.1 bucket, so raise it too — else a future test
@@ -560,6 +568,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             "RateLimiting__CompanyWatchCriteriaList__PermitLimit", null);
         Environment.SetEnvironmentVariable(
             "RateLimiting__CompanyWatchCriteriaList__WindowSeconds", null);
+        foreach (var policy in (string[])["CriterionNewAdCounts", "CriterionNewAds", "CriterionNewAdsSeen"])
+        {
+            Environment.SetEnvironmentVariable($"RateLimiting__{policy}__PermitLimit", null);
+            Environment.SetEnvironmentVariable($"RateLimiting__{policy}__WindowSeconds", null);
+        }
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRead__PermitLimit", null);

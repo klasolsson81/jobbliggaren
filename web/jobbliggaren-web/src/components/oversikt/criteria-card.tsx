@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Briefcase } from "lucide-react";
 import { CriterionAdLines } from "@/components/company-criteria/criterion-ad-lines";
@@ -8,6 +9,7 @@ import { deriveDisplayLabel } from "@/lib/company-criteria/display-label";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type {
   CompanyWatchCriterion,
+  CriterionNewAdCounts,
   CriterionReference,
   ListCompanyWatchCriteriaResult,
 } from "@/lib/dto/company-criteria";
@@ -32,6 +34,11 @@ interface CriteriaCardProps {
    * the numbers — they are the card's point and do not depend on it.
    */
   readonly reference: CriterionReference | null;
+  /**
+   * "N nya" per watch (ADR 0175 D7), a read of its own beside the list. Only `ok` yields pills;
+   * any other kind renders the card without them, never with a 0.
+   */
+  readonly newAdCounts: ApiResult<CriterionNewAdCounts>;
 }
 
 /**
@@ -50,17 +57,18 @@ export function criteriaCardIsWide(
  * - ONE watch: its matching count as the big number, the watch's name and breadth beneath, the
  *   active-ad line from `CriterionAdLines`, and a solid info-blue CTA to the matching ads. Where
  *   the matching number is refused, not materialised or not assessed there is no number to carry
- *   and the CTA is absent.
+ *   and the CTA is absent. Its "N nya" pill sits in the head.
  * - TWO OR MORE: the card reflows to a full row with one ledger row per watch and NO sum.
  *   Criteria are predicates with no uniqueness constraint (`CompanyWatchCriterionConfiguration`
  *   declines a `UNIQUE(user_id, sni_codes, kommun_codes)` on purpose), so two may overlap and a
  *   duplicated one doubles a sum exactly — `senior-cto-advisor` bound "never a sum" for #1681
- *   part 3 (D1), and this card keeps it.
+ *   part 3 (D1), and this card keeps it. Each row carries its own "N nya" pill after its name; the
+ *   head carries only the number of watches.
  *
  * Every row renders in the handler's own order (`OrderByDescending(CreatedAt)`) up to the
  * domain's `MaxPerUser` = 20; no display cap is introduced here.
  */
-export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
+export function CriteriaCard({ criteria, reference, newAdCounts }: CriteriaCardProps) {
   const t = useTranslations("oversikt");
   // The neutral fallback heading and the "m.fl." suffix are the catalogue's own strings, read
   // rather than transcribed: one untitled watch must not be called two things on two surfaces.
@@ -107,13 +115,43 @@ export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
     return derived ?? tRow("row.untitled");
   };
 
+  const newAdsById = new Map<string, number | null>(
+    newAdCounts.kind === "ok"
+      ? newAdCounts.data.items.map((c): [string, number | null] => [c.criterionId, c.newAds])
+      : [],
+  );
+
+  const newAdsPill = (item: CompanyWatchCriterion): ReactNode => {
+    const count = newAdsById.get(item.id);
+    if (typeof count !== "number" || count <= 0) return null;
+    return (
+      <Link
+        href={`/foretag/branschbevakningar/${item.id}/nya`}
+        className="jp-ov-card__pill tabular-nums"
+        // Never prefetched: rendering /nya acknowledges the window it shows.
+        prefetch={false}
+        // 2.5.3 Label in Name: the visible "N nya" opens the accessible name.
+        aria-label={t("cards.criterionNewPillAria", { count, name: rowName(item) })}
+      >
+        {t("cards.newPill", { count })}
+      </Link>
+    );
+  };
+
   if (items.length === 1) {
     const item = items[0]!;
     // A number exists exactly when the matching count is assessed and not refused — the DTO's
     // own invariant (`count !== null` excludes both refusal arms).
     const counted = item.matching.count;
     return (
-      <OversiktCard id={ID} title={title} tone="info" span={4} icon={Briefcase}>
+      <OversiktCard
+        id={ID}
+        title={title}
+        tone="info"
+        span={4}
+        icon={Briefcase}
+        aside={newAdsPill(item)}
+      >
         {counted !== null && (
           <OversiktNumber
             value={counted}
@@ -174,7 +212,10 @@ export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
             {/* Not a heading: the card owns the only heading tier, and twenty h3s would flood
                 heading navigation with summary lines. The enclosing <li> is the programmatic
                 context for the links beneath (WCAG 2.4.4). */}
-            <p className="jp-ov-criteria__name">{rowName(item)}</p>
+            <div className="jp-ov-criteria__nameline">
+              <p className="jp-ov-criteria__name">{rowName(item)}</p>
+              {newAdsPill(item)}
+            </div>
             <CriterionBreadth
               sniCodes={item.sniCodes}
               municipalityCodes={item.municipalityCodes}

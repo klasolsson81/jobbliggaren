@@ -171,6 +171,14 @@ internal static class MappedPlaintextExposureRegistry
                 + "extended ADR 0139's grant 3 to cover BOTH materialisation tables (2026-09-06).",
             ["followed_company_ad_hits"] = "One row per ad hit delivered to her (UserId). "
                 + "notification_status is a fact about what she was sent.",
+            // ADR 0175 D12 (#1663). The row says which ads reached HER through a Branschbevakning, so the
+            // accepted restore-exposure list (ADR 0125 Case 2, 30-day bound) grows by this table on Klas's
+            // grant: his answer "Ja (Rek.)" to security-auditor's E2 of 2026-10-18, recorded in ADR 0175 D12
+            // with the per-user size and in ADR 0125's header — which is where the decision lives.
+            ["company_watch_criterion_ad_hits"] = "One row per ad HER Branschbevakning surfaced to her "
+                + "(user_id; company_watch_criterion_id -> user_id). No text-bearing column today — the ad "
+                + "is an opaque id — listed so the row is attributed and a column added later cannot land "
+                + "outside the row test.",
             ["user_job_ad_matches"] = "One row per match computed FOR HER (UserId). grade is the "
                 + "PROFILING OUTCOME (Art. 4(4), ADR 0090's DPIA) and matched_skill_concept_ids is a "
                 + "selection derived from her CV — the concept ids are a closed domain, but WHICH "

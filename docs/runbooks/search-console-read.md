@@ -141,6 +141,16 @@ echo "service account: $SA_EMAIL"
 
 | Date (UTC) | Step | Answer | By |
 |---|---|---|---|
+| 2026-10-18/19 | 1 | yes | Klas |
+| 2026-10-18/19 | 2 | yes | Klas |
+| 2026-10-18/19 | 3 | yes | Klas |
+| 2026-10-18/19 | 4 | yes, on the second run; the first was refused with `PERMISSION_DENIED` minutes after step 3 | Klas |
+| 2026-10-18/19 | 5 | yes, on the second run, after step 4 | Klas |
+| 2026-10-18/19 | 6 | yes | Klas |
+| 2026-10-18/19 | 7 | yes, on the second run, after step 4 | Klas |
+| 2026-10-19 | 8 | yes | Klas |
+| 2026-10-19 | 9 | yes: Search Console accepted the service account as Restricted | Klas |
+| 2026-10-19 | 10 | no: not done | Klas |
 
 The four identifiers are recorded in the workflow file itself.
 

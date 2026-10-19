@@ -15,7 +15,7 @@ type Report = {
 };
 const median = (values: ReadonlyArray<number>) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
 
-test("overview and registration directory meet local Lighthouse budgets", async () => {
+test("overview, registration directory and e-post page meet local Lighthouse budgets", async () => {
   test.setTimeout(300_000);
   const harness = await startHarness();
   let browser: Browser | undefined;
@@ -40,7 +40,7 @@ test("overview and registration directory meet local Lighthouse budgets", async 
     await context.addCookies([{ name: SESSION_COOKIE, value: SESSION_ID, url: APP_ORIGIN,
       secure: true, httpOnly: true, sameSite: "Strict" }]);
     const control = await context.newPage();
-    for (const path of ["/admin", `/admin/anvandare?${new URLSearchParams(REGISTRATION_PERIOD)}`]) {
+    for (const path of ["/admin", `/admin/anvandare?${new URLSearchParams(REGISTRATION_PERIOD)}`, "/admin/e-post"]) {
       await control.goto(APP_ORIGIN + path);
       if (path === "/admin") {
         await expect(control.getByRole("region", { name: "Användare totalt", exact: true })
@@ -49,6 +49,9 @@ test("overview and registration directory meet local Lighthouse budgets", async 
           .toContainText("Application.StatusTransitioned");
         await expect(control.getByRole("region", { name: "Kräver uppmärksamhet", exact: true })
           .getByRole("link", { name: "1 bakgrundsjobb har misslyckats" })).toBeVisible();
+      } else if (path === "/admin/e-post") {
+        await expect(control.getByRole("region", { name: "Leverans", exact: true }).getByRole("definition")).toHaveText(["384", "5"]);
+        await expect(control.getByRole("table", { name: /^Misslyckade utskick/ }).locator("tbody tr")).toHaveCount(5);
       } else {
         await expect(control.getByRole("table", { name: "Konton" })).toContainText("konto.b@example.test");
         await expect(control.getByRole("button", { name: "Rensa period" })).toBeVisible();
@@ -57,7 +60,9 @@ test("overview and registration directory meet local Lighthouse budgets", async 
       const requiredReads = path === "/admin"
         ? ["GET /api/v1/admin/overview/accounts", "GET /api/v1/admin/audit-log", "GET /api/v1/admin/jobs/failed",
           "GET /api/v1/admin/overview/backup", "GET /api/v1/admin/overview/host", "GET /api/v1/admin/overview/services"]
-        : ["POST /api/v1/admin/accounts/search"];
+        : path === "/admin/e-post"
+          ? ["GET /api/v1/admin/email/allowance", "GET /api/v1/admin/email/delivery", "GET /api/v1/admin/email/failures"]
+          : ["POST /api/v1/admin/accounts/search"];
       const reports: Report[] = [];
       for (let run = 0; run < 3; run++) {
         const requestStart = harness.requests.length;

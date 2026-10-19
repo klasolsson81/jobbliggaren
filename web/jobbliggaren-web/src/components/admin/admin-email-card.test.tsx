@@ -123,7 +123,7 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
 
     expect(value(card)).toBe("–Uppgift saknas");
     expect(card.querySelector(".jp-adminkpi__unit")).toBeNull();
-    expect(card).toHaveTextContent("Läsnyckeln är inte installerad, så uppgifterna kan inte hämtas. Se runbooken för admin-e-post.");
+    expect(card).toHaveTextContent("Läsnyckeln är inte installerad. Se runbooken för admin-e-post.");
     expect(card).not.toHaveTextContent(/Räknas inte|Beräknad kostnad/);
   });
 

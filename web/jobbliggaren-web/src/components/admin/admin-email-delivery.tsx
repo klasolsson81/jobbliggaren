@@ -76,9 +76,12 @@ export function AdminEmailDelivery({
   const summaryLine = stateLine(summary, lines("notObservable"));
   // An unjudged list says only "Uppgift saknas": beside an unjudged summary, the summary's line says why, and alone its
   // cause need not be the read key's, so it never borrows that sentence.
-  const failuresLine = stateLine(failures, admin("unavailable.unknownSpoken"));
+  const unknown = admin("unavailable.unknownSpoken");
+  const failuresLine = stateLine(failures, unknown);
+  // A list whose cause the summary's line already gives says only "Uppgift saknas"; a load is not a cause.
+  const sameCause = failures.kind !== "loading" && failuresLine !== null && failuresLine.text === summaryLine?.text;
   const failuresBody = rows === null
-    ? failuresLine?.text ?? null
+    ? (sameCause ? unknown : failuresLine?.text ?? null)
     : rows.failures.length === 0 ? t("failures.empty") : null;
 
   // Where both reads could not be judged, the summary's sentence is the whole announcement.

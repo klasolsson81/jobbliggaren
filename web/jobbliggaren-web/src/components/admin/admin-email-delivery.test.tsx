@@ -9,8 +9,9 @@ const UNKNOWN = "–Uppgift saknas";
 const ASKED_AT = "2026-10-19T18:59:46+00:00";
 
 const NOT_OBSERVABLE =
-  "Scaleway visar inga utskick för läsnyckeln de senaste 32 dagarna, så siffrorna kan inte bedömas. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post.";
-const READ_KEY_MISSING = "Läsnyckeln är inte installerad, så uppgifterna kan inte hämtas. Se runbooken för admin-e-post.";
+  "Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen, så siffrorna kan inte bedömas. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post.";
+const READ_KEY_MISSING = "Läsnyckeln är inte installerad. Se runbooken för admin-e-post.";
+const LIST_UNKNOWN = "Uppgift saknas";
 const NOT_CONFIGURED = "Räknas inte i den här miljön.";
 const EMPTY = "Inga misslyckade utskick under perioden.";
 
@@ -218,19 +219,21 @@ describe("Leverans's states (ADR 0150 D2): unknown is never zero and never empty
     });
 
     expect(values(section)).toEqual([UNKNOWN, UNKNOWN]);
-    expect(within(section).getAllByText(READ_KEY_MISSING)).toHaveLength(2);
+    expect(within(section).getAllByText(READ_KEY_MISSING)).toHaveLength(1);
+    expect(failureRows().map((tableRow) => tableRow.textContent)).toEqual([LIST_UNKNOWN]);
     expect(section.textContent).not.toContain(NOT_CONFIGURED);
     expect(screen.getByRole("alert")).toHaveTextContent(`Leverans: ${READ_KEY_MISSING}`);
   });
 
-  it("says a deployment without Scaleway does not count, in each region, and announces nothing", () => {
+  it("says a deployment without Scaleway does not count, once, and announces nothing", () => {
     const section = show({
       summary: { kind: "loaded", data: { period: "h24", status: "NotObserved", reason: "NotConfigured", observedAt: null, sent: null, failed: null } },
       failures: { kind: "loaded", data: { period: "h24", status: "NotObserved", reason: "NotConfigured", observedAt: null, failures: null, limit: 10 } },
     });
 
     expect(values(section)).toEqual([UNKNOWN, UNKNOWN]);
-    expect(within(section).getAllByText(NOT_CONFIGURED)).toHaveLength(2);
+    expect(within(section).getAllByText(NOT_CONFIGURED)).toHaveLength(1);
+    expect(failureRows().map((tableRow) => tableRow.textContent)).toEqual([LIST_UNKNOWN]);
     expect(section.textContent).not.toContain(EMPTY);
     expect(announcements()).toEqual([]);
   });
@@ -241,16 +244,15 @@ describe("Leverans's states (ADR 0150 D2): unknown is never zero and never empty
     ["Unauthorized", "Scaleway nekade läsnyckeln. Kontrollera dess utgångsdatum enligt runbooken för admin-e-post."],
     ["Forbidden", "Scaleway nekade läsningen. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post."],
     ["Malformed", "Scaleways svar kunde inte läsas. Se runbooken för admin-e-post."],
-  ] as const)("words a read that failed with %s by its cause, in each region, and announces it once", (reason, line) => {
+  ] as const)("words a read that failed with %s by its cause once, and announces it once", (reason, line) => {
     const section = show({
       summary: { kind: "loaded", data: { period: "h24", status: "Failed", reason, observedAt: null, sent: null, failed: null } },
       failures: { kind: "loaded", data: { period: "h24", status: "Failed", reason, observedAt: null, failures: null, limit: 10 } },
     });
 
     expect(values(section)).toEqual([UNKNOWN, UNKNOWN]);
-    const shown = within(section).getAllByText(line);
-    expect(shown).toHaveLength(2);
-    for (const element of shown) expect(element).not.toHaveAttribute("role");
+    expect(within(section).getByText(line)).not.toHaveAttribute("role");
+    expect(failureRows().map((tableRow) => tableRow.textContent)).toEqual([LIST_UNKNOWN]);
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(screen.getByRole("alert").textContent).toBe(`Leverans: ${line}`);
     expect(section.textContent).not.toContain(EMPTY);
@@ -264,14 +266,15 @@ describe("Leverans's states (ADR 0150 D2): unknown is never zero and never empty
     expect(screen.getByRole("alert")).toHaveTextContent("Leverans: Uppgifterna kunde inte hämtas. Försök igen om en stund.");
   });
 
-  it("says why our own read was refused, in place of the shared line", () => {
+  it("says why our own read was refused, in place of the shared line, once", () => {
     const section = show({
       summary: { kind: "failed", line: "Din session saknar Admin-rollen." },
       failures: { kind: "failed", line: "Din session saknar Admin-rollen." },
     });
 
     expect(values(section)).toEqual([UNKNOWN, UNKNOWN]);
-    expect(within(section).getAllByText("Din session saknar Admin-rollen.")).toHaveLength(2);
+    expect(within(section).getAllByText("Din session saknar Admin-rollen.")).toHaveLength(1);
+    expect(failureRows().map((tableRow) => tableRow.textContent)).toEqual([LIST_UNKNOWN]);
     expect(screen.getByRole("alert").textContent).toBe("Leverans: Din session saknar Admin-rollen.");
   });
 
@@ -283,5 +286,38 @@ describe("Leverans's states (ADR 0150 D2): unknown is never zero and never empty
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByRole("status").textContent).toBe("Leverans: Hämtar uppgifter…");
     expect(within(screen.getByRole("table", { name: "Utskick per mejltyp" })).getByText("Kommer snart")).toBeInTheDocument();
+  });
+});
+
+describe("Leverans's failures list beside the summary's line (#1981 PR 2, design-reviewer Minor 3)", () => {
+  const TIMEOUT = "Scaleway svarade inte. Försök igen om en stund.";
+  const OUR_READ = "Uppgifterna kunde inte hämtas. Försök igen om en stund.";
+  const timedOutSummary: EmailDeliveryDto =
+    { period: "h24", status: "Failed", reason: "Timeout", observedAt: null, sent: null, failed: null };
+  const timedOutList: EmailFailuresDto =
+    { period: "h24", status: "Failed", reason: "Timeout", observedAt: null, failures: null, limit: 10 };
+
+  it("says only Uppgift saknas where its line would repeat the summary's, which says why once", () => {
+    const section = show({
+      summary: { kind: "loaded", data: timedOutSummary },
+      failures: { kind: "loaded", data: timedOutList },
+    });
+
+    expect(section.querySelector("dl + p.jp-adminsoon")).toHaveTextContent(TIMEOUT);
+    expect(within(section).getAllByText(TIMEOUT)).toHaveLength(1);
+    expect(failureRows().map((tableRow) => tableRow.textContent)).toEqual([LIST_UNKNOWN]);
+    expect(screen.getByRole("alert").textContent).toBe(`Leverans: ${TIMEOUT}`);
+  });
+
+  it.each<readonly [string, AdminEmailRead<EmailDeliveryDto>, AdminEmailRead<EmailFailuresDto>, string, string]>([
+    ["a provider that did not answer the summary and our own failed list read",
+      { kind: "loaded", data: timedOutSummary }, { kind: "failed" }, TIMEOUT, OUR_READ],
+    ["our own failed summary read and a missing read key on the list",
+      { kind: "failed" }, { kind: "loaded", data: unansweredList("ReadKeyMissing") }, OUR_READ, READ_KEY_MISSING],
+  ])("shows each region's own line where the causes differ: %s", (_name, summary, failures, summaryText, listText) => {
+    const section = show({ summary, failures });
+
+    expect(section.querySelector("dl + p.jp-adminsoon")).toHaveTextContent(summaryText);
+    expect(failureRows().map((tableRow) => tableRow.textContent)).toEqual([listText]);
   });
 });

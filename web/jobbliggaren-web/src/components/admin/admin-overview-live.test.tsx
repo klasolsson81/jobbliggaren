@@ -240,11 +240,11 @@ describe("admin overview visible refresh", () => {
   it.each([
     [
       { status: "NotObservable" as const, reason: null },
-      "Misslyckade utskick: Scaleway visar inga utskick för läsnyckeln de senaste 32 dagarna, så siffrorna kan inte bedömas.",
+      "Misslyckade utskick: Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen, så siffrorna kan inte bedömas.",
     ],
     [
       { status: "ReadKeyMissing" as const, reason: null },
-      "Misslyckade utskick: Läsnyckeln är inte installerad, så uppgifterna kan inte hämtas.",
+      "Misslyckade utskick: Läsnyckeln är inte installerad. Se runbooken för admin-e-post.",
     ],
     [
       { status: "Failed" as const, reason: "Forbidden" as const },

@@ -150,20 +150,19 @@ export const emailFailureReasonSchema = z.enum([
 export type EmailFailureReason = z.infer<typeof emailFailureReasonSchema>;
 
 const MASK = "•••";
+const MAX_MASKED_DOMAIN_LENGTH = 253;
+const MASKED_ADDRESS = /^[\p{L}\p{Nd}]?•••@([\p{L}\p{Nd}.-]+)$/u;
 
 /**
- * A recipient as the API masked it: one character, the mask and the domain, or the mask alone. Anything else, an
- * address that was not masked above all, fails the parse, so the page can never show it. The one character is a whole
- * text element, as the API cuts it; only the server parses a failures read, so the segmenter is made only there.
+ * A recipient in one of the three forms the API's `MaskedEmailAddress` makes, and nothing else: the local part's first
+ * code point when it is a letter or a decimal digit, then the mask, `@` and the whole domain; the mask, `@` and the
+ * domain when that code point is anything else; or the mask alone. The domain holds only letters, digits, `-` and `.`,
+ * at most 253 UTF-16 units. An address that was not masked fails the parse, so the page can never show it.
  */
 function isMaskedRecipient(value: string): boolean {
   if (value === MASK) return true;
-  const at = value.indexOf(`${MASK}@`);
-  if (at <= 0) return false;
-  const first = value.slice(0, at);
-  const domain = value.slice(at + MASK.length + 1);
-  const elements = [...new Intl.Segmenter("sv", { granularity: "grapheme" }).segment(first)].length;
-  return elements === 1 && !/[\s@•]/u.test(first) && /^[^\s@]+$/u.test(domain);
+  const domain = MASKED_ADDRESS.exec(value)?.[1];
+  return domain !== undefined && domain.length <= MAX_MASKED_DOMAIN_LENGTH;
 }
 
 const failureRowSchema = z.strictObject({

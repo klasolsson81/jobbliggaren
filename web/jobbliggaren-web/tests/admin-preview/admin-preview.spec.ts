@@ -477,12 +477,13 @@ test("Leverans reads its period from the URL, as the live page does, and shows e
   await expect(rows).toHaveCount(10);
   await expect(leverans).toContainText("Visar de 10 senaste.");
   await scenario.selectOption({ label: "Läsnyckeln ser inga utskick" });
-  await expect(leverans).toContainText("Scaleway visar inga utskick för läsnyckeln de senaste 32 dagarna");
+  await expect(leverans).toContainText("Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen");
   await expect(rows).toHaveText(["Uppgift saknas"]);
   await expect(page.getByRole("table", { name: "Utskick per mejltyp" }).locator("tbody")).toHaveText("Kommer snart");
 
   await state(page, "Fel");
-  await expect(leverans.getByText("Uppgifterna kunde inte hämtas. Försök igen om en stund.", { exact: true })).toHaveCount(2);
+  await expect(leverans.getByText("Uppgifterna kunde inte hämtas. Försök igen om en stund.", { exact: true })).toHaveCount(1);
+  await expect(rows).toHaveText(["Uppgift saknas"]);
 });
 
 test("the month against the free allowance shows each fixture state, and follows the band only when it fails or loads", async ({ page }) => {

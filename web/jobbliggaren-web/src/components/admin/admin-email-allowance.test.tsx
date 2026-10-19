@@ -174,7 +174,7 @@ describe("AdminEmailAllowance — the read key is not installed (#1981 PR 2)", (
     usage: { status: "ReadKeyMissing", reason: null, ...NO_USAGE },
     plan: { status: "ReadKeyMissing", reason: null, active: null, matches: null },
   };
-  const line = "Läsnyckeln är inte installerad, så uppgifterna kan inte hämtas. Se runbooken för admin-e-post.";
+  const line = "Läsnyckeln är inte installerad. Se runbooken för admin-e-post.";
 
   it("says so in its own line, never that the environment does not count, and announces it", () => {
     const region = loaded(READ_KEY_MISSING);

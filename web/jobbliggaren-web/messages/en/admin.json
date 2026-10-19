@@ -159,6 +159,7 @@
     "population": "New accounts count retained accounts with completed registration.",
     "observation": {
       "sampledAt": "Observed at",
+      "fetchedAt": "Fetched",
       "refreshFailed": "Refresh failed. Showing the last observation.",
       "stale": "This observation is older than five minutes.",
       "current": "The observations are current.",
@@ -652,8 +653,8 @@
       "webhooks": "{count, plural, one {# webhook is registered} other {# webhooks are registered}} at Scaleway. There should be none, see the admin email runbook.",
       "webhooksUnreadable": "The number of webhooks could not be read.",
       "notConfigured": "Not counted in this environment.",
-      "readKeyMissing": "The read key is not installed, so the figures cannot be fetched. See the admin email runbook.",
-      "notObservable": "Scaleway shows no sends for the read key in the last 32 days, so the figures cannot be assessed. Check the read key's permission as the admin email runbook describes.",
+      "readKeyMissing": "The read key is not installed. See the admin email runbook.",
+      "notObservable": "Scaleway's delivery statistics show no sends in the last 32 days, so the figures cannot be assessed. Check the read key's permissions as described in the admin email runbook.",
       "plan": {
         "differs": "Scaleway states the plan {active}, but the terms are for {configured}. The cost is not calculated.",
         "undetermined": "The plan at Scaleway could not be determined. The cost is not calculated.",

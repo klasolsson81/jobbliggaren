@@ -489,7 +489,7 @@ function ObservedAttention({ observations, now, basePath }: {
     <BackupAttentionLines observation={backup} />
     <ServicesAttentionLines observation={services} now={now} />
     <FailedSendsLine observation={delivery} basePath={basePath} />
-    {deliveryDated ? <AdminObservationNote observation={delivery} now={now} /> : null}
+    {deliveryDated ? <AdminObservationNote observation={delivery} now={now} label="fetchedAt" /> : null}
   </div>;
 }
 

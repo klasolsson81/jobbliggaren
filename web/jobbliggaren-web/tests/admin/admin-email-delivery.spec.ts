@@ -35,8 +35,11 @@ const PAGE = "/admin/e-post";
 const UNKNOWN = "–Uppgift saknas";
 const EMPTY = "Inga misslyckade utskick under perioden.";
 const NOT_OBSERVABLE =
-  "Scaleway visar inga utskick för läsnyckeln de senaste 32 dagarna, så siffrorna kan inte bedömas. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post.";
-const READ_KEY_MISSING = "Läsnyckeln är inte installerad, så uppgifterna kan inte hämtas. Se runbooken för admin-e-post.";
+  "Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen, så siffrorna kan inte bedömas. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post.";
+const READ_KEY_MISSING = "Läsnyckeln är inte installerad. Se runbooken för admin-e-post.";
+/** The list's line where the summary's already gives its cause, or where the list could not be judged. */
+const LIST_UNKNOWN = "Uppgift saknas";
+const OUR_READ_FAILED = "Uppgifterna kunde inte hämtas. Försök igen om en stund.";
 
 const leverans = (page: Page) => page.getByRole("region", { name: "Leverans", exact: true });
 const allowance = (page: Page) => page.getByRole("region", { name: /^Utskick (i |denna)/ });
@@ -227,13 +230,13 @@ const SUMMARY_STATES: ReadonlyArray<{
   { state: "nothing-sent", delivery: "nothingSent", values: ["0", "0"], line: null, list: [EMPTY], alert: null },
   { state: "none-failed", delivery: "noneFailed", values: ["384", "0"], line: null, list: [EMPTY], alert: null },
   { state: "not-configured", delivery: "notConfigured", values: [UNKNOWN, UNKNOWN], line: "Räknas inte i den här miljön.",
-    list: ["Räknas inte i den här miljön."], alert: null },
+    list: [LIST_UNKNOWN], alert: null },
   { state: "not-observable", delivery: "notObservable", values: [UNKNOWN, UNKNOWN], line: NOT_OBSERVABLE,
-    list: ["Uppgift saknas"], alert: `Leverans: ${NOT_OBSERVABLE}` },
+    list: [LIST_UNKNOWN], alert: `Leverans: ${NOT_OBSERVABLE}` },
   { state: "list-unjudged", delivery: "observed", failures: "unjudged", values: ["384", "5"], line: null,
-    list: ["Uppgift saknas"], alert: "Leverans: Uppgift saknas" },
+    list: [LIST_UNKNOWN], alert: `Leverans: ${LIST_UNKNOWN}` },
   { state: "read-key-missing", delivery: "readKeyMissing", values: [UNKNOWN, UNKNOWN], line: READ_KEY_MISSING,
-    list: [READ_KEY_MISSING], alert: `Leverans: ${READ_KEY_MISSING}` },
+    list: [LIST_UNKNOWN], alert: `Leverans: ${READ_KEY_MISSING}` },
   ...([
     ["no-answer", "Timeout", "Scaleway svarade inte. Försök igen om en stund."],
     ["unreachable", "Unreachable", "Scaleway svarade inte. Försök igen om en stund."],
@@ -243,7 +246,7 @@ const SUMMARY_STATES: ReadonlyArray<{
     ["read-refused", "Forbidden", "Scaleway nekade läsningen. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post."],
     ["malformed", "Malformed", "Scaleways svar kunde inte läsas. Se runbooken för admin-e-post."],
   ] as const).map(([state, delivery, line]) => ({
-    state, delivery, values: [UNKNOWN, UNKNOWN], line, list: [line], alert: `Leverans: ${line}`,
+    state, delivery, values: [UNKNOWN, UNKNOWN], line, list: [LIST_UNKNOWN], alert: `Leverans: ${line}`,
   })),
 ];
 
@@ -274,12 +277,28 @@ test.describe("each state, never a zero or an empty list it did not observe (ADR
     harness.overviewReads.failures = "error";
     await page.goto(PAGE);
 
-    const line = "Uppgifterna kunde inte hämtas. Försök igen om en stund.";
     await expect(leverans(page).getByRole("definition")).toHaveText([UNKNOWN, UNKNOWN]);
-    await expect(leverans(page).getByText(line, { exact: true })).toHaveCount(2);
-    await expect(alerts(page)).toHaveText([`Leverans: ${line}`]);
+    await expect(leverans(page).getByText(OUR_READ_FAILED, { exact: true })).toHaveCount(1);
+    await expect(failureRows(page)).toHaveText([LIST_UNKNOWN]);
+    await expect(alerts(page)).toHaveText([`Leverans: ${OUR_READ_FAILED}`]);
     await expect(allowance(page).getByRole("definition")).toHaveText(["142", "300", /^0,00\skr$/]);
-    await verify(page, "our-read-failed");
+    await verifyEverywhere(page, PAGE, "our-read-failed", async (current) => {
+      await expect(alerts(current)).toHaveText([`Leverans: ${OUR_READ_FAILED}`]);
+    });
+  });
+
+  test("a read key that is not installed says so across the whole page at once, each line once", async ({ page }) => {
+    harness.overviewEmail = "readKeyMissing";
+    harness.emailDelivery = "readKeyMissing";
+    await verifyEverywhere(page, PAGE, "read-key-missing-page", async (current) => {
+      await expect(allowance(current).locator(".jp-adminsoon")).toHaveText([READ_KEY_MISSING]);
+      await expect(leverans(current).locator("dl + p.jp-adminsoon")).toHaveText(READ_KEY_MISSING);
+      await expect(leverans(current).getByText(READ_KEY_MISSING, { exact: true })).toHaveCount(1);
+      await expect(failureRows(current)).toHaveText([LIST_UNKNOWN]);
+      await expect(alerts(current)).toHaveText([
+        `Utskick mot gratiskvoten: ${READ_KEY_MISSING}`, `Leverans: ${READ_KEY_MISSING}`,
+      ]);
+    });
   });
 
   test("the failures list at its limit names every reason, keeps a long domain in its column, and says it shows the latest", async ({ page }) => {
@@ -294,6 +313,9 @@ test.describe("each state, never a zero or an empty list it did not observe (ADR
       "Tillfälligt avvisat av mottagarens server",
     ]);
     await expect(failuresTable(page)).toContainText("p•••@post.ett-mycket-langt-underdomannamn-for-smala-skarmar.example.test");
+    // The API's form for a local part that starts with neither a letter nor a digit, and its form for no address at all.
+    await expect(failuresTable(page).getByRole("cell", { name: "•••@example.org", exact: true })).toBeVisible();
+    await expect(failuresTable(page).getByRole("cell", { name: "•••", exact: true })).toBeVisible();
     await expect(leverans(page).getByText("Visar de 10 senaste.", { exact: true })).toBeVisible();
     await expect(failuresTable(page).locator(".jp-pill, .jp-admin-danger, .jp-admin-warning")).toHaveCount(0);
     await verify(page, "capped");
@@ -301,7 +323,7 @@ test.describe("each state, never a zero or an empty list it did not observe (ADR
 });
 
 test.describe("rendered states (#1981 PR 2, DESIGN.md §12)", () => {
-  for (const expected of SUMMARY_STATES.filter((state) => state.state !== "unreachable" && state.state !== "provider-error")) {
+  for (const expected of SUMMARY_STATES) {
     test(`renders ${expected.state} at 1280 and 375 px in both themes`, async ({ page }) => {
       harness.emailDelivery = expected.delivery;
       harness.emailFailures = expected.failures ?? null;
@@ -315,6 +337,7 @@ test.describe("rendered states (#1981 PR 2, DESIGN.md §12)", () => {
     harness.emailFailures = "capped";
     await verifyEverywhere(page, PAGE, "state-capped", async (current) => {
       await expect(failureRows(current)).toHaveCount(10);
+      await expect(failuresTable(current).getByRole("cell", { name: "•••@example.org", exact: true })).toBeVisible();
     });
   });
 
@@ -362,25 +385,31 @@ test.describe("the overview's failed-sends line", () => {
     expect(harness.emailQueries.filter((query) => query.includes("/failures"))).toEqual(["/api/v1/admin/email/failures?period=h24"]);
   });
 
+  /** `dated`: the line has a time to be dated by, which every answered read has except a deployment without Scaleway. */
   const OVERVIEW_STATES: ReadonlyArray<{
     readonly state: string;
     readonly set: (h: Harness) => void;
     readonly text: string;
     readonly raised: boolean;
+    readonly dated: boolean;
   }> = [
     { state: "failed-sends", set: (h) => { h.emailDelivery = "observed"; },
-      text: "2 utskick har misslyckats de senaste 24 timmarna", raised: true },
+      text: "2 utskick har misslyckats de senaste 24 timmarna", raised: true, dated: true },
     { state: "no-failed-sends", set: (h) => { h.emailDelivery = "noneFailed"; },
-      text: "Inga misslyckade utskick hos Scaleway de senaste 24 timmarna.", raised: false },
+      text: "Inga misslyckade utskick hos Scaleway de senaste 24 timmarna.", raised: false, dated: true },
     { state: "not-observable", set: (h) => { h.emailDelivery = "notObservable"; },
-      text: `Misslyckade utskick${NOT_OBSERVABLE}`, raised: false },
+      text: `Misslyckade utskick${NOT_OBSERVABLE}`, raised: false, dated: true },
     { state: "read-key-missing", set: (h) => { h.emailDelivery = "readKeyMissing"; },
-      text: `Misslyckade utskick${READ_KEY_MISSING}`, raised: false },
+      text: `Misslyckade utskick${READ_KEY_MISSING}`, raised: false, dated: true },
     { state: "provider-failed", set: (h) => { h.emailDelivery = "Timeout"; },
-      text: "Misslyckade utskickScaleway svarade inte. Försök igen om en stund.", raised: false },
+      text: "Misslyckade utskickScaleway svarade inte. Försök igen om en stund.", raised: false, dated: true },
     { state: "our-read-failed", set: (h) => { h.overviewReads.delivery = "error"; },
-      text: "Misslyckade utskickUppgifterna kunde inte hämtas. Försök igen om en stund.", raised: false },
+      text: `Misslyckade utskick${OUR_READ_FAILED}`, raised: false, dated: false },
+    { state: "not-configured", set: (h) => { h.emailDelivery = "notConfigured"; },
+      text: "Misslyckade utskickRäknas inte i den här miljön.", raised: false, dated: false },
   ];
+  /** The failed-sends line's date note: the card's last note, since the line is the card's last source. */
+  const deliveryNote = (page: Page) => attention(page).locator(".jp-adminkpi__sub").last();
 
   for (const expected of OVERVIEW_STATES) {
     test(`says ${expected.state} in the attention card, and never a zero it did not observe`, async ({ page }) => {
@@ -393,11 +422,18 @@ test.describe("the overview's failed-sends line", () => {
       await expect(attention(page)).toHaveAttribute("data-state", expected.raised ? "raised" : "unknown");
       if (expected.state !== "no-failed-sends") await expect(attention(page)).not.toContainText("Inga misslyckade utskick");
       await expect(attention(page)).not.toContainText("Inget kräver uppmärksamhet");
+      // Dated as Leverans dates the same read, never "Uppgift från"; a line with no answer has no date at all.
+      if (expected.dated) {
+        await expect(deliveryNote(page)).toHaveText(/^Hämtat \d{4}-\d\d-\d\d \d\d:\d\d/);
+        await expect(deliveryNote(page)).not.toContainText("Uppgift från");
+      } else {
+        await expect(attention(page)).not.toContainText("Hämtat");
+      }
       expect(harness.emailQueries.filter((query) => query.includes("/failures"))).toEqual([]);
     });
   }
 
-  for (const expected of OVERVIEW_STATES.filter((state) => state.state !== "our-read-failed" && state.state !== "read-key-missing")) {
+  for (const expected of OVERVIEW_STATES) {
     test(`renders the attention card's ${expected.state} line at 1280 and 375 px in both themes`, async ({ page }) => {
       harness.overviewEmpty = true;
       expected.set(harness);
@@ -406,4 +442,13 @@ test.describe("the overview's failed-sends line", () => {
       });
     });
   }
+
+  test("renders the e-post card's missing read key at 1280 and 375 px in both themes", async ({ page }) => {
+    harness.overviewEmpty = true;
+    harness.overviewEmail = "readKeyMissing";
+    await verifyEverywhere(page, "/admin", "overview-email-card-read-key-missing", async (current) => {
+      await expect(card(current, "E-post")).toContainText(READ_KEY_MISSING);
+      await expect(card(current, "E-post")).not.toContainText("Räknas inte i den här miljön.");
+    });
+  });
 });

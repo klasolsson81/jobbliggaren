@@ -142,9 +142,10 @@ function servicesAnswer(scenario: ServicesScenario): unknown {
 /**
  * What the email allowance read answers (#1981 PR 1, ADR 0178), as the API states it. `observed` is a month within the
  * free allowance under the configured plan; `notConfigured` is a deployment without a provider to ask; `providerFailed`
- * is a count the provider did not answer; `planDiffers` is a count under another plan, so no cost is computed.
+ * is a count the provider did not answer; `planDiffers` is a count under another plan, so no cost is computed;
+ * `readKeyMissing` is a Scaleway deployment whose read key is not installed (#1981 PR 2).
  */
-export type EmailScenario = "observed" | "notConfigured" | "providerFailed" | "planDiffers";
+export type EmailScenario = "observed" | "notConfigured" | "providerFailed" | "planDiffers" | "readKeyMissing";
 
 function emailAnswer(scenario: EmailScenario): unknown {
   // The API's wire form for a DateTimeOffset in UTC: an offset, never a Z.
@@ -173,6 +174,11 @@ function emailAnswer(scenario: EmailScenario): unknown {
     case "planDiffers": return {
       terms, usage: usage(false), plan: { status: "Observed", reason: null, active: "Scale", matches: false },
     };
+    case "readKeyMissing": return {
+      terms,
+      usage: { status: "ReadKeyMissing", reason: null, ...noUsage },
+      plan: { status: "ReadKeyMissing", reason: null, active: null, matches: null },
+    };
   }
 }
 
@@ -188,8 +194,8 @@ export type DeliveryScenario =
 
 /**
  * What the failures read answers when it differs from the delivery read: `capped` is as many rows as one read carries,
- * one with each of the seven reasons and one at a long domain; `unjudged` is a list the API could not judge;
- * `providerId` is the observed list with the provider's id on each row, which is outside the contract.
+ * one with each of the seven reasons, one at a long domain and one in each recipient form; `unjudged` is a list the API
+ * could not judge; `providerId` is the observed list with the provider's id on each row, which is outside the contract.
  */
 export type FailuresScenario = DeliveryScenario | "capped" | "unjudged" | "providerId";
 
@@ -247,7 +253,8 @@ function failuresAnswer(scenario: FailuresScenario, period: EmailPeriod): unknow
       "HardBounce", "MailboxNotFound", "SoftBounce"];
     return observed(reasons.map((reason, index) => ({
       createdAt: at(12 + index * 47),
-      recipient: index === 1 ? `p•••@${LONG_DOMAIN}` : index === 7 ? "•••" : `${"abcdefghij"[index]}•••@example.org`,
+      recipient: index === 1 ? `p•••@${LONG_DOMAIN}` : index === 7 ? "•••" : index === 9 ? "•••@example.org"
+        : `${"abcdefghij"[index]}•••@example.org`,
       reason,
     })));
   }

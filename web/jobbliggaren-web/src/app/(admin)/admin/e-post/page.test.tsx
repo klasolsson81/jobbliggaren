@@ -160,11 +160,12 @@ describe("/admin/e-post's regions fail on their own (ADR 0150 D2)", () => {
     await renderPage();
 
     expect(within(allowanceRegion()).getByText(line)).toBeInTheDocument();
-    expect(within(deliveryRegion()).getAllByText(line)).toHaveLength(2);
+    // The list's cause is the summary's, which says it once.
+    expect(within(deliveryRegion()).getAllByText(line)).toHaveLength(1);
   });
 
   it("says a missing read key in the allowance and in Leverans, never that the environment does not count", async () => {
-    const missing = "Läsnyckeln är inte installerad, så uppgifterna kan inte hämtas. Se runbooken för admin-e-post.";
+    const missing = "Läsnyckeln är inte installerad. Se runbooken för admin-e-post.";
     allowance.mockResolvedValue({
       kind: "ok",
       data: {
@@ -179,7 +180,7 @@ describe("/admin/e-post's regions fail on their own (ADR 0150 D2)", () => {
     await renderPage();
 
     expect(within(allowanceRegion()).getByText(missing)).toBeInTheDocument();
-    expect(within(deliveryRegion()).getAllByText(missing)).toHaveLength(2);
+    expect(within(deliveryRegion()).getAllByText(missing)).toHaveLength(1);
     expect(document.body.textContent).not.toContain("Räknas inte i den här miljön.");
   });
 

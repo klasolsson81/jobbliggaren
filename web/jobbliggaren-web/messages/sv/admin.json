@@ -159,6 +159,7 @@
     "population": "Nya konton räknas bland kvarvarande konton med slutförd registrering.",
     "observation": {
       "sampledAt": "Uppgift från",
+      "fetchedAt": "Hämtat",
       "refreshFailed": "Uppdateringen misslyckades. Senaste uppgiften visas.",
       "stale": "Uppgiften är äldre än fem minuter.",
       "current": "Uppgifterna är aktuella.",
@@ -652,8 +653,8 @@
       "webhooks": "{count, plural, one {# webhook är registrerad} other {# webhooks är registrerade}} hos Scaleway. Ingen ska finnas, se runbooken för admin-e-post.",
       "webhooksUnreadable": "Antalet webhooks kunde inte läsas.",
       "notConfigured": "Räknas inte i den här miljön.",
-      "readKeyMissing": "Läsnyckeln är inte installerad, så uppgifterna kan inte hämtas. Se runbooken för admin-e-post.",
-      "notObservable": "Scaleway visar inga utskick för läsnyckeln de senaste 32 dagarna, så siffrorna kan inte bedömas. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post.",
+      "readKeyMissing": "Läsnyckeln är inte installerad. Se runbooken för admin-e-post.",
+      "notObservable": "Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen, så siffrorna kan inte bedömas. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post.",
       "plan": {
         "differs": "Scaleway anger abonnemanget {active}, men villkoren gäller {configured}. Kostnaden beräknas inte.",
         "undetermined": "Abonnemanget hos Scaleway kunde inte bestämmas. Kostnaden beräknas inte.",

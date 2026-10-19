@@ -137,13 +137,14 @@ Match-score visas som mono `"92% match"` + 3-nivå-förklaring.
 
 ## Amendment 2026-10-19 — #2191: "Ansök" to the employer's application page
 
-> **Amendment 2026-10-19 (#2191; Klas's layout choice "Allt i foten" of 2026-10-19):** The decisions and the earlier amendments stand; this one changes Amendment 2026-10-03's footer when the ad has an application address, in both contexts.
+> **Amendment 2026-10-19 (#2191; Klas's layout choice of 2026-10-19):** The decisions and the earlier amendments stand; this one changes Amendment 2026-10-03's footer and header when the ad has an application address, in both contexts.
 >
 > - **The link.** "Ansök" opens the employer's own application page (`JobAdDetailDto.applicationUrl`, JobTech's `application_details.url`; ADR 0032 Amendment 2026-10-19) in a new tab with `rel="noopener noreferrer"`. The user no longer has to go through the Platsbanken page to apply.
-> - **The primary.** With an application address, "Ansök" is the footer's last control and its only `--primary`, and "Öppna annonsen" steps down to `--secondary`. The end group reads "Markera som ansökt", "Öppna annonsen", "Ansök". Without one, the footer is Amendment 2026-10-03's, "Öppna annonsen" still the only primary. DESIGN.md §6 carries the rule.
+> - **The primary.** With an application address, "Ansök" takes the primary's place as the footer's last control, so the end group reads "Markera som ansökt", "Ansök". Without one, the footer is Amendment 2026-10-03's, "Öppna annonsen" still the only primary. DESIGN.md §6 carries the rule.
+> - **The ad itself, from the header.** With an application address the ad's own page is linked on a line of its own under the header's dates: "Visa annonsen på Platsbanken", or "Visa originalannonsen" when it lives elsewhere, an underlined text link with an icon, carrying the shared standalone-link touch floor (`STANDALONE_LINK`). The footer cannot hold it: measured 2026-10-19 in the 760px job modal, five footer controls need 813px and wrapped into two rows, which Klas rejected on sight of the render; four fit on one row.
 > - **Not in this amendment.** An applied ad keeps "Ansök". Asking "Har du ansökt?" when the user returns from the employer's page is #2192's.
 >
-> **Amendment provenance:** Klas's request of 2026-10-19 and his answer to the layout question ("Allt i foten (Rek.)"). ADR 0053 remains **Accepted**: an additive layer, the original text and the six earlier amendments preserved unchanged.
+> **Amendment provenance:** Klas's request of 2026-10-19. He first chose all five controls in the footer; on the rendered two-row footer he chose the header link instead ("Din rek"), with the requirement that the original ad on Platsbanken must stay hard to miss. ADR 0053 remains **Accepted**: an additive layer, the original text and the six earlier amendments preserved unchanged.
 
 ## Konsekvenser
 

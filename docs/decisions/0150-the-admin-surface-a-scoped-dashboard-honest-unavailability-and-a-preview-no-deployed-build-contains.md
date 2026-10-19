@@ -399,9 +399,36 @@ This Amendment owns only the surface contract. The source, the terms, the cost a
   The count and the plan fail independently, and one failing never blanks the other (D2).
 - **D8, two rows added:**
   - The handoff's period selector sat in the page header. It moves into the "Leverans" section's heading row, because a
-    24 h/3 d/7 d choice does not apply to a monthly figure.
+    24 h/3 d/7 d choice does not apply to a monthly figure. (Superseded by the next Amendment: links under the heading.)
   - The handoff's e-post card led with the last 24 hours' sends. Its headline is now this month's sends against the free
     allowance, with the estimated cost under it. Its failed, no-recipient and top-type lines are removed, not
-    en-dashed, until delivery is real.
+    en-dashed. (The next Amendment keeps them off the card.)
 - The e-post card is never an attention item: passing the free allowance is a cost fact, not a fault. The attention
-  card's "E-postfel kan ännu inte bedömas." stays true and stays.
+  card's "E-postfel kan ännu inte bedömas." held until #1981 PR 2 (next Amendment).
+
+## Amendment 2026-10-19 (2) — Leverans from the provider (#1981 PR 2, ADR 0179)
+
+This Amendment owns only the surface contract. The read, the key, the masking and the canary are ADR 0179's.
+
+- **D4.** #1981's row is made real further: Leverans shows the provider's sent and failed counts per period, and the most
+  recent failed sends. Counts per mail kind stay "Kommer snart" until #1981's own-aggregates PR. The three are separate
+  regions, and each fails on its own (D2).
+- **D2, two states.**
+  - **NotObservable for Leverans.** When the provider shows no sends at all to the read key over 32 days, every delivery
+    figure is an en-dash with its own line, never 0, and the failures list never says that there were none.
+  - **ReadKeyMissing.** A Scaleway deployment without the read key says so, on Leverans and on the allowance alike. It is
+    not NotConfigured, which keeps its meaning (no provider to ask).
+- **The periods are approximate at their edges** (ADR 0179 D3). The page states when the figures were fetched, never that
+  a period counts up to that moment.
+- **D8, four rows:**
+
+  | Handoff | Here | Why |
+  |---|---|---|
+  | The period buttons in the page header | Three `.jp-subnav` links under the Leverans heading, one URL each (`?period=`), the current one `aria-current` | The page is driven by its URL (the Feedback row); the choice applies to Leverans, not to the month |
+  | Leverans summary Skickade, Misslyckade and Utan mottagare | Skickade and Misslyckade, the provider's counts for the period | No source counts a mail without a recipient; a value with no source is removed, not en-dashed |
+  | Failed sends with recipient, outcome in status colours, the provider's message and the mail type | A table Tid · Orsak · Mottagare (maskerad), one of seven closed reasons, in neutral ink | ADR 0179: no message, subject or mail kind is read, the address is masked at the adapter; every row is a failure (DESIGN.md §3) |
+  | The e-post card's line of failed sends in the last 24 hours | No line on the card; the attention card names failed sends at the provider in the last 24 hours, linked to the page's 24-hour view | A failure is a fault, the allowance a cost fact |
+- **The attention card's e-post line** reads the 24-hour totals only, never the failures list. Above 0 it names the count
+  and raises the card; at 0 it says there were no failed sends at the provider; any other state is the unread form and
+  never counts as clear. "E-postfel kan ännu inte bedömas." is gone.
+- The e-post card's no-recipient line does not return: no source exists.

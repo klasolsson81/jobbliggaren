@@ -118,11 +118,12 @@ denna månad".
 
 ### D7 — The key and its one added permission
 
-The read uses the existing sending key (security-auditor's D4 (a)): the read carries no personal data, and a leaked sending key's
-worst case is unchanged. It can still send as the domain.
+Until #1981 PR 2 the read used the sending key (security-auditor's D4 (a)): the read carries no personal data, and a leaked
+sending key's worst case was unchanged. It can still send as the domain. Since PR 2 the read uses ADR 0179's read key (Amendment
+2026-10-19 below).
 
-The key must never read mail objects. A later read of mail objects (#1981 PR 3) gets a read application of its own, injected into
-the Api only, and this permission moves to it.
+The sending key must never read mail objects. The read of mail objects (#1981 PR 2, ADR 0179) has a read application of its own,
+injected into the Api only, and this permission moved to it.
 
 **The console reading** was made by Klas on 2026-10-19 and transcribed by the driving session from his screenshots. Only names are
 recorded here, never an id.
@@ -180,7 +181,7 @@ calculator's, and its docblock points at the trigger.
 ### Positive
 
 - The page answers Klas's question from the number the invoice is computed from, and says when and why it cannot.
-- The key reads two counts and a plan name, and nothing personal.
+- The read carries two counts and a plan name, and nothing personal.
 - A plan changed in the console shows on the page instead of quietly invalidating a cost.
 
 ### Negative and risks
@@ -201,7 +202,7 @@ Home: this ADR. Reader: Klas.
 3. **A second project in the organisation sends through Transactional Email.** The count no longer covers the free tier's whole
    population.
 4. **A PR needs to read mail objects.** That read gets its own application (D7), and `TransactionalEmailOfferSubscriptionReadOnly`
-   moves with it.
+   moves with it. **Fired 2026-10-19** by #1981 PR 2 (ADR 0179; Amendment below).
 
 ## Implementation
 
@@ -228,3 +229,20 @@ Home: this ADR. Reader: Klas.
   read 2026-10-19.
 - Scaleway, TEM capabilities and limits (reviewed 2025-10-29), read 2026-10-11 and 2026-10-18.
 - `docs/runbooks/admin-email.md`.
+
+---
+
+## Amendment 2026-10-19 — The allowance reads with the read key (#1981 PR 2, ADR 0179)
+
+Lapse trigger 4 fired: #1981 PR 2 reads mail objects, through the read application `jobbliggaren-tem-read` (ADR 0179 D1).
+
+- **D7.** `project-consumption` and `offer-subscriptions` are read with that application's key, not the sending key. The
+  sending application `Jobbliggaren` (policy `jobbliggaren-tem-send`) loses `TransactionalEmailOfferSubscriptionReadOnly` in the sitting that
+  injects the read key, and then holds `TransactionalEmailEmailApiCreate` and `TransactionalEmailDomainReadOnly` only. The
+  read itself still carries two counts and a plan name; the key it uses reaches more (ADR 0179 D2).
+- **D10.** A deployment whose `Email:Provider` is Scaleway but which has no read key answers ReadKeyMissing for both reads,
+  a state of its own with its own line. NotConfigured keeps its meaning: the provider is not Scaleway.
+- **Failure lines.** A refused read key (401) no longer means that sending is probably dead too: the two keys are separate.
+  The page's line says the read key was refused.
+- **Rollback.** An image older than #1981 PR 2 reads the allowance with the sending key. After the sending application has
+  lost the set, that image shows the allowance as refused (403) until the set is given back to the sending application.

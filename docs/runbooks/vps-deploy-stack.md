@@ -1052,6 +1052,10 @@ shows no LinkedIn page, or fails at LinkedIn or at the exchange, (23)'s lapse ap
 **Deactivation.** Remove both lines from `deploy/.env` and re-create api, as for Google. The `linkedin`
 rows can stay: they match only this app's subject ids.
 
+**The read key for `/admin/e-post`** (#1981 PR 2, ADR 0179) is another api-only secret, but it lives in its own directory,
+`/run/jobbliggaren/api-secrets`, which only api mounts. Placing, rotating and removing it are `admin-email.md`'s, not this
+section's.
+
 ## 3e. Image retention (#2016, ADR 0149)
 
 Reconcile runs `jobbliggaren-image-retention.sh` under its existing lock before

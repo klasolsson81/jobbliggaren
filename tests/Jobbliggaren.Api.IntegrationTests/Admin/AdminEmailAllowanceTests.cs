@@ -233,7 +233,7 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
     public async Task Allowance_ShouldAnswerAFailureWithItsReason_AndNoFigures()
     {
         var (_, _, session) = await AdminAsync(factory, NewToken(), Ct);
-        using var host = HostWith(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Forbidden));
+        using var host = HostWith(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Forbidden));
         using var client = ClientFor(host, session);
 
         var response = await client.GetAsync(EndpointPath, Ct);

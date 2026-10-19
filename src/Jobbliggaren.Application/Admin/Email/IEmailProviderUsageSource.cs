@@ -32,12 +32,12 @@ public abstract record EmailProviderPlanRead
     /// <summary>This deployment sends through no provider that can be asked.</summary>
     public sealed record NotConfigured : EmailProviderPlanRead;
 
-    /// <summary>The read failed for <see cref="Reason"/>, which is never <see cref="EmailAllowanceReason.NotConfigured"/>.</summary>
+    /// <summary>The read failed for <see cref="Reason"/>, which is never <see cref="EmailProviderReadReason.NotConfigured"/>.</summary>
     public sealed record Failed : EmailProviderPlanRead
     {
-        public Failed(EmailAllowanceReason reason)
+        public Failed(EmailProviderReadReason reason)
         {
-            if (reason == EmailAllowanceReason.NotConfigured || !Enum.IsDefined(reason))
+            if (reason == EmailProviderReadReason.NotConfigured || !Enum.IsDefined(reason))
             {
                 throw new ArgumentException("A failure carries a failure reason.", nameof(reason));
             }
@@ -45,7 +45,7 @@ public abstract record EmailProviderPlanRead
             Reason = reason;
         }
 
-        public EmailAllowanceReason Reason { get; }
+        public EmailProviderReadReason Reason { get; }
     }
 }
 
@@ -83,12 +83,12 @@ public abstract record EmailProviderUsageRead
     /// <summary>This deployment sends through no provider that can be asked.</summary>
     public sealed record NotConfigured : EmailProviderUsageRead;
 
-    /// <summary>The read failed for <see cref="Reason"/>, which is never <see cref="EmailAllowanceReason.NotConfigured"/>.</summary>
+    /// <summary>The read failed for <see cref="Reason"/>, which is never <see cref="EmailProviderReadReason.NotConfigured"/>.</summary>
     public sealed record Failed : EmailProviderUsageRead
     {
-        public Failed(EmailAllowanceReason reason)
+        public Failed(EmailProviderReadReason reason)
         {
-            if (reason == EmailAllowanceReason.NotConfigured || !Enum.IsDefined(reason))
+            if (reason == EmailProviderReadReason.NotConfigured || !Enum.IsDefined(reason))
             {
                 throw new ArgumentException("A failure carries a failure reason.", nameof(reason));
             }
@@ -96,6 +96,6 @@ public abstract record EmailProviderUsageRead
             Reason = reason;
         }
 
-        public EmailAllowanceReason Reason { get; }
+        public EmailProviderReadReason Reason { get; }
     }
 }

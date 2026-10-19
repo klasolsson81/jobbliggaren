@@ -48,7 +48,7 @@ public class MemoizedEmailProviderUsageSourceTests
         new(new EmailProviderUsageRead.Observed(count, 0, at));
 
     private static ProviderAttempt<EmailProviderUsageRead> FailedWith(TimeSpan? retryAfter = null) =>
-        new(new EmailProviderUsageRead.Failed(EmailAllowanceReason.RateLimited), retryAfter);
+        new(new EmailProviderUsageRead.Failed(EmailProviderReadReason.RateLimited), retryAfter);
 
     // ---- success ----
 

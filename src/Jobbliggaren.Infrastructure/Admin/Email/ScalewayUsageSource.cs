@@ -63,7 +63,7 @@ internal sealed partial class ScalewayUsageSource(
     private async ValueTask<ProviderAttempt<TRead>> AttemptAsync<TRead>(
         string path,
         Func<byte[], TRead?> parse,
-        Func<EmailAllowanceReason, TRead> failed,
+        Func<EmailProviderReadReason, TRead> failed,
         CancellationToken cancellationToken)
         where TRead : class
     {
@@ -91,8 +91,8 @@ internal sealed partial class ScalewayUsageSource(
                 return new ProviderAttempt<TRead>(read);
             }
 
-            LogReadFailed(path, EmailAllowanceReason.Malformed, (int)response.StatusCode);
-            return new ProviderAttempt<TRead>(failed(EmailAllowanceReason.Malformed));
+            LogReadFailed(path, EmailProviderReadReason.Malformed, (int)response.StatusCode);
+            return new ProviderAttempt<TRead>(failed(EmailProviderReadReason.Malformed));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -101,8 +101,8 @@ internal sealed partial class ScalewayUsageSource(
         catch (OperationCanceledException)
         {
             // HttpClient raises its own timeout as a cancellation the caller did not ask for.
-            LogReadFailed(path, EmailAllowanceReason.Timeout, NoHttpStatus);
-            return new ProviderAttempt<TRead>(failed(EmailAllowanceReason.Timeout));
+            LogReadFailed(path, EmailProviderReadReason.Timeout, NoHttpStatus);
+            return new ProviderAttempt<TRead>(failed(EmailProviderReadReason.Timeout));
         }
         catch (HttpRequestException ex)
         {
@@ -112,25 +112,25 @@ internal sealed partial class ScalewayUsageSource(
         }
         catch (IOException ex)
         {
-            var reason = ex is HttpIOException http ? ReasonFor(http.HttpRequestError) : EmailAllowanceReason.ProviderError;
+            var reason = ex is HttpIOException http ? ReasonFor(http.HttpRequestError) : EmailProviderReadReason.ProviderError;
             LogReadFailed(path, reason, NoHttpStatus);
             return new ProviderAttempt<TRead>(failed(reason));
         }
     }
 
-    private static EmailAllowanceReason ReasonFor(HttpRequestError error) => error is HttpRequestError.NameResolutionError
+    private static EmailProviderReadReason ReasonFor(HttpRequestError error) => error is HttpRequestError.NameResolutionError
         or HttpRequestError.ConnectionError
         or HttpRequestError.SecureConnectionError
         or HttpRequestError.ProxyTunnelError
-        ? EmailAllowanceReason.Unreachable
-        : EmailAllowanceReason.ProviderError;
+        ? EmailProviderReadReason.Unreachable
+        : EmailProviderReadReason.ProviderError;
 
-    private static EmailAllowanceReason ReasonFor(HttpStatusCode status) => status switch
+    private static EmailProviderReadReason ReasonFor(HttpStatusCode status) => status switch
     {
-        HttpStatusCode.Unauthorized => EmailAllowanceReason.Unauthorized,
-        HttpStatusCode.Forbidden => EmailAllowanceReason.Forbidden,
-        HttpStatusCode.TooManyRequests => EmailAllowanceReason.RateLimited,
-        _ => EmailAllowanceReason.ProviderError,
+        HttpStatusCode.Unauthorized => EmailProviderReadReason.Unauthorized,
+        HttpStatusCode.Forbidden => EmailProviderReadReason.Forbidden,
+        HttpStatusCode.TooManyRequests => EmailProviderReadReason.RateLimited,
+        _ => EmailProviderReadReason.ProviderError,
     };
 
     /// <summary>The provider's Retry-After as a delay, read both as seconds and as an HTTP date; null when absent or past.</summary>
@@ -297,5 +297,5 @@ internal sealed partial class ScalewayUsageSource(
 
     [LoggerMessage(3020, LogLevel.Warning,
         "[ScalewayUsageSource] {Read} read failed ({Reason}, HTTP {HttpStatus}) — no URI, body or message logged")]
-    private partial void LogReadFailed(string read, EmailAllowanceReason reason, int httpStatus);
+    private partial void LogReadFailed(string read, EmailProviderReadReason reason, int httpStatus);
 }

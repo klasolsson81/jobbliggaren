@@ -164,7 +164,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.Respond(HttpStatusCode.OK, body);
 
-        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Malformed));
+        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Malformed));
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         var oversized = "{\"monthly_emails_count\":184}" + new string(' ', ScalewayUsageSource.MaxBodyBytes);
         _transport.Respond(HttpStatusCode.OK, oversized, omitContentLength: true);
 
-        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Malformed));
+        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Malformed));
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.Respond(HttpStatusCode.OK, ConsumptionBody(), contentLength: ScalewayUsageSource.MaxBodyBytes + 1L);
 
-        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Malformed));
+        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Malformed));
     }
 
     // ---- the plan ----
@@ -244,7 +244,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.Respond(HttpStatusCode.OK, body);
 
-        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailAllowanceReason.Malformed));
+        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailProviderReadReason.Malformed));
     }
 
     [Fact]
@@ -261,19 +261,19 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.RespondWithUnreadableBody(HttpStatusCode.Forbidden);
 
-        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailAllowanceReason.Forbidden));
+        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailProviderReadReason.Forbidden));
     }
 
     // ---- a refusal ----
 
     [Theory]
-    [InlineData(HttpStatusCode.Unauthorized, EmailAllowanceReason.Unauthorized)]
-    [InlineData(HttpStatusCode.Forbidden, EmailAllowanceReason.Forbidden)]
-    [InlineData(HttpStatusCode.TooManyRequests, EmailAllowanceReason.RateLimited)]
-    [InlineData(HttpStatusCode.NotFound, EmailAllowanceReason.ProviderError)]
-    [InlineData(HttpStatusCode.InternalServerError, EmailAllowanceReason.ProviderError)]
-    [InlineData(HttpStatusCode.ServiceUnavailable, EmailAllowanceReason.ProviderError)]
-    public async Task Attempt_ShouldMapEachRefusal_WithoutReadingItsBody(HttpStatusCode status, EmailAllowanceReason reason)
+    [InlineData(HttpStatusCode.Unauthorized, EmailProviderReadReason.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, EmailProviderReadReason.Forbidden)]
+    [InlineData(HttpStatusCode.TooManyRequests, EmailProviderReadReason.RateLimited)]
+    [InlineData(HttpStatusCode.NotFound, EmailProviderReadReason.ProviderError)]
+    [InlineData(HttpStatusCode.InternalServerError, EmailProviderReadReason.ProviderError)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, EmailProviderReadReason.ProviderError)]
+    public async Task Attempt_ShouldMapEachRefusal_WithoutReadingItsBody(HttpStatusCode status, EmailProviderReadReason reason)
     {
         _transport.RespondWithUnreadableBody(status);
 
@@ -309,11 +309,11 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     // ---- no answer ----
 
     [Theory]
-    [InlineData(HttpRequestError.NameResolutionError, EmailAllowanceReason.Unreachable)]
-    [InlineData(HttpRequestError.ConnectionError, EmailAllowanceReason.Unreachable)]
-    [InlineData(HttpRequestError.SecureConnectionError, EmailAllowanceReason.Unreachable)]
-    [InlineData(HttpRequestError.ResponseEnded, EmailAllowanceReason.ProviderError)]
-    public async Task Attempt_ShouldMapATransportFailure(HttpRequestError error, EmailAllowanceReason reason)
+    [InlineData(HttpRequestError.NameResolutionError, EmailProviderReadReason.Unreachable)]
+    [InlineData(HttpRequestError.ConnectionError, EmailProviderReadReason.Unreachable)]
+    [InlineData(HttpRequestError.SecureConnectionError, EmailProviderReadReason.Unreachable)]
+    [InlineData(HttpRequestError.ResponseEnded, EmailProviderReadReason.ProviderError)]
+    public async Task Attempt_ShouldMapATransportFailure(HttpRequestError error, EmailProviderReadReason reason)
     {
         _transport.Throw(new HttpRequestException(error, "transport said " + BodyMarker));
 
@@ -325,7 +325,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.Throw(new TaskCanceledException("client timeout", new TimeoutException()));
 
-        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Timeout));
+        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Timeout));
     }
 
     [Fact]
@@ -339,7 +339,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
             .AsTask()
             .WaitAsync(TimeSpan.FromSeconds(10), Ct);
 
-        read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Timeout));
+        read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Timeout));
     }
 
     [Fact]
@@ -348,7 +348,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         _transport.RespondWith(() => new StreamContent(
             new FailingStream(new HttpIOException(HttpRequestError.ResponseEnded, "transport said " + BodyMarker))));
 
-        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.ProviderError));
+        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.ProviderError));
     }
 
     [Fact]
@@ -356,7 +356,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.RespondWith(() => new StreamContent(new FailingStream(new IOException("transport said " + BodyMarker))));
 
-        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailAllowanceReason.ProviderError));
+        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailProviderReadReason.ProviderError));
     }
 
     [Fact]

@@ -30,8 +30,8 @@ public enum EmailAllowanceStatus
 /// Why there is no reading. One closed set from the adapter to the browser, so each cause has one wording and
 /// 401 and 403 stay apart: under a send key that also reads, a 401 means sending is probably dead too.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter<EmailAllowanceReason>))]
-public enum EmailAllowanceReason
+[JsonConverter(typeof(JsonStringEnumConverter<EmailProviderReadReason>))]
+public enum EmailProviderReadReason
 {
     /// <summary><c>Email:Provider</c> is not Scaleway. The only reason that is not a failure.</summary>
     NotConfigured,

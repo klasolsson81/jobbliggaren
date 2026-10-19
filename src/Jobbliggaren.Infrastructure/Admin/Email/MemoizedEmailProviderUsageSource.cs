@@ -7,10 +7,10 @@ namespace Jobbliggaren.Infrastructure.Admin.Email;
 /// Reuses each provider read for every viewer, and lets only one of each be in flight (#1981, ADR 0178). The count
 /// and the plan are remembered separately, so one failing never blanks the other.
 /// <list type="bullet">
-///   <item>A success is reused until <see cref="EmailAllowanceLimits.ReuseFor"/> after its own observedAt, and never
+///   <item>A success is reused until <see cref="EmailProviderReadLimits.ReuseFor"/> after its own observedAt, and never
 ///     after: keeping a last good value is the web's concern.</item>
-///   <item>A failure is reused too, for <see cref="EmailAllowanceLimits.ReuseFor"/> or the provider's
-///     <c>Retry-After</c> when that is longer, clamped to <see cref="EmailAllowanceLimits.RetryAfterCap"/>. The send
+///   <item>A failure is reused too, for <see cref="EmailProviderReadLimits.ReuseFor"/> or the provider's
+///     <c>Retry-After</c> when that is longer, clamped to <see cref="EmailProviderReadLimits.RetryAfterCap"/>. The send
 ///     path has no retry, so this read must not add load to a provider that is already refusing.</item>
 ///   <item>The shared read runs on <see cref="CancellationToken.None"/>, bounded by the client's timeout, and each
 ///     caller waits with its own token. A tab that is hidden or closed gives up its wait, never the read the other
@@ -79,7 +79,7 @@ internal sealed class MemoizedEmailProviderUsageSource(
             {
                 var result = await attempt(CancellationToken.None);
                 var reusableUntil = observedAtOf(result.Read) is { } observedAt
-                    ? observedAt + EmailAllowanceLimits.ReuseFor
+                    ? observedAt + EmailProviderReadLimits.ReuseFor
                     : clock.UtcNow + FailureHold(result.RetryAfter);
 
                 lock (_gate)
@@ -104,12 +104,12 @@ internal sealed class MemoizedEmailProviderUsageSource(
 
         private static TimeSpan FailureHold(TimeSpan? retryAfter)
         {
-            if (retryAfter is not { } asked || asked <= EmailAllowanceLimits.ReuseFor)
+            if (retryAfter is not { } asked || asked <= EmailProviderReadLimits.ReuseFor)
             {
-                return EmailAllowanceLimits.ReuseFor;
+                return EmailProviderReadLimits.ReuseFor;
             }
 
-            return asked < EmailAllowanceLimits.RetryAfterCap ? asked : EmailAllowanceLimits.RetryAfterCap;
+            return asked < EmailProviderReadLimits.RetryAfterCap ? asked : EmailProviderReadLimits.RetryAfterCap;
         }
     }
 }

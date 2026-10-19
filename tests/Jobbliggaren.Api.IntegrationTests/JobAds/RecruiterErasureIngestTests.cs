@@ -121,6 +121,17 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     private const string RawPayloadOnlyToken = "Vikströmshamn";
     private const string RawPayloadOnlyExternalId = "erasure-e2e-5";
 
+    // AD 6 — the APPLICATION_URL-only carrier (#2191). Her name is a slug in the employer's
+    // application address (application_details.url) and nowhere else: the sanitizer keeps
+    // application_details out of raw_payload, and the title, body and company are neutral. Delete
+    // the application_url arm and exactly this test goes red.
+    private const string ApplicationUrlOnlySlug = "gunnel-sjoberg";
+    private const string ApplicationUrlOnlyExternalId = "erasure-e2e-6";
+
+    // The sole trader's ad carries an application address too, so the tombstone-shape test proves
+    // Erase() clears a column that HELD a value rather than one that was NULL all along.
+    private const string SoleTraderApplicationUrl = "https://karriar.example.se/jobb/snickare-uppsala";
+
     private readonly SharedPostgresFixture _postgres;
     private string _connectionString = string.Empty;
     private readonly CommandTimeoutRecorder _commandTimeouts = new();
@@ -201,6 +212,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
           "description": { "text": "Vi behöver en snickare till ett husprojekt i Uppsala." },
           "employer": { "name": "{{SoleTraderName}}", "organization_number": "5509281234" },
           "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{SoleTraderExternalId}}",
+          "application_details": { "url": "{{SoleTraderApplicationUrl}}" },
           "publication_date": "2026-07-02T10:00:00Z"
         },{
           "id": "{{TitleOnlyExternalId}}",
@@ -217,6 +229,14 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
           "workplace_address": { "municipality": "{{RawPayloadOnlyToken}}" },
           "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{RawPayloadOnlyExternalId}}",
           "publication_date": "2026-07-05T10:00:00Z"
+        },{
+          "id": "{{ApplicationUrlOnlyExternalId}}",
+          "headline": "Lagerarbetare",
+          "description": { "text": "Plock och pack på vårt lager i Borås." },
+          "employer": { "name": "Lagerlogistik AB", "organization_number": "5560002222" },
+          "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{ApplicationUrlOnlyExternalId}}",
+          "application_details": { "url": "https://karriar.example.se/rekryterare/{{ApplicationUrlOnlySlug}}" },
+          "publication_date": "2026-07-06T10:00:00Z"
         }]
         """;
 
@@ -2616,6 +2636,43 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         return result.Value;
     }
 
+    /// <summary>
+    /// <b><c>job_ads.application_url</c> is matched on that column ALONE (#2191).</b> The employer
+    /// chooses the application address, and a URL path carries names routinely, which is the
+    /// <c>snapshot_url</c> / <c>manual_url</c> argument. Her name lives only there: the sanitizer
+    /// keeps <c>application_details</c> out of <c>raw_payload</c>.
+    /// </summary>
+    [Fact]
+    public async Task An_application_URL_naming_her_is_matched_on_that_column_ALONE_and_erased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var carriers = await ColumnsStillContainingAsync(db, ApplicationUrlOnlySlug, ct);
+            carriers.ShouldBe(["application_url"],
+                "precondition: the slug must live in application_url and nowhere else, or this test "
+                + "would pass through another arm and stop guarding this one.");
+        }
+
+        var probe = await EraseAsync(ApplicationUrlOnlySlug, ct, dryRun: true);
+
+        var match = probe.Matches.ShouldHaveSingleItem();
+        match.ExternalId.ShouldBe(ApplicationUrlOnlyExternalId);
+        match.MatchedChannel.ShouldBe(ErasureMatchChannel.ApplicationUrl,
+            "the operator must see WHICH column carried her, with the address as the evidence.");
+        match.MatchedExcerpt.ShouldContain(ApplicationUrlOnlySlug);
+
+        var response = await EraseAsync(ApplicationUrlOnlySlug, ct);
+
+        response.ErasedExternalIds.ShouldContain(ApplicationUrlOnlyExternalId);
+        using var after = _provider.CreateScope();
+        var afterDb = after.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await ColumnsStillContainingAsync(afterDb, ApplicationUrlOnlySlug, ct)).ShouldBeEmpty();
+    }
+
     // ================================================================================
     // 5. The tombstone's SHAPE — the fitness function over Erase() itself.
     // ================================================================================
@@ -2653,6 +2710,9 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         // row; Erase() clears it explicitly (retention normally already has, but Erase() can run
         // against a still-Active ad).
         ["contacts"] = null,
+
+        // #2191 — the employer-chosen application address; its path can carry a name.
+        ["application_url"] = null,
     };
 
     /// <summary>
@@ -2706,6 +2766,19 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             + "Added a column to the Erased bucket? Say what erased LOOKS LIKE for it. Certifying a "
             + "column as destroyed without asserting it is how a personnummer survived an erasure "
             + "the reply template said had happened.");
+
+        // Counterfactual for application_url: the ad HELD one before the erasure, so the NULL below
+        // is Erase()'s doing and not a column that was never written.
+        using (var before = _provider.CreateScope())
+        {
+            var beforeDb = before.ServiceProvider.GetRequiredService<AppDbContext>();
+            var held = await beforeDb.JobAds.AsNoTracking()
+                .Where(j => j.External!.ExternalId == SoleTraderExternalId)
+                .Select(j => j.ApplicationUrl)
+                .SingleAsync(ct);
+            held.ShouldNotBeNull("ingest must have stored the sole trader's application address.");
+            held.Value.ShouldBe(SoleTraderApplicationUrl);
+        }
 
         // The sole trader: her company name IS her name, and her org.nr IS a personnummer.
         await EraseAsync(SoleTraderName, ct);

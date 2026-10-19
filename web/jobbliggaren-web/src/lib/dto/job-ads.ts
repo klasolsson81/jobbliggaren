@@ -123,9 +123,20 @@ export type AdContactDto = z.infer<typeof adContactDtoSchema>;
 // modal/page render. `.extend()` reuses the remaining list fields (DRY) without
 // mutating the list schema. Neither `description` nor `contacts` is ever absent on
 // the detail wire (`contacts` is [] when the ad holds none).
+//
+// #2191 — `applicationUrl` is the employer's own application page (JobTech
+// `application_details.url`), detail-only like `contacts`: the modal's "Ansök"
+// link reads it and no list row does. Null when the ad has none, which includes
+// every non-Active ad. `.default(null)` keeps this web parsing an API deployed
+// before the field existed. http(s) only and never "", since it is an href.
 export const jobAdDetailDtoSchema = jobAdDtoSchema.extend({
   description: z.string(),
   contacts: z.array(adContactDtoSchema),
+  applicationUrl: z
+    .string()
+    .regex(/^https?:\/\//i)
+    .nullable()
+    .default(null),
 });
 export type JobAdDetailDto = z.infer<typeof jobAdDetailDtoSchema>;
 

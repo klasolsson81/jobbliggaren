@@ -41,6 +41,22 @@ public class JobAdListDtoShapeTests
             "render it). If this fails, the probe is broken or the split has been mis-unified.");
     }
 
+    /// <summary>
+    /// #2191 — the employer's application address is a DETAIL-only member: the modal's "Ansök" link
+    /// reads it, no list row links to it, and the public DTO never carries it (ADR 0166 D10, ADR 0171;
+    /// <c>PublicJobAdDtoContractTests</c> pins that one's whole shape).
+    /// </summary>
+    [Fact]
+    public void List_dto_omits_application_url_detail_dto_keeps_it()
+    {
+        HasPublicProperty(typeof(JobAdDto), "ApplicationUrl").ShouldBeFalse(
+            "JobAdDto is the LIST wire — no list surface renders the Ansök link (#2191).");
+
+        HasPublicProperty(typeof(JobAdDetailDto), "ApplicationUrl").ShouldBeTrue(
+            "JobAdDetailDto is the DETAIL wire — the modal's Ansök link reads it. If this fails, the " +
+            "probe is broken or the field has moved.");
+    }
+
     private static bool HasPublicProperty(Type type, string name) =>
         type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance) is not null;
 }

@@ -378,7 +378,7 @@ public class BrowseCriterionAdsQueryHandlerTests
             facets: TestFacets.FromPayload(payload),
             publishedAt: publishedAt,
             expiresAt: publishedAt.AddDays(60),
-            clock: new FakeDateTimeProvider(publishedAt), declaredContacts: [], extractTerms: TestKeywordExtraction.None);
+            clock: new FakeDateTimeProvider(publishedAt), declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None);
         import.IsSuccess.ShouldBeTrue($"seed: JobAd.Import måste lyckas ({import.Error?.Code})");
         db.JobAds.Add(import.Value);
         db.SaveChanges();

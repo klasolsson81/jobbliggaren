@@ -3,6 +3,7 @@ using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.TestSupport;
+using Microsoft.EntityFrameworkCore;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetJobAd;
@@ -92,7 +93,8 @@ public class GetJobAdQueryHandlerTests
     /// converter — the round-trip a read handler must survive when it re-hydrates the persisted VO.
     /// </summary>
     private static async Task<JobAd> ImportJobAdWithDeclaredContactAsync(
-        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct)
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct,
+        ApplicationUrl? applicationUrl = null)
     {
         var externalId = TestIds.ExternalId();
         var payload = $"{{\"id\":\"{externalId}\"}}";
@@ -111,12 +113,61 @@ public class GetJobAdQueryHandlerTests
             declaredContacts: [declared],
             publishedAt: FakeDateTimeProvider.Default.UtcNow,
             expiresAt: null,
-            clock: FakeDateTimeProvider.Default, extractTerms: TestKeywordExtraction.None).Value;
+            clock: FakeDateTimeProvider.Default, applicationUrl: applicationUrl, extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
         return jobAd;
+    }
+
+    // ── #2191 — the employer's application page on the detail projection ─────────────────────────
+
+    private const string EmployerPage = "https://career.example.se/jobs/4567890";
+
+    [Fact]
+    public async Task Handle_WhenActiveImportedAdHasAnApplicationUrl_ReturnsIt()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var jobAd = await ImportJobAdWithDeclaredContactAsync(
+            db, CancellationToken.None, ApplicationUrl.FromSource(EmployerPage));
+
+        var result = await new GetJobAdQueryHandler(db)
+            .Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
+
+        result.Value.ApplicationUrl.ShouldBe(EmployerPage,
+            "the round-trip through the value converter yields the address the ACL mapped.");
+        result.Value.Url.ShouldBe("https://jobs.klarna.com/job/1", "Url stays the ad's own page.");
+    }
+
+    [Fact]
+    public async Task Handle_WhenTheAdWasArchived_ReturnsNoApplicationUrl()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var jobAd = await ImportJobAdWithDeclaredContactAsync(
+            db, CancellationToken.None, ApplicationUrl.FromSource(EmployerPage));
+        var tracked = await db.JobAds.FirstAsync(j => j.Id == jobAd.Id, CancellationToken.None);
+        tracked.Archive(FakeDateTimeProvider.Default).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var result = await new GetJobAdQueryHandler(db)
+            .Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
+
+        result.Value.ApplicationUrl.ShouldBeNull("an archived ad no longer accepts applications.");
+    }
+
+    [Fact]
+    public async Task Handle_WhenManualAd_ReturnsNoApplicationUrl()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var jobAd = CreateJobAd();
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var result = await new GetJobAdQueryHandler(db)
+            .Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
+
+        result.Value.ApplicationUrl.ShouldBeNull();
     }
 
     [Fact]

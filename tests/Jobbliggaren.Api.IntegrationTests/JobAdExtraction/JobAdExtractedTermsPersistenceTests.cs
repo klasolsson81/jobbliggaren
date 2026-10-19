@@ -83,7 +83,7 @@ public sealed class JobAdExtractedTermsPersistenceTests : IAsyncLifetime
             external, "{\"id\":\"x\"}", TestFacets.FromPayload("{\"id\":\"x\"}"),
             [],
             new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.Zero),
-            new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock, extractTerms: TestKeywordExtraction.None).Value;
+            new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock, applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
     }
 
     private static ExtractedTerms SampleTerms() =>

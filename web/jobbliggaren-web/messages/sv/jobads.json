@@ -194,6 +194,9 @@
       "showLess": "Visa mindre",
       "bodyLabel": "Annonsens innehåll",
       "openAd": "Öppna annonsen",
+      "apply": "Ansök",
+      "sourceAdPlatsbanken": "Visa annonsen på Platsbanken",
+      "sourceAd": "Visa originalannonsen",
       "previousApplications": "Minst {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till företaget.",
       "previousApplicationsLink": "Visa ansökningshistorik",
       "recruiterNoticeLink": "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter."

@@ -25,7 +25,7 @@ public interface IRecruiterErasureMatchQuery
     /// a count cannot be reviewed.
     /// </summary>
     /// <remarks>
-    /// <b>FOUR channels, and each exists because the others miss something.</b>
+    /// <b>The channels, and each exists because the others miss something.</b>
     /// <list type="number">
     /// <item><b>FTS</b> — <c>search_vector @@ websearch_to_tsquery(…)</c>. Her name is a lexeme, so
     /// this reaches forms the substring channel cannot (<i>"Fagerberg, Magnus"</i> vs the query

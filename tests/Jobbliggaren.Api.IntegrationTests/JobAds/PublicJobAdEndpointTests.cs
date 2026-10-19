@@ -59,7 +59,7 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
             publishedAt: clock.UtcNow.AddDays(-publishedDaysAgo),
             expiresAt: expiresInDays is { } days ? clock.UtcNow.AddDays(days) : null,
             clock: clock,
-            extractTerms: TestKeywordExtraction.None).Value;
+            applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(Ct);

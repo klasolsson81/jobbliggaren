@@ -781,6 +781,11 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("ApplicationUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("application_url");
+
                     b.Property<string>("Contacts")
                         .HasColumnType("jsonb")
                         .HasColumnName("contacts");

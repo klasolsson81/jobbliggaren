@@ -34,7 +34,7 @@ public class JobAdPersonnummerRedactionTests
             declaredContacts: [],
             publishedAt: Clock.UtcNow,
             expiresAt: null,
-            clock: Clock, extractTerms: TestKeywordExtraction.None).Value;
+            clock: Clock, applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
 
     private static void Resync(JobAd ad, string title, string description) =>
         ad.UpdateFromSource(
@@ -45,7 +45,7 @@ public class JobAdPersonnummerRedactionTests
             facets: TestFacets.None,
             declaredContacts: [],
             publishedAt: Clock.UtcNow,
-            expiresAt: null, extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
+            expiresAt: null, applicationUrl: null, extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
 
     [Fact]
     public void Import_masks_a_personnummer_in_title_and_description_in_both_spellings()

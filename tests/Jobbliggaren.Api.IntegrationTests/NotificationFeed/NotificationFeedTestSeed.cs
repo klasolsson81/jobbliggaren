@@ -81,7 +81,7 @@ internal static class NotificationFeedTestSeed
             facets: TestFacets.FromPayload(payload),
             publishedAt: clock.UtcNow,
             expiresAt: clock.UtcNow.AddDays(60),
-            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id;

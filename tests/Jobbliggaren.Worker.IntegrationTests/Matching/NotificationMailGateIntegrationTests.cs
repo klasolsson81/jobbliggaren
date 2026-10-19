@@ -349,7 +349,7 @@ public sealed class NotificationMailGateIntegrationTests(WorkerTestFixture fixtu
             ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: payload, facets: TestFacets.FromPayload(payload), declaredContacts: [],
             publishedAt: ingestedAt.AddDays(-1), expiresAt: ingestedAt.AddDays(60),
-            clock: new FixedClock(ingestedAt), extractTerms: extract);
+            clock: new FixedClock(ingestedAt), applicationUrl: null, extractTerms: extract);
         imported.IsSuccess.ShouldBeTrue();
         return imported.Value;
     }

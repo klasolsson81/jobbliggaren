@@ -559,6 +559,36 @@ describe("jobAdDetailDtoSchema (#842 PR4 — detail twin of the list schema)", (
       }).success
     ).toBe(false);
   });
+
+  // #2191 — the employer's application page, detail-only.
+  it("defaults a missing applicationUrl to null (an API deployed before the field)", () => {
+    const parsed = jobAdDetailDtoSchema.parse({ ...baseJobAd, contacts: [] });
+    expect(parsed.applicationUrl).toBeNull();
+  });
+
+  it("accepts an http(s) applicationUrl and null", () => {
+    const url = "https://career.example.se/jobs/4567890";
+    expect(
+      jobAdDetailDtoSchema.parse({ ...baseJobAd, contacts: [], applicationUrl: url }).applicationUrl,
+    ).toBe(url);
+    expect(
+      jobAdDetailDtoSchema.parse({ ...baseJobAd, contacts: [], applicationUrl: null }).applicationUrl,
+    ).toBeNull();
+    // The backend stores the scheme as the source wrote it (ApplicationUrlTests: "HTTPS://EXAMPLE.SE/APPLY").
+    expect(
+      jobAdDetailDtoSchema.parse({ ...baseJobAd, contacts: [], applicationUrl: "HTTPS://EXAMPLE.SE/APPLY" })
+        .applicationUrl,
+    ).toBe("HTTPS://EXAMPLE.SE/APPLY");
+  });
+
+  it.each(["javascript:alert(1)", "data:text/html,x", "mailto:a@b.se", ""])(
+    "rejects applicationUrl %j, since it is rendered as an href",
+    (applicationUrl) => {
+      expect(
+        jobAdDetailDtoSchema.safeParse({ ...baseJobAd, contacts: [], applicationUrl }).success,
+      ).toBe(false);
+    },
+  );
 });
 
 describe("jobAdDtoSchema stays the LIST wire (R2 — contacts never on search; #745 — no description)", () => {
@@ -575,6 +605,15 @@ describe("jobAdDtoSchema stays the LIST wire (R2 — contacts never on search; #
     });
     expect(parsed.success).toBe(true);
     if (parsed.success) expect("contacts" in parsed.data).toBe(false);
+  });
+
+  it("#2191 — does not carry applicationUrl: a stray field is stripped, never exposed", () => {
+    const parsed = jobAdDtoSchema.safeParse({
+      ...baseJobAd,
+      applicationUrl: "https://career.example.se/jobs/4567890",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect("applicationUrl" in parsed.data).toBe(false);
   });
 
   it("#745 — does not carry description: a stray description field is stripped, never exposed", () => {

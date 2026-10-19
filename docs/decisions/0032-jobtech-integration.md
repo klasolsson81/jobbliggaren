@@ -1753,3 +1753,59 @@ upsert, no loss), and it is a separate change-reason, tracked in #2056.
 - PR #2054; `JobTechSwedishDateTimeConverter`, `JobAd.UpdateFromSource`, `SwedishCalendar`
 - §4 (the original contract), Amendment 2026-05-13 (`updated-after`), Amendment 2026-05-16
   (snapshot truncation and convergence), Amendment 2026-07-26 §C2/§C3/§C5 (the retention axis, one home)
+
+## Amendment 2026-10-19 - the employer's application page is kept (#2191)
+
+**Status:** Accepted - adds one source field to §4's ingest contract. It changes no retention rule
+for any existing column.
+
+### D1 - what is kept, and why
+
+`application_details.url` is the employer's own application page ("Address to employers application
+web adress", JobTech `AdFields.md`, read 2026-10-19). Until now the ACL read it only as the last
+fallback for `job_ads.url`, after `webpage_url` and `source_links`, and then dropped it. The job
+modal's "Ansök" link needs it (ADR 0053 Amendment 2026-10-19). Measured 2026-10-19 on the public
+JobSearch API, counts only: of the 1000 newest ads, 798 carry an http(s) value, none on
+arbetsformedlingen.se and none equal to `webpage_url`; 196 carry only `application_details.email`.
+
+It is stored as `job_ads.application_url` (migration `AddJobAdApplicationUrl`, nullable
+`varchar(2000)`), an **ordinary column written by the aggregate**, never derived from `raw_payload`
+(#841). The sanitizer keeps `application_details` out of `raw_payload` as before (§8 Amendment
+2026-05-12), so the address lives in this column alone.
+
+### D2 - the value object owns the rules
+
+`ApplicationUrl.FromSource` is the one normaliser; the ACL does no filtering of its own. It is total -
+a refused value is null, never a failed import, since `Skipped` would cost the user a valid ad. It
+refuses anything but an absolute http(s) URL with a host (the value is an `href`, the TD-80 rule `Url`
+follows), any `@` or `%40` (an embedded email or userinfo would put a recruiter's address on the row),
+a validated personnummer (AGENTS.md §5), and more than 2000 characters. `email`, `via_af`,
+`reference`, `information` and `other` are still not read.
+
+### D3 - §4 changes: both transitions write it
+
+`JobAd.Import` and `UpdateFromSource` take it as a **required** parameter, like the facets and
+contacts. There is no PRESERVE: a source that drops the address clears it. Existing listed ads
+get it from the nightly snapshot sync, which rewrites every listed ad; there is no data migration.
+
+### D4 - purpose and retention
+
+The purpose is "apply here", which ends when the ad stops accepting applications. The column is
+therefore held **only while the ad is Active**: `Archive()`, both bulk archival writers
+(`ExpireJobAdsJob`, `JobAdSnapshotMissTracker`) and `Erase()` clear it, `UpdateFromSource` on a
+non-Active ad writes null, and `RecruiterContactRetentionTests` binds all three archival writers to
+that rule. It is classified `Erased` in `ErasureCascadeRegistry` and searched in the `JobAds` channel,
+with its own `ErasureMatchChannel.ApplicationUrl` evidence, because the employer chooses the address
+and a URL path carries names.
+
+### D5 - where it is read
+
+On `JobAdDetailDto` only. It is not on the list `JobAdDto` and not on `PublicJobAdDto`; the JSON-LD
+still never emits `url` or `directApply` (ADR 0171), and the public page is untouched (ADR 0166 D10).
+
+### Referenser
+
+- #2191; `ApplicationUrl`, `JobAd.Import` / `UpdateFromSource`, `PlatsbankenJobSource`,
+  `RecruiterErasureMatchQuery`
+- §4, Amendment 2026-05-12 (§8 sanitizer), Amendment 2026-07-26 §C2 (retention, one home),
+  ADR 0053 Amendment 2026-10-19 (the "Ansök" link)

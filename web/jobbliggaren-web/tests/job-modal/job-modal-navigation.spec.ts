@@ -78,6 +78,39 @@ test("focus starts on the close button and Tab stays inside the modal", async ({
   await expect(close).toBeFocused();
 });
 
+// #2191 (ADR 0053 Amendment 2026-10-19) — with the employer's application page, Ansök takes the primary's
+// place, the footer stays one row, and the ad itself is linked from the header.
+test("with an application page the footer is one row ending in Ansök, and the header links to the ad", async ({ page }) => {
+  const employerPage = "https://karriar.example.test/jobb/101";
+  harness.applicationPages.set(ADS.open.id, employerPage);
+  await page.goto("/jobb");
+  await rowLink(page, ADS.open).click();
+  const modal = jobModal(page, ADS.open);
+
+  const apply = modal.getByRole("link", { name: "Ansök" });
+  await expect(apply).toHaveAttribute("href", employerPage);
+  await expect(apply).toHaveAttribute("target", "_blank");
+  await expect(apply).toHaveClass(/jp-btn--primary/);
+  await expect(modal.locator(".jp-modal__foot")).not.toContainText("Öppna annonsen");
+
+  const source = modal.locator(".jp-modal__head").getByRole("link", { name: "Visa originalannonsen" });
+  await expect(source).toHaveAttribute("href", /^https:\/\/example\.test\/annons\//);
+  await expect(source).toHaveAttribute("target", "_blank");
+
+  const tops = await modal
+    .locator(".jp-modal__foot .jp-btn")
+    .evaluateAll((controls) => controls.map((c) => Math.round(c.getBoundingClientRect().top)));
+  expect(tops.length).toBeGreaterThanOrEqual(3);
+  expect(new Set(tops).size, "the footer's controls share one row").toBe(1);
+
+  // The header link precedes Stäng in the DOM, so Shift+Tab reaches it first; the next wraps to Ansök, the last control.
+  await modal.getByRole("button", { name: "Stäng" }).focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(source).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(apply).toBeFocused();
+});
+
 test("back closes the modal and forward opens it again", async ({ page }) => {
   await openFromList(page, "/jobb", ADS.open);
   await page.goBack();

@@ -522,7 +522,7 @@ public class BackgroundMatchingJobIntegrationTests(WorkerTestFixture fixture)
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: publishedAt,
             expiresAt: publishedAt.AddDays(60),
-            clock: new FixedClock(Now), declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value; // CreatedAt = Now (deterministic ingest time)
+            clock: new FixedClock(Now), declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value; // CreatedAt = Now (deterministic ingest time)
 
         if (terms is not null)
             jobAd.SetExtractedTerms(terms);

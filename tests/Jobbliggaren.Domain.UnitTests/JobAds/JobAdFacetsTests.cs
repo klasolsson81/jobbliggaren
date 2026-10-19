@@ -99,7 +99,7 @@ public class JobAdFacetsTests
                 organizationNumber: "5592804784"),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(30),
-            clock: Clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None);
+            clock: Clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None);
 
         var jobAd = result.Value;
 
@@ -130,7 +130,7 @@ public class JobAdFacetsTests
             facets: new JobAdFacets("Ssyk_old", "Grp_old", "Kommun_old", "Lan_old", null, null, "5560000000"),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(30),
-            clock: Clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: Clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
 
         var result = jobAd.UpdateFromSource(
             title: "Senior systemutvecklare",
@@ -139,7 +139,7 @@ public class JobAdFacetsTests
             rawPayload: "{\"v\":2}",
             facets: new JobAdFacets("Ssyk_new", "Grp_new", "Kommun_new", "Lan_new", "Emp_new", "Wt_new", "5592804784"),
             publishedAt: Now.AddDays(-1),
-            expiresAt: Now.AddDays(60), declaredContacts: [], extractTerms: TestKeywordExtraction.None);
+            expiresAt: Now.AddDays(60), declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None);
 
         result.IsSuccess.ShouldBeTrue();
         jobAd.RawPayload.ShouldBe("{\"v\":2}");
@@ -168,7 +168,7 @@ public class JobAdFacetsTests
             facets: new JobAdFacets("Ssyk_1", null, "Kommun_1", null, null, null, "5560000000"),
             publishedAt: Now.AddDays(-1),
             expiresAt: null,
-            clock: Clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: Clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
 
         jobAd.UpdateFromSource(
             title: "Systemutvecklare",
@@ -177,7 +177,7 @@ public class JobAdFacetsTests
             rawPayload: "{\"v\":2}",
             facets: JobAdFacets.None,
             publishedAt: Now.AddDays(-1),
-            expiresAt: null, declaredContacts: [], extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
+            expiresAt: null, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
 
         jobAd.SsykConceptId.ShouldBeNull("the source stopped sending it — the column must follow");
         jobAd.MunicipalityConceptId.ShouldBeNull();
@@ -197,7 +197,7 @@ public class JobAdFacetsTests
             facets: null!,
             publishedAt: Now.AddDays(-1),
             expiresAt: null,
-            clock: Clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None));
+            clock: Clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None));
     }
 
     [Fact]

@@ -272,14 +272,15 @@ internal sealed partial class PlatsbankenJobSource(
         // (whole-record erasure) — that residual is disclosed, not hidden (D12).
         var headline = hit.Headline?.Trim();
         var description = hit.Description?.Text?.Trim();
-        // sec-Min-1: filtrera bort mailto:-länkar (application_details.url-fallback
-        // kan vara `mailto:rekryterare@acme.se?subject=Job` — det är PII vi inte vill
-        // persistera i job_ads.url-kolumnen).
+        // sec-Min-1: filtrera bort mailto:-länkar.
         //
         // v2-prioritering: webpage_url är top-level i v2 (web-verifierat 2026-05-13).
-        // source_links är v1-fallback om legacy JobTech återaktiveras. application_details.url
-        // är sista fallback (sällan satt — kan vara mailto).
-        var url = FirstNonMailtoUrl(hit.WebpageUrl, hit.SourceLinks, hit.ApplicationDetails?.Url);
+        // source_links är v1-fallback om legacy JobTech återaktiveras.
+        var url = FirstNonMailtoUrl(hit.WebpageUrl, hit.SourceLinks);
+        // #2191 — application_details.url is the employer's own application page.
+        // ApplicationUrl.FromSource owns every rule (scheme, '@', personnummer, length); the ACL does
+        // no filtering of its own, so there is one normaliser and no second one to forget.
+        var applicationUrl = ApplicationUrl.FromSource(hit.ApplicationDetails?.Url);
         var company = hit.Employer?.Name?.Trim();
         // Npgsql timestamptz requires Offset == 0.
         var publishedAt = hit.PublicationDate.Value.ToUniversalTime();
@@ -308,6 +309,7 @@ internal sealed partial class PlatsbankenJobSource(
             CompanyName: company,
             Description: description,
             Url: url,
+            ApplicationUrl: applicationUrl,
             PublishedAt: publishedAt,
             ExpiresAt: expiresAt,
             SanitizedRawPayload: sanitized,
@@ -486,8 +488,7 @@ internal sealed partial class PlatsbankenJobSource(
 
     private static string? FirstNonMailtoUrl(
         string? webpageUrl,
-        IReadOnlyList<JobTechSourceLink>? sourceLinks,
-        string? applicationDetailsUrl)
+        IReadOnlyList<JobTechSourceLink>? sourceLinks)
     {
         // v2-prioritet: webpage_url först.
         if (IsValidNonMailto(webpageUrl))
@@ -502,10 +503,6 @@ internal sealed partial class PlatsbankenJobSource(
                     return link.Url;
             }
         }
-
-        // Sista fallback: application_details.url (kan vara mailto i prod-data).
-        if (IsValidNonMailto(applicationDetailsUrl))
-            return applicationDetailsUrl;
 
         return null;
     }

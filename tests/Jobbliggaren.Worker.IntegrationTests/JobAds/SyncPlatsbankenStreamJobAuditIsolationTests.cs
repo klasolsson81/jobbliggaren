@@ -232,6 +232,7 @@ $fn$ LANGUAGE plpgsql;";
             CompanyName: "Test Company AB",
             Description: "beskrivning",
             Url: $"https://example.com/jobs/{externalId}",
+            ApplicationUrl: null,
             PublishedAt: Now.AddDays(-1),
             ExpiresAt: Now.AddDays(30),
             SanitizedRawPayload: rawPayload,

@@ -10,6 +10,12 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     public Company Company { get; private set; } = null!;
     public string Description { get; private set; } = null!;
     public string Url { get; private set; } = null!;
+
+    // The employer's own application page (JobTech application_details.url), distinct from Url, which
+    // is the ad's page at the source. Held only while the ad is Active: its purpose is "apply here",
+    // which ends when the ad stops accepting applications, so Archive(), Erase() and the two bulk
+    // archival writers clear it. An ordinary column, never derived from RawPayload (#841).
+    public ApplicationUrl? ApplicationUrl { get; private set; }
     public JobSource Source { get; private set; } = null!;
     public JobAdStatus Status { get; private set; } = null!;
     public DateTimeOffset PublishedAt { get; private set; }
@@ -155,7 +161,8 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         DateTimeOffset publishedAt,
         DateTimeOffset? expiresAt,
         IDateTimeProvider clock,
-        JobAdTermExtraction extractTerms)
+        JobAdTermExtraction extractTerms,
+        ApplicationUrl? applicationUrl)
     {
         ArgumentNullException.ThrowIfNull(external);
         ArgumentNullException.ThrowIfNull(facets);
@@ -179,6 +186,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
             External = external,
         };
         jobAd.SetSourcePayload(rawPayload, facets, declaredContacts, extractTerms);
+        jobAd.SetApplicationUrl(applicationUrl);
         jobAd.RaiseDomainEvent(new JobAdImportedDomainEvent(
             id, external.Source.Value, external.ExternalId, jobAd.Title, now));
         return Result.Success(jobAd);
@@ -208,6 +216,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         // (no non-Active ad holds a contact), because three writers on one invariant is a rule
         // that needs a test, not a convention.
         Contacts = null;
+        ApplicationUrl = null;
 
         RaiseDomainEvent(new JobAdArchivedDomainEvent(Id, clock.UtcNow));
         return Result.Success();
@@ -228,7 +237,8 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     /// (the FTS source — the STORED generated <c>search_vector</c> recomputes to empty by itself,
     /// PG18 §5.4); <see cref="Company"/> (an enskild firma's name IS a person's name — see
     /// <see cref="JobAds.Company.Erased"/>); <see cref="Url"/> (a JobTech ad URL is not PII, but a
-    /// tombstone that still links to the live ad is not a tombstone); <see cref="RawPayload"/>;
+    /// tombstone that still links to the live ad is not a tombstone); <see cref="ApplicationUrl"/>
+    /// (the employer chose it, and its path can carry a name); <see cref="RawPayload"/>;
     /// <see cref="OrganizationNumber"/> (explicitly — see the comment at the assignment); and
     /// <see cref="ExtractedTerms"/>, where the recruiter's name survives <i>verbatim</i> as a
     /// Display/MatchedOn surface form (F-B — it is C#-written, so it does NOT self-heal on a
@@ -263,6 +273,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         Title = string.Empty;
         Description = string.Empty;
         Url = string.Empty;
+        ApplicationUrl = null;
         Company = Company.Erased;
         RawPayload = null;
 
@@ -329,14 +340,14 @@ public sealed class JobAd : AggregateRoot<JobAdId>
 
     /// <summary>
     /// #842 Tier A — the erasure command's belt-to-retention's-braces sweep (b1 §4.4): clear a
-    /// NON-Active ad's contacts. Retention (Archive/the bulk writers) should already have left
+    /// NON-Active ad's contacts and application address (#2191). Retention (Archive/the bulk writers) should already have left
     /// nothing here, so this normally touches zero rows — but a backstop that exists only in a
     /// fitness test is a convention, and this repo has shipped "a rule nobody enforced" three
     /// times. Refuses on an Active ad BY TYPE: a surgical contact clear is never the remedy for a
     /// live ad (the funnel would rewrite it within ten minutes and we would have confirmed an
     /// erasure the nightly sync undoes — the B1 defect). The live-ad remedy is Erase().
     /// </summary>
-    public Result ClearContactsRetentionBackstop()
+    public Result ClearRetentionBackstop()
     {
         if (Status == JobAdStatus.Active)
             return Result.Failure(
@@ -344,6 +355,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
                     "Kontakter på en aktiv annons rensas inte kirurgiskt — radera hela annonsen."));
 
         Contacts = null;
+        ApplicationUrl = null;
         return Result.Success();
     }
 
@@ -364,7 +376,8 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         IReadOnlyList<AdContact> declaredContacts,
         DateTimeOffset publishedAt,
         DateTimeOffset? expiresAt,
-        JobAdTermExtraction extractTerms)
+        JobAdTermExtraction extractTerms,
+        ApplicationUrl? applicationUrl)
     {
         ArgumentNullException.ThrowIfNull(facets);
         ArgumentNullException.ThrowIfNull(declaredContacts);
@@ -407,9 +420,16 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         PublishedAt = publishedAt;
         ExpiresAt = expiresAt;
         SetSourcePayload(rawPayload, facets, declaredContacts, extractTerms);
+        SetApplicationUrl(applicationUrl);
 
         return Result.Success();
     }
+
+    // Written on every Import/UpdateFromSource with no PRESERVE: a source that drops the address
+    // clears it. Null on a non-Active ad (the same write gate as Contacts: an archived ad that is
+    // still listed must not regain it overnight).
+    private void SetApplicationUrl(ApplicationUrl? applicationUrl) =>
+        ApplicationUrl = Status == JobAdStatus.Active ? applicationUrl : null;
 
     /// <summary>
     /// #841 — THE drift guard, and it is a type-system guarantee rather than a convention.

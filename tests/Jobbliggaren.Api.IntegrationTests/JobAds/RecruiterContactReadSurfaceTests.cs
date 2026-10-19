@@ -92,7 +92,7 @@ public sealed class RecruiterContactReadSurfaceTests(ApiFactory factory)
             declaredContacts: [declared],
             publishedAt: clock.UtcNow,
             expiresAt: clock.UtcNow.AddDays(30),
-            clock: clock, extractTerms: TestKeywordExtraction.None).Value;
+            clock: clock, applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);

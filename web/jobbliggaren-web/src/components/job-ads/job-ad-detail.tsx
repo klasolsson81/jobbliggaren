@@ -13,6 +13,7 @@ import { JobAdMatchSection } from "./job-ad-match-section";
 import { RecruiterContactBlock } from "./recruiter-contact-block";
 import { AdDescriptionExcerpt } from "./ad-description-excerpt";
 import { JobAdDetailMeta } from "./job-ad-detail-meta";
+import { JobAdSourceLink } from "./job-ad-source-link";
 import { formatAdDescription } from "./format-ad-description";
 import contactLinkStyles from "./recruiter-contact-link.module.css";
 
@@ -131,6 +132,7 @@ export function JobAdDetail({
             <h1 tabIndex={-1} className="jp-modal__title">{jobAd.title}</h1>
             <p className="jp-modal__company">{jobAd.companyName}</p>
             <JobAdDetailMeta jobAd={jobAd} />
+            <JobAdSourceLink jobAd={jobAd} />
             {/* #1000 (V1) — INGEN separat BEVAKAR-tagg i modal-headern. Den vore en
                 load-time-snapshot (Server Component-prop) medan follow-knappen är ett
                 live client-island som medvetet INTE revaliderar medan modalen är öppen
@@ -222,15 +224,29 @@ export function JobAdDetail({
           {userActions && (
             <HarAnsoktButton jobAdId={jobAd.id} initialApplied={userActions.applied} />
           )}
-          {jobAd.url && (
+          {/* #2191 — with the employer's application page, "Ansök" takes the primary's place and the ad
+              page moves to the header (JobAdSourceLink), so the footer stays one row (DESIGN.md §6,
+              ADR 0053 Amendment 2026-10-19). */}
+          {jobAd.applicationUrl ? (
             <a
-              href={jobAd.url}
+              href={jobAd.applicationUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="jp-btn jp-btn--primary"
             >
-              <ExternalLink size={14} aria-hidden="true" /> {tUi("detail.openAd")}
+              <ExternalLink size={14} aria-hidden="true" /> {tUi("detail.apply")}
             </a>
+          ) : (
+            jobAd.url && (
+              <a
+                href={jobAd.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="jp-btn jp-btn--primary"
+              >
+                <ExternalLink size={14} aria-hidden="true" /> {tUi("detail.openAd")}
+              </a>
+            )
           )}
         </div>
       </div>

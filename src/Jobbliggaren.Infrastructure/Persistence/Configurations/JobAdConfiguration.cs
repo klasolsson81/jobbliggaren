@@ -18,6 +18,13 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         builder.Property(j => j.Title).HasMaxLength(300).IsRequired();
         builder.Property(j => j.Description).IsRequired();
         builder.Property(j => j.Url).HasMaxLength(2000).IsRequired();
+
+        // Nullable: EF never invokes the converter for null. FromTrusted because every write went
+        // through ApplicationUrl.FromSource.
+        builder.Property(j => j.ApplicationUrl)
+            .HasConversion(a => a!.Value, value => ApplicationUrl.FromTrusted(value))
+            .HasColumnName("application_url")
+            .HasMaxLength(ApplicationUrl.MaxLength);
         builder.Property(j => j.PublishedAt).IsRequired();
         builder.Property(j => j.ExpiresAt);
         builder.Property(j => j.CreatedAt).IsRequired();

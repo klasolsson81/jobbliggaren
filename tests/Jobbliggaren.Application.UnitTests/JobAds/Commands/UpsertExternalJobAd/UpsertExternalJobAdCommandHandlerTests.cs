@@ -34,13 +34,15 @@ public class UpsertExternalJobAdCommandHandlerTests
         string description = "Vi söker en backend-utvecklare.",
         string url = "https://example.com/jobs/1",
         IReadOnlyList<JobAdRequirement>? requirements = null,
-        IReadOnlyList<AdContact>? declaredContacts = null) =>
+        IReadOnlyList<AdContact>? declaredContacts = null,
+        ApplicationUrl? applicationUrl = null) =>
         new(
             ExternalId: externalId,
             Title: title,
             CompanyName: companyName,
             Description: description,
             Url: url,
+            ApplicationUrl: applicationUrl,
             PublishedAt: Now.AddDays(-1),
             ExpiresAt: Now.AddDays(30),
             SanitizedRawPayload: "{\"id\":\"ext-1\"}",
@@ -431,12 +433,70 @@ public class UpsertExternalJobAdCommandHandlerTests
                  && i.Requirements.Any(r => r.ConceptId == "Rq01_must_aaa")));
     }
 
+    // #2191 — the employer's application page travels from the ACL's item into the aggregate on both paths.
+
+    private static readonly ApplicationUrl EmployerPage =
+        ApplicationUrl.FromSource("https://career.example.se/jobs/4567890")!;
+
+    [Fact]
+    public async Task Handle_WithNewExternalJobAd_PersistsItsApplicationUrl()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var ct = TestContext.Current.CancellationToken;
+        var handler = CreateHandler(db);
+        var item = ValidItem("ext-apply", applicationUrl: EmployerPage);
+
+        var result = await handler.Handle(
+            new UpsertExternalJobAdCommand(JobSource.Platsbanken, "ext-apply", item), ct);
+
+        result.Value.ShouldBe(UpsertOutcome.Added);
+        var persisted = await db.JobAds.AsNoTracking()
+            .FirstAsync(j => j.External!.ExternalId == "ext-apply", ct);
+        persisted.ApplicationUrl.ShouldBe(EmployerPage);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_OnUpdatePath_WritesTheItemsApplicationUrl_WithoutPreserving(bool itemCarriesOne)
+    {
+        var seedDb = TestAppDbContextFactory.Create();
+        var ct = TestContext.Current.CancellationToken;
+        var old = ApplicationUrl.FromSource("https://career.example.se/jobs/old")!;
+        await SeedExistingExternalJobAdAsync(seedDb, "ext-apply-upd", "Title", ct, applicationUrl: old);
+
+        var db = Substitute.For<IAppDbContext>();
+        db.JobAds.Returns(seedDb.JobAds);
+        var saveCallCount = 0;
+        db.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                saveCallCount++;
+                if (saveCallCount == 1)
+                    throw new DbUpdateException("UNIQUE-violation simulerad");
+                return Task.FromResult(1);
+            });
+        var inspector = Substitute.For<IDbExceptionInspector>();
+        inspector.IsUniqueConstraintViolation(Arg.Any<DbUpdateException>()).Returns(true);
+
+        var handler = CreateHandler(db, inspector);
+        var item = ValidItem("ext-apply-upd", applicationUrl: itemCarriesOne ? EmployerPage : null);
+
+        var result = await handler.Handle(
+            new UpsertExternalJobAdCommand(JobSource.Platsbanken, "ext-apply-upd", item), ct);
+
+        result.Value.ShouldBe(UpsertOutcome.Updated);
+        var existing = await seedDb.JobAds.FirstAsync(j => j.External!.ExternalId == "ext-apply-upd", ct);
+        existing.ApplicationUrl.ShouldBe(itemCarriesOne ? EmployerPage : null);
+    }
+
     private static async Task SeedExistingExternalJobAdAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
         string externalId,
         string title,
         CancellationToken ct,
-        DateTimeOffset? publishedAt = null)
+        DateTimeOffset? publishedAt = null,
+        ApplicationUrl? applicationUrl = null)
     {
         var company = Company.Create("Klarna").Value;
         var external = ExternalReference.Create(JobSource.Platsbanken, externalId).Value;
@@ -445,7 +505,7 @@ public class UpsertExternalJobAdCommandHandlerTests
             title, company, "Beskrivning", "https://example.com/jobs/seed",
             external, "{\"id\":\"seed\"}", TestFacets.FromPayload("{\"id\":\"seed\"}"),
             [],
-            publishedAt ?? Now.AddDays(-1), Now.AddDays(30), clock, extractTerms: TestKeywordExtraction.None).Value;
+            publishedAt ?? Now.AddDays(-1), Now.AddDays(30), clock, applicationUrl: applicationUrl, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
     }

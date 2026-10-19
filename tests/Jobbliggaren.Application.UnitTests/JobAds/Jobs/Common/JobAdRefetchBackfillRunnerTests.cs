@@ -62,7 +62,7 @@ public class JobAdRefetchBackfillRunnerTests
             facets: TestFacets.FromPayload("{\"id\":\"" + externalId + "\"}"),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(30),
-            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
 
     private static JobAdImportItem RefetchedItem(string externalId)
     {
@@ -76,6 +76,7 @@ public class JobAdRefetchBackfillRunnerTests
             CompanyName: "Acme",
             Description: "Beskrivning",
             Url: $"https://example.com/{externalId}",
+            ApplicationUrl: null,
             PublishedAt: Now.AddDays(-1),
             ExpiresAt: Now.AddDays(30),
             SanitizedRawPayload: payload,

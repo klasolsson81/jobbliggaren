@@ -728,7 +728,7 @@ public class CompanyWatchCriterionScanJobIntegrationTests(WorkerTestFixture fixt
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: createdAt.AddHours(-1),
             expiresAt: createdAt.AddDays(60),
-            clock: new FixedClock(createdAt), declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: new FixedClock(createdAt), declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(Ct);
         return jobAd.Id;

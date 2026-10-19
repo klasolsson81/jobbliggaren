@@ -28,7 +28,7 @@ public class JobAdEraseTests
             facets: TestFacets.From(organizationNumber: SoleTraderOrgNr),
             publishedAt: Clock.UtcNow,
             expiresAt: null,
-            clock: Clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: Clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
 
     [Fact]
     public void Erase_clears_every_free_text_surface_and_marks_the_ad_Erased()
@@ -165,7 +165,9 @@ public class JobAdEraseTests
             rawPayload: """{"id":"ext-1","employer":{"name":"Acme AB"}}""",
             facets: TestFacets.From(organizationNumber: SoleTraderOrgNr),
             publishedAt: Clock.UtcNow,
-            expiresAt: null, declaredContacts: [], extractTerms: TestKeywordExtraction.None);
+            expiresAt: null, declaredContacts: [],
+            applicationUrl: ApplicationUrl.FromSource("https://karriar.acme.se/jobb/anna-karlsson"),
+            extractTerms: TestKeywordExtraction.None);
 
         result.IsFailure.ShouldBeTrue(
             "if this passes, the 02:00 sync writes her address back and we have lied to her.");
@@ -174,6 +176,7 @@ public class JobAdEraseTests
         ad.Description.ShouldBeEmpty("and nothing may be written before the refusal, either.");
         ad.Title.ShouldBeEmpty();
         ad.RawPayload.ShouldBeNull();
+        ad.ApplicationUrl.ShouldBeNull();
         ad.Status.ShouldBe(JobAdStatus.Erased);
     }
 

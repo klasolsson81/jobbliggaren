@@ -111,6 +111,11 @@ public sealed record JobAdRemoval(
 /// </para>
 ///
 /// <para>
+/// <see cref="ApplicationUrl"/> is the employer's own application page, already passed through
+/// <c>ApplicationUrl.FromSource</c>; null when the source carries none or it was refused.
+/// </para>
+///
+/// <para>
 /// <see cref="PublishedAt"/>/<see cref="ExpiresAt"/> are the instants the source names, normalised to
 /// <c>Offset == 0</c> (Npgsql <c>timestamptz</c>). A source's time-zone convention is ACL-internal and
 /// never crosses this port.
@@ -133,6 +138,7 @@ public sealed record JobAdImportItem(
     string CompanyName,
     string Description,
     string Url,
+    ApplicationUrl? ApplicationUrl,
     DateTimeOffset PublishedAt,
     DateTimeOffset? ExpiresAt,
     string SanitizedRawPayload,

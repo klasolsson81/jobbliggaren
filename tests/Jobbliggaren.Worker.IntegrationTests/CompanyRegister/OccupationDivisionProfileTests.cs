@@ -333,7 +333,7 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
             expiresAt: T0.AddDays(60),
             clock: new FixedClock(T0.AddDays(-2)),
             declaredContacts: [],
-            extractTerms: TestKeywordExtraction.None).Value;
+            applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
         return jobAd.Id;

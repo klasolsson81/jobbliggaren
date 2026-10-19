@@ -86,7 +86,7 @@ public class GetActivityReportLocationIntegrationTests
             facets: TestFacets.FromPayload(rawPayload),
             publishedAt: new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
             expiresAt: null,
-            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         return jobAd;
     }

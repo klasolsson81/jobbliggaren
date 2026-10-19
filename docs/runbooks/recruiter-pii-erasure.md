@@ -126,7 +126,7 @@ arm that is not, does not.
 
 Anything not org.nr-shaped falls back to the free-text channels; nothing is guessed.
 
-The ads are matched on **four channels**, and each exists because the others
+The ads are matched on these channels, and each exists because the others
 miss something:
 
 1. **Full-text search** (`search_vector @@ websearch_to_tsquery`) — the exposure a
@@ -146,6 +146,11 @@ miss something:
    **Forced by the same payload-retention logic as channel 3** (ADR 0032 Amendment 2026-07-26 §C2):
    the materialised `organization_number` column (#841) is the ONLY place a sole
    trader's org.nr — which is her personnummer — survives in the row.
+5. **Substring over `application_url`** (#2191) — the employer's own application
+   address. The employer chooses it and a URL path carries names routinely, and it
+   is in no other column: the sanitizer keeps `application_details` out of
+   `raw_payload`. A hit shows `matchedChannel: "ApplicationUrl"` with the address as
+   the excerpt.
 
 The **cascade surfaces** are matched separately and reported per surface:
 `recent_job_searches.q` (word boundary — see below) + `employer_list` (exact
@@ -187,6 +192,13 @@ a false negative costs a false confirmation to a named person.
 > grammar, so this is the likeliest shape of a miss on this surface (#1436). If a subject
 > tells you her name is in a search filter and the dry run reports zero, run it again with
 > the underscored form as a second identifier.
+
+> **URL columns hold a name as a slug.** `job_ads.application_url`, `applications.snapshot_url`
+> and `applications.manual_url` match the identifier as written, so `gunnel-sjoberg` in a URL
+> path is not reached by a request for `Gunnel Sjöberg`. Run the dry run again with the slug
+> forms as further identifiers: lower case, å and ä as `a`, ö as `o`, é as `e`, and å, ä and
+> ö percent-encoded (`%c3%a5`, `%c3%a4`, `%c3%b6`); the space as `-`, `.`, `_`, `+` and `%20`,
+> and the name written together.
 
 > ⛔ **THE ENCRYPTED COLUMNS AND SCREENSHOT PIXELS ARE NOT SEARCHED; DISCLOSE BOTH.**
 > `applications.cover_letter`, `application_notes.content`, `follow_ups.note`,
@@ -308,11 +320,11 @@ reviewed nothing while irreversibly destroying 4 127 ads.
 ### 2.4 What it does, and why it is provable
 
 It deletes the **carrier**, not the **string**. `JobAd.Erase` clears `title`,
-`description`, `company_name`, `url`, `raw_payload` and `extracted_terms` in one
-transition, and sets `status = 'Erased'`. The STORED `search_vector` recomputes
-to empty by itself, `extracted_lexemes` follows, and the seven
-`raw_payload`-derived generated columns go NULL with it — among them
-`organization_number`, which for an enskild firma **may be a personnummer**.
+`description`, `company_name`, `url`, `application_url`, `raw_payload`,
+`contacts`, `organization_number` and `extracted_terms` in one transition, and
+sets `status = 'Erased'`. The STORED `search_vector` recomputes to empty by
+itself and `extracted_lexemes` follows. `organization_number` is cleared
+explicitly because for an enskild firma it **may be a personnummer**.
 
 So there is **no recall question, no obfuscation question and no image-embedded
 question**, and it reaches the recruiter's **name**, which no regex ever will.

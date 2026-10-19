@@ -64,7 +64,7 @@ public class GetPublicJobAdCatalogueQueryHandlerTests
             publishedAt: publishedAt,
             expiresAt: expiresAt,
             clock: Clock,
-            extractTerms: TestKeywordExtraction.None).Value;
+            applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
     }
 
     private static async Task<JobAd[]> SeedAsync(AppDbContext db, params JobAd[] ads)

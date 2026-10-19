@@ -226,7 +226,7 @@ public class CriterionNewAdHandlersTests
             facets: TestFacets.FromPayload(payload),
             publishedAt: T0,
             expiresAt: T0.AddDays(60),
-            clock: new FixedClock(hitAt.AddMinutes(-5)), declaredContacts: [], extractTerms: TestKeywordExtraction.None)
+            clock: new FixedClock(hitAt.AddMinutes(-5)), declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None)
             .Value;
         db.JobAds.Add(ad);
         db.CompanyWatchCriterionAdHits.Add(CompanyWatchCriterionAdHit.Create(criterion, ad.Id, new FixedClock(hitAt)).Value);

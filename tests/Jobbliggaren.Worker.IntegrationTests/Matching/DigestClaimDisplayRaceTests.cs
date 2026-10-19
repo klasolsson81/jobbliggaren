@@ -116,7 +116,7 @@ public sealed class DigestClaimDisplayRaceTests(WorkerTestFixture fixture)
             facets: TestFacets.FromPayload($"{{\"id\":\"{externalId}\"}}"),
             publishedAt: Now.AddDays(-1),
             expiresAt: Now.AddDays(60),
-            clock: new FixedClock(Now), declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+            clock: new FixedClock(Now), declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(Ct);
         return jobAd.Id;

@@ -45,6 +45,9 @@ export function toJobAdDetail(
     publishedAt: mock.publishedAtIso,
     expiresAt: mock.expiresAtIso,
     createdAt: mock.publishedAtIso,
+    // #2191 — the demo never invents an employer's application page, so its footer keeps
+    // "Öppna annonsen" as the primary.
+    applicationUrl: null,
   };
 }
 

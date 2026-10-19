@@ -184,7 +184,7 @@ public class JobAdPublicationIsListedAgreementTests
             publishedAt: Now.AddDays(-10),
             expiresAt: expiresAt,
             clock: Clock,
-            extractTerms: TestKeywordExtraction.None).Value;
+            applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
     }
 
     private static JobAd NeverImported(DateTimeOffset? expiresAt) =>

@@ -104,7 +104,7 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
                 facets: TestFacets.FromPayload(rawPayload),
                 publishedAt: publishedAt,
                 expiresAt: clock.UtcNow.AddDays(30),
-                clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+                clock: clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
 
             db.JobAds.Add(jobAd);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -449,7 +449,7 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
                 facets: TestFacets.FromPayload(rawPayload),
                 publishedAt: publishedAt,
                 expiresAt: clock.UtcNow.AddDays(30),
-                clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+                clock: clock, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
 
             db.JobAds.Add(jobAd);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);

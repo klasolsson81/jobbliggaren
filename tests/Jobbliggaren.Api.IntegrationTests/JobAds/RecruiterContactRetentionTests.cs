@@ -273,11 +273,15 @@ public sealed class RecruiterContactRetentionTests : IAsyncLifetime
             external, "{\"id\":\"" + externalId + "\"}", TestFacets.None,
             [declared!],
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
-            expiresAt, clock, extractTerms: TestKeywordExtraction.None).Value;
+            expiresAt, clock,
+            applicationUrl: ApplicationUrl.FromSource("https://career.rekrytering.example/jobs/" + externalId),
+            extractTerms: TestKeywordExtraction.None).Value;
 
         // Counterfactual: the Active ad HELD a contact — Import populated it while Active.
         jobAd.Contacts.ShouldNotBeNull("the Active ad must hold a contact before archival.");
         jobAd.Contacts!.IsEmpty.ShouldBeFalse();
+        // #2191 — and an application address, which the same three writers clear.
+        jobAd.ApplicationUrl.ShouldNotBeNull("the Active ad must hold an application address before archival.");
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(ct);
@@ -299,6 +303,18 @@ public sealed class RecruiterContactRetentionTests : IAsyncLifetime
         offenders.ShouldBe(0,
             "the retention invariant: no non-Active ad may hold a contact. A writer that archives "
             + "without clearing contacts breaks this — which is why all three carry the same clear.");
+
+        var applicationUrlOffenders = (await db.Database
+            .SqlQuery<int>($"""
+                SELECT count(*)::int AS "Value"
+                FROM job_ads
+                WHERE status <> 'Active' AND application_url IS NOT NULL
+                """)
+            .ToListAsync(ct)).Single();
+
+        applicationUrlOffenders.ShouldBe(0,
+            "#2191: no non-Active ad may hold an application address either; its purpose ends when "
+            + "the ad stops accepting applications.");
     }
 
     private async Task AssertAdIsArchivedWithoutContactsAsync(string externalId, CancellationToken ct)
@@ -315,8 +331,14 @@ public sealed class RecruiterContactRetentionTests : IAsyncLifetime
                 "SELECT contacts::text AS \"Value\" FROM job_ads WHERE external_id = {0}", externalId)
             .ToListAsync(ct)).Single();
 
+        var applicationUrl = (await db.Database
+            .SqlQueryRaw<string?>(
+                "SELECT application_url AS \"Value\" FROM job_ads WHERE external_id = {0}", externalId)
+            .ToListAsync(ct)).Single();
+
         status.ShouldNotBe("Active", "the ad was archived by the writer under test.");
         contacts.ShouldBeNull("and its contacts column is cleared.");
+        applicationUrl.ShouldBeNull("and its application_url column is cleared (#2191).");
     }
 
     // Runs the production Art. 17 funnel (JobAd.Erase) over an already-seeded Active ad, then

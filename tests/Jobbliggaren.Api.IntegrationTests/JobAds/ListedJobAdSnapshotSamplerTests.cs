@@ -318,7 +318,7 @@ public sealed class ListedJobAdSnapshotSamplerTests(SharedPostgresFixture postgr
             publishedAt: Now.AddDays(-10),
             expiresAt: expiresAt,
             clock: _clock,
-            extractTerms: TestKeywordExtraction.None).Value;
+            applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
     }
 
     /// <summary>
@@ -335,7 +335,7 @@ public sealed class ListedJobAdSnapshotSamplerTests(SharedPostgresFixture postgr
             declaredContacts: [],
             publishedAt: publishedAt,
             expiresAt: ad.ExpiresAt,
-            extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
+            applicationUrl: null, extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
 
     private JobAd NeverImported(DateTimeOffset? expiresAt) =>
         JobAd.Create(

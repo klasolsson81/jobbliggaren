@@ -253,12 +253,12 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
             var stragglers = await db.JobAds
                 .Where(j => unconfirmedIds.Contains(j.Id)
                             && j.Status != JobAdStatus.Active
-                            && j.Contacts != null)
+                            && (j.Contacts != null || j.ApplicationUrl != null))
                 .ToListAsync(cancellationToken);
 
             foreach (var straggler in stragglers)
             {
-                if (straggler.ClearContactsRetentionBackstop().IsSuccess)
+                if (straggler.ClearRetentionBackstop().IsSuccess)
                     backstopSweptCount++;
             }
         }

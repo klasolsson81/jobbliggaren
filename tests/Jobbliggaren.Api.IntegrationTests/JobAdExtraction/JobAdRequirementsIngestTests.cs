@@ -81,6 +81,7 @@ public sealed class JobAdRequirementsIngestTests : IAsyncLifetime
             CompanyName: "Klarna",
             Description: description,
             Url: "https://example.com/jobs/" + externalId,
+            ApplicationUrl: null,
             PublishedAt: new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero),
             ExpiresAt: new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero),
             SanitizedRawPayload: "{\"id\":\"" + externalId + "\"}",

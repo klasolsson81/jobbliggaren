@@ -59,6 +59,12 @@ public class JobAdPublicSurfaceGuardTests
         ["Company"] = "ad content (owned value object)",
         ["Description"] = "ad content; no TTL. Carries recruiter free-text — see #842 (Art. 17 redaction)",
         ["Url"] = "ad content",
+        ["ApplicationUrl"] = "ad content (#2191): JobTech application_details.url, the employer's own " +
+                             "application page. NOT derived from raw_payload — the sanitizer keeps " +
+                             "application_details out of the payload; the ACL maps the url alone through " +
+                             "ApplicationUrl.FromSource. Written only while Active, cleared by Archive(), " +
+                             "both bulk archival writers and Erase(). On the DETAIL DTO only — never on the " +
+                             "list DTO or the public DTO. Erased, and searched, in ErasureCascadeRegistry.",
         ["Source"] = "provenance",
         ["Status"] = "THE lifecycle axis (#821 retired the dead DeletedAt axis; Status is the only one)",
         ["PublishedAt"] = "ad content; the purge's cutoff is measured from it",
@@ -297,6 +303,7 @@ public class JobAdPublicSurfaceGuardTests
             CompanyName: "Region Stockholm",
             Description: "kontakta rekryteraren på anna@example.com",
             Url: "https://example.com/jobs/1",
+            ApplicationUrl: null,
             PublishedAt: default,
             ExpiresAt: null,
             SanitizedRawPayload: "{\"employer\":{\"organization_number\":\"5592804784\"}}",

@@ -189,6 +189,9 @@ public static class ErasureCascadeRegistry
                 // Without this column in the channel, the erasure command is vacuous for exactly
                 // the data Tier A just moved (architect Q8(a)).
                 "job_ads.contacts",
+                // #2191 — the employer-chosen application address. Unlike job_ads.url it is not
+                // id-shaped, and a URL path carries names routinely (the snapshot_url argument).
+                "job_ads.application_url",
             ],
             nameof(Abstractions.IRecruiterErasureMatchQuery.FindJobAdsAsync)),
 
@@ -370,6 +373,7 @@ public static class ErasureCascadeRegistry
             ["job_ads.description"] = ErasureColumnDisposition.Erased,
             ["job_ads.company_name"] = ErasureColumnDisposition.Erased,
             ["job_ads.url"] = ErasureColumnDisposition.Erased,
+            ["job_ads.application_url"] = ErasureColumnDisposition.Erased,
             ["job_ads.raw_payload"] = ErasureColumnDisposition.Erased,
             ["job_ads.extracted_terms"] = ErasureColumnDisposition.Erased,
             ["job_ads.extracted_lexemes"] = ErasureColumnDisposition.Erased,

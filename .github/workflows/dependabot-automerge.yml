@@ -172,6 +172,11 @@ jobs:
             *github/codeql-action*) eco_ok=false; codeql_hit=true ;;
             *) codeql_hit=false ;;
           esac
+          # google-github-actions/auth is exempted by name in the same form: ADR 0177 D4.
+          case "${DEPS,,}" in
+            *google-github-actions/auth*) eco_ok=false; auth_hit=true ;;
+            *) auth_hit=false ;;
+          esac
           if [[ "$codeql_hit" == "true" ]]; then
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             if [[ -z "$DEPS" ]]; then
@@ -179,6 +184,9 @@ jobs:
             else
               echo "::notice::github/codeql-action → analysmotorn byts, manuell granskning (ingen auto-merge)."
             fi
+          elif [[ "$auth_hit" == "true" ]]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::google-github-actions/auth → mints the Search Console token, security-auditor reads the bump (no auto-merge)."
           elif [[ "$eco_ok" != "true" ]]; then
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             echo "::notice::ecosystem=${ECO:-<tomt>} står inte i allow-listan → manuell granskning (fail-closed)."

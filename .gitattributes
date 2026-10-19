@@ -28,6 +28,10 @@ deploy/caddy/*.sh text eol=lf
 # loud break — which is exactly why the endings are pinned instead of trusted (#836).
 .github/scripts/*.sh text eol=lf
 
+# The Search Console suite compares each request body with its golden file byte for byte (ADR 0177), so a CRLF
+# checkout on Windows would fail every body case locally while CI passes.
+.github/scripts/samples/search-console/*.json text eol=lf
+
 # And the same rule for everything the BOX runs. These were unpinned until #198 — which held
 # only because the box clones on Linux, where core.autocrlf defaults to false, so the working
 # tree happened to get LF. That is a property of the checkout host, not a guarantee: a `\r`

@@ -14,10 +14,12 @@ export type HarnessAd = {
   readonly company: string;
   readonly appliedBeforeVisit: boolean;
   readonly saved: boolean;
+  /** #2191 — the employer's application page; served on the detail route only, never on the list. */
+  readonly applicationUrl?: string;
 };
 
 export const ADS = {
-  open: { id: id(101), title: "Systemutvecklare till kundportalen", company: "Logikfabriken AB", appliedBeforeVisit: false, saved: false },
+  open: { id: id(101), title: "Systemutvecklare till kundportalen", company: "Logikfabriken AB", appliedBeforeVisit: false, saved: false, applicationUrl: "https://karriar.example.test/jobb/101" },
   applied: { id: id(102), title: "Backendutvecklare, betalningar", company: "Västkod AB", appliedBeforeVisit: true, saved: false },
   saved: { id: id(103), title: "Testledare inom e-handel", company: "Nordlager Logistik AB", appliedBeforeVisit: false, saved: true },
 } as const satisfies Record<string, HarnessAd>;

@@ -16,7 +16,10 @@ const baseAd: Omit<JobAdDetailDto, "contacts"> = {
   publishedAt: "2026-05-13T08:00:00Z",
   expiresAt: "2026-06-13T08:00:00Z",
   createdAt: "2026-05-13T08:01:00Z",
+  applicationUrl: null,
 };
+
+const EMPLOYER_PAGE = "https://career.example.se/jobs/4567890";
 
 const RECRUITER_NOTICE = "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter.";
 const declaredContact: AdContactDto = {
@@ -111,6 +114,41 @@ describe("JobAdDetail", () => {
     expect(link).toHaveAttribute("href", baseAd.url);
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  // #2191 — the employer's application page: "Ansök" is the one primary, the ad page steps down.
+  it("with an application page, ends the footer Öppna annonsen then Ansök, and Ansök is the one primary", () => {
+    const { container } = render(
+      <JobAdDetail
+        jobAd={{ ...baseAd, applicationUrl: EMPLOYER_PAGE }}
+        initialSaved={false}
+        initialApplied={false}
+        followState={{ companyWatchId: null, followable: true }}
+      />,
+    );
+    const end = container.querySelector(".jp-modal__footgroup--end");
+    const links = Array.from(end?.querySelectorAll("a") ?? []).map((a) => a.textContent?.trim());
+    expect(links).toEqual(["Öppna annonsen", "Ansök"]);
+
+    const primaries = container.querySelectorAll(".jp-btn--primary");
+    expect(primaries).toHaveLength(1);
+    expect(primaries[0]).toHaveTextContent("Ansök");
+    expect(screen.getByRole("link", { name: /Öppna annonsen/ })).toHaveClass("jp-btn--secondary");
+  });
+
+  it("links Ansök to the employer's page in a new tab with safe rel attributes", () => {
+    render(<JobAdDetail jobAd={{ ...baseAd, applicationUrl: EMPLOYER_PAGE }} />);
+    const apply = screen.getByRole("link", { name: "Ansök" });
+    expect(apply).toHaveAttribute("href", EMPLOYER_PAGE);
+    expect(apply).toHaveAttribute("target", "_blank");
+    expect(apply).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.getByRole("link", { name: /Öppna annonsen/ })).toHaveAttribute("href", baseAd.url);
+  });
+
+  it("without an application page renders no Ansök link and keeps Öppna annonsen primary", () => {
+    render(<JobAdDetail jobAd={baseAd} />);
+    expect(screen.queryByRole("link", { name: "Ansök" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Öppna annonsen/ })).toHaveClass("jp-btn--primary");
   });
 
   it("omits sista ansökningsdag when expiresAt is null", () => {

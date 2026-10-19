@@ -3863,6 +3863,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-modal__footgroup > * > .jp-btn {
     flex-grow: 1;
   }
+  /* #2191: with three controls in the end group (Markera som ansökt, Öppna annonsen, Ansök) a shared
+     row leaves each too narrow for its label, so the last, the primary, takes a row of its own. */
+  .jp-modal__footgroup--end > :nth-child(3):last-child {
+    flex-basis: 100%;
+  }
   .jp-modal__foot--split .jp-btn {
     --jp-btn-px: 12px;
     width: 100%;

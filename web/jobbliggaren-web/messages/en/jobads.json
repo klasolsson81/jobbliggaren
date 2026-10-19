@@ -194,6 +194,7 @@
       "showLess": "Show less",
       "bodyLabel": "The ad's content",
       "openAd": "Open the ad",
+      "apply": "Apply",
       "previousApplications": "At least {count, plural, one {# previous application} other {# previous applications}} to this employer.",
       "previousApplicationsLink": "View application history",
       "recruiterNoticeLink": "Are you a contact person in the ad? Read how we process contact details."

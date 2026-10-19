@@ -222,14 +222,26 @@ export function JobAdDetail({
           {userActions && (
             <HarAnsoktButton jobAdId={jobAd.id} initialApplied={userActions.applied} />
           )}
+          {/* #2191 — with the employer's application page, "Ansök" is the one primary and the ad
+              page steps down to secondary (DESIGN.md §6, ADR 0053 Amendment 2026-10-19). */}
           {jobAd.url && (
             <a
               href={jobAd.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="jp-btn jp-btn--primary"
+              className={jobAd.applicationUrl ? "jp-btn jp-btn--secondary" : "jp-btn jp-btn--primary"}
             >
               <ExternalLink size={14} aria-hidden="true" /> {tUi("detail.openAd")}
+            </a>
+          )}
+          {jobAd.applicationUrl && (
+            <a
+              href={jobAd.applicationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="jp-btn jp-btn--primary"
+            >
+              <ExternalLink size={14} aria-hidden="true" /> {tUi("detail.apply")}
             </a>
           )}
         </div>

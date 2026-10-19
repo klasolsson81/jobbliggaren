@@ -72,10 +72,32 @@ test("focus starts on the close button and Tab stays inside the modal", async ({
   const modal = jobModal(page, ADS.open);
   const close = modal.getByRole("button", { name: "Stäng" });
   await expect(close).toBeFocused();
+  // #2191 — with an application page, Ansök is the footer's last control.
   await page.keyboard.press("Shift+Tab");
-  await expect(modal.getByRole("link", { name: /Öppna annonsen/ })).toBeFocused();
+  await expect(modal.getByRole("link", { name: "Ansök" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(close).toBeFocused();
+});
+
+test("Ansök links to the employer and is the one primary; without an application page Öppna annonsen is (#2191)", async ({ page }) => {
+  await openFromList(page, "/jobb", ADS.open);
+  const withPage = jobModal(page, ADS.open);
+  const apply = withPage.getByRole("link", { name: "Ansök" });
+  await expect(apply).toHaveAttribute("href", ADS.open.applicationUrl);
+  await expect(apply).toHaveAttribute("target", "_blank");
+  await expect(apply).toHaveClass(/jp-btn--primary/);
+  await expect(withPage.getByRole("link", { name: /Öppna annonsen/ })).toHaveClass(/jp-btn--secondary/);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await openFromList(page, "/jobb", ADS.saved);
+  const withoutPage = jobModal(page, ADS.saved);
+  await expect(withoutPage.getByRole("link", { name: "Ansök" })).toHaveCount(0);
+  const openAd = withoutPage.getByRole("link", { name: /Öppna annonsen/ });
+  await expect(openAd).toHaveClass(/jp-btn--primary/);
+  await withoutPage.getByRole("button", { name: "Stäng" }).focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(openAd).toBeFocused();
 });
 
 test("back closes the modal and forward opens it again", async ({ page }) => {

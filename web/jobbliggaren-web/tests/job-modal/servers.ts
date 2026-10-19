@@ -535,7 +535,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
     if (ad && route === `GET /api/v1/job-ads/${ad.id}`) {
       await harness.jobAdReadGate;
       if (harness.erasedAds.has(ad.id)) return json(410, { title: "Gone", status: 410 });
-      return json(200, { ...summary(ad), description: informationFlows ? Array.from({ length: 24 }, () => DESCRIPTION).join("\n\n") : DESCRIPTION, contacts: informationFlows ? [{ name: "Testkontakt", role: "Rekryterare", email: "contact@example.test", phone: null, isDerived: false }] : [] });
+      return json(200, { ...summary(ad), description: informationFlows ? Array.from({ length: 24 }, () => DESCRIPTION).join("\n\n") : DESCRIPTION, contacts: informationFlows ? [{ name: "Testkontakt", role: "Rekryterare", email: "contact@example.test", phone: null, isDerived: false }] : [], applicationUrl: ad.applicationUrl ?? null });
     }
     if (ad && route === `GET /api/v1/me/job-ad-match-tags/${ad.id}`)
       return json(200, matchDetail(harness.occupationStated));

@@ -92,5 +92,5 @@ a read of §9.2 (b) data, so the live check prints **none** of them.
    - `curl -s https://jobbliggaren.se/jobb/<uuid> | grep -c '<h1'`
 2. **The uuid is chosen by Klas** (copied from his own signed-in view, an ad he picks) or comes from a query that returns an id and nothing else.
    An agent never lists ads to find one.
-3. A random uuid must answer **404**, and `/robots.txt` must show the two training crawlers blocked and `/jobb/` not disallowed.
+3. A random uuid must answer **404**, and `/robots.txt` must show every crawler in `app/robots.ts`'s training group blocked and `/jobb/` not disallowed.
 4. **URL Inspection (the live test) is Klas's, in his own browser**, never an agent's, and never with an account signed in on the box (CLAUDE.md §9.2 (d)).

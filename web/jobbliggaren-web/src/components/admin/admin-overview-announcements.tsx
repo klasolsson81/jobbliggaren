@@ -19,11 +19,11 @@ type Health =
  * sampled every 30 s and the API states their limit. Null for a source that shares the overview's five minutes.
  */
 function ownLimit(source: Source, observations: AdminOverviewSnapshot):
-  { readonly seconds: number; readonly sentence: "overview.server.stale" | "overview.services.stale" } | null {
+  { readonly seconds: number; readonly sentence: "server.stale" | "services.stale" } | null {
   const { host, services } = observations;
-  if (source === "host" && host.kind === "loaded") return { seconds: host.data.staleAfterSeconds, sentence: "overview.server.stale" };
+  if (source === "host" && host.kind === "loaded") return { seconds: host.data.staleAfterSeconds, sentence: "server.stale" };
   if (source === "services" && services.kind === "loaded") {
-    return { seconds: services.data.staleAfterSeconds, sentence: "overview.services.stale" };
+    return { seconds: services.data.staleAfterSeconds, sentence: "services.stale" };
   }
   return null;
 }
@@ -65,7 +65,9 @@ export function AdminOverviewAnnouncements({ observations, now }: {
   readonly observations: AdminOverviewSnapshot;
   readonly now: number;
 }) {
-  const t = useTranslations("admin");
+  const t = useTranslations("admin.overview");
+  const regions = useTranslations("admin.regions");
+  const failure = useTranslations("admin.email.allowance.failure");
   const format = useFormatter();
   const current = SOURCES.map((source) => sourceHealth(source, observations, now));
   const [previous, setPrevious] = useState({ health: current, message: "" });
@@ -77,21 +79,21 @@ export function AdminOverviewAnnouncements({ observations, now }: {
       // A card that words its own limit (the API names it) is announced in the same sentence.
       const own = ownLimit(source, observations);
       const stale = own === null
-        ? t("overview.observation.stale")
+        ? t("observation.stale")
         : t(own.sentence, { limit: formatStaleLimit(format, own.seconds) });
       // A kept services observation whose newest sample is past its limit has had every row withdrawn, so no last value
       // is shown: the live region says what the card says, that the data could not be fetched.
-      const failedAndOld = source === "services" ? t("regions.failed") : t("overview.observation.refreshFailed");
+      const failedAndOld = source === "services" ? regions("failed") : t("observation.refreshFailed");
       const provider = providerFailure(state);
-      const text = provider !== null ? t(`email.allowance.failure.${provider}`)
-        : state === "failed" || state === "loading" || state === "awaiting" ? t(`regions.${state}`)
+      const text = provider !== null ? failure(provider)
+        : state === "failed" || state === "loading" || state === "awaiting" ? regions(state)
         : state === "retainedStale"
           ? `${failedAndOld} ${stale}`
           : state === "stale"
             ? stale
-            : t(`overview.observation.${state === "current" ? "current" : "refreshFailed"}`);
-      return [t("overview.observation.announcement", {
-        source: t(`overview.observation.sources.${source}`),
+            : t(`observation.${state === "current" ? "current" : "refreshFailed"}`);
+      return [t("observation.announcement", {
+        source: t(`observation.sources.${source}`),
         state: text,
       })];
     }).join(" ");

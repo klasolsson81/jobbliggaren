@@ -82,14 +82,18 @@ public class PlatsbankenJobSourceApplicationUrlMappingTests
     }
 
     [Fact]
-    public async Task WithoutWebpageUrl_UrlFallsBackToTheSameAddress()
+    public async Task WithoutWebpageUrlOrSourceLinks_TheHitMapsToNoItem_ApplicationDetailsUrlNeverStandsInForTheAdPage()
     {
-        // The ACL's existing fallback: Url takes application_details.url. The item carries both, and
-        // the aggregate (not the ACL) refuses the duplicate — JobAdApplicationUrlTests pins that half.
-        var item = await MapAsync(Hit($$"""{ "url": "{{EmployerPage}}" }""", withWebpageUrl: false));
+        // Actor: JobTech's wire contract, where webpage_url is optional.
+        var sut = new PlatsbankenJobSource(
+            new FakeStreamClient(),
+            new FakeSearchClient(Hit($$"""{ "url": "{{EmployerPage}}" }""", withWebpageUrl: false)),
+            new FakeDateTimeProvider(FakeNow),
+            NullLogger<PlatsbankenJobSource>.Instance);
 
-        item.Url.ShouldBe(EmployerPage);
-        item.ApplicationUrl!.Value.ShouldBe(EmployerPage);
+        var item = await sut.RefetchByExternalIdAsync("ext-apply-1", TestContext.Current.CancellationToken);
+
+        item.ShouldBeNull();
     }
 
     private sealed class FakeSearchClient(JobTechHit? hit = null) : IJobTechSearchClient

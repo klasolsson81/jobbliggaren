@@ -1785,8 +1785,7 @@ a validated personnummer (AGENTS.md §5), and more than 2000 characters. `email`
 ### D3 - §4 changes: both transitions write it
 
 `JobAd.Import` and `UpdateFromSource` take it as a **required** parameter, like the facets and
-contacts. There is no PRESERVE: a source that drops the address clears it. The aggregate stores null
-when the value equals `Url`, which happens when the ACL fell back to it for `Url`. Existing listed ads
+contacts. There is no PRESERVE: a source that drops the address clears it. Existing listed ads
 get it from the nightly snapshot sync, which rewrites every listed ad; there is no data migration.
 
 ### D4 - purpose and retention

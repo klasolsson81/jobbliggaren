@@ -1,7 +1,7 @@
 /**
  * The link out of the public job page (ADR 0160 D4: `url` is public, http(s) only).
  *
- * The importer picks the ad's address as `webpage_url`, then `source_links`, then `application_details.url`
+ * The importer picks the ad's address as `webpage_url`, then `source_links`
  * (`PlatsbankenJobSource.FirstNonMailtoUrl`), so it is not always an Arbetsförmedlingen page. The label says
  * "hos Arbetsförmedlingen" only when the host does, and is the plain "Öppna annonsen" otherwise. A value that is
  * not an http(s) URL gets no link at all: it ends up in an `href`, and `javascript:` there is script.

@@ -158,12 +158,12 @@ public class JobAdContactRedactionTests
     public void The_retention_backstop_refuses_a_live_ad_and_clears_an_archived_one()
     {
         var live = Import();
-        live.ClearContactsRetentionBackstop().IsFailure.ShouldBeTrue();
+        live.ClearRetentionBackstop().IsFailure.ShouldBeTrue();
         live.Contacts.ShouldNotBeNull(); // refused = untouched
 
         var archived = Import();
         archived.Archive(Clock).IsSuccess.ShouldBeTrue();
-        archived.ClearContactsRetentionBackstop().IsSuccess.ShouldBeTrue();
+        archived.ClearRetentionBackstop().IsSuccess.ShouldBeTrue();
         archived.Contacts.ShouldBeNull();
     }
 

@@ -53,16 +53,6 @@ public class JobAdApplicationUrlTests
         Import(null).ApplicationUrl.ShouldBeNull();
 
     [Fact]
-    public void Import_ApplicationUrlEqualToTheAdUrl_StoresNull()
-    {
-        // The ACL falls back to application_details.url for Url when the ad has no source page;
-        // the same address must not show up as a second link.
-        var jobAd = Import(EmployerPage, url: EmployerPage.Value);
-
-        jobAd.ApplicationUrl.ShouldBeNull();
-    }
-
-    [Fact]
     public void UpdateFromSource_WithANewApplicationUrl_ReplacesIt()
     {
         var jobAd = Import(EmployerPage);

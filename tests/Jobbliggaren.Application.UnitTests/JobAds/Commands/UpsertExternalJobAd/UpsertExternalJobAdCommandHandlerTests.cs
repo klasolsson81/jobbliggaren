@@ -455,23 +455,6 @@ public class UpsertExternalJobAdCommandHandlerTests
         persisted.ApplicationUrl.ShouldBe(EmployerPage);
     }
 
-    [Fact]
-    public async Task Handle_WhenTheItemsUrlIsTheApplicationUrl_StoresNoSecondLink()
-    {
-        // The ACL's fallback: no webpage_url, so Url IS application_details.url.
-        var db = TestAppDbContextFactory.Create();
-        var ct = TestContext.Current.CancellationToken;
-        var handler = CreateHandler(db);
-        var item = ValidItem("ext-fallback", url: EmployerPage.Value, applicationUrl: EmployerPage);
-
-        await handler.Handle(
-            new UpsertExternalJobAdCommand(JobSource.Platsbanken, "ext-fallback", item), ct);
-
-        var persisted = await db.JobAds.AsNoTracking()
-            .FirstAsync(j => j.External!.ExternalId == "ext-fallback", ct);
-        persisted.ApplicationUrl.ShouldBeNull();
-    }
-
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

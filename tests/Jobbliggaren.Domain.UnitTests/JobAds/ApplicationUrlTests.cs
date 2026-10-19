@@ -42,6 +42,8 @@ public class ApplicationUrlTests
     [InlineData("/jobs/123")]
     [InlineData("www.example.se/apply")]
     [InlineData("Skicka din ansökan via vår hemsida")]
+    [InlineData("https://")]
+    [InlineData("http:///path")]
     public void ApplicationUrl_FromSource_NotAnAbsoluteHttpUrl_ReturnsNull(string raw) =>
         ApplicationUrl.FromSource(raw).ShouldBeNull();
 

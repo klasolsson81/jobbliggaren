@@ -340,14 +340,14 @@ public sealed class JobAd : AggregateRoot<JobAdId>
 
     /// <summary>
     /// #842 Tier A — the erasure command's belt-to-retention's-braces sweep (b1 §4.4): clear a
-    /// NON-Active ad's contacts. Retention (Archive/the bulk writers) should already have left
+    /// NON-Active ad's contacts and application address (#2191). Retention (Archive/the bulk writers) should already have left
     /// nothing here, so this normally touches zero rows — but a backstop that exists only in a
     /// fitness test is a convention, and this repo has shipped "a rule nobody enforced" three
     /// times. Refuses on an Active ad BY TYPE: a surgical contact clear is never the remedy for a
     /// live ad (the funnel would rewrite it within ten minutes and we would have confirmed an
     /// erasure the nightly sync undoes — the B1 defect). The live-ad remedy is Erase().
     /// </summary>
-    public Result ClearContactsRetentionBackstop()
+    public Result ClearRetentionBackstop()
     {
         if (Status == JobAdStatus.Active)
             return Result.Failure(
@@ -355,6 +355,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
                     "Kontakter på en aktiv annons rensas inte kirurgiskt — radera hela annonsen."));
 
         Contacts = null;
+        ApplicationUrl = null;
         return Result.Success();
     }
 
@@ -426,14 +427,9 @@ public sealed class JobAd : AggregateRoot<JobAdId>
 
     // Written on every Import/UpdateFromSource with no PRESERVE: a source that drops the address
     // clears it. Null on a non-Active ad (the same write gate as Contacts: an archived ad that is
-    // still listed must not regain it overnight), and null when it is the same address as Url, which
-    // happens when the ACL fell back to application_details.url for Url itself.
+    // still listed must not regain it overnight).
     private void SetApplicationUrl(ApplicationUrl? applicationUrl) =>
-        ApplicationUrl = Status == JobAdStatus.Active
-                         && applicationUrl is not null
-                         && !string.Equals(applicationUrl.Value, Url.Trim(), StringComparison.Ordinal)
-            ? applicationUrl
-            : null;
+        ApplicationUrl = Status == JobAdStatus.Active ? applicationUrl : null;
 
     /// <summary>
     /// #841 — THE drift guard, and it is a type-system guarantee rather than a convention.

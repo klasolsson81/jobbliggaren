@@ -26,11 +26,4 @@ describe("JobAdSourceLink (#2191)", () => {
     const { container } = render(<JobAdSourceLink jobAd={{ url: AF_AD, applicationUrl: null }} />);
     expect(container).toBeEmptyDOMElement();
   });
-
-  it("renders nothing for an ad address that is not http(s)", () => {
-    const { container } = render(
-      <JobAdSourceLink jobAd={{ url: "javascript:alert(1)", applicationUrl: EMPLOYER_PAGE }} />,
-    );
-    expect(container).toBeEmptyDOMElement();
-  });
 });

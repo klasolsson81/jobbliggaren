@@ -574,6 +574,11 @@ describe("jobAdDetailDtoSchema (#842 PR4 — detail twin of the list schema)", (
     expect(
       jobAdDetailDtoSchema.parse({ ...baseJobAd, contacts: [], applicationUrl: null }).applicationUrl,
     ).toBeNull();
+    // The backend stores the scheme as the source wrote it (ApplicationUrlTests: "HTTPS://EXAMPLE.SE/APPLY").
+    expect(
+      jobAdDetailDtoSchema.parse({ ...baseJobAd, contacts: [], applicationUrl: "HTTPS://EXAMPLE.SE/APPLY" })
+        .applicationUrl,
+    ).toBe("HTTPS://EXAMPLE.SE/APPLY");
   });
 
   it.each(["javascript:alert(1)", "data:text/html,x", "mailto:a@b.se", ""])(

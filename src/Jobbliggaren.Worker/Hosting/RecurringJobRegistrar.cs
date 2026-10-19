@@ -98,8 +98,7 @@ public sealed partial class RecurringJobRegistrar(
 
         // ADR 0175 (#1663) — the nightly Branschbevakning scan. Its own cron
         // (CompanyWatchCriterionScan:CadenceCron, default 03:55 UTC): after the follow scan at 03:25 and its
-        // 1 800-second lock wait, before the 05:30 materialisation. The slot is a latency choice only — the
-        // scan never reads past an owner's follow watermark whatever the order (ADR 0175 D3).
+        // 1 800-second lock wait, before the 05:30 materialisation. The slot is a latency choice only.
         manager.AddOrUpdate<CompanyWatchCriterionScanWorker>(
             RecurringJobIds.ScanCompanyWatchCriteria,
             job => job.RunAsync(CancellationToken.None),

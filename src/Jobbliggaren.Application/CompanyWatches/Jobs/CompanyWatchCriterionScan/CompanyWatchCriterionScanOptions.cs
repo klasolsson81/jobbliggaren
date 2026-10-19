@@ -14,8 +14,8 @@ public sealed class CompanyWatchCriterionScanOptions
 
     /// <summary>
     /// UTC. The default, 03:55, follows the follow scan's 03:25 slot and its 1 800-second lock wait and precedes
-    /// the 05:30 materialisation. The slot is a latency choice only: the scan's upper bound is the owner's follow
-    /// watermark whatever the order (ADR 0175 D3). <c>[Required]</c> rejects only an empty value; a malformed cron
+    /// the 05:30 materialisation. The slot is a latency choice only.
+    /// <c>[Required]</c> rejects only an empty value; a malformed cron
     /// fails at Worker boot in <c>AddOrUpdate</c>.
     /// </summary>
     [Required]

@@ -88,8 +88,7 @@ public static class RecurringJobIds
     /// <summary>
     /// ADR 0175 (#1663) — the nightly Branschbevakning scan: each criterion's new Active member-company ads
     /// become hits. Cron is config-driven (<c>CompanyWatchCriterionScan:CadenceCron</c>, default 03:55 UTC) on its
-    /// own options section. Safe to trigger by hand: its upper bound is each owner's stored follow watermark, not
-    /// the time of day.
+    /// own options section.
     /// </summary>
     public const string ScanCompanyWatchCriteria = "scan-company-watch-criteria";
 

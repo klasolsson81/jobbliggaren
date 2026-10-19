@@ -62,6 +62,7 @@ public sealed partial class CompanyWatchCriterionScanJob(
                 .Where(c => db.JobSeekers.Any(js => js.UserId == c.UserId))
                 .Select(c => c.UserId)
                 .Distinct()
+                .OrderBy(id => id)
                 .ToListAsync(cancellationToken);
         }
 
@@ -168,17 +169,16 @@ public sealed partial class CompanyWatchCriterionScanJob(
             {
                 // A read, with nothing of this criterion tracked yet: hold it, keep the owner's others.
                 unit.FailedCriteria++;
-                LogCriterionFailed(logger, ex, userId);
                 continue;
             }
 
             switch (answer.State)
             {
                 case CriterionMaterialisationState.Materialised:
-                    if (answer.Ids!.Count > 0)
+                    if (answer.Ids is { Count: > 0 } ids)
                     {
                         existing ??= await LoadExistingHitKeysAsync(db, userId, ct);
-                        foreach (var jobAdId in answer.Ids)
+                        foreach (var jobAdId in ids)
                         {
                             if (!existing.Add((criterion.Id, jobAdId)))
                                 continue;
@@ -204,6 +204,9 @@ public sealed partial class CompanyWatchCriterionScanJob(
                     throw new InvalidOperationException($"Unknown materialisation state {answer.State}.");
             }
         }
+
+        if (unit.FailedCriteria > 0)
+            LogCriteriaFailed(logger, userId, unit.FailedCriteria);
 
         // The hits and the criteria's scan state commit together: a lost advance only re-reads, and the UNIQUE
         // key on (criterion, ad) makes that re-read idempotent.
@@ -279,8 +282,8 @@ public sealed partial class CompanyWatchCriterionScanJob(
     private static partial void LogUserFailed(ILogger logger, Exception ex, Guid userId);
 
     [LoggerMessage(Level = LogLevel.Warning,
-        Message = "CompanyWatchCriterionScanJob: a Branschbevakning of user {UserId} could not be read — held, read again next run")]
-    private static partial void LogCriterionFailed(ILogger logger, Exception ex, Guid userId);
+        Message = "CompanyWatchCriterionScanJob: {FailedCriteria} Branschbevakningar of user {UserId} could not be read — held, read again next run")]
+    private static partial void LogCriteriaFailed(ILogger logger, Guid userId, int failedCriteria);
 
     [LoggerMessage(Level = LogLevel.Information,
         Message = "CompanyWatchCriterionScanJob: done — {Processed} users ({FailedUsers} failed, {NoLiveAccount} without a live account, {HeldBehindFollow} held behind the follow scan); criteria {Scanned} scanned, {TooBroad} too broad, {NotMaterialised} not materialised, {EmptyWindow} with an empty window, {FailedCriteria} failed; {Inserted} hits written, {Purged} hits purged")]

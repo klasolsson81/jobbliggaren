@@ -67,8 +67,10 @@ public sealed class AddCompanyWatchCriterionAdHitsMigrationTests : IAsyncLifetim
 
         await AssertUpAsync();
         (await ReadSchemaOutsideThisMigrationAsync()).ShouldBe(previousSchema);
-        (await CriteriaChangedAtAsync(older)).ShouldBe(Now.AddDays(-40));
-        (await CriteriaChangedAtAsync(newer)).ShouldBe(Now.AddDays(-2));
+        (await CriterionInstantAsync(older, "criteria_changed_at")).ShouldBe(Now.AddDays(-40));
+        (await CriterionInstantAsync(newer, "criteria_changed_at")).ShouldBe(Now.AddDays(-2));
+        (await CriterionInstantAsync(older, "updated_at")).ShouldBe(Now.AddDays(-40));
+        (await CriterionInstantAsync(newer, "updated_at")).ShouldBe(Now.AddDays(-2));
 
         // The production factories write a criterion and its hit; the database holds the key, the CHECK and the
         // cascade.
@@ -93,7 +95,7 @@ public sealed class AddCompanyWatchCriterionAdHitsMigrationTests : IAsyncLifetim
 
         await AssertUpAsync();
         (await ReadSchemaOutsideThisMigrationAsync()).ShouldBe(previousSchema);
-        (await CriteriaChangedAtAsync(older)).ShouldBe(Now.AddDays(-40));
+        (await CriterionInstantAsync(older, "criteria_changed_at")).ShouldBe(Now.AddDays(-40));
     }
 
     private async Task AssertUpAsync()
@@ -187,12 +189,12 @@ public sealed class AddCompanyWatchCriterionAdHitsMigrationTests : IAsyncLifetim
         return (int)(await command.ExecuteScalarAsync(Ct))!;
     }
 
-    private async Task<DateTimeOffset> CriteriaChangedAtAsync(Guid criterionId)
+    private async Task<DateTimeOffset> CriterionInstantAsync(Guid criterionId, string column)
     {
         await using var connection = new NpgsqlConnection(_appConnectionString);
         await connection.OpenAsync(Ct);
         await using var command = new NpgsqlCommand(
-            "SELECT criteria_changed_at FROM company_watch_criteria WHERE id = @id", connection);
+            $"SELECT {column} FROM company_watch_criteria WHERE id = @id", connection);
         command.Parameters.AddWithValue("id", criterionId);
         await using var reader = await command.ExecuteReaderAsync(Ct);
         (await reader.ReadAsync(Ct)).ShouldBeTrue();

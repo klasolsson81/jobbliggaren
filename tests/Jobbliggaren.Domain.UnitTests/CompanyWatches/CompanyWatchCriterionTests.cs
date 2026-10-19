@@ -379,7 +379,7 @@ public class CompanyWatchCriterionTests
     }
 
     [Fact]
-    public void RecordScan_ClampsAFutureBoundToNow()
+    public void RecordScan_WhenTheClockStepsBackMidRun_ClampsTheBoundToNow()
     {
         var criterion = CreateValid();
         var now = FakeDateTimeProvider.At(Clock.UtcNow.AddDays(1));

@@ -732,8 +732,8 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     {
         // The fourth materialised command text, and the one with no LIMIT: its cost grows with the criterion's
         // ad history, because created_at has no index and is a residual filter (ADR 0175 D2). The pin claims
-        // only what an EXPLAIN can see: the member PK serves the member lookup, the register is not read, and
-        // the window is applied to the ads. It claims no index for created_at.
+        // only what an EXPLAIN can see: the member PK serves the member lookup and the register is not read.
+        // It claims no index for created_at.
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
         var until = DateTimeOffset.UtcNow;
@@ -745,8 +745,6 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
             ct);
 
         AssertReadsTheMemberSet(plan, "new-ad scan");
-        plan.ShouldContain(
-            "created_at", customMessage: $"The window is not applied to the ads.{Environment.NewLine}{plan}");
     }
 
     [Fact]

@@ -302,6 +302,28 @@ public class CompanyWatchCriterionScanJobIntegrationTests(WorkerTestFixture fixt
     }
 
     [Fact]
+    public async Task Run_WithAnEmptyWindow_RecordsNothing_AndStillPurgesAHitWhoseAdLeftActive()
+    {
+        var w = await WorldAsync();
+        await FollowAsync(w.UserId, w.OrgNr);
+        var ad = await SeedAdAsync(w.OrgNr, FollowRun.AddMinutes(-30));
+        await RunFollowScanAsync(FollowRun);
+        await RunAsync(Now);
+        (await HitsAsync(w.UserId)).Select(h => h.JobAdId).ShouldBe([ad]);
+        var night1 = await CriterionAsync(w.CriterionId);
+        night1.LastScanOutcome.ShouldBe(CompanyWatchCriterionScanOutcome.Scanned);
+        night1.ScannedThrough.ShouldBe(FollowRun);
+
+        await ArchiveAsync(ad);
+        await RunAsync(Now.AddDays(1));
+
+        (await HitsAsync(w.UserId)).ShouldBeEmpty();
+        var night2 = await CriterionAsync(w.CriterionId);
+        night2.LastScanOutcome.ShouldBe(night1.LastScanOutcome);
+        night2.ScannedThrough.ShouldBe(night1.ScannedThrough);
+    }
+
+    [Fact]
     public async Task Run_KeepsAHitWhoseAdIsStillActive_AndWritesNoFlag()
     {
         var w = await WorldAsync();
@@ -359,8 +381,10 @@ public class CompanyWatchCriterionScanJobIntegrationTests(WorkerTestFixture fixt
     {
         // The actor is a concurrent criterion delete (ADR 0175 D10): the criterion goes between the read and the
         // insert, and the user's SaveChanges fails on the foreign key. The other user is scanned.
-        var failing = await WorldAsync();
-        var healthy = await WorldAsync();
+        World[] worlds = [await WorldAsync(), await WorldAsync()];
+        var byUserId = worlds.OrderBy(world => world.UserId).ToArray();
+        var failing = byUserId[0];
+        var healthy = byUserId[1];
         await SeedAdAsync(failing.OrgNr, Now.AddHours(-2));
         var healthyAd = await SeedAdAsync(healthy.OrgNr, Now.AddHours(-2));
 
@@ -373,21 +397,50 @@ public class CompanyWatchCriterionScanJobIntegrationTests(WorkerTestFixture fixt
     [Fact]
     public async Task Run_LogsCountsOnly_AndAUserIdOnlyOnAPerUserEvent()
     {
+        // Two actors: the command timeout fails both of one owner's criterion reads, and a concurrent delete fails
+        // another owner's SaveChanges.
         var w = await WorldAsync();
         var other = await SecondCriterionAsync(w);
         var ad = await SeedAdAsync(w.OrgNr, Now.AddHours(-2));
+        var failing = await WorldAsync();
+        await SeedAdAsync(failing.OrgNr, Now.AddHours(-2));
         var logs = new ListLoggerProvider();
 
-        await RunAsync(Now, scanFor: inner => new ThrowingScan(inner, w.CriterionId), logs: logs);
+        await RunAsync(
+            Now,
+            scanFor: inner => new DeletingScan(
+                new ThrowingScan(new ThrowingScan(inner, w.CriterionId), other),
+                failing.CriterionId,
+                _fixture.ConnectionString),
+            logs: logs);
 
         logs.Messages.ShouldNotBeEmpty();
         var forbidden = new[]
         {
             w.CriterionId.Value.ToString(), other.Value.ToString(), ad.Value.ToString(), w.OrgNr, w.Sni, Kommun,
+            failing.CriterionId.Value.ToString(), failing.OrgNr, failing.Sni,
         };
         foreach (var message in logs.Messages)
             forbidden.ShouldAllBe(value => !message.Contains(value, StringComparison.Ordinal));
-        logs.Messages.Where(m => m.Contains(w.UserId.ToString(), StringComparison.Ordinal))
+
+        var criteriaFailed = logs.Entries
+            .Where(e => e.Message.Contains(w.UserId.ToString(), StringComparison.Ordinal))
+            .ShouldHaveSingleItem();
+        criteriaFailed.Level.ShouldBe(LogLevel.Warning);
+        criteriaFailed.Exception.ShouldBeNull();
+        criteriaFailed.Properties.Keys.ShouldBe(["FailedCriteria", "UserId", "{OriginalFormat}"], ignoreOrder: true);
+        criteriaFailed.Properties["UserId"].ShouldBe(w.UserId);
+        criteriaFailed.Properties["FailedCriteria"].ShouldBe(2);
+
+        var userFailed = logs.Entries
+            .Where(e => e.Message.Contains(failing.UserId.ToString(), StringComparison.Ordinal))
+            .ShouldHaveSingleItem();
+        userFailed.Level.ShouldBe(LogLevel.Warning);
+        userFailed.Exception.ShouldBeAssignableTo<DbUpdateException>();
+
+        logs.Messages
+            .Where(m => m.Contains(w.UserId.ToString(), StringComparison.Ordinal)
+                || m.Contains(failing.UserId.ToString(), StringComparison.Ordinal))
             .ShouldAllBe(m => m.Contains("could not be read", StringComparison.Ordinal)
                 || m.Contains("scan failed", StringComparison.Ordinal));
         logs.Messages.ShouldContain(m => m.Contains("done", StringComparison.Ordinal));
@@ -456,15 +509,12 @@ public class CompanyWatchCriterionScanJobIntegrationTests(WorkerTestFixture fixt
     public async Task Run_AnalyzesTheHitTable_OncePerCompletedRun()
     {
         await WorldAsync();
+        await WorldAsync();
+        var before = await AnalyzeCountAsync();
 
         await RunAsync(Now);
 
-        await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
-        await connection.OpenAsync(Ct);
-        await using var command = new NpgsqlCommand(
-            "SELECT last_analyze FROM pg_stat_user_tables WHERE relname = 'company_watch_criterion_ad_hits'",
-            connection);
-        (await command.ExecuteScalarAsync(Ct)).ShouldNotBe(DBNull.Value);
+        (await AnalyzeCountAsync()).ShouldBe(before + 1);
     }
 
     [Fact]
@@ -750,6 +800,16 @@ public class CompanyWatchCriterionScanJobIntegrationTests(WorkerTestFixture fixt
         return await db.CompanyWatchCriteria.AsNoTracking().SingleAsync(c => c.Id == id, Ct);
     }
 
+    private async Task<long> AnalyzeCountAsync()
+    {
+        await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
+        await connection.OpenAsync(Ct);
+        await using var command = new NpgsqlCommand(
+            "SELECT COALESCE(analyze_count, 0) FROM pg_stat_user_tables WHERE relname = 'company_watch_criterion_ad_hits'",
+            connection);
+        return (long)(await command.ExecuteScalarAsync(Ct))!;
+    }
+
     private async Task<UserJobAdMatch?> MatchAsync(Guid userId, JobAdId jobAdId)
     {
         using var scope = _fixture.Services.CreateScope();
@@ -832,19 +892,24 @@ public class CompanyWatchCriterionScanJobIntegrationTests(WorkerTestFixture fixt
         }
     }
 
+    private sealed record LogEntry(
+        LogLevel Level, string Message, Exception? Exception, IReadOnlyDictionary<string, object?> Properties);
+
     private sealed class ListLoggerProvider : ILoggerProvider
     {
-        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _messages = new();
+        private readonly System.Collections.Concurrent.ConcurrentQueue<LogEntry> _entries = new();
 
-        public IReadOnlyList<string> Messages => [.. _messages];
+        public IReadOnlyList<LogEntry> Entries => [.. _entries];
 
-        public ILogger CreateLogger(string categoryName) => new ListLogger(_messages);
+        public IReadOnlyList<string> Messages => [.. _entries.Select(e => e.Message)];
+
+        public ILogger CreateLogger(string categoryName) => new ListLogger(_entries);
 
         public void Dispose()
         {
         }
 
-        private sealed class ListLogger(System.Collections.Concurrent.ConcurrentQueue<string> messages) : ILogger
+        private sealed class ListLogger(System.Collections.Concurrent.ConcurrentQueue<LogEntry> entries) : ILogger
         {
             public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -853,7 +918,11 @@ public class CompanyWatchCriterionScanJobIntegrationTests(WorkerTestFixture fixt
             public void Log<TState>(
                 LogLevel logLevel, EventId eventId, TState state, Exception? exception,
                 Func<TState, Exception?, string> formatter) =>
-                messages.Enqueue(formatter(state, exception));
+                entries.Enqueue(new LogEntry(
+                    logLevel,
+                    formatter(state, exception),
+                    exception,
+                    (state as IReadOnlyList<KeyValuePair<string, object?>> ?? []).ToDictionary(p => p.Key, p => p.Value)));
         }
     }
 

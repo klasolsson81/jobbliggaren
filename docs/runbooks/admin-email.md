@@ -56,7 +56,8 @@ it arrives, because the same policy carries the sign-in codes. The dated console
 
 | Line on the page | Reason | What to do |
 |---|---|---|
-| "Scaleway nekade läsningen…" | Unauthorized (401) or Forbidden (403) | A 401 means the key itself is refused, and sending is probably failing too: check the key's expiry first (`master-key-ops.md`). A 403 means the read permission is missing: check the sets above. |
+| "Scaleway nekade nyckeln…" | Unauthorized (401) | The key itself is refused, and sending is probably failing too: check the key's expiry first (`master-key-ops.md`). |
+| "Scaleway nekade läsningen…" | Forbidden (403) | The read permission is missing: check the sets above. |
 | "Scaleway begränsar läsningarna…" | RateLimited (429) | Wait. The read holds the failure for the provider's `Retry-After`, at most 15 minutes. |
 | "Scaleway svarade inte…" | Timeout, Unreachable, ProviderError | Transient. A lasting one: check Scaleway's status page. |
 | "Scaleways svar kunde inte läsas…" | Malformed | The API's answer changed shape. A code change; the adapter is `ScalewayUsageSource`. |

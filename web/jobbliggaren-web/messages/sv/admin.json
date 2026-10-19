@@ -125,6 +125,8 @@
       "link": "E-postleverans",
       "unit": "av <value>{included}</value> gratis i {month}",
       "unitThisMonth": "av <value>{included}</value> gratis denna månad",
+      "unitSentOnly": "skickade i {month}",
+      "unitSentOnlyThisMonth": "skickade denna månad",
       "cost": "Beräknad kostnad <value>{cost}</value> inkl. moms"
     },
     "attention": {
@@ -656,7 +658,8 @@
       "failure": {
         "noAnswer": "Scaleway svarade inte. Försök igen om en stund.",
         "rateLimited": "Scaleway begränsar läsningarna just nu. Försök igen om en stund.",
-        "refused": "Scaleway nekade läsningen. Kontrollera nyckelns behörighet enligt runbooken för admin-e-post.",
+        "keyRefused": "Scaleway nekade nyckeln, och då stoppas troligen även utskicken. Kontrollera nyckelns utgångsdatum enligt runbooken för admin-e-post.",
+        "readRefused": "Scaleway nekade läsningen. Kontrollera nyckelns behörighet enligt runbooken för admin-e-post.",
         "malformed": "Scaleways svar kunde inte läsas. Se runbooken för admin-e-post."
       }
     },

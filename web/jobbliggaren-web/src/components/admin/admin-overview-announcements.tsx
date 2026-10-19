@@ -45,7 +45,8 @@ function providerFailure(state: Health): AllowanceFailureGroup | null {
   switch (state) {
     case "provider.noAnswer": return "noAnswer";
     case "provider.rateLimited": return "rateLimited";
-    case "provider.refused": return "refused";
+    case "provider.keyRefused": return "keyRefused";
+    case "provider.readRefused": return "readRefused";
     case "provider.malformed": return "malformed";
     default: return null;
   }

@@ -59,7 +59,7 @@ export function servicesFixture(): ServicesObservationDto {
 
 /**
  * The allowance as the API sends it (#1981 PR 1): 1 301 mails this month under the configured plan, read 30 s before
- * `OVERVIEW_TIME`, so 1 001 are beyond the 300 free and cost 26 cents (0.25 EUR per 1 000, rounded up).
+ * `OVERVIEW_TIME`, so 1 001 are beyond the 300 free and cost 349 öre with Swedish VAT, as the API computes it.
  */
 export function emailAllowanceFixture(): EmailAllowanceDto {
   return {
@@ -69,7 +69,7 @@ export function emailAllowanceFixture(): EmailAllowanceDto {
     },
     usage: {
       status: "Observed", reason: null, observedAt: "2026-10-08T09:59:30+00:00", month: "2026-10",
-      sent: 1301, billable: 1001, estimatedExtraCostOre: 26, aboveHalfOfSendLimit: false, webhooksCount: 0,
+      sent: 1301, billable: 1001, estimatedExtraCostOre: 349, aboveHalfOfSendLimit: false, webhooksCount: 0,
     },
     plan: { status: "Observed", reason: null, active: "Essential", matches: true },
   };

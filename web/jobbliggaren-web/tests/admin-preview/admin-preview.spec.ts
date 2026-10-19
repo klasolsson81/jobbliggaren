@@ -477,10 +477,10 @@ test("the month against the free allowance shows each fixture state, and follows
   await page.goto(`${ROOT}/e-post`);
   const allowance = page.getByRole("region", { name: /^Utskick (i |denna)/ });
   const scenario = page.getByLabel("Visa utskick mot gratiskvoten");
-  await expect(allowance.getByRole("definition")).toHaveText(["142", "300", /^0,00\s€$/]);
+  await expect(allowance.getByRole("definition")).toHaveText(["142", "300", /^0,00\skr$/]);
 
   await scenario.selectOption({ label: "Över gratiskvoten" });
-  await expect(allowance.getByRole("definition")).toHaveText([/^1\s301$/, "300", /^0,26\s€$/]);
+  await expect(allowance.getByRole("definition")).toHaveText([/^1\s301$/, "300", /^3,49\skr$/]);
   await scenario.selectOption({ label: "Annat abonnemang" });
   await expect(allowance).toContainText("Scaleway anger abonnemanget Scale, men villkoren gäller Essential.");
   await scenario.selectOption({ label: "Räknas inte i miljön" });

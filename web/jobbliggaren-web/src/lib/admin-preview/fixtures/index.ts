@@ -206,7 +206,7 @@ const FIXTURE_MONTH = FIXTURE_NOW.slice(0, 7);
 function observedUsage(figures: {
   readonly sent: number;
   readonly billable: number | null;
-  readonly cents: number | null;
+  readonly ore: number | null;
   readonly aboveHalf?: boolean;
   readonly month?: string | null;
   readonly webhooks?: number | null;
@@ -218,7 +218,7 @@ function observedUsage(figures: {
     month: figures.month === undefined ? FIXTURE_MONTH : figures.month,
     sent: figures.sent,
     billable: figures.billable,
-    estimatedExtraCostOre: figures.cents,
+    estimatedExtraCostOre: figures.ore,
     aboveHalfOfSendLimit: figures.aboveHalf ?? false,
     webhooksCount: figures.webhooks === undefined ? 0 : figures.webhooks,
   });
@@ -229,7 +229,7 @@ const NO_USAGE = {
   aboveHalfOfSendLimit: null, webhooksCount: null,
 } as const;
 
-function failedUsage(reason: "Timeout" | "RateLimited" | "Forbidden" | "Malformed"): AdminEmailAllowance["usage"] {
+function failedUsage(reason: "Timeout" | "RateLimited" | "Unauthorized" | "Forbidden" | "Malformed"): AdminEmailAllowance["usage"] {
   return marked({ status: "Failed" as const, reason, ...NO_USAGE });
 }
 
@@ -241,21 +241,21 @@ function allowance(usage: AdminEmailAllowance["usage"], plan: AdminEmailAllowanc
 
 /** Every state the allowance region has, for the e-post preview's scenario choice (ADR 0150 D5). */
 export const PREVIEW_EMAIL_ALLOWANCE = marked({
-  withinQuota: allowance(observedUsage({ sent: 142, billable: 0, cents: 0 })),
-  nothingSent: allowance(observedUsage({ sent: 0, billable: 0, cents: 0 })),
-  atQuota: allowance(observedUsage({ sent: 300, billable: 0, cents: 0 })),
-  overQuota: allowance(observedUsage({ sent: 1301, billable: 1001, cents: 26 })),
-  aboveHalf: allowance(observedUsage({ sent: 5200, billable: 4900, cents: 123, aboveHalf: true })),
+  withinQuota: allowance(observedUsage({ sent: 142, billable: 0, ore: 0 })),
+  nothingSent: allowance(observedUsage({ sent: 0, billable: 0, ore: 0 })),
+  atQuota: allowance(observedUsage({ sent: 300, billable: 0, ore: 0 })),
+  overQuota: allowance(observedUsage({ sent: 1301, billable: 1001, ore: 349 })),
+  aboveHalf: allowance(observedUsage({ sent: 5200, billable: 4900, ore: 1707, aboveHalf: true })),
   planDiffers: allowance(
-    observedUsage({ sent: 412, billable: null, cents: null }),
+    observedUsage({ sent: 412, billable: null, ore: null }),
     marked({ status: "Observed" as const, reason: null, active: "Scale" as const, matches: false }),
   ),
   planUnknown: allowance(
-    observedUsage({ sent: 412, billable: null, cents: null }),
+    observedUsage({ sent: 412, billable: null, ore: null }),
     marked({ status: "Observed" as const, reason: null, active: "Unknown" as const, matches: false }),
   ),
   planFailed: allowance(
-    observedUsage({ sent: 412, billable: null, cents: null }),
+    observedUsage({ sent: 412, billable: null, ore: null }),
     marked({ status: "Failed" as const, reason: "ProviderError" as const, active: null, matches: null }),
   ),
   notConfigured: allowance(
@@ -267,14 +267,18 @@ export const PREVIEW_EMAIL_ALLOWANCE = marked({
     failedUsage("RateLimited"),
     marked({ status: "Failed" as const, reason: "RateLimited" as const, active: null, matches: null }),
   ),
+  keyRefused: allowance(
+    failedUsage("Unauthorized"),
+    marked({ status: "Failed" as const, reason: "Unauthorized" as const, active: null, matches: null }),
+  ),
   refused: allowance(
     failedUsage("Forbidden"),
     marked({ status: "Failed" as const, reason: "Forbidden" as const, active: null, matches: null }),
   ),
   malformed: allowance(failedUsage("Malformed")),
-  noMonth: allowance(observedUsage({ sent: 3, billable: 0, cents: 0, month: null })),
-  webhooks: allowance(observedUsage({ sent: 142, billable: 0, cents: 0, webhooks: 1 })),
-  webhooksUnreadable: allowance(observedUsage({ sent: 142, billable: 0, cents: 0, webhooks: null })),
+  noMonth: allowance(observedUsage({ sent: 3, billable: 0, ore: 0, month: null })),
+  webhooks: allowance(observedUsage({ sent: 142, billable: 0, ore: 0, webhooks: 1 })),
+  webhooksUnreadable: allowance(observedUsage({ sent: 142, billable: 0, ore: 0, webhooks: null })),
 });
 
 export type PreviewAllowanceScenario = keyof typeof PREVIEW_EMAIL_ALLOWANCE;

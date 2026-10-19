@@ -58,7 +58,7 @@ describe("AdminEmailAllowance — an observed month (#1981 PR 1, ADR 0150 Amendm
       "Ingår gratis",
       "Beräknad kostnad inkl. moms",
     ]);
-    expect(values(region)).toEqual([`1${NBSP}301`, "300", `0,26${NBSP}kr`]);
+    expect(values(region)).toEqual([`1${NBSP}301`, "300", `3,49${NBSP}kr`]);
     expect(region.querySelector("dl")).toHaveClass("jp-adminmailsum");
   });
 
@@ -95,7 +95,7 @@ describe("AdminEmailAllowance — an observed month (#1981 PR 1, ADR 0150 Amendm
   });
 
   it("says so in words when more than half of the send limit is used, and the plain limit sentence gives way", () => {
-    const region = loaded(withUsage({ sent: 5200, billable: 4900, estimatedExtraCostOre: 123, aboveHalfOfSendLimit: true }));
+    const region = loaded(withUsage({ sent: 5200, billable: 4900, estimatedExtraCostOre: 1707, aboveHalfOfSendLimit: true }));
 
     expect(stateLines(region)).toEqual([`Över hälften av sändgränsen på 10${NBSP}000 mejl i månaden är använd.`]);
     expect(noteLines(region)).toEqual([SOURCE, PRICE, CONVERSION]);
@@ -136,7 +136,7 @@ describe("AdminEmailAllowance — the plan in force", () => {
 
     expect(values(region)).toEqual([`1${NBSP}301`, UNKNOWN, UNKNOWN]);
     expect(stateLines(region)).toEqual([line]);
-    expect(noteLines(region)).toEqual([SOURCE, PRICE, CONVERSION, LIMIT]);
+    expect(noteLines(region)).toEqual([SOURCE, PRICE, LIMIT]);
   });
 
   it("announces a failed plan read once, as the source and its state, and keeps the region's own line quiet", () => {
@@ -174,7 +174,10 @@ describe("AdminEmailAllowance — the provider did not answer the count", () => 
     ["Unreachable", "Scaleway svarade inte. Försök igen om en stund."],
     ["ProviderError", "Scaleway svarade inte. Försök igen om en stund."],
     ["RateLimited", "Scaleway begränsar läsningarna just nu. Försök igen om en stund."],
-    ["Unauthorized", "Scaleway nekade läsningen. Kontrollera nyckelns behörighet enligt runbooken för admin-e-post."],
+    [
+      "Unauthorized",
+      "Scaleway nekade nyckeln, och då stoppas troligen även utskicken. Kontrollera nyckelns utgångsdatum enligt runbooken för admin-e-post.",
+    ],
     ["Forbidden", "Scaleway nekade läsningen. Kontrollera nyckelns behörighet enligt runbooken för admin-e-post."],
     ["Malformed", "Scaleways svar kunde inte läsas. Se runbooken för admin-e-post."],
   ] as const)("words %s by its cause and remedy, and keeps the price, since the terms are ours", (reason, line) => {
@@ -182,7 +185,7 @@ describe("AdminEmailAllowance — the provider did not answer the count", () => 
 
     expect(values(region)).toEqual([UNKNOWN, "300", UNKNOWN]);
     expect(stateLines(region)).toEqual([line]);
-    expect(noteLines(region)).toEqual([PRICE, CONVERSION]);
+    expect(noteLines(region)).toEqual([PRICE]);
     expect(screen.getByRole("alert")).toHaveTextContent(`Utskick mot gratiskvoten: ${line}`);
     expect(region.querySelector(".jp-adminsoon")).not.toHaveAttribute("role");
     expect(region.textContent).not.toContain(`0,00${NBSP}kr`);

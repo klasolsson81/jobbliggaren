@@ -56,7 +56,7 @@ describe("/admin/e-post — the month against the free allowance first, delivery
     expect(within(allowance).getAllByRole("definition").map((value) => value.textContent)).toEqual([
       "1 301",
       "300",
-      "0,26 kr",
+      "3,49 kr",
     ]);
     expect(allowance.querySelector(".jp-admincard, .jp-adminkpi__value, progress, meter, [role='progressbar']")).toBeNull();
     expect(document.body.textContent ?? "").not.toMatch(/\d\s?%/);

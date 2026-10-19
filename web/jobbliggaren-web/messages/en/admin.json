@@ -125,6 +125,8 @@
       "link": "Email delivery",
       "unit": "of <value>{included}</value> free in {month}",
       "unitThisMonth": "of <value>{included}</value> free this month",
+      "unitSentOnly": "sent in {month}",
+      "unitSentOnlyThisMonth": "sent this month",
       "cost": "Estimated cost <value>{cost}</value> incl. VAT"
     },
     "attention": {
@@ -656,7 +658,8 @@
       "failure": {
         "noAnswer": "Scaleway did not answer. Try again in a moment.",
         "rateLimited": "Scaleway is limiting the reads right now. Try again in a moment.",
-        "refused": "Scaleway refused the read. Check the key's permission as the admin email runbook describes.",
+        "keyRefused": "Scaleway refused the key, and then the sends are probably stopped too. Check the key's expiry date as the admin email runbook describes.",
+        "readRefused": "Scaleway refused the read. Check the key's permission as the admin email runbook describes.",
         "malformed": "Scaleway's answer could not be read. See the admin email runbook."
       }
     },

@@ -37,6 +37,7 @@
       "notConfigured": "Räknas inte i miljön",
       "noAnswer": "Scaleway svarar inte",
       "rateLimited": "Scaleway begränsar läsningarna",
+      "keyRefused": "Scaleway nekar nyckeln",
       "refused": "Scaleway nekar läsningen",
       "malformed": "Oläsbart svar från Scaleway",
       "noMonth": "Månaden kan inte namnges",

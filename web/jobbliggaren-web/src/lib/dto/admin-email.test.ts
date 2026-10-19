@@ -9,7 +9,7 @@ const EXAMPLE = {
   },
   usage: {
     status: "Observed", reason: null, observedAt: "2026-10-18T19:30:40+00:00", month: "2026-10", sent: 1301,
-    billable: 1001, estimatedExtraCostOre: 26, aboveHalfOfSendLimit: false, webhooksCount: 0,
+    billable: 1001, estimatedExtraCostOre: 349, aboveHalfOfSendLimit: false, webhooksCount: 0,
   },
   plan: { status: "Observed", reason: null, active: "Essential", matches: true },
 };

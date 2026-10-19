@@ -141,12 +141,14 @@ export function AdminEmailAllowance({
               readOn: formatLedgerDate(format, allowance.terms.priceReadOn) ?? allowance.terms.priceReadOn,
             })}
           </p>
-          <p>
-            {t("conversion", {
-              rate: format.number(allowance.terms.sekPerEur, { maximumFractionDigits: 4 }),
-              rateOn: formatLedgerDate(format, allowance.terms.exchangeRateOn) ?? allowance.terms.exchangeRateOn,
-            })}
-          </p>
+          {cost !== null ? (
+            <p>
+              {t("conversion", {
+                rate: format.number(allowance.terms.sekPerEur, { maximumFractionDigits: 4 }),
+                rateOn: formatLedgerDate(format, allowance.terms.exchangeRateOn) ?? allowance.terms.exchangeRateOn,
+              })}
+            </p>
+          ) : null}
           {usage.status === "Observed" && !usage.aboveHalfOfSendLimit ? (
             <p>{t("sendLimit", { limit: format.number(allowance.terms.monthlySendLimit) })}</p>
           ) : null}

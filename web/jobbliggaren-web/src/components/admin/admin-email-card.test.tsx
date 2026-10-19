@@ -29,7 +29,7 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
 
     expect(value(card)).toBe("1 301");
     expect(card.querySelector(".jp-adminkpi__unit")).toHaveTextContent("av 300 gratis i oktober 2026");
-    expect(card).toHaveTextContent("Beräknad kostnad 0,26 kr inkl. moms");
+    expect(card).toHaveTextContent("Beräknad kostnad 3,49 kr inkl. moms");
     expect(card).toHaveTextContent("Uppgift från 2026-10-08 11:59");
     expect(within(card).getByRole("link", { name: "E-postleverans" })).toHaveAttribute("href", "/admin/e-post");
   });
@@ -54,19 +54,43 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
     expect(card.querySelector(".jp-adminkpi__unit")).toHaveTextContent("av 300 gratis denna månad");
   });
 
-  it("keeps the count and en-dashes the allowance and the cost while another plan is in force", () => {
+  it.each([
+    [
+      "another plan",
+      { status: "Observed", reason: null, active: "Scale", matches: false },
+      "Scaleway anger abonnemanget Scale, men villkoren gäller Essential. Kostnaden beräknas inte.",
+    ],
+    [
+      "a plan this code does not know",
+      { status: "Observed", reason: null, active: "Unknown", matches: false },
+      "Abonnemanget hos Scaleway kunde inte bestämmas. Kostnaden beräknas inte.",
+    ],
+    [
+      "a plan read that failed",
+      { status: "Failed", reason: "ProviderError", active: null, matches: null },
+      "Abonnemanget kunde inte läsas från Scaleway. Kostnaden beräknas inte.",
+    ],
+  ] as const)("keeps the count under %s, with the month as its unit and the page's cause in place of the cost", (_name, plan, cause) => {
+    const card = loaded({ ...base, usage: { ...observedUsage, billable: null, estimatedExtraCostOre: null }, plan });
+
+    expect(value(card)).toBe("1 301");
+    expect(card.querySelector(".jp-adminkpi__unit")?.textContent).toBe("skickade i oktober 2026");
+    expect(card.querySelector(".jp-adminkpi__sub")?.textContent).toBe(cause);
+    expect(card).not.toHaveTextContent(/Beräknad kostnad|gratis|Uppgift saknas/);
+    expect(card.textContent).not.toContain("–");
+  });
+
+  it("says this month under another plan where the month cannot be named", () => {
     const card = loaded({
       ...base,
-      usage: { ...observedUsage, billable: null, estimatedExtraCostOre: null },
+      usage: { ...observedUsage, month: null, billable: null, estimatedExtraCostOre: null },
       plan: { status: "Observed", reason: null, active: "Scale", matches: false },
     });
 
-    expect(value(card)).toBe("1 301");
-    expect(card.querySelector(".jp-adminkpi__unit")?.textContent).toBe("av –Uppgift saknas gratis i oktober 2026");
-    expect(card.querySelector(".jp-adminkpi__sub")?.textContent).toBe("Beräknad kostnad –Uppgift saknas inkl. moms");
+    expect(card.querySelector(".jp-adminkpi__unit")?.textContent).toBe("skickade denna månad");
   });
 
-  it("says it is not counted here where no provider is configured: an en-dash, never Kommer snart or awaiting", () => {
+  it("says it is not counted here where no provider is configured: an en-dash, never Kommer snart, awaiting or a date", () => {
     const card = loaded({
       ...base,
       usage: { status: "NotObserved", reason: "NotConfigured", ...NO_USAGE },
@@ -76,7 +100,7 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
     expect(value(card)).toBe("–Uppgift saknas");
     expect(card.querySelector(".jp-adminkpi__unit")).toBeNull();
     expect(card).toHaveTextContent("Räknas inte i den här miljön.");
-    expect(card).not.toHaveTextContent(/Kommer snart|rapporterat|Beräknad kostnad/);
+    expect(card).not.toHaveTextContent(/Kommer snart|rapporterat|Beräknad kostnad|Uppgift från/);
   });
 
   it("says why the provider did not answer the count, with the number an en-dash and its unit hidden", () => {
@@ -105,7 +129,7 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
   });
 
   it("is never an attention item, and the attention card still says email errors cannot be judged", () => {
-    const card = loaded({ ...base, usage: { ...observedUsage, sent: 9000, billable: 8700, estimatedExtraCostOre: 218, aboveHalfOfSendLimit: true } });
+    const card = loaded({ ...base, usage: { ...observedUsage, sent: 9000, billable: 8700, estimatedExtraCostOre: 3031, aboveHalfOfSendLimit: true } });
     const attention = screen.getByRole("region", { name: "Kräver uppmärksamhet" });
 
     expect(card.querySelector(".jp-admin-danger, .jp-admin-warning")).toBeNull();

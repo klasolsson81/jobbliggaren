@@ -23,7 +23,7 @@ const notConfigured: EmailAllowanceDto = {
 
 describe("allowanceFigures (#1981 PR 1)", () => {
   it("takes the count, the configured free mails and the cost while the plan in force is the configured one", () => {
-    expect(allowanceFigures(base)).toEqual({ sent: 1301, included: 300, costOre: 26 });
+    expect(allowanceFigures(base)).toEqual({ sent: 1301, included: 300, costOre: 349 });
   });
 
   it("keeps the count and leaves the allowance and the cost unknown under another plan", () => {
@@ -61,8 +61,8 @@ describe("allowanceFailureGroup", () => {
     ["Unreachable", "noAnswer"],
     ["ProviderError", "noAnswer"],
     ["RateLimited", "rateLimited"],
-    ["Unauthorized", "refused"],
-    ["Forbidden", "refused"],
+    ["Unauthorized", "keyRefused"],
+    ["Forbidden", "readRefused"],
     ["Malformed", "malformed"],
   ] as const)("words %s as %s", (reason, group) => {
     expect(allowanceFailureGroup(reason)).toBe(group);

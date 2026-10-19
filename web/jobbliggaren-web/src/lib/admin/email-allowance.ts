@@ -27,17 +27,17 @@ export function allowanceFigures(allowance: EmailAllowanceDto): AllowanceFigures
 
 /**
  * One wording per cause, by what the reader can do about it: wait (no answer, or the provider is limiting the reads),
- * check the key's permission, or read the runbook.
+ * check the key's expiry (the key itself is refused), check the key's permission (the read is), or read the runbook.
  */
-export type AllowanceFailureGroup = "noAnswer" | "rateLimited" | "refused" | "malformed";
+export type AllowanceFailureGroup = "noAnswer" | "rateLimited" | "keyRefused" | "readRefused" | "malformed";
 
 const FAILURE_GROUP: Readonly<Record<EmailAllowanceFailure, AllowanceFailureGroup>> = {
   Timeout: "noAnswer",
   Unreachable: "noAnswer",
   ProviderError: "noAnswer",
   RateLimited: "rateLimited",
-  Unauthorized: "refused",
-  Forbidden: "refused",
+  Unauthorized: "keyRefused",
+  Forbidden: "readRefused",
   Malformed: "malformed",
 };
 

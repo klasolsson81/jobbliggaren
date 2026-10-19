@@ -100,6 +100,40 @@ test("/admin/e-post shows the month against the free allowance first, and keeps 
   expect(text).not.toMatch(/\d/);
 });
 
+const EMAIL_STATES: ReadonlyArray<{ readonly name: string; readonly set: (h: Harness) => void; readonly line: string }> = [
+  {
+    name: "no provider in this deployment",
+    set: (h) => { h.overviewEmail = "notConfigured"; },
+    line: "Räknas inte i den här miljön.",
+  },
+  {
+    name: "a count the provider did not answer",
+    set: (h) => { h.overviewEmail = "providerFailed"; },
+    line: "Scaleway svarade inte. Försök igen om en stund.",
+  },
+  {
+    name: "a count under another plan",
+    set: (h) => { h.overviewEmail = "planDiffers"; },
+    line: "Scaleway anger abonnemanget Scale, men villkoren gäller Essential. Kostnaden beräknas inte.",
+  },
+  {
+    name: "our own failed read",
+    set: (h) => { h.overviewReads.email = "error"; },
+    line: "Uppgifterna kunde inte hämtas. Försök igen om en stund.",
+  },
+];
+
+for (const state of EMAIL_STATES) {
+  test(`/admin/e-post says why the allowance is incomplete for ${state.name} (#1981 PR 1)`, async ({ page }) => {
+    state.set(harness);
+    await page.goto("/admin/e-post");
+
+    const allowance = page.getByRole("region", { name: /^Utskick (i |denna)/ });
+    await expect(allowance.getByText(state.line, { exact: true })).toBeVisible();
+    expect(harness.requests).toContain("GET /api/v1/admin/email/allowance");
+  });
+}
+
 test("Bakgrundsjobb and Granskning still render their data", async ({ page }) => {
   await page.goto("/admin/jobb");
   await expect(page.getByRole("cell", { name: "sync-platsbanken-stream" })).toBeVisible();

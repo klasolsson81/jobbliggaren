@@ -316,6 +316,7 @@ const SCENARIOS: ReadonlyArray<PreviewAllowanceScenario> = [
   "notConfigured",
   "noAnswer",
   "rateLimited",
+  "keyRefused",
   "refused",
   "malformed",
   "noMonth",

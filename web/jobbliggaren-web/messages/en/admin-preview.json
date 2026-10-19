@@ -37,6 +37,7 @@
       "notConfigured": "Not counted in this environment",
       "noAnswer": "Scaleway does not answer",
       "rateLimited": "Scaleway is limiting the reads",
+      "keyRefused": "Scaleway refuses the key",
       "refused": "Scaleway refuses the read",
       "malformed": "Unreadable answer from Scaleway",
       "noMonth": "The month cannot be named",

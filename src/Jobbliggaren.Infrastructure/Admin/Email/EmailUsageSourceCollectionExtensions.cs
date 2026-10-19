@@ -23,6 +23,7 @@ public static class EmailUsageSourceCollectionExtensions
         {
             var region = configuration[$"{ScalewayEmailOptions.SectionName}:{nameof(ScalewayEmailOptions.Region)}"];
             services.AddScalewayUsageClient(region ?? string.Empty);
+            services.AddSingleton<ScalewayReadTransport>();
             services.AddSingleton<IProviderUsageAttemptSource, ScalewayUsageSource>();
             services.AddSingleton<IEmailProviderUsageSource, MemoizedEmailProviderUsageSource>();
         }

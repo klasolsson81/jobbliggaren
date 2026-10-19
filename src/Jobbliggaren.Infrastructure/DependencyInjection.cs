@@ -16,6 +16,7 @@ using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Admin.Accounts;
+using Jobbliggaren.Infrastructure.Admin.Email;
 using Jobbliggaren.Infrastructure.Admin.HostBridge;
 using Jobbliggaren.Infrastructure.Admin.Services;
 using Jobbliggaren.Infrastructure.Auditing;
@@ -78,6 +79,7 @@ public static class DependencyInjection
         services.AddCvParsing();
         services.AddHostBridge(configuration);
         services.AddServiceObservationSources();
+        services.AddEmailUsageSource(configuration);
         services.AddDevOnlyTestingSupport(environment);
         return services;
     }
@@ -847,8 +849,8 @@ public static class DependencyInjection
         services.Configure<EmailOptions>(
             configuration.GetSection(EmailOptions.SectionName));
 
-        var emailProvider = configuration[$"{EmailOptions.SectionName}:Provider"] ?? "Console";
-        if (string.Equals(emailProvider, "Console", StringComparison.OrdinalIgnoreCase))
+        var emailProvider = EmailProviderSelection.ConfiguredProvider(configuration);
+        if (EmailProviderSelection.IsConsole(emailProvider))
         {
             // An allow-list of Development and Test, like the Worker's Hangfire schema gate.
             if (environment.IsDevelopment() || environment.IsEnvironment("Test"))
@@ -860,7 +862,7 @@ public static class DependencyInjection
                 services.AddSingleton<IEmailSender, NullEmailSender>();
             }
         }
-        else if (string.Equals(emailProvider, "Scaleway", StringComparison.OrdinalIgnoreCase))
+        else if (EmailProviderSelection.IsScaleway(emailProvider))
         {
             // Read straight from IConfiguration, not through IOptions, so a misconfiguration fails
             // the registration rather than the first email. The check cannot live in the sender's

@@ -331,7 +331,8 @@ if (builder.Environment.IsDevelopment() || reverseProxy.HttpsEnabled)
 // Private binary reads need these headers on framework refusals as well as successful responses.
 app.Use(async (ctx, next) =>
 {
-    if (ctx.Request.Path.StartsWithSegments("/api/v1/admin/overview"))
+    if (ctx.Request.Path.StartsWithSegments("/api/v1/admin/overview")
+        || ctx.Request.Path.StartsWithSegments("/api/v1/admin/email"))
     {
         ctx.Response.OnStarting(static state =>
         {
@@ -399,6 +400,7 @@ app.MapResumesEndpoints();
 app.MapAdminEndpoints();
 app.MapAdminHostObservationEndpoints();
 app.MapAdminServiceObservationEndpoints();
+app.MapAdminEmailEndpoints();
 app.MapAdminAccountsEndpoints();
 app.MapAdminJobAdsEndpoints();
 app.MapAdminCompanyWatchesEndpoints();

@@ -1,6 +1,7 @@
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Application.Admin.BackgroundJobs;
+using Jobbliggaren.Application.Admin.Email;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Access;
 using Jobbliggaren.Application.Auth.AccountEmailChanges;
@@ -9,6 +10,7 @@ using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure;
+using Jobbliggaren.Infrastructure.Admin.Email;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Access;
 using Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
@@ -267,6 +269,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // #1735 — the swap above removed the Development composition's login-code capture with the sender it
             // wrapped; wrap the recording sender the same way, or /dev/login-code is only ever tested on its 404.
             services.AddDevLoginCodeCapture();
+
+            // #1981 — the allowance read asks the provider when Email:Provider=Scaleway, which a gitignored
+            // Local.json with live keys can say, for the same reason as the sender swap above. The default answers
+            // "not configured"; a test that needs another answer replaces it on its own host.
+            services.RemoveAll<IEmailProviderUsageSource>();
+            services.AddSingleton<IEmailProviderUsageSource>(new NotConfiguredEmailProviderUsageSource());
 
             // #204 / TD-83 PR2 — replace the real HangfireBackgroundJobController (composed in the Api
             // root, wrapping Hangfire's IRecurringJobManager/IBackgroundJobClient/IMonitoringApi) with

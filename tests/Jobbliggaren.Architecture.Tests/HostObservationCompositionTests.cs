@@ -8,8 +8,8 @@ namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
 /// The host sampler is composed in the Api and nowhere else (#1982, ADR 0158, CTO ruling Q6): nothing in
-/// <c>AddPersistence</c>, <c>AddApplication</c> or <c>AddInfrastructure</c>, which the Worker also loads, and
-/// nothing in the Worker. The layer tests catch the direction of a dependency; none of them catches a
+/// <c>AddPersistence</c> or <c>AddApplication</c>, which the Worker also loads, nothing in the rest of Infrastructure,
+/// and nothing in the Worker. The layer tests catch the direction of a dependency; none of them catches a
 /// registration that sits in the wrong composition root. The rule names the two types and not the namespace:
 /// the Worker's generated Mediator code legitimately references the query handler.
 /// </summary>
@@ -41,7 +41,7 @@ public class HostObservationCompositionTests
             .GetResult();
 
         result.IsSuccessful.ShouldBeTrue(
-            $"AddInfrastructure and AddPersistence are loaded by the Worker too: {string.Join(", ", result.FailingTypeNames ?? [])}");
+            $"AddPersistence and AddEmailSender are loaded by the Worker too: {string.Join(", ", result.FailingTypeNames ?? [])}");
     }
 
     [Fact]

@@ -196,8 +196,9 @@ a false negative costs a false confirmation to a named person.
 > **URL columns hold a name as a slug.** `job_ads.application_url`, `applications.snapshot_url`
 > and `applications.manual_url` match the identifier as written, so `gunnel-sjoberg` in a URL
 > path is not reached by a request for `Gunnel Sjöberg`. Run the dry run again with the slug
-> forms as further identifiers: lower case, å and ä as `a`, ö as `o`, é as `e`, the space as
-> `-`, and the name written together.
+> forms as further identifiers: lower case, å and ä as `a`, ö as `o`, é as `e`, and å, ä and
+> ö percent-encoded (`%c3%a5`, `%c3%a4`, `%c3%b6`); the space as `-`, `.`, `_`, `+` and `%20`,
+> and the name written together.
 
 > ⛔ **THE ENCRYPTED COLUMNS AND SCREENSHOT PIXELS ARE NOT SEARCHED; DISCLOSE BOTH.**
 > `applications.cover_letter`, `application_notes.content`, `follow_ups.note`,

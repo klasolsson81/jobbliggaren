@@ -332,7 +332,16 @@ public class CriterionNewAdsEndpointTests(ApiFactory factory)
         var criterion = CompanyWatchCriterion.Create(
             userId, CompanyWatchCriteriaSpec.Create(sniCodes ?? ["63910"], ["0180"]).Value, null,
             new FakeDateTimeProvider(Created)).Value;
-        if (outcome is { } o)
+        if (outcome == CompanyWatchCriterionScanOutcome.NotMaterialised)
+        {
+            // The scan's read-age guard answers NotMaterialised for a criterion it has scanned before, once its
+            // materialisation is stale (CompanyWatchBrowseQuery); alone it would leave ScannedThrough null.
+            criterion.RecordScan(CompanyWatchCriterionScanOutcome.Scanned, Created.AddMinutes(30),
+                new FakeDateTimeProvider(Created.AddMinutes(30)));
+            criterion.RecordScan(CompanyWatchCriterionScanOutcome.NotMaterialised, Created.AddMinutes(60),
+                new FakeDateTimeProvider(Created.AddMinutes(60)));
+        }
+        else if (outcome is { } o)
             criterion.RecordScan(o, Created.AddMinutes(30), new FakeDateTimeProvider(Created.AddMinutes(30)));
         db.CompanyWatchCriteria.Add(criterion);
         await db.SaveChangesAsync(Ct);

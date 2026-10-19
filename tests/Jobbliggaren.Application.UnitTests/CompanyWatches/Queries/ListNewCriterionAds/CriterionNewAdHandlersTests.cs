@@ -196,7 +196,16 @@ public class CriterionNewAdHandlersTests
     {
         var criterion = CompanyWatchCriterion.Create(
             userId, CompanyWatchCriteriaSpec.Create(["63910"], ["0180"]).Value, null, new FixedClock(T0)).Value;
-        if (outcome is { } o)
+        if (outcome == CompanyWatchCriterionScanOutcome.NotMaterialised)
+        {
+            // The scan's read-age guard answers NotMaterialised for a criterion it has scanned before, once its
+            // materialisation is stale (CompanyWatchBrowseQuery); alone it would leave ScannedThrough null.
+            criterion.RecordScan(
+                CompanyWatchCriterionScanOutcome.Scanned, T0.AddMinutes(30), new FixedClock(T0.AddMinutes(30)));
+            criterion.RecordScan(
+                CompanyWatchCriterionScanOutcome.NotMaterialised, T0.AddMinutes(60), new FixedClock(T0.AddMinutes(60)));
+        }
+        else if (outcome is { } o)
             criterion.RecordScan(o, T0.AddMinutes(30), new FixedClock(T0.AddMinutes(30)));
         db.CompanyWatchCriteria.Add(criterion);
         return criterion;

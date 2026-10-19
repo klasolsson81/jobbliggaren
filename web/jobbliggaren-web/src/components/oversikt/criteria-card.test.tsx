@@ -332,7 +332,7 @@ describe("CriteriaCard — the 'N nya' pill (ADR 0175 D7)", () => {
 
   const noPill: ReadonlyArray<readonly [string, ApiResult<CriterionNewAdCounts>]> = [
     ["a counted 0", counts([ID, 0])],
-    ["a null count (the last scan was not Scanned)", counts([ID, null])],
+    ["a null count", counts([ID, null])],
     ["a failed count read", { kind: "error" }],
     ["a rate-limited count read", { kind: "rateLimited", retryAfterSeconds: 60 }],
     ["an unauthorized count read", { kind: "unauthorized" }],

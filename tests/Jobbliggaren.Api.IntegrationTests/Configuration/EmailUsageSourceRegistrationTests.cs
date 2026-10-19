@@ -1,3 +1,4 @@
+using System.Net;
 using Jobbliggaren.Application.Admin.Email;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -15,8 +16,9 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
 /// <summary>
 /// #1981 (ADR 0178) — the allowance source's registration, by pure <see cref="ServiceCollection"/> inspection: no host,
-/// no network, no credential. It pins that the sender and the source read <c>Email:Provider</c> alike, that the
-/// Worker's path never registers the source, and that the options and the read client are what ADR 0178 says.
+/// no network, no credential. It pins that the sender and the source read <c>Email:Provider</c> alike, that
+/// <c>AddEmailSender</c> alone never registers the source, and that the options and the read client are what ADR 0178
+/// says.
 /// </summary>
 public class EmailUsageSourceRegistrationTests
 {
@@ -108,6 +110,37 @@ public class EmailUsageSourceRegistrationTests
         send.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
     }
 
+    [Fact]
+    public void TheReadClient_FollowsNoRedirect()
+    {
+        using var provider = ApiComposition(Config("Scaleway")).BuildServiceProvider();
+
+        var handler = provider.GetRequiredService<IHttpMessageHandlerFactory>()
+            .CreateHandler(ScalewayClientRegistration.UsageHttpClientName);
+        while (handler is DelegatingHandler delegating)
+        {
+            handler = delegating.InnerHandler!;
+        }
+
+        handler.ShouldBeOfType<SocketsHttpHandler>().AllowAutoRedirect.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task TheSendClient_SendsA503ExactlyOnce()
+    {
+        var transport = new CountingTransport(HttpStatusCode.ServiceUnavailable);
+        var services = ApiComposition(Config("Scaleway"));
+        services.AddHttpClient(ScalewayClientRegistration.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => transport);
+        using var provider = services.BuildServiceProvider();
+
+        using var response = await provider.GetRequiredService<IHttpClientFactory>()
+            .CreateClient(ScalewayClientRegistration.HttpClientName)
+            .GetAsync(new Uri("emails", UriKind.Relative), TestContext.Current.CancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        transport.Requests.ShouldBe(1);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("Scaleway")]
@@ -129,5 +162,18 @@ public class EmailUsageSourceRegistrationTests
         using var provider = ApiComposition(configuration).BuildServiceProvider();
 
         Should.Throw<OptionsValidationException>(() => provider.GetRequiredService<IOptions<EmailAllowanceOptions>>().Value);
+    }
+
+    private sealed class CountingTransport(HttpStatusCode status) : HttpMessageHandler
+    {
+        private int _requests;
+
+        public int Requests => _requests;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _requests);
+            return Task.FromResult(new HttpResponseMessage(status));
+        }
     }
 }

@@ -34,6 +34,19 @@ public class EmailProviderUsageReadTests
     public void Failed_ShouldRefuseAReasonOutsideTheEnum() =>
         Should.Throw<ArgumentException>(() => new EmailProviderUsageRead.Failed((EmailAllowanceReason)99));
 
+    [Theory]
+    [InlineData(1L, null)]
+    [InlineData(null, 349L)]
+    public void TheObservedUsageDto_ShouldRefuseBillableWithoutItsCost_OrTheReverse(long? billable, long? costOre) =>
+        Should.Throw<ArgumentException>(() => EmailAllowanceUsageDto.Observed(At, "2026-10", 301, billable, costOre, false, 0));
+
+    [Fact]
+    public void TheObservedUsageDto_ShouldAcceptBoth_OrNeither()
+    {
+        EmailAllowanceUsageDto.Observed(At, "2026-10", 301, 1, 1, false, 0).EstimatedExtraCostOre.ShouldBe(1);
+        EmailAllowanceUsageDto.Observed(At, "2026-10", 301, null, null, false, 0).Billable.ShouldBeNull();
+    }
+
     [Fact]
     public void AFailedPlanRead_ShouldRefuseNotConfiguredAndAReasonOutsideTheEnum()
     {

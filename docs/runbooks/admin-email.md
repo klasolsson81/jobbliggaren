@@ -66,13 +66,14 @@ The plan's own lines follow the same reasons, and say the cost is not computed.
 
 ## Re-measuring from the box
 
-A read with the production key against the provider needs **Klas's GO for each run** (CLAUDE.md §9.2). The form security-auditor
-set (ADR 0178 D7):
+A read with the production key against the provider needs **Klas's GO for each run** (CLAUDE.md §9.2), in this form:
 
 - The key and project id are read from their files into a curl config on tmpfs (`umask 077`), never into argv or the environment.
-- One GET per endpoint, `-sS --max-time 10`. The body goes to a temporary file that is never printed.
+- One GET per endpoint, `-sS --max-time 10`, never `-v` or `--trace`. The body goes to a temporary file that is never printed.
+- The config and the body files are deleted in the same command that wrote them.
 - Output on a 200: the HTTP status and the named counts only. On anything else: the error's `type` and its `details`
   resource/action names, whitelisted to `[a-z_]`. Never the body, never `project_id`.
+- The GO question shows the exact command that will run.
 
 The deployed page performs the same read. Klas reading it live is the measurement that needs no GO.
 

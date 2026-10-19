@@ -31,7 +31,9 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     private readonly LogSink _logs = new();
     private readonly ServiceProvider _provider;
 
-    public ScalewayUsageSourceTests()
+    public ScalewayUsageSourceTests() => _provider = BuildProvider();
+
+    private ServiceProvider BuildProvider(TimeSpan? readTimeout = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -48,9 +50,14 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         services.AddSingleton<IDateTimeProvider>(new FixedClock(Now));
         services.AddOptions<ScalewayEmailOptions>().Bind(configuration.GetSection(ScalewayEmailOptions.SectionName));
         services.AddEmailUsageSource(configuration);
-        services.AddHttpClient(ScalewayClientRegistration.UsageHttpClientName)
+        var client = services.AddHttpClient(ScalewayClientRegistration.UsageHttpClientName)
             .ConfigurePrimaryHttpMessageHandler(() => _transport);
-        _provider = services.BuildServiceProvider();
+        if (readTimeout is { } timeout)
+        {
+            client.ConfigureHttpClient(c => c.Timeout = timeout);
+        }
+
+        return services.BuildServiceProvider();
     }
 
     public void Dispose() => _provider.Dispose();
@@ -145,6 +152,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     [Theory]
     [InlineData("""{"project_id":"x"}""")]
     [InlineData("""{"monthly_emails_count":-1}""")]
+    [InlineData("""{"monthly_emails_count":4294967296}""")]
     [InlineData("""{"monthly_emails_count":1.5}""")]
     [InlineData("""{"monthly_emails_count":"184"}""")]
     [InlineData("""{"monthly_emails_count":null}""")]
@@ -160,9 +168,9 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     }
 
     [Fact]
-    public async Task Attempt_ShouldBeMalformed_WhenTheBodyIsLargerThanTheCap_WhateverItsLengthHeaderSays()
+    public async Task Attempt_ShouldBeMalformed_WhenTheBodyIsLargerThanTheCap_WithoutALengthHeader()
     {
-        var oversized = "{\"monthly_emails_count\":184,\"pad\":\"" + new string('x', ScalewayUsageSource.MaxBodyBytes) + "\"}";
+        var oversized = "{\"monthly_emails_count\":184}" + new string(' ', ScalewayUsageSource.MaxBodyBytes);
         _transport.Respond(HttpStatusCode.OK, oversized, omitContentLength: true);
 
         (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Malformed));
@@ -240,6 +248,15 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     }
 
     [Fact]
+    public async Task Plan_ShouldBeUnknown_NotAThrow_WhenTheNameIsNotValidUtf8()
+    {
+        byte[] body = [.. """{"offer_subscriptions":[{"offer_name":"essential"""u8, 0xC3, 0x28, .. "\"}]}"u8];
+        _transport.RespondWith(() => new ByteArrayContent(body));
+
+        (await PlanAsync()).Read.ShouldBeOfType<EmailProviderPlanRead.Observed>().Plan.ShouldBe(EmailPlan.Unknown);
+    }
+
+    [Fact]
     public async Task Plan_ShouldMapARefusal_WithoutReadingItsBody()
     {
         _transport.RespondWithUnreadableBody(HttpStatusCode.Forbidden);
@@ -312,6 +329,37 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     }
 
     [Fact]
+    public async Task AStalledBody_ShouldEndAsATimeout_EvenOnTheSharedReadsUncancellableToken()
+    {
+        _transport.RespondWith(() => new StreamContent(new StallingStream()));
+        using var provider = BuildProvider(readTimeout: TimeSpan.FromMilliseconds(200));
+
+        var read = await provider.GetRequiredService<IEmailProviderUsageSource>()
+            .ReadUsageAsync(CancellationToken.None)
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(10), Ct);
+
+        read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Timeout));
+    }
+
+    [Fact]
+    public async Task ABodyCutOffMidRead_ShouldBeAProviderError_NotAThrow()
+    {
+        _transport.RespondWith(() => new StreamContent(
+            new FailingStream(new HttpIOException(HttpRequestError.ResponseEnded, "transport said " + BodyMarker))));
+
+        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.ProviderError));
+    }
+
+    [Fact]
+    public async Task ABodyResetMidRead_ShouldBeAProviderError_NotAThrow()
+    {
+        _transport.RespondWith(() => new StreamContent(new FailingStream(new IOException("transport said " + BodyMarker))));
+
+        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailAllowanceReason.ProviderError));
+    }
+
+    [Fact]
     public async Task Attempt_ShouldPropagateTheCallersOwnCancellation()
     {
         using var cancelled = new CancellationTokenSource();
@@ -332,6 +380,9 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         _transport.Respond(HttpStatusCode.OK, "{\"echo\":\"" + BodyMarker + "\"}");
         await AttemptAsync();
         _transport.Throw(new HttpRequestException(HttpRequestError.ConnectionError, "transport said " + BodyMarker));
+        await AttemptAsync();
+        _transport.RespondWith(() => new StreamContent(
+            new FailingStream(new HttpIOException(HttpRequestError.ResponseEnded, "transport said " + BodyMarker))));
         await AttemptAsync();
         _transport.Respond(HttpStatusCode.OK, SubscriptionsBody("essential"));
         await PlanAsync();
@@ -399,10 +450,12 @@ public sealed class ScalewayUsageSourceTests : IDisposable
             _throw = null;
             _respond = () =>
             {
-                HttpContent content = omitContentLength
-                    ? new StreamContent(new MemoryStream(Encoding.UTF8.GetBytes(body)))
-                    : new StringContent(body, Encoding.UTF8, "application/json");
-                if (contentLength is { } length)
+                var content = new StringContent(body, Encoding.UTF8, "application/json");
+                if (omitContentLength)
+                {
+                    content.Headers.ContentLength = null;
+                }
+                else if (contentLength is { } length)
                 {
                     content.Headers.ContentLength = length;
                 }
@@ -417,6 +470,12 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         {
             _throw = null;
             _respond = () => new HttpResponseMessage(status) { Content = new UnreadableContent() };
+        }
+
+        public void RespondWith(Func<HttpContent> content)
+        {
+            _throw = null;
+            _respond = () => new HttpResponseMessage(HttpStatusCode.OK) { Content = content() };
         }
 
         public void Throw(Exception exception) => _throw = exception;
@@ -443,6 +502,43 @@ public sealed class ScalewayUsageSourceTests : IDisposable
             length = 0;
             return false;
         }
+    }
+
+    /// <summary>A body whose bytes never arrive.</summary>
+    private sealed class StallingStream : ReadOnlyBody
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+    }
+
+    /// <summary>A body that breaks on its first read.</summary>
+    private sealed class FailingStream(Exception failure) : ReadOnlyBody
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<int>(failure);
+    }
+
+    private abstract class ReadOnlyBody : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public abstract override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default);
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private sealed class LogSink : ILoggerProvider

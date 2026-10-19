@@ -125,7 +125,9 @@ internal static class ScalewayClientRegistration
         {
             client.BaseAddress = new Uri($"{ApiHost}/transactional-email/v1alpha1/regions/{region}/");
             client.Timeout = UsageTimeout;
-        }).RemoveAllLoggers();
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
+        .RemoveAllLoggers();
 
         return services;
     }

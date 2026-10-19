@@ -251,7 +251,7 @@ public class EmailAllowanceEvaluatorTests
 
     private static void AssertNoFigures(EmailAllowanceUsageDto usage)
     {
-        // An unknown count is never a zero, and an unknown cost is never 0,00 € (ADR 0150 D2).
+        // An unknown count or cost is never a zero (ADR 0150 D2).
         usage.Sent.ShouldBeNull();
         usage.Billable.ShouldBeNull();
         usage.EstimatedExtraCostOre.ShouldBeNull();

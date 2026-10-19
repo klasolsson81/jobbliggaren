@@ -88,8 +88,10 @@ public sealed record EmailAllowanceUsageDto
         long? estimatedExtraCostOre,
         bool aboveHalfOfSendLimit,
         int? webhooksCount) =>
-        new(EmailAllowanceStatus.Observed, null, observedAt, month, sent, billable, estimatedExtraCostOre,
-            aboveHalfOfSendLimit, webhooksCount);
+        (billable is null) != (estimatedExtraCostOre is null)
+            ? throw new ArgumentException("Billable and the cost are known together or not at all.", nameof(estimatedExtraCostOre))
+            : new(EmailAllowanceStatus.Observed, null, observedAt, month, sent, billable, estimatedExtraCostOre,
+                aboveHalfOfSendLimit, webhooksCount);
 
     public static EmailAllowanceUsageDto NotObserved() =>
         new(EmailAllowanceStatus.NotObserved, EmailAllowanceReason.NotConfigured, null, null, null, null, null, null, null);

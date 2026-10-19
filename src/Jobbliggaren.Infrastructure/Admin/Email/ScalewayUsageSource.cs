@@ -36,6 +36,8 @@ internal sealed partial class ScalewayUsageSource(
     private const string WebhooksCountField = "webhooks_count";
     private const string OfferSubscriptionsField = "offer_subscriptions";
     private const string OfferNameField = "offer_name";
+    private const string EssentialOfferName = "essential";
+    private const string ScaleOfferName = "scale";
 
     /// <summary>The status logged when there was no response at all; zero is not a status, which is the point.</summary>
     private const int NoHttpStatus = 0;
@@ -72,7 +74,9 @@ internal sealed partial class ScalewayUsageSource(
             request.Headers.TryAddWithoutValidation(AuthHeaderName, _scaleway.SecretKey);
 
             var client = httpClientFactory.CreateClient(ScalewayClientRegistration.UsageHttpClientName);
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(client.Timeout);
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -81,7 +85,7 @@ internal sealed partial class ScalewayUsageSource(
                 return new ProviderAttempt<TRead>(failed(reason), RetryAfterOf(response));
             }
 
-            var body = await ReadBoundedAsync(response.Content, cancellationToken);
+            var body = await ReadBoundedAsync(response.Content, deadline.Token);
             if (body is not null && parse(body) is { } read)
             {
                 return new ProviderAttempt<TRead>(read);
@@ -102,16 +106,24 @@ internal sealed partial class ScalewayUsageSource(
         }
         catch (HttpRequestException ex)
         {
-            var reason = ex.HttpRequestError is HttpRequestError.NameResolutionError
-                or HttpRequestError.ConnectionError
-                or HttpRequestError.SecureConnectionError
-                or HttpRequestError.ProxyTunnelError
-                ? EmailAllowanceReason.Unreachable
-                : EmailAllowanceReason.ProviderError;
+            var reason = ReasonFor(ex.HttpRequestError);
+            LogReadFailed(path, reason, NoHttpStatus);
+            return new ProviderAttempt<TRead>(failed(reason));
+        }
+        catch (IOException ex)
+        {
+            var reason = ex is HttpIOException http ? ReasonFor(http.HttpRequestError) : EmailAllowanceReason.ProviderError;
             LogReadFailed(path, reason, NoHttpStatus);
             return new ProviderAttempt<TRead>(failed(reason));
         }
     }
+
+    private static EmailAllowanceReason ReasonFor(HttpRequestError error) => error is HttpRequestError.NameResolutionError
+        or HttpRequestError.ConnectionError
+        or HttpRequestError.SecureConnectionError
+        or HttpRequestError.ProxyTunnelError
+        ? EmailAllowanceReason.Unreachable
+        : EmailAllowanceReason.ProviderError;
 
     private static EmailAllowanceReason ReasonFor(HttpStatusCode status) => status switch
     {
@@ -176,7 +188,7 @@ internal sealed partial class ScalewayUsageSource(
 
                 if (isEmails)
                 {
-                    emails = reader.TokenType == JsonTokenType.Number && reader.TryGetInt64(out var value) && value >= 0
+                    emails = reader.TokenType == JsonTokenType.Number && reader.TryGetUInt32(out var value)
                         ? value
                         : null;
                 }
@@ -192,7 +204,7 @@ internal sealed partial class ScalewayUsageSource(
                 reader.Skip();
             }
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
             return false;
         }
@@ -215,7 +227,7 @@ internal sealed partial class ScalewayUsageSource(
     {
         plan = EmailPlan.Unknown;
         var subscriptions = -1;
-        string? onlyName = null;
+        var onlyPlan = EmailPlan.Unknown;
 
         try
         {
@@ -250,24 +262,26 @@ internal sealed partial class ScalewayUsageSource(
                         continue;
                     }
 
-                    string? name = null;
+                    var named = EmailPlan.Unknown;
                     while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
                     {
                         var isName = reader.ValueTextEquals(OfferNameField);
                         reader.Read();
                         if (isName && reader.TokenType == JsonTokenType.String)
                         {
-                            name = reader.GetString();
+                            named = reader.ValueTextEquals(EssentialOfferName) ? EmailPlan.Essential
+                                : reader.ValueTextEquals(ScaleOfferName) ? EmailPlan.Scale
+                                : EmailPlan.Unknown;
                         }
 
                         reader.Skip();
                     }
 
-                    onlyName = name;
+                    onlyPlan = named;
                 }
             }
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
             return false;
         }
@@ -277,16 +291,9 @@ internal sealed partial class ScalewayUsageSource(
             return false;
         }
 
-        plan = subscriptions == 1 ? PlanFor(onlyName) : EmailPlan.Unknown;
+        plan = subscriptions == 1 ? onlyPlan : EmailPlan.Unknown;
         return true;
     }
-
-    private static EmailPlan PlanFor(string? offerName) => offerName switch
-    {
-        "essential" => EmailPlan.Essential,
-        "scale" => EmailPlan.Scale,
-        _ => EmailPlan.Unknown,
-    };
 
     [LoggerMessage(3020, LogLevel.Warning,
         "[ScalewayUsageSource] {Read} read failed ({Reason}, HTTP {HttpStatus}) — no URI, body or message logged")]

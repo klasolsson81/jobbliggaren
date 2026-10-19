@@ -5,9 +5,9 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <summary>
 /// The one reading of <c>Email:Provider</c>. <c>AddEmailSender</c> chooses the sender from it and
 /// <c>AddEmailUsageSource</c> chooses the allowance source from it, so the two cannot disagree about which provider
-/// is configured; <c>EmailProviderSelectionParityTests</c> pins that they do not.
+/// is configured; <c>EmailUsageSourceRegistrationTests.TheSourceIsScalewaysExactly_WhenTheSenderIs</c> pins that they do not.
 /// </summary>
-public static class EmailProviderSelection
+internal static class EmailProviderSelection
 {
     public const string ConsoleProvider = "Console";
 

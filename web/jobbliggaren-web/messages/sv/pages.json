@@ -364,7 +364,7 @@
     },
     "criteria": {
       "heading": "Branschbevakningar",
-      "lede": "Sparade sökningar på bransch och kommun. Nya annonser från företagen räknas på Översikt.",
+      "lede": "Sparade sökningar vars nya annonser räknas på Översikt.",
       "newButton": "Ny branschbevakning",
       "listLabel": "Dina branschbevakningar",
       "emptyTitle": "Du har inga branschbevakningar.",

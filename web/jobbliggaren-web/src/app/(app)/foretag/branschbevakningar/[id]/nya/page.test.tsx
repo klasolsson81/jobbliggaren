@@ -19,8 +19,8 @@ import NewCriterionAdsPage from "./page";
  *
  * <para/> PREMISE (AGENTS.md §5 `Tests:`). Every fixture is a shape `ListNewCriterionAdsQueryHandler`
  * returns: `NewCriterionAdsDto.Refused` / `.NotScanned` / `.Nothing` for the three closed or empty
- * answers, and a cut window with its token otherwise. The one shape it cannot return is declared
- * where it is used.
+ * answers, and a cut window with its token otherwise. The shapes it cannot return are declared
+ * where they are used.
  */
 
 const getServerSession = vi.fn();
@@ -217,7 +217,9 @@ describe("/foretag/branschbevakningar/[id]/nya — the acknowledgement", () => {
     expect(markCriterionNewAdsSeen).not.toHaveBeenCalled();
   });
 
-  // The cap arm where the window's last instant is a tie group: rows on screen, no token.
+  // UNREACHABLE STATE, declared. Rows beside no token come only from the whole-window tie branch of
+  // `AcknowledgementWindow.Apply`, which `src/` declares a guard, not a live path. Asserted only as
+  // the read side degrading safely: the page acknowledges nothing.
   it("acknowledges nothing when the server named no window, even with rows on screen", async () => {
     getNewCriterionAds.mockResolvedValue(
       rowsResult(TWO_ROWS, { acknowledgedThrough: null, truncated: true }),

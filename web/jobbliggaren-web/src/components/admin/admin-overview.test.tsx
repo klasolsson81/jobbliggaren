@@ -8,6 +8,7 @@ import {
 } from "@/lib/admin/view-models";
 import { serverRegion, toServerReading } from "@/lib/admin/host-observation";
 import { servicesRegion, toServicesReading } from "@/lib/admin/service-observation";
+import { emailAllowanceFixture } from "@/test/fixtures/admin-overview";
 import { AdminOverview } from "./admin-overview";
 
 const TREND: ReadonlyArray<AdminTrendDay> = Array.from({ length: 90 }, (_, index) => ({
@@ -43,10 +44,7 @@ const LOADED: AdminOverviewRegions = {
       timer: { state: "scheduled", nextRunAt: "2026-10-05T01:30:00Z" },
     },
   },
-  email: {
-    kind: "loaded",
-    data: { sent: 57, failed: 2, noRecipient: 0, topTypes: [{ type: "login-challenge", sent: 31 }] },
-  },
+  email: { kind: "loaded", data: emailAllowanceFixture() },
   attention: { kind: "loaded", data: [{ kind: "failedJobs", count: 1 }, { kind: "pendingDeletions", count: 2 }] },
   events: {
     kind: "loaded",
@@ -86,14 +84,14 @@ describe("AdminOverview with its regions loaded (ADR 0150 D1/D2)", () => {
     expect(within(card("Backup")).getAllByText("Saknar verifierad datakälla")).toHaveLength(2);
   });
 
-  it("marks a failed email in the danger colour and lists the most sent types", () => {
+  it("leads the e-post card with the month's sends against the free allowance, and no delivery line", () => {
     render(<AdminOverview regions={LOADED} />);
 
     const email = card("E-post");
-    expect(within(email).getByText("2 misslyckade")).toHaveClass("jp-admin-danger");
-    expect(within(email).getByRole("list", { name: "Mest skickade mejltyper" })).toHaveTextContent(
-      "login-challenge31",
-    );
+    expect(email).toHaveTextContent("1 301av 300 gratis i oktober 2026Beräknad kostnad 0,26 € före moms");
+    expect(email).not.toHaveTextContent(/misslyckade|utan mottagare|senaste 24 tim/);
+    expect(within(email).queryByRole("list")).toBeNull();
+    expect(email.querySelector(".jp-admin-danger, .jp-admin-warning")).toBeNull();
   });
 
   it("raises the attention edge only while something needs attention, and links each item to its page", () => {

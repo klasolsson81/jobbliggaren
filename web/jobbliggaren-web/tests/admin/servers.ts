@@ -139,6 +139,43 @@ function servicesAnswer(scenario: ServicesScenario): unknown {
   };
 }
 
+/**
+ * What the email allowance read answers (#1981 PR 1, ADR 0178), as the API states it. `observed` is a month within the
+ * free allowance under the configured plan; `notConfigured` is a deployment without a provider to ask; `providerFailed`
+ * is a count the provider did not answer; `planDiffers` is a count under another plan, so no cost is computed.
+ */
+export type EmailScenario = "observed" | "notConfigured" | "providerFailed" | "planDiffers";
+
+function emailAnswer(scenario: EmailScenario): unknown {
+  // The API's wire form for a DateTimeOffset in UTC: an offset, never a Z.
+  const at = (offset: number) => new Date(Date.now() + offset).toISOString().replace(/\.\d{3}Z$/, "+00:00");
+  const terms = {
+    plan: "Essential", includedMonthlyEmails: 300, pricePerThousandExtra: 0.25, currency: "EUR",
+    priceReadOn: "2026-10-18", monthlySendLimit: 10000,
+  };
+  const noUsage = {
+    observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostCents: null,
+    aboveHalfOfSendLimit: null, webhooksCount: null,
+  };
+  const inForce = { status: "Observed", reason: null, active: "Essential", matches: true };
+  const usage = (termsApply: boolean) => ({
+    status: "Observed", reason: null, observedAt: at(-20_000), month: new Date().toISOString().slice(0, 7), sent: 142,
+    billable: termsApply ? 0 : null, estimatedExtraCostCents: termsApply ? 0 : null, aboveHalfOfSendLimit: false, webhooksCount: 0,
+  });
+  switch (scenario) {
+    case "observed": return { terms, usage: usage(true), plan: inForce };
+    case "notConfigured": return {
+      terms,
+      usage: { status: "NotObserved", reason: "NotConfigured", ...noUsage },
+      plan: { status: "NotObserved", reason: "NotConfigured", active: null, matches: null },
+    };
+    case "providerFailed": return { terms, usage: { status: "Failed", reason: "Timeout", ...noUsage }, plan: inForce };
+    case "planDiffers": return {
+      terms, usage: usage(false), plan: { status: "Observed", reason: null, active: "Scale", matches: false },
+    };
+  }
+}
+
 /** The four reads the feedback page makes side by side (#1979). */
 export type FeedbackRead = "list" | "detail" | "summary" | "availability";
 export type FeedbackScreenshotRead = "ok" | "notFound" | "error" | "loading";
@@ -150,8 +187,10 @@ export type Harness = {
   /** `stale` answers `/api/v1/me` 401, as a session the backend has ended does (#1979's deep link). */
   who: "admin" | "member" | "stale";
   mode: AdminMode;
-  readonly overviewReads: Record<"accounts" | "audit" | "jobs" | "backup" | "host" | "services", AdminMode>;
+  readonly overviewReads: Record<"accounts" | "audit" | "jobs" | "backup" | "host" | "services" | "email", AdminMode>;
   overviewBackup: BackupScenario;
+  /** What the allowance read answers, for the overview's e-post card and the e-post page alike (#1981). */
+  overviewEmail: EmailScenario;
   overviewHost: HostScenario;
   overviewServices: ServicesScenario;
   overviewSampledAt: string | null;
@@ -256,8 +295,9 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const harness: Harness = {
     who: "admin",
     mode: "ok",
-    overviewReads: { accounts: "ok", audit: "ok", jobs: "ok", backup: "ok", host: "ok", services: "ok" },
+    overviewReads: { accounts: "ok", audit: "ok", jobs: "ok", backup: "ok", host: "ok", services: "ok", email: "ok" },
     overviewBackup: "observed",
+    overviewEmail: "observed",
     overviewHost: "measured",
     overviewServices: "observed",
     overviewSampledAt: new Date().toISOString(),
@@ -327,8 +367,9 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.who = "admin";
       harness.mode = "ok";
       harness.overviewReads.accounts = harness.overviewReads.audit = harness.overviewReads.jobs = harness.overviewReads.backup = "ok";
-      harness.overviewReads.host = harness.overviewReads.services = "ok";
+      harness.overviewReads.host = harness.overviewReads.services = harness.overviewReads.email = "ok";
       harness.overviewBackup = "observed";
+      harness.overviewEmail = "observed";
       harness.overviewHost = "measured";
       harness.overviewServices = "observed";
       harness.overviewSampledAt = new Date().toISOString();
@@ -413,6 +454,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       "GET /api/v1/admin/overview/backup": () => backupAnswer(harness.overviewBackup),
       "GET /api/v1/admin/overview/host": () => hostAnswer(harness.overviewHost),
       "GET /api/v1/admin/overview/services": () => servicesAnswer(harness.overviewServices),
+      "GET /api/v1/admin/email/allowance": () => emailAnswer(harness.overviewEmail),
     };
     const refusal = (mode: AdminMode = harness.mode) => {
       switch (mode) {
@@ -720,7 +762,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
         : route.endsWith("/audit-log") ? "audit" : route.endsWith("/jobs/failed") ? "jobs"
         : route.endsWith("/overview/backup") ? "backup"
         : route.endsWith("/overview/host") ? "host"
-        : route.endsWith("/overview/services") ? "services" : null;
+        : route.endsWith("/overview/services") ? "services"
+        : route.endsWith("/email/allowance") ? "email" : null;
       const mode = harness.mode === "ok" && source !== null ? harness.overviewReads[source] : harness.mode;
       const respond = () => {
         if (mode !== "ok") return refusal(mode);

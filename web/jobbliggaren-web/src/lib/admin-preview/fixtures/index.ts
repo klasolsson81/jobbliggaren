@@ -7,8 +7,8 @@ import type {
   AdminActiveAccounts,
   AdminAttentionItem,
   AdminBackupStatus,
+  AdminEmailAllowance,
   AdminEmailDelivery,
-  AdminEmailOverview,
   AdminEmailPeriod,
   AdminErrorLogRow,
   AdminFeedbackAvailability,
@@ -185,6 +185,97 @@ const registeredWithin = (days: number) =>
     (row) => row.registeredAt !== null && Date.parse(FIXTURE_NOW) - Date.parse(row.registeredAt) < days * DAY_MS,
   ).length;
 
+// ── The email allowance (#1981 PR 1, ADR 0178) ──────────────────────────────────────────────────
+
+/** The configured terms as the API sends them; the price list "read" a week before the fixed clock. */
+const ALLOWANCE_TERMS = marked({
+  plan: "Essential" as const,
+  includedMonthlyEmails: 300,
+  pricePerThousandExtra: 0.25,
+  currency: "EUR" as const,
+  priceReadOn: dayKey(6),
+  monthlySendLimit: 10_000,
+});
+
+const FIXTURE_MONTH = FIXTURE_NOW.slice(0, 7);
+
+/** An observed month. The figures are written out per scenario, never computed here: the backend owns the arithmetic. */
+function observedUsage(figures: {
+  readonly sent: number;
+  readonly billable: number | null;
+  readonly cents: number | null;
+  readonly aboveHalf?: boolean;
+  readonly month?: string | null;
+  readonly webhooks?: number | null;
+}): AdminEmailAllowance["usage"] {
+  return marked({
+    status: "Observed" as const,
+    reason: null,
+    observedAt: daysAgo(0, 7, 59),
+    month: figures.month === undefined ? FIXTURE_MONTH : figures.month,
+    sent: figures.sent,
+    billable: figures.billable,
+    estimatedExtraCostCents: figures.cents,
+    aboveHalfOfSendLimit: figures.aboveHalf ?? false,
+    webhooksCount: figures.webhooks === undefined ? 0 : figures.webhooks,
+  });
+}
+
+const NO_USAGE = {
+  observedAt: null, month: null, sent: null, billable: null, estimatedExtraCostCents: null,
+  aboveHalfOfSendLimit: null, webhooksCount: null,
+} as const;
+
+function failedUsage(reason: "Timeout" | "RateLimited" | "Forbidden" | "Malformed"): AdminEmailAllowance["usage"] {
+  return marked({ status: "Failed" as const, reason, ...NO_USAGE });
+}
+
+const PLAN_IN_FORCE = marked({ status: "Observed" as const, reason: null, active: "Essential" as const, matches: true });
+
+function allowance(usage: AdminEmailAllowance["usage"], plan: AdminEmailAllowance["plan"] = PLAN_IN_FORCE): AdminEmailAllowance {
+  return marked({ terms: ALLOWANCE_TERMS, usage, plan });
+}
+
+/** Every state the allowance region has, for the e-post preview's scenario choice (ADR 0150 D5). */
+export const PREVIEW_EMAIL_ALLOWANCE = marked({
+  withinQuota: allowance(observedUsage({ sent: 142, billable: 0, cents: 0 })),
+  nothingSent: allowance(observedUsage({ sent: 0, billable: 0, cents: 0 })),
+  atQuota: allowance(observedUsage({ sent: 300, billable: 0, cents: 0 })),
+  overQuota: allowance(observedUsage({ sent: 1301, billable: 1001, cents: 26 })),
+  aboveHalf: allowance(observedUsage({ sent: 5200, billable: 4900, cents: 123, aboveHalf: true })),
+  planDiffers: allowance(
+    observedUsage({ sent: 412, billable: null, cents: null }),
+    marked({ status: "Observed" as const, reason: null, active: "Scale" as const, matches: false }),
+  ),
+  planUnknown: allowance(
+    observedUsage({ sent: 412, billable: null, cents: null }),
+    marked({ status: "Observed" as const, reason: null, active: "Unknown" as const, matches: false }),
+  ),
+  planFailed: allowance(
+    observedUsage({ sent: 412, billable: null, cents: null }),
+    marked({ status: "Failed" as const, reason: "ProviderError" as const, active: null, matches: null }),
+  ),
+  notConfigured: allowance(
+    marked({ status: "NotObserved" as const, reason: "NotConfigured" as const, ...NO_USAGE }),
+    marked({ status: "NotObserved" as const, reason: "NotConfigured" as const, active: null, matches: null }),
+  ),
+  noAnswer: allowance(failedUsage("Timeout")),
+  rateLimited: allowance(
+    failedUsage("RateLimited"),
+    marked({ status: "Failed" as const, reason: "RateLimited" as const, active: null, matches: null }),
+  ),
+  refused: allowance(
+    failedUsage("Forbidden"),
+    marked({ status: "Failed" as const, reason: "Forbidden" as const, active: null, matches: null }),
+  ),
+  malformed: allowance(failedUsage("Malformed")),
+  noMonth: allowance(observedUsage({ sent: 3, billable: 0, cents: 0, month: null })),
+  webhooks: allowance(observedUsage({ sent: 142, billable: 0, cents: 0, webhooks: 1 })),
+  webhooksUnreadable: allowance(observedUsage({ sent: 142, billable: 0, cents: 0, webhooks: null })),
+});
+
+export type PreviewAllowanceScenario = keyof typeof PREVIEW_EMAIL_ALLOWANCE;
+
 /** Every overview region with data, in the view models' shapes. */
 export interface PreviewOverviewData {
   readonly newAccounts: AdminNewAccounts;
@@ -195,7 +286,7 @@ export interface PreviewOverviewData {
   readonly services: AdminServicesReading;
   readonly server: AdminServerReading;
   readonly backup: AdminBackupStatus;
-  readonly email: AdminEmailOverview;
+  readonly email: AdminEmailAllowance;
   readonly attention: ReadonlyArray<AdminAttentionItem>;
   readonly events: ReadonlyArray<AdminRecentEvent>;
 }
@@ -234,16 +325,7 @@ export const PREVIEW_OVERVIEW: PreviewOverviewData = marked({
     lastSuccess: marked({ state: "recorded" as const, completedAt: daysAgo(0, 1, 30), overdue: false }),
     timer: marked({ state: "scheduled" as const, nextRunAt: daysAgo(-1, 1, 30) }),
   }),
-  email: marked({
-    sent: 57,
-    failed: 2,
-    noRecipient: 0,
-    topTypes: [
-      marked({ type: "login-challenge", sent: 31 }),
-      marked({ type: "match-notification", sent: 18 }),
-      marked({ type: "email-changed-notification", sent: 4 }),
-    ],
-  }),
+  email: PREVIEW_EMAIL_ALLOWANCE.withinQuota,
   attention: [
     marked({ kind: "failedJobs" as const, count: 1 }),
     marked({ kind: "pendingDeletions" as const, count: 1 }),
@@ -269,7 +351,7 @@ export const PREVIEW_OVERVIEW_ZERO: PreviewOverviewData = marked({
   active: marked({ last30Days: 0, today: 0, last7Days: 0 }),
   logins: marked({ today: 0, yesterday: 0, failed: 0, locked: 0 }),
   trend: trend.map((day) => marked({ date: day.date, newAccounts: 0, logins: 0 })),
-  email: marked({ sent: 0, failed: 0, noRecipient: 0, topTypes: [] }),
+  email: PREVIEW_EMAIL_ALLOWANCE.nothingSent,
   // "Tom" shows the rows with nothing observed: no Worker has reported, the store could not be judged and no import
   // run is recorded. None of them is a zero, and none of them is an all-clear (ADR 0150 D2).
   services: marked(toServicesReading({

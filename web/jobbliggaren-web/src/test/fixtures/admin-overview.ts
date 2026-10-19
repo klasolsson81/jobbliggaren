@@ -1,6 +1,7 @@
 import type { AccountOverviewDto, AdminOverviewSnapshot, BackupObservationData } from "@/lib/dto/admin-overview";
 import type { HostObservationDto } from "@/lib/dto/admin-host";
 import type { ServicesObservationDto } from "@/lib/dto/admin-services";
+import type { EmailAllowanceDto } from "@/lib/dto/admin-email";
 
 export const OVERVIEW_TIME = "2026-10-08T10:00:00Z";
 
@@ -56,6 +57,24 @@ export function servicesFixture(): ServicesObservationDto {
   };
 }
 
+/**
+ * The allowance as the API sends it (#1981 PR 1): 1 301 mails this month under the configured plan, read 30 s before
+ * `OVERVIEW_TIME`, so 1 001 are beyond the 300 free and cost 26 cents (0.25 EUR per 1 000, rounded up).
+ */
+export function emailAllowanceFixture(): EmailAllowanceDto {
+  return {
+    terms: {
+      plan: "Essential", includedMonthlyEmails: 300, pricePerThousandExtra: 0.25, currency: "EUR",
+      priceReadOn: "2026-10-01", monthlySendLimit: 10_000,
+    },
+    usage: {
+      status: "Observed", reason: null, observedAt: "2026-10-08T09:59:30+00:00", month: "2026-10",
+      sent: 1301, billable: 1001, estimatedExtraCostCents: 26, aboveHalfOfSendLimit: false, webhooksCount: 0,
+    },
+    plan: { status: "Observed", reason: null, active: "Essential", matches: true },
+  };
+}
+
 export function overviewSnapshotFixture(): AdminOverviewSnapshot {
   return {
     accounts: { kind: "loaded", data: accountOverviewFixture(), sampledAt: OVERVIEW_TIME, refreshFailed: false },
@@ -67,5 +86,6 @@ export function overviewSnapshotFixture(): AdminOverviewSnapshot {
     backup: { kind: "loaded", data: backupFixture(), sampledAt: OVERVIEW_TIME, refreshFailed: false },
     host: { kind: "loaded", data: hostFixture(), sampledAt: "2026-10-08T09:59:30Z", refreshFailed: false },
     services: { kind: "loaded", data: servicesFixture(), sampledAt: "2026-10-08T09:59:30Z", refreshFailed: false },
+    email: { kind: "loaded", data: emailAllowanceFixture(), sampledAt: "2026-10-08T09:59:30+00:00", refreshFailed: false },
   };
 }

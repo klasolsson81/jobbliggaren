@@ -462,7 +462,7 @@ test("the three log views show their rows and every view's count", async ({ page
 
 test("email delivery switches its figures with the period", async ({ page }) => {
   await page.goto(`${ROOT}/e-post`);
-  const totals = page.getByRole("definition");
+  const totals = page.getByRole("region", { name: "Leverans", exact: true }).getByRole("definition");
   await expect(totals.first()).toHaveText("384");
 
   await page.getByRole("radio", { name: "24 tim" }).click();
@@ -471,4 +471,24 @@ test("email delivery switches its figures with the period", async ({ page }) => 
 
   await state(page, "Tom");
   await expect(page.getByRole("table", { name: "Utskick per mejltyp" })).toContainText("Inga utskick under perioden.");
+});
+
+test("the month against the free allowance shows each fixture state, and follows the band only when it fails or loads", async ({ page }) => {
+  await page.goto(`${ROOT}/e-post`);
+  const allowance = page.getByRole("region", { name: /^Utskick (i |denna)/ });
+  const scenario = page.getByLabel("Visa utskick mot gratiskvoten");
+  await expect(allowance.getByRole("definition")).toHaveText(["142", "300", /^0,00\s€$/]);
+
+  await scenario.selectOption({ label: "Över gratiskvoten" });
+  await expect(allowance.getByRole("definition")).toHaveText([/^1\s301$/, "300", /^0,26\s€$/]);
+  await scenario.selectOption({ label: "Annat abonnemang" });
+  await expect(allowance).toContainText("Scaleway anger abonnemanget Scale, men villkoren gäller Essential.");
+  await scenario.selectOption({ label: "Räknas inte i miljön" });
+  await expect(allowance).toContainText("Räknas inte i den här miljön.");
+  await expect(allowance).not.toContainText("Kommer snart");
+
+  await state(page, "Kommer snart");
+  await expect(allowance).toContainText("Räknas inte i den här miljön.");
+  await state(page, "Fel");
+  await expect(allowance).toContainText("Uppgifterna kunde inte hämtas.");
 });

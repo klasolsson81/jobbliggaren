@@ -31,6 +31,7 @@ import { backupOrServicesRaised } from "@/lib/admin/attention";
 import { AdminObservationNote } from "./admin-observation-note";
 import { BackupAttentionLines, ServicesAttentionLines } from "./admin-attention-sources";
 import { AdminCard, AdminCardLink, type AdminCardSpan } from "./admin-card";
+import { AdminEmailBody, AdminObservedEmail } from "./admin-email-card";
 import { AdminPageHeader } from "./admin-page-header";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminObservedServer, AdminServerBody } from "./admin-server-body";
@@ -74,7 +75,6 @@ export function AdminOverview({
 }) {
   const t = useTranslations("admin.overview");
   const shared = useTranslations("admin.regions");
-  const format = useFormatter();
   const regions = observations ? overviewRegions(observations) : suppliedRegions;
   const accountData = observations?.accounts.kind === "loaded" ? observations.accounts.data : null;
   const kinds = new Set(Object.values(observations ?? regions).map((region) => region.kind));
@@ -178,37 +178,15 @@ export function AdminOverview({
           {observations ? <ObservedBackup observation={observations.backup} now={now} /> : <BackupBody region={regions.backup} />}
         </AdminCard>
 
-        <ValueCard
+        <AdminCard
           id="admin-overview-email"
           title={t("email.title")}
           icon={Mail}
           span={4}
           aside={<AdminCardLink href={`${basePath}/e-post`} label={t("email.link")} />}
-          region={regions.email}
-          render={(data) => ({
-            value: data.sent,
-            unit: t("email.unit"),
-            sub: (
-              <>
-                <span className={data.failed > 0 ? "jp-admin-danger" : undefined}>
-                  {t("email.failed", { count: data.failed })}
-                </span>
-                {` · ${t("email.noRecipient", { count: data.noRecipient })}`}
-              </>
-            ),
-            extra:
-              data.topTypes.length === 0 ? null : (
-                <ol className="jp-admintoplist" aria-label={t("email.topTypes")}>
-                  {data.topTypes.map((row) => (
-                    <li key={row.type}>
-                      <code>{row.type}</code>
-                      <span>{format.number(row.sent)}</span>
-                    </li>
-                  ))}
-                </ol>
-              ),
-          })}
-        />
+        >
+          {observations ? <AdminObservedEmail observation={observations.email} now={now} /> : <AdminEmailBody region={regions.email} />}
+        </AdminCard>
 
         <AdminCard
           id="admin-overview-attention"
@@ -246,7 +224,6 @@ interface ShownValue {
   readonly href?: string;
   readonly unit: string;
   readonly sub: ReactNode;
-  readonly extra?: ReactNode;
 }
 
 /** A card around one big number: the number and its unit, or an en-dash with the unit hidden. */
@@ -291,7 +268,6 @@ function ValueCard<T>({
         <span className="jp-adminkpi__unit">{shown.unit}</span>
       </p>
       <p className="jp-adminkpi__sub">{shown.sub}</p>
-      {shown.extra}
       {note}
     </AdminCard>
   );

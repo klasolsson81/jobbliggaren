@@ -810,6 +810,25 @@
   margin-left: auto;
   max-width: 100%;
 }
+/* The e-post preview's choice of allowance fixture: a preview control, never on a real page. */
+.jp-adminpreview-scenario {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-adminpreview-scenario select {
+  min-height: 36px;
+  max-width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--jp-border-input);
+  border-radius: var(--jp-r-md);
+  background: var(--jp-surface);
+  color: var(--jp-ink-1);
+  font: inherit;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .jp-adminpanel,
@@ -928,27 +947,37 @@
   font-weight: var(--jp-fw-bold);
   font-variant-numeric: tabular-nums;
 }
+/* Where the allowance's figures come from (#1981): a quiet note under the row, in neutral ink. */
+.jp-adminmailsum__note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-adminmailsum__note p { margin: 0; }
+/* A section's heading row with a control of its own at the right edge, as in a card's head row. */
+.jp-adminsection__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+.jp-adminsection__head > .jp-adminsegment { margin-left: auto; }
+/* A sub-heading inside a page section: the h3 step of the type scale (DESIGN.md §4). */
+.jp-adminh3 {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
 
-/* ── Overview lists: top email types, attention and recent events ───────────────────────── */
-.jp-admintoplist,
+/* ── Overview lists: attention and recent events ─────────────────────────────────────────── */
 .jp-adminattention,
 .jp-adminevents {
   margin: 0;
   padding: 0;
   list-style: none;
-}
-.jp-admintoplist {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 12px;
-  font-size: var(--text-body-sm);
-}
-.jp-admintoplist li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-variant-numeric: tabular-nums;
 }
 .jp-adminattention li {
   display: flex;
@@ -1240,7 +1269,8 @@
     min-height: 44px;
   }
   .jp-adminfeedback__select,
-  .jp-adminfeedback__textlink { min-height: 44px; }
+  .jp-adminfeedback__textlink,
+  .jp-adminpreview-scenario select { min-height: 44px; }
   .jp-admincard { padding: 18px 16px; }
   .jp-admincard--list { padding: 20px 16px; }
   .jp-adminfeedback__detail { padding: 20px 16px; }

@@ -5,21 +5,22 @@ import type {
   AdminEmailPeriod,
   AdminValueRegion,
 } from "@/lib/admin/view-models";
-import { AdminPageHeader } from "./admin-page-header";
 import { AdminRegionLine } from "./admin-region-line";
 import { AdminSegment } from "./admin-segment";
 import { AdminTableScroll } from "./admin-table-scroll";
 import { AdminUnknown } from "./admin-unknown";
 
 const SOON_ID = "admin-email-soon";
+const HEADING_ID = "admin-email-delivery";
 const CAPTION_ID = "admin-email-caption";
 const PERIODS: ReadonlyArray<AdminEmailPeriod> = ["h24", "d3", "d7"];
 
 /**
- * Email delivery per email type (ADR 0150). The provider's outcomes are #1981: until then the
- * period group is disabled, the three totals are unknown (an en-dash, never 0), and both lists
- * hold one "Kommer snart" line (D2). No provider is named before an outcome from it is shown.
- * The period switches only while the delivery is loaded and the caller handles the switch.
+ * The e-post page's "Leverans" section: delivery per email type (ADR 0150). Its outcomes are #1981's later PRs: until
+ * then the period group is disabled, the three totals are unknown (an en-dash, never 0), and both lists hold one
+ * "Kommer snart" line (D2). The period group sits in the section's own heading row, because it applies to this
+ * section and not to the month above it (ADR 0150 Amendment 2026-10-19, D8). The period switches only while the
+ * delivery is loaded and the caller handles the switch.
  */
 export function AdminEmailDelivery({
   region,
@@ -44,20 +45,19 @@ export function AdminEmailDelivery({
     );
 
   return (
-    <div className="flex flex-col gap-6">
-      <AdminPageHeader
-        title={t("heading")}
-        lede={t("lede")}
-        aside={
-          <AdminSegment
-            label={t("period.label")}
-            options={PERIODS.map((value) => ({ value, label: t(`period.${value}`) }))}
-            value={period}
-            onChange={data === null ? undefined : onPeriodChange}
-            describedBy={region.kind === "unavailable" ? SOON_ID : undefined}
-          />
-        }
-      />
+    <section aria-labelledby={HEADING_ID} className="flex flex-col gap-6">
+      <div className="jp-adminsection__head">
+        <h2 id={HEADING_ID} className="jp-h2">
+          {t("delivery.heading")}
+        </h2>
+        <AdminSegment
+          label={t("period.label")}
+          options={PERIODS.map((value) => ({ value, label: t(`period.${value}`) }))}
+          value={period}
+          onChange={data === null ? undefined : onPeriodChange}
+          describedBy={region.kind === "unavailable" ? SOON_ID : undefined}
+        />
+      </div>
       {region.kind === "failed" ? (
         <p className="sr-only" role="alert">
           {shared("failed")}
@@ -125,9 +125,9 @@ export function AdminEmailDelivery({
       </AdminTableScroll>
 
       <section aria-labelledby="admin-email-failures" className="flex flex-col gap-4">
-        <h2 id="admin-email-failures" className="jp-h2">
+        <h3 id="admin-email-failures" className="jp-adminh3">
           {t("failures.heading")}
-        </h2>
+        </h3>
         {data !== null && data.failures.length > 0 ? (
           <ol className="jp-adminmailfail">
             {data.failures.map((failure) => (
@@ -146,6 +146,6 @@ export function AdminEmailDelivery({
           <AdminRegionLine kind={lineKind} empty={t("failures.empty")} quiet />
         )}
       </section>
-    </div>
+    </section>
   );
 }

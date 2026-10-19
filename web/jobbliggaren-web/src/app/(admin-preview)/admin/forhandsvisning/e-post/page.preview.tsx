@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { requireAdminPreview } from "@/lib/admin-preview/runtime-gate";
-import { PREVIEW_EMAIL_DELIVERY, PREVIEW_EMAIL_DELIVERY_ZERO } from "@/lib/admin-preview/fixtures";
+import {
+  PREVIEW_EMAIL_ALLOWANCE,
+  PREVIEW_EMAIL_DELIVERY,
+  PREVIEW_EMAIL_DELIVERY_ZERO,
+} from "@/lib/admin-preview/fixtures";
 import { PreviewEmail } from "../_preview/preview-pages.preview";
 
 export const dynamic = "force-dynamic";
@@ -13,5 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function AdminPreviewEmailPage() {
   requireAdminPreview();
-  return <PreviewEmail byPeriod={PREVIEW_EMAIL_DELIVERY} zero={PREVIEW_EMAIL_DELIVERY_ZERO} />;
+  return (
+    <PreviewEmail allowances={PREVIEW_EMAIL_ALLOWANCE} byPeriod={PREVIEW_EMAIL_DELIVERY} zero={PREVIEW_EMAIL_DELIVERY_ZERO} />
+  );
 }

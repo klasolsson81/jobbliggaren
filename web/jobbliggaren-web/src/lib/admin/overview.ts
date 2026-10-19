@@ -36,6 +36,7 @@ export function retainOverview(
     backup: retainObservation(previous.backup, next.backup),
     host: retainObservation(previous.host, next.host),
     services: retainObservation(previous.services, next.services),
+    email: retainObservation(previous.email, next.email),
   };
 }
 

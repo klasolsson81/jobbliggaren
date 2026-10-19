@@ -1,9 +1,10 @@
 "use client";
 
 // "use client": each page reads the band's state and keeps its fixtures in memory.
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import type {
+  AdminEmailAllowance,
   AdminEmailDelivery as Delivery,
   AdminEmailPeriod,
   AdminErrorLogRow,
@@ -26,9 +27,11 @@ import { serverRegion, type AdminServerReading } from "@/lib/admin/host-observat
 import { servicesRegion, type AdminServicesReading } from "@/lib/admin/service-observation";
 import { AdminOverview } from "@/components/admin/admin-overview";
 import { AdminFeedbackView } from "@/components/admin/admin-feedback-view";
+import { AdminEmailAllowance as AllowanceRegion, type AdminEmailAllowanceRegion } from "@/components/admin/admin-email-allowance";
 import { AdminEmailDelivery } from "@/components/admin/admin-email-delivery";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminLogsView, type AdminLogView } from "@/components/admin/admin-logs-view";
-import type { PreviewOverviewData } from "@/lib/admin-preview/fixtures";
+import type { PreviewAllowanceScenario, PreviewOverviewData } from "@/lib/admin-preview/fixtures";
 import { usePreviewState } from "./preview-shell.preview";
 
 /** Long enough for the pending state to show. */
@@ -288,20 +291,79 @@ export function PreviewLogs({
   );
 }
 
+/**
+ * The allowance region in the band's state. The region is built, so "Kommer snart" and "Tom" show the chosen
+ * scenario: only a failed or a pending read changes it.
+ */
+function allowanceRegion(kind: AdminRegionKind, chosen: AdminEmailAllowance): AdminEmailAllowanceRegion {
+  return kind === "failed" || kind === "loading" ? { kind } : { kind: "loaded", data: chosen };
+}
+
+function isScenario(value: string): value is PreviewAllowanceScenario {
+  return SCENARIOS.some((scenario) => scenario === value);
+}
+
+/** The allowance scenarios, in the order the preview's choice lists them. */
+const SCENARIOS: ReadonlyArray<PreviewAllowanceScenario> = [
+  "withinQuota",
+  "nothingSent",
+  "atQuota",
+  "overQuota",
+  "aboveHalf",
+  "planDiffers",
+  "planUnknown",
+  "planFailed",
+  "notConfigured",
+  "noAnswer",
+  "rateLimited",
+  "refused",
+  "malformed",
+  "noMonth",
+  "webhooks",
+  "webhooksUnreadable",
+];
+
 export function PreviewEmail({
+  allowances,
   byPeriod,
   zero,
 }: {
+  readonly allowances: Readonly<Record<PreviewAllowanceScenario, AdminEmailAllowance>>;
   readonly byPeriod: Readonly<Record<AdminEmailPeriod, Delivery>>;
   readonly zero: Delivery;
 }) {
   const { kind } = usePreviewState();
+  const t = useTranslations("admin");
+  const preview = useTranslations("admin-preview.email");
+  const selectId = useId();
+  const [scenario, setScenario] = useState<PreviewAllowanceScenario>("withinQuota");
   const [period, setPeriod] = useState<AdminEmailPeriod>("d7");
   return (
-    <AdminEmailDelivery
-      region={value(kind, byPeriod[period], zero)}
-      period={period}
-      onPeriodChange={setPeriod}
-    />
+    <div className="flex flex-col gap-8">
+      <AdminPageHeader title={t("email.heading")} lede={t("email.lede")} />
+      <div className="jp-adminpreview-scenario">
+        <label htmlFor={selectId}>{preview("scenarioLabel")}</label>
+        <select
+          id={selectId}
+          value={scenario}
+          onChange={(event) => {
+            const chosen = event.target.value;
+            if (isScenario(chosen)) setScenario(chosen);
+          }}
+        >
+          {SCENARIOS.map((option) => (
+            <option key={option} value={option}>
+              {preview(`scenarios.${option}`)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <AllowanceRegion region={allowanceRegion(kind, allowances[scenario])} />
+      <AdminEmailDelivery
+        region={value(kind, byPeriod[period], zero)}
+        period={period}
+        onPeriodChange={setPeriod}
+      />
+    </div>
   );
 }

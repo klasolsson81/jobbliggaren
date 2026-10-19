@@ -22,5 +22,26 @@
       "loading": "Loading"
     },
     "impersonation": "Show the Act as user state"
+  },
+  "email": {
+    "scenarioLabel": "Show sends against the free allowance",
+    "scenarios": {
+      "withinQuota": "Within the free allowance",
+      "nothingSent": "Nothing sent",
+      "atQuota": "Exactly the free allowance",
+      "overQuota": "Beyond the free allowance",
+      "aboveHalf": "Above half the send limit",
+      "planDiffers": "Another plan",
+      "planUnknown": "Unknown plan",
+      "planFailed": "The plan could not be read",
+      "notConfigured": "Not counted in this environment",
+      "noAnswer": "Scaleway does not answer",
+      "rateLimited": "Scaleway is limiting the reads",
+      "refused": "Scaleway refuses the read",
+      "malformed": "Unreadable answer from Scaleway",
+      "noMonth": "The month cannot be named",
+      "webhooks": "One webhook registered",
+      "webhooksUnreadable": "Webhooks could not be read"
+    }
   }
 }

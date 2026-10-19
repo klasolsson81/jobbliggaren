@@ -50,16 +50,25 @@ describe("robots.ts", () => {
     expect(result.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
   });
 
-  it("blocks the pure AI training crawlers (GPTBot, CCBot) in a group of their own, and names no one else (Klas 2026-10-10)", () => {
+  it("blocks the AI training crawlers in a group of their own, and names no one else (Klas 2026-10-10, #2177)", () => {
     expect(rules).toHaveLength(2);
-    expect(training.userAgent).toEqual(["GPTBot", "CCBot"]);
+    expect(training.userAgent).toEqual([
+      "GPTBot",
+      "CCBot",
+      "ClaudeBot",
+      "Applebot-Extended",
+      "Amazonbot",
+      "meta-externalagent",
+    ]);
     expect(training.disallow).toBe("/");
     expect(training.allow).toBeUndefined();
   });
 
   it("lets Google-Extended and every search crawler in by not naming them (a crawler uses one group; * is not merged)", () => {
     const serialised = JSON.stringify(result.rules);
-    expect(serialised).not.toMatch(/Google-Extended|Googlebot|Bingbot|OAI-SearchBot|ChatGPT-User/i);
+    expect(serialised).not.toMatch(
+      /Google-Extended|Googlebot|Bingbot|OAI-SearchBot|ChatGPT-User|Claude-SearchBot|Claude-User|"Applebot"|Amzn-SearchBot|Amzn-User|Meta-WebIndexer|Meta-ExternalFetcher/i,
+    );
   });
 
   it("disallows the API, the /gast demo sandbox, and the admin surface (subtree-scoped)", () => {

@@ -468,10 +468,13 @@ try {
     assert.equal(publicCalls().length, 0);
   });
 
-  await check("robots.txt blocks the two training crawlers, opens /jobb/<uuid>, keeps the list and the app closed", async () => {
+  await check("robots.txt blocks the training crawlers, opens /jobb/<uuid>, keeps the list and the app closed", async () => {
     const res = await get(origin, "/robots.txt");
     assert.equal(res.status, 200);
-    assert.match(res.body, /User-Agent: GPTBot\nUser-Agent: CCBot\nDisallow: \//i);
+    assert.match(
+      res.body,
+      /User-Agent: GPTBot\nUser-Agent: CCBot\nUser-Agent: ClaudeBot\nUser-Agent: Applebot-Extended\nUser-Agent: Amazonbot\nUser-Agent: meta-externalagent\nDisallow: \/\n/i,
+    );
     assert.match(res.body, /User-Agent: \*\nAllow: \//i);
     assert.match(res.body, /Disallow: \/jobb\$/);
     assert.match(res.body, /Disallow: \/jobb\?/);

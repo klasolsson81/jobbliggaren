@@ -6,7 +6,7 @@ import { PROTECTED_PREFIXES } from "@/lib/auth/protected-routes";
  * SEO foundation (#264) — `app/robots.ts` (Next.js App Router metadata route → /robots.txt).
  *
  * Allows crawling of the public marketing surface and the public job page and points at the sitemap; DISALLOWS the
- * authenticated app, the API, the admin surface, and the demo sandbox, and blocks the two pure AI training crawlers.
+ * authenticated app, the API, the admin surface, and the demo sandbox, and blocks the AI training crawlers.
  *
  * The authed `(app)` disallow entries are DERIVED from `PROTECTED_PREFIXES` — the single source of
  * truth, frozen to the `(app)` route group by `protected-routes.test.ts` (#513) — so this list can
@@ -45,11 +45,20 @@ const ROBOTS_LOCAL_DISALLOW = ["/api/", "/gast/", "/admin$", "/admin/"] as const
 const PUBLIC_DETAIL_PREFIXES: readonly string[] = ["/jobb"];
 
 /**
- * Pure training crawlers (Klas 2026-10-10): they get their own group, because a crawler uses one group only and
- * `*` is not merged into it. Google-Extended is a token that governs Gemini use and has no effect on Search;
- * it is allowed by not being named, and so is every search crawler. Naming a further bot here is Klas's decision.
+ * Training crawlers (Klas 2026-10-10): a vendor's training crawler or training opt-out token is blocked; its search
+ * and user crawlers (Claude-SearchBot, Applebot, Amzn-SearchBot, Meta-WebIndexer and the like) and Google-Extended
+ * are allowed by not being named. They get a group of their own, because a crawler uses one group only and `*` is
+ * not merged into it. A later training crawler joins by the same rule, with its vendor page cited in an ADR 0165
+ * amendment.
  */
-const TRAINING_CRAWLERS = ["GPTBot", "CCBot"] as const;
+const TRAINING_CRAWLERS = [
+  "GPTBot",
+  "CCBot",
+  "ClaudeBot",
+  "Applebot-Extended",
+  "Amazonbot",
+  "meta-externalagent",
+] as const;
 
 function disallowFor(prefix: string): string[] {
   return PUBLIC_DETAIL_PREFIXES.includes(prefix) ? [`${prefix}$`, `${prefix}?`] : [`${prefix}$`, `${prefix}/`];

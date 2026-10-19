@@ -321,3 +321,25 @@ unknown query parameter on the catalogue is left out of the canonical and is nei
 `Sitemap:` line is unchanged.
 
 ADR 0165 remains **Accepted**.
+
+## Amendment 2026-10-19 (#2177) — D6: the training-crawler group names six crawlers
+
+D1–D7 and the earlier amendments stand and nothing above is rewritten. This amendment changes D6's training-crawler group only.
+
+**1. The group names `GPTBot`, `CCBot`, `ClaudeBot`, `Applebot-Extended`, `Amazonbot` and `meta-externalagent`**, still with `disallow: "/"` and nothing else. The four added tokens
+are each their vendor's training crawler or training opt-out token, and each vendor names a separate search or user crawler that this group does not name (vendor pages read 2026-10-19):
+
+| Token | Vendor's own page | Not named, so allowed under `*` |
+|---|---|---|
+| `ClaudeBot` | Anthropic, support article 8896518 | `Claude-SearchBot`, `Claude-User` |
+| `Applebot-Extended` | Apple, "About Applebot" (support.apple.com/119829): crawls nothing, decides training use of what `Applebot` fetched | `Applebot` |
+| `Amazonbot` | Amazon, developer.amazon.com/amazonbot: "may be used to train Amazon AI models" | `Amzn-SearchBot`, `Amzn-User` |
+| `meta-externalagent` | Meta, "Meta Web Crawlers" (developers.facebook.com/docs/sharing/webmasters/web-crawlers) | `Meta-WebIndexer`, `Meta-ExternalFetcher` |
+
+**2. D6's "Naming a further bot is Klas's decision" is answered by Klas's rule of 2026-10-10**: a crawler that only collects for training is blocked, and search and grounding crawlers
+are allowed. `senior-cto-advisor` applied that rule to these four (SEO/AIO audit stage B, B12, 2026-10-18), and Klas was told and did not object. A later training crawler joins by the same
+rule, with its vendor page cited. `Google-Extended` stays allowed, as Klas chose.
+
+**3. No ADR 0166 re-take and no notice change.** `security-auditor` (stage B, §5): blocking a crawler narrows copying and adds no recipient.
+
+ADR 0165 remains **Accepted**.

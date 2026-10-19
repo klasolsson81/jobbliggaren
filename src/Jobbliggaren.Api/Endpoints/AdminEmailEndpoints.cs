@@ -1,19 +1,32 @@
 using System.Globalization;
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.Admin.Email;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailAllowance;
+using Jobbliggaren.Application.Admin.Email.Queries.GetEmailDelivery;
+using Jobbliggaren.Application.Admin.Email.Queries.GetEmailRecentFailures;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Domain.Common;
 using Mediator;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Jobbliggaren.Api.Endpoints;
 
 /// <summary>
-/// This month's mail against the provider's free allowance, and the computed cost beyond it (#1981, ADR 0178). The
-/// e-post page and the overview's e-post card both read this one endpoint, so they share one definition.
+/// The e-post page's provider reads (#1981): this month's mail against the free allowance and the computed cost beyond
+/// it (ADR 0178), and the delivery totals and recent failures for one period (PR 2). The page and the overview read
+/// these endpoints, so they share one definition. Every answer, refusals included, is private and uncacheable.
 /// </summary>
 public static class AdminEmailEndpoints
 {
     public const string AllowancePath = "/email/allowance";
+    public const string DeliveryPath = "/email/delivery";
+    public const string FailuresPath = "/email/failures";
+
+    /// <summary>
+    /// The query-string name of the period. Read as a string and mapped by <see cref="EmailDeliveryPeriods.FromToken"/>,
+    /// never bound as the enum, which would admit a number or a member name; an unknown token is a 400 from the validator.
+    /// </summary>
+    public const string PeriodParameter = "period";
 
     public static void MapAdminEmailEndpoints(this IEndpointRouteBuilder app)
     {
@@ -24,12 +37,38 @@ public static class AdminEmailEndpoints
         group.MapGet(AllowancePath, async (
             IMediator mediator, IDateTimeProvider clock, HttpResponse response, CancellationToken ct) =>
         {
-            response.Headers.CacheControl = "private, no-store";
             var result = await mediator.Send(new GetEmailAllowanceQuery(), ct);
-            // The API read instant, like every overview source. When the provider answered is Usage.ObservedAt.
-            response.Headers[AdminEndpoints.SampledAtHeader] =
-                clock.UtcNow.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+            MarkPrivateAndSampled(response, clock);
             return Results.Ok(result);
         }).RequireRateLimiting(RateLimitingExtensions.AdminReadPolicy);
+
+        group.MapGet(DeliveryPath, async (
+            [FromQuery(Name = PeriodParameter)] string? period,
+            IMediator mediator, IDateTimeProvider clock, HttpResponse response, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetEmailDeliveryQuery(EmailDeliveryPeriods.FromToken(period)), ct);
+            MarkPrivateAndSampled(response, clock);
+            return Results.Ok(result);
+        }).RequireRateLimiting(RateLimitingExtensions.AdminReadPolicy);
+
+        group.MapGet(FailuresPath, async (
+            [FromQuery(Name = PeriodParameter)] string? period,
+            IMediator mediator, IDateTimeProvider clock, HttpResponse response, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetEmailRecentFailuresQuery(EmailDeliveryPeriods.FromToken(period)), ct);
+            MarkPrivateAndSampled(response, clock);
+            return Results.Ok(result);
+        }).RequireRateLimiting(RateLimitingExtensions.AdminReadPolicy);
+    }
+
+    /// <summary>
+    /// The API read instant, like every overview source; when the provider answered is the body's own observedAt.
+    /// Cache-Control is also set on every answer under this path, a 400 included, by the path middleware in Program.
+    /// </summary>
+    private static void MarkPrivateAndSampled(HttpResponse response, IDateTimeProvider clock)
+    {
+        response.Headers.CacheControl = "private, no-store";
+        response.Headers[AdminEndpoints.SampledAtHeader] =
+            clock.UtcNow.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
     }
 }

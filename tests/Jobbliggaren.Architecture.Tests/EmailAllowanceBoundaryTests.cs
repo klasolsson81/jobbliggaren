@@ -1,6 +1,8 @@
 using System.Reflection;
 using Jobbliggaren.Application.Admin.Email;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailAllowance;
+using Jobbliggaren.Application.Admin.Email.Queries.GetEmailDelivery;
+using Jobbliggaren.Application.Admin.Email.Queries.GetEmailRecentFailures;
 using Jobbliggaren.Infrastructure.Admin.Email;
 using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Worker.Auditing;
@@ -10,16 +12,27 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1981 (ADR 0178) — the provider reads' boundaries. The provider port has one reader, the admin query; Application
-/// owns the arithmetic and none of the transport; the reads never reach the sending key's options; and the Worker,
-/// which sends mail, never reads the provider.
+/// #1981 (ADR 0178, PR 2) — the provider reads' boundaries. Each provider port has only its named admin query handlers
+/// as readers; Application owns the arithmetic and none of the transport; the reads never reach the sending key's
+/// options; and the Worker, which sends mail, never reads the provider.
 /// </summary>
 public class EmailAllowanceBoundaryTests
 {
     private static readonly string ProviderReadNamespace = typeof(EmailUsageSourceCollectionExtensions).Namespace!;
 
-    [Fact]
-    public void TheProviderPort_IsInjectedOnlyIntoItsOneQueryHandler()
+    public static TheoryData<string, string[]> PortConsumers() => new()
+    {
+        { typeof(IEmailProviderUsageSource).FullName!, [typeof(GetEmailAllowanceQueryHandler).FullName!] },
+        {
+            typeof(IEmailDeliveryStatisticsSource).FullName!,
+            [typeof(GetEmailDeliveryQueryHandler).FullName!, typeof(GetEmailRecentFailuresQueryHandler).FullName!]
+        },
+        { typeof(IEmailRecentFailuresSource).FullName!, [typeof(GetEmailRecentFailuresQueryHandler).FullName!] },
+    };
+
+    [Theory]
+    [MemberData(nameof(PortConsumers))]
+    public void EachProviderPort_IsInjectedOnlyIntoItsNamedQueryHandlers(string port, string[] handlers)
     {
         const BindingFlags declared = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
         Assembly[] owned =
@@ -34,13 +47,13 @@ public class EmailAllowanceBoundaryTests
         var consumers = owned
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type.GetConstructors(declared).Cast<MethodBase>().Concat(type.GetMethods(declared))
-                .Any(member => member.GetParameters().Any(parameter => parameter.ParameterType == typeof(IEmailProviderUsageSource))))
+                .Any(member => member.GetParameters().Any(parameter => parameter.ParameterType.FullName == port)))
             .Select(type => type.FullName!)
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        consumers.ShouldBe([typeof(GetEmailAllowanceQueryHandler).FullName!],
-            "a new reader of the provider's usage needs the admin gate and ADR 0178's review. Found: " + string.Join(", ", consumers));
+        consumers.ShouldBe([.. handlers.Order(StringComparer.Ordinal)],
+            $"a new reader of {port} needs the admin gate and #1981's review. Found: " + string.Join(", ", consumers));
     }
 
     [Fact]

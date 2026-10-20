@@ -1,5 +1,5 @@
 using Jobbliggaren.Application.Admin.Email;
-using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Application.UnitTests.Sessions;
 using Jobbliggaren.Infrastructure.Admin.Email;
 using Shouldly;
 
@@ -13,11 +13,6 @@ public class MemoizedEmailProviderUsageSourceTests
 {
     private static readonly DateTimeOffset T0 = new(2026, 10, 18, 19, 30, 0, TimeSpan.Zero);
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    private sealed class Clock(DateTimeOffset now) : IDateTimeProvider
-    {
-        public DateTimeOffset UtcNow { get; set; } = now;
-    }
 
     private sealed class FakeAttempts(
         Func<int, ValueTask<ProviderAttempt<EmailProviderUsageRead>>> next,
@@ -48,14 +43,14 @@ public class MemoizedEmailProviderUsageSourceTests
         new(new EmailProviderUsageRead.Observed(count, 0, at));
 
     private static ProviderAttempt<EmailProviderUsageRead> FailedWith(TimeSpan? retryAfter = null) =>
-        new(new EmailProviderUsageRead.Failed(EmailAllowanceReason.RateLimited), retryAfter);
+        new(new EmailProviderUsageRead.Failed(EmailProviderReadReason.RateLimited), retryAfter);
 
     // ---- success ----
 
     [Fact]
     public async Task ASuccess_ShouldBeReused_UntilSixtySecondsAfterItsObservedAt_AndNotAfter()
     {
-        var clock = new Clock(T0);
+        var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var inner = new FakeAttempts(n => ValueTask.FromResult(ObservedAt(clock.UtcNow, count: n)));
         var memo = new MemoizedEmailProviderUsageSource(inner, clock);
 
@@ -74,7 +69,7 @@ public class MemoizedEmailProviderUsageSourceTests
     public async Task ASuccess_ShouldBeReusedFromItsOwnObservedAt_NotFromWhenItWasAskedFor()
     {
         // The provider's answer arrived 40 s before the clock reads now, so it has 20 s of reuse left.
-        var clock = new Clock(T0);
+        var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var inner = new FakeAttempts(n => ValueTask.FromResult(ObservedAt(T0.AddSeconds(-40), count: n)));
         var memo = new MemoizedEmailProviderUsageSource(inner, clock);
 
@@ -88,7 +83,7 @@ public class MemoizedEmailProviderUsageSourceTests
     [Fact]
     public async Task ASynchronouslyCompletedRead_ShouldStillExpire()
     {
-        var clock = new Clock(T0);
+        var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var inner = new FakeAttempts(n => ValueTask.FromResult(ObservedAt(clock.UtcNow, count: n)));
         var memo = new MemoizedEmailProviderUsageSource(inner, clock);
 
@@ -106,7 +101,7 @@ public class MemoizedEmailProviderUsageSourceTests
     [Fact]
     public async Task AFailure_ShouldBeReusedForSixtySeconds_WhenTheProviderSentNoRetryAfter()
     {
-        var clock = new Clock(T0);
+        var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var inner = new FakeAttempts(_ => ValueTask.FromResult(FailedWith()));
         var memo = new MemoizedEmailProviderUsageSource(inner, clock);
 
@@ -127,7 +122,7 @@ public class MemoizedEmailProviderUsageSourceTests
     [InlineData(3_600, 900)]
     public async Task AFailure_ShouldBeHeldForTheProvidersRetryAfter_WithinItsFloorAndCap(int retryAfterSeconds, int heldSeconds)
     {
-        var clock = new Clock(T0);
+        var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var inner = new FakeAttempts(_ => ValueTask.FromResult(FailedWith(TimeSpan.FromSeconds(retryAfterSeconds))));
         var memo = new MemoizedEmailProviderUsageSource(inner, clock);
 
@@ -144,7 +139,7 @@ public class MemoizedEmailProviderUsageSourceTests
     [Fact]
     public async Task AReadThatThrows_ShouldReachTheCaller_AndNotBeReused()
     {
-        var clock = new Clock(T0);
+        var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var inner = new FakeAttempts(n => n == 1
             ? throw new InvalidOperationException("adapter broke its contract")
             : ValueTask.FromResult(ObservedAt(clock.UtcNow)));
@@ -162,7 +157,7 @@ public class MemoizedEmailProviderUsageSourceTests
     [Fact]
     public async Task TheCountAndThePlan_ShouldBeRememberedApart_SoOneFailingNeverBlanksTheOther()
     {
-        var clock = new Clock(T0);
+        var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var inner = new FakeAttempts(
             _ => ValueTask.FromResult(FailedWith()),
             _ => ValueTask.FromResult(new ProviderAttempt<EmailProviderPlanRead>(
@@ -182,7 +177,7 @@ public class MemoizedEmailProviderUsageSourceTests
     [Fact]
     public async Task APlanSuccess_ShouldExpireSixtySecondsAfterItsOwnObservedAt()
     {
-        var clock = new Clock(T0);
+        var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var inner = new FakeAttempts(
             _ => ValueTask.FromResult(ObservedAt(clock.UtcNow)),
             _ => ValueTask.FromResult(new ProviderAttempt<EmailProviderPlanRead>(
@@ -203,7 +198,7 @@ public class MemoizedEmailProviderUsageSourceTests
     [Fact]
     public async Task ConcurrentCallers_ShouldShareOneRead()
     {
-        var clock = new Clock(T0);
+        var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var release = new TaskCompletionSource<ProviderAttempt<EmailProviderUsageRead>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var inner = new FakeAttempts(_ => new ValueTask<ProviderAttempt<EmailProviderUsageRead>>(release.Task));
         var memo = new MemoizedEmailProviderUsageSource(inner, clock);
@@ -219,7 +214,7 @@ public class MemoizedEmailProviderUsageSourceTests
     [Fact]
     public async Task OneCallersCancellation_ShouldEndOnlyItsOwnWait_AndTheSharedReadRunsOnNone()
     {
-        var clock = new Clock(T0);
+        var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var release = new TaskCompletionSource<ProviderAttempt<EmailProviderUsageRead>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var inner = new FakeAttempts(_ => new ValueTask<ProviderAttempt<EmailProviderUsageRead>>(release.Task));
         var memo = new MemoizedEmailProviderUsageSource(inner, clock);
@@ -240,7 +235,7 @@ public class MemoizedEmailProviderUsageSourceTests
     [Fact]
     public async Task ACallerWhoLeftEarly_ShouldStillHaveFilledTheMemo_ForTheNextCaller()
     {
-        var clock = new Clock(T0);
+        var clock = new MutableFakeDateTimeProvider { UtcNow = T0 };
         var release = new TaskCompletionSource<ProviderAttempt<EmailProviderUsageRead>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var inner = new FakeAttempts(_ => new ValueTask<ProviderAttempt<EmailProviderUsageRead>>(release.Task));
         var memo = new MemoizedEmailProviderUsageSource(inner, clock);

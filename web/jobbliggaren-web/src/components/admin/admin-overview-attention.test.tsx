@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { overviewSnapshotFixture, OVERVIEW_TIME } from "@/test/fixtures/admin-overview";
+import { emailDeliveryFixture, overviewSnapshotFixture, OVERVIEW_TIME } from "@/test/fixtures/admin-overview";
 import type { AdminOverviewSnapshot, BackupObservationData } from "@/lib/dto/admin-overview";
+import type { EmailDeliveryDto } from "@/lib/dto/admin-email";
 import type { ServicesObservationDto } from "@/lib/dto/admin-services";
 import { AdminOverview } from "./admin-overview";
 
@@ -150,5 +151,121 @@ describe("the attention card beside the Backup and Tjänster cards (#2084)", () 
     expect(within(attention()).getAllByRole("link").map((link) => link.textContent)).toEqual([
       "3 bakgrundsjobb har misslyckats", "2 konton väntar på radering", "Backup: Ingen körning planerad",
     ]);
+  });
+});
+
+describe("the attention card's failed sends (#1981 PR 2)", () => {
+  const NO_FIGURES = { observedAt: null, sent: null, failed: null } as const;
+  const withDelivery = (data: EmailDeliveryDto, sampledAt = SAMPLED): AdminOverviewSnapshot =>
+    ({ ...calm(), delivery: { kind: "loaded", data, sampledAt, refreshFailed: false } });
+  const UNREAD_SOURCE = "Misslyckade utskick";
+  /** An API read instant no other source in the fixture carries, so its note is told apart from theirs. */
+  const READ_AT = "2026-10-08T09:58:00Z";
+
+  it("links a count above 0 to the page's 24 tim view, and raises the edge", () => {
+    show(withDelivery(emailDeliveryFixture(3)));
+
+    const link = within(attention()).getByRole("link", { name: "3 utskick har misslyckats de senaste 24 timmarna" });
+    expect(link).toHaveAttribute("href", "/admin/e-post?period=h24");
+    expect(attention()).toHaveAttribute("data-state", "raised");
+    expect(attention()).toHaveTextContent("Hämtat 2026-10-08 11:59");
+  });
+
+  it("says a zero at Scaleway in words, without a link, and raises nothing", () => {
+    show(withDelivery(emailDeliveryFixture(0)));
+
+    expect(attention()).toHaveTextContent("Inga misslyckade utskick hos Scaleway de senaste 24 timmarna.");
+    expect(within(attention()).queryAllByRole("link")).toEqual([]);
+    expect(attention()).toHaveAttribute("data-state", "unknown");
+  });
+
+  it.each([
+    [
+      "a read key that sees no sends",
+      { period: "h24", status: "NotObservable", reason: null, ...NO_FIGURES },
+      "Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen, så siffrorna kan inte bedömas. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post.",
+    ],
+    [
+      "a read key that is not installed",
+      { period: "h24", status: "ReadKeyMissing", reason: null, ...NO_FIGURES },
+      "Läsnyckeln är inte installerad. Se runbooken för admin-e-post.",
+    ],
+    [
+      "a provider that did not answer",
+      { period: "h24", status: "Failed", reason: "Timeout", ...NO_FIGURES },
+      "Scaleway svarade inte. Försök igen om en stund.",
+    ],
+    [
+      "a refused read key",
+      { period: "h24", status: "Failed", reason: "Unauthorized", ...NO_FIGURES },
+      "Scaleway nekade läsnyckeln. Kontrollera dess utgångsdatum enligt runbooken för admin-e-post.",
+    ],
+  ] as const)("names the source and says why for %s: never a zero and never an all-clear", (_name, data, line) => {
+    show(withDelivery(data, READ_AT));
+
+    expect(attention()).toHaveTextContent(`${UNREAD_SOURCE}${line}`);
+    expect(attention()).not.toHaveTextContent(/Inga misslyckade utskick|0 utskick/);
+    expect(attention()).toHaveAttribute("data-state", "unknown");
+    expect(attention()).toHaveTextContent("Hämtat 2026-10-08 11:58");
+    expect(within(attention()).queryByRole("alert")).toBeNull();
+  });
+
+  it("says a deployment without Scaleway does not count here, with no time to date it", () => {
+    show(withDelivery({ period: "h24", status: "NotObserved", reason: "NotConfigured", ...NO_FIGURES }, READ_AT));
+
+    expect(attention()).toHaveTextContent(`${UNREAD_SOURCE}Räknas inte i den här miljön.`);
+    expect(attention()).not.toHaveTextContent(/Inga misslyckade utskick|Hämtat|2026-10-08 11:58/);
+  });
+
+  it.each([["failed", "Uppgifterna kunde inte hämtas. Försök igen om en stund."], ["loading", "Hämtar uppgifter…"]] as const)(
+    "names the source and says our own read is %s",
+    (kind, line) => {
+      show({ ...calm(), delivery: { kind } });
+
+      expect(attention()).toHaveTextContent(`${UNREAD_SOURCE}${line}`);
+      expect(attention()).not.toHaveTextContent("Inga misslyckade utskick");
+      expect(attention()).toHaveAttribute("data-state", "unknown");
+    },
+  );
+
+  it("keeps an old count marked as old, as every other source", () => {
+    show({ ...calm(), delivery: { kind: "loaded", data: emailDeliveryFixture(1), sampledAt: SAMPLED, refreshFailed: true } });
+
+    expect(within(attention()).getByRole("link", { name: "1 utskick har misslyckats de senaste 24 timmarna" })).toBeInTheDocument();
+    expect(attention()).toHaveTextContent("Uppdateringen misslyckades. Senaste uppgiften visas.");
+  });
+
+  /** The note that dates the line: the paragraph around the read's own time, which no other source carries. */
+  const deliveryNote = () => attention().querySelector(`time[datetime="${READ_AT}"]`)?.closest("p") ?? null;
+  const observedAtRead = (failed: number): EmailDeliveryDto =>
+    ({ period: "h24", status: "Observed", reason: null, observedAt: READ_AT, sent: 57, failed });
+  const refreshFailed = (): AdminOverviewSnapshot =>
+    ({ ...calm(), delivery: { kind: "loaded", data: observedAtRead(1), sampledAt: READ_AT, refreshFailed: true } });
+
+  it.each<readonly [string, AdminOverviewSnapshot]>([
+    ["a count above 0", withDelivery(observedAtRead(2), READ_AT)],
+    ["a zero at Scaleway", withDelivery(observedAtRead(0), READ_AT)],
+    ["a read key that sees no sends", withDelivery({ period: "h24", status: "NotObservable", reason: null, ...NO_FIGURES }, READ_AT)],
+    ["a read key that is not installed", withDelivery({ period: "h24", status: "ReadKeyMissing", reason: null, ...NO_FIGURES }, READ_AT)],
+    ["a provider that did not answer", withDelivery({ period: "h24", status: "Failed", reason: "Timeout", ...NO_FIGURES }, READ_AT)],
+    ["a refresh that failed", refreshFailed()],
+  ])("dates the line Hämtat, never Uppgift från, for %s (design-reviewer Major 1)", (_name, snapshot) => {
+    show(snapshot);
+
+    expect(deliveryNote()).toHaveTextContent(/^Hämtat 2026-10-08 11:58/);
+    expect(deliveryNote()).not.toHaveTextContent("Uppgift från");
+  });
+
+  it("keeps the old and the failed-refresh lines under Hämtat", () => {
+    render(<AdminOverview observations={refreshFailed()} now={Date.parse(READ_AT) + 6 * 60_000} />);
+
+    expect(deliveryNote()).toHaveTextContent(
+      "Hämtat 2026-10-08 11:58Uppdateringen misslyckades. Senaste uppgiften visas.Uppgiften är äldre än fem minuter.",
+    );
+  });
+
+  it("is never on the e-post card: the card stays the month's cost", () => {
+    show(withDelivery(emailDeliveryFixture(4)));
+    expect(screen.getByRole("region", { name: "E-post" })).not.toHaveTextContent(/misslyckade|24 timmarna/i);
   });
 });

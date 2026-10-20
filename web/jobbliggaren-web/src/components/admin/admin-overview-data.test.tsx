@@ -27,7 +27,7 @@ describe("admin overview observed data", () => {
     expect(within(card("Kräver uppmärksamhet")).getByRole("link", { name: "3 bakgrundsjobb har misslyckats" })).toHaveAttribute("href", "/admin/jobb#failed-jobs");
     expect(card("Senaste händelser")).toHaveTextContent("AccountSuspendedEvent");
   });
-  it("uses limited zero statements and names the unassessed email source", () => {
+  it("uses limited zero statements, the failed sends' naming where they were counted", () => {
     const snapshot = overviewSnapshotFixture();
     if (snapshot.accounts.kind !== "loaded") throw new Error("Expected observed accounts");
     render(<AdminOverview observations={{ ...snapshot,
@@ -37,7 +37,7 @@ describe("admin overview observed data", () => {
     }} now={NOW} />);
     expect(card("Kräver uppmärksamhet")).toHaveAttribute("data-state", "unknown");
     expect(card("Kräver uppmärksamhet")).toHaveTextContent("Inga misslyckade bakgrundsjobb.");
-    expect(card("Kräver uppmärksamhet")).toHaveTextContent("E-postfel kan ännu inte bedömas.");
+    expect(card("Kräver uppmärksamhet")).toHaveTextContent("Inga misslyckade utskick hos Scaleway de senaste 24 timmarna.");
     expect(card("Kräver uppmärksamhet")).not.toHaveTextContent("Inget kräver uppmärksamhet");
     expect(card("Senaste händelser")).toHaveTextContent("Inga händelser än.");
   });

@@ -33,56 +33,6 @@ public class DeployComposeHostBridgeTests
 
     private static ComposeFile Compose => new(ComposePath);
 
-    private static List<string> ServiceNames()
-    {
-        var lines = File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, ComposePath));
-        var start = Array.FindIndex(lines, l => l.StartsWith("services:", StringComparison.Ordinal));
-        start.ShouldBeGreaterThan(-1);
-        return lines.Skip(start + 1)
-            .TakeWhile(l => l.Length == 0 || l[0] == ' ' || l[0] == '#')
-            .Where(l => l.StartsWith("  ", StringComparison.Ordinal) && l.Length > 2 && l[2] is not (' ' or '#') && l.TrimEnd().EndsWith(':'))
-            .Select(l => l.Trim().TrimEnd(':'))
-            .ToList();
-    }
-
-    /// <summary>Each item of the service's <c>volumes:</c> list, as its own lines (a mount in long syntax spans several).</summary>
-    private static List<List<string>> Mounts(IReadOnlyList<string> block)
-    {
-        var lines = block.Where(l => !l.TrimStart().StartsWith('#')).ToList();
-        var at = lines.FindIndex(l => l.Trim() == "volumes:");
-        if (at < 0)
-        {
-            return [];
-        }
-
-        var keyIndent = lines[at].Length - lines[at].TrimStart().Length;
-        var mounts = new List<List<string>>();
-        foreach (var line in lines.Skip(at + 1))
-        {
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                continue;
-            }
-
-            var indent = line.Length - line.TrimStart().Length;
-            if (indent <= keyIndent)
-            {
-                break;
-            }
-
-            if (indent == keyIndent + 2 && line.TrimStart().StartsWith("- ", StringComparison.Ordinal))
-            {
-                mounts.Add([line.TrimStart()[2..].Trim()]);
-            }
-            else if (mounts.Count > 0)
-            {
-                mounts[^1].Add(line.Trim());
-            }
-        }
-
-        return mounts;
-    }
-
     private static bool Names(List<string> mount, string source) =>
         mount.Any(l => l == $"source: {source}" || l.StartsWith($"{source}:", StringComparison.Ordinal));
 
@@ -90,7 +40,7 @@ public class DeployComposeHostBridgeTests
     public void Api_MountsTheObservationsDirectory_ReadOnly_AtTheTargetItIsToldAbout()
     {
         var api = Compose.ServiceBlock("api");
-        var mounts = Mounts(api).Where(m => Names(m, Source)).ToList();
+        var mounts = ComposeMounts.Of(api).Where(m => Names(m, Source)).ToList();
 
         mounts.Count.ShouldBe(1, $"api must mount {Source} exactly once");
         var mount = mounts[0];
@@ -107,7 +57,7 @@ public class DeployComposeHostBridgeTests
     [Fact]
     public void NoOtherServiceMountsTheDirectory_OrIsToldWhereItIs()
     {
-        var others = ServiceNames().Where(name => name != "api").ToList();
+        var others = ComposeMounts.ServiceNames(ComposePath).Where(name => name != "api").ToList();
         others.ShouldContain("worker");
 
         foreach (var service in others)
@@ -126,28 +76,16 @@ public class DeployComposeHostBridgeTests
             .Contains("observations", StringComparison.Ordinal)
             .ShouldBeFalse("an x-* anchor is inherited by every service that merges it");
 
-    /// <summary>The host path of a mount, in long syntax (<c>source:</c>) or short (<c>/host:/container[:ro]</c>); null for an alias.</summary>
-    private static string? SourceOf(List<string> mount)
-    {
-        var long_ = mount.FirstOrDefault(l => l.StartsWith("source: ", StringComparison.Ordinal));
-        if (long_ is not null)
-        {
-            return long_["source: ".Length..].Trim();
-        }
-
-        return mount[0].StartsWith('/') ? mount[0].Split(':')[0] : null;
-    }
-
     [Fact]
     public void NoServiceMountsAParentOfASecretDirectory_AndNoneMountsTheCredentialDirectoryAtAll()
     {
         SecretDirectories.ShouldAllBe(secret => !secret.StartsWith(Source + "/", StringComparison.Ordinal) && !Source.StartsWith(secret + "/", StringComparison.Ordinal));
 
-        foreach (var service in ServiceNames())
+        foreach (var service in ComposeMounts.ServiceNames(ComposePath))
         {
-            foreach (var mount in Mounts(Compose.ServiceBlock(service)))
+            foreach (var mount in ComposeMounts.Of(Compose.ServiceBlock(service)))
             {
-                var source = SourceOf(mount);
+                var source = ComposeMounts.SourceOf(mount);
                 if (source is null)
                 {
                     continue;

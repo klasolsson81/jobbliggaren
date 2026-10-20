@@ -31,6 +31,7 @@ public static class EmailAllowanceEvaluator
             EmailProviderPlanRead.Observed observed =>
                 EmailAllowancePlanDto.Observed(observed.Plan, observed.Plan != EmailPlan.Unknown && observed.Plan == options.Plan),
             EmailProviderPlanRead.NotConfigured => EmailAllowancePlanDto.NotObserved(),
+            EmailProviderPlanRead.ReadKeyMissing => EmailAllowancePlanDto.ReadKeyMissing(),
             EmailProviderPlanRead.Failed failed => EmailAllowancePlanDto.Failed(failed.Reason),
             _ => throw new ArgumentOutOfRangeException(nameof(plan), plan, "Unknown read."),
         };
@@ -39,6 +40,7 @@ public static class EmailAllowanceEvaluator
         {
             EmailProviderUsageRead.Observed observed => Observed(observed, planDto.Matches == true, options, calendar),
             EmailProviderUsageRead.NotConfigured => EmailAllowanceUsageDto.NotObserved(),
+            EmailProviderUsageRead.ReadKeyMissing => EmailAllowanceUsageDto.ReadKeyMissing(),
             EmailProviderUsageRead.Failed failed => EmailAllowanceUsageDto.Failed(failed.Reason),
             _ => throw new ArgumentOutOfRangeException(nameof(usage), usage, "Unknown read."),
         };

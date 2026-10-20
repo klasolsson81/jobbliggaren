@@ -2,7 +2,7 @@ import { z } from "zod";
 import { accountStatusCountsSchema } from "./admin-accounts";
 import { hostObservationSchema } from "./admin-host";
 import { servicesObservationSchema } from "./admin-services";
-import { emailAllowanceSchema } from "./admin-email";
+import { emailAllowanceSchema, emailDeliverySchema } from "./admin-email";
 
 const instant = z.iso.datetime({ offset: true });
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -116,5 +116,7 @@ export const overviewSnapshotSchema = z.object({
   services: observation(servicesObservationSchema),
   /** The month against the free allowance (#1981 PR 1): the DTO as the API sent it, which the card only formats. */
   email: observation(emailAllowanceSchema),
+  /** The provider's sent and failed counts for the last 24 hours (#1981 PR 2), for the attention card. No recipient. */
+  delivery: observation(emailDeliverySchema),
 });
 export type AdminOverviewSnapshot = z.infer<typeof overviewSnapshotSchema>;

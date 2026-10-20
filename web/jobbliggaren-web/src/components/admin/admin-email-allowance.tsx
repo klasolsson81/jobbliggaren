@@ -64,6 +64,8 @@ export function AdminEmailAllowance({
     if (region.kind === "loading") return [{ key: "loading", text: admin("regions.loading") }];
     if (allowance === null || usage === null) return [];
     if (usage.status === "NotObserved") return [{ key: "notConfigured", text: t("notConfigured") }];
+    // A missing read key is an operator step owed, not a deployment without a provider (#1981 PR 2).
+    if (usage.status === "ReadKeyMissing") return [{ key: "readKeyMissing", text: t("readKeyMissing"), failure: true }];
 
     const out: Line[] = [];
     if (usage.status === "Failed") {

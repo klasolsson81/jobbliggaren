@@ -81,6 +81,9 @@ public sealed class EmailTemplatesAccountEmailChangeRequestedNotificationTests
     }
 
     [Fact]
+    public void It_carries_no_link_in_its_subject() => MailSubject.ShouldCarryNoCodeLinkOrToken(Render());
+
+    [Fact]
     public void It_keeps_the_civic_tone()
     {
         var rendered = Render();

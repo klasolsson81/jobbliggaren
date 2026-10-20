@@ -109,9 +109,22 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
     expect(value(card)).toBe("–Uppgift saknas");
     expect(card.querySelector(".jp-adminkpi__unit")).toBeNull();
     expect(card).toHaveTextContent(
-      "Scaleway nekade läsningen. Kontrollera nyckelns behörighet enligt runbooken för admin-e-post.",
+      "Scaleway nekade läsningen. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post.",
     );
     expect(card).not.toHaveTextContent("Beräknad kostnad");
+  });
+
+  it("says the read key is not installed, never that the environment does not count (#1981 PR 2)", () => {
+    const card = loaded({
+      ...base,
+      usage: { status: "ReadKeyMissing", reason: null, ...NO_USAGE },
+      plan: { status: "ReadKeyMissing", reason: null, active: null, matches: null },
+    }, OVERVIEW_TIME);
+
+    expect(value(card)).toBe("–Uppgift saknas");
+    expect(card.querySelector(".jp-adminkpi__unit")).toBeNull();
+    expect(card).toHaveTextContent("Läsnyckeln är inte installerad. Se runbooken för admin-e-post.");
+    expect(card).not.toHaveTextContent(/Räknas inte|Beräknad kostnad/);
   });
 
   it("shows our own failed read as the source's failure, quietly, beside the page's one announcement", () => {
@@ -128,12 +141,13 @@ describe("the overview's e-post card from the allowance (#1981 PR 1, ADR 0150 Am
     expect(card).toHaveTextContent("Uppgiften är äldre än fem minuter.");
   });
 
-  it("is never an attention item, and the attention card still says email errors cannot be judged", () => {
+  it("is never an attention item: a cost above the allowance raises nothing, and failed sends are the attention card's", () => {
     const card = loaded({ ...base, usage: { ...observedUsage, sent: 9000, billable: 8700, estimatedExtraCostOre: 3031, aboveHalfOfSendLimit: true } });
     const attention = screen.getByRole("region", { name: "Kräver uppmärksamhet" });
 
     expect(card.querySelector(".jp-admin-danger, .jp-admin-warning")).toBeNull();
-    expect(attention).toHaveTextContent("E-postfel kan ännu inte bedömas.");
-    expect(within(attention).queryByRole("link", { name: /utskick/i })).toBeNull();
+    expect(card).not.toHaveTextContent(/misslyckade|24 timmarna/i);
+    expect(attention).toHaveTextContent("Inga misslyckade utskick hos Scaleway de senaste 24 timmarna.");
+    expect(attention).not.toHaveTextContent("E-postfel kan ännu inte bedömas.");
   });
 });

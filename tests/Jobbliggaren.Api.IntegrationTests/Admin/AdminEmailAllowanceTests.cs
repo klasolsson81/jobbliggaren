@@ -14,7 +14,6 @@ using Mediator;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
@@ -27,8 +26,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Admin;
 
 /// <summary>
 /// #1981 (ADR 0178) — the allowance read, end to end through the real pipeline: who may call it, that every answer
-/// including the refusals is private and uncacheable, and exactly what the browser receives. The provider is a
-/// scripted source on each host; ApiFactory's default answers "not configured".
+/// including the refusals is private and uncacheable, and exactly what the browser receives. The provider is
+/// ApiFactory's scripted source, which answers "not configured" unless a test scripts it.
 /// </summary>
 [Collection("Api")]
 public sealed class AdminEmailAllowanceTests(ApiFactory factory)
@@ -150,8 +149,14 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
     public async Task Allowance_ShouldAnswerTheProvidersCount_WithTheComputedCost_AndStampTheResponseWithTheApiClock()
     {
         var (_, _, session) = await AdminAsync(factory, NewToken(), Ct);
-        using var host = HostWith(new EmailProviderUsageRead.Observed(1_301, 0, Observed));
-        using var client = ClientFor(host, session);
+        using var scripted = Scripted(new EmailProviderUsageRead.Observed(1_301, 0, Observed));
+        using var host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IDateTimeProvider>();
+            services.AddSingleton<IDateTimeProvider>(new MutableFakeDateTimeProvider { UtcNow = Now });
+        }));
+        using var client = host.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session);
 
         var response = await client.GetAsync(EndpointPath, Ct);
 
@@ -192,13 +197,12 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
     [Fact]
     public async Task Allowance_ShouldWithholdTheCost_ButKeepTheCount_WhenTheProvidersPlanIsAnother()
     {
-        var (_, _, session) = await AdminAsync(factory, NewToken(), Ct);
-        using var host = HostWith(
+        var (admin, _, _) = await AdminAsync(factory, NewToken(), Ct);
+        using var scripted = Scripted(
             new EmailProviderUsageRead.Observed(1_301, 0, Observed),
             new EmailProviderPlanRead.Observed(EmailPlan.Scale, Observed));
-        using var client = ClientFor(host, session);
 
-        var body = await ReadAsync(await client.GetAsync(EndpointPath, Ct));
+        var body = await ReadAsync(await admin.GetAsync(EndpointPath, Ct));
 
         body.GetProperty("plan").GetProperty("active").GetString().ShouldBe("Scale");
         body.GetProperty("plan").GetProperty("matches").GetBoolean().ShouldBeFalse();
@@ -209,11 +213,10 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
     [Fact]
     public async Task Allowance_ShouldGiveTheBrowserExactlyTheKeysItWasPromised_AndNothingElse()
     {
-        var (_, _, session) = await AdminAsync(factory, NewToken(), Ct);
-        using var host = HostWith(new EmailProviderUsageRead.Observed(184, 0, Observed));
-        using var client = ClientFor(host, session);
+        var (admin, _, _) = await AdminAsync(factory, NewToken(), Ct);
+        using var scripted = Scripted(new EmailProviderUsageRead.Observed(184, 0, Observed));
 
-        var raw = await (await client.GetAsync(EndpointPath, Ct)).Content.ReadAsStringAsync(Ct);
+        var raw = await (await admin.GetAsync(EndpointPath, Ct)).Content.ReadAsStringAsync(Ct);
         using var document = JsonDocument.Parse(raw);
 
         Keys(document.RootElement).ShouldBe(["plan", "terms", "usage"]);
@@ -232,11 +235,10 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
     [Fact]
     public async Task Allowance_ShouldAnswerAFailureWithItsReason_AndNoFigures()
     {
-        var (_, _, session) = await AdminAsync(factory, NewToken(), Ct);
-        using var host = HostWith(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Forbidden));
-        using var client = ClientFor(host, session);
+        var (admin, _, _) = await AdminAsync(factory, NewToken(), Ct);
+        using var scripted = Scripted(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Forbidden));
 
-        var response = await client.GetAsync(EndpointPath, Ct);
+        var response = await admin.GetAsync(EndpointPath, Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         ShouldBePrivate(response);
@@ -247,33 +249,38 @@ public sealed class AdminEmailAllowanceTests(ApiFactory factory)
         usage.GetProperty("observedAt").ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
+    [Fact]
+    public async Task Allowance_ShouldSayReadKeyMissing_WithNoReasonAndNoFigures_WhenTheReadKeyIsNotConfigured()
+    {
+        var (admin, _, _) = await AdminAsync(factory, NewToken(), Ct);
+        using var scripted = factory.EmailProviderReads.Script(
+            new EmailProviderUsageRead.ReadKeyMissing(), new EmailProviderPlanRead.ReadKeyMissing());
+
+        var response = await admin.GetAsync(EndpointPath, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        ShouldBePrivate(response);
+        var body = await ReadAsync(response);
+        body.GetProperty("terms").GetProperty("includedMonthlyEmails").GetInt32().ShouldBe(300);
+        var usage = body.GetProperty("usage");
+        usage.GetProperty("status").GetString().ShouldBe("ReadKeyMissing");
+        foreach (var figure in new[] { "reason", "observedAt", "month", "sent", "billable", "estimatedExtraCostOre", "aboveHalfOfSendLimit", "webhooksCount" })
+        {
+            usage.GetProperty(figure).ValueKind.ShouldBe(JsonValueKind.Null, figure);
+        }
+
+        var plan = body.GetProperty("plan");
+        plan.GetProperty("status").GetString().ShouldBe("ReadKeyMissing");
+        foreach (var figure in new[] { "reason", "active", "matches" })
+        {
+            plan.GetProperty(figure).ValueKind.ShouldBe(JsonValueKind.Null, figure);
+        }
+    }
+
     // ---- plumbing ----
 
-    private sealed class FixedSource(EmailProviderUsageRead read, EmailProviderPlanRead plan) : IEmailProviderUsageSource
-    {
-        public ValueTask<EmailProviderUsageRead> ReadUsageAsync(CancellationToken cancellationToken) =>
-            ValueTask.FromResult(read);
-
-        public ValueTask<EmailProviderPlanRead> ReadPlanAsync(CancellationToken cancellationToken) =>
-            ValueTask.FromResult(plan);
-    }
-
-    private WebApplicationFactory<Program> HostWith(EmailProviderUsageRead read, EmailProviderPlanRead? plan = null) =>
-        factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-        {
-            services.RemoveAll<IEmailProviderUsageSource>();
-            services.AddSingleton<IEmailProviderUsageSource>(
-                new FixedSource(read, plan ?? new EmailProviderPlanRead.Observed(EmailPlan.Essential, Observed)));
-            services.RemoveAll<IDateTimeProvider>();
-            services.AddSingleton<IDateTimeProvider>(new MutableFakeDateTimeProvider { UtcNow = Now });
-        }));
-
-    private static HttpClient ClientFor(WebApplicationFactory<Program> host, string session)
-    {
-        var client = host.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session);
-        return client;
-    }
+    private IDisposable Scripted(EmailProviderUsageRead read, EmailProviderPlanRead? plan = null) =>
+        factory.EmailProviderReads.Script(read, plan ?? new EmailProviderPlanRead.Observed(EmailPlan.Essential, Observed));
 
     private static async Task<JsonElement> ReadAsync(HttpResponseMessage response)
     {

@@ -9,6 +9,7 @@ import type {
   AdminBackupStatus,
   AdminEmailAllowance,
   AdminEmailDelivery,
+  AdminEmailFailures,
   AdminEmailPeriod,
   AdminErrorLogRow,
   AdminFeedbackAvailability,
@@ -28,6 +29,7 @@ import type {
 } from "@/lib/admin/view-models";
 import type { AdminPendingEmailChange } from "@/lib/admin/account-email-change";
 import type { AuditLogEntryDto, FailedJobsResponse, RecurringJobStatusDto } from "@/lib/dto/admin";
+import { EMAIL_FAILURES_LIMIT, type EmailAllowanceFailure, type EmailFailureReason } from "@/lib/dto/admin-email";
 /**
  * The admin preview's fictional data (ADR 0150 D5). Addresses are on a reserved `.invalid`
  * domain, IP addresses are from the documentation ranges, and every date is counted from one
@@ -151,10 +153,7 @@ export const PREVIEW_AUDIT_ENTRIES: ReadonlyArray<AuditLogEntryDto> = [
 
 // ── Part 3: the overview, feedback, logs and email delivery ─────────────────────────────────
 
-const mask = (local: string) => `${local.slice(0, 1)}•••@${SENTINEL}`;
-
-/** A provider's reason as long as real ones run, so the failure list is seen to wrap rather than cut it. */
-const LONG_PROVIDER_MESSAGE = "Mottagarens server avvisade meddelandet: postlådan är full och tar inte emot nya meddelanden just nu. Servern föreslog ett nytt försök senare, och tre försök under en timme gav samma svar innan utskicket gavs upp.";
+const mask = (local: string, domain: string = SENTINEL) => `${local.slice(0, 1)}•••@${domain}`;
 
 /** Calendar day `days` days before the fixed clock, `YYYY-MM-DD` (UTC; the clock sits mid-morning in Sweden). */
 function dayKey(days: number): string {
@@ -261,6 +260,10 @@ export const PREVIEW_EMAIL_ALLOWANCE = marked({
   notConfigured: allowance(
     marked({ status: "NotObserved" as const, reason: "NotConfigured" as const, ...NO_USAGE }),
     marked({ status: "NotObserved" as const, reason: "NotConfigured" as const, active: null, matches: null }),
+  ),
+  readKeyMissing: allowance(
+    marked({ status: "ReadKeyMissing" as const, reason: null, ...NO_USAGE }),
+    marked({ status: "ReadKeyMissing" as const, reason: null, active: null, matches: null }),
   ),
   noAnswer: allowance(failedUsage("Timeout")),
   rateLimited: allowance(
@@ -603,56 +606,155 @@ export const PREVIEW_IMPORT_LOG: ReadonlyArray<AdminImportLogRow> = [
   marked({ id: id(904), run: "#18201", kind: "full" as const, startedAt: daysAgo(1, 2, 0), durationSeconds: 1212, fetched: 46_120, added: 512, updated: 45_390, closed: 218, status: "succeeded" as const }),
 ];
 
-/** Email delivery per period: one fictional set each for 24 hours, 3 days and 7 days. */
-export const PREVIEW_EMAIL_DELIVERY: Readonly<Record<AdminEmailPeriod, AdminEmailDelivery>> = marked({
-  h24: marked({
-    totals: marked({ sent: 57, failed: 2, noRecipient: 0 }),
-    types: [
-      marked({ type: "login-challenge", sent: 31, failed: 1, lastError: "Mottagarens server svarade inte." }),
-      marked({ type: "match-notification", sent: 18, failed: 1, lastError: "Adressen finns inte." }),
-      marked({ type: "email-changed-notification", sent: 4, failed: 0, lastError: null }),
-      marked({ type: "followed-company-notification", sent: 4, failed: 0, lastError: null }),
-    ],
-    failures: [
-      marked({ id: id(1001), occurredAt: daysAgo(0, 6, 41), recipient: mask("konto.d"), outcome: "failed" as const, message: "Mottagarens server svarade inte.", type: "login-challenge" }),
-      marked({ id: id(1002), occurredAt: daysAgo(0, 5, 3), recipient: mask("konto.k"), outcome: "bounced" as const, message: "Adressen finns inte.", type: "match-notification" }),
-    ],
-  }),
-  d3: marked({
-    totals: marked({ sent: 163, failed: 3, noRecipient: 1 }),
-    types: [
-      marked({ type: "login-challenge", sent: 92, failed: 2, lastError: "Mottagarens server svarade inte." }),
-      marked({ type: "match-notification", sent: 54, failed: 1, lastError: "Adressen finns inte." }),
-      marked({ type: "email-changed-notification", sent: 9, failed: 0, lastError: null }),
-      marked({ type: "followed-company-notification", sent: 8, failed: 0, lastError: null }),
-    ],
-    failures: [
-      marked({ id: id(1001), occurredAt: daysAgo(0, 6, 41), recipient: mask("konto.d"), outcome: "failed" as const, message: "Mottagarens server svarade inte.", type: "login-challenge" }),
-      marked({ id: id(1002), occurredAt: daysAgo(0, 5, 3), recipient: mask("konto.k"), outcome: "bounced" as const, message: "Adressen finns inte.", type: "match-notification" }),
-      marked({ id: id(1003), occurredAt: daysAgo(2, 19, 12), recipient: mask("konto.a"), outcome: "failed" as const, message: "Mottagarens server svarade inte.", type: "login-challenge" }),
-    ],
-  }),
-  d7: marked({
-    totals: marked({ sent: 384, failed: 5, noRecipient: 1 }),
-    types: [
-      marked({ type: "login-challenge", sent: 215, failed: 3, lastError: "Mottagarens server svarade inte." }),
-      marked({ type: "match-notification", sent: 126, failed: 1, lastError: "Adressen finns inte." }),
-      marked({ type: "email-changed-notification", sent: 23, failed: 1, lastError: LONG_PROVIDER_MESSAGE }),
-      marked({ type: "followed-company-notification", sent: 20, failed: 0, lastError: null }),
-    ],
-    failures: [
-      marked({ id: id(1001), occurredAt: daysAgo(0, 6, 41), recipient: mask("konto.d"), outcome: "failed" as const, message: "Mottagarens server svarade inte.", type: "login-challenge" }),
-      marked({ id: id(1002), occurredAt: daysAgo(0, 5, 3), recipient: mask("konto.k"), outcome: "bounced" as const, message: "Adressen finns inte.", type: "match-notification" }),
-      marked({ id: id(1003), occurredAt: daysAgo(2, 19, 12), recipient: mask("konto.a"), outcome: "failed" as const, message: "Mottagarens server svarade inte.", type: "login-challenge" }),
-      marked({ id: id(1004), occurredAt: daysAgo(5, 8, 30), recipient: mask("konto.h"), outcome: "failed" as const, message: "Anslutningen bröts.", type: "login-challenge" }),
-      marked({ id: id(1005), occurredAt: daysAgo(6, 11, 20), recipient: mask("konto.j"), outcome: "bounced" as const, message: LONG_PROVIDER_MESSAGE, type: "email-changed-notification" }),
-    ],
-  }),
-});
 
-/** The email page's "Tom" state: nothing sent in the period. */
-export const PREVIEW_EMAIL_DELIVERY_ZERO: AdminEmailDelivery = marked({
-  totals: marked({ sent: 0, failed: 0, noRecipient: 0 }),
-  types: [],
-  failures: [],
-});
+// ── Leverans (#1981 PR 2) ─────────────────────────────────────────────────────────────────────
+
+/** One Leverans answer: the summary read and the failures read for the same period, as the API sends them. */
+export interface PreviewDelivery {
+  readonly summary: AdminEmailDelivery;
+  readonly failures: AdminEmailFailures;
+}
+
+/** Every state Leverans has (ADR 0150 D5); the e-post preview's second choice lists them. */
+export type PreviewDeliveryScenario =
+  | "observed"
+  | "capped"
+  | "noneFailed"
+  | "nothingSent"
+  | "listUnjudged"
+  | "notConfigured"
+  | "notObservable"
+  | "readKeyMissing"
+  | "noAnswer"
+  | "rateLimited"
+  | "keyRefused"
+  | "refused"
+  | "malformed";
+
+/** A subdomain as long as a real one can run, on the preview's reserved domain, so the column is seen to hold it. */
+const LONG_DOMAIN = `postavdelningen.ett-mycket-langt-underdomannamn-for-smala-skarmar.${SENTINEL}`;
+
+type FailureRow = Extract<AdminEmailFailures, { readonly status: "Observed" }>["failures"][number];
+
+function failure(createdAt: string, recipient: string, reason: EmailFailureReason): FailureRow {
+  return marked({ createdAt, recipient, reason });
+}
+
+/** The latest failed sends, newest first: two in the last 24 hours, three in 3 days and five in 7 days. */
+const FAILED_SENDS = [
+  failure(daysAgo(0, 6, 41), mask("konto.d"), "MailboxNotFound"),
+  failure(daysAgo(0, 5, 3), mask("konto.k"), "SoftBounce"),
+  failure(daysAgo(2, 19, 12), mask("konto.a"), "HardBounce"),
+  failure(daysAgo(5, 8, 30), mask("konto.h"), "MailboxFull"),
+  failure(daysAgo(6, 11, 20), mask("konto.j"), "Spam"),
+];
+
+const PERIOD_ANSWERS: Readonly<Record<AdminEmailPeriod, {
+  readonly sent: number;
+  readonly failed: number;
+  readonly rows: ReadonlyArray<FailureRow>;
+}>> = {
+  h24: { sent: 57, failed: 2, rows: FAILED_SENDS.slice(0, 2) },
+  d3: { sent: 163, failed: 3, rows: FAILED_SENDS.slice(0, 3) },
+  d7: { sent: 384, failed: 5, rows: FAILED_SENDS },
+};
+
+/**
+ * As many failed sends in the last 24 hours as one read carries, newest first: one with each of the seven reasons,
+ * one at a long domain and one whose address had nothing to mask. The provider counts more than the list shows.
+ */
+const CAPPED_SENDS = [
+  failure(daysAgo(0, 7, 52), mask("konto.b"), "MailboxNotFound"),
+  failure(daysAgo(0, 7, 40), mask("konto.n", LONG_DOMAIN), "HardBounce"),
+  failure(daysAgo(0, 7, 12), mask("konto.c"), "MailboxFull"),
+  failure(daysAgo(0, 6, 58), mask("konto.e"), "SoftBounce"),
+  failure(daysAgo(0, 6, 30), mask("konto.f"), "Spam"),
+  failure(daysAgo(0, 5, 47), mask("konto.g"), "Blocklisted"),
+  failure(daysAgo(0, 4, 15), mask("konto.i"), "Other"),
+  failure(daysAgo(0, 2, 2), "•••", "HardBounce"),
+  failure(daysAgo(0, 1, 20), mask("konto.l"), "MailboxNotFound"),
+  failure(daysAgo(0, 0, 5), mask("konto.m"), "SoftBounce"),
+];
+
+/** When the preview "asked" the provider: a minute before the fixed clock. */
+const ASKED_AT = daysAgo(0, 7, 59);
+
+function answered(
+  period: AdminEmailPeriod,
+  figures: { readonly sent: number; readonly failed: number },
+  rows: ReadonlyArray<FailureRow> | "unjudged",
+): PreviewDelivery {
+  return marked({
+    summary: marked({ period, status: "Observed" as const, reason: null, observedAt: ASKED_AT, ...figures }),
+    failures: rows === "unjudged"
+      ? marked({ period, status: "NotObservable" as const, reason: null, observedAt: null, failures: null, limit: EMAIL_FAILURES_LIMIT })
+      : marked({ period, status: "Observed" as const, reason: null, observedAt: ASKED_AT, failures: [...rows], limit: EMAIL_FAILURES_LIMIT }),
+  });
+}
+
+const NO_FIGURES = { observedAt: null, sent: null, failed: null } as const;
+const NO_ROWS = { observedAt: null, failures: null, limit: EMAIL_FAILURES_LIMIT } as const;
+
+/** Both reads in the same unanswered state, as one cause gives both. */
+function unanswered(period: AdminEmailPeriod, status: "NotObservable" | "ReadKeyMissing"): PreviewDelivery {
+  return marked({
+    summary: marked({ period, status, reason: null, ...NO_FIGURES }),
+    failures: marked({ period, status, reason: null, ...NO_ROWS }),
+  });
+}
+
+function notConfigured(period: AdminEmailPeriod): PreviewDelivery {
+  return marked({
+    summary: marked({ period, status: "NotObserved" as const, reason: "NotConfigured" as const, ...NO_FIGURES }),
+    failures: marked({ period, status: "NotObserved" as const, reason: "NotConfigured" as const, ...NO_ROWS }),
+  });
+}
+
+function refused(period: AdminEmailPeriod, reason: EmailAllowanceFailure): PreviewDelivery {
+  return marked({
+    summary: marked({ period, status: "Failed" as const, reason, ...NO_FIGURES }),
+    failures: marked({ period, status: "Failed" as const, reason, ...NO_ROWS }),
+  });
+}
+
+function scenario(name: PreviewDeliveryScenario, period: AdminEmailPeriod): PreviewDelivery {
+  const { sent, failed, rows } = PERIOD_ANSWERS[period];
+  switch (name) {
+    case "observed": return answered(period, { sent, failed }, rows);
+    case "capped": return answered(period, { sent: sent + 12, failed: 14 }, CAPPED_SENDS);
+    case "noneFailed": return answered(period, { sent, failed: 0 }, []);
+    case "nothingSent": return answered(period, { sent: 0, failed: 0 }, []);
+    // The provider counts failed sends the list cannot show, so the list is unknown, never empty.
+    case "listUnjudged": return answered(period, { sent, failed }, "unjudged");
+    case "notConfigured": return notConfigured(period);
+    case "notObservable": return unanswered(period, "NotObservable");
+    case "readKeyMissing": return unanswered(period, "ReadKeyMissing");
+    case "noAnswer": return refused(period, "Timeout");
+    case "rateLimited": return refused(period, "RateLimited");
+    case "keyRefused": return refused(period, "Unauthorized");
+    case "refused": return refused(period, "Forbidden");
+    case "malformed": return refused(period, "Malformed");
+  }
+}
+
+function byPeriod(name: PreviewDeliveryScenario): Readonly<Record<AdminEmailPeriod, PreviewDelivery>> {
+  return marked({ h24: scenario(name, "h24"), d3: scenario(name, "d3"), d7: scenario(name, "d7") });
+}
+
+/** Each scenario's answers for each of the three periods; the preview reads them by the period in its URL. */
+export const PREVIEW_EMAIL_DELIVERY: Readonly<Record<PreviewDeliveryScenario, Readonly<Record<AdminEmailPeriod, PreviewDelivery>>>> =
+  marked({
+    observed: byPeriod("observed"),
+    capped: byPeriod("capped"),
+    noneFailed: byPeriod("noneFailed"),
+    nothingSent: byPeriod("nothingSent"),
+    listUnjudged: byPeriod("listUnjudged"),
+    notConfigured: byPeriod("notConfigured"),
+    notObservable: byPeriod("notObservable"),
+    readKeyMissing: byPeriod("readKeyMissing"),
+    noAnswer: byPeriod("noAnswer"),
+    rateLimited: byPeriod("rateLimited"),
+    keyRefused: byPeriod("keyRefused"),
+    refused: byPeriod("refused"),
+    malformed: byPeriod("malformed"),
+  });

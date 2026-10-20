@@ -134,12 +134,13 @@
       "empty": "Inget kräver uppmärksamhet just nu.",
       "failedJobs": "{count} bakgrundsjobb har misslyckats",
       "pendingDeletions": "{count, plural, one {# konto väntar på radering} other {# konton väntar på radering}}",
-      "failedEmails": "{count} utskick har misslyckats",
+      "failedEmails": "{count} utskick har misslyckats de senaste 24 timmarna",
       "noFailedJobs": "Inga misslyckade bakgrundsjobb.",
       "noPendingDeletions": "Inga konton väntar på radering.",
-      "emailUnknown": "E-postfel kan ännu inte bedömas.",
+      "noFailedEmails": "Inga misslyckade utskick hos Scaleway de senaste 24 timmarna.",
       "jobsSource": "Misslyckade bakgrundsjobb",
       "deletionsSource": "Väntande raderingar",
+      "emailsSource": "Misslyckade utskick",
       "sourceState": "{source}: {state}"
     },
     "events": {
@@ -158,6 +159,7 @@
     "population": "Nya konton räknas bland kvarvarande konton med slutförd registrering.",
     "observation": {
       "sampledAt": "Uppgift från",
+      "fetchedAt": "Hämtat",
       "refreshFailed": "Uppdateringen misslyckades. Senaste uppgiften visas.",
       "stale": "Uppgiften är äldre än fem minuter.",
       "current": "Uppgifterna är aktuella.",
@@ -169,7 +171,8 @@
         "backup": "Backup",
         "host": "Serverns mätvärden",
         "services": "Tjänster",
-        "email": "Utskick mot gratiskvoten"
+        "email": "Utskick mot gratiskvoten",
+        "delivery": "Misslyckade utskick"
       }
     },
     "registrationPeriods": {
@@ -635,7 +638,7 @@
       "title": "E-postleverans"
     },
     "heading": "E-postleverans",
-    "lede": "Utskick mot gratiskvoten och per mejltyp.",
+    "lede": "Utskick mot gratiskvoten, leverans och misslyckade utskick.",
     "allowance": {
       "heading": "Utskick i {month}",
       "headingThisMonth": "Utskick denna månad",
@@ -650,6 +653,8 @@
       "webhooks": "{count, plural, one {# webhook är registrerad} other {# webhooks är registrerade}} hos Scaleway. Ingen ska finnas, se runbooken för admin-e-post.",
       "webhooksUnreadable": "Antalet webhooks kunde inte läsas.",
       "notConfigured": "Räknas inte i den här miljön.",
+      "readKeyMissing": "Läsnyckeln är inte installerad. Se runbooken för admin-e-post.",
+      "notObservable": "Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen, så siffrorna kan inte bedömas. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post.",
       "plan": {
         "differs": "Scaleway anger abonnemanget {active}, men villkoren gäller {configured}. Kostnaden beräknas inte.",
         "undetermined": "Abonnemanget hos Scaleway kunde inte bestämmas. Kostnaden beräknas inte.",
@@ -658,13 +663,14 @@
       "failure": {
         "noAnswer": "Scaleway svarade inte. Försök igen om en stund.",
         "rateLimited": "Scaleway begränsar läsningarna just nu. Försök igen om en stund.",
-        "keyRefused": "Scaleway nekade nyckeln, och då stoppas troligen även utskicken. Kontrollera nyckelns utgångsdatum enligt runbooken för admin-e-post.",
-        "readRefused": "Scaleway nekade läsningen. Kontrollera nyckelns behörighet enligt runbooken för admin-e-post.",
+        "keyRefused": "Scaleway nekade läsnyckeln. Kontrollera dess utgångsdatum enligt runbooken för admin-e-post.",
+        "readRefused": "Scaleway nekade läsningen. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post.",
         "malformed": "Scaleways svar kunde inte läsas. Se runbooken för admin-e-post."
       }
     },
     "delivery": {
-      "heading": "Leverans"
+      "heading": "Leverans",
+      "source": "Räknat av Scaleway för projektet. Hämtat <time>{at}</time>."
     },
     "period": {
       "label": "Period",
@@ -674,24 +680,33 @@
     },
     "summary": {
       "sent": "Skickade",
-      "failed": "Misslyckade",
-      "noRecipient": "Utan mottagare"
+      "failed": "Misslyckade"
     },
     "table": {
       "caption": "Utskick per mejltyp",
       "function": "Mejltyp",
       "sent": "Skickade",
       "failed": "Fel",
-      "lastError": "Senaste fel",
-      "empty": "Inga utskick under perioden."
+      "lastError": "Senaste fel"
     },
     "failures": {
       "heading": "Senaste misslyckade utskick",
-      "empty": "Inga misslyckade utskick under perioden."
-    },
-    "outcome": {
-      "failed": "Misslyckades",
-      "bounced": "Studsade"
+      "caption": "Misslyckade utskick, senaste {period}",
+      "captionNoPeriod": "Misslyckade utskick",
+      "when": "Tid",
+      "reason": "Orsak",
+      "recipient": "Mottagare (maskerad)",
+      "empty": "Inga misslyckade utskick under perioden.",
+      "capped": "Visar de {count} senaste.",
+      "reasons": {
+        "MailboxNotFound": "Adressen finns inte",
+        "HardBounce": "Avvisat av mottagarens server",
+        "MailboxFull": "Mottagarens inkorg är full",
+        "SoftBounce": "Tillfälligt avvisat av mottagarens server",
+        "Spam": "Bedömt som skräppost",
+        "Blocklisted": "Adressen är spärrad hos Scaleway",
+        "Other": "Annan eller okänd orsak"
+      }
     }
   },
   "audit": {

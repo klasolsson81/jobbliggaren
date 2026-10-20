@@ -16,8 +16,8 @@ function knownOr(shown: string | null) {
 
 /**
  * The overview's e-post card body (#1981 PR 1; ADR 0150 Amendment 2026-10-19): this month's sends against the free
- * allowance, and the computed cost under it. Delivery's failed, no-recipient and top-type lines are not here until
- * delivery is real, and the card is never an attention item: passing the allowance is a cost fact, not a fault.
+ * allowance, and the computed cost under it. Failed sends are the attention card's line (#1981 PR 2), never this
+ * card's, and the card is never an attention item: passing the allowance is a cost fact, not a fault.
  *
  * The count is the number. While the plan in force is not the configured one, its unit names only the month and the
  * page's own line says why there is no allowance or cost. With no count the number is an en-dash with its unit hidden,
@@ -36,6 +36,7 @@ function EmailRows({ allowance, kind }: {
   if (allowance === null || usage === null || figures === null || figures.sent === null) {
     const why = kind !== "loaded" ? <AdminRegionLine quiet kind={kind} className="jp-adminkpi__sub" />
       : usage?.status === "Failed" ? <p className="jp-adminkpi__sub">{lines(`failure.${allowanceFailureGroup(usage.reason)}`)}</p>
+      : usage?.status === "ReadKeyMissing" ? <p className="jp-adminkpi__sub">{lines("readKeyMissing")}</p>
       : <p className="jp-adminkpi__sub">{lines("notConfigured")}</p>;
     return (
       <>

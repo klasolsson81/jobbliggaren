@@ -20,6 +20,11 @@ const notConfigured: EmailAllowanceDto = {
   usage: { status: "NotObserved", reason: "NotConfigured", ...NO_USAGE },
   plan: { status: "NotObserved", reason: "NotConfigured", active: null, matches: null },
 };
+const readKeyMissing: EmailAllowanceDto = {
+  ...base,
+  usage: { status: "ReadKeyMissing", reason: null, ...NO_USAGE },
+  plan: { status: "ReadKeyMissing", reason: null, active: null, matches: null },
+};
 
 describe("allowanceFigures (#1981 PR 1)", () => {
   it("takes the count, the configured free mails and the cost while the plan in force is the configured one", () => {
@@ -38,6 +43,10 @@ describe("allowanceFigures (#1981 PR 1)", () => {
   it("has no figure at all where no provider is configured", () => {
     expect(allowanceFigures(notConfigured)).toEqual({ sent: null, included: null, costOre: null });
   });
+
+  it("has no figure at all where the read key is not installed (#1981 PR 2)", () => {
+    expect(allowanceFigures(readKeyMissing)).toEqual({ sent: null, included: null, costOre: null });
+  });
 });
 
 describe("allowancePlanState", () => {
@@ -52,6 +61,10 @@ describe("allowancePlanState", () => {
 
   it("says nothing of the plan where no provider is configured: that state has its own line", () => {
     expect(allowancePlanState(notConfigured)).toBeNull();
+  });
+
+  it("says nothing of the plan where the read key is not installed: that state has its own line too", () => {
+    expect(allowancePlanState(readKeyMissing)).toBeNull();
   });
 });
 

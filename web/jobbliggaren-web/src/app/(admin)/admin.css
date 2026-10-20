@@ -956,14 +956,14 @@
   color: var(--jp-ink-2);
 }
 .jp-adminmailsum__note p { margin: 0; }
-/* A section's heading row with a control of its own at the right edge, as in a card's head row. */
+/* A section's heading with the links that choose its view under it, 12 px apart (#1981 PR 2, ADR 0150 D8). The
+   house `.jp-subnav` keeps its own 24 px below; here the section's gap sets that distance instead. */
 .jp-adminsection__head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 24px;
+  flex-direction: column;
+  gap: 12px;
 }
-.jp-adminsection__head > .jp-adminsegment { margin-left: auto; }
+.jp-adminsection__head > .jp-subnav { margin-bottom: 0; }
 /* A sub-heading inside a page section: the h3 step of the type scale (DESIGN.md §4). */
 .jp-adminh3 {
   margin: 0;
@@ -1205,43 +1205,6 @@
 }
 .jp-table .jp-admintable__run { font-variant-numeric: tabular-nums; }
 .jp-admintable .jp-pill { white-space: nowrap; }
-.jp-adminmailfail {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-top: 2px solid var(--jp-border-strong);
-}
-.jp-adminmailfail li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: baseline;
-  row-gap: 2px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--jp-border-soft);
-  font-size: var(--text-body-sm);
-}
-.jp-adminmailfail li > * {
-  min-width: 0;
-  overflow-wrap: break-word;
-}
-@media (min-width: 1100px) {
-  .jp-adminmailfail {
-    display: grid;
-    grid-template-columns: auto auto auto minmax(16rem, 1fr) auto;
-    column-gap: 12px;
-  }
-  .jp-adminmailfail li {
-    grid-column: 1 / -1;
-    grid-template-columns: subgrid;
-  }
-}
-.jp-adminmailfail__when { font-variant-numeric: tabular-nums; }
-.jp-adminmailfail__outcome { font-weight: var(--jp-fw-bold); }
-.jp-adminmailfail__outcome[data-outcome="failed"] { color: var(--jp-danger-700); }
-.jp-adminmailfail__outcome[data-outcome="bounced"] { color: var(--jp-warning-700); }
-.jp-adminmailfail__message { overflow-wrap: anywhere; }
 
 /* ── Responsive ──────────────────────────────────────────────────────────────────────── */
 @media (max-width: 1099px) {

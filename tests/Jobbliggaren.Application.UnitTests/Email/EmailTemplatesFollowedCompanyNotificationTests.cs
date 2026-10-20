@@ -132,6 +132,19 @@ public class EmailTemplatesFollowedCompanyNotificationTests
     }
 
     [Fact]
+    public void FollowedCompanyNotification_ShouldCarryNoLinkInTheSubject()
+    {
+        // Rendered WITH the disclosure, so the /foretag link is among the body's links too.
+        var email = EmailTemplates.FollowedCompanyNotification(
+            BaseUrl,
+            ContentWithSummary(
+                new FollowedCompanyFilterSummary(OnlyMatchedActive: true, LocationFilterActive: true),
+                Item(), Item("Frontend", "Beta AB")));
+
+        MailSubject.ShouldCarryNoCodeLinkOrToken(email);
+    }
+
+    [Fact]
     public void FollowedCompanyNotification_ShouldNotContainRecipientOrOrgNumber()
     {
         // The content contract carries no recipient and no org.nr; the body must never surface either

@@ -35,6 +35,7 @@
       "planUnknown": "Unknown plan",
       "planFailed": "The plan could not be read",
       "notConfigured": "Not counted in this environment",
+      "readKeyMissing": "The read key is missing",
       "noAnswer": "Scaleway does not answer",
       "rateLimited": "Scaleway is limiting the reads",
       "keyRefused": "Scaleway refuses the key",
@@ -43,6 +44,22 @@
       "noMonth": "The month cannot be named",
       "webhooks": "One webhook registered",
       "webhooksUnreadable": "Webhooks could not be read"
+    },
+    "deliveryLabel": "Show delivery",
+    "deliveryScenarios": {
+      "observed": "Failed sends exist",
+      "capped": "More failed sends than the list shows",
+      "noneFailed": "No failed sends",
+      "nothingSent": "Nothing sent",
+      "listUnjudged": "The list cannot be assessed",
+      "notConfigured": "Not counted in this environment",
+      "notObservable": "The read key sees no sends",
+      "readKeyMissing": "The read key is missing",
+      "noAnswer": "Scaleway does not answer",
+      "rateLimited": "Scaleway is limiting the reads",
+      "keyRefused": "Scaleway refuses the read key",
+      "refused": "Scaleway refuses the read",
+      "malformed": "Unreadable answer from Scaleway"
     }
   }
 }

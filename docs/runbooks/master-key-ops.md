@@ -86,6 +86,7 @@ list is clean". The cost above is then the crash-loop **without** the alarm.
 | `…/CvReviewFingerprintPseudonymization__PepperBase64` | pepper |
 | `…/Email__Scaleway__SecretKey` | **the transactional-mail key, and the only secret here that DIES ON A DATE.** Scaleway caps an API key at one year and has no instance-role equivalent. **Current key: expires `2027-08-16`** (issued 2026-08-16, access key `…P9DRX`, bearer = the IAM *application* `Jobbliggaren`; read in the console 2026-08-16, #183 E4). Rotation is **`release-checklist.md` §2.5 point 1 leg (e) precondition 3**'s, not this runbook's. `EMAIL_SCALEWAY_KEY_EXPIRES_AT` in `deploy/.env` carries the same date and `--check` reads it: **expired** exits non-zero onto the fault surface, while the advance notice is a journal line at exit 0 — the split, and why a lead time may not latch that surface, is argued once in that script's `EXPIRY_NOTICE_DAYS` header. **So this row is a record and NOT a reminder with a reader:** nothing pages anyone before the key dies. That half is [#1267](https://github.com/klasolsson81/jobbliggaren/issues/1267)'s calendar-obligation class — this row satisfies its AC 1 (the date is registered); its AC 2, the reminder itself, is not built |
 | `…/Email__Scaleway__ProjectId` | project selector, **not a secret and NOT on a rotation clock** — it changes only if the project does. Delivered through the same seam as the key above and therefore easy to sweep into one "rotate the Scaleway credentials" step; they are two lifecycles and the injection script's `SCALEWAY_SECRET_KEYS` comment is that distinction's home |
+| `/run/jobbliggaren/api-secrets/Email__ScalewayRead__SecretKey` | **the read key for `/admin/e-post`** (#1981 PR 2, ADR 0179), in a directory only the api mounts. It also **dies on a date**: **current key expires `2027-10-19`** (issued 2026-10-19, bearer = the IAM *application* `jobbliggaren-tem-read`, read in the console by Klas 2026-10-19). It is **not** on the `--check` alarm surface: a dead read key answers 401, which `/admin/e-post` shows as its own line to its only reader. Rotation, with its step that re-reads the API for content-bearing reads, is `admin-email.md` "Placing, rotating and removing the read key". **This row is a record and NOT a reminder** |
 | `/run/app-secrets` | the same directory as api and worker see it (read-only bind mount) |
 | `/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64` | **#197, and mounted into no container.** `0400 root:root` in a `0700 root:root` directory. Injected by the same script, in the same run — but demanded by `--check-host` and by no other predicate, so its absence gates its **own** timer and nothing else (#1329) |
 | `jobbliggaren-inject-secrets.sh` | injection (interactive), `--check` (crypto absence + at-rest posture) and `--check-host` (host-only absence) — **two detectors, one per set, one per owner** |
@@ -288,10 +289,11 @@ What it does, in order:
 > ⚠ **AN EMPTY RESULT DOES NOT MEAN THE DEFAULT IS CORRECT, AND SINCE 2026-08-15 THIS BOX IS THE
 > COUNTEREXAMPLE.** An earlier version of this line said it did. `user_data_keys` is empty
 > whenever no DEK has been minted yet — which is true both before the first rotation *and* after
-> a rotation performed while the table was empty. **This box has been rotated**, so the identity
-> in force is **`local-v2`** while the query returns nothing. (Stated by name and not as "the
-> second state": the table below has its own numbering, and its second row is the branch that
-> destroys data.) Accepting the default would stamp
+> a rotation performed while the table was empty. **This box has been rotated**: on 2026-08-15
+> the identity in force became **`local-v2`** while the query returned nothing. It has been
+> rotated again since: the identity in force is **`local-v3`**, and the query names it (read
+> 2026-10-19 during the reboot recovery). (Stated by name and not as "the second state": the table
+> below has its own numbering, and its second row is the branch that destroys data.) Accepting the default would stamp
 > `local-v1` onto v2 bytes — the path `jobbliggaren-inject-secrets.sh` calls, in the comment above
 > its identity block, *"a data-loss path, not an inconvenience"*: the next rotation's `cmk_key_id`
 > predicate would skip exactly the rows it must not.
@@ -458,6 +460,10 @@ sudo systemctl start jobbliggaren-reconcile.service # apply now rather than wait
 sudo find /run/jobbliggaren/secrets -maxdepth 1 -exec stat -c '%n %u:%g %a' {} +
 # expect: the directory 0:<gid> 710 — owner ROOT — and every file <uid>:<gid> 400
 ```
+
+**The api-only directory `/run/jobbliggaren/api-secrets` (#1981 PR 2) takes the same repair once it holds the read key.**
+The gate covers it then. Run the three repair lines and the posture proof again with that path in place of
+`/run/jobbliggaren/secrets`. Empty, it stays `0700 root:root` and needs nothing.
 
 The numbers are deliberately not written here. A live measured id in a tracked file decays within
 a commit or two; the command that prints today's is what keeps.

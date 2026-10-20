@@ -34,7 +34,7 @@ public class EmailAllowanceEvaluatorTests
                  {
                      Observed(10),
                      new EmailProviderUsageRead.NotConfigured(),
-                     new EmailProviderUsageRead.Failed(EmailAllowanceReason.Timeout),
+                     new EmailProviderUsageRead.Failed(EmailProviderReadReason.Timeout),
                  })
         {
             var terms = Evaluate(read, options).Terms;
@@ -143,10 +143,10 @@ public class EmailAllowanceEvaluatorTests
     [Fact]
     public void Evaluate_ShouldWithholdTheCost_ButKeepTheCount_WhenThePlanReadFailed()
     {
-        var dto = Evaluate(Observed(184), plan: new EmailProviderPlanRead.Failed(EmailAllowanceReason.Forbidden));
+        var dto = Evaluate(Observed(184), plan: new EmailProviderPlanRead.Failed(EmailProviderReadReason.Forbidden));
 
         dto.Plan.Status.ShouldBe(EmailAllowanceStatus.Failed);
-        dto.Plan.Reason.ShouldBe(EmailAllowanceReason.Forbidden);
+        dto.Plan.Reason.ShouldBe(EmailProviderReadReason.Forbidden);
         dto.Plan.Active.ShouldBeNull();
         dto.Plan.Matches.ShouldBeNull();
         dto.Usage.Sent.ShouldBe(184);
@@ -156,7 +156,7 @@ public class EmailAllowanceEvaluatorTests
     [Fact]
     public void Evaluate_ShouldKeepThePlan_WhenOnlyTheCountFailed()
     {
-        var dto = Evaluate(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Timeout));
+        var dto = Evaluate(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Timeout));
 
         dto.Usage.Status.ShouldBe(EmailAllowanceStatus.Failed);
         dto.Plan.Status.ShouldBe(EmailAllowanceStatus.Observed);
@@ -169,7 +169,7 @@ public class EmailAllowanceEvaluatorTests
         var dto = Evaluate(new EmailProviderUsageRead.NotConfigured(), plan: new EmailProviderPlanRead.NotConfigured());
 
         dto.Plan.Status.ShouldBe(EmailAllowanceStatus.NotObserved);
-        dto.Plan.Reason.ShouldBe(EmailAllowanceReason.NotConfigured);
+        dto.Plan.Reason.ShouldBe(EmailProviderReadReason.NotConfigured);
         dto.Plan.Active.ShouldBeNull();
         dto.Usage.Status.ShouldBe(EmailAllowanceStatus.NotObserved);
     }
@@ -223,13 +223,27 @@ public class EmailAllowanceEvaluatorTests
         var usage = Evaluate(new EmailProviderUsageRead.NotConfigured()).Usage;
 
         usage.Status.ShouldBe(EmailAllowanceStatus.NotObserved);
-        usage.Reason.ShouldBe(EmailAllowanceReason.NotConfigured);
+        usage.Reason.ShouldBe(EmailProviderReadReason.NotConfigured);
         AssertNoFigures(usage);
+    }
+
+    [Fact]
+    public void Evaluate_ShouldReportAMissingReadKey_AsItsOwnStatus_WithNoReasonAndNoFigures()
+    {
+        var dto = Evaluate(new EmailProviderUsageRead.ReadKeyMissing(), plan: new EmailProviderPlanRead.ReadKeyMissing());
+
+        dto.Usage.Status.ShouldBe(EmailAllowanceStatus.ReadKeyMissing);
+        dto.Usage.Reason.ShouldBeNull();
+        AssertNoFigures(dto.Usage);
+        dto.Plan.Status.ShouldBe(EmailAllowanceStatus.ReadKeyMissing);
+        dto.Plan.Reason.ShouldBeNull();
+        dto.Plan.Active.ShouldBeNull();
+        dto.Plan.Matches.ShouldBeNull();
     }
 
     [Theory]
     [MemberData(nameof(FailureReasons))]
-    public void Evaluate_ShouldReportEachFailureWithItsOwnReason_AndCarryNoFigures(EmailAllowanceReason reason)
+    public void Evaluate_ShouldReportEachFailureWithItsOwnReason_AndCarryNoFigures(EmailProviderReadReason reason)
     {
         var usage = Evaluate(new EmailProviderUsageRead.Failed(reason)).Usage;
 
@@ -238,10 +252,10 @@ public class EmailAllowanceEvaluatorTests
         AssertNoFigures(usage);
     }
 
-    public static TheoryData<EmailAllowanceReason> FailureReasons()
+    public static TheoryData<EmailProviderReadReason> FailureReasons()
     {
-        var data = new TheoryData<EmailAllowanceReason>();
-        foreach (var reason in Enum.GetValues<EmailAllowanceReason>().Where(r => r != EmailAllowanceReason.NotConfigured))
+        var data = new TheoryData<EmailProviderReadReason>();
+        foreach (var reason in Enum.GetValues<EmailProviderReadReason>().Where(r => r != EmailProviderReadReason.NotConfigured))
         {
             data.Add(reason);
         }

@@ -1,12 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text;
 using Jobbliggaren.Application.Admin.Email;
+using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Admin.Email;
 using Jobbliggaren.Infrastructure.Email;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 
@@ -23,31 +24,33 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     private const string Region = "fr-par";
     private const string ProjectId = "11111111-2222-3333-4444-555555555555";
     private const string SecretKey = "SCW-SECRET-KEY-4711"; // gitleaks:allow
+    private const string ReadKey = "SCW-READ-KEY-4712"; // gitleaks:allow
     private const string BodyMarker = "BODY-MARKER-4711";
     private static readonly DateTimeOffset Now = new(2026, 10, 18, 19, 30, 0, TimeSpan.Zero);
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private readonly Transport _transport = new();
-    private readonly LogSink _logs = new();
+    private readonly ScriptedTransport _transport = new();
+    private readonly CapturingLogSink _logs = new();
     private readonly ServiceProvider _provider;
 
     public ScalewayUsageSourceTests() => _provider = BuildProvider();
 
-    private ServiceProvider BuildProvider(TimeSpan? readTimeout = null)
+    private ServiceProvider BuildProvider(TimeSpan? readTimeout = null, string? readKey = ReadKey, string provider = "Scaleway")
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Email:Provider"] = "Scaleway",
+                ["Email:Provider"] = provider,
                 ["Email:Scaleway:Region"] = Region,
                 ["Email:Scaleway:SecretKey"] = SecretKey,
                 ["Email:Scaleway:ProjectId"] = ProjectId,
+                ["Email:ScalewayRead:SecretKey"] = readKey,
             })
             .Build();
 
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Trace).AddProvider(_logs));
-        services.AddSingleton<IDateTimeProvider>(new FixedClock(Now));
+        services.AddSingleton<IDateTimeProvider>(new FakeDateTimeProvider(Now));
         services.AddOptions<ScalewayEmailOptions>().Bind(configuration.GetSection(ScalewayEmailOptions.SectionName));
         services.AddEmailUsageSource(configuration);
         var client = services.AddHttpClient(ScalewayClientRegistration.UsageHttpClientName)
@@ -94,7 +97,103 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         request.Method.ShouldBe(HttpMethod.Get);
         request.Uri.ShouldBe(new Uri(
             $"https://api.scaleway.com/transactional-email/v1alpha1/regions/{Region}/project-consumption?project_id={ProjectId}"));
-        request.AuthToken.ShouldBe(SecretKey);
+        request.AuthToken.ShouldBe(ReadKey);
+    }
+
+    [Fact]
+    public async Task EveryRead_SendsTheReadKey_NeverTheSendKey()
+    {
+        _transport.Respond(HttpStatusCode.OK, ConsumptionBody());
+        await AttemptAsync();
+        _transport.Respond(HttpStatusCode.OK, SubscriptionsBody("essential"));
+        await PlanAsync();
+        _transport.Respond(HttpStatusCode.Unauthorized, "{}");
+        await AttemptAsync();
+        await PlanAsync();
+
+        _transport.Requests.Count.ShouldBe(4);
+        _transport.Requests.ShouldAllBe(request => request.AuthToken == ReadKey);
+    }
+
+    [Fact]
+    public async Task WithoutAReadKey_NothingIsRead_AndTheSendKeyIsNeverUsedInItsPlace()
+    {
+        using var provider = BuildProvider(readKey: null);
+
+        await ShouldAnswerEveryReadWithoutAskingAsync(
+            provider,
+            typeof(ReadKeyMissingEmailProviderReads),
+            new EmailProviderUsageRead.ReadKeyMissing(),
+            new EmailProviderPlanRead.ReadKeyMissing(),
+            new EmailDeliveryStatisticsRead.ReadKeyMissing(),
+            new EmailRecentFailuresRead.ReadKeyMissing());
+    }
+
+    [Fact]
+    public async Task UnderConsole_NothingIsRead_EvenWithAReadKey()
+    {
+        using var provider = BuildProvider(provider: "Console");
+
+        await ShouldAnswerEveryReadWithoutAskingAsync(
+            provider,
+            typeof(NotConfiguredEmailProviderReads),
+            new EmailProviderUsageRead.NotConfigured(),
+            new EmailProviderPlanRead.NotConfigured(),
+            new EmailDeliveryStatisticsRead.NotConfigured(),
+            new EmailRecentFailuresRead.NotConfigured());
+    }
+
+    /// <summary>
+    /// Every read port resolves to <paramref name="reads"/>, all five reads answer as given for every period, no request
+    /// leaves, and no attempt source is registered.
+    /// </summary>
+    private async Task ShouldAnswerEveryReadWithoutAskingAsync(
+        ServiceProvider provider,
+        Type reads,
+        EmailProviderUsageRead usage,
+        EmailProviderPlanRead plan,
+        EmailDeliveryStatisticsRead statistics,
+        EmailRecentFailuresRead failures)
+    {
+        var usageSource = provider.GetRequiredService<IEmailProviderUsageSource>();
+        var statisticsSource = provider.GetRequiredService<IEmailDeliveryStatisticsSource>();
+        var failuresSource = provider.GetRequiredService<IEmailRecentFailuresSource>();
+        usageSource.ShouldBeOfType(reads);
+        statisticsSource.ShouldBeOfType(reads);
+        failuresSource.ShouldBeOfType(reads);
+
+        (await usageSource.ReadUsageAsync(Ct)).ShouldBe(usage);
+        (await usageSource.ReadPlanAsync(Ct)).ShouldBe(plan);
+        (await statisticsSource.ReadSentinelAsync(Ct)).ShouldBe(statistics);
+        foreach (var period in Enum.GetValues<EmailDeliveryPeriod>())
+        {
+            (await statisticsSource.ReadAsync(period, Ct)).ShouldBe(statistics);
+            (await failuresSource.ReadAsync(period, Ct)).ShouldBe(failures);
+        }
+
+        _transport.Requests.ShouldBeEmpty();
+        provider.GetService<IProviderUsageAttemptSource>().ShouldBeNull();
+        provider.GetService<IDeliveryStatisticsAttemptSource>().ShouldBeNull();
+        provider.GetService<IRecentFailuresAttemptSource>().ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task WithoutAReadKey_StartupWritesOneInformationLine_NamingTheKey_AndNoValue()
+    {
+        using var provider = BuildProvider(readKey: null);
+
+        foreach (var service in provider.GetServices<IHostedService>())
+        {
+            await service.StartAsync(Ct);
+        }
+
+        var line = _logs.Records.Where(r => r.EventId == 3021).ShouldHaveSingleItem();
+        line.Level.ShouldBe(LogLevel.Information);
+        line.Message.ShouldContain("Email:ScalewayRead:SecretKey");
+        foreach (var forbidden in new[] { SecretKey, ProjectId })
+        {
+            _logs.Lines.ShouldAllBe(text => !text.Contains(forbidden, StringComparison.Ordinal));
+        }
     }
 
     [Fact]
@@ -164,7 +263,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.Respond(HttpStatusCode.OK, body);
 
-        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Malformed));
+        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Malformed));
     }
 
     [Fact]
@@ -173,7 +272,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         var oversized = "{\"monthly_emails_count\":184}" + new string(' ', ScalewayUsageSource.MaxBodyBytes);
         _transport.Respond(HttpStatusCode.OK, oversized, omitContentLength: true);
 
-        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Malformed));
+        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Malformed));
     }
 
     [Fact]
@@ -181,7 +280,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.Respond(HttpStatusCode.OK, ConsumptionBody(), contentLength: ScalewayUsageSource.MaxBodyBytes + 1L);
 
-        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Malformed));
+        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Malformed));
     }
 
     // ---- the plan ----
@@ -197,7 +296,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         request.Method.ShouldBe(HttpMethod.Get);
         request.Uri.ShouldBe(new Uri(
             $"https://api.scaleway.com/transactional-email/v1alpha1/regions/{Region}/offer-subscriptions?project_id={ProjectId}"));
-        request.AuthToken.ShouldBe(SecretKey);
+        request.AuthToken.ShouldBe(ReadKey);
     }
 
     [Theory]
@@ -244,7 +343,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.Respond(HttpStatusCode.OK, body);
 
-        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailAllowanceReason.Malformed));
+        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailProviderReadReason.Malformed));
     }
 
     [Fact]
@@ -261,19 +360,19 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.RespondWithUnreadableBody(HttpStatusCode.Forbidden);
 
-        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailAllowanceReason.Forbidden));
+        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailProviderReadReason.Forbidden));
     }
 
     // ---- a refusal ----
 
     [Theory]
-    [InlineData(HttpStatusCode.Unauthorized, EmailAllowanceReason.Unauthorized)]
-    [InlineData(HttpStatusCode.Forbidden, EmailAllowanceReason.Forbidden)]
-    [InlineData(HttpStatusCode.TooManyRequests, EmailAllowanceReason.RateLimited)]
-    [InlineData(HttpStatusCode.NotFound, EmailAllowanceReason.ProviderError)]
-    [InlineData(HttpStatusCode.InternalServerError, EmailAllowanceReason.ProviderError)]
-    [InlineData(HttpStatusCode.ServiceUnavailable, EmailAllowanceReason.ProviderError)]
-    public async Task Attempt_ShouldMapEachRefusal_WithoutReadingItsBody(HttpStatusCode status, EmailAllowanceReason reason)
+    [InlineData(HttpStatusCode.Unauthorized, EmailProviderReadReason.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, EmailProviderReadReason.Forbidden)]
+    [InlineData(HttpStatusCode.TooManyRequests, EmailProviderReadReason.RateLimited)]
+    [InlineData(HttpStatusCode.NotFound, EmailProviderReadReason.ProviderError)]
+    [InlineData(HttpStatusCode.InternalServerError, EmailProviderReadReason.ProviderError)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, EmailProviderReadReason.ProviderError)]
+    public async Task Attempt_ShouldMapEachRefusal_WithoutReadingItsBody(HttpStatusCode status, EmailProviderReadReason reason)
     {
         _transport.RespondWithUnreadableBody(status);
 
@@ -309,11 +408,11 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     // ---- no answer ----
 
     [Theory]
-    [InlineData(HttpRequestError.NameResolutionError, EmailAllowanceReason.Unreachable)]
-    [InlineData(HttpRequestError.ConnectionError, EmailAllowanceReason.Unreachable)]
-    [InlineData(HttpRequestError.SecureConnectionError, EmailAllowanceReason.Unreachable)]
-    [InlineData(HttpRequestError.ResponseEnded, EmailAllowanceReason.ProviderError)]
-    public async Task Attempt_ShouldMapATransportFailure(HttpRequestError error, EmailAllowanceReason reason)
+    [InlineData(HttpRequestError.NameResolutionError, EmailProviderReadReason.Unreachable)]
+    [InlineData(HttpRequestError.ConnectionError, EmailProviderReadReason.Unreachable)]
+    [InlineData(HttpRequestError.SecureConnectionError, EmailProviderReadReason.Unreachable)]
+    [InlineData(HttpRequestError.ResponseEnded, EmailProviderReadReason.ProviderError)]
+    public async Task Attempt_ShouldMapATransportFailure(HttpRequestError error, EmailProviderReadReason reason)
     {
         _transport.Throw(new HttpRequestException(error, "transport said " + BodyMarker));
 
@@ -325,7 +424,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.Throw(new TaskCanceledException("client timeout", new TimeoutException()));
 
-        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Timeout));
+        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Timeout));
     }
 
     [Fact]
@@ -339,7 +438,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
             .AsTask()
             .WaitAsync(TimeSpan.FromSeconds(10), Ct);
 
-        read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.Timeout));
+        read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.Timeout));
     }
 
     [Fact]
@@ -348,7 +447,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         _transport.RespondWith(() => new StreamContent(
             new FailingStream(new HttpIOException(HttpRequestError.ResponseEnded, "transport said " + BodyMarker))));
 
-        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailAllowanceReason.ProviderError));
+        (await AttemptAsync()).Read.ShouldBe(new EmailProviderUsageRead.Failed(EmailProviderReadReason.ProviderError));
     }
 
     [Fact]
@@ -356,7 +455,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.RespondWith(() => new StreamContent(new FailingStream(new IOException("transport said " + BodyMarker))));
 
-        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailAllowanceReason.ProviderError));
+        (await PlanAsync()).Read.ShouldBe(new EmailProviderPlanRead.Failed(EmailProviderReadReason.ProviderError));
     }
 
     [Fact]
@@ -389,7 +488,7 @@ public sealed class ScalewayUsageSourceTests : IDisposable
         _transport.Respond(HttpStatusCode.Forbidden, "{\"echo\":\"" + BodyMarker + "\"}");
         await PlanAsync();
 
-        foreach (var forbidden in new[] { ProjectId, SecretKey, BodyMarker, "project_id", "organization_id" })
+        foreach (var forbidden in new[] { ProjectId, SecretKey, ReadKey, BodyMarker, "project_id", "organization_id" })
         {
             _logs.Lines.ShouldAllBe(line => !line.Contains(forbidden, StringComparison.Ordinal));
         }
@@ -422,160 +521,5 @@ public sealed class ScalewayUsageSourceTests : IDisposable
     {
         _transport.Respond(HttpStatusCode.OK, body);
         (await AttemptAsync()).Read.ShouldBeOfType<EmailProviderUsageRead.Observed>().MonthlyEmailsCount.ShouldBe(expected);
-    }
-
-    // ---- plumbing ----
-
-    private sealed class FixedClock(DateTimeOffset now) : IDateTimeProvider
-    {
-        public DateTimeOffset UtcNow { get; } = now;
-    }
-
-    private sealed record CapturedRequest(HttpMethod Method, Uri? Uri, string? AuthToken);
-
-    private sealed class Transport : HttpMessageHandler
-    {
-        private Func<HttpResponseMessage>? _respond;
-        private Exception? _throw;
-
-        public List<CapturedRequest> Requests { get; } = [];
-
-        public void Respond(
-            HttpStatusCode status,
-            string body,
-            RetryConditionHeaderValue? retryAfter = null,
-            bool omitContentLength = false,
-            long? contentLength = null)
-        {
-            _throw = null;
-            _respond = () =>
-            {
-                var content = new StringContent(body, Encoding.UTF8, "application/json");
-                if (omitContentLength)
-                {
-                    content.Headers.ContentLength = null;
-                }
-                else if (contentLength is { } length)
-                {
-                    content.Headers.ContentLength = length;
-                }
-
-                var response = new HttpResponseMessage(status) { Content = content };
-                response.Headers.RetryAfter = retryAfter;
-                return response;
-            };
-        }
-
-        public void RespondWithUnreadableBody(HttpStatusCode status)
-        {
-            _throw = null;
-            _respond = () => new HttpResponseMessage(status) { Content = new UnreadableContent() };
-        }
-
-        public void RespondWith(Func<HttpContent> content)
-        {
-            _throw = null;
-            _respond = () => new HttpResponseMessage(HttpStatusCode.OK) { Content = content() };
-        }
-
-        public void Throw(Exception exception) => _throw = exception;
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            Requests.Add(new CapturedRequest(
-                request.Method,
-                request.RequestUri,
-                request.Headers.TryGetValues("X-Auth-Token", out var values) ? values.Single() : null));
-            return _throw is not null ? Task.FromException<HttpResponseMessage>(_throw) : Task.FromResult(_respond!());
-        }
-    }
-
-    /// <summary>A body that fails the test if anything reads it.</summary>
-    private sealed class UnreadableContent : HttpContent
-    {
-        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
-            throw new InvalidOperationException("a refusal's body must never be read");
-
-        protected override bool TryComputeLength(out long length)
-        {
-            length = 0;
-            return false;
-        }
-    }
-
-    /// <summary>A body whose bytes never arrive.</summary>
-    private sealed class StallingStream : ReadOnlyBody
-    {
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
-        {
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-            return 0;
-        }
-    }
-
-    /// <summary>A body that breaks on its first read.</summary>
-    private sealed class FailingStream(Exception failure) : ReadOnlyBody
-    {
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
-            ValueTask.FromException<int>(failure);
-    }
-
-    private abstract class ReadOnlyBody : Stream
-    {
-        public override bool CanRead => true;
-        public override bool CanSeek => false;
-        public override bool CanWrite => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-
-        public abstract override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default);
-
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
-            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
-
-        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        public override void Flush() { }
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-    }
-
-    private sealed class LogSink : ILoggerProvider
-    {
-        private readonly List<(string Category, LogLevel Level, int EventId, string Message)> _records = [];
-
-        public IReadOnlyList<(string Category, LogLevel Level, int EventId, string Message)> Records
-        {
-            get
-            {
-                lock (_records)
-                    return [.. _records];
-            }
-        }
-
-        public IEnumerable<string> Lines => Records.Select(r => $"{r.Category} {r.Message}");
-
-        public ILogger CreateLogger(string categoryName) => new Sink(this, categoryName);
-
-        public void Dispose() { }
-
-        private void Add(string category, LogLevel level, int eventId, string message)
-        {
-            lock (_records)
-                _records.Add((category, level, eventId, message));
-        }
-
-        private sealed class Sink(LogSink owner, string category) : ILogger
-        {
-            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(
-                LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-                Func<TState, Exception?, string> formatter) =>
-                owner.Add(category, logLevel, eventId.Id, formatter(state, exception) + " " + exception);
-        }
     }
 }

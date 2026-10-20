@@ -101,7 +101,7 @@ public static class EmailAllowanceTerms
 }
 
 /// <summary>How long a provider read is reused (CTO addendum B). The poll bounds one tab; this bounds every viewer.</summary>
-public static class EmailAllowanceLimits
+public static class EmailProviderReadLimits
 {
     /// <summary>A success is served for this long from its own observedAt, never longer.</summary>
     public static readonly TimeSpan ReuseFor = TimeSpan.FromSeconds(60);

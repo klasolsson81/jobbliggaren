@@ -106,11 +106,11 @@ public class GetEmailAllowanceQueryHandlerTests
     public async Task Handle_ShouldReturnTheFailure_AsAValueAndNotAnException()
     {
         var source = new FakeSource(_ => ValueTask.FromResult<EmailProviderUsageRead>(
-            new EmailProviderUsageRead.Failed(EmailAllowanceReason.Forbidden)));
+            new EmailProviderUsageRead.Failed(EmailProviderReadReason.Forbidden)));
 
         var dto = await Handler(source).Handle(new GetEmailAllowanceQuery(), Ct);
 
         dto.Usage.Status.ShouldBe(EmailAllowanceStatus.Failed);
-        dto.Usage.Reason.ShouldBe(EmailAllowanceReason.Forbidden);
+        dto.Usage.Reason.ShouldBe(EmailProviderReadReason.Forbidden);
     }
 }

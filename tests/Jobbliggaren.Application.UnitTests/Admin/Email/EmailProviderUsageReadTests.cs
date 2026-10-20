@@ -28,11 +28,11 @@ public class EmailProviderUsageReadTests
 
     [Fact]
     public void Failed_ShouldRefuseNotConfigured_WhichIsAStateAndNotAFailure() =>
-        Should.Throw<ArgumentException>(() => new EmailProviderUsageRead.Failed(EmailAllowanceReason.NotConfigured));
+        Should.Throw<ArgumentException>(() => new EmailProviderUsageRead.Failed(EmailProviderReadReason.NotConfigured));
 
     [Fact]
     public void Failed_ShouldRefuseAReasonOutsideTheEnum() =>
-        Should.Throw<ArgumentException>(() => new EmailProviderUsageRead.Failed((EmailAllowanceReason)99));
+        Should.Throw<ArgumentException>(() => new EmailProviderUsageRead.Failed((EmailProviderReadReason)99));
 
     [Theory]
     [InlineData(1L, null)]
@@ -50,7 +50,7 @@ public class EmailProviderUsageReadTests
     [Fact]
     public void AFailedPlanRead_ShouldRefuseNotConfiguredAndAReasonOutsideTheEnum()
     {
-        Should.Throw<ArgumentException>(() => new EmailProviderPlanRead.Failed(EmailAllowanceReason.NotConfigured));
-        Should.Throw<ArgumentException>(() => new EmailProviderPlanRead.Failed((EmailAllowanceReason)99));
+        Should.Throw<ArgumentException>(() => new EmailProviderPlanRead.Failed(EmailProviderReadReason.NotConfigured));
+        Should.Throw<ArgumentException>(() => new EmailProviderPlanRead.Failed((EmailProviderReadReason)99));
     }
 }

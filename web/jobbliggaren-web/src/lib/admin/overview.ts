@@ -37,6 +37,7 @@ export function retainOverview(
     host: retainObservation(previous.host, next.host),
     services: retainObservation(previous.services, next.services),
     email: retainObservation(previous.email, next.email),
+    delivery: retainObservation(previous.delivery, next.delivery),
   };
 }
 

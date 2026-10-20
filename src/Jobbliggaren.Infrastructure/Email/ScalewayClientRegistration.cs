@@ -48,8 +48,9 @@ internal static class ScalewayClientRegistration
     internal const string HttpClientName = "scaleway-transactional-email";
 
     /// <summary>
-    /// The named client the allowance read uses (#1981, ADR 0178). A client of its own, so nothing about the read can
-    /// reach the send path's handler chain, and the send client's no-resilience rule stays its own.
+    /// The named client every provider read uses (#1981), under the read application's key. A client of its own, so
+    /// nothing about the reads can reach the send path's handler chain, and the send client's no-resilience rule stays
+    /// its own.
     /// </summary>
     internal const string UsageHttpClientName = "scaleway-transactional-email-usage";
 
@@ -65,7 +66,7 @@ internal static class ScalewayClientRegistration
     private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Bounds one allowance read. Strictly shorter than the web's 10 s per-source deadline, so the API's own typed
+    /// Bounds one provider read. Strictly shorter than the web's 10 s per-source deadline, so the API's own typed
     /// Timeout reaches the browser instead of the deadline firing at the same moment.
     /// </summary>
     internal static readonly TimeSpan UsageTimeout = TimeSpan.FromSeconds(5);
@@ -107,7 +108,7 @@ internal static class ScalewayClientRegistration
     }
 
     /// <summary>
-    /// Registers the allowance read's client, behind the same region allow-list as the send client.
+    /// Registers the provider reads' client, behind the same region allow-list as the send client.
     /// <para>
     /// <b>No resilience handler and no retry.</b> The memo in front of the read is the retry: it holds a failure for
     /// at least a minute, longer when the provider asks, so a refusing provider is not asked again by this path.

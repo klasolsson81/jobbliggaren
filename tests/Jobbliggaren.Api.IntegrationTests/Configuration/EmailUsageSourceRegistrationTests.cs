@@ -15,26 +15,51 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
 /// <summary>
-/// #1981 (ADR 0178) — the allowance source's registration, by pure <see cref="ServiceCollection"/> inspection: no host,
-/// no network, no credential. It pins that the sender and the source read <c>Email:Provider</c> alike, that
-/// <c>AddEmailSender</c> alone never registers the source, and that the options and the read client are what ADR 0178
-/// says.
+/// #1981 (ADR 0178) — the provider reads' registration, by pure <see cref="ServiceCollection"/> inspection: no host,
+/// no network, no credential. It pins that the sender and the source read <c>Email:Provider</c> alike, that the source
+/// needs a read key of its own, that <c>AddEmailSender</c> alone never registers the source, and that the options and
+/// the read client are what ADR 0178 says.
 /// </summary>
 public class EmailUsageSourceRegistrationTests
 {
     private const string SecretKey = "test-scaleway-secret-key";
+    private const string ReadKey = "test-scaleway-read-key";
     private const string ProjectId = "11111111-2222-3333-4444-555555555555";
+    private const string ReadKeyName = "Email:ScalewayRead:SecretKey";
 
-    private static IConfiguration Config(string? provider) =>
-        new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Email:Provider"] = provider,
-                ["Email:Scaleway:Region"] = "fr-par",
-                ["Email:Scaleway:SecretKey"] = SecretKey,
-                ["Email:Scaleway:ProjectId"] = ProjectId,
-            })
-            .Build();
+    /// <summary>
+    /// The read key's five shapes: absent, blank, empty (what an empty secret file reads as), its own value, and the
+    /// sending key pasted in.
+    /// </summary>
+    public enum ReadKeyShape
+    {
+        Absent,
+        Blank,
+        Empty,
+        Present,
+        EqualToTheSendKey,
+    }
+
+    private static IConfiguration Config(string? provider, ReadKeyShape readKey = ReadKeyShape.Present)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["Email:Provider"] = provider,
+            ["Email:Scaleway:Region"] = "fr-par",
+            ["Email:Scaleway:SecretKey"] = SecretKey,
+            ["Email:Scaleway:ProjectId"] = ProjectId,
+        };
+        values[ReadKeyName] = readKey switch
+        {
+            ReadKeyShape.Blank => " ",
+            ReadKeyShape.Empty => string.Empty,
+            ReadKeyShape.Present => ReadKey,
+            ReadKeyShape.EqualToTheSendKey => SecretKey,
+            _ => null,
+        };
+
+        return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+    }
 
     private static IHostEnvironment Development()
     {
@@ -54,8 +79,11 @@ public class EmailUsageSourceRegistrationTests
         return services;
     }
 
-    private static Type? SourceType(IServiceCollection services) =>
-        services.Single(d => d.ServiceType == typeof(IEmailProviderUsageSource)).ImplementationType;
+    private static Type? SourceType(IServiceCollection services)
+    {
+        var source = services.Single(d => d.ServiceType == typeof(IEmailProviderUsageSource));
+        return source.ImplementationType ?? source.ImplementationInstance?.GetType();
+    }
 
     private static Type? SenderType(IServiceCollection services) =>
         services.Single(d => d.ServiceType == typeof(IEmailSender)).ImplementationType;
@@ -67,12 +95,121 @@ public class EmailUsageSourceRegistrationTests
     [InlineData("Scaleway")]
     [InlineData("scaleway")]
     [InlineData("SCALEWAY")]
-    public void TheSourceIsScalewaysExactly_WhenTheSenderIs(string? provider)
+    public void TheSource_FollowsTheSenderAndTheReadKey(string? provider)
     {
-        var services = ApiComposition(Config(provider));
+        foreach (var readKey in new[] { ReadKeyShape.Absent, ReadKeyShape.Present })
+        {
+            var services = ApiComposition(Config(provider, readKey));
 
-        var scaleway = SenderType(services) == typeof(ScalewayEmailSender);
-        SourceType(services).ShouldBe(scaleway ? typeof(MemoizedEmailProviderUsageSource) : typeof(NotConfiguredEmailProviderUsageSource));
+            var scaleway = SenderType(services) == typeof(ScalewayEmailSender);
+            SourceType(services).ShouldBe(
+                !scaleway ? typeof(NotConfiguredEmailProviderReads)
+                : readKey == ReadKeyShape.Present ? typeof(MemoizedEmailProviderUsageSource)
+                : typeof(ReadKeyMissingEmailProviderReads));
+        }
+    }
+
+    [Theory]
+    [InlineData(ReadKeyShape.Absent)]
+    [InlineData(ReadKeyShape.Blank)]
+    [InlineData(ReadKeyShape.Empty)]
+    [InlineData(ReadKeyShape.Present)]
+    [InlineData(ReadKeyShape.EqualToTheSendKey)]
+    public void UnderConsole_EveryReadKeyShape_IsNotConfigured_AndNothingThrows(ReadKeyShape readKey)
+    {
+        var services = ApiComposition(Config("Console", readKey));
+
+        SourceType(services).ShouldBe(typeof(NotConfiguredEmailProviderReads));
+        services.ShouldNotContain(d => d.ServiceType == typeof(ScalewayReadTransport));
+        services.ShouldNotContain(d => d.ImplementationType == typeof(ReadKeyMissingNotice));
+    }
+
+    [Fact]
+    public void UnderScaleway_AnAbsentReadKey_IsReadKeyMissing_WithItsStartupNotice_AndNoTransport()
+    {
+        var services = ApiComposition(Config("Scaleway", ReadKeyShape.Absent));
+
+        SourceType(services).ShouldBe(typeof(ReadKeyMissingEmailProviderReads));
+        services.ShouldContain(d => d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(ReadKeyMissingNotice));
+        services.ShouldNotContain(d => d.ServiceType == typeof(ScalewayReadTransport));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IProviderUsageAttemptSource));
+    }
+
+    [Theory]
+    [InlineData(ReadKeyShape.Blank)]
+    [InlineData(ReadKeyShape.Empty)]
+    public void UnderScaleway_ABlankOrEmptyReadKey_FailsTheRegistration_NamingTheKey(ReadKeyShape readKey)
+    {
+        var thrown = Should.Throw<InvalidOperationException>(() => ApiComposition(Config("Scaleway", readKey)));
+
+        thrown.Message.ShouldContain(ReadKeyName);
+    }
+
+    [Fact]
+    public void UnderScaleway_AReadKeyEqualToTheSendKey_FailsTheRegistration_NamingBothKeys_AndNeitherValue()
+    {
+        var thrown = Should.Throw<InvalidOperationException>(() => ApiComposition(Config("Scaleway", ReadKeyShape.EqualToTheSendKey)));
+
+        thrown.Message.ShouldContain(ReadKeyName);
+        thrown.Message.ShouldContain("Email:Scaleway:SecretKey");
+        thrown.Message.ShouldNotContain(SecretKey);
+    }
+
+    [Fact]
+    public void UnderScaleway_APresentReadKey_BindsTheReadOptions_FromItsOwnSection_AndTheSendersProject()
+    {
+        using var provider = ApiComposition(Config("Scaleway")).BuildServiceProvider();
+
+        var options = provider.GetRequiredService<IOptions<ScalewayReadOptions>>().Value;
+
+        options.SecretKey.ShouldBe(ReadKey);
+        options.ProjectId.ShouldBe(ProjectId);
+        provider.GetServices<IHostedService>().ShouldNotContain(service => service is ReadKeyMissingNotice);
+    }
+
+    [Fact]
+    public void TheReadOptions_TakeTheProjectFromTheSender_EvenWhenTheirOwnSectionNamesAnother()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddConfiguration(Config("Scaleway"))
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Email:ScalewayRead:ProjectId"] = "another-project" })
+            .Build();
+        using var provider = ApiComposition(configuration).BuildServiceProvider();
+
+        provider.GetRequiredService<IOptions<ScalewayReadOptions>>().Value.ProjectId.ShouldBe(ProjectId);
+    }
+
+    [Theory]
+    [InlineData("Console", ReadKeyShape.Present, typeof(NotConfiguredEmailProviderReads))]
+    [InlineData("Scaleway", ReadKeyShape.Absent, typeof(ReadKeyMissingEmailProviderReads))]
+    public void WhereNothingIsRead_OneInstanceAnswersEveryReadPort(string provider, ReadKeyShape readKey, Type expected)
+    {
+        using var serviceProvider = ApiComposition(Config(provider, readKey)).BuildServiceProvider();
+
+        var usage = serviceProvider.GetRequiredService<IEmailProviderUsageSource>();
+        usage.ShouldBeOfType(expected);
+        serviceProvider.GetRequiredService<IEmailDeliveryStatisticsSource>().ShouldBeSameAs(usage);
+        serviceProvider.GetRequiredService<IEmailRecentFailuresSource>().ShouldBeSameAs(usage);
+    }
+
+    [Fact]
+    public void UnderScaleway_APresentReadKey_RegistersEachReadOnce_AsAMemoizedSingleton_OverItsAdapter()
+    {
+        var services = ApiComposition(Config("Scaleway"));
+
+        (Type Port, Type Memo, Type Attempt, Type Adapter)[] reads =
+        [
+            (typeof(IEmailProviderUsageSource), typeof(MemoizedEmailProviderUsageSource), typeof(IProviderUsageAttemptSource), typeof(ScalewayUsageSource)),
+            (typeof(IEmailDeliveryStatisticsSource), typeof(MemoizedEmailDeliveryStatisticsSource), typeof(IDeliveryStatisticsAttemptSource), typeof(ScalewayDeliveryStatisticsSource)),
+            (typeof(IEmailRecentFailuresSource), typeof(MemoizedEmailRecentFailuresSource), typeof(IRecentFailuresAttemptSource), typeof(ScalewayRecentFailuresSource)),
+        ];
+        foreach (var (port, memo, attempt, adapter) in reads)
+        {
+            var descriptor = services.Where(d => d.ServiceType == port).ShouldHaveSingleItem();
+            descriptor.ImplementationType.ShouldBe(memo);
+            descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+            services.Where(d => d.ServiceType == attempt).ShouldHaveSingleItem().ImplementationType.ShouldBe(adapter);
+        }
     }
 
     [Fact]
@@ -94,6 +231,8 @@ public class EmailUsageSourceRegistrationTests
 
         services.ShouldNotContain(d => d.ServiceType == typeof(IEmailProviderUsageSource));
         services.ShouldNotContain(d => d.ServiceType == typeof(IProviderUsageAttemptSource));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IEmailDeliveryStatisticsSource));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IEmailRecentFailuresSource));
     }
 
     [Fact]
@@ -142,14 +281,17 @@ public class EmailUsageSourceRegistrationTests
     }
 
     [Theory]
-    [InlineData(null)]
-    [InlineData("Scaleway")]
-    public void TheComposition_Resolves_WithScopeAndBuildValidation(string? provider)
+    [InlineData(null, ReadKeyShape.Present)]
+    [InlineData("Scaleway", ReadKeyShape.Present)]
+    [InlineData("Scaleway", ReadKeyShape.Absent)]
+    public void TheComposition_Resolves_WithScopeAndBuildValidation(string? provider, ReadKeyShape readKey)
     {
-        using var serviceProvider = ApiComposition(Config(provider))
+        using var serviceProvider = ApiComposition(Config(provider, readKey))
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
         serviceProvider.GetRequiredService<IEmailProviderUsageSource>().ShouldNotBeNull();
+        serviceProvider.GetRequiredService<IEmailDeliveryStatisticsSource>().ShouldNotBeNull();
+        serviceProvider.GetRequiredService<IEmailRecentFailuresSource>().ShouldNotBeNull();
         serviceProvider.GetRequiredService<IOptions<EmailAllowanceOptions>>().Value.IncludedMonthlyEmails.ShouldBe(300);
     }
 

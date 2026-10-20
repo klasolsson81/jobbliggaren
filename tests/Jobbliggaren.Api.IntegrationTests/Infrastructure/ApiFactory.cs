@@ -10,7 +10,6 @@ using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure;
-using Jobbliggaren.Infrastructure.Admin.Email;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Access;
 using Jobbliggaren.Infrastructure.Auth.AccountEmailChanges;
@@ -56,6 +55,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// </summary>
     internal RecordingEmailSender Emails => _emailSender;
     internal RedisBoundaryFixture RedisBoundary => _redisBoundary;
+
+    private readonly ScriptedEmailProviderReads _emailProviderReads = new();
+
+    /// <summary>#1981 — the provider reads the host resolves; "not configured" unless a test scripts them.</summary>
+    internal ScriptedEmailProviderReads EmailProviderReads => _emailProviderReads;
 
     private readonly LoginChallengeFaults _loginChallengeFaults = new();
 
@@ -270,11 +274,16 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // wrapped; wrap the recording sender the same way, or /dev/login-code is only ever tested on its 404.
             services.AddDevLoginCodeCapture();
 
-            // #1981 — the allowance read asks the provider when Email:Provider=Scaleway, which a gitignored
-            // Local.json with live keys can say, for the same reason as the sender swap above. The default answers
-            // "not configured"; a test that needs another answer replaces it on its own host.
+            // #1981 — the provider reads ask the provider when Email:Provider=Scaleway and a read key is set, which a
+            // gitignored Local.json with live keys can say, for the same reason as the sender swap above; the
+            // recent-failures read carries recipients. Every read answers "not configured" by default; a test that
+            // needs another answer scripts it through EmailProviderReads.
             services.RemoveAll<IEmailProviderUsageSource>();
-            services.AddSingleton<IEmailProviderUsageSource>(new NotConfiguredEmailProviderUsageSource());
+            services.RemoveAll<IEmailDeliveryStatisticsSource>();
+            services.RemoveAll<IEmailRecentFailuresSource>();
+            services.AddSingleton<IEmailProviderUsageSource>(_emailProviderReads);
+            services.AddSingleton<IEmailDeliveryStatisticsSource>(_emailProviderReads);
+            services.AddSingleton<IEmailRecentFailuresSource>(_emailProviderReads);
 
             // #204 / TD-83 PR2 — replace the real HangfireBackgroundJobController (composed in the Api
             // root, wrapping Hangfire's IRecurringJobManager/IBackgroundJobClient/IMonitoringApi) with

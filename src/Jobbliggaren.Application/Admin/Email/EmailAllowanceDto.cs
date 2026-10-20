@@ -25,13 +25,14 @@ public sealed record EmailAllowanceTermsDto(
 
 /// <summary>
 /// This month's usage, as a closed union: an observed reading carries its figures, a reading that is not observed
-/// or failed carries a reason and nothing else. An unknown figure is absent, never zero.
+/// or failed carries a reason and nothing else, and a missing read key carries neither. An unknown figure is absent,
+/// never zero.
 /// </summary>
 public sealed record EmailAllowanceUsageDto
 {
     private EmailAllowanceUsageDto(
         EmailAllowanceStatus status,
-        EmailAllowanceReason? reason,
+        EmailProviderReadReason? reason,
         DateTimeOffset? observedAt,
         string? month,
         long? sent,
@@ -53,8 +54,8 @@ public sealed record EmailAllowanceUsageDto
 
     public EmailAllowanceStatus Status { get; }
 
-    /// <summary>Present exactly when <see cref="Status"/> is not <see cref="EmailAllowanceStatus.Observed"/>.</summary>
-    public EmailAllowanceReason? Reason { get; }
+    /// <summary>Present exactly when <see cref="Status"/> is <see cref="EmailAllowanceStatus.NotObserved"/> or <see cref="EmailAllowanceStatus.Failed"/>.</summary>
+    public EmailProviderReadReason? Reason { get; }
 
     /// <summary>When the provider's answer arrived; a reused answer keeps its own instant.</summary>
     public DateTimeOffset? ObservedAt { get; }
@@ -94,10 +95,13 @@ public sealed record EmailAllowanceUsageDto
                 aboveHalfOfSendLimit, webhooksCount);
 
     public static EmailAllowanceUsageDto NotObserved() =>
-        new(EmailAllowanceStatus.NotObserved, EmailAllowanceReason.NotConfigured, null, null, null, null, null, null, null);
+        new(EmailAllowanceStatus.NotObserved, EmailProviderReadReason.NotConfigured, null, null, null, null, null, null, null);
 
-    public static EmailAllowanceUsageDto Failed(EmailAllowanceReason reason) =>
-        reason == EmailAllowanceReason.NotConfigured
+    public static EmailAllowanceUsageDto ReadKeyMissing() =>
+        new(EmailAllowanceStatus.ReadKeyMissing, null, null, null, null, null, null, null, null);
+
+    public static EmailAllowanceUsageDto Failed(EmailProviderReadReason reason) =>
+        reason == EmailProviderReadReason.NotConfigured
             ? throw new ArgumentException("A failure carries a failure reason.", nameof(reason))
             : new(EmailAllowanceStatus.Failed, reason, null, null, null, null, null, null, null);
 }
@@ -108,7 +112,7 @@ public sealed record EmailAllowanceUsageDto
 /// </summary>
 public sealed record EmailAllowancePlanDto
 {
-    private EmailAllowancePlanDto(EmailAllowanceStatus status, EmailAllowanceReason? reason, EmailPlan? active, bool? matches)
+    private EmailAllowancePlanDto(EmailAllowanceStatus status, EmailProviderReadReason? reason, EmailPlan? active, bool? matches)
     {
         Status = status;
         Reason = reason;
@@ -118,8 +122,8 @@ public sealed record EmailAllowancePlanDto
 
     public EmailAllowanceStatus Status { get; }
 
-    /// <summary>Present exactly when <see cref="Status"/> is not <see cref="EmailAllowanceStatus.Observed"/>.</summary>
-    public EmailAllowanceReason? Reason { get; }
+    /// <summary>Present exactly when <see cref="Status"/> is <see cref="EmailAllowanceStatus.NotObserved"/> or <see cref="EmailAllowanceStatus.Failed"/>.</summary>
+    public EmailProviderReadReason? Reason { get; }
 
     /// <summary>The plan in force, <see cref="EmailPlan.Unknown"/> when the provider named none this code knows.</summary>
     public EmailPlan? Active { get; }
@@ -131,10 +135,13 @@ public sealed record EmailAllowancePlanDto
         new(EmailAllowanceStatus.Observed, null, active, matches);
 
     public static EmailAllowancePlanDto NotObserved() =>
-        new(EmailAllowanceStatus.NotObserved, EmailAllowanceReason.NotConfigured, null, null);
+        new(EmailAllowanceStatus.NotObserved, EmailProviderReadReason.NotConfigured, null, null);
 
-    public static EmailAllowancePlanDto Failed(EmailAllowanceReason reason) =>
-        reason == EmailAllowanceReason.NotConfigured
+    public static EmailAllowancePlanDto ReadKeyMissing() =>
+        new(EmailAllowanceStatus.ReadKeyMissing, null, null, null);
+
+    public static EmailAllowancePlanDto Failed(EmailProviderReadReason reason) =>
+        reason == EmailProviderReadReason.NotConfigured
             ? throw new ArgumentException("A failure carries a failure reason.", nameof(reason))
             : new(EmailAllowanceStatus.Failed, reason, null, null);
 }

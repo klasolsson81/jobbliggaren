@@ -113,6 +113,16 @@ describe("AdminOverview with its regions loaded (ADR 0150 D1/D2)", () => {
     expect(card("Kräver uppmärksamhet")).toHaveTextContent("Inget kräver uppmärksamhet just nu.");
   });
 
+  it("links a failed-sends item to the e-post page's 24 tim view (#1981 PR 2)", () => {
+    render(<AdminOverview
+      regions={{ ...LOADED, attention: { kind: "loaded", data: [{ kind: "failedEmails", count: 2 }] } }}
+      basePath="/admin/forhandsvisning"
+    />);
+
+    expect(within(card("Kräver uppmärksamhet")).getByRole("link", { name: "2 utskick har misslyckats de senaste 24 timmarna" }))
+      .toHaveAttribute("href", "/admin/forhandsvisning/e-post?period=h24");
+  });
+
   it("lists recent events with a label for their kind", () => {
     render(<AdminOverview regions={LOADED} />);
 

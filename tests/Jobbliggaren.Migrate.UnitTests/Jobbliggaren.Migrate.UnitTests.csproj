@@ -46,6 +46,13 @@
              Link="deploy\systemd\jobbliggaren-observe-tmpfiles.conf" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\deploy\systemd\jobbliggaren-observe-lib.sh"
              Link="deploy\systemd\jobbliggaren-observe-lib.sh" CopyToOutputDirectory="PreserveNewest" />
+    <!-- #1981 PR 2 - DeployComposeScalewayReadKeyTests holds the api-only mount's source to the two scripts and the
+         tmpfiles line that create it: the mount carries create_host_path: false, so a creator spelling another path
+         would leave api without its bind source. -->
+    <Content Include="..\..\deploy\systemd\jobbliggaren-reconcile.sh"
+             Link="deploy\systemd\jobbliggaren-reconcile.sh" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\deploy\systemd\jobbliggaren-tmpfiles.conf"
+             Link="deploy\systemd\jobbliggaren-tmpfiles.conf" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

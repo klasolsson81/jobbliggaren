@@ -27,7 +27,8 @@ import {
 } from "@/lib/admin/view-models";
 import { accountsHref, OVERVIEW_STALE_MS, type AdminOverviewSnapshot, type AwaitingObservation } from "@/lib/admin/overview";
 import type { RegistrationPeriod } from "@/lib/dto/admin-overview";
-import { backupOrServicesRaised } from "@/lib/admin/attention";
+import { backupOrServicesRaised, failedSendsRaised } from "@/lib/admin/attention";
+import { ATTENTION_EMAIL_DELIVERY_PERIOD, emailReadLine, withEmailPeriod } from "@/lib/admin/email-delivery";
 import { AdminObservationNote } from "./admin-observation-note";
 import { BackupAttentionLines, ServicesAttentionLines } from "./admin-attention-sources";
 import { AdminCard, AdminCardLink, type AdminCardSpan } from "./admin-card";
@@ -51,7 +52,7 @@ const EVENT_TONE: Readonly<Record<AdminEventKind, StatusTone>> = {
 const ATTENTION_PATH: Readonly<Record<AdminAttentionKind, string>> = {
   failedJobs: "/jobb",
   pendingDeletions: "/anvandare",
-  failedEmails: "/e-post",
+  failedEmails: withEmailPeriod("/e-post", ATTENTION_EMAIL_DELIVERY_PERIOD),
 };
 
 /**
@@ -438,7 +439,33 @@ function AccountStatusLinks({ basePath, counts }: {
 function overviewAttentionState(snapshot: AdminOverviewSnapshot, now: number): "unknown" | "raised" {
   const pending = snapshot.accounts.kind === "loaded" && snapshot.accounts.data.counts.pendingDeletion > 0;
   const failed = snapshot.jobs.kind === "loaded" && snapshot.jobs.data.totalCount > 0;
-  return pending || failed || backupOrServicesRaised(snapshot.backup, snapshot.services, now) ? "raised" : "unknown";
+  return pending || failed || failedSendsRaised(snapshot.delivery) || backupOrServicesRaised(snapshot.backup, snapshot.services, now)
+    ? "raised"
+    : "unknown";
+}
+
+/**
+ * The attention card's failed sends (#1981 PR 2): the provider's count for the last 24 hours, linked to the page's
+ * 24 tim view when it is above 0. Zero says "hos Scaleway", since a send that never reached Scaleway is not counted.
+ * Any other state names the source and says why there is no count; it is never zero and never an all-clear.
+ */
+function FailedSendsLine({ observation, basePath }: {
+  readonly observation: AdminOverviewSnapshot["delivery"];
+  readonly basePath: string;
+}) {
+  const t = useTranslations("admin.overview.attention");
+  const lines = useTranslations("admin.email.allowance");
+  if (observation.kind !== "loaded" && observation.kind !== "empty") {
+    return <div><p>{t("emailsSource")}</p><AdminRegionLine kind={observation.kind} quiet /></div>;
+  }
+  const delivery = observation.data;
+  if (delivery.status === "Observed") {
+    return <p>{delivery.failed > 0
+      ? <Link href={basePath + ATTENTION_PATH.failedEmails} className="jp-adminoverview__link">{t("failedEmails", { count: delivery.failed })}</Link>
+      : t("noFailedEmails")}</p>;
+  }
+  const line = emailReadLine(delivery);
+  return <div><p>{t("emailsSource")}</p>{line === null ? null : <p className="jp-adminsoon">{lines(line)}</p>}</div>;
 }
 
 function ObservedAttention({ observations, now, basePath }: {
@@ -447,7 +474,9 @@ function ObservedAttention({ observations, now, basePath }: {
   readonly basePath: string;
 }) {
   const t = useTranslations("admin.overview.attention");
-  const { accounts, jobs, backup, services } = observations;
+  const { accounts, jobs, backup, services, delivery } = observations;
+  // A deployment without Scaleway has no answer to date, as on the e-post card.
+  const deliveryDated = !((delivery.kind === "loaded" || delivery.kind === "empty") && delivery.data.status === "NotObserved");
   return <div className="jp-admincard__body">
     {jobs.kind === "loaded" || jobs.kind === "empty" ? <p>{jobs.data.totalCount > 0
       ? <Link href={`${basePath}/jobb#failed-jobs`} className="jp-adminoverview__link">{t("failedJobs", { count: jobs.data.totalCount })}</Link>
@@ -459,7 +488,8 @@ function ObservedAttention({ observations, now, basePath }: {
     <AdminObservationNote observation={accounts} now={now} />
     <BackupAttentionLines observation={backup} />
     <ServicesAttentionLines observation={services} now={now} />
-    <p>{t("emailUnknown")}</p>
+    <FailedSendsLine observation={delivery} basePath={basePath} />
+    {deliveryDated ? <AdminObservationNote observation={delivery} now={now} label="fetchedAt" /> : null}
   </div>;
 }
 

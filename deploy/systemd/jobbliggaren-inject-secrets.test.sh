@@ -29,6 +29,7 @@ trap 'rm -rf "$TMPROOT"' EXIT
 
 readonly SECRETS="$TMPROOT/run/jobbliggaren/secrets"
 readonly HOST_SECRETS="$TMPROOT/run/jobbliggaren/host-secrets"
+readonly API_SECRETS="$TMPROOT/run/jobbliggaren/api-secrets"
 readonly ENV_FIXTURE="$TMPROOT/deploy.env"
 
 # THE PRODUCTION VALUES THEMSELVES, PINNED AGAINST THE ORIGINAL AND NEVER THE COPY. The seam below
@@ -181,6 +182,7 @@ make_sut_copy() {
   sed \
     -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
     -e "s#^readonly HOST_SECRETS_DIR=.*#readonly HOST_SECRETS_DIR=$HOST_SECRETS#" \
+    -e "s#^readonly API_SECRETS_DIR=.*#readonly API_SECRETS_DIR=$API_SECRETS#" \
     -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$ENV_FIXTURE#" \
     -e "s#^readonly SECRETS_DIR_OWNER=.*#readonly SECRETS_DIR_OWNER=$SUT_SECRETS_DIR_OWNER#" \
     -e "s#^readonly ENV_FILE_OWNER=.*#readonly ENV_FILE_OWNER=$SUT_ENV_FILE_OWNER#" \
@@ -201,6 +203,10 @@ make_sut_copy() {
   # would still report the exit code they wanted. Green for the opposite reason.
   grep -qxF "readonly ENV_FILE=$ENV_FIXTURE" "$sut_copy" || {
     echo "FIXTURE BROKEN: ENV_FILE redirect did not apply — the suite would measure the host" >&2
+    exit 1
+  }
+  grep -qxF "readonly API_SECRETS_DIR=$API_SECRETS" "$sut_copy" || {
+    echo "FIXTURE BROKEN: API_SECRETS_DIR redirect did not apply — the suite would measure the host" >&2
     exit 1
   }
   # THE TWO OWNER REDIRECTS, PROVEN FOR A REASON THE OTHERS DO NOT CARRY. An unapplied redirect
@@ -1265,6 +1271,186 @@ else
   echo "       (Git Bash/Windows), so the directory cannot be put in the 0710 posture these"
   echo "       cases measure against. They RUN in CI on ubuntu, where JBL_REQUIRE_MODE_CASES"
   echo "       makes a skip an error."
+fi
+
+echo "-- the delivery read key is conditional on its pointer, and lives in api's own directory (#1981 PR 2)"
+# Bound to the read key's own lines, never to the exit code, for the reason the Scaleway block states.
+# Each case starts from the delivering box, so no mail line answers first, and from NO api-only
+# directory: that is the box the read key never reached. A case seeds the directory when it needs one.
+readonly READ_KEY="Email__ScalewayRead__SecretKey"
+readonly READ_POINTER="EMAIL_SCALEWAY_READ_SECRET_KEY_FILE=/run/api-secrets/$READ_KEY"
+seed_read_key_box() {   # seed_read_key_box <dir|key|none>: the pointer set, and that much placed
+  seed_delivering_box
+  printf '%s\n' "$READ_POINTER" >> "$ENV_FIXTURE"
+  [ "$1" = none ] && return 0
+  mkdir -p "$API_SECRETS"
+  chmod 0710 "$API_SECRETS" 2>/dev/null || true
+  [ "$1" = key ] && printf '%s' "seeded-value-for-$READ_KEY" > "$API_SECRETS/$READ_KEY"
+  return 0
+}
+
+seed_delivering_box
+run_check || true
+if ! grep -qE "ScalewayRead|EMAIL_SCALEWAY_READ|api-secrets" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   no pointer demands nothing for the read key, neither its file nor its directory"
+else
+  fail=$((fail + 1)); echo "  FAIL a box without the read key's pointer was asked for it" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+if [ "$MODE_ENFORCED" = "yes" ]; then
+  expect_check 0 "and that box, with no api-only directory at all, is a pass"
+else
+  skipped=$((skipped + 1))
+  echo "  SKIP the gate-off pass: this filesystem does not honour chmod."
+fi
+
+seed_read_key_box dir
+run_check || true
+if grep -qF "MISSING: $API_SECRETS/$READ_KEY" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   the pointer alone demands $READ_KEY in the api-only directory"
+else
+  fail=$((fail + 1)); echo "  FAIL the pointer did not demand $READ_KEY" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+if [ "$MODE_ENFORCED" = "yes" ]; then
+  if grep -qF "stops api alone" "$TMPROOT/out" && ! grep -qF "api and worker will crash-loop" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   and it stops api alone, never api and worker"
+  else
+    fail=$((fail + 1)); echo "  FAIL the missing read key was not summarised as api alone" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+  expect_check 1 "and it is a failure on the fault surface"
+else
+  skipped=$((skipped + 2))
+  echo "  SKIP the api-alone summary for the read key: this filesystem does not honour chmod."
+fi
+
+seed_read_key_box none
+run_check || true
+if grep -qF "MISSING: $API_SECRETS (directory does not exist)" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   the pointer with no api-only directory names the directory"
+else
+  fail=$((fail + 1)); echo "  FAIL a missing api-only directory was not named" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+# THE DIRECTORIES ARE NOT INTERCHANGEABLE: the key in the directory the worker mounts is the state this
+# whole arrangement exists to prevent, and it must never read as present.
+seed_read_key_box dir
+printf '%s' "seeded-in-the-shared-directory" > "$SECRETS/$READ_KEY"
+run_check || true
+if grep -qF "MISSING: $API_SECRETS/$READ_KEY" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   the read key in the SHARED directory does not satisfy the check"
+else
+  fail=$((fail + 1)); echo "  FAIL a read key in the directory the worker mounts was accepted" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+if [ "$MODE_ENFORCED" = "yes" ]; then
+  seed_read_key_box key
+  expect_check 0 "the pointer with its key in a 0710 api-only directory is a pass"
+
+  seed_read_key_box key
+  chmod 0700 "$API_SECRETS"
+  expect_check 1 "a 0700 api-only directory (api cannot traverse it) is detected"
+  assert_output_has "WRONG MODE: $API_SECRETS" "and the failure names the api-only directory's mode"
+  if grep -qF "stops api alone" "$TMPROOT/out" && ! grep -qF "api and worker will crash-loop" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   and that mode stops api alone"
+  else
+    fail=$((fail + 1)); echo "  FAIL the api-only directory's mode was not summarised as api alone" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+
+  # Held to SECRETS_DIR_OWNER, so the seam moves both directories' expectation at once; this case asserts
+  # the api-only directory's own line.
+  seed_read_key_box key
+  SUT_SECRETS_DIR_OWNER="$NOT_FIXTURE_OWNER"
+  expect_check 1 "an api-only directory owned by anyone but root refuses"
+  assert_output_has "WRONG OWNER: $API_SECRETS" "and the line names the api-only directory"
+  reset_owner_expectations
+else
+  skipped=$((skipped + 6))
+  echo "  SKIP the api-only directory's mode, owner and pass cases: this filesystem does not honour chmod."
+fi
+
+echo "-- the read key's injection: prompted under its pointer or its switch, and never otherwise (#1981 PR 2)"
+# The injection cannot run whole here: it needs root, a terminal and docker. These cases run the SUT's
+# own inject_scaleway_read_key, cut out of the redirected copy together with the functions it calls.
+# Only its two writers are replaced, by stubs that record what they were asked to do: `install -o`
+# needs root, and write_secret's 0400 file cannot be written by a non-root owner.
+fn_source() {   # fn_source <file> <name>: the function's definition as the file writes it
+  awk -v n="$2" '
+    index($0, n "() {") == 1 { p = 1; print; if ($0 ~ /}[[:space:]]*$/) exit; next }
+    p { print; if ($0 == "}") exit }' "$1"
+}
+read_key_lib() {
+  local sut_copy lib="$TMPROOT/read-key-lib.sh" name
+  sut_copy=$(make_sut_copy)
+  {
+    grep -E '^readonly (ENV_FILE|SECRETS_DIR|API_SECRETS_DIR|SCALEWAY_READ_SECRET_KEY|DIR_MODE|SECRETS_DIR_OWNER)=' "$sut_copy"
+    for name in log die has_usable_content env_value scaleway_read_key_required inject_scaleway_read_key; do
+      fn_source "$sut_copy" "$name"
+    done
+    printf '%s\n' 'install() { printf "INSTALL %s\n" "$*" >&2; }' \
+      'write_secret() { printf "WROTE %s/%s\n" "$1" "$4" >&2; }'
+  } > "$lib"
+  for name in log die has_usable_content env_value scaleway_read_key_required inject_scaleway_read_key; do
+    grep -q "^$name() {" "$lib" || { echo "FIXTURE BROKEN: $name() was not found in the SUT" >&2; exit 1; }
+  done
+  [ "$(grep -c '^readonly ' "$lib")" -eq 6 ] || { echo "FIXTURE BROKEN: a constant was not found in the SUT" >&2; exit 1; }
+  printf '%s' "$lib"
+}
+run_read_key_injection() {   # run_read_key_injection <stdin> [VAR=value...]
+  local input="$1" lib got=0
+  shift
+  lib=$(read_key_lib)
+  printf '%s\n' "$input" | env -u JBL_INJECT_SCALEWAY_READ "$@" PATH="/usr/bin:/bin" \
+    bash -c 'set -euo pipefail; source "$1"; inject_scaleway_read_key 4242 4343' _ "$lib" >"$TMPROOT/out" 2>&1 || got=$?
+  printf '%s' "$got"
+}
+readonly READ_PROMPT="Value for $READ_KEY"
+
+seed_delivering_box
+got=$(run_read_key_injection "never-read")
+if [ "$got" -eq 0 ] && ! grep -qF "$READ_PROMPT" "$TMPROOT/out" && ! grep -qF "WROTE" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   no pointer and no switch: no prompt, nothing written"
+else
+  fail=$((fail + 1)); echo "  FAIL the read key was prompted for or written with its gate off (exit $got)" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+assert_output_has "INSTALL -d -m 0700 $API_SECRETS" "and the api-only directory is made to exist, closed"
+assert_output_has "JBL_INJECT_SCALEWAY_READ=1" "and the switch that places it ahead of the pointer is named"
+
+seed_delivering_box
+mkdir -p "$API_SECRETS"
+run_read_key_injection "never-read" >/dev/null
+assert_output_lacks "INSTALL" "an existing api-only directory is left as it is while the gate is off"
+
+seed_delivering_box
+got=$(run_read_key_injection "fixture-read-key" JBL_INJECT_SCALEWAY_READ=1)
+assert_output_has "$READ_PROMPT" "the switch prompts for the read key"
+assert_output_has "INSTALL -d -m 0710 -o $SUT_SECRETS_DIR_OWNER -g 4343 $API_SECRETS" \
+  "and grants the api image's group traversal of the api-only directory alone"
+assert_output_has "WROTE $API_SECRETS/$READ_KEY" "and writes the key there, with the api image's ids"
+assert_output_lacks "WROTE $SECRETS" "and never into the directory the worker mounts"
+
+# The pointer alone prompts, which is what lists the key in the re-injection after a reboot.
+seed_read_key_box none
+run_read_key_injection "fixture-read-key" >/dev/null
+assert_output_has "$READ_PROMPT" "the pointer alone prompts for the read key"
+
+seed_read_key_box key
+run_read_key_injection "never-read" >/dev/null
+assert_output_lacks "$READ_PROMPT" "a key already in place is not prompted for again"
+assert_output_has "$READ_KEY already present" "and the run says so"
+
+seed_delivering_box
+got=$(run_read_key_injection "   " JBL_INJECT_SCALEWAY_READ=1)
+if [ "$got" -eq 1 ] && grep -qF "REFUSING: $READ_KEY was empty or whitespace-only" "$TMPROOT/out" && ! grep -qF "WROTE" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a whitespace-only read key is refused at the prompt, and nothing is written"
+else
+  fail=$((fail + 1)); echo "  FAIL a whitespace-only read key was not refused (exit $got)" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
 python3 -I - "$script_dir" "$TMPROOT" <<'PYLOCK'

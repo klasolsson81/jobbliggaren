@@ -134,12 +134,13 @@
       "empty": "Nothing needs attention right now.",
       "failedJobs": "{count, plural, one {# background job has failed} other {# background jobs have failed}}",
       "pendingDeletions": "{count, plural, one {# account is pending deletion} other {# accounts are pending deletion}}",
-      "failedEmails": "{count, plural, one {# email has failed} other {# emails have failed}}",
+      "failedEmails": "{count, plural, one {# send has failed} other {# sends have failed}} in the last 24 hours",
       "noFailedJobs": "No failed background jobs.",
       "noPendingDeletions": "No accounts pending deletion.",
-      "emailUnknown": "Email failures cannot be assessed yet.",
+      "noFailedEmails": "No failed sends at Scaleway in the last 24 hours.",
       "jobsSource": "Failed background jobs",
       "deletionsSource": "Pending deletions",
+      "emailsSource": "Failed sends",
       "sourceState": "{source}: {state}"
     },
     "events": {
@@ -158,6 +159,7 @@
     "population": "New accounts count retained accounts with completed registration.",
     "observation": {
       "sampledAt": "Observed at",
+      "fetchedAt": "Fetched",
       "refreshFailed": "Refresh failed. Showing the last observation.",
       "stale": "This observation is older than five minutes.",
       "current": "The observations are current.",
@@ -169,7 +171,8 @@
         "backup": "Backup",
         "host": "Server readings",
         "services": "Services",
-        "email": "Sends against the free allowance"
+        "email": "Sends against the free allowance",
+        "delivery": "Failed sends"
       }
     },
     "registrationPeriods": {
@@ -635,7 +638,7 @@
       "title": "Email delivery"
     },
     "heading": "Email delivery",
-    "lede": "Sends against the free allowance and per email type.",
+    "lede": "Sends against the free allowance, delivery and failed sends.",
     "allowance": {
       "heading": "Sends in {month}",
       "headingThisMonth": "Sends this month",
@@ -650,6 +653,8 @@
       "webhooks": "{count, plural, one {# webhook is registered} other {# webhooks are registered}} at Scaleway. There should be none, see the admin email runbook.",
       "webhooksUnreadable": "The number of webhooks could not be read.",
       "notConfigured": "Not counted in this environment.",
+      "readKeyMissing": "The read key is not installed. See the admin email runbook.",
+      "notObservable": "Scaleway's delivery statistics show no sends in the last 32 days, so the figures cannot be assessed. Check the read key's permissions as described in the admin email runbook.",
       "plan": {
         "differs": "Scaleway states the plan {active}, but the terms are for {configured}. The cost is not calculated.",
         "undetermined": "The plan at Scaleway could not be determined. The cost is not calculated.",
@@ -658,13 +663,14 @@
       "failure": {
         "noAnswer": "Scaleway did not answer. Try again in a moment.",
         "rateLimited": "Scaleway is limiting the reads right now. Try again in a moment.",
-        "keyRefused": "Scaleway refused the key, and then the sends are probably stopped too. Check the key's expiry date as the admin email runbook describes.",
-        "readRefused": "Scaleway refused the read. Check the key's permission as the admin email runbook describes.",
+        "keyRefused": "Scaleway refused the read key. Check its expiry date as the admin email runbook describes.",
+        "readRefused": "Scaleway refused the read. Check the read key's permission as the admin email runbook describes.",
         "malformed": "Scaleway's answer could not be read. See the admin email runbook."
       }
     },
     "delivery": {
-      "heading": "Delivery"
+      "heading": "Delivery",
+      "source": "Counted by Scaleway for the project. Fetched <time>{at}</time>."
     },
     "period": {
       "label": "Period",
@@ -674,24 +680,33 @@
     },
     "summary": {
       "sent": "Sent",
-      "failed": "Failed",
-      "noRecipient": "Without recipient"
+      "failed": "Failed"
     },
     "table": {
       "caption": "Sends per email type",
       "function": "Email type",
       "sent": "Sent",
       "failed": "Failed",
-      "lastError": "Latest error",
-      "empty": "No emails sent in the period."
+      "lastError": "Latest error"
     },
     "failures": {
       "heading": "Latest failed sends",
-      "empty": "No failed emails in the period."
-    },
-    "outcome": {
-      "failed": "Failed",
-      "bounced": "Bounced"
+      "caption": "Failed sends, last {period}",
+      "captionNoPeriod": "Failed sends",
+      "when": "Time",
+      "reason": "Reason",
+      "recipient": "Recipient (masked)",
+      "empty": "No failed sends in the period.",
+      "capped": "Showing the {count} latest.",
+      "reasons": {
+        "MailboxNotFound": "The address does not exist",
+        "HardBounce": "Rejected by the recipient's server",
+        "MailboxFull": "The recipient's inbox is full",
+        "SoftBounce": "Temporarily rejected by the recipient's server",
+        "Spam": "Judged as spam",
+        "Blocklisted": "The address is blocked at Scaleway",
+        "Other": "Another or unknown reason"
+      }
     }
   },
   "audit": {

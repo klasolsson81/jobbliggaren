@@ -142,9 +142,10 @@ function servicesAnswer(scenario: ServicesScenario): unknown {
 /**
  * What the email allowance read answers (#1981 PR 1, ADR 0178), as the API states it. `observed` is a month within the
  * free allowance under the configured plan; `notConfigured` is a deployment without a provider to ask; `providerFailed`
- * is a count the provider did not answer; `planDiffers` is a count under another plan, so no cost is computed.
+ * is a count the provider did not answer; `planDiffers` is a count under another plan, so no cost is computed;
+ * `readKeyMissing` is a Scaleway deployment whose read key is not installed (#1981 PR 2).
  */
-export type EmailScenario = "observed" | "notConfigured" | "providerFailed" | "planDiffers";
+export type EmailScenario = "observed" | "notConfigured" | "providerFailed" | "planDiffers" | "readKeyMissing";
 
 function emailAnswer(scenario: EmailScenario): unknown {
   // The API's wire form for a DateTimeOffset in UTC: an offset, never a Z.
@@ -173,7 +174,94 @@ function emailAnswer(scenario: EmailScenario): unknown {
     case "planDiffers": return {
       terms, usage: usage(false), plan: { status: "Observed", reason: null, active: "Scale", matches: false },
     };
+    case "readKeyMissing": return {
+      terms,
+      usage: { status: "ReadKeyMissing", reason: null, ...noUsage },
+      plan: { status: "ReadKeyMissing", reason: null, active: null, matches: null },
+    };
   }
+}
+
+/**
+ * What the delivery read answers (#1981 PR 2), as the API states it. `observed` counts failed sends in every period;
+ * `noneFailed` counts none, and `nothingSent` no send at all; the three states without figures follow; the rest are
+ * the seven reasons a provider read fails for. The failures read answers the same state, so one scenario sets both, unless `emailFailures` says
+ * otherwise.
+ */
+export type DeliveryScenario =
+  | "observed" | "noneFailed" | "nothingSent" | "notConfigured" | "notObservable" | "readKeyMissing"
+  | "Unauthorized" | "Forbidden" | "RateLimited" | "ProviderError" | "Timeout" | "Unreachable" | "Malformed";
+
+/**
+ * What the failures read answers when it differs from the delivery read: `capped` is as many rows as one read carries,
+ * one with each of the seven reasons, one at a long domain and one in each recipient form; `unjudged` is a list the API
+ * could not judge; `providerId` is the observed list with the provider's id on each row, which is outside the contract.
+ */
+export type FailuresScenario = DeliveryScenario | "capped" | "unjudged" | "providerId";
+
+/** The id the `providerId` scenario puts on its rows, so a test can look for it in what reached the page. */
+export const PROVIDER_EMAIL_ID = "6f2a1d3e-90b4-4c1a-8e5f-1981deadbeef";
+
+const EMAIL_PERIODS = ["h24", "d3", "d7"] as const;
+type EmailPeriod = (typeof EMAIL_PERIODS)[number];
+const PERIOD_COUNTS: Readonly<Record<EmailPeriod, { readonly sent: number; readonly failed: number }>> = {
+  h24: { sent: 57, failed: 2 },
+  d3: { sent: 163, failed: 3 },
+  d7: { sent: 384, failed: 5 },
+};
+/** Every address here is masked as the API masks it, on a domain RFC 2606/6761 reserves. */
+const LONG_DOMAIN = "post.ett-mycket-langt-underdomannamn-for-smala-skarmar.example.test";
+
+function unansweredEmail(scenario: DeliveryScenario): { status: string; reason: string | null } | null {
+  switch (scenario) {
+    case "observed":
+    case "noneFailed":
+    case "nothingSent":
+      return null;
+    case "notConfigured": return { status: "NotObserved", reason: "NotConfigured" };
+    case "notObservable": return { status: "NotObservable", reason: null };
+    case "readKeyMissing": return { status: "ReadKeyMissing", reason: null };
+    default: return { status: "Failed", reason: scenario };
+  }
+}
+
+function deliveryAnswer(scenario: DeliveryScenario, period: EmailPeriod): unknown {
+  const at = (offset: number) => new Date(Date.now() + offset).toISOString().replace(/\.\d{3}Z$/, "+00:00");
+  const unanswered = unansweredEmail(scenario);
+  if (unanswered !== null) return { period, ...unanswered, observedAt: null, sent: null, failed: null };
+  const counts = PERIOD_COUNTS[period];
+  return { period, status: "Observed", reason: null, observedAt: at(-20_000), sent: scenario === "nothingSent" ? 0 : counts.sent,
+    failed: scenario === "observed" ? counts.failed : 0 };
+}
+
+function failuresAnswer(scenario: FailuresScenario, period: EmailPeriod): unknown {
+  const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString().replace(/\.\d{3}Z$/, "+00:00");
+  const observed = (failures: ReadonlyArray<unknown>) =>
+    ({ period, status: "Observed", reason: null, observedAt: at(0.3), failures, limit: 10 });
+  // Newest first, each inside the periods it is listed for: two in 24 hours, three in 3 days and five in 7 days.
+  const rows = [
+    { createdAt: at(80), recipient: "k•••@example.com", reason: "MailboxNotFound" },
+    { createdAt: at(300), recipient: "•••", reason: "SoftBounce" },
+    { createdAt: at(60 * 40), recipient: "a•••@example.org", reason: "HardBounce" },
+    { createdAt: at(60 * 100), recipient: `p•••@${LONG_DOMAIN}`, reason: "MailboxFull" },
+    { createdAt: at(60 * 150), recipient: "m•••@konto.test", reason: "Blocklisted" },
+  ].slice(0, PERIOD_COUNTS[period].failed);
+  if (scenario === "unjudged") return { period, status: "NotObservable", reason: null, observedAt: null, failures: null, limit: 10 };
+  if (scenario === "providerId") return observed(rows.map((row) => ({ ...row, id: PROVIDER_EMAIL_ID })));
+  if (scenario === "capped") {
+    const reasons = ["MailboxNotFound", "HardBounce", "MailboxFull", "SoftBounce", "Spam", "Blocklisted", "Other",
+      "HardBounce", "MailboxNotFound", "SoftBounce"];
+    return observed(reasons.map((reason, index) => ({
+      createdAt: at(12 + index * 47),
+      recipient: index === 1 ? `p•••@${LONG_DOMAIN}` : index === 7 ? "•••" : index === 9 ? "•••@example.org"
+        : `${"abcdefghij"[index]}•••@example.org`,
+      reason,
+    })));
+  }
+  const unanswered = unansweredEmail(scenario);
+  if (unanswered !== null) return { period, ...unanswered, observedAt: null, failures: null, limit: 10 };
+  if (scenario === "noneFailed" || scenario === "nothingSent") return observed([]);
+  return observed(rows);
 }
 
 /** The four reads the feedback page makes side by side (#1979). */
@@ -187,10 +275,26 @@ export type Harness = {
   /** `stale` answers `/api/v1/me` 401, as a session the backend has ended does (#1979's deep link). */
   who: "admin" | "member" | "stale";
   mode: AdminMode;
-  readonly overviewReads: Record<"accounts" | "audit" | "jobs" | "backup" | "host" | "services" | "email", AdminMode>;
+  readonly overviewReads: Record<
+    "accounts" | "audit" | "jobs" | "backup" | "host" | "services" | "email" | "delivery" | "failures",
+    AdminMode
+  >;
   overviewBackup: BackupScenario;
   /** What the allowance read answers, for the overview's e-post card and the e-post page alike (#1981). */
   overviewEmail: EmailScenario;
+  /**
+   * What the delivery read answers, for the overview's attention line and the e-post page alike (#1981 PR 2). Null is
+   * the default: failed sends counted, or none while `overviewEmpty` holds, since an empty overview needs no attention.
+   */
+  emailDelivery: DeliveryScenario | null;
+  /** What the failures read answers; null answers the delivery read's own state. */
+  emailFailures: FailuresScenario | null;
+  /** How long the delivery and failures reads take to answer, for a period change seen mid-flight. */
+  emailDelay: number;
+  /** Every delivery and failures read's path and query string, as the backend received them. */
+  readonly emailQueries: string[];
+  /** Every body the failures read answered, so a test can look for what must never reach the page. */
+  readonly failuresAnswers: unknown[];
   overviewHost: HostScenario;
   overviewServices: ServicesScenario;
   overviewSampledAt: string | null;
@@ -285,6 +389,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const deletionRequests: Harness["deletionRequests"] = [];
   const reauthVerifications: string[] = [];
   const feedbackQueries: string[] = [];
+  const emailQueries: string[] = [];
+  const failuresAnswers: unknown[] = [];
   const feedbackCommands: Harness["feedbackCommands"] = [];
   const pendingCodeRequests: (() => void)[] = [];
   const pendingAccessWrites: (() => void)[] = [];
@@ -295,9 +401,16 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const harness: Harness = {
     who: "admin",
     mode: "ok",
-    overviewReads: { accounts: "ok", audit: "ok", jobs: "ok", backup: "ok", host: "ok", services: "ok", email: "ok" },
+    overviewReads: {
+      accounts: "ok", audit: "ok", jobs: "ok", backup: "ok", host: "ok", services: "ok", email: "ok", delivery: "ok", failures: "ok",
+    },
     overviewBackup: "observed",
     overviewEmail: "observed",
+    emailDelivery: null,
+    emailFailures: null,
+    emailDelay: 0,
+    emailQueries,
+    failuresAnswers,
     overviewHost: "measured",
     overviewServices: "observed",
     overviewSampledAt: new Date().toISOString(),
@@ -368,8 +481,14 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.mode = "ok";
       harness.overviewReads.accounts = harness.overviewReads.audit = harness.overviewReads.jobs = harness.overviewReads.backup = "ok";
       harness.overviewReads.host = harness.overviewReads.services = harness.overviewReads.email = "ok";
+      harness.overviewReads.delivery = harness.overviewReads.failures = "ok";
       harness.overviewBackup = "observed";
       harness.overviewEmail = "observed";
+      harness.emailDelivery = null;
+      harness.emailFailures = null;
+      harness.emailDelay = 0;
+      emailQueries.length = 0;
+      failuresAnswers.length = 0;
       harness.overviewHost = "measured";
       harness.overviewServices = "observed";
       harness.overviewSampledAt = new Date().toISOString();
@@ -418,6 +537,16 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     const url = new URL(request.url ?? "/", `http://localhost:${ports.backend}`);
     const route = `${request.method} ${url.pathname}`;
     requests.push(route);
+    // #1981 PR 2: the two Leverans reads take one of three periods, and the API refuses any other with a 400.
+    const isEmailRead = route === "GET /api/v1/admin/email/delivery" || route === "GET /api/v1/admin/email/failures";
+    if (isEmailRead) emailQueries.push(`${url.pathname}${url.search}`);
+    const emailPeriod = EMAIL_PERIODS.find((period) => period === url.searchParams.get("period")) ?? null;
+    const emailScenario = (): DeliveryScenario =>
+      harness.emailDelivery ?? (harness.overviewEmpty ? "noneFailed" : "observed");
+    if (isEmailRead && (emailPeriod === null || url.searchParams.getAll("period").length !== 1)) {
+      return json(400, { title: "One or more validation errors occurred.", status: 400, errors: { period: ["Okänd period."] } },
+        { "Cache-Control": "private, no-store" });
+    }
 
     if (route === "GET /api/v1/me") {
       if (harness.who === "stale") return json(401, { title: "Unauthorized", status: 401 });
@@ -455,6 +584,14 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       "GET /api/v1/admin/overview/host": () => hostAnswer(harness.overviewHost),
       "GET /api/v1/admin/overview/services": () => servicesAnswer(harness.overviewServices),
       "GET /api/v1/admin/email/allowance": () => emailAnswer(harness.overviewEmail),
+      // The period is checked above, before these answer: an invalid one is the API's 400. The overview's "empty"
+      // sources count no failed sends either.
+      "GET /api/v1/admin/email/delivery": () => deliveryAnswer(emailScenario(), emailPeriod ?? "d7"),
+      "GET /api/v1/admin/email/failures": () => {
+        const body = failuresAnswer(harness.emailFailures ?? emailScenario(), emailPeriod ?? "d7");
+        failuresAnswers.push(body);
+        return body;
+      },
     };
     const refusal = (mode: AdminMode = harness.mode) => {
       switch (mode) {
@@ -763,7 +900,9 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
         : route.endsWith("/overview/backup") ? "backup"
         : route.endsWith("/overview/host") ? "host"
         : route.endsWith("/overview/services") ? "services"
-        : route.endsWith("/email/allowance") ? "email" : null;
+        : route.endsWith("/email/allowance") ? "email"
+        : route.endsWith("/email/delivery") ? "delivery"
+        : route.endsWith("/email/failures") ? "failures" : null;
       const mode = harness.mode === "ok" && source !== null ? harness.overviewReads[source] : harness.mode;
       const respond = () => {
         if (mode !== "ok") return refusal(mode);
@@ -772,8 +911,9 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
           ...(source !== null && harness.overviewSampledAt !== null ? { "X-Admin-Sampled-At": harness.overviewSampledAt } : {}),
         });
       };
-      if (source !== null && harness.overviewDelayMs > 0) {
-        const timer = setTimeout(respond, harness.overviewDelayMs);
+      const delay = isEmailRead && harness.emailDelay > 0 ? harness.emailDelay : source !== null ? harness.overviewDelayMs : 0;
+      if (delay > 0) {
+        const timer = setTimeout(respond, delay);
         response.once("close", () => clearTimeout(timer));
         return;
       }

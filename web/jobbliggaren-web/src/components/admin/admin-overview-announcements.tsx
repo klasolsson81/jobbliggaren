@@ -2,17 +2,21 @@
 
 import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { allowanceFailureGroup, type AllowanceFailureGroup } from "@/lib/admin/email-allowance";
+import { allowanceFailureGroup } from "@/lib/admin/email-allowance";
+import { emailReadLine, isAlertingRead, type EmailReadLine } from "@/lib/admin/email-delivery";
 import { formatStaleLimit } from "@/lib/admin/host-observation";
 import { OVERVIEW_STALE_MS, type AwaitingObservation } from "@/lib/admin/overview";
 import type { AdminOverviewSnapshot } from "@/lib/dto/admin-overview";
 
-const SOURCES = ["accounts", "audit", "jobs", "backup", "host", "services", "email"] as const;
+const SOURCES = ["accounts", "audit", "jobs", "backup", "host", "services", "email", "delivery"] as const;
 type Source = (typeof SOURCES)[number];
-/** `provider.*`: the e-post source answered, and its provider did not; the card says why, and so does this region. */
+/**
+ * `provider.*`: an e-post source answered, and its provider did not, or could not be asked or judged; the card says
+ * why, and so does this region, in the same words (`admin.email.allowance`).
+ */
 type Health =
   | "current" | "retained" | "stale" | "retainedStale" | "failed" | "loading" | "awaiting"
-  | `provider.${AllowanceFailureGroup}`;
+  | `provider.${EmailReadLine}`;
 
 /**
  * The limit a source names for itself, with its card's sentence for an old sample: the Server and Tjänster cards are
@@ -41,24 +45,38 @@ function health(observation: AwaitingObservation<unknown>, now: number, limit: n
     : stale ? "stale" : "current";
 }
 
-function providerFailure(state: Health): AllowanceFailureGroup | null {
+function providerLine(state: Health): EmailReadLine | null {
   switch (state) {
-    case "provider.noAnswer": return "noAnswer";
-    case "provider.rateLimited": return "rateLimited";
-    case "provider.keyRefused": return "keyRefused";
-    case "provider.readRefused": return "readRefused";
-    case "provider.malformed": return "malformed";
+    case "provider.notConfigured": return "notConfigured";
+    case "provider.notObservable": return "notObservable";
+    case "provider.readKeyMissing": return "readKeyMissing";
+    case "provider.failure.noAnswer": return "failure.noAnswer";
+    case "provider.failure.rateLimited": return "failure.rateLimited";
+    case "provider.failure.keyRefused": return "failure.keyRefused";
+    case "provider.failure.readRefused": return "failure.readRefused";
+    case "provider.failure.malformed": return "failure.malformed";
     default: return null;
   }
 }
 
+/** What a current e-post source's provider read says, when it is a state the reader must act on or cannot judge. */
+function providerHealth(source: Source, observations: AdminOverviewSnapshot): Health | null {
+  const { email, delivery } = observations;
+  if (source === "email" && email.kind === "loaded") {
+    const usage = email.data.usage;
+    if (usage.status === "Failed") return `provider.failure.${allowanceFailureGroup(usage.reason)}`;
+    if (usage.status === "ReadKeyMissing") return "provider.readKeyMissing";
+  }
+  if (source === "delivery" && delivery.kind === "loaded" && isAlertingRead(delivery.data)) {
+    const line = emailReadLine(delivery.data);
+    if (line !== null) return `provider.${line}`;
+  }
+  return null;
+}
+
 function sourceHealth(source: Source, observations: AdminOverviewSnapshot, now: number): Health {
   const state = health(observations[source], now, staleLimit(source, observations));
-  const { email } = observations;
-  if (source === "email" && state === "current" && email.kind === "loaded" && email.data.usage.status === "Failed") {
-    return `provider.${allowanceFailureGroup(email.data.usage.reason)}`;
-  }
-  return state;
+  return state === "current" ? providerHealth(source, observations) ?? state : state;
 }
 
 export function AdminOverviewAnnouncements({ observations, now }: {
@@ -67,7 +85,7 @@ export function AdminOverviewAnnouncements({ observations, now }: {
 }) {
   const t = useTranslations("admin.overview");
   const regions = useTranslations("admin.regions");
-  const failure = useTranslations("admin.email.allowance.failure");
+  const lines = useTranslations("admin.email.allowance");
   const format = useFormatter();
   const current = SOURCES.map((source) => sourceHealth(source, observations, now));
   const [previous, setPrevious] = useState({ health: current, message: "" });
@@ -84,8 +102,8 @@ export function AdminOverviewAnnouncements({ observations, now }: {
       // A kept services observation whose newest sample is past its limit has had every row withdrawn, so no last value
       // is shown: the live region says what the card says, that the data could not be fetched.
       const failedAndOld = source === "services" ? regions("failed") : t("observation.refreshFailed");
-      const provider = providerFailure(state);
-      const text = provider !== null ? failure(provider)
+      const provider = providerLine(state);
+      const text = provider !== null ? lines(provider)
         : state === "failed" || state === "loading" || state === "awaiting" ? regions(state)
         : state === "retainedStale"
           ? `${failedAndOld} ${stale}`

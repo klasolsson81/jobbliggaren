@@ -168,17 +168,41 @@ describe("AdminEmailAllowance — no provider in this deployment (notConfigured)
   });
 });
 
+describe("AdminEmailAllowance — the read key is not installed (#1981 PR 2)", () => {
+  const READ_KEY_MISSING: EmailAllowanceDto = {
+    ...base,
+    usage: { status: "ReadKeyMissing", reason: null, ...NO_USAGE },
+    plan: { status: "ReadKeyMissing", reason: null, active: null, matches: null },
+  };
+  const line = "Läsnyckeln är inte installerad. Se runbooken för admin-e-post.";
+
+  it("says so in its own line, never that the environment does not count, and announces it", () => {
+    const region = loaded(READ_KEY_MISSING);
+
+    expect(values(region)).toEqual([UNKNOWN, UNKNOWN, UNKNOWN]);
+    expect(stateLines(region)).toEqual([line]);
+    expect(region.textContent).not.toContain("Räknas inte i den här miljön.");
+    expect(region.querySelector(".jp-adminsoon")).not.toHaveAttribute("role");
+    expect(screen.getByRole("alert")).toHaveTextContent(`Utskick mot gratiskvoten: ${line}`);
+  });
+
+  it("keeps the configured price, since the deployment has Scaleway, but no source note: nothing was counted", () => {
+    const region = loaded(READ_KEY_MISSING);
+
+    expect(noteLines(region)).toEqual([PRICE]);
+    expect(region.textContent).not.toContain("Räknat av Scaleway");
+  });
+});
+
 describe("AdminEmailAllowance — the provider did not answer the count", () => {
   it.each([
     ["Timeout", "Scaleway svarade inte. Försök igen om en stund."],
     ["Unreachable", "Scaleway svarade inte. Försök igen om en stund."],
     ["ProviderError", "Scaleway svarade inte. Försök igen om en stund."],
     ["RateLimited", "Scaleway begränsar läsningarna just nu. Försök igen om en stund."],
-    [
-      "Unauthorized",
-      "Scaleway nekade nyckeln, och då stoppas troligen även utskicken. Kontrollera nyckelns utgångsdatum enligt runbooken för admin-e-post.",
-    ],
-    ["Forbidden", "Scaleway nekade läsningen. Kontrollera nyckelns behörighet enligt runbooken för admin-e-post."],
+    // A refused read key stops no sends (#1981 PR 2): it reads, and the sending key sends.
+    ["Unauthorized", "Scaleway nekade läsnyckeln. Kontrollera dess utgångsdatum enligt runbooken för admin-e-post."],
+    ["Forbidden", "Scaleway nekade läsningen. Kontrollera läsnyckelns behörighet enligt runbooken för admin-e-post."],
     ["Malformed", "Scaleways svar kunde inte läsas. Se runbooken för admin-e-post."],
   ] as const)("words %s by its cause and remedy, and keeps the price, since the terms are ours", (reason, line) => {
     const region = loaded(failedUsage(reason));

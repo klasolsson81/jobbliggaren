@@ -1,7 +1,7 @@
 /** The admin surface's view models (ADR 0150). */
 import type { AdminDeletionTiming } from "./account-deletion";
 import type { BackupObservationData } from "@/lib/dto/admin-overview";
-import type { EmailAllowanceDto } from "@/lib/dto/admin-email";
+import type { EmailAllowanceDto, EmailDeliveryDto, EmailDeliveryPeriod, EmailFailuresDto } from "@/lib/dto/admin-email";
 import type { AdminServerReading } from "./host-observation";
 import type { AdminServicesReading } from "./service-observation";
 
@@ -392,33 +392,19 @@ export interface AdminImportLogRow {
 
 // ── Email delivery (#1981) ──────────────────────────────────────────────────────────────────
 
-export type AdminEmailPeriod = "h24" | "d3" | "d7";
+export type AdminEmailPeriod = EmailDeliveryPeriod;
 
-export interface AdminEmailTotals {
-  readonly sent: number;
-  readonly failed: number;
-  readonly noRecipient: number;
-}
+/** The provider's sent and failed counts for a period (#1981 PR 2), the DTO as the API sends it. */
+export type AdminEmailDelivery = EmailDeliveryDto;
 
-export interface AdminEmailTypeRow {
-  readonly type: string;
-  readonly sent: number;
-  readonly failed: number;
-  readonly lastError: string | null;
-}
+/** The latest failed sends in a period (#1981 PR 2), the DTO as the API sends it. */
+export type AdminEmailFailures = EmailFailuresDto;
 
-export interface AdminEmailFailure {
-  readonly id: string;
-  readonly occurredAt: string;
-  /** The recipient's address, masked. */
-  readonly recipient: string;
-  readonly outcome: "failed" | "bounced";
-  readonly message: string;
-  readonly type: string;
-}
-
-export interface AdminEmailDelivery {
-  readonly totals: AdminEmailTotals;
-  readonly types: ReadonlyArray<AdminEmailTypeRow>;
-  readonly failures: ReadonlyArray<AdminEmailFailure>;
-}
+/**
+ * One of Leverans's reads as the page holds it. It is built, so it is never "Kommer snart": it is pending, our own
+ * read failed (with the line that says why, when trying again does not help), or the API answered with a state.
+ */
+export type AdminEmailRead<T> =
+  | { readonly kind: "loading" }
+  | { readonly kind: "failed"; readonly line?: string }
+  | { readonly kind: "loaded"; readonly data: T };

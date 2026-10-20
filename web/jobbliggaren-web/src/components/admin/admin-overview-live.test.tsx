@@ -237,6 +237,47 @@ describe("admin overview visible refresh", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(screen.getByRole("status")).toHaveTextContent("Utskick mot gratiskvoten: Uppgifterna är aktuella.");
   });
+  it.each([
+    [
+      { status: "NotObservable" as const, reason: null },
+      "Misslyckade utskick: Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen, så siffrorna kan inte bedömas.",
+    ],
+    [
+      { status: "ReadKeyMissing" as const, reason: null },
+      "Misslyckade utskick: Läsnyckeln är inte installerad. Se runbooken för admin-e-post.",
+    ],
+    [
+      { status: "Failed" as const, reason: "Forbidden" as const },
+      "Misslyckade utskick: Scaleway nekade läsningen. Kontrollera läsnyckelns behörighet",
+    ],
+  ])("announces the failed sends' unread state %o in the attention line's words (#1981 PR 2)", async (state, announced) => {
+    const fresh = sampledNow(overviewSnapshotFixture());
+    const unread = { ...fresh, delivery: {
+      kind: "loaded" as const, sampledAt: new Date(NOW + 60_000).toISOString(), refreshFailed: false,
+      data: { period: "h24" as const, ...state, observedAt: null, sent: null, failed: null },
+    } };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(unread)));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    expect(screen.getByRole("status")).toHaveTextContent(announced);
+  });
+  it("announces a missing read key on the e-post card as its own state, never as not counted (#1981 PR 2)", async () => {
+    const fresh = sampledNow(overviewSnapshotFixture());
+    if (fresh.email.kind !== "loaded") throw new Error("Expected a loaded e-post source");
+    const missing = { ...fresh, email: { ...fresh.email, sampledAt: new Date(NOW + 60_000).toISOString(), data: {
+      ...fresh.email.data,
+      usage: { status: "ReadKeyMissing" as const, reason: null, observedAt: null, month: null, sent: null, billable: null,
+        estimatedExtraCostOre: null, aboveHalfOfSendLimit: null, webhooksCount: null },
+      plan: { status: "ReadKeyMissing" as const, reason: null, active: null, matches: null },
+    } } };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(missing)));
+    show();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Utskick mot gratiskvoten: Läsnyckeln är inte installerad");
+    expect(screen.getByRole("status")).not.toHaveTextContent("Räknas inte");
+  });
   it("replaces kept services rows with the API's own news once it answers again (#1982)", async () => {
     const quiet = sampledNow(overviewSnapshotFixture());
     if (quiet.services.kind !== "loaded") throw new Error("Expected loaded services");

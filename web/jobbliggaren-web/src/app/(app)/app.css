@@ -430,6 +430,58 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 .jp-popover__boolaxis {
   border-bottom: 1px solid var(--jp-border-soft);
 }
+/* #2198 PR 2 — a search composed into /jobb's Yrke popover (ADR 0180 D8). The field's slot sits
+   where the boolean row sits. The frame holds the slot and the box below it, which is either the
+   columns or the results, and gives that box one height in both views: at least 60vh in all,
+   never under the columns' 360px floor. The footer therefore stays where it is while the box
+   changes what it holds. */
+.jp-popover__frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 60vh;
+}
+.jp-popover__search {
+  flex: none;
+  padding: 12px 16px 0;
+  border-bottom: 1px solid var(--jp-border-soft);
+}
+.jp-popover__frame > .jp-popover__body,
+.jp-popover__results {
+  flex: 1 1 0;
+  min-height: 360px;
+  max-height: none;
+}
+.jp-popover__frame > .jp-popover__body {
+  grid-template-rows: minmax(0, 1fr);
+}
+.jp-popover__results {
+  display: flex;
+  flex-direction: column;
+}
+/* The results take the columns' frame: no box of their own inside the popover's border, the
+   columns' padding and header band, and the columns fill the frame and scroll on their own. */
+.jp-popover__results > .jp-occsearch {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.jp-popover .jp-occsearch .jp-occsearch__box {
+  flex: 1 1 0;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  border: 0;
+  border-radius: 0;
+}
+.jp-popover .jp-occsearch .jp-matchdialog__cascade-col {
+  max-height: none;
+  padding: 6px 0;
+}
+.jp-popover .jp-occsearch .jp-matchdialog__cascade-colhead {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px 10px;
+}
 /* Synlig fokus-ring för .jp-checkitem i dialog-kontext (samma om-scoping som
    .jp-matchprefs — den befintliga regeln är scoped till .jp-panel). The onboarding rail is not
    inside .jp-matchdialog, and its rows sit edge to edge in the same scrolling columns, where the

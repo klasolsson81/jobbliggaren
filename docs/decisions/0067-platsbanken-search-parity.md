@@ -449,4 +449,23 @@ their text.
 
 ---
 
+## Amendment 2026-10-23 — occupation-names are search entry points that select their group: neither Option B nor a third browse level; the tree DTO still drops names; VAL 2b is not triggered (#2198, ADR 0180)
+
+**Status:** Accepted 2026-10-23. **Source:** [ADR 0180](./0180-the-occupation-pickers-search-every-occupation-name-by-word-start-and-compound-head-on-the-server-over-the-derivers-shared-index-and-answer-in-rows-that-select-a-group.md) D1, D2, D4. Additive: Beslut 1, the E2a note and the VAL 2b note are untouched in their text.
+
+- **Beslut 1** ("ingen tredje occupation-name-nivå i UI:t") and the rejected Option B stand. Occupation-names now appear in the Yrke and
+  Matchning pickers as **search entry points that select their group**: a typed word returns rows whose selectable element is always an
+  ssyk-level-4 group, with the matching names shown as evidence, or, for a head word whose names span several groups, a row that expands and
+  is never selectable (ADR 0040 Beslut 4). That is neither Option B, a name as a filter dimension (`JobAdFilterCriteria` gains no
+  occupation-name dimension, and saved searches, match preferences and the URL still carry group ids only), nor a third browse level
+  (browsing stays occupation field, then group). The axis stays ssyk-level-4. **#2199 is the parked place where Option B can be
+  reconsidered.**
+- **The E2a note** ("occupation-name droppad ur FE-DTO") still holds for the tree: the DTO strips names and its zod schema keeps stripping
+  them. Occupation-name labels reach the frontend only inside search answers, never with their concept ids, and no name id is on the wire,
+  so a name cannot be stored.
+- **VAL 2b is not triggered.** It requires an amendment if occupation-names enter `SuggestionKind` or `/job-ads/suggest`; neither changes,
+  and the hero typeahead keeps its whole-label prefix rule (ADR 0180 names that divergence).
+
+---
+
 *ADR-index underhålls av docs-keeper. ADR 0067 fastställer Platsbanken-sök-paritets-initiativets design: yrke-filter-nivåskifte till ssyk-level-4 (occupation-name-substrat bevarat), nya STORED-dimensioner (kommun/yrkesgrupp/anställningsform/omfattning) i Klass 1/Klass 2-sekvens, distans-defer, facet-counts via port-metod, typeahead-chip-sök med residual-FTS, VO-expansion, och fas-uppdelning A–E. Kompletteras av ADR 0043-amendment 2026-06-08 (kommun-dimension + yrkesgrupp-nivå).*

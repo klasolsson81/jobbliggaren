@@ -390,3 +390,25 @@ Beslut C's last point says "ACL:n lever utanför query-vägen". Since #2143 that
   separate narrow port (ISP), implemented by the same cached `TaxonomyReadModel` instance, so it is a dictionary lookup against the cached snapshot
   with no per-request database hit and no external hop (Beslut D). Exactly one class injects it, and an architecture test pins that
   (`TaxonomyAclLayerTests.Only_the_search_text_resolver_injects_ITaxonomyLabelMatcher`).
+
+---
+
+## Amendment 2026-10-23 — the frozen occupation-name→ssyk-4 map is shared reference data read through one internal index, and the occupation search joins the `/job-ads/taxonomy` family with a bucket of its own (#2198, ADR 0180)
+
+**Status:** Accepted 2026-10-23. **Source:** [ADR 0180](./0180-the-occupation-pickers-search-every-occupation-name-by-word-start-and-compound-head-on-the-server-over-the-derivers-shared-index-and-answer-in-rows-that-select-a-group.md) D1, D2. Additive: Beslut A–E and the earlier amendments are untouched in their text.
+
+- **The frozen `occupation-name-to-ssyk-level-4.v30.json` is shared reference data, read through one internal index.** The resource has two
+  readers: the loader (at runtime; its only dependent is `OccupationNameIndex`) and the C2 migration (through its own constant).
+  `OccupationNameIndex` is the one taxonomy-wide occupation-name index; the deriver (ADR 0141 D7) and the pickers' search each read it and
+  build their own view. This is the amendment-note that `OccupationGroupMappingLoader` has cited since senior-cto-advisor's Decision 2 of
+  2026-06-14 (the role-widening from migration-owned to shared reference data) and that no ADR carried until now; the claim in the loader's
+  header comment (line 15) is true from here. The set of the loader's dependents is pinned by
+  `OccupationSearchLayerTests.The_frozen_map_loader_has_exactly_one_dependent_the_shared_index`, and the index takes the
+  `ITaxonomyReadModel` port, never the concrete read model.
+- **The new endpoint joins the `/job-ads/taxonomy` family.** `GET /api/v1/job-ads/taxonomy/occupations/search?q=` carries
+  `Cache-Control: private, no-store` and a policy of its own, `occupation-search` (30 per 10 s per user): Beslut D's least common mechanism,
+  never `taxonomy-read` (the tree's 20 per 60 s) and never another surface's bucket. Unlike the tree it is not cacheable at all, because the
+  answer varies per term. Once the index is built the search is an in-memory scan: no external hop and no database read per keystroke
+  (Beslut A).
+- **The ACL is untouched.** `ITaxonomyLabelMatcher` is unchanged and still injected by exactly one class, and the `ITaxonomyReadModel`
+  allowlist is unchanged, because the search handler injects only `IOccupationSearcher`.

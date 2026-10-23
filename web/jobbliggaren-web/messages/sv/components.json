@@ -20,5 +20,21 @@
     "occupationAdsSeen": "{count, plural, one {# annons} other {# annonser}} vi sett",
     "occupationTooFewShort": "för få annonser ({count})",
     "occupationNotProfiledShort": "fördelningen kan inte visas"
+  },
+  "occupationSearch": {
+    "fieldLabel": "Sök yrke",
+    "pending": "Söker…",
+    "count": "{count, plural, one {# träff} other {# träffar}}",
+    "noHits": "Inga träffar. Välj bland yrkesområdena nedan.",
+    "unavailable": "Sökningen fungerar inte just nu. Välj bland yrkesområdena nedan.",
+    "unauthorized": "Du är inte inloggad. Logga in och försök igen.",
+    "hitsHeading": "Träffar",
+    "chooseWord": "Välj ett yrke med flera yrkesgrupper.",
+    "groupsHeading": "Yrkesgrupper",
+    "notShown": "{count, plural, one {# träff visas inte} other {# träffar visas inte}}. Skriv mer för att avgränsa.",
+    "groupEvidence": "träff på {names}",
+    "groupEvidenceMore": "träff på {names} och {more} till",
+    "wordGroups": "{count, plural, one {# yrkesgrupp} other {# yrkesgrupper}}",
+    "variantGroup": "Yrkesgrupp: {group}"
   }
 }

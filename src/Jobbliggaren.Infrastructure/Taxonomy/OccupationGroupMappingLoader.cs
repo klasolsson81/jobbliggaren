@@ -15,8 +15,7 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 /// (senior-cto-advisor Decision 2, 2026-06-14 — the role-widening from
 /// "migration-owned" to "shared reference data" is RATIFIED and recorded as an
 /// ADR 0043 amendment-note). This loader owns its OWN copy of the resource
-/// LogicalName const so the deriver has no compile dependency on the migration
-/// type.
+/// LogicalName const.
 /// </para>
 /// <para>
 /// Version alignment: the map is <c>taxonomyVersion 30</c>, matching the committed
@@ -28,8 +27,8 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 internal static class OccupationGroupMappingLoader
 {
     // The SAME LogicalName the csproj declares for the embedded resource.
-    // Duplicated here deliberately (a single const, with this comment) so the
-    // deriver never references the C2 migration class (CTO Decision 2 /
+    // Duplicated here deliberately (a single const, with this comment) so no
+    // reader of the map references the C2 migration class (CTO Decision 2 /
     // dotnet-architect §3.3).
     private const string ResourceName =
         "Jobbliggaren.Infrastructure.Persistence.Migrations.Resources." +

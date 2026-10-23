@@ -385,11 +385,23 @@ public static class DependencyInjection
         services.AddHostedService<
             Jobbliggaren.Infrastructure.Taxonomy.TaxonomySnapshotSeeder>();
 
+        // The one occupation-name index the deriver reads (ADR 0180). A singleton with a lazy cache.
+        services.AddSingleton<Jobbliggaren.Infrastructure.Taxonomy.OccupationNameIndex>();
+
         // Deterministic derivation of an SSYK level-4 occupation group from a job title: the
         // engine proposes, the user confirms (ADR 0040 Beslut 4). A singleton with a lazy cache.
         services.AddSingleton<
             Jobbliggaren.Application.JobAds.Abstractions.IOccupationCodeDeriver,
             Jobbliggaren.Infrastructure.Taxonomy.OccupationCodeDeriver>();
+
+        // The occupation pickers' free-text search over the same index, without the deriver's
+        // spread gate: the user chooses there (ADR 0180). A singleton with a lazy cache.
+        services.AddSingleton<
+            Jobbliggaren.Application.JobAds.Abstractions.IOccupationSearcher,
+            Jobbliggaren.Infrastructure.Taxonomy.OccupationSearcher>();
+        // The searcher's Swedish collation needs ICU. Touch it here so an image without ICU fails the
+        // host's start instead of answering every search with a 500 (ADR 0180 D3).
+        _ = Jobbliggaren.Infrastructure.Taxonomy.OccupationSearchRule.Collation;
 
         // Attributes experience to occupations when a CV is imported (ADR 0079). Stateless.
         services.AddSingleton<

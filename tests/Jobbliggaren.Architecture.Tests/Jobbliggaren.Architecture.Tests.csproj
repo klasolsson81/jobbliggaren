@@ -20,6 +20,8 @@
              Link="hosts\Api.appsettings.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\src\Jobbliggaren.Api\appsettings.Development.json"
              Link="hosts\Api.appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\src\Jobbliggaren.Api\appsettings.Production.json"
+             Link="hosts\Api.appsettings.Production.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\src\Jobbliggaren.Worker\appsettings.json"
              Link="hosts\Worker.appsettings.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\src\Jobbliggaren.Worker\appsettings.Development.json"

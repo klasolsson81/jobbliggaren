@@ -9,6 +9,7 @@ using Jobbliggaren.Application.JobAds.Queries.GetJobAd;
 using Jobbliggaren.Application.JobAds.Queries.GetRemoteAdCount;
 using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
+using Jobbliggaren.Application.JobAds.Queries.SearchOccupations;
 using Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms;
 using Jobbliggaren.Application.Matching.Grading;
 using Jobbliggaren.Application.Matching.Queries.ResolveSkillLabels;
@@ -286,6 +287,21 @@ public static class JobAdsEndpoints
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.TaxonomyReadPolicy);
+
+        // #2198 (ADR 0180) — the occupation pickers' free-text search: a typed word against every
+        // mapped occupation-name and every group label, answered as structured rows that select
+        // group ids. The word arrives as q, a key the edge already scrubs, and is never logged or
+        // stored. Cache-Control: private, no-store (varies per keystroke and per user). Its own
+        // bucket, never the tree read's.
+        group.MapGet("/taxonomy/occupations/search", async (
+            IMediator mediator, HttpContext http,
+            string? q = null, CancellationToken ct = default) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new SearchOccupationsQuery(q ?? string.Empty), ct);
+            return Results.Ok(result);
+        })
+        .RequireRateLimiting(RateLimitingExtensions.OccupationSearchPolicy);
 
         // ADR 0079 STEG 3 PR-C — reverse-lookup (concept-id → canonical label) for the
         // saved skill chips' cold-load display (the skill analog of /taxonomy/labels): the

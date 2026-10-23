@@ -53,6 +53,11 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
+// #2198: the occupation search's client read, so typing in the field reaches no network.
+vi.mock("@/lib/occupation-search/resolve-occupation-search", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/occupation-search/resolve-occupation-search")>()),
+  resolveOccupationSearch: vi.fn(async () => ({ kind: "ok", result: { rows: [], totalRows: 0 } })),
+}));
 import { MatchSetupRailModal } from "./match-setup-rail-modal";
 
 const occupationFields: ReadonlyArray<TaxonomyOccupationField> = [
@@ -349,5 +354,28 @@ describe("#551 punkt 4 — Distans-valet överlever till MatchPreferences.Prefer
     expect(updateMock.mock.calls[0]![0]).toMatchObject({
       locations: { preferredRemote: true },
     });
+  });
+});
+
+// #2198 (design-reviewer Major 5): in the rail, Escape in a filled search field must not close the
+// onboarding and drop its draft. Radix listens on the document in the capture phase, before the
+// field's own handler, which is what this pins end to end.
+describe("MatchSetupRailModal — Escape i yrkessöket (#2198)", () => {
+  it("Escape med text tömmer fältet och railen förblir öppen; nästa Escape stänger", async () => {
+    const user = userEvent.setup();
+    const { onOpenChange } = renderModal();
+    await user.click(screen.getByRole("button", { name: "Fortsätt" }));
+    await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
+    const field = screen.getByRole("searchbox", { name: "Sök yrke" });
+
+    await user.type(field, "projektledare");
+    await user.keyboard("{Escape}");
+
+    expect(field).toHaveValue("");
+    expect(field).toHaveFocus();
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

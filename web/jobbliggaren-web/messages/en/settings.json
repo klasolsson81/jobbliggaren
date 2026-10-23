@@ -99,12 +99,10 @@
     },
     "occupation": {
       "addOccupations": "Add occupations",
-      "filterLabel": "Filter occupational groups",
-      "noMatch": "No occupational group matches the filter.",
       "occupationField": "Occupational area",
       "occupationGroups": "Occupational groups",
       "fieldsUnavailable": "The occupational areas could not be loaded right now.",
-      "chooseField": "Choose an occupational area on the left.",
+      "chooseField": "Choose an occupational area.",
       "selectAllGroups": "Select all occupational groups",
       "suggesting": "Reading your CV…",
       "suggestFromCv": "Suggest from my CV",

@@ -130,11 +130,12 @@ describe("MatchPreferencesCard — code-split dialog (#748)", () => {
     // First open loads the chunk and mounts the real dialog with props threaded
     // through the lazily-loaded boundary (taxonomy → sections). Kills M3 (the
     // button never sets the dialog state): the dialog would never mount.
-    const dialog = await screen.findByRole("dialog", { name: "Yrken" });
+    // The file's first real lazy import also transforms the dialog's modules in the Vitest worker.
+    const dialog = await screen.findByRole("dialog", { name: "Yrken" }, { timeout: 5_000 });
     expect(dialog).toBeInTheDocument();
     expect(dialogModuleEvaluated.current).toBe(true);
     expect(screen.getByRole("button", { name: /Data\/IT/ })).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("reopens after close (gate latches; content remounts and reseeds)", async () => {
     const user = userEvent.setup();

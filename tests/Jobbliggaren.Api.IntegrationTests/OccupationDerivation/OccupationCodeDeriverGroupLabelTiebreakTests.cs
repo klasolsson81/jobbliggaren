@@ -8,7 +8,7 @@ namespace Jobbliggaren.Api.IntegrationTests.OccupationDerivation;
 
 /// <summary>
 /// #373 nice-to-have #5 (found by the #268 audit) — pins the DETERMINISTIC group-label
-/// tie-break in <see cref="OccupationCodeDeriver"/>'s BuildAsync. When one ssyk-4
+/// tie-break in the <see cref="OccupationNameIndex"/> <see cref="OccupationCodeDeriver"/> reads. When one ssyk-4
 /// occupation-group concept-id surfaces under more than one occupation field with
 /// DIVERGING labels, the deriver must resolve it to the Ordinal-MINIMUM label, never an
 /// enumeration-order-dependent First() — this deriver's whole contract is reproducibility
@@ -43,35 +43,35 @@ public sealed class OccupationCodeDeriverGroupLabelTiebreakTests
     {
         var taxonomy = new FakeTaxonomy(CraftedTree());
         var analyzer = new LocalTextAnalyzer(new SnowballStemmer());
-        return new OccupationCodeDeriver(taxonomy, analyzer);
+        return new OccupationCodeDeriver(new OccupationNameIndex(taxonomy), analyzer);
     }
 
     // Hand-rolled fake (not NSubstitute): GetTreeAsync returns a FRESH ValueTask each call
     // — a mock replaying one cached ValueTask trips CA2012 (single-consumption). The
-    // deriver only ever reads GetTreeAsync; the other three port members are unreachable.
+    // index only ever reads GetTreeAsync; the other port members are unreachable.
     private sealed class FakeTaxonomy(TaxonomyTreeDto tree) : ITaxonomyReadModel
     {
         public ValueTask<TaxonomyTreeDto> GetTreeAsync(CancellationToken cancellationToken) => new(tree);
 
         public ValueTask<IReadOnlyList<TaxonomyLabelDto>> ResolveLabelsAsync(
             IReadOnlyList<string> conceptIds, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("OccupationCodeDeriver only reads GetTreeAsync.");
+            throw new NotSupportedException("OccupationNameIndex only reads GetTreeAsync.");
 
         public ValueTask<IReadOnlyList<TaxonomySuggestionDto>> SuggestByPrefixAsync(
             string prefix, int limit, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("OccupationCodeDeriver only reads GetTreeAsync.");
+            throw new NotSupportedException("OccupationNameIndex only reads GetTreeAsync.");
 
         public ValueTask<IReadOnlyList<string>> GetRelatedOccupationGroupsAsync(
             IReadOnlyList<string> ssyk4ConceptIds, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("OccupationCodeDeriver only reads GetTreeAsync.");
+            throw new NotSupportedException("OccupationNameIndex only reads GetTreeAsync.");
 
         public ValueTask<IReadOnlyList<string>> GetContainingRegionsAsync(
             IReadOnlyList<string> municipalityConceptIds, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("OccupationCodeDeriver only reads GetTreeAsync.");
+            throw new NotSupportedException("OccupationNameIndex only reads GetTreeAsync.");
 
         public ValueTask<IReadOnlyList<string>> GetContainingOccupationFieldsAsync(
             IReadOnlyList<string> occupationGroupConceptIds, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("OccupationCodeDeriver only reads GetTreeAsync.");
+            throw new NotSupportedException("OccupationNameIndex only reads GetTreeAsync.");
     }
 
     // Field A lists the group with the Ordinal-MAX label first + the occupation; Field B

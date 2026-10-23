@@ -600,6 +600,24 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
+    /// GET /job-ads/taxonomy/occupations/search (#2198, ADR 0180 — the occupation pickers'
+    /// free-text search) — partitionerat per UserId (claim "sub"). One request per settled 300 ms
+    /// debounce caps continuous typing at about 3.3 requests per second, and a 13-letter word typed
+    /// with a pause after every key costs at most 12, inside the burst of 30. The handler is an
+    /// in-memory scan with no database read, so the bucket contains floods rather than protecting
+    /// cost. Its OWN bucket (bulkhead, Nygard; ADR 0043 Beslut D): never <c>taxonomy-read</c>,
+    /// whose 20/60 s would starve the tree read, and never <c>occupation-divisions</c>, another
+    /// surface's.
+    /// 30/10 s per security-auditor's plan read 2026-10-23; raise it after the ADR 0180 timing, never
+    /// lower it after shipping. IOptions-bundet (§5.1).
+    /// </summary>
+    public PolicyOptions OccupationSearch { get; init; } = new()
+    {
+        PermitLimit = 30,
+        WindowSeconds = 10,
+    };
+
+    /// <summary>
     /// Användarägda /me/*-mutationer (saved-job-ads POST/DELETE, recent-searches
     /// DELETE) (Pre-4 STEG 5, TD-87) — partitionerat per UserId (claim "sub"),
     /// anonym → NoLimiter (alla RequireAuthorization-gated). Egen policy (ej

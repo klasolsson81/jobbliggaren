@@ -1257,8 +1257,8 @@ så en oöversatt sträng är en yta en riktig testanvändare möter, inte en hy
 - Engelska som fallback för teknikorienterade fel ("Internal server error") men primärt
   "Ett fel uppstod, försök igen".
 
-**Avgränsningen är REGISTERDATA, inte taxonomi-medlemskap.** Ortnamn, länsnamn och
-yrkesgruppsnamn är egennamn och förblir svenska i varje locale — de namnger något som heter
+**Avgränsningen är REGISTERDATA, inte taxonomi-medlemskap.** Ortnamn, länsnamn,
+yrkesgruppsnamn och yrkesbenämningar är egennamn och förblir svenska i varje locale (ADR 0180) — de namnger något som heter
 så. **Anställningsform och omfattning (klass 2) gör det inte:** `Heltid`, `Vikariat`,
 `Behovsanställning` är allmänsubstantiv, och `klass2-taxonomy.json` klassar sin egen
 ometikettering som en FE-presentationsfråga. De reser därför som **kod** på wire:n och får

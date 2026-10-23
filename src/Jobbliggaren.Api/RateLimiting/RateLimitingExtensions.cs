@@ -43,6 +43,7 @@ public static partial class RateLimitingExtensions
     public const string CriterionNewAdsSeenPolicy = "criterion-new-ads-seen";
     public const string CriterionCountPreviewPolicy = "criterion-count-preview";
     public const string OccupationDivisionsPolicy = "occupation-divisions";
+    public const string OccupationSearchPolicy = "occupation-search";
     public const string FollowSeenMarkPolicy = "follow-seen-mark";
     public const string CompanyLookupPolicy = "company-lookup";
     public const string ResumeImportPolicy = "resume-import";
@@ -540,6 +541,28 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.OccupationDivisions.PermitLimit / rateLimitOpts.OccupationDivisions.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.OccupationDivisions.WindowSeconds / (double)rateLimitOpts.OccupationDivisions.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). #2198 — the occupation pickers' free-text search, its
+            // OWN bucket (the derivation and the numbers are in RateLimitingOptions.OccupationSearch).
+            // TokenBucket, QueueLimit=0. Auth-gated → anonym NoLimiter-bypass, which
+            // RequireAuthorization and the query's IAuthenticatedRequest make unreachable.
+            options.AddPolicy(OccupationSearchPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-occupation-search");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.OccupationSearch.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.OccupationSearch.PermitLimit / rateLimitOpts.OccupationSearch.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.OccupationSearch.WindowSeconds / (double)rateLimitOpts.OccupationSearch.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

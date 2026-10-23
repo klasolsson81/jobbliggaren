@@ -14,7 +14,7 @@ import { z } from "zod";
  * Län→Kommun (tvånivå) + Yrkesområde→Yrkesgrupp (tvånivå). Backend-trädet
  * bär även `occupations` (occupation-name, ~2300) — det fältet modelleras
  * MEDVETET INTE här (zod strippar): occupation-name är recall-substrat
- * backend-side, ingen FE-konsument (E2a-architect-dom).
+ * backend-side.
  */
 
 // Concept-id-format speglar backend `SearchCriteria`/validator-mönstret
@@ -42,8 +42,7 @@ export type TaxonomyRegion = z.infer<typeof taxonomyRegionSchema>;
 
 // Yrkesgrupp (JobTech `ssyk-level-4`, ~400). conceptId matchar
 // `job_ads.occupation_group_concept_id` → PRIMÄRT yrke-filter (ADR 0067
-// Beslut 1, Platsbanken-paritet). occupation-name (yrke) konsumeras EJ av
-// FE — det är recall-substrat backend-side (FTS-synonym-grenen) och
+// Beslut 1, Platsbanken-paritet). occupation-name (yrke)
 // exkluderas ur FE-DTO:n: en ACL modellerar vad konsumenten (pickern)
 // behöver, inte källans interna modell (Evans 2003 kap. 14).
 export const taxonomyOccupationGroupSchema = z.object({

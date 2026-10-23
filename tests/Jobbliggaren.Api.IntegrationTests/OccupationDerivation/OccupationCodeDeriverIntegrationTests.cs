@@ -115,7 +115,7 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
     {
         var taxonomy = new TaxonomyReadModel(ScopeFactory);
         var analyzer = new LocalTextAnalyzer(new SnowballStemmer());
-        return new OccupationCodeDeriver(taxonomy, analyzer);
+        return new OccupationCodeDeriver(new OccupationNameIndex(taxonomy), analyzer);
     }
 
     // =================================================================

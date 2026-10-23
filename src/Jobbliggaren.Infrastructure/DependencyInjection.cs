@@ -397,6 +397,9 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.JobAds.Abstractions.IOccupationSearcher,
             Jobbliggaren.Infrastructure.Taxonomy.OccupationSearcher>();
+        // The searcher's Swedish collation needs ICU. Touch it here so an image without ICU fails the
+        // host's start instead of answering every search with a 500 (ADR 0180 D3).
+        _ = Jobbliggaren.Infrastructure.Taxonomy.OccupationSearchRule.Collation;
 
         // Attributes experience to occupations when a CV is imported (ADR 0079). Stateless.
         services.AddSingleton<

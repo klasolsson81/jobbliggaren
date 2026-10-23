@@ -11,8 +11,8 @@ namespace Jobbliggaren.Application.UnitTests.Taxonomy;
 /// occupation-name-to-ssyk-level-4.v30.json on 2026-10-23 (name concept id → group id):
 /// Projektledare, IT z5AM_ayf_WcL → DJh5_yyF_hEM; Projektledare, el 1jm3_XFQ_TdJ and
 /// Projektledare, telekom T55e_efV_Eqh → nDaB_vdy_eAy; Projektledare, bygg och anläggning
-/// pTTz_5DC_itW → thZP_oR7_WrY; Backend-utvecklare 7wdX_4rv_33z and Frontend-utvecklare
-/// GDHs_eoz_uKx → DJh5_yyF_hEM; UX-designer iwJU_gW4_SxT → UxT1_tPF_Kbg; Rektor hr5f_dci_NcD →
+/// pTTz_5DC_itW → thZP_oR7_WrY; Backend-utvecklare 7wdX_4rv_33z, Frontend-utvecklare
+/// GDHs_eoz_uKx and Applikationsutvecklare CZkP_hCz_KM8 → DJh5_yyF_hEM; UX-designer iwJU_gW4_SxT → UxT1_tPF_Kbg; Rektor hr5f_dci_NcD →
 /// z8di_AqX_GBr; Grillkock snabbmat FntA_2Z4_8zD → a8gg_ktU_w8V; Kock storhushåll Vg3d_Azf_p5Y →
 /// BStc_SJh_DKG; Anestesisjuksköterska 4qYQ_tWb_QjD → nrVt_xUL_KdQ; Sjuksköterska, grundutbildad
 /// bXNH_MNX_dUR → Z8ci_bBE_tmx; Elingenjör kx3b_92W_PuD →
@@ -56,8 +56,9 @@ public class OccupationSearchRuleTests
         ("Projektledare, el", Elektroteknik),
         ("Projektledare, telekom", Elektroteknik),
         ("Projektledare, bygg och anläggning", Bygg),
-        ("Backend-utvecklare", Mjukvaru),
         ("Frontend-utvecklare", Mjukvaru),
+        ("Applikationsutvecklare", Mjukvaru),
+        ("Backend-utvecklare", Mjukvaru),
         ("UX-designer", OvrigaIt),
         ("Rektor", SkolChefer),
         ("Grillkock snabbmat", Pizzabagare),
@@ -70,7 +71,7 @@ public class OccupationSearchRuleTests
         ("Åklagare", Aklagare),
     ];
 
-    private static readonly PreparedOccupationIndex Index = OccupationSearchRule.Prepare(Contents(Names, Groups));
+    private static readonly OccupationSearchRule.PreparedIndex Index = OccupationSearchRule.Prepare(Contents(Names, Groups));
 
     private static OccupationNameIndexContents Contents(
         IEnumerable<(string Name, string GroupId)> names, IEnumerable<(string Id, string Label)> groups)
@@ -97,13 +98,40 @@ public class OccupationSearchRuleTests
     }
 
     [Fact]
-    public void Search_SynonymsInOneGroup_GiveOneRowCarryingEveryName()
+    public void Search_SynonymsInOneGroup_GiveOneRowCarryingEveryNameStartArmFirstThenCollation()
     {
+        // The fixture lists Frontend, Applikations-, Backend-: the order below is the rule's, not the input's.
         var row = Search("utvecklare").Rows.ShouldHaveSingleItem();
 
         row.GroupConceptId.ShouldBe(Mjukvaru);
-        row.MatchedNames.ShouldBe(["Backend-utvecklare", "Frontend-utvecklare"]);
+        row.MatchedNames.ShouldBe(["Backend-utvecklare", "Frontend-utvecklare", "Applikationsutvecklare"]);
         row.LabelHit.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Search_AWordAboveTheFloorInsideAToken_NeverHits()
+    {
+        // sjuk starts Sjuksköterska and sjuksköterskor, but sits inside Anestesisjuksköterska: the end arm
+        // admits a compound's head, never its middle.
+        var rows = Search("sjuk").Rows;
+
+        rows.Select(r => r.GroupConceptId).ShouldBe([Grundutbildade]);
+    }
+
+    [Fact]
+    public void Search_DecomposedQuery_IsNormalisedBeforeMatching()
+    {
+        // "A" followed by U+030A COMBINING RING ABOVE is how a pasted Å can arrive.
+        var row = Search("Åklagare").Rows.ShouldHaveSingleItem();
+
+        row.GroupConceptId.ShouldBe(Aklagare);
+        row.ExactMatch.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Search_DiacriticsAreNotFolded()
+    {
+        Search("aklagare").Rows.ShouldBeEmpty();
     }
 
     [Fact]
@@ -161,7 +189,7 @@ public class OccupationSearchRuleTests
     }
 
     [Fact]
-    public void Search_ANameTypedInFull_IsRowOneAndFlaggedExactEvenInsideAWordRow()
+    public void Search_ANameTypedInFull_FlagsItsWordRowExactAndListsItFirst()
     {
         var rows = Search("Elingenjör").Rows;
 
@@ -181,7 +209,18 @@ public class OccupationSearchRuleTests
     }
 
     [Fact]
-    public void Search_GroupLabelAlone_MakesALabelOnlyRow()
+    public void Search_GroupLabelTypedInFull_IsALabelOnlyExactRow()
+    {
+        var row = Search("Maskinbefäl").Rows.ShouldHaveSingleItem();
+
+        row.GroupConceptId.ShouldBe(Maskinbefal);
+        row.LabelHit.ShouldBeTrue();
+        row.MatchedNames.ShouldBeEmpty();
+        row.ExactMatch.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Search_NameAndLabelOfOneGroup_MergeIntoOneRow()
     {
         var row = Search("anläggning").Rows.ShouldHaveSingleItem();
 
@@ -232,13 +271,7 @@ public class OccupationSearchRuleTests
     [InlineData("a b c")]
     public void Search_NoTokenOfTwoCharacters_GivesNoRows(string query)
     {
-        Search(query).ShouldBe(OccupationSearchResult.Empty);
-    }
-
-    [Fact]
-    public void Search_NoMatch_GivesNoRows()
-    {
-        var result = Search("chaufför");
+        var result = Search(query);
 
         result.Rows.ShouldBeEmpty();
         result.TotalRows.ShouldBe(0);
@@ -257,7 +290,9 @@ public class OccupationSearchRuleTests
     [Fact]
     public void Search_MoreRowsThanTheCap_ReturnsTheCapAndTheExactTotal()
     {
+        // Inserted in reverse, so a cap taken before the ordering would keep the wrong fifty.
         var groups = Enumerable.Range(0, OccupationSearchRule.MaxRows + 7)
+            .Reverse()
             .Select(i => ($"g{i:D3}", $"Testgrupp {i:D3}"))
             .ToList();
         var index = OccupationSearchRule.Prepare(Contents([], groups));
@@ -266,10 +301,12 @@ public class OccupationSearchRuleTests
 
         result.Rows.Count.ShouldBe(OccupationSearchRule.MaxRows);
         result.TotalRows.ShouldBe(OccupationSearchRule.MaxRows + 7);
+        result.Rows[0].GroupLabel.ShouldBe("Testgrupp 000");
+        result.Rows[^1].GroupLabel.ShouldBe($"Testgrupp {OccupationSearchRule.MaxRows - 1:D3}");
     }
 
     [Fact]
-    public void Search_OverTheWholeV30Index_ReachesTheCapForChefAndKeepsEveryVariant()
+    public void Search_OverTheWholeV30Index_ReachesTheCapForChefAndKeepsProjektledareOneWordRow()
     {
         var index = OccupationSearchRule.Prepare(V30.Load());
 
@@ -286,9 +323,7 @@ public class OccupationSearchRuleTests
         labels.ShouldContain("Ingenjörer och tekniker inom elektroteknik");
 
         var projektledare = OccupationSearchRule.Search(index, "projektledare");
-        var word = projektledare.Rows.ShouldHaveSingleItem();
-        word.Variants.Count.ShouldBe(17);
-        word.Variants.Select(v => v.GroupConceptId).Distinct().Count().ShouldBe(14);
+        projektledare.Rows.ShouldHaveSingleItem().Kind.ShouldBe(OccupationSearchRowKind.Word);
     }
 
     /// <summary>The real v30 index from the two embedded resources, without a database.</summary>

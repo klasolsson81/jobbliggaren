@@ -11,7 +11,7 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 /// </summary>
 internal sealed class OccupationSearcher(OccupationNameIndex index) : IOccupationSearcher
 {
-    private Task<PreparedOccupationIndex>? _cached;
+    private Task<OccupationSearchRule.PreparedIndex>? _cached;
 
     public async ValueTask<OccupationSearchResult> SearchAsync(string query, CancellationToken cancellationToken)
     {
@@ -21,7 +21,7 @@ internal sealed class OccupationSearcher(OccupationNameIndex index) : IOccupatio
         return OccupationSearchRule.Search(prepared, query);
     }
 
-    private async ValueTask<PreparedOccupationIndex> GetPreparedAsync(CancellationToken ct)
+    private async ValueTask<OccupationSearchRule.PreparedIndex> GetPreparedAsync(CancellationToken ct)
     {
         var cached = Volatile.Read(ref _cached);
         if (cached is { IsCompletedSuccessfully: true })
@@ -35,6 +35,6 @@ internal sealed class OccupationSearcher(OccupationNameIndex index) : IOccupatio
         return prepared;
     }
 
-    private async Task<PreparedOccupationIndex> PrepareAsync(CancellationToken ct) =>
+    private async Task<OccupationSearchRule.PreparedIndex> PrepareAsync(CancellationToken ct) =>
         OccupationSearchRule.Prepare(await index.GetAsync(ct));
 }

@@ -61,6 +61,8 @@ public sealed class OccupationNameIndexEquivalenceTests : IAsyncLifetime
 
         var contents = await sut.GetAsync(ct);
         var expected = await OccupationNameOracle.LoadAsync();
+        expected.Names.ShouldNotBeEmpty();
+        expected.Groups.ShouldNotBeEmpty();
 
         contents.Names.Select(n => (n.NameLabel, n.GroupConceptId, n.GroupLabel))
             .ShouldBe(expected.Names.Select(n => (n.NameLabel, n.GroupConceptId, n.GroupLabel)));

@@ -20,7 +20,46 @@ public class ApiRequestLoggingConfigurationTests
     /// <summary>An ordinary product category, the probe's own vacuity guard.</summary>
     private const string ProductCategory = "Jobbliggaren.Application.JobAds.Queries.SearchOccupations";
 
-    public static TheoryData<string> Overlays => ["", "Development", "Production"];
+    /// <summary>The base file and every environment overlay linked into <c>hosts/</c>.</summary>
+    public static TheoryData<string> Overlays
+    {
+        get
+        {
+            var data = new TheoryData<string> { "" };
+            foreach (var overlay in LinkedOverlayNames())
+                data.Add(overlay);
+            return data;
+        }
+    }
+
+    [Fact]
+    public void EveryShippedApiOverlay_IsLinkedIntoTheProbe()
+    {
+        // A new appsettings.<Env>.json would otherwise ship without the two facts below ever reading it.
+        var shipped = Directory.GetFiles(Path.Combine(RepositoryRoot(), "src", "Jobbliggaren.Api"), "appsettings.*.json")
+            .Select(f => Path.GetFileName(f)["appsettings.".Length..^".json".Length])
+            .Where(env => !env.Equals("Local", StringComparison.OrdinalIgnoreCase))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        shipped.ShouldNotBeEmpty();
+        LinkedOverlayNames().ShouldBe(shipped);
+    }
+
+    [Theory]
+    [MemberData(nameof(Overlays))]
+    public void ApiConfiguration_HasNoProviderSpecificLogLevelRule(string overlay)
+    {
+        // The probe below reads the provider-neutral rules. A rule under Logging:<provider>:LogLevel (Seq,
+        // Console) would apply to that provider alone and the probe would never see it, so none may exist.
+        var logging = BuildConfiguration(overlay).GetSection("Logging");
+        logging.Exists().ShouldBeTrue();
+
+        logging.GetChildren()
+            .Where(child => child.Key != "LogLevel" && child.GetSection("LogLevel").Exists())
+            .Select(child => child.Key)
+            .ShouldBeEmpty();
+    }
 
     [Theory]
     [MemberData(nameof(Overlays))]
@@ -41,14 +80,35 @@ public class ApiRequestLoggingConfigurationTests
             "the container log, Seq and the log archive.");
     }
 
+    private static string HostsDirectory => Path.Combine(AppContext.BaseDirectory, "hosts");
+
+    private static List<string> LinkedOverlayNames() =>
+        Directory.GetFiles(HostsDirectory, "Api.appsettings.*.json")
+            .Select(f => Path.GetFileName(f)["Api.appsettings.".Length..^".json".Length])
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+    private static string RepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Jobbliggaren.sln")))
+            directory = directory.Parent;
+        directory.ShouldNotBeNull("the test runs from inside the repository");
+        return directory!.FullName;
+    }
+
+    private static IConfigurationRoot BuildConfiguration(string overlay)
+    {
+        var builder = new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(HostsDirectory, "Api.appsettings.json"), optional: false);
+        if (overlay.Length > 0)
+            builder.AddJsonFile(Path.Combine(HostsDirectory, $"Api.appsettings.{overlay}.json"), optional: false);
+        return builder.Build();
+    }
+
     private static ILogger BuildLogger(string overlay, string category)
     {
-        var hostsDir = Path.Combine(AppContext.BaseDirectory, "hosts");
-        var builder = new ConfigurationBuilder()
-            .AddJsonFile(Path.Combine(hostsDir, "Api.appsettings.json"), optional: false);
-        if (overlay.Length > 0)
-            builder.AddJsonFile(Path.Combine(hostsDir, $"Api.appsettings.{overlay}.json"), optional: false);
-        var configuration = builder.Build();
+        var configuration = BuildConfiguration(overlay);
 
         var factory = LoggerFactory.Create(logging =>
         {

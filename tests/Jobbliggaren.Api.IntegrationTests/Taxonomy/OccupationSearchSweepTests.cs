@@ -97,6 +97,26 @@ public sealed class OccupationSearchSweepTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SearchAsync_EveryGroupLabelTypedInFull_IsRowOneAsThatGroupsLabelHit()
+    {
+        _expected.Groups.ShouldNotBeEmpty();
+        var mapped = _expected.Names.Select(n => n.GroupConceptId).ToHashSet(StringComparer.Ordinal);
+        _expected.Groups.Where(g => !mapped.Contains(g.ConceptId)).ShouldNotBeEmpty(
+            "the groups with no mapped name are reachable only through their label, and v30 has some");
+        var failures = new List<string>();
+
+        foreach (var (conceptId, label) in _expected.Groups)
+        {
+            var result = await _sut.SearchAsync(label, Ct);
+            var first = result.Rows.Count > 0 ? result.Rows[0] : null;
+            if (first is not { Kind: OccupationSearchRowKind.Group, LabelHit: true } || first.GroupConceptId != conceptId)
+                failures.Add(label);
+        }
+
+        failures.ShouldBeEmpty($"{failures.Count} of {_expected.Groups.Count} group labels, typed in full, were not row 1");
+    }
+
+    [Fact]
     public async Task SearchAsync_EveryHeadWordAlone_FindsEveryNameItHeads()
     {
         var failures = new List<string>();
@@ -232,7 +252,8 @@ public sealed class OccupationSearchSweepTests : IAsyncLifetime
     [Fact(Explicit = true)]
     public async Task SearchAsync_Timing_ForTheWorstQueries()
     {
-        var adversarial = string.Join(' ', Enumerable.Repeat("ab", 33)).Trim();
+        // The costly shape: 33 copies of a token that hits, so every hitting label runs the AND to its end.
+        var adversarial = string.Join(' ', Enumerable.Repeat("in", 33));
         await _sut.SearchAsync("warm", Ct);
 
         foreach (var query in new[] { "chef", "in", "utvecklare", adversarial })
@@ -256,17 +277,13 @@ public sealed class OccupationSearchSweepTests : IAsyncLifetime
 
     // The issue's head word: the label's first run of letters, digits and hyphens, lower-cased.
     private static string HeadWord(string label) =>
-        label.ToLowerInvariant()
-            .Split(c => !(char.IsLetterOrDigit(c) || c == '-'))[0];
+        SplitOn(label.ToLowerInvariant(), c => !(char.IsLetterOrDigit(c) || c == '-'))[0];
 
-    private static IEnumerable<string> Tokens(string label) =>
-        label.ToLowerInvariant().Split(c => !char.IsLetterOrDigit(c)).Where(t => t.Length > 0);
-}
+    private static string[] Tokens(string label) =>
+        SplitOn(label.ToLowerInvariant(), c => !char.IsLetterOrDigit(c));
 
-internal static class StringSplitExtensions
-{
-    /// <summary>Splits on every character the predicate marks as a separator, dropping empty parts.</summary>
-    internal static string[] Split(this string text, Func<char, bool> isSeparator)
+    // Splits on every character the predicate marks as a separator, dropping empty parts.
+    private static string[] SplitOn(string text, Func<char, bool> isSeparator)
     {
         var parts = new List<string>();
         var start = -1;

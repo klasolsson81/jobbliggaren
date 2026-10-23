@@ -57,7 +57,9 @@ public sealed class OccupationSearchRateLimitTests(StrictRateLimitApiFactory fac
         (await second.GetAsync($"{Endpoint}?q=projektledare", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var logs = factory.Logs.Logs.ToList();
-        logs.ShouldContain(log => log.AllText.Contains("Rate limit exceeded", StringComparison.Ordinal));
+        logs.ShouldContain(log =>
+            log.AllText.Contains("Rate limit exceeded", StringComparison.Ordinal)
+            && log.AllText.Contains(Endpoint, StringComparison.Ordinal));
         logs.Where(log => log.AllText.Contains(Canary, StringComparison.OrdinalIgnoreCase))
             .Select(log => $"{log.Category}: {log.Message}")
             .ShouldBeEmpty();

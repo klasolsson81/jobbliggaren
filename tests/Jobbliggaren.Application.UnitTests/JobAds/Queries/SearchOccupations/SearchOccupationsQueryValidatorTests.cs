@@ -47,16 +47,18 @@ public class SearchOccupationsQueryValidatorTests
     [Fact]
     public void Validate_Messages_NeverEchoTheQuery()
     {
-        // A canary no fixed message can contain by accident: a 101-character word and a lone sign.
-        var tooLong = "kanariefågel" + new string('z', SearchOccupationsQuery.MaxQueryLength);
+        // A canary no fixed message can contain by accident: a word over the bound and a lone sign. The
+        // check looks for the canary itself, so a message that echoed a prefix of the query is caught too.
+        const string canary = "kanariefågel";
+        var tooLong = canary + new string('z', SearchOccupationsQuery.MaxQueryLength);
         const string tooShort = "§";
 
-        foreach (var query in new[] { tooLong, tooShort })
+        foreach (var (query, mark) in new[] { (tooLong, canary), (tooShort, tooShort) })
         {
             var result = _validator.Validate(new SearchOccupationsQuery(query));
 
             result.IsValid.ShouldBeFalse();
-            result.Errors.ShouldAllBe(e => !e.ErrorMessage.Contains(query, StringComparison.Ordinal));
+            result.Errors.ShouldAllBe(e => !e.ErrorMessage.Contains(mark, StringComparison.Ordinal));
         }
     }
 }

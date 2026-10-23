@@ -146,7 +146,7 @@ searches. An anonymous call is a 401 and the searcher never runs. A test that pi
   - The build moved verbatim: the iteration order, the filter "mapped and the group exists", the Ordinal-minimum label,
     and the lazy, retry-on-fault cache (published only after the await).
 - **`OccupationCodeDeriver`** takes `(OccupationNameIndex, ITextAnalyzer)` and keeps its gate, `MaxCandidates`, enum, port
-  and five callers. **No assertion in its tests changed**; only how its tests construct it did (the construction sites in
+  and callers. **No assertion in its tests changed**; only how its tests construct it did (the construction sites in
   five test files, and the words that name the reader in a comment and an exception message). The proof of behaviour
   was a one-off characterization: a hash of `DeriveAsync` over every mapped name and every head word, `68749D8B…C00B`,
   identical before and after the extraction. It was committed (`cf9c0e713`) and deleted (`e8adf796e`) in this PR: kept
@@ -162,7 +162,7 @@ searches. An anonymous call is a 401 and the searcher never runs. A test that pi
   `ITaxonomyLabelMatcher` test are untouched.
 - **Why two ports and not one engine with two modes.** A mode parameter is a flag argument (Martin 2008, ch. 3; Fowler
   2018, "Remove Flag Argument"). The two share only the index; their rule, gate, output, cap and callers differ, so they
-  have two change-reasons (SRP, Martin 2017, ch. 7), and under ISP (ch. 10) the deriver's five callers and their mocks
+  have two change-reasons (SRP, Martin 2017, ch. 7), and under ISP (ch. 10) the deriver's callers and their mocks
   should never see a picker method. `SkillTaxonomyIndex` and ADR 0043's amendment of 2026-10-11 are the precedents.
   `LocalTextAnalyzer` was rejected for this job: it stems, and its stoplist holds `av` and `utan`.
 - **The counting basis.** There are four occupation indexes before this PR and four after:
@@ -377,13 +377,13 @@ handler latency ADR 0045 Beslut 1 measures, not edge to edge):
 
 | Query | p50 | p95 | Rows | Bytes |
 |---|---|---|---|---|
-| `chef` | 0.458 ms | 0.692 ms | 50 of 60 | 16,250 B |
-| `in` | 0.328 ms | 0.404 ms | 50 of 63 | 12,058 B |
-| `utvecklare` | 0.204 ms | 0.233 ms | 15 of 15 | 3,510 B |
-| 98-character adversarial query (33 × `ab`) | 0.123 ms | 0.154 ms | 0 | 25 B |
+| `chef` | 0.674 ms | 2.360 ms | 50 of 60 | 16,250 B |
+| `in` | 0.362 ms | 0.582 ms | 50 of 63 | 12,058 B |
+| `utvecklare` | 0.325 ms | 0.387 ms | 15 of 15 | 3,510 B |
+| 98-character adversarial query (33 × `in`: every hitting label runs the AND to its end) | 0.645 ms | 0.809 ms | 50 of 63 | 12,058 B |
 
-The class (b) budget is 150 ms p95 (ADR 0045 Beslut 1), so the handler is more than two orders of magnitude under it; the
-cost the user feels is the 300 ms debounce and the round trip. Performance stays **observe-only** (ADR 0045 Beslut 5 and
+The class (b) budget is 150 ms p95 (ADR 0045 Beslut 1). The cost the user feels is the 300 ms debounce and the round
+trip. Performance stays **observe-only** (ADR 0045 Beslut 5 and
 6): the numbers are recorded and not asserted, and the test asserts only that the row count stays at most 50. The command
 (the lines are in the TRX output):
 

@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.JobAds.Queries.SearchOccupations;
+using Jobbliggaren.Infrastructure.Taxonomy;
 using NetArchTest.Rules;
 using Shouldly;
 
@@ -44,25 +46,21 @@ public class OccupationSearchLayerTests
     [Fact]
     public void The_index_the_rule_and_the_searcher_are_internal_to_Infrastructure()
     {
-        string[] names = ["OccupationNameIndex", "OccupationSearchRule", "OccupationSearcher"];
+        Type[] types = [typeof(OccupationNameIndex), typeof(OccupationSearchRule), typeof(OccupationSearcher)];
 
-        var types = Infrastructure.GetTypes()
-            .Where(t => t.Namespace == TaxonomyNamespace && names.Contains(t.Name))
-            .ToList();
-
-        types.Select(t => t.Name).Order(StringComparer.Ordinal).ShouldBe(names.Order(StringComparer.Ordinal));
+        types.ShouldAllBe(t => t.Assembly == Infrastructure && t.Namespace == TaxonomyNamespace);
         types.Where(t => t.IsPublic).Select(t => t.FullName).ShouldBeEmpty();
     }
 
     [Fact]
     public void The_frozen_map_loader_has_exactly_one_dependent_the_shared_index()
     {
-        var dependents = OutermostTypesDependingOn(
-            Infrastructure, $"{TaxonomyNamespace}.OccupationGroupMappingLoader");
+        const string loader = $"{TaxonomyNamespace}.OccupationGroupMappingLoader";
 
-        dependents
-            .Where(name => name is not "OccupationGroupMappingLoader" and not "OccupationGroupMappingFile")
-            .ShouldBe(["OccupationNameIndex"]);
+        var dependents = OutermostTypesDependingOn(Infrastructure, loader)
+            .Where(t => t.FullName != loader);
+
+        dependents.ShouldBe([typeof(OccupationNameIndex)]);
     }
 
     [Theory]
@@ -70,13 +68,16 @@ public class OccupationSearchLayerTests
     [InlineData("System.Net.Http")]
     public void Nothing_on_the_search_path_depends_on(string forbiddenNamespace)
     {
-        string[] searchPath =
-            ["OccupationNameIndex", "OccupationSearchRule", "OccupationSearcher", "OccupationCodeDeriver"];
+        Type[] searchPath =
+        [
+            typeof(OccupationNameIndex), typeof(OccupationSearchRule), typeof(OccupationSearcher),
+            typeof(OccupationCodeDeriver), typeof(SearchOccupationsQueryHandler),
+        ];
 
         var offenders = OutermostTypesDependingOn(Infrastructure, forbiddenNamespace)
+            .Concat(OutermostTypesDependingOn(Application, forbiddenNamespace))
             .Where(searchPath.Contains)
-            .Concat(OutermostTypesDependingOn(Application, forbiddenNamespace)
-                .Where(name => name == "SearchOccupationsQueryHandler"))
+            .Select(t => t.FullName)
             .ToList();
 
         offenders.ShouldBeEmpty(
@@ -84,18 +85,16 @@ public class OccupationSearchLayerTests
             "logged and never leaves the process (ADR 0180).");
     }
 
-    // The distinct outermost declaring types (by simple name) of every type in the assembly that
-    // depends on the given type or namespace — nested and compiler-generated types fold into the
-    // class that declares them.
-    private static List<string> OutermostTypesDependingOn(System.Reflection.Assembly assembly, string dependency) =>
+    // The distinct outermost declaring types of every type in the assembly that depends on the given
+    // type or namespace — nested and compiler-generated types fold into the class that declares them.
+    private static List<Type> OutermostTypesDependingOn(System.Reflection.Assembly assembly, string dependency) =>
         Types.InAssembly(assembly)
             .That()
             .HaveDependencyOn(dependency)
             .GetTypes()
             .Select(Outermost)
-            .Select(t => t.Name)
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
+            .Distinct()
+            .OrderBy(t => t.FullName, StringComparer.Ordinal)
             .ToList();
 
     private static Type Outermost(Type type)

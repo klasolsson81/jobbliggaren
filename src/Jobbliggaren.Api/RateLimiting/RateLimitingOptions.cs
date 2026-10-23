@@ -607,7 +607,7 @@ public sealed class RateLimitingOptions
     /// in-memory scan with no database read, so the bucket contains floods rather than protecting
     /// cost. Its OWN bucket (bulkhead, Nygard; ADR 0043 Beslut D): never <c>taxonomy-read</c>,
     /// whose 20/60 s would starve the tree read, and never <c>occupation-divisions</c>, another
-    /// surface's. The /jobb Yrke search shares it, since one user drives one picker at a time.
+    /// surface's.
     /// 30/10 s per security-auditor's plan read 2026-10-23; raise it after the ADR 0180 timing, never
     /// lower it after shipping. IOptions-bundet (§5.1).
     /// </summary>

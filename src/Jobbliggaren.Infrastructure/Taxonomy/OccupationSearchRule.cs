@@ -45,7 +45,7 @@ internal static class OccupationSearchRule
     internal static readonly StringComparer Collation =
         StringComparer.Create(CultureInfo.GetCultureInfo("sv-SE"), CompareOptions.None);
 
-    internal static PreparedOccupationIndex Prepare(OccupationNameIndexContents contents)
+    internal static PreparedIndex Prepare(OccupationNameIndexContents contents)
     {
         ArgumentNullException.ThrowIfNull(contents);
 
@@ -60,10 +60,10 @@ internal static class OccupationSearchRule
             .Select(g => new PreparedGroup(g, Normalize(g.Label), LabelTokens(g.Label)))
             .ToArray();
 
-        return new PreparedOccupationIndex(names, groups);
+        return new PreparedIndex(names, groups);
     }
 
-    internal static OccupationSearchResult Search(PreparedOccupationIndex index, string query)
+    internal static OccupationSearchResult Search(PreparedIndex index, string query)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(query);
@@ -270,13 +270,13 @@ internal static class OccupationSearchRule
     private sealed record WordAccumulator(string Key, string Spelling, List<(PreparedName Name, Tier Tier)> Hits);
 
     private sealed record RankedRow(OccupationSearchRow Row, Tier Tier, string SortLabel, string SortKey);
+
+    /// <summary>The index with every label normalised and tokenised once.</summary>
+    internal sealed record PreparedIndex(
+        IReadOnlyList<PreparedName> Names,
+        IReadOnlyList<PreparedGroup> Groups);
+
+    internal sealed record PreparedName(OccupationNameEntry Entry, string Normalized, string[] Tokens, string HeadWord);
+
+    internal sealed record PreparedGroup(OccupationGroupEntry Entry, string Normalized, string[] Tokens);
 }
-
-/// <summary>The index with every label normalised and tokenised once.</summary>
-internal sealed record PreparedOccupationIndex(
-    IReadOnlyList<PreparedName> Names,
-    IReadOnlyList<PreparedGroup> Groups);
-
-internal sealed record PreparedName(OccupationNameEntry Entry, string Normalized, string[] Tokens, string HeadWord);
-
-internal sealed record PreparedGroup(OccupationGroupEntry Entry, string Normalized, string[] Tokens);

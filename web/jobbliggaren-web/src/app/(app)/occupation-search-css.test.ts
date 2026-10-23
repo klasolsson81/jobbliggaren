@@ -5,16 +5,16 @@ import { describe, expect, it } from "vitest";
 import { readRules } from "@/test/css-rules";
 
 /**
- * #2198 — two touch and focus facts the occupation picker's hosts rest on. jsdom applies no
+ * #2198 — touch and focus facts the occupation picker's hosts rest on. jsdom applies no
  * stylesheet, so they are pinned from the source; the rendered measurement is the render matrix's.
  */
 const APP_CSS = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "app.css"), "utf8");
 
 describe("the occupation picker's CSS (#2198)", () => {
-  it("gives rows and the focused column heading an inset ring in the rail as in the dialog (design-reviewer B1)", () => {
+  it("gives rows an inset ring in the rail as in the dialog (design-reviewer B1)", () => {
     const rules = readRules(APP_CSS);
     for (const host of [".jp-matchdialog", ".jp-wizard--rail"]) {
-      for (const target of [".jp-checkitem", ".jp-popover-row", ".jp-occsearch__heading"]) {
+      for (const target of [".jp-checkitem", ".jp-popover-row"]) {
         const selector = `${host} ${target}:focus-visible`;
         const matching = rules.filter((r) => r.selector === selector && r.inMedia === null);
         expect(matching, selector).toHaveLength(1);
@@ -25,6 +25,15 @@ describe("the occupation picker's CSS (#2198)", () => {
           ]),
         );
       }
+    }
+  });
+
+  it("never draws the focused column heading's ring inward, over its first letter", () => {
+    const heading = readRules(APP_CSS).filter((r) => r.selector.includes(".jp-occsearch__heading:focus-visible"));
+
+    for (const rule of heading) {
+      const offset = rule.declarations.find((d) => d.property === "outline-offset");
+      expect(offset?.value.trim().startsWith("-"), rule.selector).not.toBe(true);
     }
   });
 

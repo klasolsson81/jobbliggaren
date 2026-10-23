@@ -122,7 +122,7 @@ public class OccupationSearchRuleTests
     public void Search_DecomposedQuery_IsNormalisedBeforeMatching()
     {
         // "A" followed by U+030A COMBINING RING ABOVE is how a pasted Å can arrive.
-        var row = Search("Åklagare").Rows.ShouldHaveSingleItem();
+        var row = Search("A\u030Aklagare").Rows.ShouldHaveSingleItem();
 
         row.GroupConceptId.ShouldBe(Aklagare);
         row.ExactMatch.ShouldBeTrue();

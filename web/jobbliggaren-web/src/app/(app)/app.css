@@ -436,10 +436,8 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
    global ring's 2px outset is clipped on both sides (#2198, design-reviewer B1). */
 .jp-matchdialog .jp-checkitem:focus-visible,
 .jp-matchdialog .jp-popover-row:focus-visible,
-.jp-matchdialog .jp-occsearch__heading:focus-visible,
 .jp-wizard--rail .jp-checkitem:focus-visible,
-.jp-wizard--rail .jp-popover-row:focus-visible,
-.jp-wizard--rail .jp-occsearch__heading:focus-visible {
+.jp-wizard--rail .jp-popover-row:focus-visible {
   outline: 2px solid var(--jp-focus);
   outline-offset: -2px;
 }
@@ -465,8 +463,6 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 .jp-occsearch__box--single > .jp-matchdialog__cascade-col:first-child {
   border-right: 0;
 }
-/* The right column's heading takes focus when a Word row opens; it is a block so the inset ring
-   above has a box to sit in. */
 .jp-occsearch__heading {
   display: block;
 }

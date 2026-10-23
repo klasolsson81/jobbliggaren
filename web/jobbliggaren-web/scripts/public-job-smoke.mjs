@@ -10,190 +10,21 @@
  * observe-only, so this runs in the blocking `frontend` job of `build.yml`, right after `pnpm build`.
  *
  * It starts a stub backend on a free port, starts the standalone server the image runs against it, and asserts over
- * HTTP. The stub answers the detail by id, so those cases are fixed: a listed ad, an ended and an erased one (both
- * 410), an unknown one, the budget (429), an outage (500), and the two races where the render's read disagrees with
- * the probe's. It answers the sitemap's parts in a mode a check sets: the ids, an outage, the budget, its own 503, ids
- * in the wrong case, or an answer held past the web's timeout. It answers the catalogue's pages in a mode too: three
- * pages of rows, a page past the end, the budget, its own 503, an outage, or an answer held past the web's timeout.
+ * HTTP. The stub is `public-job-stub.mjs`, which also serves the pages Lighthouse measures (`lighthouse-server.mjs`);
+ * its fixtures, its modes and what it answers for each are described there.
  *
  * Usage (after `pnpm build`):  node scripts/public-job-smoke.mjs
  */
 import { spawn } from "node:child_process";
-import { createServer } from "node:http";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
+import { AD, ID, catalogue, catalogueRow, freePort, listedIds, seen, startStub } from "./public-job-stub.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const SESSION_COOKIE = "__Host-jobbliggaren_session";
 const CLIENT_IP = "203.0.113.7";
-
-const ID = {
-  listed: "11111111-1111-4111-8111-111111111111",
-  ended: "22222222-2222-4222-8222-222222222222",
-  erased: "33333333-3333-4333-8333-333333333333",
-  unknown: "44444444-4444-4444-8444-444444444444",
-  budget: "55555555-5555-4555-8555-555555555555",
-  outage: "66666666-6666-4666-8666-666666666666",
-  raceOutage: "77777777-7777-4777-8777-777777777777",
-  raceEnded: "88888888-8888-4888-8888-888888888888",
-  /** Listed, but with no resolved kommun: no JobPosting, still indexable (ADR 0171). */
-  listedNoKommun: "99999999-9999-4999-8999-999999999999",
-  /** Hex digits that have a case, for the upper-case redirect; no read is ever made for it. */
-  hexCase: "abcdefab-abcd-4abc-8abc-abcdefabcdef",
-};
-
-const AD = {
-  id: ID.listed,
-  title: "Sjuksköterska till vårdcentral",
-  companyName: "Region Exempel",
-  description: "Om tjänsten\n\nVi söker dig som vill arbeta med primärvård.",
-  url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
-  publishedAt: "2026-10-01T08:00:00+00:00",
-  expiresAt: "2026-11-01T08:00:00+00:00",
-  municipalityConceptId: "AvNB_uwa_6n6",
-  municipalityName: "Stockholm",
-  regionConceptId: "CifL_Rzy_Mku",
-  regionName: "Stockholms län",
-  occupationGroupConceptId: null,
-  employmentTypeConceptId: "gro4_cWF_6D7", // Vikariat
-  worktimeExtentConceptId: "6YE1_gAC_R2G", // Heltid
-};
-
-const GONE_BODY = JSON.stringify({ title: "Annonsen är inte längre tillgänglig.", status: 410 });
-
-/** Every request the stub saw, in order: { method, path, headers }. */
-const seen = [];
-const hitsByAd = new Map();
-
-/** The sitemap parts' ids, each in the part its first hex digit puts it in (0–7 → 1, 8–f → 2; ADR 0174). */
-const LISTED_IDS = { 1: [ID.listed], 2: [ID.listedNoKommun] };
-/** How the stub answers a sitemap part; a check sets it, and the checks reset it to "ok". */
-const listedIds = { mode: "ok" };
-
-function answerListedIds(url, res, send) {
-  const part = Number(url.searchParams.get("part"));
-  const ids = LISTED_IDS[part] ?? [];
-  switch (listedIds.mode) {
-    case "ok":
-      return send(200, JSON.stringify({ ids }));
-    case "upperCase":
-      // Today's API cannot send this (System.Text.Json writes a Guid in lower case); a later API release could.
-      // An id with hex letters, so the upper-case form is a different string.
-      return send(200, JSON.stringify({ ids: [ID.hexCase.toUpperCase()] }));
-    case "budget":
-      return send(429, "{}", { "retry-after": "9" });
-    case "unavailable":
-      return send(503, "", { "retry-after": "60" });
-    case "timeout": {
-      // Held past the web's 5-second timeout, so only the web's own clock can end the read.
-      const held = setTimeout(() => {
-        if (!res.destroyed) send(200, JSON.stringify({ ids }));
-      }, 7_000);
-      res.on("close", () => clearTimeout(held));
-      return undefined;
-    }
-    default:
-      return send(500, "{}");
-  }
-}
-
-/** The catalogue's rows by page: 41 listed ads, so three pages, the last of them short. */
-const CATALOGUE_TOTAL = 41;
-const catalogueRow = (n) => ({
-  id: `aaaaaaaa-0000-4000-8000-${String(n).padStart(12, "0")}`,
-  title: `Undersköterska ${n}`,
-  companyName: "Kommun Exempel",
-  municipalityName: n % 2 === 0 ? "Umeå" : null,
-  regionName: "Västerbottens län",
-  publishedAt: "2026-10-01T08:00:00+00:00",
-});
-/** How the stub answers a catalogue page; a check sets it, and the checks reset it to "ok". */
-const catalogue = { mode: "ok" };
-
-function answerCatalogue(url, res, send) {
-  const page = Number(url.searchParams.get("page"));
-  const pages = Math.ceil(CATALOGUE_TOTAL / 20);
-  switch (catalogue.mode) {
-    case "ok": {
-      if (!Number.isInteger(page) || page < 1) return send(400, "{}");
-      if (page > pages) return send(404, "");
-      const from = (page - 1) * 20 + 1;
-      const items = Array.from({ length: Math.min(20, CATALOGUE_TOTAL - from + 1) }, (_, i) => catalogueRow(from + i));
-      return send(200, JSON.stringify({ items, totalCount: CATALOGUE_TOTAL, page, pageSize: 20, totalPages: pages }));
-    }
-    case "budget":
-      return send(429, "{}", { "retry-after": "9" });
-    case "unavailable":
-      return send(503, "", { "retry-after": "60" });
-    case "timeout": {
-      const held = setTimeout(() => {
-        if (!res.destroyed) send(200, "{}");
-      }, 7_000);
-      res.on("close", () => clearTimeout(held));
-      return undefined;
-    }
-    default:
-      return send(500, "{}");
-  }
-}
-
-function stubHandler(req, res) {
-  seen.push({ method: req.method, path: req.url, headers: { ...req.headers } });
-
-  const send = (status, body = "", headers = {}) =>
-    res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", ...headers }).end(body);
-
-  const url = new URL(req.url ?? "/", "http://stub");
-  if (url.pathname === "/api/v1/public/job-ads/listed-ids") {
-    return answerListedIds(url, res, send);
-  }
-  if (url.pathname === "/api/v1/public/job-ads/catalogue") {
-    return answerCatalogue(url, res, send);
-  }
-
-  const match = /^\/api\/v1\/public\/job-ads\/([0-9a-f-]{36})$/.exec(req.url ?? "");
-  if (match === null) {
-    res.writeHead(401, { "content-type": "application/json" }).end("{}");
-    return;
-  }
-
-  const id = match[1];
-  const hit = (hitsByAd.get(id) ?? 0) + 1;
-  hitsByAd.set(id, hit);
-
-  switch (id) {
-    case ID.listed:
-      return send(200, JSON.stringify(AD));
-    case ID.listedNoKommun:
-      return send(200, JSON.stringify({ ...AD, id, municipalityConceptId: null, municipalityName: null }));
-    case ID.ended:
-    case ID.erased:
-      return send(410, GONE_BODY);
-    case ID.budget:
-      return send(429, "{}", { "retry-after": "9" });
-    case ID.outage:
-      return send(500, "{}");
-    case ID.raceOutage:
-      return hit === 1 ? send(200, JSON.stringify({ ...AD, id })) : send(500, "{}");
-    case ID.raceEnded:
-      return hit === 1 ? send(200, JSON.stringify({ ...AD, id })) : send(410, GONE_BODY);
-    default:
-      return send(404, "{}");
-  }
-}
-
-function listen(server) {
-  return new Promise((resolveListen) => server.listen(0, "127.0.0.1", () => resolveListen(server.address().port)));
-}
-
-async function freePort() {
-  const probe = createServer();
-  const port = await listen(probe);
-  await new Promise((done) => probe.close(done));
-  return port;
-}
 
 async function waitUntilReady(origin, child) {
   const deadline = Date.now() + 90_000;
@@ -265,8 +96,7 @@ async function check(name, fn) {
   }
 }
 
-const stub = createServer(stubHandler);
-const stubPort = await listen(stub);
+const { server: stub, port: stubPort } = await startStub();
 const appPort = await freePort();
 const origin = `http://127.0.0.1:${appPort}`;
 
@@ -329,6 +159,19 @@ try {
     assert.equal(posting.url, undefined);
     assert.match(res.body, /Stockholm, Stockholms län/, "the kommun and län are visible on the page");
     assert.match(res.body, /Vikariat · Heltid/, "the employment type and extent are visible on the page");
+  });
+
+  await check("a listed ad names its occupation group last in the facts row, marked Swedish, and in no head tag and no JobPosting", async () => {
+    const res = await get(origin, `/jobb/${ID.listed}`);
+    const facts = /<div class="jp-modal__meta jp-modal__facts">([\s\S]*?)<\/div>/.exec(res.body);
+    assert.ok(facts, "the facts row is rendered");
+    assert.match(facts[1], new RegExp(`<span lang="sv">${AD.occupationGroupName}</span></span></span>$`), "the group is the last fact");
+    const [block] = jsonLdBlocks(res.body);
+    assert.doesNotMatch(block, /occupationalCategory/);
+    assert.ok(!block.includes(AD.occupationGroupName), "the group is not in the JobPosting");
+    assert.ok(inHead(res.body, /<title>/), "the page's metadata sits in the head, so the head is where to look");
+    const head = res.body.slice(0, res.body.indexOf("</head>"));
+    assert.ok(!head.includes(AD.occupationGroupName), "the group is not in the title, a description or an OpenGraph tag");
   });
 
   await check("a listed ad without a resolved kommun has no JobPosting and stays indexable", async () => {

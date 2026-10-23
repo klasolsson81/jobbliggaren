@@ -364,11 +364,19 @@ data instead. Never widen the logging to get them.
 
 ## §F — Frontend document weight and Core Web Vitals
 
-The instrument is the `lighthouse (observe-only)` job in `build.yml`: 8 URLs × 3 runs,
-`aggregationMethod: median`, asserting the ADR 0045 Beslut 2 budgets from
-`web/jobbliggaren-web/lighthouserc.json`. It only became **verdict-giving** on 2026-07-24
-(#1007 fixed collection, #1011 fixed the assert phase) — every earlier green was
-green-but-empty, so 2026-07-20 is the first honest baseline in the project's history.
+The instrument is the `lighthouse (observe-only)` job in `build.yml`: every URL in
+`web/jobbliggaren-web/lighthouserc.json` (`jq '.ci.collect.url | length'` counts them) × 3 runs,
+`aggregationMethod: median`, asserting the ADR 0045 Beslut 2 budgets from that file. It only became
+**verdict-giving** on 2026-07-24 (#1007 fixed collection, #1011 fixed the assert phase) — every
+earlier green was green-but-empty, so 2026-07-20 is the first honest baseline in the project's history.
+
+Its server is `scripts/lighthouse-server.mjs`: `next start` with `BACKEND_URL` pointing at the stub
+backend that `scripts/public-job-smoke.mjs` asserts on (`scripts/public-job-stub.mjs`). That is what lets
+`/jobb/<uuid>` and `/lediga-jobb`, which read the API on every request, be measured with no seeded stack
+(SEO epic #2090 S6). Their bytes are the stub's — one short ad and 20 rows — so they bound the page's own
+weight, not a long real ad's text. To run it locally, after `pnpm build`, from `web/jobbliggaren-web/`:
+`pnpm exec lhci autorun --config=lighthouserc.json`. On Windows a run can abort at its first URL with
+`EPERM` from chrome-launcher removing its temp directory; that is its Windows cleanup, not the instrument, and CI is Linux.
 
 ### Which measurements are admissible evidence
 
@@ -377,7 +385,7 @@ chosen *because* single-run timing is flaky) and Alternativ 5 (shared runners ma
 timing thresholds inherently flaky):
 
 - **Byte metrics** (`resource-summary:*`) are deterministic. Measuring them locally against a
-  `pnpm build` + `next start` server is admissible evidence for shipping. Local numbers run
+  `pnpm build` + `scripts/lighthouse-server.mjs` server (a `next start`) is admissible evidence for shipping. Local numbers run
   ~1,4 KB below CI's, which counts response headers.
 - **Timing metrics** (LCP/CLS/TBT) measured locally are a **hypothesis generator only**. A
   local Windows run brackets ±300 ms on the same build (measured 2026-07-25: TBT varied

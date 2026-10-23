@@ -14,14 +14,16 @@ const WIRE = {
   regionConceptId: "r1",
   regionName: "Länet",
   occupationGroupConceptId: "o1",
+  occupationGroupName: "Gruppen",
   employmentTypeConceptId: "e1",
   worktimeExtentConceptId: "w1",
 };
 
 describe("publicJobAdDtoSchema", () => {
-  it("reads the eleven members the page uses and strips the rest of the wire (the three unread concept ids among them)", () => {
+  it("reads the twelve members the page uses and strips the rest of the wire (the three unread concept ids among them)", () => {
     const parsed = publicJobAdDtoSchema.parse(WIRE);
 
+    expect(Object.keys(WIRE)).toHaveLength(15);
     expect(Object.keys(parsed).sort()).toEqual(
       [
         "companyName",
@@ -33,6 +35,7 @@ describe("publicJobAdDtoSchema", () => {
         "url",
         "municipalityName",
         "regionName",
+        "occupationGroupName",
         "employmentTypeConceptId",
         "worktimeExtentConceptId",
       ].sort()
@@ -47,10 +50,12 @@ describe("publicJobAdDtoSchema", () => {
       ...WIRE,
       municipalityName: null,
       regionName: null,
+      occupationGroupName: null,
       employmentTypeConceptId: "drifted_id",
       worktimeExtentConceptId: null,
     });
     expect(parsed.municipalityName).toBeNull();
+    expect(parsed.occupationGroupName).toBeNull();
     expect(parsed.employmentTypeConceptId).toBe("drifted_id");
   });
 
@@ -64,6 +69,19 @@ describe("publicJobAdDtoSchema", () => {
     });
 
     expect(JSON.stringify(parsed)).not.toMatch(/Anna|a@example|5560000000|rawPayload|extractedTerms|contacts/);
+  });
+
+  it("reads the occupation group's name as the wire sends it, and refuses one that is not a string", () => {
+    expect(publicJobAdDtoSchema.parse(WIRE).occupationGroupName).toBe("Gruppen");
+    expect(publicJobAdDtoSchema.safeParse({ ...WIRE, occupationGroupName: 7 }).success).toBe(false);
+  });
+
+  it("parses a wire without the occupation group's name, which then reads as undefined", () => {
+    const { occupationGroupName: _omitted, ...withoutGroupName } = WIRE;
+
+    const parsed = publicJobAdDtoSchema.parse(withoutGroupName);
+
+    expect(parsed.occupationGroupName).toBeUndefined();
   });
 
   it("accepts an ad with no deadline", () => {

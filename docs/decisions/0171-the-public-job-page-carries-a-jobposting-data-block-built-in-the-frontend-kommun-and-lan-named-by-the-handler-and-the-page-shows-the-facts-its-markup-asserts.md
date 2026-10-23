@@ -234,3 +234,45 @@ Files as delivered on the branch `feat/seo-s3-jobposting-jsonld`:
 - Google Search Central, job posting structured data (dated 2026-09-08, read 2026-10-17):
   https://developers.google.com/search/docs/appearance/structured-data/job-posting. The page changes; the date says what was read.
 - #2090 · #2091 · #2159 · #1537 · #841
+
+## Amendment 2026-10-23 (#2090 S6a, #2203) — D1: the occupation group is named; D6: the facts row shows it; D4 unchanged; the D10 reading for S6a
+
+D1–D8 stand and nothing above is rewritten. S6 is split into two PRs (senior-cto-advisor F0, 2026-10-23; Klas: "Två PR (Rek.)"). This amendment records S6a: the
+occupation group on the page, and two links to the explainers. S6b, the related ads, has its own record.
+
+**D1: the occupation group is named by the handler.** D1's "Occupation group is not resolved. S3 has no consumer for it; it belongs to S6." is settled. `GetPublicJobAdQueryHandler` sends the group id
+in the same single `ResolveLabelsAsync` call as kommun and län, only after the second `Classify` returns Listed. The DTO's new member is recorded in ADR 0160's amendment of the
+same date. The name is register data, and Swedish in every locale, like the place names.
+
+**D6: the facts row shows it, the markup does not.**
+- **The fact:** the group is the row's third fact, after the kommun and län and the employment type and extent. It carries a `Briefcase` icon and the sr-only axis name
+  `publicjob.facts.occupation`.
+- **Language:** the value carries `lang="sv"` in every locale, because it is the first plain Swedish phrase in the page's own frame (design-reviewer, plan read 2026-10-23;
+  WCAG 2.1 SC 3.1.2).
+- **Absence:** a null, empty or blank name leaves the fact out.
+- **The markup:** D6's rule is that the markup asserts nothing the page does not show. It does not require that the page show nothing the markup lacks, so the page may now show
+  one more fact than `JobPosting` asserts.
+
+**D4 is unchanged.** `occupationalCategory` stays "never emitted". `job-posting-json-ld.ts` and its test are byte-unchanged in the S6a PR, and that is the evidence that
+ADR 0166 D10 triggers 6 and 7 do not fire.
+
+**The explainer links.** Below the `<article>` and outside it, in the card's own 760 px column, the page links `/cv-granskning` and `/matchning` through `InformationLink`, which
+records the return to the ad. The link names are the footer's own for the same two targets. The block carries no ad data.
+
+**The D10 reading for S6a (ADR 0166).** This is the record's home, so that S6a leaves ADR 0166's text and the signatures that rest on it untouched (security-auditor m5).
+- **Her reading:** `security-auditor` read S6a against ADR 0166 D10 on 2026-10-23 (plan read, local) and concluded that **no trigger fires**. Her grounds are S3's, plus one stronger:
+  S6a only names an id that the anonymous read has carried since S2, through the same port, from the same read, after the same second `Classify`, so no new datum leaves the API.
+  The JSON-LD is unchanged (triggers 6 and 7), the links carry no ad data, and none of the Art. 9 amendment's three triggers fires.
+- **Her conditions (A1–A5):**
+  - A1: the JSON-LD module and its test are byte-unchanged.
+  - A2: the port is asked once, only after Listed, with no null id, and not on any non-listed path.
+  - A3: the group name is in no title, meta, OpenGraph or Twitter tag.
+  - A4: S6a carries no part of S6b.
+  - A5: the Lighthouse commit uses synthetic fixtures, a loopback stub and filesystem upload, with no secret, action, package or permission change.
+- **Klas's answer:** D10 names Klas as its reader, and her question was relayed to him verbatim the same day. His answer, 2026-10-23, in the session's chat:
+
+  1. **"Ja, ingen trigger (Rek.)"**: S6a does **not** fire an ADR 0166 D10 trigger.
+
+  Her reading holds only while A1–A5 hold. No signature of hers is needed for S6a, and none lapses.
+
+ADR 0171 remains **Accepted**.

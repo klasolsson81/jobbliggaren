@@ -15,7 +15,7 @@ public class PublicJobAdDtoContractTests
     [
         "Id", "Title", "CompanyName", "Description", "Url", "PublishedAt", "ExpiresAt",
         "MunicipalityConceptId", "MunicipalityName", "RegionConceptId", "RegionName",
-        "OccupationGroupConceptId", "EmploymentTypeConceptId", "WorktimeExtentConceptId",
+        "OccupationGroupConceptId", "OccupationGroupName", "EmploymentTypeConceptId", "WorktimeExtentConceptId",
     ];
 
     [Fact]

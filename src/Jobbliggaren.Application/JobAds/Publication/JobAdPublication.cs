@@ -5,8 +5,8 @@ namespace Jobbliggaren.Application.JobAds.Publication;
 
 /// <summary>
 /// The one publication predicate for job ads (ADR 0160). Every public surface — the anonymous
-/// detail read, the job page, <c>JobPosting</c>, the sitemap and the catalogue — asks this
-/// type whether an ad is public. None keeps a definition of its own.
+/// detail read, the job page, <c>JobPosting</c>, the sitemap, the catalogue and the job page's
+/// related section — asks this type whether an ad is public. None keeps a definition of its own.
 /// </summary>
 /// <remarks>
 /// <para>

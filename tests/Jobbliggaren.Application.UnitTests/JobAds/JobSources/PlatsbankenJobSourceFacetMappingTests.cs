@@ -165,6 +165,26 @@ public class PlatsbankenJobSourceFacetMappingTests
         item.Facets.OrganizationNumber.ShouldBeNull("whitespace is blank too");
     }
 
+    [Theory]
+    [InlineData("AvNB_uwa_6n6", null)]
+    [InlineData(null, "CaRE_1nn_hRb")]
+    public async Task RefetchByExternalIdAsync_PassesAnAddressBlockWithOneIdThroughUnpaired(string? kommun, string? lan)
+    {
+        // Nothing couples the two ids (JobAdConfiguration, #839), so an ad can carry a kommun without a län or the
+        // reverse. The related section's tier rule (ADR 0182) is written for that state, and these are its premise.
+        var hit = FullyFacetedHit("ext-facets-5");
+        hit.WorkplaceAddress = new JobTechWorkplaceAddress { MunicipalityConceptId = kommun, RegionConceptId = lan };
+
+        var sut = CreateSut(hit);
+
+        var item = await sut.RefetchByExternalIdAsync(
+            "ext-facets-5", TestContext.Current.CancellationToken);
+
+        item.ShouldNotBeNull();
+        item.Facets.MunicipalityConceptId.ShouldBe(kommun);
+        item.Facets.RegionConceptId.ShouldBe(lan);
+    }
+
     private sealed class FakeSearchClient(JobTechHit? hit = null, IReadOnlyList<string>? remoteIds = null)
         : IJobTechSearchClient
     {

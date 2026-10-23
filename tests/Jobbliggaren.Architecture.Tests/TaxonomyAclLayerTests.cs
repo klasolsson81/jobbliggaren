@@ -185,6 +185,10 @@ public class TaxonomyAclLayerTests
             // PublicTaxonomyNames is static), so this list still sees it. Sorts "GetPublicJobAdC" before "GetPublicJobAdQ".
             nameof(Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue.GetPublicJobAdCatalogueQueryHandler),
             nameof(Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd.GetPublicJobAdQueryHandler),
+            // #2203 S6b / ADR 0182 (2026-10-23) — the third anonymous consumer, read-side only: the related section under
+            // a public job page names its rows' kommun and län through the same port, one call for at most five rows,
+            // after the rows are read through the publication predicate. Sorts "GetR" between "GetP" and "GetT".
+            nameof(Jobbliggaren.Application.JobAds.Queries.GetRelatedPublicJobAds.GetRelatedPublicJobAdsQueryHandler),
             nameof(Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree.GetTaxonomyTreeQueryHandler),
             // ADR 0060 (2026-05-20) — fjärde legitim konsument: RecentJobSearches-
             // listans label-berikning, identiskt mönster med SavedSearch-listan.

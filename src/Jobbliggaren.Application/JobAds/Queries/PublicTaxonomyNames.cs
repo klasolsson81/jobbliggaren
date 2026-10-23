@@ -4,8 +4,8 @@ using Jobbliggaren.Application.JobAds.Abstractions;
 namespace Jobbliggaren.Application.JobAds.Queries;
 
 /// <summary>
-/// Taxonomy names for the public surface (ADR 0171): the job page, its <c>JobPosting</c> and the catalogue's rows name a
-/// concept through the ADR 0043 port, never by its id. A handler that uses this keeps the port in its own constructor,
+/// Taxonomy names for the public surface (ADR 0171): the job page, its <c>JobPosting</c>, the catalogue's rows and the
+/// related section's rows name a concept through the ADR 0043 port, never by its id. A handler that uses this keeps the port in its own constructor,
 /// so <c>TaxonomyAclLayerTests</c> still sees every consumer.
 /// </summary>
 internal static class PublicTaxonomyNames

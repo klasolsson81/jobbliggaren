@@ -55,7 +55,7 @@ public sealed partial class ConsoleEmailSender(
         CancellationToken cancellationToken)
     {
         var body = EmailTemplates.MatchNotification(_options.BaseUrl, content);
-        WriteEmail("match-notification", toEmail, body.Subject, body.PlainTextBody);
+        WriteEmail(EmailKinds.MatchNotificationToken, toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
     }
 
@@ -65,7 +65,7 @@ public sealed partial class ConsoleEmailSender(
         CancellationToken cancellationToken)
     {
         var body = EmailTemplates.FollowedCompanyNotification(_options.BaseUrl, content);
-        WriteEmail("followed-company-notification", toEmail, body.Subject, body.PlainTextBody);
+        WriteEmail(EmailKinds.FollowedCompanyNotificationToken, toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
     }
 
@@ -74,7 +74,7 @@ public sealed partial class ConsoleEmailSender(
         CancellationToken cancellationToken)
     {
         var body = EmailTemplates.EmailChangedNotification();
-        WriteEmail("email-changed-notification", toEmail, body.Subject, body.PlainTextBody);
+        WriteEmail(EmailKinds.EmailChangedNotificationToken, toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
     }
 
@@ -85,7 +85,7 @@ public sealed partial class ConsoleEmailSender(
         CancellationToken cancellationToken)
     {
         var body = EmailTemplates.AccountEmailChangeRequestedNotification(completableFrom, expiresAt);
-        WriteEmail("account-email-change-requested-notification", toEmail, body.Subject, body.PlainTextBody);
+        WriteEmail(EmailKinds.AccountEmailChangeRequestedNotificationToken, toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
     }
 
@@ -95,7 +95,7 @@ public sealed partial class ConsoleEmailSender(
         CancellationToken cancellationToken)
     {
         var body = EmailTemplates.LoginChallenge(_options.BaseUrl, content);
-        WriteEmail("login-challenge", toEmail, body.Subject, body.PlainTextBody);
+        WriteEmail(EmailKinds.LoginChallengeToken, toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
     }
 
@@ -105,7 +105,7 @@ public sealed partial class ConsoleEmailSender(
         CancellationToken cancellationToken)
     {
         var body = EmailTemplates.FeedbackReceivedNotification(_options.BaseUrl, content);
-        WriteEmail("feedback-received-notification", toEmail, body.Subject, body.PlainTextBody);
+        WriteEmail(EmailKinds.FeedbackReceivedNotificationToken, toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
     }
 
@@ -115,7 +115,7 @@ public sealed partial class ConsoleEmailSender(
         CancellationToken cancellationToken)
     {
         var body = EmailTemplates.FeedbackReply(content);
-        WriteEmail("feedback-reply", toEmail, body.Subject, body.PlainTextBody);
+        WriteEmail(EmailKinds.FeedbackReplyToken, toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
     }
 

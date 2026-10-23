@@ -783,6 +783,8 @@
 }
 
 /* ── The local preview's band (ADR 0150 D5) ─────────────────────────────────────────────── */
+/* The preview stands on the live shell's ground, as `.jp-shell` paints it. */
+.jp-adminpreview-ground { background: var(--jp-canvas); }
 .jp-adminpreview-band {
   background: var(--jp-info-bg);
   border-bottom: 1px solid var(--jp-info);

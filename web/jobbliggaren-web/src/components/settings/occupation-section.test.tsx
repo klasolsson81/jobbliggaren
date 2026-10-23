@@ -254,7 +254,7 @@ describe("OccupationSection — 'Lägg till yrken'-disclosure", () => {
     ).toBeInTheDocument();
   });
 
-  it("ett yrkesområde flyttar fokus till yrkesgruppernas rubrik och för kolumnen överst (#2198 design-reviewer Blocker 1)", async () => {
+  it("ett yrkesområde flyttar fokus till yrkesgruppernas rubrik och rullar fram kolumnen (#2198 design-reviewer Blocker 1)", async () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
     try {
@@ -270,7 +270,7 @@ describe("OccupationSection — 'Lägg till yrken'-disclosure", () => {
       expect(heading).toHaveAttribute("tabindex", "-1");
       expect(heading).toHaveClass("jp-occsearch__heading");
       expect(scrollIntoView).toHaveBeenCalledTimes(1);
-      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
       expect(scrollIntoView.mock.contexts[0]).toBe(column);
     } finally {
       delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;

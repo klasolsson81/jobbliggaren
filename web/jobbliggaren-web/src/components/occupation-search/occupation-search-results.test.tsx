@@ -140,7 +140,7 @@ describe("OccupationSearchResults — word rows (#2198)", () => {
     expect(onToggle).not.toHaveBeenCalled();
   });
 
-  it("brings the opened column to the top of the visible area", async () => {
+  it("scrolls the opened column into view only as far as it needs", async () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
     try {
@@ -150,7 +150,7 @@ describe("OccupationSearchResults — word rows (#2198)", () => {
       await user.click(screen.getByRole("button", { name: "Projektledare" }));
 
       expect(scrollIntoView).toHaveBeenCalledTimes(1);
-      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
       expect(scrollIntoView.mock.contexts[0]).toBe(screen.getByRole("group", { name: "Projektledare" }));
     } finally {
       delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;

@@ -91,6 +91,16 @@ scale), and puts a sole trader's name on list pages too (W2); the list is marked
 address. A change to the row's members, to where the content is read from, or to the
 order's or the count's source alters this boundary (ADR 0166 D10 triggers 10–12).
 
+`GET /api/v1/public/job-ads/{id}/related` is the anonymous read behind the related
+section on a job page (ADR 0182): up to five other listed ads in the anchor's
+occupation group, as the catalogue's six-member row, each read and classified through
+`JobAdPublication.IsListed` per request. Every selection key comes from the anchor's
+row on the server, so it is no facet API, and every anchor that is not listed answers
+the same 404, which tells strictly less than the detail read. Its own IP-partitioned
+policy relies on the same forwarded client address. A row member beyond the six,
+content not read per request, or a selection key a caller can supply alters this
+boundary (ADR 0166 D10 triggers 15–17).
+
 The public job page (ADR 0165) is the first protected URL with an anonymous twin:
 `/jobb/<uuid>` is answered by the proxy when no session cookie is present, and takes
 the signed-in route untouched when one is. The proxy asks the read above once for a

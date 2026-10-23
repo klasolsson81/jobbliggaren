@@ -682,3 +682,18 @@ name the occupation group on the job page as well (senior-cto-advisor F3; ADR 01
 name. Where D4 above says `PublicPlaceNames`, read `PublicTaxonomyNames`.
 
 ADR 0176 remains **Accepted**.
+
+## Amendment 2026-10-23 (#2090 S6b, ADR 0182) — D5: the row and `PublicJobAdList` gain a second consumer, the related section under a job page
+
+D1–D14 and the earlier amendments stand and nothing above is rewritten. This amendment records what the S6b PR settles in D5; the reasoning is in ADR 0182.
+
+**1. The row has a second consumer, as the same type.** The related section answers `RelatedPublicJobAdsDto(IReadOnlyList<PublicJobAdSummaryDto> Items)`: the six-member row, never a copy,
+so what a public list row may carry stays decided once, here. `RelatedPublicJobAdsDto` imports the row from this slice's namespace (`GetPublicJobAdCatalogue`); moving it to a shared
+namespace was weighed and not taken, so this sentence is where a reader finds the import. The web's envelope schema is strict over `publicJobAdSummarySchema` by name, held by
+`PublicJobAdRelatedBoundaryTests`. A member added to the row now reaches two surfaces, and it fires ADR 0166 D10 triggers 10 and 15 alike.
+
+**2. `PublicJobAdList` takes its heading level and id prefix.** Two closed props, `headingLevel: 2 | 3` and `idPrefix: "catalogue" | "related"`. The catalogue passes 2 and "catalogue", and its
+markup is byte-unchanged (a render hashed the same before and after the change). D5's "each row has an `h2`" is the catalogue's; under the related section's own `h2` the rows are `h3`. The
+component is still typed to the summary row, and the plain-anchor pin in `public-job-group.test.ts` covers both consumers.
+
+ADR 0176 remains **Accepted**.

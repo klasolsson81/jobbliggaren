@@ -311,6 +311,25 @@ the reasons of the amendment above. If something outside the API process comes t
 **What does NOT change:** Variant B's architecture, Beslut (a), (b) and (c), the four existing legs of (d), and the ban on in-handler cache-aside. No supersession: ADR 0064 remains
 **Accepted**.
 
+## Amendment 2026-10-23 (#2090 S6b, ADR 0182) — rule (d): a bounded read keyed by one record is in the per-record class
+
+*(Section language: English per CLAUDE.md §1, matching the amendments above.)*
+
+**The reading, placed in the rule's home.** The amendment of 2026-10-10 sorted reads into two classes: a recurring read of the whole corpus, identical for every reader, which is
+precomputed, and a read of one record, "one primary-key lookup", which has nothing to precompute. The related ads under a public job page (ADR 0182) are literally neither: a primary-key read
+of the anchor, then one indexed read of the anchor's occupation group, at most `CandidateWindow` (100) rows, ordered and cut in the request. By that amendment's own reasons the read belongs to
+the per-record class:
+- there is no COUNT and no OFFSET over the corpus;
+- the answer differs per anchor, so there is no shared hot key to stampede on;
+- its cost is bounded by one group's rows and not by the corpus (measured in ADR 0182: execution 2.9 ms over a 2 161-listed group, a handler p95 of 9.0 ms against class (a)'s 300 ms);
+- the erasure rule is absolute, so the rows are read per request and never cached (ADR 0160 D6).
+
+**Rule (d) holds.** Nothing is precomputed, there is no cache-aside, and no Worker → Redis transport. A related list held in a precomputed or materialised form would fire ADR 0166 D10
+trigger 16, so a change of class is a re-take of that ADR, not a choice made here.
+
+**What does NOT change:** Variant B's architecture, Beslut (a), (b) and (c), the four existing legs of (d), and the ban on in-handler cache-aside. No supersession: ADR 0064 remains
+**Accepted**.
+
 ## Referenser
 
 - CLAUDE.md §2.3 (CQRS — read-DTO ut, ingen Domain-objekt över gränsen), §3.3 (DTO = `record class`), §3.6 (`.AsNoTracking()` default + projektion), §5.4 (säkerhet — anonym DoS-yta), §8 punkt 9 (ADR = DoD vid arkitekturbeslut)

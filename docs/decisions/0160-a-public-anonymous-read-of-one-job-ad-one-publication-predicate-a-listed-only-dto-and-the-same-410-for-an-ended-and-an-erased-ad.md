@@ -412,3 +412,20 @@ null name. The shared helper is renamed from `PublicPlaceNames` to `PublicTaxono
 block, where `occupationalCategory` stays "never emitted" (ADR 0171 D4).
 
 ADR 0160 remains **Accepted**.
+
+## Amendment 2026-10-23 (#2090 S6b, ADR 0182) — D2: `IsListed` gains a third and fourth composed read; D5: a fourth policy
+
+D1–D9 and the earlier amendments stand and nothing above is rewritten. This amendment records what the S6b PR settles; the reasoning is in ADR 0182.
+
+**1. D2: the related section reads through the one predicate, twice.** D2 named "S6's related ads" as a list consumer. `GetRelatedPublicJobAdsQueryHandler` composes
+`JobAdPublication.IsListed(now)` in its anchor read, so an anchor that is not listed reads no row and every such anchor answers the same 404, and again in its candidates read, so every
+related row is read and classified per request. Neither read holds a copy of the predicate; a hand-written copy would fire ADR 0166 D10 trigger 16. The agreement test stands, and
+`RelatedPublicJobAdsReadTests` runs both composed reads against Postgres. `JobAdPublication`'s docblock names the related section among its consumers.
+
+**2. D5: a fourth policy.** `GET /api/v1/public/job-ads/{id}/related` is on `public-job-ad-related` (`RateLimitingOptions.PublicJobAdRelated`): a TokenBucket per client IP, 60 per 60 s
+in 6 segments, `QueueLimit` 0, approved by `security-auditor` on 2026-10-23. It is its own policy and shares none of the other three; the page's budget is unchanged. A 200 view spends
+two tokens of the page's bucket and one of this one, so the page's binds first.
+
+`PublicJobAdDto` and its 15 members are unchanged, and the related rows are `PublicJobAdSummaryDto` (the S5 amendment's item 2).
+
+ADR 0160 remains **Accepted**.

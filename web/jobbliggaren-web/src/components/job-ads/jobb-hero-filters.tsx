@@ -419,11 +419,18 @@ export function JobbHeroFilters({
           count: totalCount,
         })
       : t("heroFilters.showResultsEmpty");
+  // The footer closes the open popover and returns focus to its pill, as Escape does (WCAG 2.4.3).
+  function closeFromFooter() {
+    const pills = { ort: ortBtnRef, yrke: yrkeBtnRef, filter: filterBtnRef, match: matchBtnRef };
+    const pill = openPop === null ? null : pills[openPop].current;
+    setOpenPop(null);
+    pill?.focus();
+  }
   const showResultsFooter = (
     <button
       type="button"
       className="jp-btn jp-btn--primary jp-btn--sm"
-      onClick={() => setOpenPop(null)}
+      onClick={closeFromFooter}
     >
       {showResultsLabel}
     </button>

@@ -1946,6 +1946,7 @@ inom 30 s består oavsett plattform.
 | `refresh-landing-stats` | `*/5 * * * *` | Publik landing-stats pre-compute (ADR 0064) |
 | `dispatch-feedback-notifications` | `* * * * *` | Operatörsavisering per sparad feedback; aldrig omsändning vid okänt utfall; högst 20 till e-posttjänsten per 24 timmar över alla konton, resten väntar köade (#1979, ADR 0156) |
 | `feedback-retention` | 04:50 daglig | Delete feedback screenshots first, then notices and submissions after 90 days from submission (#1979, ADR 0156) |
+| `email-send-count-retention` | 04:40 daglig | Delete our own send counts dated before the first Swedish date the 7-day delivery period reads: at most 8 dates plus the time to the next successful scheduled run (#1981 PR 3, ADR 0180) |
 
 **Planerat / ej registrerat** (speccat men inte byggt — finns inte i
 `RecurringJobRegistrar`):

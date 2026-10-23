@@ -111,6 +111,32 @@ public class RecurringJobRegistrarParityTests
             + "ett dygns latens");
     }
 
+    /// <summary>
+    /// #1981 PR 3 (ADR 0180, security-auditor condition 3) — the send-count retention runs at 04:40 UTC, outside the hour in
+    /// which daylight saving moves the Swedish date, which is what makes "at most eight dates" true at the scheduled run.
+    /// A changed schedule changes the retention bound.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_TheSendCountRetentionRunsDailyAt0440Utc_OnItsOwnWorker()
+    {
+        var manager = Substitute.For<IRecurringJobManager>();
+        var registrar = new RecurringJobRegistrar(
+            manager,
+            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
+            Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
+            Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
+            Options.Create(new CompanyWatchCriterionScanOptions()),
+            NullLogger<RecurringJobRegistrar>.Instance);
+
+        await registrar.StartAsync(CancellationToken.None);
+
+        var call = manager.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IRecurringJobManager.AddOrUpdate))
+            .Single(c => (string)c.GetArguments()[0]! == RecurringJobIds.EmailSendCountRetention);
+        ((string)call.GetArguments()[2]!).ShouldBe("40 4 * * *");
+        ((Hangfire.Common.Job)call.GetArguments()[1]!).Type.ShouldBe(typeof(EmailSendCountRetentionWorker));
+    }
+
     [Fact]
     public async Task StartAsync_TheStreamImportRunsEveryTenMinutes_SoTheCardsOverdueLimitMeansTwoMissedRunsAndFive()
     {

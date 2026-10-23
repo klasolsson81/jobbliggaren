@@ -1,5 +1,6 @@
 using System.Reflection;
 using Jobbliggaren.Application.Admin.Email;
+using Jobbliggaren.Application.Admin.Email.Jobs.EmailSendCountRetention;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailSendCounts;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Email;
@@ -44,12 +45,28 @@ public class EmailSendCountBoundaryTests
             ignoreOrder: true,
             Bound);
 
-    [Theory]
-    [InlineData(typeof(EmailSendDailyCount), typeof(EmailSendDailyCountConfiguration))]
-    [InlineData(typeof(EmailSendCounting), typeof(EmailSendCountingConfiguration))]
-    public void Only_the_configuration_and_the_reader_reference_the_entity_type(Type entity, Type configuration)
-        => ProductionTypeSweep.OwnersReferencing(entity.FullName!)
-            .ShouldBe([configuration.FullName!, typeof(SqlEmailSendCountsSource).FullName!], ignoreOrder: true, Bound);
+    [Fact]
+    public void Only_the_configuration_the_reader_and_the_retention_reference_the_daily_count()
+        => ProductionTypeSweep.OwnersReferencing(typeof(EmailSendDailyCount).FullName!).ShouldBe(
+            [
+                typeof(EmailSendDailyCountConfiguration).FullName!,
+                typeof(SqlEmailSendCountsSource).FullName!,
+                typeof(SqlEmailSendCountRetention).FullName!,
+            ],
+            ignoreOrder: true,
+            Bound);
+
+    [Fact]
+    public void Only_the_configuration_and_the_reader_reference_the_recording_start()
+        => ProductionTypeSweep.OwnersReferencing(typeof(EmailSendCounting).FullName!).ShouldBe(
+            [typeof(EmailSendCountingConfiguration).FullName!, typeof(SqlEmailSendCountsSource).FullName!],
+            ignoreOrder: true,
+            Bound);
+
+    [Fact]
+    public void The_retention_is_injected_into_the_retention_job_alone()
+        => ConsumersOf(typeof(IEmailSendCountRetention))
+            .ShouldBe([typeof(EmailSendCountRetentionJob).FullName!], "a new deleter of our counts needs its own review");
 
     [Fact]
     public void The_counts_read_is_injected_into_the_per_kind_query_alone()

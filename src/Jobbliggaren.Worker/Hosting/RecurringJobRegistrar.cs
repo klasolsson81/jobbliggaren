@@ -240,6 +240,14 @@ public sealed partial class RecurringJobRegistrar(
             job => job.RunAsync(CancellationToken.None),
             "50 4 * * *");
 
+        // #1981 PR 3 (ADR 0180) — our own send counts, daily at 04:40 UTC: outside the hour in which daylight saving
+        // moves the Swedish date, so the run keeps exactly today and the seven dates before it, and clear of the 04:30,
+        // 04:45 and 04:50 slots. A changed schedule changes the retention bound and goes back to security-auditor.
+        manager.AddOrUpdate<EmailSendCountRetentionWorker>(
+            RecurringJobIds.EmailSendCountRetention,
+            job => job.RunAsync(CancellationToken.None),
+            "40 4 * * *");
+
         // WARM-START (CTO-bind 2026-07-13, A′ punkt 4): trigga landing-stats-refreshen EN gång vid
         // Worker-boot i stället för att vänta upp till 5 minuter på nästa cron-tick.
         //

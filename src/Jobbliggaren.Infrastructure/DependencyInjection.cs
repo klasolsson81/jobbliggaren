@@ -999,6 +999,10 @@ public static class DependencyInjection
         services.AddScoped<IAuditPartitionMaintainer, AuditPartitionMaintainer>();
         services.AddScoped<IAuditTrailEraser, AuditTrailEraser>();
 
+        // Our own send counts' retention (#1981 PR 3, ADR 0180), run by a Worker job, so registered here beside the
+        // other maintenance stores rather than with the Api-only read.
+        services.AddScoped<Jobbliggaren.Application.Admin.Email.IEmailSendCountRetention, SqlEmailSendCountRetention>();
+
         // Audit rows written by system jobs, outside the Mediator pipeline (ADR 0035).
         services.AddScoped<ISystemEventAuditor, SystemEventAuditor>();
 

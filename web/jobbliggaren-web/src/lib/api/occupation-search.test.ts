@@ -67,6 +67,18 @@ describe("searchOccupations (#2198)", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sess-1");
   });
 
+  it("keeps åäö and & inside the one q it sends", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(body));
+    global.fetch = fetchMock;
+    const q = "åäö & a=b";
+
+    await searchOccupations(q);
+
+    const sent = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect([...sent.searchParams.keys()]).toEqual(["q"]);
+    expect(sent.searchParams.getAll("q")).toEqual([q]);
+  });
+
   it("is unauthorized without a session and never reaches the backend", async () => {
     getSessionIdMock.mockResolvedValue(null);
     const fetchMock = vi.fn();

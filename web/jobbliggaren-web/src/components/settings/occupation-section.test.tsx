@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useState } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { TaxonomyOccupationField } from "@/lib/dto/taxonomy";
 import type { CvSuggestResult } from "@/lib/actions/match-preferences";
@@ -10,9 +10,9 @@ import {
   EL_GROUP,
   IT_GROUP,
   answer,
-  elingenjorRow,
   groupRow,
   projektledareRow,
+  ruleAnswer,
 } from "@/test/fixtures/occupation-search";
 
 const { cvSuggestMock, parsedSuggestMock } = vi.hoisted(() => ({
@@ -252,6 +252,46 @@ describe("OccupationSection — 'Lägg till yrken'-disclosure", () => {
     expect(
       screen.getByRole("button", { name: "Ta bort Backendutvecklare" })
     ).toBeInTheDocument();
+  });
+
+  it("ett yrkesområde flyttar fokus till yrkesgruppernas rubrik och för kolumnen överst (#2198 design-reviewer Blocker 1)", async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    try {
+      const user = userEvent.setup();
+      render(<HostHarness />);
+      await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
+
+      await user.click(screen.getByRole("button", { name: /Data\/IT/ }));
+
+      const column = screen.getByRole("group", { name: "Yrkesgrupper" });
+      const heading = within(column).getByText("Yrkesgrupper");
+      expect(heading).toHaveFocus();
+      expect(heading).toHaveAttribute("tabindex", "-1");
+      expect(heading).toHaveClass("jp-occsearch__heading");
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+      expect(scrollIntoView.mock.contexts[0]).toBe(column);
+    } finally {
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
+  it("samma yrkesområde igen flyttar fokus till rubriken och lämnar ingen fokusflytt kvar", async () => {
+    const user = userEvent.setup();
+    render(<HostHarness />);
+    await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
+    const field = screen.getByRole("button", { name: /Data\/IT/ });
+
+    await user.click(field);
+    await user.click(field);
+    expect(
+      within(screen.getByRole("group", { name: "Yrkesgrupper" })).getByText("Yrkesgrupper")
+    ).toHaveFocus();
+
+    const group = screen.getByRole("checkbox", { name: "Backendutvecklare" });
+    await user.click(group);
+    expect(group).toHaveFocus();
   });
 });
 
@@ -737,6 +777,24 @@ describe("OccupationSection — yrkessök (#2198)", () => {
     expect(resolveSearchMock).toHaveBeenCalledWith("backend", expect.any(AbortSignal));
   });
 
+  it("keeps the typed word in component state: no Server Action, URL or storage receives it", async () => {
+    const user = userEvent.setup();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    const searchBefore = window.location.search;
+    render(<HostHarness autoSuggestFromCv />);
+
+    await openAndType(user, "sjuksköterska");
+    await waitFor(() => expect(resolveSearchMock).toHaveBeenCalledTimes(1));
+
+    for (const action of [cvSuggestMock, parsedSuggestMock]) {
+      expect(JSON.stringify(action.mock.calls)).not.toContain("sjuksköterska");
+    }
+    expect(window.location.search).toBe(searchBefore);
+    expect(window.localStorage).toHaveLength(0);
+    expect(window.sessionStorage).toHaveLength(0);
+  });
+
   it("stays idle below two characters: the cascade stays and the status is silent", async () => {
     const user = userEvent.setup();
     render(<HostHarness />);
@@ -792,10 +850,7 @@ describe("OccupationSection — yrkessök (#2198)", () => {
     const user = userEvent.setup();
     const onToggle = vi.fn();
     const onReplace = vi.fn();
-    resolveSearchMock.mockResolvedValue({
-      kind: "ok",
-      result: answer([elingenjorRow, groupRow(EL_GROUP, ["Projektledare, el"])]),
-    });
+    resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.elingenjor });
     render(
       <OccupationSection
         occupationFields={realFields}

@@ -13,9 +13,6 @@ import { z } from "zod";
 // The taxonomy DTO's concept-id shape (1–32 characters, [A-Za-z0-9_-]).
 const conceptIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,32}$/);
 
-/** The searcher's row cap. `totalRows` says how many the query reached. */
-export const OCCUPATION_SEARCH_ROW_CAP = 50;
-
 export const occupationSearchVariantSchema = z.object({
   nameLabel: z.string().min(1),
   groupConceptId: conceptIdSchema,
@@ -54,7 +51,7 @@ export type OccupationSearchGroupRow = z.infer<typeof groupRowSchema>;
 export type OccupationSearchWordRow = z.infer<typeof wordRowSchema>;
 
 export const occupationSearchResultSchema = z.object({
-  rows: z.array(occupationSearchRowSchema).max(OCCUPATION_SEARCH_ROW_CAP),
+  rows: z.array(occupationSearchRowSchema),
   totalRows: z.number().int().nonnegative(),
 });
 export type OccupationSearchResult = z.infer<typeof occupationSearchResultSchema>;

@@ -8,23 +8,7 @@ import enMessages from "../../../messages/en";
 import { OccupationSearchField } from "./occupation-search-field";
 import { OCCUPATION_SEARCH_FIELD_ATTRIBUTE } from "./keep-host-open";
 import type { OccupationSearchState } from "@/lib/hooks/use-occupation-search";
-import type { OccupationSearchResult } from "@/lib/dto/occupation-search";
-
-const sixtyHits: OccupationSearchResult = {
-  rows: [
-    {
-      kind: "Group",
-      groupConceptId: "DJh5_yyF_hEM",
-      groupLabel: "Mjukvaru- och systemutvecklare m.fl.",
-      matchedNames: ["Backend-utvecklare"],
-      labelHit: false,
-      headWord: null,
-      variants: [],
-      exactMatch: false,
-    },
-  ],
-  totalRows: 60,
-};
+import { ruleAnswer } from "@/test/fixtures/occupation-search";
 
 function Controlled({ state, initial = "" }: { state: OccupationSearchState; initial?: string }) {
   const [value, setValue] = useState(initial);
@@ -48,12 +32,8 @@ describe("OccupationSearchField (#2198)", () => {
   it.each<[string, OccupationSearchState, string]>([
     ["idle", { kind: "idle" }, ""],
     ["pending", { kind: "pending" }, "Söker…"],
-    ["an answer, counted by its total", { kind: "ok", word: "chef", result: sixtyHits }, "60 träffar"],
-    [
-      "one hit",
-      { kind: "ok", word: "ux", result: { ...sixtyHits, totalRows: 1 } },
-      "1 träff",
-    ],
+    ["an answer, counted by its total", { kind: "ok", word: "chef", result: ruleAnswer.chef }, "60 träffar"],
+    ["one hit", { kind: "ok", word: "ux", result: ruleAnswer.ux }, "1 träff"],
     [
       "no hits",
       { kind: "ok", word: "chaufför", result: { rows: [], totalRows: 0 } },
@@ -112,7 +92,7 @@ describe("OccupationSearchField (#2198)", () => {
   it("says in English that the names are Swedish", () => {
     rawRender(
       <NextIntlClientProvider locale="en" messages={enMessages} timeZone="Europe/Stockholm">
-        <Controlled state={{ kind: "ok", word: "chef", result: sixtyHits }} />
+        <Controlled state={{ kind: "ok", word: "chef", result: ruleAnswer.chef }} />
       </NextIntlClientProvider>,
     );
 

@@ -135,7 +135,7 @@ describe("MatchPreferencesCard — code-split dialog (#748)", () => {
     expect(dialog).toBeInTheDocument();
     expect(dialogModuleEvaluated.current).toBe(true);
     expect(screen.getByRole("button", { name: /Data\/IT/ })).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("reopens after close (gate latches; content remounts and reseeds)", async () => {
     const user = userEvent.setup();

@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { CheckItem } from "@/components/settings/section-helpers";
 import { useFocusAfterCommit } from "@/lib/hooks/use-focus-after-commit";
 import type { OccupationSearchState } from "@/lib/hooks/use-occupation-search";
+import { revealColumn } from "./reveal-column";
 import type {
   OccupationSearchGroupRow,
   OccupationSearchResult,
@@ -100,6 +101,7 @@ function Answer({
   const hitsHeadingId = `${id}-hits`;
   const rightId = `${id}-variants`;
   const rightHeadingId = `${id}-variants-heading`;
+  const rightColumnRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLParagraphElement | null>(null);
   const focusAfterCommit = useFocusAfterCommit();
 
@@ -117,7 +119,7 @@ function Answer({
   const notShown = result.totalRows - rows.length;
 
   function open(headWord: string) {
-    focusAfterCommit(() => headingRef.current);
+    focusAfterCommit(() => revealColumn(rightColumnRef.current, headingRef.current));
     setOpened({ result, headWord });
   }
 
@@ -165,12 +167,23 @@ function Answer({
 
       {hasWordRows &&
         (openRow === undefined ? (
-          <div id={rightId} className="jp-matchdialog__cascade-col">
+          <div
+            id={rightId}
+            className="jp-matchdialog__cascade-col"
+            role="group"
+            aria-labelledby={rightHeadingId}
+          >
+            <div className="jp-matchdialog__cascade-colhead">
+              <span id={rightHeadingId} className="jp-popover__title">
+                {t("groupsHeading")}
+              </span>
+            </div>
             <p className="text-body-sm text-text-primary px-4 py-3">{t("chooseWord")}</p>
           </div>
         ) : (
           <div
             id={rightId}
+            ref={rightColumnRef}
             className="jp-matchdialog__cascade-col"
             role="group"
             aria-labelledby={rightHeadingId}

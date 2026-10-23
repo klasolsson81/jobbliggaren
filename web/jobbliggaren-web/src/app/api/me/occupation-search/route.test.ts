@@ -54,6 +54,17 @@ describe("GET /api/me/occupation-search (#2198)", () => {
     );
   });
 
+  it("forwards a q holding an encoded & and = as one q, intact", async () => {
+    authedFetch.mockResolvedValue(Response.json(BODY));
+
+    await GET(request("q=a%26term%3Db"));
+
+    const forwarded = new URL(String(authedFetch.mock.calls[0]?.[1]), "http://backend");
+    expect(forwarded.pathname).toBe("/api/v1/job-ads/taxonomy/occupations/search");
+    expect([...forwarded.searchParams.keys()]).toEqual(["q"]);
+    expect(forwarded.searchParams.getAll("q")).toEqual(["a&term=b"]);
+  });
+
   it("is 401 without a session and never reaches the backend", async () => {
     getSessionId.mockResolvedValue(null);
 

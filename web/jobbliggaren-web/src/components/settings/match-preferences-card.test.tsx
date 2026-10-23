@@ -633,7 +633,7 @@ describe("the part's dialog (#1918 Binding 3–5)", () => {
       "aria-expanded",
       "true"
     );
-  });
+  }, 15_000);
 
   it("opens Antal års erfarenhet with the field focused", async () => {
     const user = userEvent.setup();

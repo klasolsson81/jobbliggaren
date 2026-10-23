@@ -8,13 +8,12 @@ import {
   BYGG_GROUP,
   EL_GROUP,
   IT_GROUP,
-  USK_HEMTJANST_GROUP,
+  USK_VARD_GROUP,
   UX_GROUP,
   answer,
-  elingenjorRow,
   groupRow,
   projektledareRow,
-  underskoterskaWordRow,
+  ruleAnswer,
 } from "@/test/fixtures/occupation-search";
 
 function renderResults(
@@ -54,21 +53,22 @@ describe("OccupationSearchResults — group rows (#2198)", () => {
   });
 
   it("spells out at most three names in server order, semicolon-separated, then how many more", () => {
-    renderResults(
-      answer([
-        groupRow(IT_GROUP, [
-          "Mjukvaruutvecklare",
-          "Backend-utvecklare",
-          "Frontend-utvecklare",
-          "Fullstack-utvecklare",
-          "Spelutvecklare",
-        ]),
-      ]),
-    );
+    renderResults(ruleAnswer.it);
 
-    expect(screen.getByRole("checkbox", { name: IT_GROUP.label })).toHaveAccessibleDescription(
-      "träff på Mjukvaruutvecklare; Backend-utvecklare; Frontend-utvecklare och 2 till",
+    expect(screen.getByRole("checkbox", { name: "IT-säkerhetsspecialister" })).toHaveAccessibleDescription(
+      "träff på IT-forensiker; IT-säkerhetsanalytiker; IT-säkerhetsansvarig och 3 till",
     );
+  });
+
+  it("renders the rows in the server's order", () => {
+    const result = ruleAnswer.sjukskoterska;
+    renderResults(result);
+
+    const rendered = within(hits()).getAllByRole("checkbox");
+    expect(rendered).toHaveLength(result.rows.length);
+    result.rows.forEach((row, index) => {
+      expect(rendered[index]).toHaveAccessibleName(row.kind === "Group" ? row.groupLabel : row.headWord);
+    });
   });
 
   it("gives a row reached only by its own label no second line", () => {
@@ -140,6 +140,23 @@ describe("OccupationSearchResults — word rows (#2198)", () => {
     expect(onToggle).not.toHaveBeenCalled();
   });
 
+  it("brings the opened column to the top of the visible area", async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    try {
+      const user = userEvent.setup();
+      renderResults(twoRows);
+
+      await user.click(screen.getByRole("button", { name: "Projektledare" }));
+
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+      expect(scrollIntoView.mock.contexts[0]).toBe(screen.getByRole("group", { name: "Projektledare" }));
+    } finally {
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
   it("reaches the first variant from the heading with Tab, by keyboard alone", async () => {
     const user = userEvent.setup();
     renderResults(twoRows);
@@ -168,32 +185,36 @@ describe("OccupationSearchResults — word rows (#2198)", () => {
 
   it("checks a group row and the variant that selects the same group together (undersköterska)", async () => {
     const user = userEvent.setup();
-    render(
-      <Host
-        result={answer([
-          groupRow(USK_HEMTJANST_GROUP, ["Undersköterska, hemtjänst, äldreboende och habilitering"]),
-          underskoterskaWordRow,
-        ])}
-      />,
-    );
+    render(<Host result={ruleAnswer.underskoterska} />);
 
-    await user.click(screen.getByRole("checkbox", { name: USK_HEMTJANST_GROUP.label }));
+    await user.click(screen.getByRole("checkbox", { name: USK_VARD_GROUP.label }));
     await user.click(screen.getByRole("button", { name: "Undersköterska" }));
 
     expect(
-      screen.getByRole("checkbox", { name: "Undersköterska, hemtjänst, äldreboende och habilitering" }),
+      screen.getByRole("checkbox", { name: "Undersköterska, vård- och specialavdelning och mottagning" }),
     ).toHaveAttribute("aria-checked", "true");
     expect(
-      screen.getByRole("checkbox", { name: "Undersköterska, vård- och specialavdelning och mottagning" }),
+      screen.getByRole("checkbox", { name: "Undersköterska, hemtjänst, äldreboende och habilitering" }),
     ).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("toggles a variant with Space and with Enter", async () => {
+    const user = userEvent.setup();
+    render(<Host result={answer([projektledareRow])} />);
+    const variant = screen.getByRole("checkbox", { name: "Projektledare, IT" });
+
+    variant.focus();
+    await user.keyboard(" ");
+    expect(variant).toHaveAttribute("aria-checked", "true");
+
+    await user.keyboard("{Enter}");
+    expect(variant).toHaveAttribute("aria-checked", "false");
   });
 });
 
 describe("OccupationSearchResults — the right column (#2198, design-reviewer Major 1)", () => {
   it("opens row 1 by itself when it holds the exact word, and selects nothing", () => {
-    const { onToggle } = renderResults(
-      answer([elingenjorRow, groupRow(EL_GROUP, ["Projektledare, el"])]),
-    );
+    const { onToggle } = renderResults(ruleAnswer.elingenjor);
 
     expect(screen.getByRole("button", { name: "Elingenjör" })).toHaveAttribute("aria-pressed", "true");
     const column = screen.getByRole("group", { name: "Elingenjör" });
@@ -214,15 +235,23 @@ describe("OccupationSearchResults — the right column (#2198, design-reviewer M
     expect(onToggle).toHaveBeenCalledTimes(0);
   });
 
-  it("waits with the idle line when Word rows exist but row 1 does not open, even an exact one further down", () => {
-    renderResults(
-      answer([groupRow(IT_GROUP, ["Backend-utvecklare"]), { ...projektledareRow, exactMatch: true }]),
-    );
+  it("waits with the idle line when Word rows exist but row 1 does not open", () => {
+    renderResults(answer([groupRow(IT_GROUP, ["Backend-utvecklare"]), projektledareRow]));
 
     expect(screen.getByRole("button", { name: "Projektledare" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByText("Välj ett yrke med flera yrkesgrupper till vänster.")).toBeInTheDocument();
+    expect(screen.getByText("Välj ett yrke med flera yrkesgrupper.")).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Projektledare" })).toBeNull();
     expect(document.querySelector(".jp-occsearch__box--single")).toBeNull();
+  });
+
+  it("gives the idle column the same header band as the hit column, and names the column by it", () => {
+    renderResults(answer([groupRow(IT_GROUP, ["Backend-utvecklare"]), projektledareRow]));
+
+    const idle = screen.getByRole("group", { name: "Yrkesgrupper" });
+    const band = idle.querySelector(".jp-matchdialog__cascade-colhead");
+    expect(band).toHaveTextContent("Yrkesgrupper");
+    expect(idle.firstElementChild).toBe(band);
+    expect(within(idle).getByText("Välj ett yrke med flera yrkesgrupper.")).toBeInTheDocument();
   });
 
   it("is one full-width column when the answer has no Word row", () => {
@@ -231,7 +260,7 @@ describe("OccupationSearchResults — the right column (#2198, design-reviewer M
     const box = document.querySelector(".jp-occsearch__box");
     expect(box).toHaveClass("jp-occsearch__box--single");
     expect(box?.children).toHaveLength(1);
-    expect(screen.queryByText("Välj ett yrke med flera yrkesgrupper till vänster.")).toBeNull();
+    expect(screen.queryByText("Välj ett yrke med flera yrkesgrupper.")).toBeNull();
   });
 
   it("starts a new answer from its own default, not from the row opened in the last one", async () => {
@@ -252,7 +281,7 @@ describe("OccupationSearchResults — the right column (#2198, design-reviewer M
   });
 
   it("keeps the whole left column before the right one in DOM order", () => {
-    renderResults(answer([elingenjorRow, groupRow(EL_GROUP, ["Projektledare, el"])], 60));
+    renderResults(ruleAnswer.elingenjor);
 
     const left = hits();
     const right = screen.getByRole("group", { name: "Elingenjör" });
@@ -270,7 +299,7 @@ describe("OccupationSearchResults — what search mode never shows (#2198)", () 
   });
 
   it("names the hit column without a count; the count is the status line's", () => {
-    renderResults(answer([groupRow(IT_GROUP, ["Backend-utvecklare"])], 60));
+    renderResults(ruleAnswer.chef);
 
     expect(hits()).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: /60/ })).toBeNull();
@@ -288,16 +317,16 @@ describe("OccupationSearchResults — what search mode never shows (#2198)", () 
 
 describe("OccupationSearchResults — the cap line (#2198)", () => {
   it("says how many rows are not shown, as the last element of the left column, out of the tab order", () => {
-    renderResults(answer([groupRow(IT_GROUP, ["Backend-utvecklare"]), groupRow(UX_GROUP, ["UX-designer"])], 60));
+    renderResults(ruleAnswer.chef);
 
-    const line = screen.getByText("58 träffar visas inte. Skriv mer för att avgränsa.");
+    const line = screen.getByText("10 träffar visas inte. Skriv mer för att avgränsa.");
     expect(hits().lastElementChild).toBe(line);
     expect(line.tagName).toBe("P");
     expect(line).not.toHaveAttribute("tabindex");
   });
 
   it("uses the singular for one", () => {
-    renderResults(answer([groupRow(IT_GROUP, ["Backend-utvecklare"])], 2));
+    renderResults(answer(ruleAnswer.chef.rows, 51));
 
     expect(screen.getByText("1 träff visas inte. Skriv mer för att avgränsa.")).toBeInTheDocument();
   });

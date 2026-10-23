@@ -465,11 +465,6 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 .jp-occsearch__box--single > .jp-matchdialog__cascade-col:first-child {
   border-right: 0;
 }
-/* One scroller per column: reaching a column's end does not carry on into the dialog or rail body
-   behind it (design-reviewer Minor 3). */
-.jp-occsearch .jp-matchdialog__cascade-col {
-  overscroll-behavior: contain;
-}
 /* The right column's heading takes focus when a Word row opens; it is a block so the inset ring
    above has a box to sit in. */
 .jp-occsearch__heading {

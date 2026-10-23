@@ -121,13 +121,14 @@ describe("useOccupationSearch (#2198)", () => {
     expect(result.current).toEqual({ kind: "idle" });
   });
 
-  it("maps a resolver that throws (not an abort) to unavailable", async () => {
+  it("maps an AbortError the caller's signal did not raise to unavailable", async () => {
     const resolve = vi.fn<OccupationSearchResolver>(async () => {
-      throw new Error("unexpected");
+      throw new DOMException("The operation was aborted.", "AbortError");
     });
     const { result } = renderHook(() => useOccupationSearch("chef", resolve));
 
     await waitFor(() => expect(result.current).toEqual({ kind: "unavailable" }));
+    expect(resolve.mock.calls[0]?.[1].aborted).toBe(false);
   });
 
   // Through the real resolver and a stubbed fetch, so the status mapping is the shipped one.

@@ -22,6 +22,7 @@ import {
   OccupationSearchResults,
   occupationSearchBox,
 } from "@/components/occupation-search/occupation-search-results";
+import { revealColumn } from "@/components/occupation-search/reveal-column";
 import type { TaxonomyOccupationField } from "@/lib/dto/taxonomy";
 import {
   suggestOccupationsFromCvAction,
@@ -149,6 +150,8 @@ export function OccupationSection({
   const panelRef = useRef<HTMLDivElement | null>(null);
   // The picker's own button: where focus goes when the last chip, or everything by "Rensa", goes.
   const ctaRef = useRef<HTMLButtonElement | null>(null);
+  const groupsColumnRef = useRef<HTMLDivElement | null>(null);
+  const groupsHeadingRef = useRef<HTMLParagraphElement | null>(null);
   const focusAfterCommit = useFocusAfterCommit();
 
   // CV-förslag (pending/diskriminerat). noCv/noRole/error/unauthorized visas
@@ -254,6 +257,17 @@ export function OccupationSection({
   // Stabilt panel-id (aria-controls). useId ger ett hydration-säkert unikt id.
   const reactId = useId();
   const panelId = `${idPrefix}-occ-picker-${reactId}`;
+  const groupsHeadingId = `${panelId}-groups`;
+
+  function showGroups(fieldConceptId: string) {
+    const reveal = () => revealColumn(groupsColumnRef.current, groupsHeadingRef.current);
+    if (fieldConceptId === activeField) {
+      reveal()?.focus();
+      return;
+    }
+    focusAfterCommit(reveal);
+    setActiveField(fieldConceptId);
+  }
 
   function openPicker() {
     setPickerOpen(true);
@@ -363,7 +377,7 @@ export function OccupationSection({
             ) : (
               <div className="jp-matchdialog__cascade">
                 {/* Vänsterkolumnen NAVIGERAR vilket yrkesområde som är aktivt
-                    (avslöjar dess yrkesgrupper till höger) — den väljer inget
+                    (avslöjar dess yrkesgrupper) — den väljer inget
                     värde (det gör grupp-checkboxarna). Därför en knapp-grupp
                     (role="group" + <button>), inte role="listbox" (en listbox
                     lovar single-tab-stop + roving tabindex + piltangenter,
@@ -397,7 +411,7 @@ export function OccupationSection({
                           type="button"
                           className="jp-popover-row"
                           aria-pressed={active}
-                          onClick={() => setActiveField(f.conceptId)}
+                          onClick={() => showGroups(f.conceptId)}
                         >
                           <span className="flex items-center gap-2">
                             {hasSel && !active && (
@@ -419,14 +433,20 @@ export function OccupationSection({
                   )}
                 </div>
                 <div
+                  ref={groupsColumnRef}
                   className="jp-matchdialog__cascade-col"
                   role="group"
-                  aria-label={t("matchPrefs.occupation.occupationGroups")}
+                  aria-labelledby={groupsHeadingId}
                 >
                   <div className="jp-matchdialog__cascade-colhead">
-                    <span className="jp-popover__title">
+                    <p
+                      id={groupsHeadingId}
+                      ref={groupsHeadingRef}
+                      tabIndex={-1}
+                      className="jp-popover__title jp-occsearch__heading"
+                    >
                       {t("matchPrefs.occupation.occupationGroups")}
-                    </span>
+                    </p>
                   </div>
                   {activeField === null ? (
                     <p className="text-body-sm text-text-primary px-4 py-3">

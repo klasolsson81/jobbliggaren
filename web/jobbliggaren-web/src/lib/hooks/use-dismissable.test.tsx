@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useDismissable } from "./use-dismissable";
+import { OccupationSearchField } from "@/components/occupation-search/occupation-search-field";
 
 // #419 pt7 — pinnar useDismissable-selektorn: en Radix MODAL Dialog (InfoDialog "?")
 // öppnad från INUTI en dismissable popover får INTE stänga popovern. Dialog-ytorna
@@ -100,5 +101,81 @@ describe("useDismissable — modal-in-popover ignore (#419 pt7)", () => {
     getByText("trigger").focus();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+// #2198 PR 2 — the optional `keepOpenOnEscape` predicate. The handled Escape comes from the real
+// occupation search field: with text, its own onKeyDown calls preventDefault and clears it.
+function FieldHarness({
+  onClose,
+  keepOpenOnEscape,
+}: {
+  onClose: () => void;
+  keepOpenOnEscape?: (event: KeyboardEvent) => boolean;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const ref = useDismissable<HTMLDivElement>(true, onClose, triggerRef, keepOpenOnEscape);
+  const [term, setTerm] = useState("projektledare");
+  return (
+    <div>
+      <button ref={triggerRef}>trigger</button>
+      <div ref={ref}>
+        <OccupationSearchField id="occ" value={term} onChange={setTerm} state={{ kind: "idle" }} />
+      </div>
+      <div data-testid="outside">outside</div>
+    </div>
+  );
+}
+
+describe("useDismissable — keepOpenOnEscape (#2198)", () => {
+  it("without it, an Escape the search field handled still closes and focuses the trigger", () => {
+    const onClose = vi.fn();
+    const { getByRole } = render(<FieldHarness onClose={onClose} />);
+    const field = getByRole("searchbox");
+    field.focus();
+
+    const notCancelled = fireEvent.keyDown(field, { key: "Escape" });
+
+    expect(notCancelled).toBe(false);
+    expect(field).toHaveValue("");
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(getByRole("button", { name: "trigger" }));
+  });
+
+  it("returning true keeps the panel open and leaves focus where it is", () => {
+    const onClose = vi.fn();
+    const keepOpen = vi.fn<(event: KeyboardEvent) => boolean>(() => true);
+    const { getByRole } = render(<FieldHarness onClose={onClose} keepOpenOnEscape={keepOpen} />);
+    const field = getByRole("searchbox");
+    field.focus();
+
+    fireEvent.keyDown(field, { key: "Escape" });
+
+    expect(keepOpen).toHaveBeenCalledTimes(1);
+    expect(keepOpen.mock.calls[0]?.[0]).toBeInstanceOf(KeyboardEvent);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(field);
+  });
+
+  it("returning false closes and focuses the trigger", () => {
+    const onClose = vi.fn();
+    const { getByRole } = render(<FieldHarness onClose={onClose} keepOpenOnEscape={() => false} />);
+    getByRole("searchbox").focus();
+
+    fireEvent.keyDown(getByRole("searchbox"), { key: "Escape" });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(getByRole("button", { name: "trigger" }));
+  });
+
+  it("is never consulted for a mousedown: an outside click still closes", () => {
+    const onClose = vi.fn();
+    const keepOpen = vi.fn<(event: KeyboardEvent) => boolean>(() => true);
+    const { getByTestId } = render(<FieldHarness onClose={onClose} keepOpenOnEscape={keepOpen} />);
+
+    fireEvent.mouseDown(getByTestId("outside"));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(keepOpen).not.toHaveBeenCalled();
   });
 });

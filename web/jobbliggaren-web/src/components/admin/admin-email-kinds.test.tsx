@@ -149,14 +149,15 @@ describe("Utskick per mejltyp's note and caption", () => {
   it("names when the count began, to the minute in Swedish time, where it began inside the period", () => {
     const section = show({
       kind: "loaded",
-      data: { ...observed(), coverage: "Partial", coveredFrom: "2026-10-23T05:12:34+00:00" },
+      data: { ...observed(), coverage: "Partial", coveredFrom: "2026-10-23T05:12:34.123456+00:00" },
     });
 
     const note = within(section).getByText(/^Räknat av Jobbliggaren/);
     expect(note).toHaveTextContent(
       "Räknat av Jobbliggaren vid varje försök att lämna över ett mejl till Scaleway, sedan räkningen började 2026-10-23 07:12.",
     );
-    expect(note.querySelector("time")).toHaveAttribute("dateTime", "2026-10-23T05:12:34+00:00");
+    // The database's six decimals of a second, in the three a <time> element takes.
+    expect(note.querySelector("time")).toHaveAttribute("dateTime", "2026-10-23T05:12:34.123Z");
     expect(note.textContent).not.toContain("från och med");
     expect(table()).toHaveAccessibleName("Utskick per mejltyp sedan 2026-10-23 07:12");
     expect(bodyRows()).toHaveLength(7);

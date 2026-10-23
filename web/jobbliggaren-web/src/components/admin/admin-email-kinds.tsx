@@ -44,9 +44,10 @@ export function AdminEmailKinds({ kinds }: { readonly kinds: AdminEmailRead<Kind
   const format = useFormatter();
   const line = useEmailKindsLine(kinds);
   const observed = kinds.kind === "loaded" && kinds.data.status === "Observed" ? kinds.data : null;
-  // A count that began inside the period, shown to the minute in the page's time zone.
+  // A count that began inside the period, shown to the minute in the page's time zone. The database keeps six decimals
+  // of a second and `<time>` takes at most three, so the element carries the instant in its UTC form.
   const began = observed?.coveredFrom ?? null;
-  const start = began === null ? null : { at: began, shown: formatDateTime(format, began) ?? began };
+  const start = began === null ? null : { at: new Date(began).toISOString(), shown: formatDateTime(format, began) ?? began };
 
   // The table's name never repeats the section's: without counts it names what the table holds, with them their span.
   function caption(): string {

@@ -220,6 +220,7 @@ describe("emailKindsSchema (#1981 PR 3)", () => {
   it.each<readonly [string, unknown]>([
     ["the seven kinds in their order", KINDS],
     ["a count that began inside the period", { ...KINDS, coverage: "Partial", coveredFrom: "2026-10-23T05:12:34+00:00" }],
+    ["a start with the database's six decimals of a second", { ...KINDS, coverage: "Partial", coveredFrom: "2026-10-23T05:13:27.123456+00:00" }],
     ["every kind at zero", { ...KINDS, kinds: EMAIL_KINDS.map((kind) => ({ kind, accepted: 0, failed: 0, latestFailure: null })) }],
     ["every failure class on one day, in their order", withKind(0, {
       latestFailure: { day: "2026-10-22", outcomes: ["Refused", "RateLimited", "Unreachable", "ProviderError", "Timeout", "Other"] },

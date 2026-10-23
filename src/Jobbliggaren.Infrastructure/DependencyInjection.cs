@@ -392,6 +392,12 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IOccupationCodeDeriver,
             Jobbliggaren.Infrastructure.Taxonomy.OccupationCodeDeriver>();
 
+        // The occupation pickers' free-text search over the same index, without the deriver's
+        // spread gate: the user chooses there (ADR 0180). A singleton with a lazy cache.
+        services.AddSingleton<
+            Jobbliggaren.Application.JobAds.Abstractions.IOccupationSearcher,
+            Jobbliggaren.Infrastructure.Taxonomy.OccupationSearcher>();
+
         // Attributes experience to occupations when a CV is imported (ADR 0079). Stateless.
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.IOccupationExperienceDeriver,

@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { createFormatter, createTranslator } from "next-intl";
 import sv from "../../../messages/sv";
 import type { PublicJobAdResult } from "@/lib/api/public-job-ad";
+import type { PublicJobAdRelatedResult } from "@/lib/api/public-job-ad-related";
 
 vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace?: string) =>
@@ -13,6 +14,8 @@ vi.mock("next-intl/server", () => ({
 
 const getPublicJobAd = vi.fn<(id: string) => Promise<PublicJobAdResult>>();
 vi.mock("@/lib/api/public-job-ad", () => ({ getPublicJobAd: (id: string) => getPublicJobAd(id) }));
+const getPublicJobAdRelated = vi.fn<(id: string) => Promise<PublicJobAdRelatedResult>>();
+vi.mock("@/lib/api/public-job-ad-related", () => ({ getPublicJobAdRelated: (id: string) => getPublicJobAdRelated(id) }));
 
 import PublicJobPage, { generateMetadata } from "./publik/jobb/[id]/page";
 import PublicJobGonePage, { generateMetadata as goneMetadata } from "./publik/borttagen/page";
@@ -40,8 +43,20 @@ const AD = {
 
 const params = (id = ID) => ({ params: Promise.resolve({ id }) });
 
+const RELATED_SENTINEL = "Relaterad Sentinelsson Enskild Firma";
+const RELATED_ROW = {
+  id: "0b0b0b0b-1111-4222-8333-555555555555",
+  title: "Undersköterska sökes",
+  companyName: RELATED_SENTINEL,
+  municipalityName: "Solna",
+  regionName: "Stockholms län",
+  publishedAt: "2026-10-02T08:00:00Z",
+};
+
 beforeEach(() => {
   getPublicJobAd.mockReset();
+  getPublicJobAdRelated.mockReset();
+  getPublicJobAdRelated.mockResolvedValue({ kind: "unavailable" });
 });
 
 describe("the public job page", () => {
@@ -77,6 +92,57 @@ describe("the public job page", () => {
     expect(String((error as { digest?: unknown }).digest ?? "")).not.toContain("404");
   });
 
+});
+
+describe("the public job page's related section (ADR 0182)", () => {
+  it("reads the related ads once, from the page body, in parallel with the ad's own read", async () => {
+    let releaseAd: (value: PublicJobAdResult) => void = () => undefined;
+    getPublicJobAd.mockReturnValue(new Promise((resolve) => (releaseAd = resolve)));
+    getPublicJobAdRelated.mockResolvedValue({ kind: "ok", rows: [RELATED_ROW] });
+
+    const page = PublicJobPage(params());
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getPublicJobAdRelated).toHaveBeenCalledTimes(1);
+    expect(getPublicJobAdRelated).toHaveBeenCalledWith(ID);
+    expect(getPublicJobAd).toHaveBeenCalledTimes(1);
+    releaseAd({ kind: "ok", jobAd: AD });
+    render(await page);
+
+    expect(screen.getByRole("heading", { level: 2, name: "Andra jobb i samma yrkesgrupp" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: RELATED_ROW.title })).toBeInTheDocument();
+  });
+
+  it("renders the ad without the section when the related read is unavailable", async () => {
+    getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: AD });
+    const { container } = render(await PublicJobPage(params()));
+
+    expect(screen.getByRole("heading", { level: 1, name: "Sjuksköterska" })).toBeInTheDocument();
+    expect(container.querySelector("[data-nosnippet]")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Andra jobb i samma yrkesgrupp" })).toBeNull();
+  });
+
+  it("never reads the related ads for the metadata, and no related value reaches a title, description or OpenGraph tag", async () => {
+    getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: AD });
+    getPublicJobAdRelated.mockResolvedValue({ kind: "ok", rows: [RELATED_ROW] });
+
+    const metadata = await generateMetadata(params());
+
+    expect(getPublicJobAdRelated).not.toHaveBeenCalled();
+    expect(JSON.stringify(metadata)).not.toContain(RELATED_SENTINEL);
+    expect(JSON.stringify(metadata)).not.toContain(RELATED_ROW.title);
+  });
+
+  it.each([{ kind: "notFound" }, { kind: "unavailable" }] as const)(
+    "shows no section on an ad read of kind %j, which never renders the ad",
+    async (result) => {
+      getPublicJobAd.mockResolvedValue(result);
+      getPublicJobAdRelated.mockResolvedValue({ kind: "ok", rows: [RELATED_ROW] });
+
+      await expect(PublicJobPage(params())).rejects.toBeDefined();
+    }
+  );
 });
 
 describe("the public job page's metadata", () => {

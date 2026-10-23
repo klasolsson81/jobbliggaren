@@ -3,6 +3,7 @@ import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import { PublicJobAd } from "@/components/job-ads/public-job-ad";
 import { getPublicJobAd } from "@/lib/api/public-job-ad";
+import { getPublicJobAdRelated } from "@/lib/api/public-job-ad-related";
 import { formatDate } from "@/lib/i18n/format";
 import { publicJobAdUrl } from "@/lib/job-ads/public-job-ad-url";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
@@ -19,7 +20,9 @@ const SENTENCE_END = /[.!?…]$/u;
  *
  * One read per render (`getPublicJobAd` is wrapped in `cache()` and shared with `generateMetadata`; ADR 0160 D9.4).
  * A 404 or 410 (the ad ended after the edge's 200) is a real 404; every other outcome throws and is a 5xx, so an
- * outage never reads as a removal (D9.5).
+ * outage never reads as a removal (D9.5). The page body also reads the related ads (ADR 0182), in parallel and only
+ * here, never in `generateMetadata`: nothing of another ad reaches the title, the description or OpenGraph, and a
+ * failed related read only leaves its section out.
  *
  * Title, description and OpenGraph are built from structured fields only, never from the ad text: a link preview is
  * a copy held by a third party, and the free text can name a person.
@@ -67,11 +70,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function PublicJobPage({ params }: PageProps) {
   const { id } = await params;
-  const result = await getPublicJobAd(id);
+  const [result, related] = await Promise.all([getPublicJobAd(id), getPublicJobAdRelated(id)]);
 
   switch (result.kind) {
     case "ok":
-      return <PublicJobAd jobAd={result.jobAd} />;
+      return <PublicJobAd jobAd={result.jobAd} related={related.kind === "ok" ? related.rows : []} />;
     case "notFound":
       notFound();
     case "unavailable":

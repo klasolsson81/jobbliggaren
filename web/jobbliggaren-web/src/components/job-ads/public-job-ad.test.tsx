@@ -408,3 +408,103 @@ describe("PublicJobAd: the explainer links after the article (#2203)", () => {
     ]);
   });
 });
+
+describe("PublicJobAd: the related section after the article (ADR 0182)", () => {
+  const RELATED_SENTINEL = "Relaterad Sentinelsson Enskild Firma";
+  const row = (n: number, overrides: Partial<Record<string, string | null>> = {}) => ({
+    id: `0b0b0b0b-1111-4222-8333-${String(n).padStart(12, "0")}`,
+    title: `Undersköterska ${n}`,
+    companyName: n === 1 ? RELATED_SENTINEL : `Arbetsgivare ${n} AB`,
+    municipalityName: "Solna",
+    regionName: "Stockholms län",
+    publishedAt: "2026-10-02T08:00:00Z",
+    ...overrides,
+  });
+  const FIVE = [1, 2, 3, 4, 5].map((n) => row(n));
+
+  const sectionOf = (container: HTMLElement) => container.querySelector<HTMLElement>("section[data-nosnippet]");
+
+  it("is absent with no rows, and the page is then the page without the prop", () => {
+    const { container: without } = render(<PublicJobAd jobAd={AD} />);
+    const { container: empty } = render(<PublicJobAd jobAd={AD} related={[]} />);
+
+    expect(sectionOf(empty)).toBeNull();
+    expect(empty.querySelector("[data-nosnippet]")).toBeNull();
+    expect(screen.queryAllByRole("heading", { name: "Andra jobb i samma yrkesgrupp" })).toHaveLength(0);
+    expect(empty.innerHTML).toBe(without.innerHTML);
+  });
+
+  it.each([1, 5])("with %i rows is one nosnippet section named by its h2, with a plain h3 link per row", (count) => {
+    const { container } = render(<PublicJobAd jobAd={AD} related={FIVE.slice(0, count)} />);
+
+    const sections = container.querySelectorAll("section[data-nosnippet]");
+    expect(sections).toHaveLength(1);
+    const section = sections[0] as HTMLElement;
+    const heading = within(section).getByRole("heading", { level: 2, name: "Andra jobb i samma yrkesgrupp" });
+    expect(heading).toHaveClass("jp-eyebrow");
+    expect(section).toHaveAttribute("aria-labelledby", heading.id);
+    expect(within(section).getByRole("list")).toHaveAttribute("aria-labelledby", heading.id);
+
+    const titles = within(section).getAllByRole("heading", { level: 3 });
+    expect(titles.map((h) => h.textContent)).toEqual(FIVE.slice(0, count).map((r) => r.title));
+    const links = within(section).getAllByRole("link");
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(FIVE.slice(0, count).map((r) => `/jobb/${r.id}`));
+    for (const link of links) {
+      expect(link).not.toHaveAttribute("data-information-link");
+      for (const describedBy of (link.getAttribute("aria-describedby") ?? "").split(" "))
+        expect(container.querySelector(`#${CSS.escape(describedBy)}`)).not.toBeNull();
+    }
+  });
+
+  it("names no group and no count in its heading", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} related={FIVE} />);
+
+    const heading = within(sectionOf(container)!).getByRole("heading", { level: 2 });
+    expect(heading.textContent).toBe(svMessages.publicjob.related.heading);
+    expect(heading.textContent).not.toContain(GROUP);
+    expect(heading.textContent).not.toMatch(/\d/);
+  });
+
+  it("sits after the article and before the explainer links, outside the article, in the card's column", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} related={FIVE} />);
+
+    const article = container.querySelector("article.jp-modal")!;
+    const section = sectionOf(container)!;
+    const explainers = explainersOf("Relaterade sidor");
+    expect(section.closest("article.jp-modal")).toBeNull();
+    expect(article.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(section.compareDocumentPosition(explainers) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(section.parentElement).toBe(explainers.parentElement);
+    expect(section.parentElement).toHaveClass("mx-auto", "w-full", "max-w-[760px]");
+  });
+
+  it("gives every row its own ids, so the page has no duplicate id and keeps one primary action", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} related={FIVE} />);
+
+    const ids = [...container.querySelectorAll("[id]")].map((el) => el.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.filter((id) => id.startsWith("related-"))).toHaveLength(FIVE.length * 2);
+    expect(container.querySelectorAll(".jp-btn--primary")).toHaveLength(1);
+  });
+
+  it("puts nothing of another ad into the JobPosting data block", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} related={FIVE} />);
+
+    const block = jsonLdScripts(container)[0]?.innerHTML ?? "";
+    expect(block).not.toBe("");
+    expect(block).not.toContain(RELATED_SENTINEL);
+    expect(block).not.toContain("Undersköterska");
+  });
+
+  it("reads in English on the English page", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages} timeZone="Europe/Stockholm">
+        <PublicJobAd jobAd={AD} related={FIVE} />
+      </NextIntlClientProvider>
+    );
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: enMessages.publicjob.related.heading })
+    ).toBeInTheDocument();
+  });
+});

@@ -13,6 +13,9 @@
   "explainers": {
     "heading": "Related pages"
   },
+  "related": {
+    "heading": "Other jobs in the same occupational group"
+  },
   "gone": {
     "title": "The job ad is no longer available",
     "body": "The application deadline may have passed, or the ad may have been removed."

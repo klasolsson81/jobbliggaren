@@ -4,13 +4,17 @@ import { InformationLink } from "@/components/information/InformationLink";
 import informationStyles from "@/components/information/information.module.css";
 import { JsonLdScript } from "@/components/seo/json-ld-script";
 import type { PublicJobAdDto } from "@/lib/dto/public-job-ad";
+import type { PublicJobAdSummary } from "@/lib/dto/public-job-ad-catalogue";
 import { type CodedTaxonomyId, codedTaxonomyName, isCodedTaxonomyId } from "@/lib/i18n/coded-taxonomy";
 import { adSourceLink } from "@/lib/job-ads/ad-source-link";
 import { buildJobPosting } from "@/lib/job-ads/job-posting-json-ld";
 import { formatAdDescription } from "./format-ad-description";
 import { JobAdDetailMeta } from "./job-ad-detail-meta";
+import { PublicJobAdList } from "./public-job-ad-list";
 import { StripBounceMarker } from "./strip-bounce-marker";
 import contactLinkStyles from "./recruiter-contact-link.module.css";
+
+const RELATED_TITLE_ID = "jp-related-title";
 
 /**
  * The anonymous job page (ADR 0165): one listed ad, as the server sends it. It takes `PublicJobAdDto` and can render
@@ -28,10 +32,21 @@ import contactLinkStyles from "./recruiter-contact-link.module.css";
  * The link out appears twice: a secondary action under the dates and the one primary action in the footer. A long ad
  * puts the footer screens down the page, and a visitor from a search result should see where to apply without scrolling.
  *
- * After the article, and outside it because the article is the employer's content, two links explain how CV review and
- * matching work. They carry the footer's own names for the same two pages (WCAG 3.2.4), and the column the card has.
+ * After the article, and outside it because the article is the employer's content, come other listed ads in the same
+ * occupation group (ADR 0182) and then two links that explain how CV review and matching work, all in the column the
+ * card has. The related rows are the catalogue's, under a heading that names no group and no count, in one
+ * `data-nosnippet` section: a snippet of this ad quoting another ad's title or employer would be false and stale in a
+ * copy we cannot reach (ADR 0166 D10 trigger 15). With no rows there is no section at all, and nothing on the page
+ * depends on it. The explainer links carry the footer's own names for the same two pages (WCAG 3.2.4).
  */
-export function PublicJobAd({ jobAd }: { jobAd: PublicJobAdDto }) {
+export function PublicJobAd({
+  jobAd,
+  related = [],
+}: {
+  jobAd: PublicJobAdDto;
+  /** The related rows; empty, or left out, renders no section. */
+  related?: readonly PublicJobAdSummary[];
+}) {
   const tPublic = useTranslations("publicjob");
   const tUi = useTranslations("jobads.ui");
   const tEnum = useTranslations("jobads.enums");
@@ -132,6 +147,14 @@ export function PublicJobAd({ jobAd }: { jobAd: PublicJobAdDto }) {
       </article>
 
       <div className="mx-auto mt-10 w-full max-w-[760px]">
+        {related.length > 0 && (
+          <section aria-labelledby={RELATED_TITLE_ID} data-nosnippet="" className="mb-10">
+            <h2 id={RELATED_TITLE_ID} className="jp-eyebrow">
+              {tPublic("related.heading")}
+            </h2>
+            <PublicJobAdList rows={related} labelledBy={RELATED_TITLE_ID} headingLevel={3} idPrefix="related" />
+          </section>
+        )}
         <div>
           <h2 className="jp-eyebrow">{tPublic("explainers.heading")}</h2>
           <ul className="mt-2 flex flex-col gap-1">

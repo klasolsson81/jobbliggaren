@@ -77,10 +77,11 @@ public sealed class GetPublicJobAdQueryHandler(IAppDbContext db, ITaxonomyReadMo
         if (state != JobAdPublicationState.Listed)
             return Answer(state);
 
-        // Only a Listed ad reaches the taxonomy port (ADR 0171): the names are for the page and its
-        // JobPosting, and a 410 carries no body. The names come from the second row's ids.
-        var names = await PublicPlaceNames.ResolveAsync(
-            taxonomy, [row.MunicipalityConceptId, row.RegionConceptId], cancellationToken);
+        // Only a Listed ad reaches the taxonomy port (ADR 0171): the names are for the page, and a 410
+        // carries no body. The names come from the second row's ids. Kommun and län also feed the
+        // JobPosting; the occupation group is shown on the page only (ADR 0171 D4 never emits it).
+        var names = await PublicTaxonomyNames.ResolveAsync(
+            taxonomy, [row.MunicipalityConceptId, row.RegionConceptId, row.OccupationGroupConceptId], cancellationToken);
 
         return Result.Success(new PublicJobAdDto(
             Id: query.Id,
@@ -91,10 +92,11 @@ public sealed class GetPublicJobAdQueryHandler(IAppDbContext db, ITaxonomyReadMo
             PublishedAt: row.PublishedAt,
             ExpiresAt: row.ExpiresAt,
             MunicipalityConceptId: row.MunicipalityConceptId,
-            MunicipalityName: PublicPlaceNames.NameOf(names, row.MunicipalityConceptId),
+            MunicipalityName: PublicTaxonomyNames.NameOf(names, row.MunicipalityConceptId),
             RegionConceptId: row.RegionConceptId,
-            RegionName: PublicPlaceNames.NameOf(names, row.RegionConceptId),
+            RegionName: PublicTaxonomyNames.NameOf(names, row.RegionConceptId),
             OccupationGroupConceptId: row.OccupationGroupConceptId,
+            OccupationGroupName: PublicTaxonomyNames.NameOf(names, row.OccupationGroupConceptId),
             EmploymentTypeConceptId: row.EmploymentTypeConceptId,
             WorktimeExtentConceptId: row.WorktimeExtentConceptId));
     }

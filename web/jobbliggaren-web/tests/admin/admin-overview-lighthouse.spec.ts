@@ -52,6 +52,7 @@ test("overview, registration directory and e-post page meet local Lighthouse bud
       } else if (path === "/admin/e-post") {
         await expect(control.getByRole("region", { name: "Leverans", exact: true }).getByRole("definition")).toHaveText(["384", "5"]);
         await expect(control.getByRole("table", { name: /^Misslyckade utskick/ }).locator("tbody tr")).toHaveCount(5);
+        await expect(control.getByRole("region", { name: "Utskick per mejltyp", exact: true }).getByRole("rowheader")).toHaveCount(7);
       } else {
         await expect(control.getByRole("table", { name: "Konton" })).toContainText("konto.b@example.test");
         await expect(control.getByRole("button", { name: "Rensa period" })).toBeVisible();
@@ -61,7 +62,10 @@ test("overview, registration directory and e-post page meet local Lighthouse bud
         ? ["GET /api/v1/admin/overview/accounts", "GET /api/v1/admin/audit-log", "GET /api/v1/admin/jobs/failed",
           "GET /api/v1/admin/overview/backup", "GET /api/v1/admin/overview/host", "GET /api/v1/admin/overview/services"]
         : path === "/admin/e-post"
-          ? ["GET /api/v1/admin/email/allowance", "GET /api/v1/admin/email/delivery", "GET /api/v1/admin/email/failures"]
+          ? [
+            "GET /api/v1/admin/email/allowance", "GET /api/v1/admin/email/delivery", "GET /api/v1/admin/email/failures",
+            "GET /api/v1/admin/email/kinds",
+          ]
           : ["POST /api/v1/admin/accounts/search"];
       const reports: Report[] = [];
       for (let run = 0; run < 3; run++) {

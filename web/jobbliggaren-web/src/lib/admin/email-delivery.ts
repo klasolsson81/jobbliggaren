@@ -5,6 +5,7 @@ import {
   type EmailFailuresDto,
 } from "@/lib/dto/admin-email";
 import { allowanceFailureGroup, type AllowanceFailureGroup } from "./email-allowance";
+import type { AdminEmailRead } from "./view-models";
 
 /**
  * What the e-post page's Leverans section and the overview's attention line read from a delivery read (#1981 PR 2).
@@ -51,6 +52,25 @@ export function emailReadLine(read: EmailDeliveryDto | EmailFailuresDto): EmailR
     case "Failed":
       return `failure.${allowanceFailureGroup(read.reason)}`;
   }
+}
+
+/** What a Leverans region says in place of its content, and whether the section announces it. */
+export interface EmailRegionLine {
+  readonly text: string;
+  readonly announce: "alert" | "status" | null;
+}
+
+/**
+ * Whether every region is in one state with one cause that no single read owns: all pending while the route loads, or
+ * all refused for the same session. The section then reads that cause once, not once per region.
+ */
+export function isSharedCause(reads: ReadonlyArray<AdminEmailRead<unknown>>): boolean {
+  const [first, ...rest] = reads;
+  if (first?.kind === "loading") return rest.every((read) => read.kind === "loading");
+  if (first?.kind === "failed" && first.line !== undefined) {
+    return rest.every((read) => read.kind === "failed" && read.line === first.line);
+  }
+  return false;
 }
 
 /** A provider state the reader must act on, or cannot judge: announced as an alert, never only shown. */

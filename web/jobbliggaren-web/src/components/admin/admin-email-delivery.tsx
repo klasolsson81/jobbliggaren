@@ -6,55 +6,54 @@ import {
   emailReadLine,
   failureMinute,
   isAlertingRead,
+  isSharedCause,
   withEmailPeriod,
+  type EmailRegionLine,
 } from "@/lib/admin/email-delivery";
 import type {
   AdminEmailDelivery as Delivery,
   AdminEmailFailures as Failures,
+  AdminEmailKinds as Kinds,
   AdminEmailPeriod,
   AdminEmailRead,
 } from "@/lib/admin/view-models";
 import { formatDateTime } from "@/lib/i18n/format";
-import { AdminRegionLine } from "./admin-region-line";
+import { AdminEmailKinds, useEmailKindsLine } from "./admin-email-kinds";
 import { AdminTableScroll } from "./admin-table-scroll";
 import { AdminUnknown } from "./admin-unknown";
 
 const HEADING_ID = "admin-email-delivery";
-const TYPES_CAPTION_ID = "admin-email-types-caption";
 const FAILURES_HEADING_ID = "admin-email-failures";
 const FAILURES_CAPTION_ID = "admin-email-failures-caption";
 
-/** What a region says in place of its content, and whether the section announces it. */
-interface StateLine {
-  readonly text: string;
-  readonly announce: "alert" | "status" | null;
-}
-
 /**
- * The e-post page's "Leverans" section (#1981 PR 2; ADR 0150 D2, D4, D8): the provider's counts for a period, the
- * per-type table, and the latest failed sends.
+ * The e-post page's "Leverans" section (#1981 PR 2 and PR 3; ADR 0150 D2, D4, D8): the provider's counts for a
+ * period, the latest failed sends, and our own count per mail kind.
  *
  * Three regions, each in its own state (ADR 0150 D2). The summary shows Skickade and Misslyckade only from an observed
- * read; every other state is an en-dash with a line saying why, never 0. The per-type table is "Kommer snart" until it
- * is built, whatever the reads answer. The failures table says "no failed sends" only after an observed read with no
- * rows: a read that could not be judged is unknown, never empty.
+ * read; every other state is an en-dash with a line saying why, never 0. The failures table says "no failed sends" only
+ * after an observed read with no rows: a read that could not be judged is unknown, never empty. The per-kind table is
+ * its own region over its own read (`AdminEmailKinds`).
  *
  * The period is the URL's (D8): three links under the heading, so a period change is a navigation and the activated
  * link keeps focus. `period` is null while the route loads, since the loading state cannot read the URL and marks no
- * period. The section announces its failed, unjudgeable and loading states once, in the form "{source}: {state}"; the
- * regions' own lines are quiet.
+ * period. The section announces its failed, unjudgeable and loading states in one line, in the form
+ * "{source}: {state}": the provider's two reads as Leverans, the per-kind read under its own heading, and a cause every
+ * region shares once. The regions' own lines are quiet.
  */
 export function AdminEmailDelivery({
   pagePath,
   period,
   summary,
   failures,
+  kinds,
 }: {
   /** The page the period links lead to: the live page, or the preview's. */
   readonly pagePath: string;
   readonly period: AdminEmailPeriod | null;
   readonly summary: AdminEmailRead<Delivery>;
   readonly failures: AdminEmailRead<Failures>;
+  readonly kinds: AdminEmailRead<Kinds>;
 }) {
   const t = useTranslations("admin.email");
   const lines = useTranslations("admin.email.allowance");
@@ -64,7 +63,7 @@ export function AdminEmailDelivery({
   const observed = summary.kind === "loaded" && summary.data.status === "Observed" ? summary.data : null;
   const rows = failures.kind === "loaded" && failures.data.status === "Observed" ? failures.data : null;
 
-  function stateLine(read: AdminEmailRead<Delivery | Failures>, unjudged: string): StateLine | null {
+  function stateLine(read: AdminEmailRead<Delivery | Failures>, unjudged: string): EmailRegionLine | null {
     if (read.kind === "loading") return { text: admin("regions.loading"), announce: "status" };
     if (read.kind === "failed") return { text: read.line ?? admin("regions.failed"), announce: "alert" };
     const key = emailReadLine(read.data);
@@ -87,17 +86,31 @@ export function AdminEmailDelivery({
   // Where both reads could not be judged, the summary's sentence is the whole announcement.
   const bothUnjudged = [summary, failures].every((read) => read.kind === "loaded" && read.data.status === "NotObservable");
   const announced = [summaryLine, bothUnjudged ? null : failuresLine]
-    .filter((line): line is StateLine => line !== null && line.announce !== null);
-  const role = announced.some((line) => line.announce === "alert") ? "alert" : "status";
-  const announcement = [...new Set(announced.map((line) => line.text))].join(" ");
+    .filter((line): line is EmailRegionLine => line !== null && line.announce !== null);
+  const kindsLine = useEmailKindsLine(kinds);
+  // The per-kind read is its own source, unless its cause is every region's: then Leverans reads that cause once.
+  const kindsAnnounced =
+    kindsLine !== null && kindsLine.announce !== null && !isSharedCause([summary, failures, kinds]) ? kindsLine : null;
+  const role = [...announced, kindsAnnounced].some((line) => line?.announce === "alert") ? "alert" : "status";
+  const announcement = [
+    announced.length === 0
+      ? null
+      : admin("overview.observation.announcement", {
+          source: t("delivery.heading"),
+          state: [...new Set(announced.map((line) => line.text))].join(" "),
+        }),
+    kindsAnnounced === null
+      ? null
+      : admin("overview.observation.announcement", { source: t("kinds.heading"), state: kindsAnnounced.text }),
+  ].filter((part): part is string => part !== null);
 
   const value = (shown: ReactNode | null) => (shown === null ? <AdminUnknown /> : shown);
 
   return (
     <section aria-labelledby={HEADING_ID} className="flex flex-col gap-6">
-      {announced.length > 0 ? (
+      {announcement.length > 0 ? (
         <p className="sr-only" role={role}>
-          {admin("overview.observation.announcement", { source: t("delivery.heading"), state: announcement })}
+          {announcement.join(" ")}
         </p>
       ) : null}
       <div className="jp-adminsection__head">
@@ -151,33 +164,6 @@ export function AdminEmailDelivery({
         )}
       </div>
 
-      <AdminTableScroll labelledBy={TYPES_CAPTION_ID}>
-        <table className="jp-table jp-admintable">
-          <caption id={TYPES_CAPTION_ID} className="sr-only">
-            {t("table.caption")}
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">{t("table.function")}</th>
-              <th scope="col" className="jp-admintable__num">
-                {t("table.sent")}
-              </th>
-              <th scope="col" className="jp-admintable__num">
-                {t("table.failed")}
-              </th>
-              <th scope="col">{t("table.lastError")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={4} className="jp-admintable__soon">
-                <AdminRegionLine kind="unavailable" quiet />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </AdminTableScroll>
-
       <section aria-labelledby={FAILURES_HEADING_ID} className="flex flex-col gap-4">
         <h3 id={FAILURES_HEADING_ID} className="jp-adminh3">
           {t("failures.heading")}
@@ -223,6 +209,8 @@ export function AdminEmailDelivery({
           <p className="jp-adminmailsum__note">{t("failures.capped", { count: rows.limit })}</p>
         ) : null}
       </section>
+
+      <AdminEmailKinds kinds={kinds} />
     </section>
   );
 }

@@ -91,7 +91,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         MatchNotificationEmail content,
         CancellationToken cancellationToken)
     {
-        LogSuppressedNotification("match-notification");
+        LogSuppressedNotification(EmailKinds.MatchNotificationToken);
         return Task.CompletedTask;
     }
 
@@ -100,7 +100,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         FollowedCompanyNotificationEmail content,
         CancellationToken cancellationToken)
     {
-        LogSuppressedNotification("followed-company-notification");
+        LogSuppressedNotification(EmailKinds.FollowedCompanyNotificationToken);
         return Task.CompletedTask;
     }
 
@@ -108,7 +108,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         string toEmail,
         CancellationToken cancellationToken)
     {
-        LogSuppressedConsequential("email-changed-notification");
+        LogSuppressedConsequential(EmailKinds.EmailChangedNotificationToken);
         return Task.CompletedTask;
     }
 
@@ -118,7 +118,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         DateTimeOffset expiresAt,
         CancellationToken cancellationToken)
     {
-        LogSuppressedConsequential("account-email-change-requested-notification");
+        LogSuppressedConsequential(EmailKinds.AccountEmailChangeRequestedNotificationToken);
         return Task.CompletedTask;
     }
 
@@ -127,7 +127,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         LoginChallengeEmail content,
         CancellationToken cancellationToken)
     {
-        LogSuppressedConsequential("login-challenge");
+        LogSuppressedConsequential(EmailKinds.LoginChallengeToken);
         return Task.CompletedTask;
     }
 
@@ -138,7 +138,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         FeedbackReceivedNotificationEmail content,
         CancellationToken cancellationToken)
     {
-        LogSuppressedNotification("feedback-received-notification");
+        LogSuppressedNotification(EmailKinds.FeedbackReceivedNotificationToken);
         return Task.CompletedTask;
     }
 
@@ -149,7 +149,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         FeedbackReplyEmail content,
         CancellationToken cancellationToken)
     {
-        LogSuppressedConsequential("feedback-reply");
+        LogSuppressedConsequential(EmailKinds.FeedbackReplyToken);
         return Task.CompletedTask;
     }
 

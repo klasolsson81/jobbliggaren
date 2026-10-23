@@ -638,7 +638,7 @@
       "title": "E-postleverans"
     },
     "heading": "E-postleverans",
-    "lede": "Utskick mot gratiskvoten, leverans och misslyckade utskick.",
+    "lede": "Utskick mot gratiskvoten, leverans, misslyckade utskick och antal per mejltyp.",
     "allowance": {
       "heading": "Utskick i {month}",
       "headingThisMonth": "Utskick denna månad",
@@ -682,13 +682,6 @@
       "sent": "Skickade",
       "failed": "Misslyckade"
     },
-    "table": {
-      "caption": "Utskick per mejltyp",
-      "function": "Mejltyp",
-      "sent": "Skickade",
-      "failed": "Fel",
-      "lastError": "Senaste fel"
-    },
     "failures": {
       "heading": "Senaste misslyckade utskick",
       "caption": "Misslyckade utskick, senaste {period}",
@@ -706,6 +699,38 @@
         "Spam": "Bedömt som skräppost",
         "Blocklisted": "Adressen är spärrad hos Scaleway",
         "Other": "Annan eller okänd orsak"
+      }
+    },
+    "kinds": {
+      "heading": "Utskick per mejltyp",
+      "caption": "Utskick per mejltyp från och med {from}",
+      "captionPartial": "Utskick per mejltyp sedan {start}",
+      "captionUnobserved": "Antal utskick per mejltyp",
+      "note": "Räknat av Jobbliggaren vid varje försök att lämna över ett mejl till Scaleway, från och med <time>{from}</time>.",
+      "notePartial": "Räknat av Jobbliggaren vid varje försök att lämna över ett mejl till Scaleway, sedan räkningen började <time>{start}</time>.",
+      "notObservable": "Jobbliggarens räkning visar inga utskick under perioden, fast Scaleway har skickat. Se runbooken för admin-e-post.",
+      "kind": "Mejltyp",
+      "accepted": "Överlämnade",
+      "failed": "Fel",
+      "latestFailure": "Senaste fel",
+      "noFailure": "Inget",
+      "failedOn": "<time>{day}</time>: {outcomes}",
+      "names": {
+        "login-challenge": "Inloggning och koder",
+        "account-email-change-requested-notification": "Adressbyte begärt",
+        "email-changed-notification": "Adressbyte genomfört",
+        "match-notification": "Matchningar",
+        "followed-company-notification": "Bevakade företag",
+        "feedback-received-notification": "Ny feedback",
+        "feedback-reply": "Svar på feedback"
+      },
+      "outcomes": {
+        "Refused": "avvisat av Scaleway",
+        "RateLimited": "över Scaleways taktgräns",
+        "Unreachable": "Scaleway nåddes inte",
+        "ProviderError": "fel hos Scaleway",
+        "Timeout": "inget svar i tid",
+        "Other": "annat fel"
       }
     }
   },

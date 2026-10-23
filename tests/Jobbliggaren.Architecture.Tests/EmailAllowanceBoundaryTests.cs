@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Admin.Email;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailAllowance;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailDelivery;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailRecentFailures;
+using Jobbliggaren.Application.Admin.Email.Queries.GetEmailSendCounts;
 using Jobbliggaren.Infrastructure.Admin.Email;
 using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Worker.Auditing;
@@ -25,7 +26,11 @@ public class EmailAllowanceBoundaryTests
         { typeof(IEmailProviderUsageSource).FullName!, [typeof(GetEmailAllowanceQueryHandler).FullName!] },
         {
             typeof(IEmailDeliveryStatisticsSource).FullName!,
-            [typeof(GetEmailDeliveryQueryHandler).FullName!, typeof(GetEmailRecentFailuresQueryHandler).FullName!]
+            [
+                typeof(GetEmailDeliveryQueryHandler).FullName!,
+                typeof(GetEmailRecentFailuresQueryHandler).FullName!,
+                typeof(GetEmailSendCountsQueryHandler).FullName!,
+            ]
         },
         { typeof(IEmailRecentFailuresSource).FullName!, [typeof(GetEmailRecentFailuresQueryHandler).FullName!] },
     };

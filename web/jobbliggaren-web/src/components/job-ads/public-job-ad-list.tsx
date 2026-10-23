@@ -16,8 +16,9 @@ interface PublicJobAdListProps {
 const named = (name: string | null): name is string => name !== null && name.trim() !== "";
 
 /**
- * The public catalogue's rows (ADR 0176 F5). Typed to the six-member summary, so it can render nothing else: never the
- * private `JobAdCard`, whose props carry save, follow, applied and match state.
+ * The public catalogue's rows (ADR 0176 F5), and the related section's under a job page (ADR 0182). Typed to the
+ * six-member summary, so it can render nothing else: never the private `JobAdCard`, whose props carry save, follow,
+ * applied and match state.
  *
  * Each title is a plain `<a>`, never `next/link` (F10): a prefetched row would spend the visitor's job-page budget
  * before any click, and a client navigation into the edge's rewrite was never measured. A full document load is the

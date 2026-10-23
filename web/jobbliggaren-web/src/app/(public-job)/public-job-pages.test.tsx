@@ -134,15 +134,23 @@ describe("the public job page's related section (ADR 0182)", () => {
     expect(JSON.stringify(metadata)).not.toContain(RELATED_ROW.title);
   });
 
-  it.each([{ kind: "notFound" }, { kind: "unavailable" }] as const)(
-    "shows no section on an ad read of kind %j, which never renders the ad",
-    async (result) => {
-      getPublicJobAd.mockResolvedValue(result);
-      getPublicJobAdRelated.mockResolvedValue({ kind: "ok", rows: [RELATED_ROW] });
+  it("lets the ad's own read decide the status: a notFound read is a real 404 even when the related read has rows", async () => {
+    getPublicJobAd.mockResolvedValue({ kind: "notFound" });
+    getPublicJobAdRelated.mockResolvedValue({ kind: "ok", rows: [RELATED_ROW] });
 
-      await expect(PublicJobPage(params())).rejects.toBeDefined();
-    }
-  );
+    await expect(PublicJobPage(params())).rejects.toMatchObject({
+      digest: expect.stringContaining("NEXT_HTTP_ERROR_FALLBACK;404"),
+    });
+  });
+
+  it("lets the ad's own read decide the status: an unavailable read is a 5xx, never a 404, even when the related read has rows", async () => {
+    getPublicJobAd.mockResolvedValue({ kind: "unavailable" });
+    getPublicJobAdRelated.mockResolvedValue({ kind: "ok", rows: [RELATED_ROW] });
+
+    const error = await PublicJobPage(params()).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(Error);
+    expect(String((error as { digest?: unknown }).digest ?? "")).not.toContain("404");
+  });
 });
 
 describe("the public job page's metadata", () => {

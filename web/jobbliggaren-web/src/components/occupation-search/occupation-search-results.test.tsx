@@ -354,3 +354,53 @@ describe("occupationSearchBox (#2198)", () => {
     });
   });
 });
+
+describe("OccupationSearchResults — facet counts (#2198 PR 2)", () => {
+  it("puts a count on every Group row, from the map by group id", () => {
+    const counts = Object.fromEntries(
+      ruleAnswer.sjukskoterska.rows.map((row, i) => [row.groupConceptId ?? "", i + 1]),
+    );
+    render(
+      <OccupationSearchResults result={ruleAnswer.sjukskoterska} selected={[]} onToggle={vi.fn()} counts={counts} />,
+    );
+
+    for (const [i, row] of ruleAnswer.sjukskoterska.rows.entries()) {
+      expect(screen.getByRole("checkbox", { name: `${row.groupLabel ?? ""} (${i + 1})` })).toBeInTheDocument();
+    }
+  });
+
+  it("never counts a Word row or a variant, only the Group row (undersköterska)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <OccupationSearchResults
+        result={ruleAnswer.underskoterska}
+        selected={[]}
+        onToggle={vi.fn()}
+        counts={{ [USK_VARD_GROUP.id]: 77 }}
+      />,
+    );
+    const word = screen.getByRole("button", { name: "Undersköterska" });
+    await user.click(word);
+
+    expect(screen.getAllByText("(77)")).toHaveLength(1);
+    expect(screen.getByRole("checkbox", { name: `${USK_VARD_GROUP.label} (77)` })).toBeInTheDocument();
+    expect(word.querySelector(".jp-checkitem__count")).toBeNull();
+    const rightColumn = container.querySelector(".jp-occsearch__heading")?.closest('[role="group"]');
+    expect(rightColumn?.querySelectorAll('[role="checkbox"]').length).toBeGreaterThan(0);
+    expect(rightColumn?.querySelector(".jp-checkitem__count")).toBeNull();
+  });
+
+  it("shows a known zero for a group the loaded map does not name", () => {
+    render(<OccupationSearchResults result={ruleAnswer.ux} selected={[]} onToggle={vi.fn()} counts={{}} />);
+
+    expect(screen.getByRole("checkbox", { name: `${UX_GROUP.label} (0)` })).toBeInTheDocument();
+  });
+
+  it("shows no number at all while the counts are not loaded or failed", () => {
+    const { container } = render(
+      <OccupationSearchResults result={ruleAnswer.sjukskoterska} selected={[]} onToggle={vi.fn()} counts={null} />,
+    );
+
+    expect(container.querySelector(".jp-checkitem__count")).toBeNull();
+  });
+});

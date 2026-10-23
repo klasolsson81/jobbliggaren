@@ -1,4 +1,6 @@
 using System.Reflection;
+using Jobbliggaren.Application.Admin.Email;
+using Jobbliggaren.Application.Admin.Email.Queries.GetEmailSendCounts;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Infrastructure.Email.Counting;
@@ -45,36 +47,19 @@ public class EmailSendCountBoundaryTests
     [Theory]
     [InlineData(typeof(EmailSendDailyCount), typeof(EmailSendDailyCountConfiguration))]
     [InlineData(typeof(EmailSendCounting), typeof(EmailSendCountingConfiguration))]
-    public void Only_the_configuration_references_the_entity_type(Type entity, Type configuration)
+    public void Only_the_configuration_and_the_reader_reference_the_entity_type(Type entity, Type configuration)
         => ProductionTypeSweep.OwnersReferencing(entity.FullName!)
-            .ShouldBe([configuration.FullName!], Bound);
+            .ShouldBe([configuration.FullName!, typeof(SqlEmailSendCountsSource).FullName!], ignoreOrder: true, Bound);
+
+    [Fact]
+    public void The_counts_read_is_injected_into_the_per_kind_query_alone()
+        => ConsumersOf(typeof(IEmailSendCountsSource))
+            .ShouldBe([typeof(GetEmailSendCountsQueryHandler).FullName!], "a new reader of our counts needs the admin gate and review");
 
     [Fact]
     public void The_tally_is_injected_into_the_Scaleway_sender_alone()
-    {
-        const BindingFlags declared =
-            BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-        Assembly[] owned =
-        [
-            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Api.Endpoints.AdminEmailEndpoints).Assembly,
-            typeof(WorkerSystemUser).Assembly,
-            typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
-        ];
-
-        var consumers = owned
-            .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type.GetConstructors(declared).Cast<MethodBase>().Concat(type.GetMethods(declared))
-                .Any(member => member.GetParameters()
-                    .Any(parameter => typeof(EmailSendTally).IsAssignableFrom(parameter.ParameterType))))
-            .Select(type => type.FullName!)
-            .ToList();
-
-        consumers.ShouldBe(
-            [typeof(ScalewayEmailSender).FullName!],
-            "only the arm that hands a mail to the provider counts: " + string.Join(", ", consumers));
-    }
+        => ConsumersOf(typeof(EmailSendTally))
+            .ShouldBe([typeof(ScalewayEmailSender).FullName!], "only the arm that hands a mail to the provider counts");
 
     /// <summary>
     /// The count carries the kind and the outcome and nothing else: no recipient (5e), no time — the day is the server's
@@ -93,6 +78,29 @@ public class EmailSendCountBoundaryTests
             .Where(method => !method.IsSpecialName)
             .Select(method => method.Name)
             .ShouldBe([nameof(EmailSendTally.RecordAsync)], "RecordAsync is the tally's only public entry");
+    }
+
+    /// <summary>Every production type with a constructor or method that takes <paramref name="port"/> or a subtype.</summary>
+    private static List<string> ConsumersOf(Type port)
+    {
+        const BindingFlags declared =
+            BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        Assembly[] owned =
+        [
+            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
+            typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
+            typeof(Jobbliggaren.Api.Endpoints.AdminEmailEndpoints).Assembly,
+            typeof(WorkerSystemUser).Assembly,
+            typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
+        ];
+
+        return owned
+            .SelectMany(assembly => assembly.GetTypes())
+            .Where(type => type.GetConstructors(declared).Cast<MethodBase>().Concat(type.GetMethods(declared))
+                .Any(member => member.GetParameters().Any(parameter => port.IsAssignableFrom(parameter.ParameterType))))
+            .Select(type => type.FullName!)
+            .Order(StringComparer.Ordinal)
+            .ToList();
     }
 
     private static SortedSet<string> SitesNaming(string table)

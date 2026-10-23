@@ -2,8 +2,8 @@ namespace Jobbliggaren.Application.Admin.Email;
 
 /// <summary>
 /// The provider's own delivery counts per period, with no recipient (#1981 PR 2). Application defines the port;
-/// Infrastructure implements it. Its consumers are the delivery and the recent-failures query handlers, which an
-/// architecture test pins.
+/// Infrastructure implements it. Its consumers are the delivery, the recent-failures and the per-kind query handlers,
+/// which an architecture test pins; the per-kind handler reads a period only as a witness against its own zero.
 /// <para>
 /// <see cref="ReadSentinelAsync"/> is the canary: the total over <see cref="EmailDeliveryLimits.SentinelWindow"/>. A key
 /// that cannot see mail reads zero for every window, so the evaluator trusts a period's figures only beside a sentinel

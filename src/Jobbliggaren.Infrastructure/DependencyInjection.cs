@@ -81,6 +81,7 @@ public static class DependencyInjection
         services.AddHostBridge(configuration);
         services.AddServiceObservationSources();
         services.AddEmailUsageSource(configuration);
+        services.AddEmailSendCountsSource(configuration);
         services.AddDevOnlyTestingSupport(environment);
         return services;
     }

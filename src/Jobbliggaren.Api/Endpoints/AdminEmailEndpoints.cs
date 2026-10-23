@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Admin.Email;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailAllowance;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailDelivery;
 using Jobbliggaren.Application.Admin.Email.Queries.GetEmailRecentFailures;
+using Jobbliggaren.Application.Admin.Email.Queries.GetEmailSendCounts;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Domain.Common;
 using Mediator;
@@ -12,15 +13,17 @@ using Microsoft.AspNetCore.Mvc;
 namespace Jobbliggaren.Api.Endpoints;
 
 /// <summary>
-/// The e-post page's provider reads (#1981): this month's mail against the free allowance and the computed cost beyond
-/// it (ADR 0178), and the delivery totals and recent failures for one period (PR 2). The page and the overview read
-/// these endpoints, so they share one definition. Every answer, refusals included, is private and uncacheable.
+/// The e-post page's reads (#1981): this month's mail against the free allowance and the computed cost beyond it
+/// (ADR 0178), the delivery totals and recent failures for one period (PR 2), and our own counts per mail kind for one
+/// period (PR 3, ADR 0180). The page and the overview read these endpoints, so they share one definition. Every
+/// answer, refusals included, is private and uncacheable.
 /// </summary>
 public static class AdminEmailEndpoints
 {
     public const string AllowancePath = "/email/allowance";
     public const string DeliveryPath = "/email/delivery";
     public const string FailuresPath = "/email/failures";
+    public const string KindsPath = "/email/kinds";
 
     /// <summary>
     /// The query-string name of the period. Read as a string and mapped by <see cref="EmailDeliveryPeriods.FromToken"/>,
@@ -56,6 +59,15 @@ public static class AdminEmailEndpoints
             IMediator mediator, IDateTimeProvider clock, HttpResponse response, CancellationToken ct) =>
         {
             var result = await mediator.Send(new GetEmailRecentFailuresQuery(EmailDeliveryPeriods.FromToken(period)), ct);
+            MarkPrivateAndSampled(response, clock);
+            return Results.Ok(result);
+        }).RequireRateLimiting(RateLimitingExtensions.AdminReadPolicy);
+
+        group.MapGet(KindsPath, async (
+            [FromQuery(Name = PeriodParameter)] string? period,
+            IMediator mediator, IDateTimeProvider clock, HttpResponse response, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetEmailSendCountsQuery(EmailDeliveryPeriods.FromToken(period)), ct);
             MarkPrivateAndSampled(response, clock);
             return Results.Ok(result);
         }).RequireRateLimiting(RateLimitingExtensions.AdminReadPolicy);

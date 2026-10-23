@@ -1,7 +1,13 @@
 /** The admin surface's view models (ADR 0150). */
 import type { AdminDeletionTiming } from "./account-deletion";
 import type { BackupObservationData } from "@/lib/dto/admin-overview";
-import type { EmailAllowanceDto, EmailDeliveryDto, EmailDeliveryPeriod, EmailFailuresDto } from "@/lib/dto/admin-email";
+import type {
+  EmailAllowanceDto,
+  EmailDeliveryDto,
+  EmailDeliveryPeriod,
+  EmailFailuresDto,
+  EmailKindsDto,
+} from "@/lib/dto/admin-email";
 import type { AdminServerReading } from "./host-observation";
 import type { AdminServicesReading } from "./service-observation";
 
@@ -399,6 +405,9 @@ export type AdminEmailDelivery = EmailDeliveryDto;
 
 /** The latest failed sends in a period (#1981 PR 2), the DTO as the API sends it. */
 export type AdminEmailFailures = EmailFailuresDto;
+
+/** Our own count of handovers per mail kind in a period (#1981 PR 3), the DTO as the API sends it. */
+export type AdminEmailKinds = EmailKindsDto;
 
 /**
  * One of Leverans's reads as the page holds it. It is built, so it is never "Kommer snart": it is pending, our own

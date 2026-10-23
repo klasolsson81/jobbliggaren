@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { emailDeliveryPeriod } from "@/lib/admin/email-delivery";
 import { ADMIN_PREVIEW_ROUTE } from "@/lib/admin-preview/gate.cjs";
 import { requireAdminPreview } from "@/lib/admin-preview/runtime-gate";
-import { PREVIEW_EMAIL_ALLOWANCE, PREVIEW_EMAIL_DELIVERY } from "@/lib/admin-preview/fixtures";
+import { PREVIEW_EMAIL_ALLOWANCE, PREVIEW_EMAIL_DELIVERY, PREVIEW_EMAIL_KINDS } from "@/lib/admin-preview/fixtures";
 import { PreviewEmail } from "../_preview/preview-pages.preview";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +25,7 @@ export default async function AdminPreviewEmailPage({
     <PreviewEmail
       allowances={PREVIEW_EMAIL_ALLOWANCE}
       deliveries={PREVIEW_EMAIL_DELIVERY}
+      kinds={PREVIEW_EMAIL_KINDS}
       period={period}
       pagePath={`${ADMIN_PREVIEW_ROUTE}/e-post`}
     />

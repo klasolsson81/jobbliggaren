@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ADMIN_PREVIEW_SENTINEL } from "../../../../scripts/assert-admin-preview-build.mjs";
+import { emailKindsSchema } from "@/lib/dto/admin-email";
 import * as fixtures from "./index";
 
 /**
@@ -67,5 +68,32 @@ describe("the admin preview's fixtures (ADR 0150 D5)", () => {
     expect(
       allStrings.filter((value) => /gmail|hotmail|outlook|live\.se|icloud|telia|yahoo|netcup|strato|n[uü]rnberg/i.test(value)),
     ).toEqual([]);
+  });
+});
+
+/** A fixture as the API would send it: the sentinel each row carries is the preview's, not the contract's. */
+function unmarked(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(unmarked);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).filter(([key]) => key !== "fixture").map(([key, item]) => [key, unmarked(item)]));
+}
+
+describe("the e-post preview's count per mail kind (#1981 PR 3, ADR 0150 D5)", () => {
+  const answers = Object.entries(fixtures.PREVIEW_EMAIL_KINDS)
+    .filter(([scenario]) => scenario !== "fixture")
+    .flatMap(([scenario, byPeriod]) => Object.entries(byPeriod)
+      .filter(([period]) => period !== "fixture")
+      .map(([period, answer]) => [`${scenario} ${period}`, answer] as const));
+
+  it.each(answers)("answers %s in a form the API's contract admits", (_name, answer) => {
+    expect(emailKindsSchema.safeParse(unmarked(answer)).error).toBeUndefined();
+  });
+
+  it("covers every state an answer has, and every failure class", () => {
+    const parsed = answers.map(([, answer]) => emailKindsSchema.parse(unmarked(answer)));
+    expect(new Set(parsed.map((answer) => answer.status))).toEqual(new Set(["Observed", "NotObserved", "NotObservable"]));
+    expect(new Set(parsed.flatMap((answer) => answer.status === "Observed" ? [answer.coverage] : []))).toEqual(new Set(["Complete", "Partial"]));
+    const classes = parsed.flatMap((answer) => answer.kinds ?? []).flatMap((row) => row.latestFailure?.outcomes ?? []);
+    expect(new Set(classes)).toEqual(new Set(["Refused", "RateLimited", "Unreachable", "ProviderError", "Timeout", "Other"]));
   });
 });

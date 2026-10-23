@@ -783,6 +783,8 @@
 }
 
 /* ── The local preview's band (ADR 0150 D5) ─────────────────────────────────────────────── */
+/* The preview stands on the live shell's ground, as `.jp-shell` paints it. */
+.jp-adminpreview-ground { background: var(--jp-canvas); }
 .jp-adminpreview-band {
   background: var(--jp-info-bg);
   border-bottom: 1px solid var(--jp-info);
@@ -1205,6 +1207,38 @@
 }
 .jp-table .jp-admintable__run { font-variant-numeric: tabular-nums; }
 .jp-admintable .jp-pill { white-space: nowrap; }
+/* A row's header names the row (#1981 PR 3): body text like the cells beside it, not the head's mono caps, which
+   `.jp-table thead th` keeps to the head, and it takes the row's hover like the cells. */
+.jp-table.jp-admintable tbody th[scope="row"] {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--jp-border);
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-regular);
+  text-align: start;
+  vertical-align: middle;
+}
+.jp-table.jp-admintable tbody tr:hover th[scope="row"] { background: var(--jp-surface-tertiary); }
+.jp-table.jp-admintable tbody tr:last-child th[scope="row"] { border-bottom: 2px solid var(--jp-border-strong); }
+/* Where the table is wider than its region and scrolls in it (the table's 720 px floor), the row names and their
+   column head stay at the region's start, on the page's canvas so the figures never show through them. */
+@container (max-width: 719.98px) {
+  .jp-table.jp-admintable tbody th[scope="row"],
+  .jp-table.jp-admintable:has(tbody th[scope="row"]) thead th:first-child {
+    position: sticky;
+    inset-inline-start: 0;
+    background: var(--jp-canvas);
+  }
+  /* A collapsed border does not follow a sticky cell, so the frozen column draws its own edge. */
+  .jp-table.jp-admintable tbody th[scope="row"]::after,
+  .jp-table.jp-admintable:has(tbody th[scope="row"]) thead th:first-child::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    inline-size: 1px;
+    background: var(--jp-border);
+  }
+}
 
 /* ── Responsive ──────────────────────────────────────────────────────────────────────── */
 @media (max-width: 1099px) {

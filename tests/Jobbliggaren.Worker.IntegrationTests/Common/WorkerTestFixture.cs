@@ -193,6 +193,10 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.FeedbackRetention.FeedbackRetentionJob>();
         services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackRetentionWorker>();
 
+        // #1981 PR 3: same — the retention of our own send counts.
+        services.AddScoped<Jobbliggaren.Application.Admin.Email.Jobs.EmailSendCountRetention.EmailSendCountRetentionJob>();
+        services.AddScoped<Jobbliggaren.Worker.Hosting.EmailSendCountRetentionWorker>();
+
         // #664: same — the one-off source_file_name mask backfill (admin-enqueued, no recurring worker)
         // is registered in AddJobSources (which this fixture does not call), so mirror it here for its
         // integration test to resolve it (parity #544's job, minus a worker wrapper).

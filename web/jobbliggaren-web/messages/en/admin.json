@@ -638,7 +638,7 @@
       "title": "Email delivery"
     },
     "heading": "Email delivery",
-    "lede": "Sends against the free allowance, delivery and failed sends.",
+    "lede": "Sends against the free allowance, delivery, failed sends and counts per email type.",
     "allowance": {
       "heading": "Sends in {month}",
       "headingThisMonth": "Sends this month",
@@ -682,13 +682,6 @@
       "sent": "Sent",
       "failed": "Failed"
     },
-    "table": {
-      "caption": "Sends per email type",
-      "function": "Email type",
-      "sent": "Sent",
-      "failed": "Failed",
-      "lastError": "Latest error"
-    },
     "failures": {
       "heading": "Latest failed sends",
       "caption": "Failed sends, last {period}",
@@ -706,6 +699,38 @@
         "Spam": "Judged as spam",
         "Blocklisted": "The address is blocked at Scaleway",
         "Other": "Another or unknown reason"
+      }
+    },
+    "kinds": {
+      "heading": "Sends per email type",
+      "caption": "Sends per email type from {from}",
+      "captionPartial": "Sends per email type since {start}",
+      "captionUnobserved": "Number of sends per email type",
+      "note": "Counted by Jobbliggaren at every attempt to hand an email over to Scaleway, from <time>{from}</time>.",
+      "notePartial": "Counted by Jobbliggaren at every attempt to hand an email over to Scaleway, since the count began <time>{start}</time>.",
+      "notObservable": "Jobbliggaren's count shows no sends in the period, although Scaleway has sent mail. See the admin email runbook.",
+      "kind": "Email type",
+      "accepted": "Handed over",
+      "failed": "Failed",
+      "latestFailure": "Latest failure",
+      "noFailure": "None",
+      "failedOn": "<time>{day}</time>: {outcomes}",
+      "names": {
+        "login-challenge": "Sign-in and codes",
+        "account-email-change-requested-notification": "Address change requested",
+        "email-changed-notification": "Address changed",
+        "match-notification": "Matches",
+        "followed-company-notification": "Followed companies",
+        "feedback-received-notification": "New feedback",
+        "feedback-reply": "Feedback reply"
+      },
+      "outcomes": {
+        "Refused": "refused by Scaleway",
+        "RateLimited": "over Scaleway's rate limit",
+        "Unreachable": "Scaleway could not be reached",
+        "ProviderError": "error at Scaleway",
+        "Timeout": "no answer in time",
+        "Other": "other error"
       }
     }
   },

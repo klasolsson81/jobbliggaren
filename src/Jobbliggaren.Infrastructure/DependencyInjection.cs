@@ -34,6 +34,7 @@ using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.CompanyRegister.Scb;
 using Jobbliggaren.Infrastructure.Configuration;
 using Jobbliggaren.Infrastructure.Email;
+using Jobbliggaren.Infrastructure.Email.Counting;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.JobSources;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
@@ -80,6 +81,7 @@ public static class DependencyInjection
         services.AddHostBridge(configuration);
         services.AddServiceObservationSources();
         services.AddEmailUsageSource(configuration);
+        services.AddEmailSendCountsSource(configuration);
         services.AddDevOnlyTestingSupport(environment);
         return services;
     }
@@ -927,6 +929,9 @@ public static class DependencyInjection
             // A singleton type registration, not a factory or a typed HttpClient; the reason is
             // documented at ScalewayClientRegistration.HttpClientName.
             services.AddSingleton<IEmailSender, ScalewayEmailSender>();
+
+            // Only this arm hands a mail to the provider, so only this arm counts (ADR 0181).
+            services.AddSingleton<EmailSendTally, SqlEmailSendTally>();
         }
         else
         {
@@ -993,6 +998,10 @@ public static class DependencyInjection
         // here rather than with the HTTP-only services.
         services.AddScoped<IAuditPartitionMaintainer, AuditPartitionMaintainer>();
         services.AddScoped<IAuditTrailEraser, AuditTrailEraser>();
+
+        // Our own send counts' retention (#1981 PR 3, ADR 0181), run by a Worker job, so registered here beside the
+        // other maintenance stores rather than with the Api-only read.
+        services.AddScoped<Jobbliggaren.Application.Admin.Email.IEmailSendCountRetention, SqlEmailSendCountRetention>();
 
         // Audit rows written by system jobs, outside the Mediator pipeline (ADR 0035).
         services.AddScoped<ISystemEventAuditor, SystemEventAuditor>();

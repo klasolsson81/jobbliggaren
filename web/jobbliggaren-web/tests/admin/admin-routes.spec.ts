@@ -93,14 +93,17 @@ test("/admin/e-post shows the month against the free allowance first, then Lever
   await expect(allowance).toContainText("Räknat av Scaleway för projektet.");
   expect(harness.requests).toContain("GET /api/v1/admin/email/allowance");
 
-  // Leverans is built (#1981 PR 2): its own spec, admin-email-delivery.spec.ts, covers its states. Only the
-  // per-type table is not, and it still says so with no figure in it.
+  // Leverans is built (#1981 PR 2 and PR 3): its own spec, admin-email-delivery.spec.ts, covers its states, the count
+  // per mail kind included, so nothing on the page says Kommer snart any more.
   const delivery = page.getByRole("region", { name: "Leverans", exact: true });
   await expect(delivery.getByRole("definition")).toHaveText(["384", "5"]);
   await expect(delivery.getByRole("link", { name: "7 dygn", exact: true })).toHaveAttribute("aria-current", "true");
-  const types = page.getByRole("table", { name: "Utskick per mejltyp" });
-  await expect(types.locator("tbody")).toHaveText("Kommer snart");
-  expect(harness.emailQueries.sort()).toEqual(["/api/v1/admin/email/delivery?period=d7", "/api/v1/admin/email/failures?period=d7"]);
+  const kinds = delivery.getByRole("region", { name: "Utskick per mejltyp", exact: true });
+  await expect(kinds.getByRole("rowheader")).toHaveCount(7);
+  await expect(page.locator("main")).not.toContainText("Kommer snart");
+  expect(harness.emailQueries.sort()).toEqual([
+    "/api/v1/admin/email/delivery?period=d7", "/api/v1/admin/email/failures?period=d7", "/api/v1/admin/email/kinds?period=d7",
+  ]);
 });
 
 const EMAIL_STATES: ReadonlyArray<{ readonly name: string; readonly set: (h: Harness) => void; readonly line: string }> = [
@@ -652,7 +655,6 @@ const TABLE_ROUTES = [
   "/admin/loggar",
   "/admin/loggar/applikationsfel",
   "/admin/loggar/platsbanken-import",
-  "/admin/e-post",
 ] as const;
 
 /**
@@ -702,6 +704,20 @@ for (const width of [320, 375]) {
       expectInside(await regionLineParts(page), `${path} at ${width}px`);
     }
   });
+
+  for (const spaced of [false, true]) {
+    test(`the count per mail kind's state lines sit inside its scroll region at ${width}px${spaced ? " with 1.4.12 spacing" : ""} (#1981 PR 3)`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      for (const scenario of ["notObservable", "notConfigured"] as const) {
+        harness.emailKinds = scenario;
+        await page.goto("/admin/e-post");
+        if (spaced) await page.addStyleTag({ content: TEXT_SPACING });
+        // The provider's failures list is observed, so the one region line on the page is our own count's.
+        await expect(page.locator("td.jp-admintable__soon")).toHaveCount(1);
+        expectInside(await regionLineParts(page), `the ${scenario} line at ${width}px`);
+      }
+    });
+  }
 
   for (const spaced of [false, true]) {
     test(`Användare's region lines and their actions sit inside the scroll region at ${width}px${spaced ? " with 1.4.12 spacing" : ""}`, async ({ page }) => {

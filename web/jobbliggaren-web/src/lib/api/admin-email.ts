@@ -8,10 +8,12 @@ import {
   emailAllowanceSchema,
   emailDeliverySchema,
   emailFailuresSchema,
+  emailKindsSchema,
   type EmailAllowanceDto,
   type EmailDeliveryDto,
   type EmailDeliveryPeriod,
   type EmailFailuresDto,
+  type EmailKindsDto,
 } from "@/lib/dto/admin-email";
 import { withEmailPeriod } from "@/lib/admin/email-delivery";
 import { SOURCE_DEADLINE_MS } from "./admin-overview";
@@ -19,6 +21,7 @@ import { SOURCE_DEADLINE_MS } from "./admin-overview";
 export const EMAIL_ALLOWANCE_PATH = "/api/v1/admin/email/allowance";
 export const EMAIL_DELIVERY_PATH = "/api/v1/admin/email/delivery";
 export const EMAIL_FAILURES_PATH = "/api/v1/admin/email/failures";
+export const EMAIL_KINDS_PATH = "/api/v1/admin/email/kinds";
 
 /** One e-post read's outcome: the body as the contract states it, a refusal, or anything else as an error. */
 export type EmailRead<T> =
@@ -30,6 +33,7 @@ export type EmailRead<T> =
 export type EmailAllowanceRead = EmailRead<EmailAllowanceDto>;
 export type EmailDeliveryRead = EmailRead<EmailDeliveryDto>;
 export type EmailFailuresRead = EmailRead<EmailFailuresDto>;
+export type EmailKindsRead = EmailRead<EmailKindsDto>;
 
 /**
  * One of the e-post page's reads. It never throws: a refusal, a timeout, a status the contract does not name or a body
@@ -84,4 +88,12 @@ export async function loadEmailDelivery(period: EmailDeliveryPeriod, signal?: Ab
  */
 export async function loadEmailFailures(period: EmailDeliveryPeriod, signal?: AbortSignal): Promise<EmailFailuresRead> {
   return forPeriod(await readEmail(withEmailPeriod(EMAIL_FAILURES_PATH, period), emailFailuresSchema, signal), period);
+}
+
+/**
+ * Our own count of handovers to the provider per mail kind in one period (#1981 PR 3). Our database answers it, not the
+ * provider; the page sends the period and never a time.
+ */
+export async function loadEmailKinds(period: EmailDeliveryPeriod, signal?: AbortSignal): Promise<EmailKindsRead> {
+  return forPeriod(await readEmail(withEmailPeriod(EMAIL_KINDS_PATH, period), emailKindsSchema, signal), period);
 }

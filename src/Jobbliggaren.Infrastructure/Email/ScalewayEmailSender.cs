@@ -1,8 +1,10 @@
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Infrastructure.Email.Counting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -60,10 +62,11 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <see cref="ScalewayClientRegistration"/> for why none may be added.
 /// </para>
 /// </summary>
-public sealed partial class ScalewayEmailSender(
+internal sealed partial class ScalewayEmailSender(
     IHttpClientFactory httpClientFactory,
     IOptions<EmailOptions> options,
     IOptions<ScalewayEmailOptions> scalewayOptions,
+    EmailSendTally tally,
     ILogger<ScalewayEmailSender> logger) : IEmailSender
 {
     /// <summary>Relative to the client's region-bearing base address (see <see cref="ScalewayClientRegistration"/>).</summary>
@@ -99,7 +102,7 @@ public sealed partial class ScalewayEmailSender(
         SendAsync(
             toEmail,
             EmailTemplates.MatchNotification(_options.BaseUrl, content),
-            "match-notification",
+            EmailKind.MatchNotification,
             cancellationToken);
 
     public Task SendFollowedCompanyNotificationEmailAsync(
@@ -107,7 +110,7 @@ public sealed partial class ScalewayEmailSender(
         SendAsync(
             toEmail,
             EmailTemplates.FollowedCompanyNotification(_options.BaseUrl, content),
-            "followed-company-notification",
+            EmailKind.FollowedCompanyNotification,
             cancellationToken);
 
     public Task SendEmailChangedNotificationAsync(
@@ -115,7 +118,7 @@ public sealed partial class ScalewayEmailSender(
         SendAsync(
             toEmail,
             EmailTemplates.EmailChangedNotification(),
-            "email-changed-notification",
+            EmailKind.EmailChangedNotification,
             cancellationToken);
 
     public Task SendAccountEmailChangeRequestedNotificationAsync(
@@ -123,7 +126,7 @@ public sealed partial class ScalewayEmailSender(
         SendAsync(
             toEmail,
             EmailTemplates.AccountEmailChangeRequestedNotification(completableFrom, expiresAt),
-            "account-email-change-requested-notification",
+            EmailKind.AccountEmailChangeRequestedNotification,
             cancellationToken);
 
     public Task SendLoginChallengeAsync(
@@ -131,7 +134,7 @@ public sealed partial class ScalewayEmailSender(
         SendAsync(
             toEmail,
             EmailTemplates.LoginChallenge(_options.BaseUrl, content),
-            "login-challenge",
+            EmailKind.LoginChallenge,
             cancellationToken);
 
     public Task SendFeedbackReceivedNotificationAsync(
@@ -139,24 +142,27 @@ public sealed partial class ScalewayEmailSender(
         SendAsync(
             toEmail,
             EmailTemplates.FeedbackReceivedNotification(_options.BaseUrl, content),
-            "feedback-received-notification",
+            EmailKind.FeedbackReceivedNotification,
             cancellationToken);
 
     public Task SendFeedbackReplyAsync(
         string toEmail, FeedbackReplyEmail content, CancellationToken cancellationToken) =>
-        SendAsync(toEmail, EmailTemplates.FeedbackReply(content), "feedback-reply", cancellationToken);
+        SendAsync(toEmail, EmailTemplates.FeedbackReply(content), EmailKind.FeedbackReply, cancellationToken);
 
     private async Task SendAsync(
         string toEmail,
         EmailTemplates.EmailContent body,
-        string emailKind,
+        EmailKind kind,
         CancellationToken cancellationToken)
     {
+        var emailKind = EmailKinds.TokenOf(kind);
         // The try starts here, not at the send: everything that touches `toEmail` or the rendered
         // body belongs inside the boundary. The line is the THREAT MODEL, not throw-site
         // arithmetic — this adapter contains a THIRD PARTY's exceptions, whose messages we neither
         // write nor control. Our own code above (EmailTemplates) is outside it for the same reason,
         // not because it happens to have no throw sites today.
+        EmailSendOutcome outcome;
+        EmailDeliveryException? failure = null;
         try
         {
             var payload = new SendEmailPayload(
@@ -229,6 +235,7 @@ public sealed partial class ScalewayEmailSender(
             // log below picks it up.
             response.EnsureSuccessStatusCode();
 
+            outcome = EmailSendOutcome.Accepted;
             LogSent(emailKind);
         }
         // Contain everything EXCEPT a cancellation the caller actually asked for.
@@ -265,20 +272,36 @@ public sealed partial class ScalewayEmailSender(
             // The provider's exception does not leave this adapter. `ex` becomes a TYPE NAME, never
             // an InnerException. Why containment rather than patching the log sites, and why the
             // port declares this contract: ADR 0124.
-            throw new EmailDeliveryException(emailKind, ex.GetType().Name, DispositionOf(ex));
+            outcome = OutcomeOf(ex);
+            failure = new EmailDeliveryException(
+                emailKind, ex.GetType().Name, EmailSendOutcomes.DispositionOf(outcome));
+        }
+
+        // Counted once, after the boundary, so no fault in the count can reach the catch above and turn an accepted
+        // mail into a failure, or replace the failure below with a foreign exception (ADR 0181). A cancellation the
+        // caller asked for has already left through the filter and is not counted.
+        await tally.RecordAsync(kind, outcome);
+
+        if (failure is not null)
+        {
+            throw failure;
         }
     }
 
     /// <summary>
-    /// Whether the failure proves the provider did not take the message (#1979). A 4xx is a refusal.
-    /// With no response at all, only a failure before the request could leave — resolving the name,
-    /// connecting, the TLS handshake, the proxy tunnel — is proof; a timeout, a 5xx or a response that
-    /// ended early may follow an accepted message, so those stay <see cref="EmailDeliveryDisposition.Unknown"/>.
+    /// The one classifier of a failed send (#1979, #1981 PR 3); the disposition follows from it. A 4xx is a refusal.
+    /// With no response at all, only a failure before the request could leave — resolving the name, connecting, the TLS
+    /// handshake, the proxy tunnel — is proof of one; a timeout, a 5xx or a response that ended early may follow an
+    /// accepted message. Total: it is only ever handed what the catch admitted, so a cancellation here is the client's
+    /// own timeout, never the caller's.
     /// </summary>
-    private static EmailDeliveryDisposition DispositionOf(Exception ex) => ex switch
+    private static EmailSendOutcome OutcomeOf(Exception ex) => ex switch
     {
+        HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests } => EmailSendOutcome.RateLimited,
         HttpRequestException { StatusCode: { } status } when (int)status is >= 400 and < 500
-            => EmailDeliveryDisposition.NotAccepted,
+            => EmailSendOutcome.Refused,
+        HttpRequestException { StatusCode: { } status } when (int)status is >= 500 and < 600
+            => EmailSendOutcome.ProviderError,
         HttpRequestException
         {
             StatusCode: null,
@@ -286,8 +309,9 @@ public sealed partial class ScalewayEmailSender(
                 or HttpRequestError.ConnectionError
                 or HttpRequestError.SecureConnectionError
                 or HttpRequestError.ProxyTunnelError,
-        } => EmailDeliveryDisposition.NotAccepted,
-        _ => EmailDeliveryDisposition.Unknown,
+        } => EmailSendOutcome.Unreachable,
+        OperationCanceledException => EmailSendOutcome.Timeout,
+        _ => EmailSendOutcome.Other,
     };
 
     /// <summary>

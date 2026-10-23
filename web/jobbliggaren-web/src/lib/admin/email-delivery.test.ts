@@ -6,6 +6,7 @@ import {
   emailReadLine,
   failureMinute,
   isAlertingRead,
+  isSharedCause,
   withEmailPeriod,
 } from "./email-delivery";
 
@@ -97,5 +98,27 @@ describe("failureMinute", () => {
     ["2026-10-19T16:32:51+02:00", "2026-10-19T14:32Z"],
   ])("keeps %s to the minute, in UTC, as %s", (createdAt, minute) => {
     expect(failureMinute(createdAt)).toBe(minute);
+  });
+});
+
+describe("isSharedCause (#1981 PR 3)", () => {
+  const refused = { kind: "failed", line: "Din session saknar Admin-rollen." } as const;
+  const loaded = { kind: "loaded", data: observed } as const;
+
+  it.each([
+    ["every region pending", [{ kind: "loading" }, { kind: "loading" }, { kind: "loading" }]],
+    ["every region refused for the same session", [refused, refused, refused]],
+  ] as const)("is shared with %s", (_name, reads) => {
+    expect(isSharedCause(reads)).toBe(true);
+  });
+
+  it.each([
+    ["every read failed on its own", [{ kind: "failed" }, { kind: "failed" }, { kind: "failed" }]],
+    ["one region answered", [refused, refused, loaded]],
+    ["one region pending", [{ kind: "loading" }, { kind: "loading" }, refused]],
+    ["two refusals that differ", [refused, refused, { kind: "failed", line: "Du är inte inloggad längre." }]],
+    ["every region answered", [loaded, loaded, loaded]],
+  ] as const)("is not shared where %s", (_name, reads) => {
+    expect(isSharedCause(reads)).toBe(false);
   });
 });

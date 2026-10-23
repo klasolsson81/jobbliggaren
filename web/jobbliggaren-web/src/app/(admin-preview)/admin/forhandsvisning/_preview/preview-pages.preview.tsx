@@ -5,6 +5,7 @@ import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import type {
   AdminEmailAllowance,
+  AdminEmailKinds,
   AdminEmailPeriod,
   AdminEmailRead,
   AdminErrorLogRow,
@@ -35,6 +36,7 @@ import type {
   PreviewAllowanceScenario,
   PreviewDelivery,
   PreviewDeliveryScenario,
+  PreviewKindsScenario,
   PreviewOverviewData,
 } from "@/lib/admin-preview/fixtures";
 import { usePreviewState } from "./preview-shell.preview";
@@ -317,6 +319,10 @@ function isDeliveryScenario(value: string): value is PreviewDeliveryScenario {
   return DELIVERY_SCENARIOS.some((scenario) => scenario === value);
 }
 
+function isKindsScenario(value: string): value is PreviewKindsScenario {
+  return KINDS_SCENARIOS.some((scenario) => scenario === value);
+}
+
 /** The allowance scenarios, in the order the preview's choice lists them. */
 const SCENARIOS: ReadonlyArray<PreviewAllowanceScenario> = [
   "withinQuota",
@@ -356,18 +362,31 @@ const DELIVERY_SCENARIOS: ReadonlyArray<PreviewDeliveryScenario> = [
   "malformed",
 ];
 
+/** The per-kind scenarios (#1981 PR 3), in the order the preview's third choice lists them. */
+const KINDS_SCENARIOS: ReadonlyArray<PreviewKindsScenario> = [
+  "observed",
+  "noneFailed",
+  "nothingSent",
+  "partial",
+  "notConfigured",
+  "notObservable",
+];
+
 /**
- * The e-post page over fictional reads. The allowance and Leverans each take a scenario of their own, and Leverans's
- * period is the URL's, as on the live page: its links navigate, and the chosen scenarios stay.
+ * The e-post page over fictional reads. The allowance, the provider's Leverans reads and the per-kind count each take a
+ * scenario of their own, and Leverans's period is the URL's, as on the live page: its links navigate, and the chosen
+ * scenarios stay.
  */
 export function PreviewEmail({
   allowances,
   deliveries,
+  kinds,
   period,
   pagePath,
 }: {
   readonly allowances: Readonly<Record<PreviewAllowanceScenario, AdminEmailAllowance>>;
   readonly deliveries: Readonly<Record<PreviewDeliveryScenario, Readonly<Record<AdminEmailPeriod, PreviewDelivery>>>>;
+  readonly kinds: Readonly<Record<PreviewKindsScenario, Readonly<Record<AdminEmailPeriod, AdminEmailKinds>>>>;
   readonly period: AdminEmailPeriod;
   readonly pagePath: string;
 }) {
@@ -376,8 +395,10 @@ export function PreviewEmail({
   const preview = useTranslations("admin-preview.email");
   const selectId = useId();
   const deliverySelectId = useId();
+  const kindsSelectId = useId();
   const [scenario, setScenario] = useState<PreviewAllowanceScenario>("withinQuota");
   const [deliveryScenario, setDeliveryScenario] = useState<PreviewDeliveryScenario>("observed");
+  const [kindsScenario, setKindsScenario] = useState<PreviewKindsScenario>("observed");
   const delivery = deliveries[deliveryScenario][period];
   return (
     <div className="flex flex-col gap-8">
@@ -417,11 +438,29 @@ export function PreviewEmail({
           ))}
         </select>
       </div>
+      <div className="jp-adminpreview-scenario">
+        <label htmlFor={kindsSelectId}>{preview("kindsLabel")}</label>
+        <select
+          id={kindsSelectId}
+          value={kindsScenario}
+          onChange={(event) => {
+            const chosen = event.target.value;
+            if (isKindsScenario(chosen)) setKindsScenario(chosen);
+          }}
+        >
+          {KINDS_SCENARIOS.map((option) => (
+            <option key={option} value={option}>
+              {preview(`kindsScenarios.${option}`)}
+            </option>
+          ))}
+        </select>
+      </div>
       <AdminEmailDelivery
         pagePath={pagePath}
         period={period}
         summary={deliveryRead(kind, delivery.summary)}
         failures={deliveryRead(kind, delivery.failures)}
+        kinds={deliveryRead(kind, kinds[kindsScenario][period])}
       />
     </div>
   );

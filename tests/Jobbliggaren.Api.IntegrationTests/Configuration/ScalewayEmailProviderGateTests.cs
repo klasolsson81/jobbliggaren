@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Email;
+using Jobbliggaren.Infrastructure.Email.Counting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -351,6 +352,44 @@ public class ScalewayEmailProviderGateTests
         // AddEmailSenderGateTests. A singleton that resolves its HttpClient per send via
         // IHttpClientFactory is what keeps handler rotation alive without a typed client.
         descriptor.ImplementationType.ShouldBe(typeof(ScalewayEmailSender));
+    }
+
+    // --- #1981 PR 3 (ADR 0181): only the arm that hands a mail to the provider counts ---
+
+    [Fact]
+    public void ScalewayProvider_RegistersExactlyOneTally_AsASingletonSqlTally()
+    {
+        var services = BuildServices("Production", FullScalewaySettings());
+
+        var descriptor = services.Single(d => d.ServiceType == typeof(EmailSendTally));
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+        descriptor.ImplementationType.ShouldBe(typeof(SqlEmailSendTally));
+    }
+
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Test")]
+    [InlineData("Production")]
+    public void ConsoleProvider_RegistersNoTally(string env) =>
+        BuildServices(env, new Dictionary<string, string?> { [$"{EmailOptions.SectionName}:Provider"] = "Console" })
+            .ShouldNotContain(d => d.ServiceType == typeof(EmailSendTally));
+
+    /// <summary>
+    /// The sender is a lazy singleton by type, so a tally it cannot be given would surface at the first mail, in the
+    /// Worker as a lost digest. Built with scope and build validation, from the email registration alone: the tally
+    /// asks for nothing at construction beyond a scope factory and a logger.
+    /// </summary>
+    [Fact]
+    public void ScalewayProvider_TheSenderAndItsTally_ResolveWithScopeAndBuildValidation()
+    {
+        var services = BuildServices("Production", FullScalewaySettings());
+        services.AddLogging();
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        provider.GetRequiredService<IEmailSender>().ShouldBeOfType<ScalewayEmailSender>();
+        provider.GetRequiredService<EmailSendTally>().ShouldBeOfType<SqlEmailSendTally>();
     }
 
     // --- Regression: the Console/Null gate is untouched by the Scaleway arm ---

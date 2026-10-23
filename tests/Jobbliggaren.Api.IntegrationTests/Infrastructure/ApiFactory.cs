@@ -18,6 +18,7 @@ using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Email;
+using Jobbliggaren.Infrastructure.Email.Counting;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
@@ -60,6 +61,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     /// <summary>#1981 — the provider reads the host resolves; "not configured" unless a test scripts them.</summary>
     internal ScriptedEmailProviderReads EmailProviderReads => _emailProviderReads;
+
+    private readonly SwitchableEmailSendCounts _emailSendCounts = new();
+
+    /// <summary>#1981 PR 3 — our own send counts, read from the test database unless a test asks for "not configured".</summary>
+    internal SwitchableEmailSendCounts EmailSendCounts => _emailSendCounts;
 
     private readonly LoginChallengeFaults _loginChallengeFaults = new();
 
@@ -284,6 +290,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddSingleton<IEmailProviderUsageSource>(_emailProviderReads);
             services.AddSingleton<IEmailDeliveryStatisticsSource>(_emailProviderReads);
             services.AddSingleton<IEmailRecentFailuresSource>(_emailProviderReads);
+
+            // #1981 PR 3 — our own counts are read from the test database whatever Email:Provider a gitignored
+            // Local.json says, so the SQL read is what every test exercises; one that needs the "not configured" answer
+            // asks EmailSendCounts for it.
+            services.RemoveAll<IEmailSendCountsSource>();
+            services.AddSingleton<IEmailSendCountsSource>(sp =>
+                _emailSendCounts.Over(new SqlEmailSendCountsSource(sp.GetRequiredService<IServiceScopeFactory>())));
 
             // #204 / TD-83 PR2 — replace the real HangfireBackgroundJobController (composed in the Api
             // root, wrapping Hangfire's IRecurringJobManager/IBackgroundJobClient/IMonitoringApi) with

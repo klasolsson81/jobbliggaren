@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { emailAllowanceFixture } from "@/test/fixtures/admin-overview";
+import { EMAIL_KINDS } from "@/lib/dto/admin-email";
 
 const { session, transport } = vi.hoisted(() => ({ session: vi.fn(), transport: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getSessionId: session }));
@@ -8,9 +9,11 @@ import {
   EMAIL_ALLOWANCE_PATH,
   EMAIL_DELIVERY_PATH,
   EMAIL_FAILURES_PATH,
+  EMAIL_KINDS_PATH,
   loadEmailAllowance,
   loadEmailDelivery,
   loadEmailFailures,
+  loadEmailKinds,
 } from "./admin-email";
 
 const answer = (body: unknown, status = 200) =>
@@ -105,11 +108,19 @@ const FAILURES = {
   period: "h24", status: "Observed", reason: null, observedAt: "2026-10-19T18:59:46+00:00", limit: 10,
   failures: [{ createdAt: "2026-10-19T14:32:51+00:00", recipient: "k•••@example.com", reason: "MailboxNotFound" }],
 } as const;
+const KINDS = {
+  period: "h24", status: "Observed", from: "2026-10-22", coverage: "Complete", coveredFrom: null,
+  kinds: EMAIL_KINDS.map((kind) => ({
+    kind, accepted: 3, failed: kind === "match-notification" ? 1 : 0,
+    latestFailure: kind === "match-notification" ? { day: "2026-10-23", outcomes: ["Refused", "Timeout"] } : null,
+  })),
+};
 
 describe.each([
   ["loadEmailDelivery", loadEmailDelivery, EMAIL_DELIVERY_PATH, DELIVERY],
   ["loadEmailFailures", loadEmailFailures, EMAIL_FAILURES_PATH, FAILURES],
-] as const)("%s (#1981 PR 2)", (_name, load, path, body) => {
+  ["loadEmailKinds", loadEmailKinds, EMAIL_KINDS_PATH, KINDS],
+] as const)("%s (#1981 PR 2 and PR 3)", (_name, load, path, body) => {
   beforeEach(() => {
     transport.mockImplementation(() => answer(body));
   });
@@ -157,5 +168,19 @@ describe("loadEmailFailures and the mask (#1981 PR 2)", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     transport.mockImplementation(() => answer({ ...FAILURES, failures: [{ ...FAILURES.failures[0], recipient: "konto@example.com" }] }));
     expect(await loadEmailFailures("h24")).toEqual({ kind: "error" });
+  });
+});
+
+describe("loadEmailKinds and the contract (#1981 PR 3)", () => {
+  it("asks our own count at its own path, never the provider's", async () => {
+    transport.mockImplementation(() => answer(KINDS));
+    await loadEmailKinds("h24");
+    expect(transport.mock.calls.map(([, path]) => path)).toEqual(["/api/v1/admin/email/kinds?period=h24"]);
+  });
+
+  it("answers a body with a kind missing as an error, so a missing kind never reads as one that sent nothing", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    transport.mockImplementation(() => answer({ ...KINDS, kinds: KINDS.kinds.slice(1) }));
+    expect(await loadEmailKinds("h24")).toEqual({ kind: "error" });
   });
 });

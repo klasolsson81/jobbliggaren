@@ -60,6 +60,15 @@
       "keyRefused": "Scaleway refuses the read key",
       "refused": "Scaleway refuses the read",
       "malformed": "Unreadable answer from Scaleway"
+    },
+    "kindsLabel": "Show sends per email type",
+    "kindsScenarios": {
+      "observed": "Failures exist",
+      "noneFailed": "No failures",
+      "nothingSent": "No sends",
+      "partial": "The count began within the period",
+      "notConfigured": "Not counted in the environment",
+      "notObservable": "The count shows no sends"
     }
   }
 }

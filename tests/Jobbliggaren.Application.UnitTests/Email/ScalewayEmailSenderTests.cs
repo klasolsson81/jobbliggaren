@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Email;
+using Jobbliggaren.Infrastructure.Email.Counting;
 using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -97,7 +98,7 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// look at <c>tests/Shared/RecordingLogger.cs</c> first, not at the sender.
 /// </para>
 /// </summary>
-public sealed class ScalewayEmailSenderTests : IDisposable
+public sealed partial class ScalewayEmailSenderTests : IDisposable
 {
     private const string Recipient = "user@example.com";
     private const string Region = "fr-par";
@@ -128,6 +129,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     private readonly FakeHttpMessageHandler _handler = new();
     private readonly IHttpClientFactory _httpClientFactory = Substitute.For<IHttpClientFactory>();
     private readonly RecordingLogger<ScalewayEmailSender> _logger = new();
+    private readonly RecordingEmailSendTally _tally = new();
 
     private readonly EmailOptions _options = new()
     {
@@ -149,8 +151,10 @@ public sealed class ScalewayEmailSenderTests : IDisposable
             .CreateClient(ScalewayClientRegistration.HttpClientName)
             .Returns(_ => new HttpClient(_handler, disposeHandler: false) { BaseAddress = BaseAddress });
 
-    private ScalewayEmailSender CreateSut() =>
-        new(_httpClientFactory, Options.Create(_options), Options.Create(_scaleway), _logger);
+    private ScalewayEmailSender CreateSut() => CreateSut(_tally);
+
+    private ScalewayEmailSender CreateSut(EmailSendTally tally) =>
+        new(_httpClientFactory, Options.Create(_options), Options.Create(_scaleway), tally, _logger);
 
     /// <summary>
     /// The fake handler is an <see cref="HttpMessageHandler"/> and therefore disposable. xUnit
@@ -1049,6 +1053,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         private bool _blockUntilCancelled;
         private Exception? _throwAfterCancellation;
         private bool _unreadableBody;
+        private CancellationTokenSource? _cancelBeforeAnswering;
 
         public List<CapturedRequest> Requests { get; } = [];
 
@@ -1086,6 +1091,9 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         public void RespondWithUnreadableBody() => _unreadableBody = true;
 
         public void BlockUntilCancelled() => _blockUntilCancelled = true;
+
+        /// <summary>Cancel the caller's source once the request is in, then answer as configured.</summary>
+        public void CancelBeforeAnswering(CancellationTokenSource caller) => _cancelBeforeAnswering = caller;
 
         /// <summary>
         /// Enter, wait for the caller to cancel, then throw <paramref name="exception"/> instead of
@@ -1140,6 +1148,11 @@ public sealed class ScalewayEmailSenderTests : IDisposable
 
                     throw;
                 }
+            }
+
+            if (_cancelBeforeAnswering is not null)
+            {
+                await _cancelBeforeAnswering.CancelAsync();
             }
 
             return new HttpResponseMessage(_status)

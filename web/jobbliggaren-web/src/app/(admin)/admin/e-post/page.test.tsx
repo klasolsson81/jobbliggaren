@@ -3,18 +3,20 @@ import { render, screen, within } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svAdmin from "../../../../../messages/sv/admin.json";
 import { emailAllowanceFixture } from "@/test/fixtures/admin-overview";
-import type { EmailAllowanceRead, EmailDeliveryRead, EmailFailuresRead } from "@/lib/api/admin-email";
-import type { EmailDeliveryPeriod } from "@/lib/dto/admin-email";
+import type { EmailAllowanceRead, EmailDeliveryRead, EmailFailuresRead, EmailKindsRead } from "@/lib/api/admin-email";
+import { EMAIL_KINDS, type EmailDeliveryPeriod } from "@/lib/dto/admin-email";
 
-const { allowance, delivery, failures } = vi.hoisted(() => ({
+const { allowance, delivery, failures, kinds } = vi.hoisted(() => ({
   allowance: vi.fn<() => Promise<EmailAllowanceRead>>(),
   delivery: vi.fn<(period: EmailDeliveryPeriod) => Promise<EmailDeliveryRead>>(),
   failures: vi.fn<(period: EmailDeliveryPeriod) => Promise<EmailFailuresRead>>(),
+  kinds: vi.fn<(period: EmailDeliveryPeriod) => Promise<EmailKindsRead>>(),
 }));
 vi.mock("@/lib/api/admin-email", () => ({
   loadEmailAllowance: allowance,
   loadEmailDelivery: delivery,
   loadEmailFailures: failures,
+  loadEmailKinds: kinds,
 }));
 vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace: string) =>
@@ -36,11 +38,13 @@ const ALLOWANCE_VALUES = ["1 301", "300", "3,49 kr"];
 const allowanceRegion = () => screen.getByRole("region", { name: /^Utskick (i |denna)/ });
 const deliveryRegion = () => screen.getByRole("region", { name: "Leverans" });
 const deliveryValues = () => within(deliveryRegion()).getAllByRole("definition").map((value) => value.textContent);
+const kindsRegion = () => screen.getByRole("region", { name: "Utskick per mejltyp" });
 
 beforeEach(() => {
   allowance.mockReset();
   delivery.mockReset();
   failures.mockReset();
+  kinds.mockReset();
   allowance.mockResolvedValue({ kind: "ok", data: emailAllowanceFixture() });
   delivery.mockImplementation(async (period) => ({
     kind: "ok", data: { period, status: "Observed", reason: null, observedAt: ASKED_AT, sent: 163, failed: 3 },
@@ -52,6 +56,16 @@ beforeEach(() => {
       failures: [{ createdAt: "2026-10-19T14:32:51+00:00", recipient: "k•••@example.com", reason: "HardBounce" }],
     },
   }));
+  kinds.mockImplementation(async (period) => ({
+    kind: "ok",
+    data: {
+      period, status: "Observed", from: "2026-10-16", coverage: "Complete", coveredFrom: null,
+      kinds: EMAIL_KINDS.map((kind) => ({
+        kind, accepted: 9, failed: kind === "login-challenge" ? 1 : 0,
+        latestFailure: kind === "login-challenge" ? { day: "2026-10-18", outcomes: ["Refused"] } : null,
+      })),
+    },
+  }));
 });
 
 describe("/admin/e-post — the month against the free allowance first, Leverans after (#1981)", () => {
@@ -59,12 +73,16 @@ describe("/admin/e-post — the month against the free allowance first, Leverans
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "E-postleverans" })).toBeInTheDocument();
-    expect(screen.getByText("Utskick mot gratiskvoten, leverans och misslyckade utskick.")).toBeInTheDocument();
+    expect(screen.getByText("Utskick mot gratiskvoten, leverans, misslyckade utskick och antal per mejltyp.")).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent)).toEqual([
       "Utskick i oktober 2026",
       "Leverans",
     ]);
-    expect(screen.getByRole("heading", { level: 3, name: "Senaste misslyckade utskick" })).toHaveClass("jp-adminh3");
+    expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      "Senaste misslyckade utskick",
+      "Utskick per mejltyp",
+    ]);
+    expect(deliveryRegion()).toContainElement(kindsRegion());
     // The h1's row carries nothing beside it: the period links are Leverans's.
     expect(document.querySelector(".jp-adminhead__aside")).toBeNull();
     expect(within(deliveryRegion()).getByRole("navigation", { name: "Period" })).toBeInTheDocument();
@@ -86,19 +104,21 @@ describe("/admin/e-post — the month against the free allowance first, Leverans
 });
 
 describe("/admin/e-post's period (#1981 PR 2)", () => {
-  it("reads 7 dygn without a period, asks both reads for it and marks it", async () => {
+  it("reads 7 dygn without a period, asks every Leverans read for it and marks it", async () => {
     await renderPage();
 
     expect(delivery).toHaveBeenCalledWith("d7");
     expect(failures).toHaveBeenCalledWith("d7");
+    expect(kinds).toHaveBeenCalledWith("d7");
     expect(screen.getByRole("link", { name: "7 dygn" })).toHaveAttribute("aria-current", "true");
   });
 
-  it.each(["h24", "d3", "d7"] as const)("reads ?period=%s, asks both reads for it and marks it alone", async (period) => {
+  it.each(["h24", "d3", "d7"] as const)("reads ?period=%s, asks every Leverans read for it and marks it alone", async (period) => {
     await renderPage(period);
 
     expect(delivery.mock.calls).toEqual([[period]]);
     expect(failures.mock.calls).toEqual([[period]]);
+    expect(kinds.mock.calls).toEqual([[period]]);
     const current = screen.getByRole("navigation", { name: "Period" }).querySelectorAll("[aria-current='true']");
     expect([...current].map((link) => link.getAttribute("href"))).toEqual([`/admin/e-post?period=${period}`]);
   });
@@ -110,6 +130,7 @@ describe("/admin/e-post's period (#1981 PR 2)", () => {
 
       expect(delivery).toHaveBeenCalledWith("d7");
       expect(failures).toHaveBeenCalledWith("d7");
+      expect(kinds).toHaveBeenCalledWith("d7");
     },
   );
 
@@ -118,13 +139,16 @@ describe("/admin/e-post's period (#1981 PR 2)", () => {
     expect(delivery).toHaveBeenCalledWith("h24");
   });
 
-  it("shows the period's counts and its failures", async () => {
+  it("shows the period's counts, its failures and our own count per kind from the period's first day", async () => {
     await renderPage("d3");
 
     expect(deliveryValues()).toEqual(["163", "3"]);
     expect(screen.getByRole("table", { name: "Misslyckade utskick, senaste 3 dygn" })).toHaveTextContent(
       "2026-10-19 16:32Avvisat av mottagarens serverk•••@example.com",
     );
+    const table = screen.getByRole("table", { name: "Utskick per mejltyp från och med 2026-10-16" });
+    expect(within(table).getAllByRole("rowheader")).toHaveLength(7);
+    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("Inloggning och koder912026-10-18: avvisat av Scaleway");
   });
 });
 
@@ -137,6 +161,16 @@ describe("/admin/e-post's regions fail on their own (ADR 0150 D2)", () => {
     expect(within(allowanceRegion()).getByText("Uppgifterna kunde inte hämtas. Försök igen om en stund.")).not.toHaveAttribute("role");
     expect(screen.getByRole("alert")).toHaveTextContent("Utskick mot gratiskvoten: Uppgifterna kunde inte hämtas. Försök igen om en stund.");
     expect(deliveryValues()).toEqual(["163", "3"]);
+  });
+
+  it("keeps a failed count per kind in its own region, under its own source, and renders the rest", async () => {
+    kinds.mockResolvedValue({ kind: "error" });
+    await renderPage();
+
+    expect(deliveryValues()).toEqual(["163", "3"]);
+    expect(within(kindsRegion()).getByText("Uppgifterna kunde inte hämtas. Försök igen om en stund.")).toBeInTheDocument();
+    expect(within(kindsRegion()).queryAllByRole("rowheader")).toEqual([]);
+    expect(screen.getByRole("alert")).toHaveTextContent("Utskick per mejltyp: Uppgifterna kunde inte hämtas. Försök igen om en stund.");
   });
 
   it("keeps a failed delivery read in Leverans and renders the allowance", async () => {
@@ -157,11 +191,18 @@ describe("/admin/e-post's regions fail on their own (ADR 0150 D2)", () => {
     allowance.mockResolvedValue({ kind });
     delivery.mockResolvedValue({ kind });
     failures.mockResolvedValue({ kind });
+    kinds.mockResolvedValue({ kind });
     await renderPage();
 
     expect(within(allowanceRegion()).getByText(line)).toBeInTheDocument();
-    // The list's cause is the summary's, which says it once.
-    expect(within(deliveryRegion()).getAllByText(line)).toHaveLength(1);
+    // The list's cause is the summary's, which says it once; our own count says it under its own heading.
+    expect(within(deliveryRegion()).getAllByText(line)).toHaveLength(2);
+    expect(within(kindsRegion()).getByText(line)).toBeInTheDocument();
+    // A cause every Leverans region shares is read once.
+    expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual([
+      `Utskick mot gratiskvoten: ${line}`,
+      `Leverans: ${line}`,
+    ]);
   });
 
   it("says a missing read key in the allowance and in Leverans, never that the environment does not count", async () => {
@@ -191,14 +232,14 @@ describe("/admin/e-post's regions fail on their own (ADR 0150 D2)", () => {
 });
 
 describe("/admin/e-post while its reads are pending", () => {
-  it("shows the allowance, the summary and the list loading, the per-type table Kommer snart, and no period chosen", () => {
+  it("shows the allowance, the summary, the list and the count per kind loading, and no period chosen", () => {
     render(<AdminEmailLoading />);
 
     expect(within(allowanceRegion()).getAllByRole("definition").map((value) => value.textContent)).toEqual([UNKNOWN, UNKNOWN, UNKNOWN]);
     expect(deliveryValues()).toEqual([UNKNOWN, UNKNOWN]);
-    expect(within(deliveryRegion()).getAllByText("Hämtar uppgifter…")).toHaveLength(2);
-    expect(within(screen.getByRole("table", { name: "Utskick per mejltyp" })).getByText("Kommer snart")).toBeInTheDocument();
-    expect(screen.getByRole("table", { name: "Misslyckade utskick" })).not.toHaveTextContent("Kommer snart");
+    expect(within(deliveryRegion()).getAllByText("Hämtar uppgifter…")).toHaveLength(3);
+    expect(within(kindsRegion()).getAllByText("Hämtar uppgifter…")).toHaveLength(1);
+    expect(document.body.textContent).not.toContain("Kommer snart");
     expect(screen.getByRole("navigation", { name: "Period" }).querySelector("[aria-current]")).toBeNull();
     expect(screen.getAllByRole("status").map((status) => status.textContent)).toEqual([
       "Utskick mot gratiskvoten: Hämtar uppgifter…",

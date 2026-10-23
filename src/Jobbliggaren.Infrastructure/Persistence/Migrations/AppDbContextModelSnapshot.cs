@@ -1777,6 +1777,52 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.ToTable("company_register", (string)null);
                 });
 
+            modelBuilder.Entity("Jobbliggaren.Infrastructure.Email.Counting.EmailSendCounting", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_email_send_counting");
+
+                    b.ToTable("email_send_counting", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_email_send_counting_singleton", "id = 1");
+                        });
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Infrastructure.Email.Counting.EmailSendDailyCount", b =>
+                {
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date")
+                        .HasColumnName("day");
+
+                    b.Property<short>("Kind")
+                        .HasColumnType("smallint")
+                        .HasColumnName("kind");
+
+                    b.Property<short>("Outcome")
+                        .HasColumnType("smallint")
+                        .HasColumnName("outcome");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.HasKey("Day", "Kind", "Outcome")
+                        .HasName("pk_email_send_daily_counts");
+
+                    b.ToTable("email_send_daily_counts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_email_send_daily_counts_positive", "attempts > 0 AND kind > 0 AND outcome > 0");
+                        });
+                });
+
             modelBuilder.Entity("Jobbliggaren.Infrastructure.JobAds.SnapshotMisses.JobAdSnapshotMiss", b =>
                 {
                     b.Property<string>("Source")

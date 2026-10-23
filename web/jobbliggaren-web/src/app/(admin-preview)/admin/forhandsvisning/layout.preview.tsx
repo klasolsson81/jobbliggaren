@@ -48,7 +48,7 @@ export default async function AdminPreviewLayout({ children }: { children: React
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
       <SkipLink label={t("layout.skipToContent")} />
-      <div className="min-h-full flex flex-col bg-background">
+      <div className="min-h-full flex flex-col jp-adminpreview-ground">
         <HeaderStrip brandHref="/" brandLabel={t("layout.brandAriaLabel")}>
           <AdminNav basePath={ADMIN_PREVIEW_ROUTE} />
           <div className="jp-adminaccount">

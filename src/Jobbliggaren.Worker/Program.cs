@@ -114,6 +114,8 @@ builder.Services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.DispatchFeedba
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackNotificationDispatchWorker>();
 builder.Services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.FeedbackRetention.FeedbackRetentionJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackRetentionWorker>();
+builder.Services.AddScoped<Jobbliggaren.Application.Admin.Email.Jobs.EmailSendCountRetention.EmailSendCountRetentionJob>();
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.EmailSendCountRetentionWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillFieldEncryptionWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdSsykWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdKlass2Worker>();

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Email.Counting;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Shouldly;
@@ -125,6 +126,50 @@ public sealed class EmailSendTallyTests
         await sut.RecordAsync(EmailKind.LoginChallenge, EmailSendOutcome.Accepted);
 
         await cancelled.Task.WaitAsync(WithinTheBudget, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>The sender outlives its host's provider at shutdown: the write's scope cannot be created.</summary>
+    [Fact]
+    public async Task RecordAsync_OverADisposedProvider_ReturnsAndLogsTheDisposal()
+    {
+        var provider = new ServiceCollection().BuildServiceProvider();
+        var scopes = provider.GetRequiredService<IServiceScopeFactory>();
+        await provider.DisposeAsync();
+        var sut = new SqlEmailSendTally(scopes, new TypedLogger<SqlEmailSendTally>(_logger));
+
+        await Should.NotThrowAsync(async () => await sut.RecordAsync(EmailKind.LoginChallenge, EmailSendOutcome.Accepted));
+
+        var warning = _logger.Records.ShouldHaveSingleItem();
+        warning.EventId.Id.ShouldBe(3009);
+        warning.Message.ShouldContain(nameof(ObjectDisposedException));
+        warning.Exception.ShouldBeNull();
+    }
+
+    /// <summary>A composition that registered the tally without what its write resolves (ADR 0181 N3 pins the real one).</summary>
+    [Fact]
+    public async Task RecordAsync_WhenTheWriteCannotResolveItsServices_ReturnsAndLogsTheResolutionFailure()
+    {
+        await using var provider = new ServiceCollection().BuildServiceProvider();
+        var sut = new SqlEmailSendTally(
+            provider.GetRequiredService<IServiceScopeFactory>(), new TypedLogger<SqlEmailSendTally>(_logger));
+
+        await Should.NotThrowAsync(async () => await sut.RecordAsync(EmailKind.FeedbackReply, EmailSendOutcome.Refused));
+
+        var warning = _logger.Records.ShouldHaveSingleItem();
+        warning.Message.ShouldContain(nameof(InvalidOperationException));
+        warning.Message.ShouldContain("(SQLSTATE -)");
+        warning.Exception.ShouldBeNull();
+    }
+
+    private sealed class TypedLogger<T>(ILogger inner) : ILogger<T>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => inner.BeginScope(state);
+
+        public bool IsEnabled(LogLevel logLevel) => inner.IsEnabled(logLevel);
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            inner.Log(logLevel, eventId, state, exception, formatter);
     }
 
     private static InvalidOperationException SentinelException() =>

@@ -1053,6 +1053,7 @@ public sealed partial class ScalewayEmailSenderTests : IDisposable
         private bool _blockUntilCancelled;
         private Exception? _throwAfterCancellation;
         private bool _unreadableBody;
+        private CancellationTokenSource? _cancelBeforeAnswering;
 
         public List<CapturedRequest> Requests { get; } = [];
 
@@ -1090,6 +1091,9 @@ public sealed partial class ScalewayEmailSenderTests : IDisposable
         public void RespondWithUnreadableBody() => _unreadableBody = true;
 
         public void BlockUntilCancelled() => _blockUntilCancelled = true;
+
+        /// <summary>Cancel the caller's source once the request is in, then answer as configured.</summary>
+        public void CancelBeforeAnswering(CancellationTokenSource caller) => _cancelBeforeAnswering = caller;
 
         /// <summary>
         /// Enter, wait for the caller to cancel, then throw <paramref name="exception"/> instead of
@@ -1144,6 +1148,11 @@ public sealed partial class ScalewayEmailSenderTests : IDisposable
 
                     throw;
                 }
+            }
+
+            if (_cancelBeforeAnswering is not null)
+            {
+                await _cancelBeforeAnswering.CancelAsync();
             }
 
             return new HttpResponseMessage(_status)

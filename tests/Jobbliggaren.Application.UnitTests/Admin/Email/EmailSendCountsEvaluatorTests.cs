@@ -121,7 +121,6 @@ public sealed class EmailSendCountsEvaluatorTests
     public static TheoryData<string, EmailDeliveryStatisticsRead> NoWitness => new()
     {
         { "the provider sent nothing", new EmailDeliveryStatisticsRead.Observed(2, 0, 2, At) },
-        { "no provider to ask", new EmailDeliveryStatisticsRead.NotConfigured() },
         { "no read key", new EmailDeliveryStatisticsRead.ReadKeyMissing() },
         { "the read failed", new EmailDeliveryStatisticsRead.Failed(EmailProviderReadReason.Timeout) },
     };

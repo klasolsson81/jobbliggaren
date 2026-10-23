@@ -23,12 +23,33 @@ public sealed class GetEmailSendCountsQueryHandlerTests
     {
         public List<(DateOnly First, DateOnly Last)> Windows { get; } = [];
 
+        public DateTimeOffset StartedAt { get; init; } = LongAgo;
+
         public ValueTask<EmailSendCountsRead> ReadAsync(
             DateOnly firstDay, DateOnly lastDay, CancellationToken cancellationToken)
         {
             Windows.Add((firstDay, lastDay));
-            return ValueTask.FromResult<EmailSendCountsRead>(new EmailSendCountsRead.Observed(rows, LongAgo));
+            return ValueTask.FromResult<EmailSendCountsRead>(new EmailSendCountsRead.Observed(rows, StartedAt));
         }
+    }
+
+    /// <summary>The SQL source fails its read on a database error, a missing start or an unknown stored value.</summary>
+    private sealed class FailingCounts(Exception failure) : IEmailSendCountsSource
+    {
+        public ValueTask<EmailSendCountsRead> ReadAsync(
+            DateOnly firstDay, DateOnly lastDay, CancellationToken cancellationToken) =>
+            ValueTask.FromException<EmailSendCountsRead>(failure);
+    }
+
+    /// <summary>A provider read still pending when the caller cancels: the memo's <c>WaitAsync</c> gives up on it.</summary>
+    private sealed class PendingStatistics : IEmailDeliveryStatisticsSource
+    {
+        public async ValueTask<EmailDeliveryStatisticsRead> ReadAsync(
+            EmailDeliveryPeriod period, CancellationToken cancellationToken) =>
+            await new TaskCompletionSource<EmailDeliveryStatisticsRead>().Task.WaitAsync(cancellationToken);
+
+        public ValueTask<EmailDeliveryStatisticsRead> ReadSentinelAsync(CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The per-kind read never asks for the sentinel.");
     }
 
     private sealed class FakeStatistics(EmailDeliveryStatisticsRead answer) : IEmailDeliveryStatisticsSource
@@ -104,6 +125,50 @@ public sealed class GetEmailSendCountsQueryHandlerTests
         statistics.Periods.ShouldBe([period]);
         statistics.SentinelReads.ShouldBe(0);
         dto.Status.ShouldBe(EmailSendCountsStatus.NotObservable);
+    }
+
+    // Seven days back from Now is 16 October, whose Swedish midnight is 2026-10-15T22:00Z (CEST).
+    [Theory]
+    [InlineData("2026-10-15T22:00:00Z", EmailSendCountsCoverage.Complete)]
+    [InlineData("2026-10-15T23:30:00Z", EmailSendCountsCoverage.Partial)]
+    public async Task Handle_CountingThatBeganAfterTheFirstDatesSwedishMidnight_IsPartialFromThatInstant(
+        string startedAt, EmailSendCountsCoverage coverage)
+    {
+        var started = DateTimeOffset.Parse(startedAt, System.Globalization.CultureInfo.InvariantCulture);
+        var counts = new FakeCounts(
+            new EmailSendCountRow(new DateOnly(2026, 10, 23), EmailKind.LoginChallenge, EmailSendOutcome.Accepted, 1))
+        {
+            StartedAt = started,
+        };
+
+        var dto = await Handler(counts, new FakeStatistics(new EmailDeliveryStatisticsRead.Observed(1, 1, 0, Now)))
+            .Handle(new GetEmailSendCountsQuery(EmailDeliveryPeriod.Last7Days), Ct);
+
+        dto.Coverage.ShouldBe(coverage);
+        dto.CoveredFrom.ShouldBe(coverage == EmailSendCountsCoverage.Partial ? started : null);
+    }
+
+    [Fact]
+    public async Task Handle_WhenOurReadFails_FailsWithoutAskingTheProvider()
+    {
+        var statistics = new FakeStatistics(new EmailDeliveryStatisticsRead.Observed(3, 3, 0, Now));
+
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await Handler(new FailingCounts(new InvalidOperationException("our read failed")), statistics)
+                .Handle(new GetEmailSendCountsQuery(EmailDeliveryPeriod.Last24Hours), Ct));
+
+        statistics.Periods.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenTheCallerCancelsDuringTheProvidersRead_LetsTheCancellationThrough()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(async () =>
+            await Handler(new FakeCounts(), new PendingStatistics())
+                .Handle(new GetEmailSendCountsQuery(EmailDeliveryPeriod.Last7Days), cts.Token));
     }
 
     [Fact]

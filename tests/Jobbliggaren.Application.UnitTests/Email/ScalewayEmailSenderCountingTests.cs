@@ -68,24 +68,27 @@ public sealed partial class ScalewayEmailSenderTests
             await CreateSut().SendFeedbackReplyAsync(Recipient, SampleReplyContent(), CancellationToken.None));
 
         ex.Disposition.ShouldBe(disposition);
+        ex.UnderlyingErrorType.ShouldBe(nameof(HttpRequestException));
         _tally.Records.ShouldBe([(EmailKind.FeedbackReply, outcome)]);
     }
 
     [Theory]
-    [InlineData(HttpRequestError.NameResolutionError, EmailSendOutcome.Unreachable)]
-    [InlineData(HttpRequestError.ConnectionError, EmailSendOutcome.Unreachable)]
-    [InlineData(HttpRequestError.SecureConnectionError, EmailSendOutcome.Unreachable)]
-    [InlineData(HttpRequestError.ProxyTunnelError, EmailSendOutcome.Unreachable)]
-    [InlineData(HttpRequestError.ResponseEnded, EmailSendOutcome.Other)]
-    [InlineData(HttpRequestError.Unknown, EmailSendOutcome.Other)]
+    [InlineData(HttpRequestError.NameResolutionError, EmailSendOutcome.Unreachable, EmailDeliveryDisposition.NotAccepted)]
+    [InlineData(HttpRequestError.ConnectionError, EmailSendOutcome.Unreachable, EmailDeliveryDisposition.NotAccepted)]
+    [InlineData(HttpRequestError.SecureConnectionError, EmailSendOutcome.Unreachable, EmailDeliveryDisposition.NotAccepted)]
+    [InlineData(HttpRequestError.ProxyTunnelError, EmailSendOutcome.Unreachable, EmailDeliveryDisposition.NotAccepted)]
+    [InlineData(HttpRequestError.ResponseEnded, EmailSendOutcome.Other, EmailDeliveryDisposition.Unknown)]
+    [InlineData(HttpRequestError.Unknown, EmailSendOutcome.Other, EmailDeliveryDisposition.Unknown)]
     public async Task ScalewayEmailSender_TransportFailsWithoutAResponse_CountsTheClassOfItsPhase(
-        HttpRequestError error, EmailSendOutcome outcome)
+        HttpRequestError error, EmailSendOutcome outcome, EmailDeliveryDisposition disposition)
     {
         _handler.ThrowOnSend(new HttpRequestException(error, "transport failure"));
 
-        await Should.ThrowAsync<EmailDeliveryException>(async () =>
+        var ex = await Should.ThrowAsync<EmailDeliveryException>(async () =>
             await CreateSut().SendLoginChallengeAsync(Recipient, SampleLoginContent(), CancellationToken.None));
 
+        ex.Disposition.ShouldBe(disposition);
+        ex.UnderlyingErrorType.ShouldBe(nameof(HttpRequestException));
         _tally.Records.ShouldBe([(EmailKind.LoginChallenge, outcome)]);
     }
 
@@ -95,9 +98,11 @@ public sealed partial class ScalewayEmailSenderTests
         _handler.ThrowOnSend(new TaskCanceledException(
             "The request was canceled due to the configured HttpClient.Timeout elapsing.", new TimeoutException()));
 
-        await Should.ThrowAsync<EmailDeliveryException>(async () =>
+        var ex = await Should.ThrowAsync<EmailDeliveryException>(async () =>
             await CreateSut().SendMatchNotificationEmailAsync(Recipient, SampleMatchContent(), CancellationToken.None));
 
+        ex.Disposition.ShouldBe(EmailDeliveryDisposition.Unknown);
+        ex.UnderlyingErrorType.ShouldBe(nameof(TaskCanceledException));
         _tally.Records.ShouldBe([(EmailKind.MatchNotification, EmailSendOutcome.Timeout)]);
     }
 
@@ -114,17 +119,22 @@ public sealed partial class ScalewayEmailSenderTests
         _tally.Records.ShouldBeEmpty("a cancellation the caller asked for leaves through the filter, uncounted");
     }
 
-    /// <summary>A template is rendered before the funnel, so a fault in it hands nothing over and counts nothing.</summary>
+    /// <summary>
+    /// The caller's token is cancelled while the provider answers 2xx (a request aborted, a host stopping): the mail was
+    /// handed over, so it is counted as accepted and the send returns, and no caller sees a failure for a delivered code.
+    /// </summary>
     [Fact]
-    public async Task ScalewayEmailSender_ATemplateFaults_CountsNothingAndPostsNothing()
+    public async Task ScalewayEmailSender_TheCallerCancelsAsTheProviderAccepts_CountsTheAcceptedSendAndReturns()
     {
-        var thrown = await Record.ExceptionAsync(async () =>
-            await CreateSut().SendMatchNotificationEmailAsync(Recipient, null!, CancellationToken.None));
+        using var cts = new CancellationTokenSource();
+        _handler.CancelBeforeAnswering(cts);
 
-        thrown.ShouldNotBeNull();
-        thrown.ShouldNotBeOfType<EmailDeliveryException>();
-        _handler.Requests.ShouldBeEmpty();
-        _tally.Records.ShouldBeEmpty();
+        await Should.NotThrowAsync(async () =>
+            await CreateSut().SendAccountEmailChangeRequestedNotificationAsync(
+                Recipient, DateTimeOffset.UnixEpoch.AddDays(1), DateTimeOffset.UnixEpoch.AddDays(2), cts.Token));
+
+        cts.IsCancellationRequested.ShouldBeTrue();
+        _tally.Records.ShouldBe([(EmailKind.AccountEmailChangeRequestedNotification, EmailSendOutcome.Accepted)]);
     }
 
     public static TheoryData<string, Func<CancellationToken, Task>> FailingTallies => new()
@@ -169,6 +179,32 @@ public sealed partial class ScalewayEmailSenderTests
         ex.Disposition.ShouldBe(disposition);
         ex.UnderlyingErrorType.ShouldBe(nameof(HttpRequestException));
         ex.EmailKind.ShouldBe(EmailKinds.FeedbackReplyToken);
+    }
+
+    [Theory]
+    [InlineData("unreachable", EmailDeliveryDisposition.NotAccepted, nameof(HttpRequestException))]
+    [InlineData("timeout", EmailDeliveryDisposition.Unknown, nameof(TaskCanceledException))]
+    [InlineData("ended early", EmailDeliveryDisposition.Unknown, nameof(HttpRequestException))]
+    public async Task ScalewayEmailSender_ATallyThatFails_LeavesATransportFailureWithItsOwnException(
+        string failure, EmailDeliveryDisposition disposition, string underlying)
+    {
+        _handler.ThrowOnSend(failure switch
+        {
+            "unreachable" => new HttpRequestException(HttpRequestError.NameResolutionError, "transport failure"),
+            "timeout" => new TaskCanceledException(
+                "The request was canceled due to the configured HttpClient.Timeout elapsing.", new TimeoutException()),
+            "ended early" => new HttpRequestException(HttpRequestError.ResponseEnded, "transport failure"),
+            _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Not a transport failure."),
+        });
+        var tally = new ScriptedEmailSendTally(
+            new CapturingLogger(), _ => throw new InvalidOperationException("the count failed"));
+
+        var ex = await Should.ThrowAsync<EmailDeliveryException>(async () =>
+            await CreateSut(tally).SendLoginChallengeAsync(Recipient, SampleLoginContent(), CancellationToken.None));
+
+        ex.Disposition.ShouldBe(disposition);
+        ex.UnderlyingErrorType.ShouldBe(underlying);
+        ex.EmailKind.ShouldBe(EmailKinds.LoginChallengeToken);
     }
 
     [Fact]

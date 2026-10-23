@@ -170,7 +170,7 @@ public sealed class AdminEmailKindsTests(ApiFactory factory) : IAsyncLifetime
     [Fact]
     public async Task Kinds_ShouldAnswerEveryKindInOrder_WithItsAcceptedFailedAndLatestFailure()
     {
-        var now = DaysAhead(2);
+        var now = DaysAhead(3);
         using var host = HostAt(now);
         var admin = await AdminClientAsync(host);
         await WarmAsync(admin);
@@ -260,7 +260,6 @@ public sealed class AdminEmailKindsTests(ApiFactory factory) : IAsyncLifetime
 
     [Theory]
     [InlineData("sent none")]
-    [InlineData("not configured")]
     [InlineData("failed")]
     public async Task Kinds_ShouldShowOurZeros_WhenTheProviderIsNoWitnessAgainstThem(string provider)
     {
@@ -272,7 +271,7 @@ public sealed class AdminEmailKindsTests(ApiFactory factory) : IAsyncLifetime
                 new EmailDeliveryStatisticsRead.Observed(0, 0, 0, DateTimeOffset.UnixEpoch), Sentinel),
             "failed" => factory.EmailProviderReads.ScriptStatistics(
                 new EmailDeliveryStatisticsRead.Failed(EmailProviderReadReason.Timeout), Sentinel),
-            _ => null,
+            _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Not a witness."),
         };
 
         var body = await ReadAsync(await admin.GetAsync(KindsPath + "?period=h24", Ct));

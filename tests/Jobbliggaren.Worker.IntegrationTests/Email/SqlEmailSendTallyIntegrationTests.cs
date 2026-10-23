@@ -116,6 +116,9 @@ public sealed class SqlEmailSendTallyIntegrationTests(WorkerTestFixture fixture)
         var warning = _logger.Records.ShouldHaveSingleItem();
         warning.Level.ShouldBe(LogLevel.Warning);
         warning.EventId.Id.ShouldBe(3009);
+        warning.Exception.ShouldBeNull();
+        warning.Message.ShouldMatch(
+            @"^\[EmailSendTally\] A login-challenge send with outcome Timeout was not confirmed as counted: \w+ \(SQLSTATE ([0-9A-Z]{5}|-)\)$");
         await transaction.RollbackAsync(Ct);
     }
 
@@ -181,7 +184,7 @@ public sealed class SqlEmailSendTallyIntegrationTests(WorkerTestFixture fixture)
 
     private sealed class ListLogger<T> : ILogger<T>
     {
-        public List<(LogLevel Level, EventId EventId, string Message)> Records { get; } = [];
+        public List<(LogLevel Level, EventId EventId, string Message, Exception? Exception)> Records { get; } = [];
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -191,7 +194,7 @@ public sealed class SqlEmailSendTallyIntegrationTests(WorkerTestFixture fixture)
             LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
             lock (Records)
-                Records.Add((logLevel, eventId, formatter(state, exception)));
+                Records.Add((logLevel, eventId, formatter(state, exception), exception));
         }
     }
 }

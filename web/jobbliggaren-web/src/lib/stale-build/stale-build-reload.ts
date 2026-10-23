@@ -7,7 +7,7 @@ import { reloadDocument } from "./reload-document";
  * Every CI build of the web image gets its own Server Action ids (Next salts
  * them with a per-build key), and the box replaces the image within hours of
  * every merge. A page rendered before that replacement answers its next
- * Server Action with a 404 and `x-nextjs-action-not-found: 1`, which the
+ * Server Action with `x-nextjs-action-not-found: 1`, which the
  * router turns into an `UnrecognizedActionError` on the client — the action
  * never ran. The remedy is to reload the document once, so the page gets the
  * build the server runs, and to say so after the reload (the notice reads the

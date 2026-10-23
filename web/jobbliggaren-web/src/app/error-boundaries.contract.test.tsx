@@ -85,8 +85,12 @@ function installedTurbopackChunkLoadError(): Error {
   // independently pinned by the actual ad4 runtime and the real-script browser
   // witness in admin-deletion.spec.ts; this fixture executes only the shared
   // error construction, without requiring a generated .next build in CI.
-  const runtime = readFileSync(createRequire(import.meta.url).resolve(
-    "next/dist/bundle-analyzer/_next/static/chunks/turbopack-0_jd6_0ca14du.js"), "utf8");
+  // The chunk's file name is a content hash that can change with any Next release, so the one runtime chunk is found.
+  const chunks = resolve(
+    dirname(createRequire(import.meta.url).resolve("next/package.json")), "dist/bundle-analyzer/_next/static/chunks");
+  const runtimes = readdirSync(chunks).filter((name) => /^turbopack-.+\.js$/.test(name));
+  expect(runtimes, "the installed analyzer ships exactly one Turbopack runtime chunk").toHaveLength(1);
+  const runtime = readFileSync(resolve(chunks, runtimes[0]!), "utf8");
   const producer = runtime.match(/let error=Error\(`Failed to load chunk[^;]*;throw error\.name="ChunkLoadError",error/)?.[0];
   expect(producer, "the installed Turbopack transform must still emit the fixture's name").toBeDefined();
   try {

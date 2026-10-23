@@ -683,11 +683,16 @@ jobs:
   # Lighthouse-CI — Core Web Vitals (ADR 0045 Beslut 2). lighthouserc.json
   # kör numberOfRuns:3 + median (single-run = flaky). Jobbet sväljer exit-
   # koden (continue-on-error) → observe-only Fas 1.
+  #
+  # The server it measures is scripts/lighthouse-server.mjs (SEO epic #2090 S6): `next start`
+  # with the stub backend the public-page smoke asserts on, so /jobb/<uuid> and /lediga-jobb
+  # are measured with no seeded stack.
   lighthouse:
     name: lighthouse (observe-only)
     runs-on: ubuntu-latest
     # Sized for the REAL collect load this fix restores: install + build +
-    # 8 URLs × numberOfRuns:3 = 24 Lighthouse-körningar. Den gamla 15-min-
+    # (URLs in lighthouserc.json) × numberOfRuns:3 Lighthouse-körningar; the
+    # count is `jq '.ci.collect.url | length' lighthouserc.json`. Den gamla 15-min-
     # budgeten sattes när jobbet failade på sekunder (green-but-empty) och
     # mötte aldrig verklig last. En JOBB-timeout skulle cancel:a jobbet, och
     # if: always()-steg (green-but-empty-vakten) kör INTE efter en cancel →
@@ -724,7 +729,7 @@ jobs:
 
       # lhci autorun körs som ett run-steg (INTE treosh/lighthouse-ci-action) så
       # det ärver jobbets working-directory (web/jobbliggaren-web). Därmed löses
-      # configens relativa sökvägar (collect.startServerCommand: pnpm start,
+      # configens relativa sökvägar (collect.startServerCommand: node scripts/lighthouse-server.mjs,
       # upload.outputDir: ./.lighthouseci) från web-dir — precis som en lokal
       # körning. treosh-action körde lhci från repo-roten (GITHUB_WORKSPACE),
       # ärvde ej working-directory, och kunde aldrig hitta `pnpm start`

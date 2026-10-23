@@ -6,7 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Email;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180): the send counts store <see cref="EmailKind"/> and <see cref="EmailSendOutcome"/> as numbers,
+/// #1981 PR 3 (ADR 0181): the send counts store <see cref="EmailKind"/> and <see cref="EmailSendOutcome"/> as numbers,
 /// so a renumbered member would silently re-label every stored row. The expected values are written out here rather
 /// than read back from the production members.
 /// </summary>

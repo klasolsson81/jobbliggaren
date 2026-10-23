@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — EF Core configuration for <c>email_send_daily_counts</c>. The table is reached only through
+/// #1981 PR 3 (ADR 0181) — EF Core configuration for <c>email_send_daily_counts</c>. The table is reached only through
 /// SQL inside Infrastructure, so this configuration exists for the migration schema. Kind and outcome are stored by
 /// number, against the by-name house rule: a <c>smallint</c> column cannot carry text, so the model's text sweeps
 /// would catch any text column added here later.

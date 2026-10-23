@@ -6,20 +6,20 @@ using Npgsql;
 namespace Jobbliggaren.Infrastructure.Email.Counting;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — counts one attempt to hand a mail to the provider. <see cref="RecordAsync"/> is the only
+/// #1981 PR 3 (ADR 0181) — counts one attempt to hand a mail to the provider. <see cref="RecordAsync"/> is the only
 /// entry, and it cannot throw: whatever the write does — fail, hang, ignore its token — the send it follows keeps its
 /// outcome, which is what the claim-then-send callers decide on (security-auditor 5d, ADR 0124). Its own timer bounds
 /// it at <see cref="Budget"/>, so the bound holds whether or not the write honours its token. The Warning therefore
 /// means "not confirmed within the budget": an abandoned write may still commit.
 /// <para>
 /// The signature carries the kind and the outcome and nothing else — no recipient, no time, no text and no caller
-/// token — and must stay so: the day is taken from the server clock inside the write (ADR 0180).
+/// token — and must stay so: the day is taken from the server clock inside the write (ADR 0181).
 /// </para>
 /// </summary>
 internal abstract partial class EmailSendTally(ILogger logger)
 {
     /// <summary>
-    /// The longest a count may hold up the send it follows (ADR 0180, ADR 0045 class (c)). It sits inside the delivery
+    /// The longest a count may hold up the send it follows (ADR 0181, ADR 0045 class (c)). It sits inside the delivery
     /// spine, between the provider's answer and the caller's bookkeeping.
     /// </summary>
     internal static readonly TimeSpan Budget = TimeSpan.FromMilliseconds(400);

@@ -16,7 +16,7 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — where our own send counts may go. The tally writes the day's count, the configurations map
+/// #1981 PR 3 (ADR 0181) — where our own send counts may go. The tally writes the day's count, the configurations map
 /// the two tables, and nothing else in the production assemblies names them; the recording start has no writer outside
 /// the migration that created it (security-auditor E). Only the Scaleway funnel counts. The sites are the IL's own,
 /// mapped from compiler-generated code back to the method written; EF migrations and model snapshots are admitted by
@@ -25,7 +25,7 @@ namespace Jobbliggaren.Architecture.Tests;
 public class EmailSendCountBoundaryTests
 {
     private const string Bound =
-        "ADR 0180: our own send counts have one writer, the tally, and a new reader or writer is a new use of data "
+        "ADR 0181: our own send counts have one writer, the tally, and a new reader or writer is a new use of data "
         + "security-auditor ruled linkable (purpose 3); it needs its own review.";
 
     [Fact]

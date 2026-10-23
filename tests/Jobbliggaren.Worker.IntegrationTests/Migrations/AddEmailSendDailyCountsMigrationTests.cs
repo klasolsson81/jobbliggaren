@@ -16,7 +16,7 @@ using Testcontainers.PostgreSql;
 namespace Jobbliggaren.Worker.IntegrationTests.Migrations;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — <c>AddEmailSendDailyCounts</c> is additive: two new tables, the recording start written
+/// #1981 PR 3 (ADR 0181) — <c>AddEmailSendDailyCounts</c> is additive: two new tables, the recording start written
 /// once by the migration itself, and every other table's columns exactly as before, across Up, Down and a second Up.
 /// Run as <c>jobbliggaren_app</c>, the role production migrates with.
 /// </summary>

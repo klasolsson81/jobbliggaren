@@ -33,7 +33,7 @@ using static Jobbliggaren.Api.IntegrationTests.Admin.AdminAccountsKit;
 namespace Jobbliggaren.Api.IntegrationTests.Admin;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — our own counts per mail kind, end to end through the real pipeline: who may call the read,
+/// #1981 PR 3 (ADR 0181) — our own counts per mail kind, end to end through the real pipeline: who may call the read,
 /// that every answer including a refusal and a 400 is private and uncacheable, that the period is one of three tokens,
 /// and exactly what the browser receives. The counts are written by the production tally under a host clock set a few
 /// days ahead (AGENTS.md §5 Tests), close enough for the session to stay valid; no other test writes the table in this

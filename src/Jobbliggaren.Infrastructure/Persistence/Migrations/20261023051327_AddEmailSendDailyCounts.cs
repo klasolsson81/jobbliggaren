@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     /// <summary>
-    /// #1981 PR 3 (ADR 0180) — our own send counts per mail kind: two new tables and no change to any existing one.
+    /// #1981 PR 3 (ADR 0181) — our own send counts per mail kind: two new tables and no change to any existing one.
     /// <c>email_send_daily_counts</c> holds attempts per Swedish civil date, mail kind and outcome (primary key
     /// <c>(day, kind, outcome)</c>, one positivity check, no other index). <c>email_send_counting</c> holds one row, the
     /// instant counting began, written here with the database clock and by no code afterwards. Klas's migration GO of

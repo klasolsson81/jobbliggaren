@@ -112,7 +112,7 @@ public class RecurringJobRegistrarParityTests
     }
 
     /// <summary>
-    /// #1981 PR 3 (ADR 0180, security-auditor condition 3) — the send-count retention runs at 04:40 UTC, outside the hour in
+    /// #1981 PR 3 (ADR 0181, security-auditor condition 3) — the send-count retention runs at 04:40 UTC, outside the hour in
     /// which daylight saving moves the Swedish date, which is what makes "at most eight dates" true at the scheduled run.
     /// A changed schedule changes the retention bound.
     /// </summary>

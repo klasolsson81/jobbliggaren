@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace Jobbliggaren.Application.Common.Abstractions;
 
 /// <summary>
-/// The kind of a transactional mail: one member per <see cref="IEmailSender"/> send method (#1981 PR 3, ADR 0180).
+/// The kind of a transactional mail: one member per <see cref="IEmailSender"/> send method (#1981 PR 3, ADR 0181).
 /// The send counts store the numeric value, so a member is never renumbered and a removed one leaves its number unused.
 /// The tokens are the strings the senders log and <see cref="Exceptions.EmailDeliveryException.EmailKind"/> carries.
 /// </summary>

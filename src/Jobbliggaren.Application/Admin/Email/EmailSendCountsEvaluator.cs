@@ -3,7 +3,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 namespace Jobbliggaren.Application.Admin.Email;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — turns our own counts into what the per-kind region may show. Pure and static.
+/// #1981 PR 3 (ADR 0181) — turns our own counts into what the per-kind region may show. Pure and static.
 /// <para>
 /// <b>The gate against a silent zero.</b> A count that fails to write is contained and logged, so a zero cannot by
 /// itself be told from a period without mail. When our total for the period is zero and the provider's own count for the

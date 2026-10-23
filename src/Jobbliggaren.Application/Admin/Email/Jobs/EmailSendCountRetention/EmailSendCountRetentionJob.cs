@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Application.Admin.Email.Jobs.EmailSendCountRetention;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — deletes our own send counts the longest period can no longer read. The first date kept is
+/// #1981 PR 3 (ADR 0181) — deletes our own send counts the longest period can no longer read. The first date kept is
 /// <see cref="EmailSendCountDates.FirstDateOf"/> of the seven-day period, the same rule the read uses, so the deletion
 /// never takes a date a read still needs. At the scheduled run that keeps today and the seven dates before it, so a
 /// count lives at most eight Swedish dates plus the time to the next successful scheduled run. A failed run leaves the

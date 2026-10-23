@@ -4,7 +4,7 @@ using Jobbliggaren.Application.Common.Exceptions;
 namespace Jobbliggaren.Application.Common.Abstractions;
 
 /// <summary>
-/// What one attempt to hand a mail to the provider came to, as the send path saw it (#1981 PR 3, ADR 0180). Only the
+/// What one attempt to hand a mail to the provider came to, as the send path saw it (#1981 PR 3, ADR 0181). Only the
 /// class is kept: never a status code, a reason phrase, an exception type or a message. The send counts store the
 /// numeric value, so a member is never renumbered.
 /// </summary>

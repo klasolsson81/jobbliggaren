@@ -14,7 +14,7 @@ using Shouldly;
 namespace Jobbliggaren.Worker.IntegrationTests.Email;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — the PostgreSQL tally against the migrated schema. It counts through the Worker's own
+/// #1981 PR 3 (ADR 0181) — the PostgreSQL tally against the migrated schema. It counts through the Worker's own
 /// composition; concurrent attempts on one row all count; the day is the Swedish civil date of the server clock; and a
 /// write held up by a row lock is bounded by the budget and leaves one Warning. Rows are written by the production
 /// tally under a fixed clock (AGENTS.md §5 Tests), on 2031 dates no other test uses, and removed afterwards.

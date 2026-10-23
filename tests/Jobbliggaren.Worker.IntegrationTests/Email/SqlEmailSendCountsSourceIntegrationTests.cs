@@ -14,7 +14,7 @@ using Shouldly;
 namespace Jobbliggaren.Worker.IntegrationTests.Email;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — the SQL read of our own counts against the migrated schema: the window is inclusive at both
+/// #1981 PR 3 (ADR 0181) — the SQL read of our own counts against the migrated schema: the window is inclusive at both
 /// ends and holds nothing outside it, and a read fails rather than count around what this release cannot vouch for.
 /// Counts are written by the production tally under a fixed clock, on 2030 dates no other test uses.
 /// </summary>

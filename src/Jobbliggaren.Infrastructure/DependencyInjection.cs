@@ -930,7 +930,7 @@ public static class DependencyInjection
             // documented at ScalewayClientRegistration.HttpClientName.
             services.AddSingleton<IEmailSender, ScalewayEmailSender>();
 
-            // Only this arm hands a mail to the provider, so only this arm counts (ADR 0180).
+            // Only this arm hands a mail to the provider, so only this arm counts (ADR 0181).
             services.AddSingleton<EmailSendTally, SqlEmailSendTally>();
         }
         else
@@ -999,7 +999,7 @@ public static class DependencyInjection
         services.AddScoped<IAuditPartitionMaintainer, AuditPartitionMaintainer>();
         services.AddScoped<IAuditTrailEraser, AuditTrailEraser>();
 
-        // Our own send counts' retention (#1981 PR 3, ADR 0180), run by a Worker job, so registered here beside the
+        // Our own send counts' retention (#1981 PR 3, ADR 0181), run by a Worker job, so registered here beside the
         // other maintenance stores rather than with the Api-only read.
         services.AddScoped<Jobbliggaren.Application.Admin.Email.IEmailSendCountRetention, SqlEmailSendCountRetention>();
 

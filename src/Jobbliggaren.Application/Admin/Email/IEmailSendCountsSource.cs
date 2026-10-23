@@ -3,7 +3,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 namespace Jobbliggaren.Application.Admin.Email;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — our own counts of the attempts to hand a mail to the provider, per Swedish civil date, mail
+/// #1981 PR 3 (ADR 0181) — our own counts of the attempts to hand a mail to the provider, per Swedish civil date, mail
 /// kind and outcome. Application defines the port; Infrastructure implements it. Its one consumer is the per-kind query
 /// handler, which an architecture test pins.
 /// <para>

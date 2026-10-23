@@ -30,7 +30,7 @@ public enum EmailSendCountsCoverage
 }
 
 /// <summary>
-/// Our own counts per mail kind for one period as the browser receives them (#1981 PR 3, ADR 0180). A closed union:
+/// Our own counts per mail kind for one period as the browser receives them (#1981 PR 3, ADR 0181). A closed union:
 /// figures only when observed, every kind in a fixed order, and a latest failure exactly when there was a failure. A
 /// test pins the serialised key set.
 /// </summary>

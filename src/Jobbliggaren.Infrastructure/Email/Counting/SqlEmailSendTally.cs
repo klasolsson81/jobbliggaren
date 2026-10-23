@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Infrastructure.Email.Counting;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — the PostgreSQL count: one parameterised upsert per attempt into the Swedish civil date's row.
+/// #1981 PR 3 (ADR 0181) — the PostgreSQL count: one parameterised upsert per attempt into the Swedish civil date's row.
 /// The sender is a singleton, so each write opens a scope of its own, and with it a connection of its own: a failed
 /// count can never abort a transaction the caller holds. Api and Worker increment the same row concurrently;
 /// <c>ON CONFLICT … DO UPDATE</c> makes that atomic.

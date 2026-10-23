@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Jobbliggaren.Infrastructure.Email.Counting;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — reads our own counts and the recording start in one snapshot, through a scope of its own so
+/// #1981 PR 3 (ADR 0181) — reads our own counts and the recording start in one snapshot, through a scope of its own so
 /// it can be a singleton beside the provider reads. An unknown stored value or a missing start fails the read rather
 /// than being counted around (<see cref="IEmailSendCountsSource"/>).
 /// </summary>

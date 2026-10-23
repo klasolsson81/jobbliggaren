@@ -278,7 +278,7 @@ internal sealed partial class ScalewayEmailSender(
         }
 
         // Counted once, after the boundary, so no fault in the count can reach the catch above and turn an accepted
-        // mail into a failure, or replace the failure below with a foreign exception (ADR 0180). A cancellation the
+        // mail into a failure, or replace the failure below with a foreign exception (ADR 0181). A cancellation the
         // caller asked for has already left through the filter and is not counted.
         await tally.RecordAsync(kind, outcome);
 

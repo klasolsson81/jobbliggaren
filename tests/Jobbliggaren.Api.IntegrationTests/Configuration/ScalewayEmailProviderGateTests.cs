@@ -354,7 +354,7 @@ public class ScalewayEmailProviderGateTests
         descriptor.ImplementationType.ShouldBe(typeof(ScalewayEmailSender));
     }
 
-    // --- #1981 PR 3 (ADR 0180): only the arm that hands a mail to the provider counts ---
+    // --- #1981 PR 3 (ADR 0181): only the arm that hands a mail to the provider counts ---
 
     [Fact]
     public void ScalewayProvider_RegistersExactlyOneTally_AsASingletonSqlTally()

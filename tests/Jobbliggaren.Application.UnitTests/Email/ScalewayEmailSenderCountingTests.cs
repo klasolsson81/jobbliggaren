@@ -9,7 +9,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Email;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — what the Scaleway funnel counts. Every attempt that reaches the provider is counted once,
+/// #1981 PR 3 (ADR 0181) — what the Scaleway funnel counts. Every attempt that reaches the provider is counted once,
 /// under its own kind and the class the funnel saw; nothing else is. And the count never changes the send: a tally
 /// that throws or hangs leaves the caller with exactly the outcome it would have had without one (security-auditor 5d).
 /// </summary>

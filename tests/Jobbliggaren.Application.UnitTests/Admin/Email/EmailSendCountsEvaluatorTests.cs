@@ -5,7 +5,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Admin.Email;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — what the per-kind region may show: every kind in a fixed order, the latest failing date with
+/// #1981 PR 3 (ADR 0181) — what the per-kind region may show: every kind in a fixed order, the latest failing date with
 /// every class of that date, the coverage measured against the recording start, and the gate that refuses a zero the
 /// provider's own count for the same period contradicts.
 /// </summary>

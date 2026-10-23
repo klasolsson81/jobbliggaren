@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Jobbliggaren.Infrastructure.Email.Counting;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — the Api's read of our own send counts. It chooses on the same provider switch the sender
+/// #1981 PR 3 (ADR 0181) — the Api's read of our own send counts. It chooses on the same provider switch the sender
 /// does: only the Scaleway arm counts, so only there is there anything to read. The read key plays no part, because
 /// these counts are ours and never the provider's.
 /// </summary>

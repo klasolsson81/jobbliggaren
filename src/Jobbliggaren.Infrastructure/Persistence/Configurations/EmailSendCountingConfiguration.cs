@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 
-/// <summary>#1981 PR 3 (ADR 0180) — the one-row recording start (the <c>taxonomy_snapshot_meta</c> singleton form).</summary>
+/// <summary>#1981 PR 3 (ADR 0181) — the one-row recording start (the <c>taxonomy_snapshot_meta</c> singleton form).</summary>
 internal sealed class EmailSendCountingConfiguration : IEntityTypeConfiguration<EmailSendCounting>
 {
     public void Configure(EntityTypeBuilder<EmailSendCounting> builder)

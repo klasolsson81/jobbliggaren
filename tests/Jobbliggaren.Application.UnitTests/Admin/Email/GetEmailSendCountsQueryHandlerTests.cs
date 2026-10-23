@@ -8,7 +8,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Admin.Email;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — the per-kind query: an admin request that refuses a missing or undefined period, reads every
+/// #1981 PR 3 (ADR 0181) — the per-kind query: an admin request that refuses a missing or undefined period, reads every
 /// Swedish date the period touches, and asks the provider for the same period only when its own total is zero, never
 /// for the sentinel.
 /// </summary>

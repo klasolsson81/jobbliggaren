@@ -16,7 +16,7 @@ using Shouldly;
 namespace Jobbliggaren.Worker.IntegrationTests.Email;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — the retention of our own send counts against the migrated schema, through the Worker's own
+/// #1981 PR 3 (ADR 0181) — the retention of our own send counts against the migrated schema, through the Worker's own
 /// registration: a strict cutoff that keeps the first date the seven-day period reads, nothing more taken on a second run,
 /// and the recording start never touched. Counts are written by the production tally under fixed clocks, on 2029 dates
 /// no other test uses.

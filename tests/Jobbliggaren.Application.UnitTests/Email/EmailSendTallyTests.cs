@@ -8,7 +8,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Email;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180, security-auditor 5d and condition 4) — the count can never change the send it follows: every
+/// #1981 PR 3 (ADR 0181, security-auditor 5d and condition 4) — the count can never change the send it follows: every
 /// way the write can fail ends inside <see cref="EmailSendTally.RecordAsync"/>, within its budget, as one Warning that
 /// carries the exception's type name and a SQLSTATE and nothing the exception says.
 /// </summary>

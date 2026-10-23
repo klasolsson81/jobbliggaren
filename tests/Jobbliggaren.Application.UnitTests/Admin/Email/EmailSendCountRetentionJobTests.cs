@@ -8,7 +8,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Admin.Email;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — the retention keeps the first date the seven-day period reads and everything after it, by the
+/// #1981 PR 3 (ADR 0181) — the retention keeps the first date the seven-day period reads and everything after it, by the
 /// same rule the read uses.
 /// </summary>
 public sealed class EmailSendCountRetentionJobTests

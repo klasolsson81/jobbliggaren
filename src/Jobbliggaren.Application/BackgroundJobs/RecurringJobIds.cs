@@ -92,7 +92,7 @@ public static class RecurringJobIds
     /// </summary>
     public const string ScanCompanyWatchCriteria = "scan-company-watch-criteria";
 
-    /// <summary>#1981 PR 3 (ADR 0180) — deletes our own send counts the longest delivery period can no longer read, daily.</summary>
+    /// <summary>#1981 PR 3 (ADR 0181) — deletes our own send counts the longest delivery period can no longer read, daily.</summary>
     public const string EmailSendCountRetention = "email-send-count-retention";
 
     /// <summary>

@@ -11,7 +11,7 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
 /// <summary>
-/// #1981 PR 3 (ADR 0180) — which read of our own send counts the Api composes. It follows the sender's provider switch
+/// #1981 PR 3 (ADR 0181) — which read of our own send counts the Api composes. It follows the sender's provider switch
 /// alone: only the Scaleway arm counts, so only there is there anything to read, and the read key plays no part.
 /// </summary>
 public sealed class EmailSendCountsSourceRegistrationTests

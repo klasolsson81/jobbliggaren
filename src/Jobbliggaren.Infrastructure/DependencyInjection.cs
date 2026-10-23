@@ -34,6 +34,7 @@ using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.CompanyRegister.Scb;
 using Jobbliggaren.Infrastructure.Configuration;
 using Jobbliggaren.Infrastructure.Email;
+using Jobbliggaren.Infrastructure.Email.Counting;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.JobSources;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
@@ -927,6 +928,9 @@ public static class DependencyInjection
             // A singleton type registration, not a factory or a typed HttpClient; the reason is
             // documented at ScalewayClientRegistration.HttpClientName.
             services.AddSingleton<IEmailSender, ScalewayEmailSender>();
+
+            // Only this arm hands a mail to the provider, so only this arm counts (ADR 0180).
+            services.AddSingleton<EmailSendTally, SqlEmailSendTally>();
         }
         else
         {

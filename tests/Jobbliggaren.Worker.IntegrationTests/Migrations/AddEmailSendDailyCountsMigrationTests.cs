@@ -1,8 +1,14 @@
+using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Infrastructure.Email.Counting;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Time;
 using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Shouldly;
 using Testcontainers.PostgreSql;
@@ -81,6 +87,34 @@ public sealed class AddEmailSendDailyCountsMigrationTests : IAsyncLifetime
             "INSERT INTO email_send_daily_counts (day, kind, outcome, attempts) VALUES ('2026-10-23', 5, 0, 1)", "23514");
         await ShouldViolateAsync("INSERT INTO email_send_counting (id, started_at) VALUES (2, now())", "23514");
         await ShouldViolateAsync("INSERT INTO email_send_counting (id, started_at) VALUES (1, now())", "23505");
+    }
+
+    /// <summary>
+    /// The production tally writes through the app role into the migrated table: one row per date, kind and outcome,
+    /// incremented in place, and it never touches the start row the migration wrote.
+    /// </summary>
+    [Fact]
+    public async Task TheTally_ShouldIncrementOneRowPerDateKindAndOutcome_AndNeverTouchTheStart()
+    {
+        await using (var db = NewAppContext())
+            await db.GetService<IMigrator>().MigrateAsync(ThisMigration, Ct);
+        var start = (await ReadStartsAsync()).ShouldHaveSingleItem();
+        var services = new ServiceCollection();
+        services.AddScoped(_ => NewAppContext());
+        services.AddSingleton<IDateTimeProvider>(new FixedClock(new DateTimeOffset(2026, 10, 23, 22, 30, 0, TimeSpan.Zero)));
+        services.AddSingleton<ISwedishCalendar, SwedishCalendar>();
+        await using var provider = services.BuildServiceProvider();
+        var tally = new SqlEmailSendTally(
+            provider.GetRequiredService<IServiceScopeFactory>(), NullLogger<SqlEmailSendTally>.Instance);
+
+        await tally.RecordAsync(EmailKind.LoginChallenge, EmailSendOutcome.Accepted);
+        await tally.RecordAsync(EmailKind.LoginChallenge, EmailSendOutcome.Accepted);
+        await tally.RecordAsync(EmailKind.LoginChallenge, EmailSendOutcome.Refused);
+
+        (await ReadStringsAsync(
+            "SELECT day::text || '|' || kind || '|' || outcome || '|' || attempts FROM email_send_daily_counts ORDER BY outcome"))
+            .ShouldBe(["2026-10-24|5|1|2", "2026-10-24|5|2|1"], "22:30Z on 23 October is the 24th in Stockholm (CEST)");
+        (await ReadStartsAsync()).ShouldHaveSingleItem().ShouldBe(start);
     }
 
     private async Task AssertUpAsync(DateTimeOffset before, DateTimeOffset after)
@@ -185,5 +219,10 @@ public sealed class AddEmailSendDailyCountsMigrationTests : IAsyncLifetime
         while (await reader.ReadAsync(Ct))
             values.Add(reader.GetString(0));
         return values;
+    }
+
+    private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider
+    {
+        public DateTimeOffset UtcNow { get; } = utcNow;
     }
 }

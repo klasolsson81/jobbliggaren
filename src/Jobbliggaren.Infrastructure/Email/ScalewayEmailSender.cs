@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Infrastructure.Email.Counting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -61,10 +62,11 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <see cref="ScalewayClientRegistration"/> for why none may be added.
 /// </para>
 /// </summary>
-public sealed partial class ScalewayEmailSender(
+internal sealed partial class ScalewayEmailSender(
     IHttpClientFactory httpClientFactory,
     IOptions<EmailOptions> options,
     IOptions<ScalewayEmailOptions> scalewayOptions,
+    EmailSendTally tally,
     ILogger<ScalewayEmailSender> logger) : IEmailSender
 {
     /// <summary>Relative to the client's region-bearing base address (see <see cref="ScalewayClientRegistration"/>).</summary>
@@ -159,6 +161,8 @@ public sealed partial class ScalewayEmailSender(
         // arithmetic — this adapter contains a THIRD PARTY's exceptions, whose messages we neither
         // write nor control. Our own code above (EmailTemplates) is outside it for the same reason,
         // not because it happens to have no throw sites today.
+        EmailSendOutcome outcome;
+        EmailDeliveryException? failure = null;
         try
         {
             var payload = new SendEmailPayload(
@@ -231,6 +235,7 @@ public sealed partial class ScalewayEmailSender(
             // log below picks it up.
             response.EnsureSuccessStatusCode();
 
+            outcome = EmailSendOutcome.Accepted;
             LogSent(emailKind);
         }
         // Contain everything EXCEPT a cancellation the caller actually asked for.
@@ -267,8 +272,19 @@ public sealed partial class ScalewayEmailSender(
             // The provider's exception does not leave this adapter. `ex` becomes a TYPE NAME, never
             // an InnerException. Why containment rather than patching the log sites, and why the
             // port declares this contract: ADR 0124.
-            throw new EmailDeliveryException(
-                emailKind, ex.GetType().Name, EmailSendOutcomes.DispositionOf(OutcomeOf(ex)));
+            outcome = OutcomeOf(ex);
+            failure = new EmailDeliveryException(
+                emailKind, ex.GetType().Name, EmailSendOutcomes.DispositionOf(outcome));
+        }
+
+        // Counted once, after the boundary, so no fault in the count can reach the catch above and turn an accepted
+        // mail into a failure, or replace the failure below with a foreign exception (ADR 0180). A cancellation the
+        // caller asked for has already left through the filter and is not counted.
+        await tally.RecordAsync(kind, outcome);
+
+        if (failure is not null)
+        {
+            throw failure;
         }
     }
 

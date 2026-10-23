@@ -72,6 +72,7 @@ export const projektledareRow = wordRow("Projektledare", [
 export const ruleAnswer = {
   chef: occupationSearchResultSchema.parse(dumped.chef),
   elingenjor: occupationSearchResultSchema.parse(dumped["elingenjör"]),
+  gravor: occupationSearchResultSchema.parse(dumped["gravör"]),
   it: occupationSearchResultSchema.parse(dumped.it),
   sjukskoterska: occupationSearchResultSchema.parse(dumped["sjuksköterska"]),
   underskoterska: occupationSearchResultSchema.parse(dumped["undersköterska"]),

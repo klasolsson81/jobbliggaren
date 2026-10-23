@@ -60,6 +60,13 @@
     ],
     "totalRows": 1
   },
+  "gravör": {
+    "rows": [
+      {"kind": "Word", "groupConceptId": null, "groupLabel": null, "matchedNames": [], "labelHit": false, "headWord": "Gravör", "variants": [{"nameLabel": "Gravör", "groupConceptId": "aKdV_u7V_R5j", "groupLabel": "Musikinstrumentmakare och övriga konsthantverkare"}, {"nameLabel": "Gravör, ädelmetall", "groupConceptId": "nwSm_phw_sPo", "groupLabel": "Guld- och silversmeder"}], "exactMatch": true},
+      {"kind": "Group", "groupConceptId": "vCBT_Pnd_8UB", "groupLabel": "Stenhuggare m.fl.", "matchedNames": ["Stengravör"], "labelHit": false, "headWord": null, "variants": [], "exactMatch": false}
+    ],
+    "totalRows": 2
+  },
   "it": {
     "rows": [
       {"kind": "Group", "groupConceptId": "13md_uyV_BNG", "groupLabel": "Drifttekniker, IT", "matchedNames": ["Drifttekniker IT", "IT-tekniker"], "labelHit": true, "headWord": null, "variants": [], "exactMatch": false},

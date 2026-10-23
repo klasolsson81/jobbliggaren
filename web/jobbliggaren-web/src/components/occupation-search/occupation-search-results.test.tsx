@@ -213,15 +213,17 @@ describe("OccupationSearchResults — word rows (#2198)", () => {
 });
 
 describe("OccupationSearchResults — the right column (#2198, design-reviewer Major 1)", () => {
-  it("opens row 1 by itself when it holds the exact word, and selects nothing", () => {
-    const { onToggle } = renderResults(ruleAnswer.elingenjor);
+  it("opens row 1 by itself when it holds the exact word among other rows, and selects nothing", () => {
+    // gravör: an exact Word row first, then the Group row Stenhuggare m.fl.
+    const { onToggle } = renderResults(ruleAnswer.gravor);
 
-    expect(screen.getByRole("button", { name: "Elingenjör" })).toHaveAttribute("aria-pressed", "true");
-    const column = screen.getByRole("group", { name: "Elingenjör" });
+    expect(screen.getByRole("button", { name: "Gravör" })).toHaveAttribute("aria-pressed", "true");
+    const column = screen.getByRole("group", { name: "Gravör" });
     const variants = within(column).getAllByRole("checkbox");
     expect(variants).toHaveLength(2);
-    expect(variants[0]).toHaveAccessibleName("Elingenjör");
-    expect(variants[1]).toHaveAccessibleName("Elingenjör, fartyg/Fartygseltekniker");
+    expect(variants[0]).toHaveAccessibleName("Gravör");
+    expect(variants[1]).toHaveAccessibleName("Gravör, ädelmetall");
+    expect(screen.getByRole("checkbox", { name: "Stenhuggare m.fl." })).toBeInTheDocument();
     expect(onToggle).toHaveBeenCalledTimes(0);
     // Opening by default does not take focus from the field the user is typing in.
     expect(document.body).toHaveFocus();

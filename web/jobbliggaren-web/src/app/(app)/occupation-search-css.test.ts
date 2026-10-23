@@ -11,9 +11,9 @@ import { readRules } from "@/test/css-rules";
 const APP_CSS = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "app.css"), "utf8");
 
 describe("the occupation picker's CSS (#2198)", () => {
-  it("gives rows an inset ring in the rail as in the dialog (design-reviewer B1)", () => {
+  it("gives rows an inset ring in the rail and the /jobb popovers as in the dialog (design-reviewer B1)", () => {
     const rules = readRules(APP_CSS);
-    for (const host of [".jp-matchdialog", ".jp-wizard--rail"]) {
+    for (const host of [".jp-matchdialog", ".jp-wizard--rail", ".jp-popover"]) {
       for (const target of [".jp-checkitem", ".jp-popover-row"]) {
         const selector = `${host} ${target}:focus-visible`;
         const matching = rules.filter((r) => r.selector === selector && r.inMedia === null);

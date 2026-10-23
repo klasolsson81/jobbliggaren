@@ -493,6 +493,13 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   outline: 2px solid var(--jp-focus);
   outline-offset: -2px;
 }
+/* The /jobb filter popovers' rows sit edge to edge in scrolling columns too, the browse rows and
+   the composed search's alike, so they take the same inset ring (#2198 PR 2). */
+.jp-popover .jp-checkitem:focus-visible,
+.jp-popover .jp-popover-row:focus-visible {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: -2px;
+}
 
 /* ── #2198: the occupation search (components/occupation-search) ──
    Search and browse share ONE box: the search answer takes the browse cascade's place, with the

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 import { absoluteUrl } from "@/lib/site-url";
+import { PUBLIC_CATALOGUE_PATH } from "@/lib/job-ads/public-catalogue-url";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("content-tips");
@@ -26,6 +27,7 @@ const TIP_KEYS = [
 
 export default async function TipsPage() {
   const t = await getTranslations("content-tips");
+  const tLanding = await getTranslations("landing");
   const sections = TIP_KEYS.map((key) => ({
     title: t(`sections.${key}.title`),
     body: t(`sections.${key}.body`),
@@ -46,18 +48,20 @@ export default async function TipsPage() {
           ))}
         </div>
 
+        {/* Public destinations only: the gated /jobb and /cv send an anonymous visitor to the sign-in wall (#2178).
+            The catalogue is a plain <a>, which never prefetches, as in the header and footer (ADR 0176 F14/F15). */}
         <div className="mt-10 flex flex-wrap gap-4">
-          <Link
-            href="/jobb"
+          <a
+            href={PUBLIC_CATALOGUE_PATH}
             className="font-medium text-text-primary underline underline-offset-4 hover:no-underline"
           >
-            {t("links.jobbLabel")}
-          </Link>
+            {tLanding("common.catalogueLink")}
+          </a>
           <Link
-            href="/cv"
+            href="/cv-granskning"
             className="font-medium text-text-primary underline underline-offset-4 hover:no-underline"
           >
-            {t("links.cvLabel")}
+            {tLanding("footer.support.cvReview")}
           </Link>
         </div>
       </>

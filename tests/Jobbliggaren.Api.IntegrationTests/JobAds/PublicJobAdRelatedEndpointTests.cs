@@ -35,10 +35,22 @@ public sealed class PublicJobAdRelatedEndpointTests(ApiFactory factory)
 
     private static string OwnGroup() => $"grp_related_{Guid.NewGuid():N}";
 
+    /// <summary>The org.nr the wire must never carry, given to a related row in the 200 test.</summary>
+    private const string SentinelOrganizationNumber = "5560000000";
+
+    /// <summary>A legal entity's number per employer name, so one name is one number unless a test says otherwise.</summary>
+    private static string NumberOf(string employer)
+    {
+        var hash = 17;
+        foreach (var c in employer)
+            hash = unchecked((hash * 31) + c);
+        return $"556{(uint)hash % 10_000_000:D7}";
+    }
+
     private async Task<Guid> ImportAsync(
         string group, string employer, int publishedHoursAgo, int? expiresInDays = 30,
         Func<JobAd, IDateTimeProvider, Result>? then = null,
-        string municipality = "AvNB_uwa_6n6", string region = "CifL_Rzy_Mku")
+        string municipality = "AvNB_uwa_6n6", string region = "CifL_Rzy_Mku", string? organizationNumber = null)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -53,7 +65,8 @@ public sealed class PublicJobAdRelatedEndpointTests(ApiFactory factory)
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: $"{{\"id\":\"{externalId}\"}}",
             facets: TestFacets.From(
-                occupationGroup: group, municipality: municipality, region: region, organizationNumber: "5560000000"),
+                occupationGroup: group, municipality: municipality, region: region,
+                organizationNumber: organizationNumber ?? NumberOf(employer)),
             declaredContacts: [],
             publishedAt: clock.UtcNow.AddHours(-publishedHoursAgo),
             expiresAt: expiresInDays is { } days ? clock.UtcNow.AddDays(days) : null,
@@ -84,7 +97,6 @@ public sealed class PublicJobAdRelatedEndpointTests(ApiFactory factory)
     {
         var headers = response.Headers.Concat(response.Content.Headers)
             .Where(h => !string.Equals(h.Key, "Date", StringComparison.OrdinalIgnoreCase))
-            .Where(h => !string.Equals(h.Key, "Content-Length", StringComparison.OrdinalIgnoreCase))
             .Select(h => $"{h.Key}: {string.Join(",", h.Value)}")
             .Order(StringComparer.Ordinal);
         var body = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!.AsObject();
@@ -97,7 +109,7 @@ public sealed class PublicJobAdRelatedEndpointTests(ApiFactory factory)
     {
         var group = OwnGroup();
         var anchor = await ImportAsync(group, "Ankarbolaget AB", 1);
-        var related = await ImportAsync(group, "Spotify AB", 2);
+        var related = await ImportAsync(group, "Spotify AB", 2, organizationNumber: SentinelOrganizationNumber);
 
         var response = await RelatedAsync(anchor);
 
@@ -114,7 +126,7 @@ public sealed class PublicJobAdRelatedEndpointTests(ApiFactory factory)
         row.GetProperty("companyName").GetString().ShouldBe("Spotify AB");
         row.GetProperty("municipalityName").GetString().ShouldBe("Stockholm");
         row.GetProperty("regionName").GetString().ShouldBe("Stockholms län");
-        raw.ShouldNotContain("5560000000", Case.Insensitive, "the org.nr never leaves the handler");
+        raw.ShouldNotContain(SentinelOrganizationNumber, Case.Insensitive, "the org.nr is the handler's key and never leaves it");
     }
 
     [Fact]
@@ -175,18 +187,28 @@ public sealed class PublicJobAdRelatedEndpointTests(ApiFactory factory)
     [Fact]
     public async Task A_caller_cannot_choose_the_group_the_place_or_the_order()
     {
+        const string FarKommun = "PVZL_BQT_XtL";
+        const string FarLan = "zdoY_6u5_Krt";
         var group = OwnGroup();
+        var otherGroup = OwnGroup();
         var anchor = await ImportAsync(group, "Ankarbolaget AB", 1);
-        await ImportAsync(group, "Spotify AB", 2);
-        await ImportAsync(OwnGroup(), "Klarna AB", 1);
+        var local = await ImportAsync(group, "Spotify AB", 5);
+        var far = await ImportAsync(group, "Volvo AB", 2, municipality: FarKommun, region: FarLan);
+        await ImportAsync(otherGroup, "Klarna AB", 1, municipality: FarKommun, region: FarLan);
 
         var plain = await (await RelatedAsync(anchor)).Content.ReadAsStringAsync(Ct);
+        IdsOf(plain).ShouldBe([local, far], "non-vacuity: two rows in two tiers, the anchor's kommun first");
         var asked = await (await RelatedAsync(
-                anchor, $"?group={OwnGroup()}&occupationGroup=x&kommun=0180&municipality=0180&lan=01&region=01&sort=asc&take=50"))
+                anchor,
+                $"?group={otherGroup}&occupationGroup={otherGroup}&kommun={FarKommun}&municipality={FarKommun}"
+                + $"&lan={FarLan}&region={FarLan}&sort=asc&order=publishedAt&take=1"))
             .Content.ReadAsStringAsync(Ct);
 
         asked.ShouldBe(plain, "every selection key comes from the anchor's row (ADR 0166 D10 trigger 17)");
     }
+
+    private static Guid[] IdsOf(string body) =>
+        [.. JsonDocument.Parse(body).RootElement.GetProperty("items").EnumerateArray().Select(r => r.GetProperty("id").GetGuid())];
 
     [Fact]
     public async Task An_empty_id_is_a_400_that_is_not_cached()

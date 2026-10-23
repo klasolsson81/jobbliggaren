@@ -73,19 +73,26 @@ public sealed class RelatedPublicJobAdsReadTests(SharedPostgresFixture postgres)
     {
         var anchor = await AddAsync(Imported("Ankaret", AnchorEmployer, Now.AddDays(-1), Kommun, Lan));
         var rest = await AddAsync(Imported("Övriga landet", "A AB", Now.AddHours(-1), FarKommun, FarLan));
-        var tieA = await AddAsync(Imported("Lika A", "B AB", Now.AddDays(-2), Kommun, Lan));
-        var tieB = await AddAsync(Imported("Lika B", "C AB", Now.AddDays(-2), Kommun, Lan, Now.AddDays(5)));
+        // The tie is inserted against its oracle, the higher "D" string first, so only the id order can put it right.
+        var tied = new[]
+            {
+                Imported("Lika A", "B AB", Now.AddDays(-2), Kommun, Lan),
+                Imported("Lika B", "C AB", Now.AddDays(-2), Kommun, Lan, Now.AddDays(5)),
+            }
+            .OrderByDescending(ad => ad.Id.Value.ToString("D"), StringComparer.Ordinal)
+            .ToList();
+        foreach (var ad in tied)
+            await AddAsync(ad);
         var lan = await AddAsync(Imported("Samma län", "D AB", Now.AddHours(-2), null, Lan));
         await AddAsync(Imported("Samma arbetsgivare", AnchorEmployer, Now.AddHours(-3), Kommun, Lan));
         await AddAsync(Imported("Annan grupp", "E AB", Now.AddHours(-1), Kommun, Lan, group: "Q5DF_juj_8do"));
-        await AddAsync(NeverImported("Manuell", "F AB"));
         await AddAsync(Imported("Arkiverad", "G AB", Now.AddHours(-1), Kommun, Lan), ad => ad.Archive(_clock).IsSuccess.ShouldBeTrue());
         await AddAsync(Imported("Raderad", "H AB", Now.AddHours(-1), Kommun, Lan), ad => ad.Erase(_clock).IsSuccess.ShouldBeTrue());
         await AddAsync(Imported("Utgången", "I AB", Now.AddHours(-1), Kommun, Lan, Now.AddSeconds(-1)));
 
         var items = await RelatedAsync(anchor);
 
-        var ties = new[] { tieA, tieB }.OrderBy(id => id.ToString("D"), StringComparer.Ordinal);
+        var ties = tied.Select(ad => ad.Id.Value).OrderBy(id => id.ToString("D"), StringComparer.Ordinal);
         items.ShouldBe([.. ties, lan, rest]);
     }
 
@@ -204,12 +211,66 @@ public sealed class RelatedPublicJobAdsReadTests(SharedPostgresFixture postgres)
             text.ShouldContain("expires_at");
             text.ShouldNotContain("raw_payload", Case.Insensitive, "each read projects a narrow row, never the entity");
             text.ShouldNotContain("description", Case.Insensitive);
-            text.ShouldNotContain("organization_number", Case.Insensitive);
+            text.ShouldContain("organization_number", Case.Insensitive, "the employer is keyed on the org.nr in both reads");
         }
 
         var candidates = _commands.Texts[1];
         candidates.ShouldContain("CASE");
         candidates.ShouldContain("LIMIT");
+    }
+
+    [Fact]
+    public async Task Related_AnAnchorWithAKommunButNoLan_RanksARowWithoutALanInTheLastTier()
+    {
+        // A null anchor län must not become `region_concept_id IS NULL`. The anchor's state is producible:
+        // PlatsbankenJobSourceFacetMappingTests.RefetchByExternalIdAsync_PassesAnAddressBlockWithOneIdThroughUnpaired.
+        var anchor = await AddAsync(Imported("Ankaret", AnchorEmployer, Now.AddDays(-1), Kommun, null));
+        var farNewest = await AddAsync(Imported("Övriga landet, nyast", "A AB", Now.AddMinutes(-1), FarKommun, FarLan));
+        var noPlaceOlder = await AddAsync(Imported("Utan ort, äldre", "B AB", Now.AddDays(-9), null, null));
+
+        var items = await RelatedAsync(anchor);
+
+        items.ShouldBe([farNewest, noPlaceOlder]);
+    }
+
+    [Fact]
+    public async Task Related_AListedAnchorWithoutAGroup_IsAnEmptyList_AfterTheAnchorReadAlone()
+    {
+        var anchor = await AddAsync(Imported("Ankaret", AnchorEmployer, Now.AddDays(-1), Kommun, Lan, group: null));
+        await AddAsync(Imported("Också utan grupp", "A AB", Now.AddHours(-1), Kommun, Lan, group: null));
+        _commands.Clear();
+
+        (await RelatedAsync(anchor)).ShouldBeEmpty("a null group never matches a null group");
+        _commands.Texts.ShouldHaveSingleItem("no candidates read");
+    }
+
+    [Fact]
+    public async Task Related_AnAnchorWithoutAnOrganizationNumber_IsAnEmptyList_AfterTheAnchorReadAlone()
+    {
+        var anchor = await AddAsync(Imported("Ankaret", "Okänd arbetsgivare", Now.AddDays(-1), Kommun, Lan, organizationNumber: null));
+        await AddAsync(Imported("Med nummer", "A AB", Now.AddHours(-1), Kommun, Lan));
+        _commands.Clear();
+
+        (await RelatedAsync(anchor)).ShouldBeEmpty();
+        _commands.Texts.ShouldHaveSingleItem("no candidates read");
+    }
+
+    [Fact]
+    public async Task Related_TheEmployerIsItsOrganizationNumber_AndAnAdWithoutOneTakesNoPart()
+    {
+        var anchor = await AddAsync(Imported("Ankaret", AnchorEmployer, Now.AddDays(-1), Kommun, Lan));
+        await AddAsync(Imported("Ankarets nummer, annan stavning", "Ankarbolaget Sverige AB", Now.AddMinutes(-1), Kommun, Lan,
+            organizationNumber: NumberOf(AnchorEmployer)));
+        var first = await AddAsync(Imported("Först", "Assistansbolaget AB", Now.AddMinutes(-2), Kommun, Lan,
+            organizationNumber: "5561234567"));
+        await AddAsync(Imported("Samma nummer, annan stavning", "Assistansbolaget i Sverige AB", Now.AddMinutes(-3), Kommun, Lan,
+            organizationNumber: "5561234567"));
+        await AddAsync(Imported("Utan nummer", "Okänd arbetsgivare", Now.AddMinutes(-4), Kommun, Lan, organizationNumber: null));
+        var last = await AddAsync(Imported("Annan", "Spotify AB", Now.AddMinutes(-5), Kommun, Lan));
+
+        var items = await RelatedAsync(anchor);
+
+        items.ShouldBe([first, last]);
     }
 
     private async Task<IReadOnlyList<Guid>> RelatedAsync(Guid anchor)
@@ -260,9 +321,21 @@ public sealed class RelatedPublicJobAdsReadTests(SharedPostgresFixture postgres)
         await db.SaveChangesAsync(Ct);
     }
 
+    /// <summary>Marks that the ad's organization number is its employer's own, the one <see cref="NumberOf"/> gives.</summary>
+    private const string TheEmployersNumber = "the employer's";
+
+    /// <summary>A legal entity's number per employer name, so one name is one number unless a test says otherwise.</summary>
+    private static string NumberOf(string employer)
+    {
+        var hash = 17;
+        foreach (var c in employer)
+            hash = unchecked((hash * 31) + c);
+        return $"556{(uint)hash % 10_000_000:D7}";
+    }
+
     private JobAd Imported(
         string title, string employer, DateTimeOffset publishedAt, string? kommun, string? lan,
-        DateTimeOffset? expiresAt = null, string group = Group)
+        DateTimeOffset? expiresAt = null, string? group = Group, string? organizationNumber = TheEmployersNumber)
     {
         var externalId = TestIds.ExternalId();
         return JobAd.Import(
@@ -272,7 +345,9 @@ public sealed class RelatedPublicJobAdsReadTests(SharedPostgresFixture postgres)
             url: $"https://arbetsformedlingen.se/platsbanken/annonser/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: $"{{\"id\":\"{externalId}\"}}",
-            facets: TestFacets.From(occupationGroup: group, municipality: kommun, region: lan),
+            facets: TestFacets.From(
+                occupationGroup: group, municipality: kommun, region: lan,
+                organizationNumber: organizationNumber == TheEmployersNumber ? NumberOf(employer) : organizationNumber),
             declaredContacts: [],
             publishedAt: publishedAt,
             expiresAt: expiresAt,

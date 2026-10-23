@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Diagnostics;
+using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
 using Jobbliggaren.Application.JobAds.Queries.GetRelatedPublicJobAds;
@@ -35,7 +36,8 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// <b>The seed</b> follows the box's shape, read 2026-10-23 17:31Z, counts only (CLAUDE.md §9.2 (a)), grouped by status
 /// and occupation group and never by employer: 44 718 Active, all listed, and 107 739 Archived; no Erased row; 396
 /// groups and no row without one; the largest group 6 925 rows, 2 161 of them listed, over 281 kommuner, 19 of the listed
-/// without a kommun. Employer names are synthetic. The rows are bulk-inserted in the shape the ingest writes, because
+/// without a kommun; and, read 18:38Z, 426 of 44 716 listed ads without an organization number, about one row in a
+/// hundred here. Employer names and numbers are synthetic. The rows are bulk-inserted in the shape the ingest writes, because
 /// 150 000 rows through EF would measure the seed, not the read; the plan rests on the statistics, which production's
 /// own writers produce, and never on these rows' identity.
 /// </para>
@@ -54,6 +56,11 @@ public class RelatedPublicJobAdsQueryPlanTests(JobAdBrowsePlanFixture fixture, I
     private const int OtherListed = 44_718 - BigGroupListed;
     private const int OtherArchived = 107_739 - BigGroupArchived;
     private const int Lans = 21;
+    private const int Anchors = 3;
+    private const int TotalRows = BigGroupListed + BigGroupArchived + OtherListed + OtherArchived + Anchors;
+    private const string SeedMarker = "rel-";
+    private const string AnchorEmployer = "'Ankarbolaget AB'";
+    private const string AnchorNumber = "'5569999999'";
     private const int Iterations = 40;
 
     private static readonly Guid PlacedAnchor = Guid.Parse("5b6e2c0a-0000-4000-8000-000000000001");
@@ -66,7 +73,7 @@ public class RelatedPublicJobAdsQueryPlanTests(JobAdBrowsePlanFixture fixture, I
         var ct = TestContext.Current.CancellationToken;
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await SeedAsync(db, ct);
+        await EnsureSeededAsync(db, ct);
 
         var (items, candidates) = await RelatedAsync(db, PlacedAnchor, ct);
         items.Count.ShouldBe(RelatedPublicJobAdLimits.MaxRows);
@@ -88,10 +95,10 @@ public class RelatedPublicJobAdsQueryPlanTests(JobAdBrowsePlanFixture fixture, I
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var seeding = Stopwatch.StartNew();
-        await SeedAsync(db, ct);
+        var seeded = await EnsureSeededAsync(db, ct);
         output.WriteLine(
-            $"Seeded {BigGroupListed + BigGroupArchived + OtherListed + OtherArchived + 3:N0} ads in "
-            + $"{seeding.Elapsed.TotalSeconds:F0} s; the anchors' group {BigGroupListed:N0} listed + {BigGroupArchived:N0} archived.");
+            $"{(seeded ? "Seeded" : "Reused")} {TotalRows:N0} ads in {seeding.Elapsed.TotalSeconds:F0} s; the anchors' group "
+            + $"{BigGroupListed:N0} listed + {BigGroupArchived:N0} archived.");
 
         foreach (var (name, anchor) in new[]
                  {
@@ -129,7 +136,7 @@ public class RelatedPublicJobAdsQueryPlanTests(JobAdBrowsePlanFixture fixture, I
 
     private static ValueTask<Result<RelatedPublicJobAdsDto>> HandleAsync(
         AppDbContext db, Guid anchor, CancellationToken ct) =>
-        new GetRelatedPublicJobAdsQueryHandler(db, Taxonomy(), new SystemClock())
+        new GetRelatedPublicJobAdsQueryHandler(db, Taxonomy(), new MutableFakeDateTimeProvider { UtcNow = DateTimeOffset.UtcNow })
             .Handle(new GetRelatedPublicJobAdsQuery(anchor), ct);
 
     // CA2012: an NSubstitute stub on a ValueTask-returning port member is the library's own idiom.
@@ -187,12 +194,19 @@ public class RelatedPublicJobAdsQueryPlanTests(JobAdBrowsePlanFixture fixture, I
     }
 
     /// <summary>
-    /// TRUNCATE-and-own, then seed the box's shape, then VACUUM (ANALYZE): TRUNCATE wipes the statistics, and without
-    /// them the planner falls back on default selectivities and the choice is arbitrary.
+    /// TRUNCATE-and-own, then seed the box's shape, then VACUUM (ANALYZE), once per container: the guard keys on this
+    /// class's own seed marker, because collection siblings own job_ads at their own sizes. TRUNCATE wipes the statistics,
+    /// and without them the planner falls back on default selectivities and the choice is arbitrary.
     /// </summary>
-    private static async Task SeedAsync(AppDbContext db, CancellationToken ct)
+    private static async Task<bool> EnsureSeededAsync(AppDbContext db, CancellationToken ct)
     {
         db.Database.SetCommandTimeout(300);
+        var present = await db.Database
+            .SqlQuery<long>($"SELECT count(*)::bigint AS \"Value\" FROM job_ads WHERE external_id LIKE {SeedMarker + "%"}")
+            .SingleAsync(ct);
+        if (present == TotalRows)
+            return false;
+
         await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads CASCADE;", ct);
 
         var kommun = $"'k' || (i % {BigGroupKommuner})";
@@ -205,41 +219,45 @@ public class RelatedPublicJobAdsQueryPlanTests(JobAdBrowsePlanFixture fixture, I
         await InsertAsync(db, "other-archived-", OtherArchived, group, "'k' || (i % 290)", $"'l' || ((i % 290) % {Lans})", "Archived", ct);
 
         await db.Database.ExecuteSqlRawAsync(
-            Insert("anchor-", 1, $"'{BigGroup}'", "'k7'", "'l7'", "Active", $"'{PlacedAnchor}'::uuid", "'Ankarbolaget AB'"), ct);
+            Insert("anchor-", 1, $"'{BigGroup}'", "'k7'", "'l7'", "Active", $"'{PlacedAnchor}'::uuid", AnchorEmployer, AnchorNumber), ct);
         await db.Database.ExecuteSqlRawAsync(
-            Insert("anchor-placeless-", 1, $"'{BigGroup}'", "NULL", "NULL", "Active", $"'{PlacelessAnchor}'::uuid", "'Ankarbolaget AB'"), ct);
+            Insert("anchor-placeless-", 1, $"'{BigGroup}'", "NULL", "NULL", "Active", $"'{PlacelessAnchor}'::uuid", AnchorEmployer,
+                AnchorNumber), ct);
         await db.Database.ExecuteSqlRawAsync(
-            Insert("anchor-small-", 1, "'g1'", "NULL", "NULL", "Active", $"'{PlacelessSmallGroupAnchor}'::uuid", "'Ankarbolaget AB'"), ct);
+            Insert("anchor-small-", 1, "'g1'", "NULL", "NULL", "Active", $"'{PlacelessSmallGroupAnchor}'::uuid", AnchorEmployer,
+                AnchorNumber), ct);
 
         await db.Database.ExecuteSqlRawAsync("VACUUM (ANALYZE) job_ads;", ct);
+        return true;
     }
 
     private static Task<int> InsertAsync(
         AppDbContext db, string marker, int count, string group, string kommun, string lan, string status, CancellationToken ct) =>
         db.Database.ExecuteSqlRawAsync(
-            Insert(marker, count, group, kommun, lan, status, "gen_random_uuid()", "'Arbetsgivare ' || (i % 700) || ' AB'"), ct);
+            Insert(marker, count, group, kommun, lan, status, "gen_random_uuid()", "'Arbetsgivare ' || (i % 700) || ' AB'",
+                "CASE WHEN i % 100 = 0 THEN NULL ELSE '556' || lpad((i % 700)::text, 7, '0') END"), ct);
 
     /// <summary>
     /// One bulk insert in the ingest's shape: imported from Platsbanken with its external id and payload, a wide
-    /// description, a deadline 60 days out, published one minute apart.
+    /// description, published at a scrambled minute of the last 60 days, so no group clusters in time. An Active row's
+    /// deadline is 60 days out and an Archived row's has passed, as <c>ExpireJobAdsJob</c> leaves them.
     /// </summary>
     private static string Insert(
-        string marker, int count, string group, string kommun, string lan, string status, string id, string company) =>
+        string marker, int count, string group, string kommun, string lan, string status, string id, string company,
+        string organizationNumber) =>
         "INSERT INTO job_ads ("
         + "id, title, company_name, description, url, source, external_source, external_id, raw_payload, status, "
-        + "published_at, expires_at, created_at, remote, occupation_group_concept_id, municipality_concept_id, region_concept_id) "
+        + "published_at, expires_at, created_at, remote, occupation_group_concept_id, municipality_concept_id, region_concept_id, "
+        + "organization_number) "
         + $"SELECT {id}, 'Annons ' || i, {company}, "
         + "'Beskrivning ' || i || '. ' || repeat('Arbetsuppgifter, kvalifikationer och villkor for tjansten. ', 30), "
         + "'https://example.com/jobb/' || i, 'Platsbanken', 'Platsbanken', "
-        + $"'{marker}' || i, jsonb_build_object('id', '{marker}' || i), '{status}', "
-        + "now() - (i || ' minutes')::interval, now() + interval '60 days', now() - interval '2 days', false, "
-        + $"{group}, {kommun}, {lan} "
+        + $"'{SeedMarker}{marker}' || i, jsonb_build_object('id', '{SeedMarker}{marker}' || i), '{status}', "
+        + "now() - (((i * 7919) % 86400) || ' minutes')::interval, "
+        + (status == "Active" ? "now() + interval '60 days', " : "now() - interval '1 day', ")
+        + "now() - interval '2 days', false, "
+        + $"{group}, {kommun}, {lan}, {organizationNumber} "
         + $"FROM generate_series(0, {count - 1}) AS i;";
-
-    private sealed class SystemClock : IDateTimeProvider
-    {
-        public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
-    }
 
     private sealed record CapturedCommand(string Sql, NpgsqlParameter[] Parameters);
 

@@ -371,7 +371,7 @@ public static partial class RateLimitingExtensions
             // Partition: IP. The related ads under a public job page (ADR 0182), its own budget beside the detail's, so
             // the section can never starve the ad itself (least common mechanism). The page calls it once per view
             // against the detail's two calls, so the detail budget binds first. Each call is a primary-key read and one
-            // group's indexed read of at most CandidateWindow rows; the limit protects availability, not
+            // group's indexed read; the limit protects availability, not
             // confidentiality.
             AddIpTokenBucketPolicy(options, PublicJobAdRelatedPolicy, rateLimitOpts.PublicJobAdRelated);
 

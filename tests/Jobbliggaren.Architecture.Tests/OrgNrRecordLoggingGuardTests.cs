@@ -98,6 +98,14 @@ public class OrgNrRecordLoggingGuardTests
     private static readonly Type EmployerOrgNrRowType = ResolveNestedType(
         "Jobbliggaren.Infrastructure.JobAds.JobAdEmployerReader", "EmployerOrgNrRow");
 
+    // #2203 S6b (ADR 0182) — the related section's private candidate row, whose org.nr is the employer key.
+    private static readonly Type RelatedCandidateType =
+        typeof(Jobbliggaren.Application.JobAds.Queries.GetRelatedPublicJobAds.GetRelatedPublicJobAdsQueryHandler)
+            .GetNestedType("Candidate", BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException(
+            "GetRelatedPublicJobAdsQueryHandler+Candidate not found — a moved/renamed private row makes this guard's "
+            + "coverage silently vacuous. Update the name.");
+
     /// <summary>
     /// Records with an org.nr member that are EXEMPT from the redacted-<c>ToString()</c> rule
     /// (structural half), each with an explicit reason. EMPTY today — every inventoried leaking record
@@ -495,6 +503,14 @@ public class OrgNrRecordLoggingGuardTests
             args: [id, Sentinel],
             culture: null)!;
         cases.Add((EmployerOrgNrRowType, row.ToString()!, KnownId.ToString()));
+
+        var candidate = Activator.CreateInstance(
+            RelatedCandidateType,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            args: [KnownId, "Titel", "Företag AB", Sentinel, null, null, DateTimeOffset.UnixEpoch],
+            culture: null)!;
+        cases.Add((RelatedCandidateType, candidate.ToString()!, KnownId.ToString()));
 
         return cases;
     }

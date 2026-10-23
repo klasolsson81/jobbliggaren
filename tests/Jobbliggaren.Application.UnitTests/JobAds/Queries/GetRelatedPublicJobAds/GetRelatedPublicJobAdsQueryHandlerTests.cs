@@ -61,9 +61,22 @@ public class GetRelatedPublicJobAdsQueryHandlerTests
                     .ToList()));
     }
 
+    /// <summary>Marks that the ad's organization number is its employer's own, the one <see cref="NumberOf"/> gives.</summary>
+    private const string TheEmployersNumber = "the employer's";
+
+    /// <summary>A legal entity's number per employer name, so one name is one number unless a test says otherwise.</summary>
+    private static string NumberOf(string employer)
+    {
+        var hash = 17;
+        foreach (var c in employer)
+            hash = unchecked((hash * 31) + c);
+        return $"556{(uint)hash % 10_000_000:D7}";
+    }
+
     private static JobAd Import(
         string title, string employer, int hoursAgo,
-        string? group = Group, string? kommun = null, string? lan = null, DateTimeOffset? expiresAt = null)
+        string? group = Group, string? kommun = null, string? lan = null, DateTimeOffset? expiresAt = null,
+        string? organizationNumber = TheEmployersNumber)
     {
         var externalId = TestIds.ExternalId();
         return JobAd.Import(
@@ -73,7 +86,9 @@ public class GetRelatedPublicJobAdsQueryHandlerTests
             url: $"https://arbetsformedlingen.se/platsbanken/annonser/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: $"{{\"id\":\"{externalId}\"}}",
-            facets: TestFacets.From(occupationGroup: group, municipality: kommun, region: lan),
+            facets: TestFacets.From(
+                occupationGroup: group, municipality: kommun, region: lan,
+                organizationNumber: organizationNumber == TheEmployersNumber ? NumberOf(employer) : organizationNumber),
             declaredContacts: [],
             publishedAt: Now.AddHours(-hoursAgo),
             expiresAt: expiresAt,
@@ -81,8 +96,9 @@ public class GetRelatedPublicJobAdsQueryHandlerTests
             applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
     }
 
-    private static JobAd Anchor(string? group = Group, string? kommun = Kommun, string? lan = Lan) =>
-        Import("Ankaret", AnchorEmployer, 1, group, kommun, lan);
+    private static JobAd Anchor(
+        string? group = Group, string? kommun = Kommun, string? lan = Lan, string? organizationNumber = TheEmployersNumber) =>
+        Import("Ankaret", AnchorEmployer, 1, group, kommun, lan, organizationNumber: organizationNumber);
 
     /// <summary>Saves the ads, then applies an optional lifecycle change to each saved row, as production does.</summary>
     private static async Task SeedAsync(AppDbContext db, params JobAd[] ads)
@@ -270,17 +286,88 @@ public class GetRelatedPublicJobAdsQueryHandlerTests
         var erased = Import("Raderad", "C AB", 3, kommun: Kommun, lan: Lan);
         // The clock, not a writer, makes this state: the ad is still Active until ExpireJobAdsJob runs.
         var pastDeadline = Import("Utgången", "D AB", 4, kommun: Kommun, lan: Lan, expiresAt: Now.AddSeconds(-1));
-        // What POST /api/v1/job-ads stores: Source = Platsbanken with no import provenance.
-        var manual = JobAd.Create(
-            "Manuell", Company.Create("E AB").Value, "Text som någon skrev själv.",
-            "https://example.com/jobb/1", JobSource.Platsbanken, Now.AddHours(-5), null, Clock).Value;
-        await SeedAsync(db, anchor, listed, archived, erased, pastDeadline, manual);
+        await SeedAsync(db, anchor, listed, archived, erased, pastDeadline);
         await ThenAsync(db, archived, ad => ad.Archive(Clock).IsSuccess);
         await ThenAsync(db, erased, ad => ad.Erase(Clock).IsSuccess);
 
         var items = await ItemsAsync(db, anchor);
 
         items.Select(r => r.Id).ShouldBe([listed.Id.Value]);
+    }
+
+    [Fact]
+    public async Task Handle_OneOrganizationNumberUnderTwoSpellings_IsOneEmployer()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var anchor = Anchor();
+        var first = Import("Först", "Assistansbolaget AB", 2, kommun: FarKommun, lan: FarLan, organizationNumber: "5561234567");
+        var respelt = Import("Annan stavning", "Assistansbolaget i Sverige AB", 3, kommun: FarKommun, lan: FarLan,
+            organizationNumber: "5561234567");
+        await SeedAsync(db, anchor, first, respelt);
+
+        var items = await ItemsAsync(db, anchor);
+
+        items.Select(r => r.Id).ShouldBe([first.Id.Value],
+            "an employer is its organization number, so a second spelling is the same employer (ADR 0182 D1)");
+    }
+
+    [Fact]
+    public async Task Handle_TheAnchorsNumberUnderAnotherSpelling_IsNeverRelated()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var anchor = Anchor();
+        var respelt = Import("Annan stavning", "Ankarbolaget Sverige AB", 2, kommun: Kommun, lan: Lan,
+            organizationNumber: NumberOf(AnchorEmployer));
+        var other = Import("Annan", "Spotify AB", 3, kommun: FarKommun, lan: FarLan);
+        await SeedAsync(db, anchor, respelt, other);
+
+        var items = await ItemsAsync(db, anchor);
+
+        items.Select(r => r.Id).ShouldBe([other.Id.Value]);
+    }
+
+    [Fact]
+    public async Task Handle_OneNameUnderTwoNumbers_IsOneEmployer()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var anchor = Anchor();
+        var first = Import("Först", "Kommunen", 2, kommun: FarKommun, lan: FarLan, organizationNumber: "2120001111");
+        var secondNumber = Import("Andra numret", "Kommunen", 3, kommun: FarKommun, lan: FarLan, organizationNumber: "2120002222");
+        await SeedAsync(db, anchor, first, secondNumber);
+
+        var items = await ItemsAsync(db, anchor);
+
+        items.Select(r => r.Id).ShouldBe([first.Id.Value], "one definition of the same employer: one number, or one name");
+    }
+
+    [Fact]
+    public async Task Handle_AnAdWithoutAnOrganizationNumber_IsNeverRelated()
+    {
+        // The actor: PlatsbankenJobSource.MapFacets maps an employer that carries no organization_number to a null
+        // number (PlatsbankenJobSourceFacetMappingTests.RefetchByExternalIdAsync_YieldsEmptyFacets_WhenTheSourceCarriesNone).
+        await using var db = TestAppDbContextFactory.Create();
+        var anchor = Anchor();
+        var noNumber = Import("Utan nummer, nyast", "Okänd arbetsgivare", 2, kommun: Kommun, lan: Lan, organizationNumber: null);
+        var numbered = Import("Med nummer", "Spotify AB", 3, kommun: FarKommun, lan: FarLan);
+        await SeedAsync(db, anchor, noNumber, numbered);
+
+        var items = await ItemsAsync(db, anchor);
+
+        items.Select(r => r.Id).ShouldBe([numbered.Id.Value]);
+    }
+
+    [Fact]
+    public async Task Handle_AnAnchorWithoutAnOrganizationNumber_AnswersAnEmptyList_AndNeverAsksThePort()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var anchor = Anchor(organizationNumber: null);
+        var numbered = Import("Med nummer", "Spotify AB", 3, kommun: Kommun, lan: Lan);
+        await SeedAsync(db, anchor, numbered);
+
+        var items = await ItemsAsync(db, anchor);
+
+        items.ShouldBeEmpty("without the anchor's number, never the anchor's employer would rest on a spelling");
+        await ThePortWasNotAskedAsync();
     }
 
     public static TheoryData<string> NonListedAnchors => ["unknown", "never imported", "archived", "past its deadline", "erased"];

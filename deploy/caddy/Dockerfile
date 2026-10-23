@@ -52,13 +52,18 @@ FROM caddy:2-builder-alpine AS build
 # v0.60.0. Measured 2026-10-10: this build otherwise resolves v0.58.0, and caddy v2.11.5 to
 # v2.11.7 still require v0.59.0, so a newer tag would not close it. v0.60.0 needs Go 1.26;
 # the builder image carried Go 1.27.2 on that date.
+#
+# klauspost/compress is raised for CVE-2026-63209 (HIGH, a denial of service through an
+# integer overflow in dictionary processing), fixed in v1.18.7. Trivy measured v1.18.6 in
+# this build's binary on 2026-10-23. The module root carries Go files, so it binds as is.
 RUN mkdir -p /out \
     && xcaddy build v2.11.4 \
       --output /out/caddy \
       --with golang.org/x/text@v0.39.0 \
       --with google.golang.org/grpc@v1.83.2 \
       --with golang.org/x/crypto/bcrypt@v0.55.0 \
-      --with golang.org/x/net/http2@v0.60.0
+      --with golang.org/x/net/http2@v0.60.0 \
+      --with github.com/klauspost/compress@v1.18.7
 
 FROM caddy:2-alpine AS runtime
 

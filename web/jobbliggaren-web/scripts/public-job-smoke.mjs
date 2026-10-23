@@ -161,6 +161,18 @@ try {
     assert.match(res.body, /Vikariat · Heltid/, "the employment type and extent are visible on the page");
   });
 
+  await check("a listed ad names its occupation group last in the facts row, marked Swedish, and in no head tag and no JobPosting", async () => {
+    const res = await get(origin, `/jobb/${ID.listed}`);
+    const facts = /<div class="jp-modal__meta jp-modal__facts">([\s\S]*?)<\/div>/.exec(res.body);
+    assert.ok(facts, "the facts row is rendered");
+    assert.match(facts[1], new RegExp(`<span lang="sv">${AD.occupationGroupName}</span></span></span>$`), "the group is the last fact");
+    const [block] = jsonLdBlocks(res.body);
+    assert.doesNotMatch(block, /occupationalCategory/);
+    assert.ok(!block.includes(AD.occupationGroupName), "the group is not in the JobPosting");
+    const head = res.body.slice(0, res.body.indexOf("</head>"));
+    assert.ok(!head.includes(AD.occupationGroupName), "the group is not in the title, a description or an OpenGraph tag");
+  });
+
   await check("a listed ad without a resolved kommun has no JobPosting and stays indexable", async () => {
     const res = await get(origin, `/jobb/${ID.listedNoKommun}`);
     assert.equal(res.status, 200);

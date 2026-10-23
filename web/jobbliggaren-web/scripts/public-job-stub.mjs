@@ -41,7 +41,8 @@ export const AD = {
   municipalityName: "Stockholm",
   regionConceptId: "CifL_Rzy_Mku",
   regionName: "Stockholms län",
-  occupationGroupConceptId: null,
+  occupationGroupConceptId: "Z8ci_bBE_tmx",
+  occupationGroupName: "Grundutbildade sjuksköterskor",
   employmentTypeConceptId: "gro4_cWF_6D7", // Vikariat
   worktimeExtentConceptId: "6YE1_gAC_R2G", // Heltid
 };

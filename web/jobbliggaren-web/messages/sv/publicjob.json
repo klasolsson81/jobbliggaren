@@ -7,7 +7,11 @@
   "openAdAf": "Öppna annonsen hos Arbetsförmedlingen",
   "facts": {
     "location": "Ort",
-    "employment": "Anställning"
+    "employment": "Anställning",
+    "occupation": "Yrkesgrupp"
+  },
+  "explainers": {
+    "heading": "Relaterade sidor"
   },
   "gone": {
     "title": "Annonsen är inte längre tillgänglig",

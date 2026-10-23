@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import enMessages from "../../../messages/en";
+import svMessages from "../../../messages/sv";
 import { PublicJobAd } from "./public-job-ad";
 import type { PublicJobAdDto } from "@/lib/dto/public-job-ad";
 
 const ID = "0b0b0b0b-1111-4222-8333-444444444444";
+const GROUP = "Grundutbildade sjuksköterskor";
 
 const AD: PublicJobAdDto = {
   id: ID,
@@ -15,12 +19,23 @@ const AD: PublicJobAdDto = {
   expiresAt: "2026-11-01T08:00:00Z",
   municipalityName: "Stockholm",
   regionName: "Stockholms län",
+  occupationGroupName: GROUP,
   employmentTypeConceptId: "gro4_cWF_6D7", // Vikariat
   worktimeExtentConceptId: "6YE1_gAC_R2G", // Heltid
 };
 
 const jsonLdScripts = (container: HTMLElement) =>
   [...container.querySelectorAll('script[type="application/ld+json"]')] as HTMLScriptElement[];
+
+const factsOf = (container: HTMLElement) =>
+  [...container.querySelectorAll(".jp-modal__facts .jp-modal__fact")].map((f) => f.textContent?.replace(/\s+/g, " ").trim());
+
+/** The block after the article: the parent of its heading. */
+function explainersOf(heading: string): HTMLElement {
+  const block = screen.getByRole("heading", { level: 2, name: heading }).parentElement;
+  if (block === null) throw new Error("the heading has no parent");
+  return block;
+}
 
 describe("PublicJobAd", () => {
   it("is one landmark with one h1 (the ad's title), the company and both dates", () => {
@@ -42,7 +57,8 @@ describe("PublicJobAd", () => {
 
     expect(screen.getByRole("heading", { level: 2, name: "Om tjänsten" })).toBeInTheDocument();
     expect(screen.getByText(/Vi söker dig som vill arbeta med primärvård/)).toBeInTheDocument();
-    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Legitimation", "Körkort"]);
+    const description = container.querySelector<HTMLElement>(".jp-modal__description");
+    expect(within(description!).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Legitimation", "Körkort"]);
 
     expect(container.querySelector("[data-collapsed]")).toBeNull();
     expect(container.querySelector("[aria-expanded]")).toBeNull();
@@ -169,15 +185,64 @@ describe("PublicJobAd", () => {
 });
 
 describe("PublicJobAd: the facts row (ADR 0171)", () => {
-  it("shows kommun before län, and the employment type and extent as the catalogue names them, each with its axis for a screen reader", () => {
+  it("shows kommun before län, then the employment type and extent as the catalogue names them, then the occupation group, each with its axis for a screen reader", () => {
     const { container } = render(<PublicJobAd jobAd={AD} />);
 
     const facts = container.querySelector(".jp-modal__facts");
     expect(facts).not.toBeNull();
-    const items = [...facts!.querySelectorAll(".jp-modal__fact")].map((f) => f.textContent?.replace(/\s+/g, " ").trim());
-    expect(items).toEqual(["Ort Stockholm, Stockholms län", "Anställning Vikariat · Heltid"]);
-    expect(facts!.querySelectorAll(".sr-only")).toHaveLength(2);
-    expect(facts!.querySelectorAll("svg[aria-hidden='true']")).toHaveLength(2);
+    expect(factsOf(container)).toEqual([
+      "Ort Stockholm, Stockholms län",
+      "Anställning Vikariat · Heltid",
+      `Yrkesgrupp ${GROUP}`,
+    ]);
+    expect(facts!.querySelectorAll(".sr-only")).toHaveLength(3);
+    expect(facts!.querySelectorAll("svg[aria-hidden='true']")).toHaveLength(3);
+  });
+
+  it("marks the group's value Swedish, and only the value: the axis name follows the page's language (WCAG 3.1.2)", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+
+    const marked = [...container.querySelectorAll("[lang]")];
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveAttribute("lang", "sv");
+    expect(marked[0]?.textContent).toBe(GROUP);
+    expect(marked[0]?.closest(".jp-modal__fact")).toBe([...container.querySelectorAll(".jp-modal__fact")].at(-1));
+    expect(marked[0]?.previousElementSibling).toHaveClass("sr-only");
+    expect(marked[0]?.previousElementSibling?.textContent).toBe("Yrkesgrupp ");
+  });
+
+  it("keeps the value marked Swedish on the English page, under the English axis name", () => {
+    const { container } = render(
+      <NextIntlClientProvider locale="en" messages={enMessages} timeZone="Europe/Stockholm">
+        <PublicJobAd jobAd={AD} />
+      </NextIntlClientProvider>
+    );
+
+    expect(factsOf(container).at(-1)).toBe(`Occupational group ${GROUP}`);
+    expect(container.querySelector('.jp-modal__facts [lang="sv"]')?.textContent).toBe(GROUP);
+  });
+
+  it.each([
+    ["null", null],
+    ["empty", ""],
+    ["blank", "  \t "],
+    ["absent", undefined],
+  ])("leaves the group out when its name is %s, and the row is then the one it was before the group", (_label, name) => {
+    const { container } = render(<PublicJobAd jobAd={{ ...AD, occupationGroupName: name }} />);
+
+    expect(factsOf(container)).toEqual(["Ort Stockholm, Stockholms län", "Anställning Vikariat · Heltid"]);
+    expect(container.querySelector("[lang]")).toBeNull();
+    expect(container.querySelector(".jp-modal__facts")).not.toHaveTextContent("Yrkesgrupp");
+  });
+
+  it("shows the group alone when nothing else is known", () => {
+    const { container } = render(
+      <PublicJobAd
+        jobAd={{ ...AD, municipalityName: null, regionName: null, employmentTypeConceptId: null, worktimeExtentConceptId: null }}
+      />
+    );
+
+    expect(factsOf(container)).toEqual([`Yrkesgrupp ${GROUP}`]);
   });
 
   it("shows the kommun alone when the län is not resolved, and the län alone when the kommun is not", () => {
@@ -190,12 +255,19 @@ describe("PublicJobAd: the facts row (ADR 0171)", () => {
 
   it("leaves out an employment id the catalogue does not know, and the whole row when nothing is known", () => {
     const { container: a } = render(<PublicJobAd jobAd={{ ...AD, employmentTypeConceptId: "drifted_id" }} />);
-    expect([...a.querySelectorAll(".jp-modal__fact")].at(-1)).toHaveTextContent(/Heltid$/);
+    expect([...a.querySelectorAll(".jp-modal__fact")][1]).toHaveTextContent(/Anställning Heltid$/);
     expect(a.textContent).not.toContain("drifted_id");
 
     const { container: b } = render(
       <PublicJobAd
-        jobAd={{ ...AD, municipalityName: null, regionName: null, employmentTypeConceptId: null, worktimeExtentConceptId: null }}
+        jobAd={{
+          ...AD,
+          municipalityName: null,
+          regionName: null,
+          occupationGroupName: null,
+          employmentTypeConceptId: null,
+          worktimeExtentConceptId: null,
+        }}
       />
     );
     expect(b.querySelector(".jp-modal__facts")).toBeNull();
@@ -259,5 +331,82 @@ describe("PublicJobAd: the JobPosting data block (ADR 0171)", () => {
     const { container } = render(<PublicJobAd jobAd={{ ...AD, employmentTypeConceptId: "9Wuo_2Yb_36E" }} />);
     expect(jsonLdScripts(container)).toHaveLength(0);
     expect(container.textContent).toContain("Arbete utomlands");
+  });
+
+  it("never carries the occupation group the facts row shows (#2203)", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+
+    const block = jsonLdScripts(container)[0]?.innerHTML ?? "";
+    expect(block).not.toBe("");
+    expect(block).not.toContain(GROUP);
+    expect(block).not.toContain("occupationalCategory");
+  });
+});
+
+describe("PublicJobAd: the explainer links after the article (#2203)", () => {
+  it("sit after the article and outside it, inside main, under their own h2 with no landmark", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+
+    const block = explainersOf("Relaterade sidor");
+    const article = container.querySelector("article");
+    expect(article).not.toBeNull();
+    expect(block.closest("article")).toBeNull();
+    expect(block.closest("main")).toBe(container.querySelector("main"));
+    expect(article!.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(block.querySelector("h2")).toHaveClass("jp-eyebrow");
+    expect(block.closest("section, nav, aside, [role]")).toBeNull();
+  });
+
+  it("stand in the card's column, given in px so it cannot drift from the card's 760 px", () => {
+    render(<PublicJobAd jobAd={AD} />);
+
+    const column = explainersOf("Relaterade sidor").parentElement;
+    expect(column?.parentElement?.tagName).toBe("MAIN");
+    expect(column).toHaveClass("mx-auto", "w-full", "max-w-[760px]");
+  });
+
+  it("link CV review first and matching second, by the footer's own names for the same two pages (WCAG 3.2.4)", () => {
+    render(<PublicJobAd jobAd={AD} />);
+
+    const links = within(explainersOf("Relaterade sidor")).getAllByRole("link");
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/cv-granskning", "/matchning"]);
+    expect(links.map((a) => a.textContent)).toEqual([
+      svMessages.landing.common.cvReviewLink,
+      svMessages.landing.footer.support.howMatching,
+    ]);
+    for (const link of links) expect(link).toHaveAttribute("data-information-link");
+  });
+
+  it("give each link its own id, distinct from the notice's, and the page no duplicate id", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+
+    const links = within(explainersOf("Relaterade sidor")).getAllByRole("link");
+    expect(links.map((a) => a.id)).toEqual([`information-job-${ID}-cv-review`, `information-job-${ID}-matching`]);
+    const ids = [...container.querySelectorAll("[id]")].map((el) => el.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain(`information-job-${ID}`);
+  });
+
+  it("carry no lead sentence and no button, so the apply link stays the page's one primary action", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+
+    const block = explainersOf("Relaterade sidor");
+    expect(block.querySelector("p")).toBeNull();
+    expect(block.querySelector(".jp-btn")).toBeNull();
+    expect(container.querySelectorAll(".jp-btn--primary")).toHaveLength(1);
+  });
+
+  it("read in English on the English page", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages} timeZone="Europe/Stockholm">
+        <PublicJobAd jobAd={AD} />
+      </NextIntlClientProvider>
+    );
+
+    const links = within(explainersOf("Related pages")).getAllByRole("link");
+    expect(links.map((a) => a.textContent)).toEqual([
+      enMessages.landing.common.cvReviewLink,
+      enMessages.landing.footer.support.howMatching,
+    ]);
   });
 });

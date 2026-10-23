@@ -38,7 +38,7 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
     /// </summary>
     private readonly ITaxonomyReadModel _taxonomy = Substitute.For<ITaxonomyReadModel>();
 
-    private static readonly string[] RaceLocationIds = ["mun_race", "reg_race"];
+    private static readonly string[] RaceTaxonomyIds = ["mun_race", "reg_race", "grp_race"];
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -75,7 +75,7 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
             url: $"https://arbetsformedlingen.se/platsbanken/annonser/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: payload,
-            facets: TestFacets.From(municipality: "mun_race", region: "reg_race"),
+            facets: TestFacets.From(occupationGroup: "grp_race", municipality: "mun_race", region: "reg_race"),
             declaredContacts: [],
             publishedAt: Clock.UtcNow.AddDays(-2),
             expiresAt: Clock.UtcNow.AddDays(20),
@@ -116,7 +116,7 @@ public sealed class PublicJobAdReadRaceTests(SharedPostgresFixture postgres) : I
         result.Value.MunicipalityConceptId.ShouldBe("mun_race");
         result.Value.MunicipalityName.ShouldBeNull("the stub knows no id, as the real adapter answers an unknown one");
         await _taxonomy.Received(1).ResolveLabelsAsync(
-            Arg.Is<IReadOnlyList<string>>(ids => ids.SequenceEqual(RaceLocationIds)),
+            Arg.Is<IReadOnlyList<string>>(ids => ids.SequenceEqual(RaceTaxonomyIds)),
             Arg.Any<CancellationToken>());
     }
 

@@ -7,13 +7,14 @@ import { readableInstantSchema } from "./_helpers";
  * The anonymous public job-ad read (`GET /api/v1/public/job-ads/{id}`, ADR 0160 D4), and nothing more
  * of it than the page renders.
  *
- * The wire carries fourteen members. This schema names the eleven the page uses and strips the rest, so
+ * The wire carries fifteen members. This schema names the eleven the page uses and strips the rest, so
  * a field the backend adds later cannot reach the page by accident. Kommun and län are read as their
  * snapshot names only (ADR 0171; a name is null when the snapshot does not know the id), and their concept
  * ids stay unread: nothing on the page renders them. The employment-type and worktime-extent ids are read
  * as plain strings and named by the locale catalogue (`coded-taxonomy.ts`), never enum-validated, so an id
  * the catalogue does not know (taxonomy drift) parses and is left out of the page and its `JobPosting`,
- * and never makes the page fail. The occupation-group id stays unread on purpose (S6). There is no user
+ * and never makes the page fail. The occupation group's id and name stay unread until the page shows the
+ * name (#2203). There is no user
  * state, contact block, organisation number or raw payload on that wire to begin with. The backend pins
  * its member set (`PublicJobAdDtoContractTests`); this side pins what it reads.
  *

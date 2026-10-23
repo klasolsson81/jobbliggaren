@@ -1226,6 +1226,16 @@
     inset-inline-start: 0;
     background: var(--jp-canvas);
   }
+  /* A collapsed border does not follow a sticky cell, so the frozen column draws its own edge. */
+  .jp-table.jp-admintable tbody th[scope="row"]::after,
+  .jp-table.jp-admintable:has(tbody th[scope="row"]) thead th:first-child::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    inline-size: 1px;
+    background: var(--jp-border);
+  }
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────────────────── */

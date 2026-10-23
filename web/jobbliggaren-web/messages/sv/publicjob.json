@@ -1,7 +1,7 @@
 {
   "meta": {
-    "description": "Jobbannons från {company}: {title}. Publicerad {published}.",
-    "descriptionWithDeadline": "Jobbannons från {company}: {title}. Publicerad {published}. Sista ansökningsdag {deadline}."
+    "description": "Jobbannons från {company}: {title}{titleEnd, select, punctuated {} other {.}} Publicerad {published}.",
+    "descriptionWithDeadline": "Jobbannons från {company}: {title}{titleEnd, select, punctuated {} other {.}} Publicerad {published}. Sista ansökningsdag {deadline}."
   },
   "openAd": "Öppna annonsen",
   "openAdAf": "Öppna annonsen hos Arbetsförmedlingen",

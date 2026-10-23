@@ -105,6 +105,34 @@ describe("the public job page's metadata", () => {
     expect(metadata.description).toBe("Jobbannons från Region Exempel: Sjuksköterska. Publicerad 1 okt. 2026.");
   });
 
+  // #2178: the template's own full stop after a title that already ends its sentence rendered "…!. Publicerad".
+  it.each(["!", "?", "."])("puts no second stop after a title ending in %s, with and without a deadline", async (mark) => {
+    const title = `Sjuksköterska sökes${mark}`;
+
+    getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: { ...AD, title } });
+    expect((await generateMetadata(params())).description).toBe(
+      `Jobbannons från Region Exempel: ${title} Publicerad 1 okt. 2026. Sista ansökningsdag 1 nov. 2026.`
+    );
+
+    getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: { ...AD, title, expiresAt: null } });
+    expect((await generateMetadata(params())).description).toBe(
+      `Jobbannons från Region Exempel: ${title} Publicerad 1 okt. 2026.`
+    );
+  });
+
+  it("closes the title the same way in the English catalogue", async () => {
+    const en = (await import("../../../messages/en")).default;
+    const t = createTranslator({ locale: "en", messages: { publicjob: en.publicjob }, namespace: "publicjob" });
+    const values = { company: "Region Example", published: "1 Oct 2026", deadline: "1 Nov 2026" };
+
+    expect(t("meta.description", { ...values, title: "Nurse", titleEnd: "open" })).toBe(
+      "Job ad from Region Example: Nurse. Published 1 Oct 2026."
+    );
+    expect(t("meta.descriptionWithDeadline", { ...values, title: "Nurse wanted!", titleEnd: "punctuated" })).toBe(
+      "Job ad from Region Example: Nurse wanted! Published 1 Oct 2026. Application deadline 1 Nov 2026."
+    );
+  });
+
   it.each([{ kind: "notFound" }, { kind: "unavailable" }] as const)(
     "is the shared not-found title for a read of kind %j: no ad title, no company",
     async (result) => {

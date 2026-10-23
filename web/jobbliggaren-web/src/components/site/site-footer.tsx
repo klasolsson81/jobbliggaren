@@ -21,8 +21,7 @@ import { PUBLIC_CATALOGUE_PATH } from "@/lib/job-ads/public-catalogue-url";
  *     a second (inline) link style → unbalanced. #393 makes legal its own
  *     "Juridik" column instead: four even columns (Kom igång / Stöd och guider /
  *     Om Jobbliggaren / Juridik), and the closing bar carries only copyright +
- *     the free line + the language toggle (no social block — social accounts
- *     are not coming for a long while, #393 — and no content links).
+ *     the free line (no social block, #393, and no content links).
  *   • The about column is "Om Jobbliggaren" (Om, Kontakt, För utvecklare); the
  *     "Juridik" column carries the policy links (Villkor, Integritet, Cookies,
  *     Tillgänglighet) — the old "Om och juridik" mix is split into the two.

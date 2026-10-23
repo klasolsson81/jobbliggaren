@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import { JsonLdScript } from "@/components/seo/json-ld-script";
+import { OFFICIAL_PROFILES } from "@/lib/seo/official-profiles";
 import { SITE_URL, absoluteUrl } from "@/lib/site-url";
 
 /**
@@ -9,8 +10,9 @@ import { SITE_URL, absoluteUrl } from "@/lib/site-url";
  *
  * Only facts the site already states: the name is the one `og:site_name` carries, the
  * alternate name is the domain itself, and the logo is the 180 px touch icon
- * (`app/apple-icon.tsx`), a PNG on white above Google's 112 px minimum. No address,
- * rating or social profile, because none is published.
+ * (`app/apple-icon.tsx`), a PNG on white above Google's 112 px minimum. `sameAs` lists
+ * the project's own pages elsewhere (`OFFICIAL_PROFILES`). No address or rating,
+ * because none is published.
  */
 export function SiteIdentityJsonLd() {
   const t = useTranslations("metadata");
@@ -34,6 +36,7 @@ export function SiteIdentityJsonLd() {
           name,
           url: SITE_URL,
           logo: absoluteUrl("/apple-icon"),
+          sameAs: [...OFFICIAL_PROFILES],
         }}
       />
     </>

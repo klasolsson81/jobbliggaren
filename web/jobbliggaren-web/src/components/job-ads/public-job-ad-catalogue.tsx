@@ -43,7 +43,7 @@ export function PublicJobAdCatalogue({ page }: { page: PublicJobAdCataloguePage 
             <p id={COUNT_ID} className="jp-results-count">
               <b>{formatNumber(format, page.totalCount)}</b> {t("count", { count: page.totalCount })}
             </p>
-            <PublicJobAdList rows={page.items} labelledBy={COUNT_ID} />
+            <PublicJobAdList rows={page.items} labelledBy={COUNT_ID} headingLevel={2} idPrefix="catalogue" />
             <div className="mt-6">
               <JobAdPagination
                 page={page.page}

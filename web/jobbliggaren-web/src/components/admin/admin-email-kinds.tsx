@@ -60,17 +60,19 @@ export function AdminEmailKinds({ kinds }: { readonly kinds: AdminEmailRead<Kind
         {t("heading")}
       </h3>
       {observed === null ? null : (
-        <p className="jp-adminmailsum__note">
-          {start === null
-            ? t.rich("note", {
-                from: observed.from,
-                time: (chunks) => <time dateTime={observed.from}>{chunks}</time>,
-              })
-            : t.rich("notePartial", {
-                start: start.shown,
-                time: (chunks) => <time dateTime={start.at}>{chunks}</time>,
-              })}
-        </p>
+        <div className="jp-adminmailsum__note">
+          <p>
+            {start === null
+              ? t.rich("note", {
+                  from: observed.from,
+                  time: (chunks) => <time dateTime={observed.from}>{chunks}</time>,
+                })
+              : t.rich("notePartial", {
+                  start: start.shown,
+                  time: (chunks) => <time dateTime={start.at}>{chunks}</time>,
+                })}
+          </p>
+        </div>
       )}
       <AdminTableScroll labelledBy={CAPTION_ID}>
         <table className="jp-table jp-admintable">

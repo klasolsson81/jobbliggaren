@@ -69,14 +69,18 @@ group name in the heading, an `ItemList`, or any key a caller can supply is a ne
 
 ### D1 — The selection rule: one group, local first, distinct employers, shown from one row (CTO F1; security-auditor S7)
 
-- **Candidates.** `IsListed(now)`, the anchor's `OccupationGroupConceptId`, `Id` not the anchor's, and `Company.Name` not the anchor's.
+- **Candidates.** `IsListed(now)`, the anchor's `OccupationGroupConceptId`, `Id` not the anchor's, an organization number, which is not the anchor's, and
+  `Company.Name` not the anchor's.
 - **Order.** Same kommun first, then same län, then the rest; within a tier `PublishedAt` descending; ties in the read's SQL order, which is Postgres's `uuid` order, and never compared in
   memory (ADR 0176 D3, the two id orders). An anchor whose kommun or län id is null skips that tier, and a null never matches a null.
-- **One row per employer.** The code walks the SQL-ordered rows and takes the first row of each new employer, until `RelatedPublicJobAdLimits.MaxRows` = 5. The employer key is the projected
-  company name compared ordinally; this slice does not read the organization number. If the window holds fewer than five distinct employers, the section shows fewer. There is no second query.
+- **One row per employer.** The code walks the SQL-ordered rows and takes the first row of each new employer, until `RelatedPublicJobAdLimits.MaxRows` = 5. An employer is its organization
+  number, compared ordinally, and two rows with one company name are one employer too: one definition of the same employer, for the anchor's exclusion and for the walk (the CTO's ruling on
+  security-auditor's Major 1, round 1, superseding F1.3's "ordinal on the projected company name"). If the window holds fewer than five distinct employers, the section shows fewer. There
+  is no second query.
 - **The floor is one.** The section shows from one row, and at zero it is absent, with no empty state. The CTO rejected a floor of 3 as an unexplained threshold (AGENTS.md §5, magic
   numbers) that hides one or two true and useful rows for a look.
-- **No fallback.** A null group, or a group with no other listed ad from another employer, gives no section. Filling from the anchor's kommun or län across groups is rejected: it would be a
+- **No fallback.** A null group, or a group with no other listed ad from another employer, gives no section. An anchor without an organization number gives no section either, and an ad
+  without one is never a row: the employer of either cannot be told apart from a spelling. Filling from the anchor's kommun or län across groups is rejected: it would be a
   related list with no relation and, in practice, a per-ad place listing, the axis that stage-B B1 gates and that ADR 0166 `:657` places under trigger 1.
 
 **Why local first.** Locality is the main relevance axis (Context). The CTO's rule is a user rule before it is a search rule.
@@ -101,13 +105,14 @@ which she deliberately leaves out of the legal triggers, and the CTO needs no ne
 
 - **The endpoint.** `GET /api/v1/public/job-ads/{id:guid}/related` in the anonymous `PublicJobAdsEndpoints` group (ADR 0160 D1). **The keys come from the anchor row on the server, never from
   the caller; this is a hard condition** (the CTO). A `?group=&kommun=` form would be the anonymous facet API that ADR 0176 D1 and ADR 0166 D10 trigger 12 reject. The query record has one
-  member, `Id`. It is neither `IAuthenticatedRequest` nor `ICapturesRecentSearch`, and the handler logs nothing. The anchor's company name is a filter parameter and is never returned or logged.
-- **The anchor read composes the predicate (security-auditor m1; architect Nice-to-have, taken).** `Where(j.Id == id).Where(JobAdPublication.IsListed(now))` projects four columns: group,
-  kommun, län and company. So every non-listed anchor reads no row and answers the same `JobAdErrors.NotFound`: unknown, never imported (a manual row with `Source = "Platsbanken"` included),
+  member, `Id`. It is neither `IAuthenticatedRequest` nor `ICapturesRecentSearch`, and the handler logs nothing. The anchor's company name and organization number are filter parameters and are never returned or logged; the
+  candidates' organization numbers stay in the handler's private row, and the handler is on `OrganizationNumberSurfacingGuardTests`' log-boundary scan.
+- **The anchor read composes the predicate (security-auditor m1; architect Nice-to-have, taken).** `Where(j.Id == id).Where(JobAdPublication.IsListed(now))` projects five columns: group,
+  kommun, län, company and organization number. So every non-listed anchor reads no row and answers the same `JobAdErrors.NotFound`: unknown, never imported (a manual row with `Source = "Platsbanken"` included),
   archived, past its deadline and erased. There is no `Classify` switch that could grow a 410 arm; this changes step 1 of the CTO's F2, which read the anchor and classified it through
-  `Classify`. The detail read already tells 404 from 410, so this route tells strictly less and is no new erasure oracle. A listed anchor with a null group answers 200 with an empty list, makes no second read and does not ask the taxonomy port.
+  `Classify`. The detail read already tells 404 from 410, so this route tells strictly less and is no new erasure oracle. A listed anchor with a null group or without an organization number answers 200 with an empty list, makes no second read and does not ask the taxonomy port.
 - **The candidates read.** `.Where(IsListed(now))`, the group, `Id` and company filters, `OrderBy(CASE)`, `.ThenByDescending(PublishedAt).ThenBy(Id).Take(CandidateWindow)`, projected to a narrow
-  row (id, title, company name, kommun and län ids, publication date). It never materialises the entity, because `RawPayload` carries the organization number and the pre-scrub text. The group
+  row (id, title, company name, kommun and län ids, publication date). It never materialises the entity, because `RawPayload` carries the pre-scrub text. The group
   is a non-null value by the time this read runs (`is not { } group`), so the predicate `occupation_group_concept_id = @group` implies the condition of the partial index on that column; a
   null-safe `OR … IS NULL` arm would switch the index off silently, and `TheCandidatesStatement_ReachesTheOccupationGroupIndex` pins it (architect).
 - **The tier is an `int` CASE rank, never a boolean sort key (architect, Kritiskt).** EF's C# null semantics read the parameter at run time and rewrite `col == @p` to `col IS NULL` when `@p` is
@@ -154,7 +159,7 @@ which she deliberately leaves out of the legal triggers, and the CTO needs no ne
   starve the ad itself (least common mechanism, Saltzer & Schroeder 1975).
 - **The cost of a view.** A 200 view makes two detail reads (the probe and the render) and one related read, so the detail budget binds first and ADR 0165 D3's "about 30 ads a minute"
   stands. A 404, 410 or 503 from the probe makes one read and no related read. The limit protects availability and not confidentiality: the cost of a call is one primary-key read and one
-  group's indexed read of at most `CandidateWindow` rows.
+  group's indexed read.
 - **`no-store`** comes from the `/api/v1/public` prefix block in `Program.cs`, on the 200, 404, 400 and 429.
 - **Tests.** A wiring test (anonymous, its own policy, alone on its route, the id its only route parameter), a strict 429 test with `Retry-After` and `no-store`, a
   `ForwardedClientBudgetTests` row, the options default, and the `ApiFactory` and `StrictRateLimitApiFactory` rows. The three older policies' tests are byte-unchanged: the commit removes no
@@ -215,7 +220,7 @@ which she deliberately leaves out of the legal triggers, and the CTO needs no ne
 ### D7 — ADR 0064 rule (d): a bounded read keyed by one record is the per-record class, so nothing is precomputed (architect; CTO F5)
 
 - **The reading.** Rule (d) sorts reads into two classes: a recurring read of the whole corpus, identical for every reader, which is precomputed, and a read of one record, "one primary-key
-  lookup", which has nothing to precompute. The related read is literally neither: a primary-key read of the anchor, then one indexed read of the anchor's group, at most `CandidateWindow` rows.
+  lookup", which has nothing to precompute. The related read is literally neither: a primary-key read of the anchor, then one indexed read of the anchor's group.
   By the rule's own reasons it is the per-record class: there is no `COUNT` and no `OFFSET` over the corpus; the answer differs per anchor, so there is no shared hot key; its cost is bounded
   by one group and not by the corpus; and the erasure rule forbids caching it. **Nothing is precomputed**, and a related list held in a precomputed or materialised form would fire ADR 0166
   D10 trigger 16.
@@ -273,7 +278,6 @@ request; a row cannot carry what it must not, because it is one type pinned thre
 - One predicate serves the sitemap, the catalogue, the detail read and the related section. A future exclusion that Klas or `security-auditor` decides on goes into `JobAdPublication` and
   reaches related ads with no change to them (#2133's remedy, the CTO).
 - An erased ad is read per request and so leaves every section at once, on every page. No check step and no removal request is owed for a related section (ADR 0106 D9 amendment).
-- Ads erased by one request never leave one section together, because a section holds at most one row per employer (security-auditor).
 - A row cannot carry what it must not: the member set is pinned by a contract test, a wire test and a boundary test, and the web's schema is strict at both levels.
 - The section is a bulkhead: a stall or an outage in it costs the ad at most the 2-second bound and never its status.
 - The release adds no migration, no package, no `deploy/` diff, no `proxy.ts` edit, no CSS and no ACL change, and no new recipient, sub-processor, transfer or PII field (security-auditor S14,
@@ -286,7 +290,8 @@ request; a row cannot carry what it must not, because it is one type pinned thre
 - **The same employer's other ads never appear as related.** A small loss for the user, accepted for D1's reasons (a)–(c).
 - **The race case** (the probe says 200, the render says 404) spends one related read for nothing.
 - **W's declared underfill:** a section can show fewer than five rows while more employers exist below the window (D2).
-- **The employer rule compares the company name as the ad carries it, ordinally** (D1). It holds for an employer that uses one spelling, and this ADR claims no more.
+- **The 426 listed ads without an organization number** (0.95 % at 18:38 UTC on 2026-10-23) never appear as related, and their own pages show no section. Their own page, the catalogue,
+  the sitemap and `/jobb` are unchanged (the CTO's ruling, round 1).
 - **An employer's name is on more pages and can stay on a page longer than in the catalogue** (security-auditor). For a sole trader it can be a personal name, and a job page does not shift
   its rows every five minutes as the catalogue does. Search engines index the text anyway: `data-nosnippet` keeps it out of snippets and AI answers and not out of the index, and a copy held
   by a search engine or in a web archive is out of reach. An erased ad still leaves every section at once. The weighing is in the ADR 0166 amendment (D6).
@@ -315,12 +320,14 @@ ad's six values also appear in the related section of other ads' pages (m3); and
 **Test premises (AGENTS.md §5, Tests).**
 - The handler's unit tests run on InMemory, where C# semantics and `Guid.CompareTo` apply and not Postgres's `uuid` order, so they use distinct `PublishedAt` and assert no id tie.
   Ties and null-tier semantics are asserted only in Testcontainers, against the ordinal `ToString("D")` oracle.
-- An anchor with a kommun and no län is a state production can produce, because `PlatsbankenJobSource` reads the two ids independently; `PlatsbankenJobSourceFacetMappingTests` names the actor
-  `MapFacets` and pins that it passes an address block with one id through unpaired.
+- An anchor with a län and no kommun, or a kommun and no län, is a state production can produce, because `PlatsbankenJobSource` reads the two ids independently;
+  `PlatsbankenJobSourceFacetMappingTests` names the actor `MapFacets` and pins that it passes an address block with either id alone through unpaired.
 - The plan test's seed follows R1's counts, archived rows included because the group index holds them too, and is bulk-inserted in the shape the ingest writes: 150 000 rows through EF would
   measure the seed and not the read. The plan rests on the table's statistics, which production's own writers produce, and never on these rows' identity. The employer names are synthetic
   and the anchors never come from the box (security-auditor m4).
-- Seeded through `JobAd.Import`: a manual `Source = "Platsbanken"` row, an ad erased by the production erase path and an ad past its deadline are each absent from the result.
+- Ads are seeded through `JobAd.Import`, and a never-imported ad through `JobAd.Create` as `POST /api/v1/job-ads` stores it. An ad erased by the production erase path and an ad past its
+  deadline are each absent from the result, and a never-imported anchor answers the same 404 as the other non-listed anchors. No path in `src/` gives a never-imported ad an occupation group,
+  so it is never a candidate; the predicate's provenance arm is pinned in the SQL text instead (`RelatedPublicJobAdsReadTests`).
 
 ## Measurements
 
@@ -329,16 +336,17 @@ Each reading below is dated and has its source. Nothing is estimated.
 | Reading | What | Recorded |
 |---|---|---|
 | R1 | the box's shape, counts only (CLAUDE.md §9.2 (a)), grouped by status and by occupation group, never by employer | 2026-10-23 at 17:31 UTC, on the production box: 44 718 Active (all listed), 107 739 Archived, 0 Erased; 396 groups and no row without a group; the largest group 6 925 rows, 2 161 of them listed, over 281 kommuner, 19 listed without a kommun; listed per group: median 38, p90 272, maximum 2 161. |
-| R2 | the candidates statement as sent, its plan and its time | 2026-10-23, `RelatedPublicJobAdsQueryPlanTests` (Testcontainers Postgres 18, the `JobAdBrowsePlan` collection) over 152 460 rows, which are R1's 152 457 plus the test's three anchors, in R1's shape, synthetic employer names, `VACUUM (ANALYZE)` after the seed; the statements and plans below. |
-| R3 | the tests | 2026-10-23, the driving session: unit tests 24/24, with mutations of the two null guards, the employer exclusion, the one-row-per-employer walk, the group filter and `IsListed` on the candidates each reddening their tests; Testcontainers `RelatedPublicJobAdsReadTests` 12/12, including "a row without a kommun never outranks a kommun match" and ties against the ordinal `"D"` string oracle; API tests 9 new, 113 in the public and rate-limit sweep. |
+| R2 | the candidates statement as sent, its plan and its time | 2026-10-23, after round 1, `RelatedPublicJobAdsQueryPlanTests` (Testcontainers Postgres 18, the `JobAdBrowsePlan` collection) over 152 460 rows, which are R1's 152 457 plus the test's three anchors, in R1's shape: every group spread over the last 60 days, Archived rows past their deadline, about one row in a hundred without an organization number (R5), synthetic employer names and numbers, `VACUUM (ANALYZE)` after the seed; the statements and plans below. The first run, before round 1, seeded every batch newest-first and every deadline open, which flattered the placeless anchor (dotnet-architect); its numbers are not kept. |
+| R5 | the organization-number stock, counts only | 2026-10-23 at 18:38 UTC, on the production box, totals only: 44 716 listed; 44 290 with an organization number, 0 of them personnummer-shaped; 426 without. |
+| R3 | the tests | 2026-10-23, the driving session: unit tests 30/30, with mutations of the two null guards, the employer exclusion, the one-row-per-employer walk, the group filter, `IsListed` on the candidates, the organization-number filter, the anchor's number, and each of the walk's two keys each reddening their tests; Testcontainers `RelatedPublicJobAdsReadTests` 16/16, including "a row without a kommun never outranks a kommun match" and ties against the ordinal `"D"` string oracle; API tests 9 new, 113 in the public and rate-limit sweep. |
 | R4 | the web | 2026-10-23: the `(public-job)`, job-ads and reader suites 120/120, `tsc --noEmit` clean, the boundary tests 3/3; the smoke 52/52 against the standalone build: exactly one related read per 200 view, none when the probe answers 404, 410 or 503, and no section on a spent budget, an outage, a row wider than the six members or a 7-second stall, within the bound. Rendered at 375, 768, 1280, 1920 and 3440 px with 1 and 5 rows; 0 rows, 429, 500 and a stall at 1280 and 375 px give one identical `main` (the stall answered in 2.97 s); card, heading and row edges Δ 0 px; axe 0. The renders are local, in `C:/tmp/jobbliggaren-visual/2203-s6b/`. |
 
 **R2, the candidates statement for an anchor with a kommun and a län, as sent:**
 
 ```sql
-SELECT j.id, j.title, j.company_name, j.municipality_concept_id, j.region_concept_id, j.published_at
+SELECT j.id, j.title, j.company_name, j.organization_number, j.municipality_concept_id, j.region_concept_id, j.published_at
 FROM job_ads AS j
-WHERE j.external_id IS NOT NULL AND j.external_source IS NOT NULL AND j.external_source = 'Platsbanken' AND j.status = 'Active' AND (j.expires_at IS NULL OR j.expires_at >= @now) AND j.occupation_group_concept_id = @group AND j.id <> @id AND j.company_name <> @employer
+WHERE j.external_id IS NOT NULL AND j.external_source IS NOT NULL AND j.external_source = 'Platsbanken' AND j.status = 'Active' AND (j.expires_at IS NULL OR j.expires_at >= @now) AND j.occupation_group_concept_id = @group AND j.id <> @id AND j.organization_number IS NOT NULL AND j.organization_number <> @anchorNumber AND j.company_name <> @anchorName
 ORDER BY CASE
     WHEN j.municipality_concept_id = @kommun THEN 0
     WHEN j.region_concept_id = @lan THEN 1
@@ -351,12 +359,12 @@ For an anchor with neither id, EF prunes the rank: the funcletizer removes both 
 two SQL variants cached by parameter nullability, as the architect predicted. `ToQueryString()` and `EXPLAIN` print parameter values, so both ran on synthetic seeds, and the one box read
 behind R1 was grouped by status and group only (security-auditor m4).
 
-**R2, `EXPLAIN (ANALYZE, BUFFERS)`** (every buffer read was a shared hit; the full output is kept locally at `C:/tmp/jobbliggaren-visual/2203-s6b/explain-2026-10-23.txt`):
+**R2, `EXPLAIN (ANALYZE, BUFFERS)`** (every buffer read was a shared hit; the full output is kept locally at `C:/tmp/jobbliggaren-visual/2203-s6b/explain-2026-10-23-round2.txt`):
 - **An anchor with a kommun and a län, in the 2 161-listed group:** `Limit` → `Sort` (top-N heapsort, 38 kB) → `Bitmap Heap Scan` (218 heap blocks, 2 161 rows, 2 removed by filter) →
-  `BitmapAnd` of a `Bitmap Index Scan` on `ix_job_ads_occupation_group_concept_id` (6 927 rows) and one on `ix_job_ads_status_published_at_id`. Execution 2.9 ms. The handler over 40 warmed
-  iterations: p50 6.2 ms, p95 9.0 ms.
-- **A placeless anchor in the same group:** an `Index Scan` using `ix_job_ads_status_published_at_id`, newest first, with the group as a filter. Execution 0.13 ms; handler p95 3.0 ms.
-- **A placeless anchor in a 108-listed group:** a `Bitmap Index Scan` on the group index and a quicksort. Execution 0.37 ms; handler p95 3.8 ms.
+  `BitmapAnd` of a `Bitmap Index Scan` on `ix_job_ads_occupation_group_concept_id` (6 927 rows) and one on `ix_job_ads_status_published_at_id`. Execution 4.4 ms. The handler over 40 warmed
+  iterations: p50 8.8 ms, p95 12.2 ms.
+- **A placeless anchor in the same group:** an `Index Scan` using `ix_job_ads_status_published_at_id`, newest first, with the group as a filter, 1 925 rows removed by it. Execution 2.2 ms; handler p95 10.7 ms.
+- **A placeless anchor in a 108-listed group:** a `Bitmap Index Scan` on the group index and a quicksort. Execution 0.79 ms; handler p95 5.7 ms.
 - All three are against ADR 0045 class (a), p95 300 ms, which is observe-only. The permanent pin, `TheCandidatesStatement_ReachesTheOccupationGroupIndex`, asserts the group index for the
   anchor with a place.
 

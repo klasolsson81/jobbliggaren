@@ -833,15 +833,14 @@ vägt de intressena mot dina rättigheter" would be untrue for the section (Art.
 - **W2: re-weighed.** The employer name is the section's main personal datum, and for a sole trader it can be a personal name. The section puts a name on more URLs than the catalogue does
   (every listed page in the group where the ad ranks among the first five employers), and on URLs that change more slowly: a job page is a stable address for as long as its ad is listed, and
   does not shift its rows at a five-minute refresh. Measured on 2026-10-23 at 18:38 UTC, counts only, on the box: 0 of the 44 290 listed ads that carry an organization number carry a
-  personnummer-shaped one; 426 of 44 716 listed ads carry none, and their kind is unknown. The stock is read again on the merge day with D11. Rows are kept out of snippets and AI answers on
-  both engines. *Left:* both engines still index the marked text, so another ad's page can match a name until that page's next crawl.
+  personnummer-shaped one; 426 of 44 716 listed ads carry none, and their kind is unknown. The stock is read again on the merge day with D11. The 426 take no part in the section: an employer is
+  its organization number (ADR 0182 D1). Rows are kept out of snippets and AI answers on both engines. *Left:* both engines still index the marked text, so another ad's page can match a name until that page's next crawl.
 - **W3:** handled by D11.
 - **W4: re-weighed.** An anchor page's index copy holds a related row until that page's next crawl. *Done:* snippet and AI-answer copies are suppressed; link previews carry no row, because the
   page's metadata is built from the anchor's own fields. *Left:* the index association until recrawl, and web-archive snapshots of job pages, out of reach.
-- **W5: unchanged in kind.** The section offers no join the catalogue does not: the same six values, for ads the catalogue already lists. An erased ad leaves every section at once. Because a
-  section holds at most one row per employer, ads erased by one request never vanish together from one section.
+- **W5: unchanged in kind.** The section offers no join the catalogue does not: the same six values, for ads the catalogue already lists. An erased ad leaves every section at once.
 - **Art. 9.** Ads for personal assistance can describe the person who is to receive the assistance. The section shows no ad text. Ads about one assisted person come from one provider, and the
-  section takes at most one row per employer and never the page's own, so two ads about one person never stand in one section, on any page (ADR 0182 D1: the rule is load-bearing for Art. 9 as
+  section knows a provider by its organization number, takes at most one row per employer, never the page's own, and no ad without a number, so two ads about one person never stand in one section, on any page (ADR 0182 D1: the rule is load-bearing for Art. 9 as
   well as for relevance). Ads about different persons in one small kommun can stand side by side; that reveals nothing about any of them beyond what each row already shows on its own page and
   in the catalogue. `security-auditor` grades the kommun × group juxtaposition neither Blocker nor Major, so the CTO's pre-ruled national fallback does not apply: it would put rows from the same
   group on the same number of pages, changing which rows appear and not what they carry. None of the three triggers of the Amendment 2026-10-11 fires: no request or complaint, no measurement
@@ -850,6 +849,8 @@ vägt de intressena mot dina rättigheter" would be untrue for the section (Art.
 
 **D5 gains S6b's safeguards:**
 - the six-member row, pinned by a contract test, a wire test and a boundary test, in an envelope of exactly one member, `items`;
+- the employer is its organization number, and an ad without one takes no part, as a row or as an anchor; the number stays in the handler and is never on
+  the wire or in a log;
 - the route binds `{id:guid}` alone, and the query has one member, `Id`;
 - every anchor that is not listed answers the identical 404 (unknown, never imported, archived, past its deadline, erased), with the predicate in the anchor read;
 - content per request through `IsListed(now)`, never the entity, never a SQL copy of the predicate;
@@ -862,14 +863,15 @@ vägt de intressena mot dina rättigheter" would be untrue for the section (Art.
 
 **D6:** (c) unchanged. (d) updated by W2, W4 and W5 above. (e) is D5.
 
-**D7: no change,** and both texts were measured by `security-auditor` on 2026-10-23: the notice and the policy read as they did at S5 (`content-legal.json:85`, `:579`, `:585`). The categories
+**D7: no change,** and both texts were measured by `security-auditor` on 2026-10-23: the notice and the policy read as they did at S5. The categories
 (title, employer) and the recipients (the public, and search engines) are unchanged. The notice's "Vi har vägt de intressena mot dina rättigheter" becomes true for the section only at Klas's
 approval, so the merge cannot come before it. Signature 3's pinned text does not change.
 
 **D8: a fourth addendum to DPIA #456 §8-B,** and not a new full DPIA (Klas, answer 2). The third addendum's R-842-10 is limited by "A page's rows shift when the listed set changes, at the
 five-minute refresh", which is not true of the section on a stable job page. The fourth addendum is a local file, written in the main copy by the driving session on these terms (her M2):
-1. R-842-10 gains the related section and a limit that is true for it. Her reading: **Low × Med**, unchanged. The stock counts are read again, counts only, with D11.
-2. R-842-9 is unchanged at **Med × Med**: the section gives no join beyond the catalogue's, and the employer rule keeps co-erased ads from dropping together.
+1. R-842-10 gains the related section and a limit that is true for it, and states that the section takes no row without an organization number and that an ad without one gets no
+   section. Her reading: **Low × Med**, unchanged. The stock counts are read again, counts only, with D11.
+2. R-842-9 is unchanged at **Med × Med**: the section gives no join beyond the catalogue's.
 3. R-842-1, R-842-3, R-842-4 and R-842-8 are unchanged, because the section carries no free text.
 4. The Art. 36(1) determination is re-confirmed: **not a high risk, so no prior consultation with IMY is owed.**
 5. The Art. 9 row is untouched.
@@ -902,8 +904,10 @@ The readings recorded with them:
 - **Triggers 13 and 14:** not touched. The Search Console workflow, its script, suite and samples are unchanged.
 
 **D11: the merge-day reading (W3).** D11 is condition (1) of the conclusion being re-taken, and a reading is dated. The section puts listed titles and employers on more pages. S6b takes a fresh
-S2-P3 reading on the day of the merge: the same query blob (`8c02e37`), counts only, on the merge's UTC day, before `agents-done`. The validated count must be 0. It is recorded in two places:
-here, and in the record table of `docs/runbooks/public-job-page-publication-count.md`. A count above 0 fires trigger 2, and S6b stops. If the merge slips past that UTC day, the reading is taken
+S2-P3 reading on the day of the merge: the same query blob (`8c02e37`), counts only, on the merge's UTC day, before `agents-done`. The validated count must be 0. The same reading takes the R-842-10 stock again, totals
+only: listed, with an organization number, personnummer-shaped, without one, and listed with an organization number that is not ten characters, which must be 0, since both the
+personnummer-shaped test and the employer key assume that one form (a count above 0 goes back to `senior-cto-advisor`). It is recorded in two places: here, and in the record table of
+`docs/runbooks/public-job-page-publication-count.md`. A count above 0 fires trigger 2, and S6b stops. If the merge slips past that UTC day, the reading is taken
 again.
 
 **The merge-day reading (counts only).** Pending.

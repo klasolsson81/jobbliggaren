@@ -317,11 +317,11 @@ the reasons of the amendment above. If something outside the API process comes t
 
 **The reading, placed in the rule's home.** The amendment of 2026-10-10 sorted reads into two classes: a recurring read of the whole corpus, identical for every reader, which is
 precomputed, and a read of one record, "one primary-key lookup", which has nothing to precompute. The related ads under a public job page (ADR 0182) are literally neither: a primary-key read
-of the anchor, then one indexed read of the anchor's occupation group, at most `CandidateWindow` (100) rows, ordered and cut in the request. By that amendment's own reasons the read belongs to
+of the anchor, then one indexed read of the anchor's occupation group, ordered and cut in the request. By that amendment's own reasons the read belongs to
 the per-record class:
 - there is no COUNT and no OFFSET over the corpus;
 - the answer differs per anchor, so there is no shared hot key to stampede on;
-- its cost is bounded by one group's rows and not by the corpus (measured in ADR 0182: execution 2.9 ms over a 2 161-listed group, a handler p95 of 9.0 ms against class (a)'s 300 ms);
+- its cost is bounded by one group's rows and not by the corpus (measured in ADR 0182: execution 4.4 ms over a 2 161-listed group, a handler p95 of 12.2 ms against class (a)'s 300 ms);
 - the erasure rule is absolute, so the rows are read per request and never cached (ADR 0160 D6).
 
 **Rule (d) holds.** Nothing is precomputed, there is no cache-aside, and no Worker → Redis transport. A related list held in a precomputed or materialised form would fire ADR 0166 D10

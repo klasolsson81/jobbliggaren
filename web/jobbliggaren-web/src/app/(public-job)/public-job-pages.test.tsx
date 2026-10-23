@@ -21,6 +21,7 @@ import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 
 const ID = "0b0b0b0b-1111-4222-8333-444444444444";
 const SENTINEL_NAME = "Sentinel Namnsson";
+const GROUP = "Grundutbildade sjuksköterskor";
 
 const AD = {
   id: ID,
@@ -32,6 +33,7 @@ const AD = {
   expiresAt: "2026-11-01T08:00:00Z",
   municipalityName: "Stockholm",
   regionName: "Stockholms län",
+  occupationGroupName: GROUP,
   employmentTypeConceptId: "gro4_cWF_6D7",
   worktimeExtentConceptId: "6YE1_gAC_R2G",
 };
@@ -48,6 +50,17 @@ describe("the public job page", () => {
     render(await PublicJobPage(params()));
 
     expect(screen.getByRole("heading", { level: 1, name: "Sjuksköterska" })).toBeInTheDocument();
+  });
+
+  it("shows the occupation group in the facts row, keeps one primary action and puts the explainer links after the article", async () => {
+    getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: AD });
+    const { container } = render(await PublicJobPage(params()));
+
+    expect(container.querySelector('.jp-modal__facts [lang="sv"]')?.textContent).toBe(GROUP);
+    expect(container.querySelectorAll(".jp-btn--primary")).toHaveLength(1);
+    const heading = screen.getByRole("heading", { level: 2, name: "Relaterade sidor" });
+    expect(heading.closest("article")).toBeNull();
+    expect(heading.closest("main")).not.toBeNull();
   });
 
   it("answers a 404 or 410 read (the ad ended after the edge's probe) with notFound(), a real 404", async () => {
@@ -96,6 +109,14 @@ describe("the public job page's metadata", () => {
 
     expect(JSON.stringify(metadata)).not.toContain(SENTINEL_NAME);
     expect(JSON.stringify(metadata)).not.toContain("Vi söker dig");
+  });
+
+  it("never names the occupation group: it is in the facts row only, in no title, description or OpenGraph tag (#2203)", async () => {
+    getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: AD });
+    const metadata = await generateMetadata(params());
+
+    expect(JSON.stringify(metadata)).not.toContain(GROUP);
+    expect(JSON.stringify(metadata)).not.toMatch(/sjuksköterskor/i);
   });
 
   it("leaves out the deadline sentence for an ad without a deadline", async () => {
@@ -185,11 +206,12 @@ describe("the 503 page", () => {
 });
 
 describe("the copy", () => {
-  it("has no exclamation mark and no emoji, in either catalogue", async () => {
+  it("has no exclamation mark, no em dash and no emoji, in either catalogue", async () => {
     const en = (await import("../../../messages/en")).default;
     for (const catalogue of [sv, en]) {
       const text = JSON.stringify(catalogue.publicjob);
       expect(text).not.toContain("!");
+      expect(text).not.toContain("—");
       expect(text).not.toMatch(/\p{Extended_Pictographic}/u);
     }
   });

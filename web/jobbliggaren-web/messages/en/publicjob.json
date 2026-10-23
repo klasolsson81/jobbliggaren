@@ -7,7 +7,11 @@
   "openAdAf": "Open the ad at Arbetsförmedlingen",
   "facts": {
     "location": "Location",
-    "employment": "Employment"
+    "employment": "Employment",
+    "occupation": "Occupational group"
+  },
+  "explainers": {
+    "heading": "Related pages"
   },
   "gone": {
     "title": "The job ad is no longer available",

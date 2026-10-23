@@ -26,15 +26,17 @@ public class GetPublicJobAdQueryHandlerTests
 {
     private static readonly FakeDateTimeProvider Clock = FakeDateTimeProvider.Default;
 
-    /// <summary>What the snapshot knows in these tests. Two different names, so a swapped member fails.</summary>
+    /// <summary>What the snapshot knows in these tests. Three different names, so a swapped member fails.</summary>
     private static readonly Dictionary<string, string> SnapshotNames = new(StringComparer.Ordinal)
     {
         ["mun_sthlm"] = "Stockholm",
         ["reg_ab"] = "Stockholms län",
+        ["grp_dev"] = "Mjukvaru- och systemutvecklare m.fl.",
     };
 
-    private static readonly string[] BothLocationIds = ["mun_sthlm", "reg_ab"];
+    private static readonly string[] AllThreeIds = ["mun_sthlm", "reg_ab", "grp_dev"];
     private static readonly string[] RegionIdOnly = ["reg_ab"];
+    private static readonly string[] GroupIdOnly = ["grp_dev"];
 
     private readonly ITaxonomyReadModel _taxonomy = Substitute.For<ITaxonomyReadModel>();
 
@@ -87,7 +89,7 @@ public class GetPublicJobAdQueryHandlerTests
         _taxonomy.DidNotReceive().ResolveLabelsAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
 
     [Fact]
-    public async Task Handle_ListedAd_ReturnsTheAdWithItsConceptIdsAndTheKommunAndLanNames()
+    public async Task Handle_ListedAd_ReturnsTheAdWithItsConceptIdsAndTheKommunLanAndGroupNames()
     {
         await using var db = TestAppDbContextFactory.Create();
         var publishedAt = Clock.UtcNow.AddDays(-2);
@@ -112,10 +114,42 @@ public class GetPublicJobAdQueryHandlerTests
             RegionConceptId: "reg_ab",
             RegionName: "Stockholms län",
             OccupationGroupConceptId: "grp_dev",
+            OccupationGroupName: "Mjukvaru- och systemutvecklare m.fl.",
             EmploymentTypeConceptId: "et_fast",
             WorktimeExtentConceptId: "wt_full"));
         await _taxonomy.Received(1).ResolveLabelsAsync(
-            Arg.Is<IReadOnlyList<string>>(ids => ids.SequenceEqual(BothLocationIds)),
+            Arg.Is<IReadOnlyList<string>>(ids => ids.SequenceEqual(AllThreeIds)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ListedAdWithAGroupIdTheSnapshotDoesNotKnow_LeavesTheGroupNameNullAndKeepsTheId()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-2), Clock.UtcNow.AddDays(20),
+            TestFacets.From(occupationGroup: "grp_drifted", municipality: "mun_sthlm")));
+
+        var result = await HandleAsync(db, id);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.OccupationGroupConceptId.ShouldBe("grp_drifted");
+        result.Value.OccupationGroupName.ShouldBeNull();
+        result.Value.MunicipalityName.ShouldBe("Stockholm");
+    }
+
+    [Fact]
+    public async Task Handle_ListedAdWithOnlyAGroup_AsksThePortForThatIdAlone()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-2), null, TestFacets.From(occupationGroup: "grp_dev")));
+
+        var result = await HandleAsync(db, id);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.OccupationGroupName.ShouldBe("Mjukvaru- och systemutvecklare m.fl.");
+        result.Value.MunicipalityName.ShouldBeNull();
+        await _taxonomy.Received(1).ResolveLabelsAsync(
+            Arg.Is<IReadOnlyList<string>>(ids => ids.SequenceEqual(GroupIdOnly)),
             Arg.Any<CancellationToken>());
     }
 
@@ -151,7 +185,7 @@ public class GetPublicJobAdQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ListedAdWithoutLocationIds_DoesNotAskThePort()
+    public async Task Handle_ListedAdWithoutAnyTaxonomyId_DoesNotAskThePort()
     {
         await using var db = TestAppDbContextFactory.Create();
         var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-2), Clock.UtcNow.AddDays(20)));

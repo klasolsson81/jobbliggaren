@@ -45,8 +45,8 @@
 | Arch-tests | NetArchTest.Rules | 1.x | V1-val; abandoned sedan 2022 — överväg ArchUnitNET vid v2 |
 | Load-test | NBomber | 6.x | MIT; .NET-native, xUnit/MTP-koherent; k6 avvisat (ADR 0045 Beslut 4) |
 | Load-test HTTP | NBomber.Http | 6.x | HTTP-scenario-helpers för API-latens-mätning |
-| Frontend framework | Next.js | 16.2 (App Router) | SSR + ISR |
-| Frontend bundler | Turbopack | bundlad med Next 16.2 | Next 16-default; `--webpack`-opt-outen (commit `63ea6683`) borttagen i #1046 — den kringgick Vercels edge-routing, och FE byggs inte längre på Vercel (ADR 0050 Beslut 3, amenderad 2026-06-14; §15.3 "ingen Vercel-build") |
+| Frontend framework | Next.js | 16 (App Router; exakt pin: `web/jobbliggaren-web/package.json`) | SSR + ISR |
+| Frontend bundler | Turbopack | bundlad med Next (samma pin) | Next 16-default; `--webpack`-opt-outen (commit `63ea6683`) borttagen i #1046 — den kringgick Vercels edge-routing, och FE byggs inte längre på Vercel (ADR 0050 Beslut 3, amenderad 2026-06-14; §15.3 "ingen Vercel-build") |
 | Språk (frontend) | TypeScript | 6.0 | Strict mode |
 | UI-komponenter | shadcn/ui | senaste (CLI v4) | Tung customisering, se DESIGN.md |
 | OTP-fält | input-otp (via shadcn/ui InputOTP) | 1.x | MIT, inga runtime-beroenden. Ritar sex rutor bakom ETT riktigt `<input>` (`autocomplete="one-time-code"`), så etikett, värde, inklistring och tabbstopp förblir ett element. Injicerar en `<style>` vid körning (kräver `style-src 'unsafe-inline'`). Klas-beslut 2026-09-24 ("Sex rutor, riv ADR-raden"); formen i ADR 0142 Page form, Amendment 2026-09-24 (9) |

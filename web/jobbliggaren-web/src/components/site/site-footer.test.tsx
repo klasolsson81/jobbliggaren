@@ -116,7 +116,7 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
     expect(link).toHaveAttribute("href", "/for-utvecklare");
   });
 
-  it("has no social block or 'Följ oss' (removed — accounts not coming soon, #393)", () => {
+  it("has no social block or 'Följ oss' (#393)", () => {
     render(<SiteFooter />);
     expect(screen.queryByText("Följ oss")).toBeNull();
     for (const name of ["LinkedIn", "Facebook", "YouTube", "Instagram"]) {

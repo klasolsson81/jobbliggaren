@@ -42,7 +42,7 @@ vi.mock("@/lib/auth/challenge-actions", () => ({
 
 import LoggaInPage from "./page";
 import LoggaInKodPage, { generateMetadata as kodMetadata } from "./kod/page";
-import LoggaInLankPage from "./lank/page";
+import LoggaInLankPage, { generateMetadata as lankMetadata } from "./lank/page";
 import LoggaInVillkorPage from "./villkor/page";
 
 const code: Extract<LoginFlow, { phase: "code" }> = {
@@ -340,6 +340,10 @@ describe("/logga-in/villkor", () => {
 describe("/logga-in/lank", () => {
   const page = (searchParams: Record<string, string | string[]>) =>
     LoggaInLankPage({ searchParams: Promise.resolve(searchParams) });
+
+  it("names the site once in its title, outside the root's title template", async () => {
+    expect(await lankMetadata()).toMatchObject({ title: { absolute: "Logga in på Jobbliggaren" } });
+  });
 
   it("offers one press for a token, and never reads the flow cookie", async () => {
     const { container } = render(await page({ token: "link-token", next: "/cv", email: "x@y.z" }));

@@ -40,7 +40,7 @@ export default async function CvGranskningPage() {
   const promiseItems = t.raw("promise.items") as string[];
 
   return (
-    <InformationPageFrame title={t("title")} lede={t("updated")} headingId="cv-granskning-heading" sections={[{ id: "deterministic", label: t("deterministic.heading") }, { id: "verdicts", label: t("verdicts.heading") }, { id: "no-score", label: t("noScore.heading") }, { id: "assessable", label: t("assessable.heading") }, { id: "personnummer", label: t("personnummer.heading") }, { id: "improvements", label: t("improvements.heading") }, { id: "promise", label: t("promise.heading") }, { id: "links", label: t("links.heading") }]}>
+    <InformationPageFrame title={t("title")} lede={t("updated")} headingId="cv-granskning-heading" sections={[{ id: "deterministic", label: t("deterministic.heading") }, { id: "verdicts", label: t("verdicts.heading") }, { id: "no-score", label: t("noScore.heading") }, { id: "assessable", label: t("assessable.heading") }, { id: "personnummer", label: t("personnummer.heading") }, { id: "improvements", label: t("improvements.heading") }, { id: "promise", label: t("promise.heading") }, { id: "cta", label: t("cta.heading") }]}>
 
       <>
         <p className="text-body text-text-primary">{t("intro")}</p>
@@ -230,24 +230,17 @@ export default async function CvGranskningPage() {
           ))}
         </ul>
 
-        {/* 8. Links */}
+        {/* 8. CTA, in /matchning's form (#2178) */}
         <div className="mt-12 rounded-md border border-border-default bg-surface-secondary p-5">
-          <h2 id="links" tabIndex={-1} className="text-body-lg font-semibold text-text-primary">
-          {t("links.heading")}
+          <h2 id="cta" tabIndex={-1} className="text-body-lg font-semibold text-text-primary">
+          {t("cta.heading")}
           </h2>
-          <p className="mt-2 text-body text-text-primary">{t("links.text")}</p>
-          <ul className="mt-3 flex flex-col gap-2 text-body">
-            <li>
-              <Link href="/cv" className="underline">
-                {t("links.cvLink")}
-              </Link>
-            </li>
-            <li>
-              <Link href="/tips" className="underline">
-                {t("links.tipsLink")}
-              </Link>
-            </li>
-          </ul>
+          <p className="mt-2 text-body text-text-primary">{t("cta.text")}</p>
+          <p className="mt-4">
+            <Link href="/logga-in" className="jp-btn jp-btn--primary">
+              {t("cta.button")}
+            </Link>
+          </p>
         </div>
       </>
     </InformationPageFrame>

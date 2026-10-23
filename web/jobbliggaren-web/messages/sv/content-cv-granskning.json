@@ -129,10 +129,9 @@
       "Reglerna är versionerade och spårbara."
     ]
   },
-  "links": {
+  "cta": {
     "heading": "Kom igång",
-    "text": "Ladda upp ditt CV för att se din granskning, eller läs våra tips för jobbsökande.",
-    "cvLink": "Till CV",
-    "tipsLink": "Tips för jobbsökande"
+    "text": "Skapa ett konto och ladda upp ditt CV för att se din granskning.",
+    "button": "Skapa konto"
   }
 }

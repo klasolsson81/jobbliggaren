@@ -7,7 +7,8 @@ import { absoluteUrl } from "@/lib/site-url";
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("content-legal");
   return {
-    title: t("about.meta.title"),
+    // The title already names the site, so it skips the root's "%s | Jobbliggaren" template.
+    title: { absolute: t("about.meta.title") },
     description: t("about.meta.description"),
     alternates: { canonical: absoluteUrl("/om") },
   };

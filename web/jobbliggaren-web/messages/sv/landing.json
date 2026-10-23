@@ -6,6 +6,7 @@
   "common": {
     "loginLink": "Logga in",
     "catalogueLink": "Lediga jobb",
+    "cvReviewLink": "Så granskar vi ditt CV",
     "headerNavAriaLabel": "Webbplatsnavigation",
     "skipToContent": "Hoppa till huvudinnehåll"
   },
@@ -84,7 +85,6 @@
     "support": {
       "help": "Hjälpcenter",
       "howMatching": "Så fungerar matchningen",
-      "cvReview": "Så granskar vi ditt CV",
       "faq": "Vanliga frågor",
       "tips": "Tips för jobbsökande"
     },

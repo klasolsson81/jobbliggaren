@@ -118,7 +118,8 @@ function resolveTitle(source: string, file = ""): string {
     return `<record title: ${file}>`;
   }
 
-  const [, key] = /title:\s*t\("([^"]+)"\)/.exec(block) ?? [];
+  // `{ absolute: t(...) }` (`/om`, #2178) is the same string with the root's template skipped.
+  const [, key] = /title:\s*(?:\{\s*absolute:\s*)?t\("([^"]+)"\)/.exec(block) ?? [];
   if (key !== undefined) {
     const [, namespace] = /getTranslations\("([^"]+)"\)/.exec(block) ?? [];
     if (namespace === undefined) throw new Error(`title key ${key} has no namespace`);

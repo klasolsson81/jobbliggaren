@@ -56,7 +56,7 @@ public sealed class GetPublicJobAdCatalogueQueryHandler(
             })
             .ToListAsync(cancellationToken);
 
-        var names = await PublicPlaceNames.ResolveAsync(
+        var names = await PublicTaxonomyNames.ResolveAsync(
             taxonomy, rows.SelectMany(r => new[] { r.MunicipalityConceptId, r.RegionConceptId }), cancellationToken);
 
         // The snapshot's order, not the read's. A row the read did not return has ended or been erased since the
@@ -69,8 +69,8 @@ public sealed class GetPublicJobAdCatalogueQueryHandler(
                 r.Id,
                 r.Title,
                 r.CompanyName,
-                PublicPlaceNames.NameOf(names, r.MunicipalityConceptId),
-                PublicPlaceNames.NameOf(names, r.RegionConceptId),
+                PublicTaxonomyNames.NameOf(names, r.MunicipalityConceptId),
+                PublicTaxonomyNames.NameOf(names, r.RegionConceptId),
                 r.PublishedAt))
             .ToList();
 

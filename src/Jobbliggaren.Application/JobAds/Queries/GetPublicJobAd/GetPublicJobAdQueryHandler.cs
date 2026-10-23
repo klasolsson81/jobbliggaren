@@ -79,7 +79,7 @@ public sealed class GetPublicJobAdQueryHandler(IAppDbContext db, ITaxonomyReadMo
 
         // Only a Listed ad reaches the taxonomy port (ADR 0171): the names are for the page and its
         // JobPosting, and a 410 carries no body. The names come from the second row's ids.
-        var names = await PublicPlaceNames.ResolveAsync(
+        var names = await PublicTaxonomyNames.ResolveAsync(
             taxonomy, [row.MunicipalityConceptId, row.RegionConceptId], cancellationToken);
 
         return Result.Success(new PublicJobAdDto(
@@ -91,9 +91,9 @@ public sealed class GetPublicJobAdQueryHandler(IAppDbContext db, ITaxonomyReadMo
             PublishedAt: row.PublishedAt,
             ExpiresAt: row.ExpiresAt,
             MunicipalityConceptId: row.MunicipalityConceptId,
-            MunicipalityName: PublicPlaceNames.NameOf(names, row.MunicipalityConceptId),
+            MunicipalityName: PublicTaxonomyNames.NameOf(names, row.MunicipalityConceptId),
             RegionConceptId: row.RegionConceptId,
-            RegionName: PublicPlaceNames.NameOf(names, row.RegionConceptId),
+            RegionName: PublicTaxonomyNames.NameOf(names, row.RegionConceptId),
             OccupationGroupConceptId: row.OccupationGroupConceptId,
             EmploymentTypeConceptId: row.EmploymentTypeConceptId,
             WorktimeExtentConceptId: row.WorktimeExtentConceptId));

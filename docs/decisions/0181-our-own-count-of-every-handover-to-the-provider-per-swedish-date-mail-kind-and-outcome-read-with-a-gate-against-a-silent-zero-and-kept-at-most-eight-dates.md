@@ -26,7 +26,7 @@ reads neither a subject nor a mail kind. So the kind has to be counted where it 
 fourth item of #1981's plan of record: own daily aggregates, with a migration.
 
 Measured at pickup (2026-10-23):
-- `IEmailSender` has seven send methods. Ten call sites in the Api and the Worker use them.
+- `IEmailSender` has seven send methods. Eleven sends at ten call sites in the Api and the Worker use them.
 - Three arms exist, each a singleton from `AddEmailSender`. Only the Scaleway arm hands anything to a provider, and it does so
   through one funnel, `ScalewayEmailSender.SendAsync`. Null "succeeds" by dropping the mail.
 - Templates render before the funnel.
@@ -98,11 +98,11 @@ The migration is `AddEmailSendDailyCounts` (AppDbContext), exactly the DDL of Kl
 
 **The recording start.** No code writes the start row after the migration; an IL pin holds that. The api and the worker wait for
 `migrate` to complete (`service_completed_successfully`), so no new-code send precedes the start, and older code never touches
-the tables. Its gap of a few seconds is named.
+the tables.
 
 **Rollback residual.** A rollback across this migration runs older code under `MIGRATE_ALLOW_SCHEMA_AHEAD`, and that code
 counts nothing. After the roll-forward, the dates in between would read as zeros under a start that predates them. Klas then
-re-takes the start with a box write under his GO (lapse trigger 7).
+empties the counts and re-takes the start in one box write under his GO (lapse trigger 7).
 
 ### D4 — The count never changes the send
 
@@ -268,8 +268,8 @@ Home: this ADR. Reader: Klas. Each trigger that names a reviewer goes back to th
 4. A row per send, or any column holding a time of day: security-auditor.
 5. Any use of the provider's figure beyond the ≥ 1 witness of D6: senior-cto-advisor.
 6. Warning 3009 recurring: move the write behind a bounded channel (ADR 0172 trigger 2, ADR 0142 D2).
-7. A rollback across `AddEmailSendDailyCounts` under `MIGRATE_ALLOW_SCHEMA_AHEAD`: Klas re-takes the start with a box write under
-   his GO.
+7. A rollback across `AddEmailSendDailyCounts` under `MIGRATE_ALLOW_SCHEMA_AHEAD`: Klas empties the counts and re-takes the start
+   in one box write under his GO.
 
 ## Implementation
 

@@ -42,7 +42,7 @@ Scaleway took it) is in neither; our own count below shows it as a failure.
 - **The unit is the attempt.** A feedback notice the provider refused is retried, so it can count as several failures and then one handover.
 - **The dates.** The table covers every whole Swedish date the rolling period touches, from the first date the note names through today, so it may span more than the period. It is counted by Jobbliggaren in the Scaleway send path and is never Scaleway's statistics.
 - **Partial.** Counting began when the migration ran (`email_send_counting.started_at`). A period reaching further back is shown from that instant, which the note names; the figures are exact for that span.
-- **The gate.** When our count is zero for the whole period while Scaleway's own read of the period shows a sent mail, the table says so and shows no figure ("Jobbliggarens räkning visar inga utskick under perioden, fast Scaleway har skickat."). Our count has stopped writing: look for Warning 3009 (`[EmailSendTally] … was not confirmed as counted`) in the api and worker logs, by event id and count only. The gate does nothing without the read key, and catches a total loss, not a partial one.
+- **The gate.** When our count is zero for the whole period while Scaleway's own read of the period shows a sent mail, the table says so and shows no figure ("Jobbliggarens räkning visar inga utskick under perioden, fast Scaleway har skickat."). Look for Warning 3009 (`[EmailSendTally] … was not confirmed as counted`) in the api and worker logs, by event id and count only. The gate does nothing without the read key, and catches a total loss, not a partial one.
 - **Not counted:** a template fault before the send, a send cancelled at shutdown, and every mail held back before the sender (no recipient, a closed gate, a spent budget). "No recipient" is not observable from the send path (ADR 0181 D9).
 - **Kept** no longer than eight Swedish dates plus the time to the next successful scheduled run: `email-send-count-retention` runs daily at 04:40 UTC and deletes every count dated before the first date the seven-day period reads. A failed run leaves the rows for the next one.
 - **Never a send log** in the sense of CLAUDE.md §9.6 (3)(ii), and never a measurement of "no reached bearer" or of ADR 0133's bound: a count is not a set of recipients.
@@ -76,9 +76,9 @@ Never printed: a row, any grouping by kind, outcome or day, a total of failures,
 table per kind is read on the page, by Klas.
 
 **After a rollback across `AddEmailSendDailyCounts`** (run under `MIGRATE_ALLOW_SCHEMA_AHEAD`): older code counts nothing, so
-after the roll-forward the dates in between would read as zeros under a start that predates them. Klas re-takes the start
-with a box write under his GO (ADR 0154): `UPDATE email_send_counting SET started_at = now()` once the counting release runs
-again (ADR 0181 lapse trigger 7).
+after the roll-forward the dates in between would read as zeros under a start that predates them. Klas empties the counts and
+re-takes the start in one box write under his GO (ADR 0154), once the counting release runs again (ADR 0181 lapse trigger 7):
+`BEGIN; DELETE FROM email_send_daily_counts; UPDATE email_send_counting SET started_at = now(); COMMIT;`
 
 **Counted for the project, free tier per organisation.** The free tier is "300 per organization". The count is the project's.
 They are the same while the organisation has one project sending through Transactional Email (measured 2026-10-19, ADR 0178).
@@ -180,7 +180,7 @@ the set is given back to it.
 | "Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen…" | NotObservable | Either nothing was sent for 32 days, or the read key cannot see mails. Check the read key's sets; send a sign-in code to yourself and read the page again after a few minutes. |
 | "Läsnyckeln är inte installerad…" | ReadKeyMissing | Place the read key (above). |
 | "Räknas inte i den här miljön." | NotConfigured | Expected in dev, CI and the harness: `Email:Provider` is not Scaleway. |
-| "Jobbliggarens räkning visar inga utskick under perioden, fast Scaleway har skickat…" | NotObservable (per mail kind) | Our count stopped writing. Count event 3009 in the api and worker logs (above); a database or permission fault on the table is the usual cause. |
+| "Jobbliggarens räkning visar inga utskick under perioden, fast Scaleway har skickat…" | NotObservable (per mail kind) | Count event 3009 in the api and worker logs (above). |
 
 The plan's own lines follow the same reasons, and say the cost is not computed.
 

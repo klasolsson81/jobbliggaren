@@ -7,10 +7,9 @@ namespace Jobbliggaren.Application.Admin.Email;
 /// <para>
 /// <b>The gate against a silent zero.</b> A count that fails to write is contained and logged, so a zero cannot by
 /// itself be told from a period without mail. When our total for the period is zero and the provider's own count for the
-/// same period shows at least one sent mail, the zero cannot be true and nothing is shown. The provider's figure is only
-/// a witness here: it is never shown, subtracted or summed (ADR 0178 D1). The gate is sound because our dates cover the
-/// provider's whole window, and it does nothing unless the provider's read is observed; it catches a total loss, not a
-/// partial one.
+/// same period shows at least one sent mail, nothing is shown. The provider's figure is only a witness here: it is never
+/// shown, subtracted or summed (ADR 0178 D1). The gate does nothing unless the provider's read is observed; it catches a
+/// total loss, not a partial one.
 /// </para>
 /// </summary>
 public static class EmailSendCountsEvaluator

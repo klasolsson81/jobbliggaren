@@ -13,8 +13,8 @@ public enum EmailSendCountsStatus
     NotObserved,
 
     /// <summary>
-    /// Our count is zero for the whole period while the provider's own count for it is at least one: the zero cannot be
-    /// true, so no figure is shown. Produced by <see cref="EmailSendCountsEvaluator"/> alone.
+    /// Our count is zero for the whole period while the provider's own count for it is at least one: no figure is shown.
+    /// Produced by <see cref="EmailSendCountsEvaluator"/> alone.
     /// </summary>
     NotObservable,
 }

@@ -60,6 +60,15 @@
       "keyRefused": "Scaleway nekar läsnyckeln",
       "refused": "Scaleway nekar läsningen",
       "malformed": "Oläsbart svar från Scaleway"
+    },
+    "kindsLabel": "Visa utskick per mejltyp",
+    "kindsScenarios": {
+      "observed": "Fel finns",
+      "noneFailed": "Inga fel",
+      "nothingSent": "Inga utskick",
+      "partial": "Räkningen började inom perioden",
+      "notConfigured": "Räknas inte i miljön",
+      "notObservable": "Räkningen visar inga utskick"
     }
   }
 }

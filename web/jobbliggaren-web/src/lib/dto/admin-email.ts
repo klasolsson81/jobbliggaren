@@ -206,3 +206,88 @@ export const emailFailuresSchema = z
     });
   });
 export type EmailFailuresDto = z.infer<typeof emailFailuresSchema>;
+
+// ── Utskick per mejltyp (#1981 PR 3) ────────────────────────────────────────────────────────
+
+/** The seven mail kinds, in the order the API sends them and the page lists them. */
+export const EMAIL_KINDS = [
+  "login-challenge",
+  "account-email-change-requested-notification",
+  "email-changed-notification",
+  "match-notification",
+  "followed-company-notification",
+  "feedback-received-notification",
+  "feedback-reply",
+] as const;
+export const emailKindSchema = z.enum(EMAIL_KINDS);
+export type EmailKind = z.infer<typeof emailKindSchema>;
+
+/** What a failed handover to the provider came to, in the order a day's classes are listed: a display order only. */
+export const EMAIL_SEND_FAILURES = ["Refused", "RateLimited", "Unreachable", "ProviderError", "Timeout", "Other"] as const;
+export const emailSendFailureSchema = z.enum(EMAIL_SEND_FAILURES);
+export type EmailSendFailure = z.infer<typeof emailSendFailureSchema>;
+
+const day = z.iso.date();
+
+const kindCountSchema = z.strictObject({
+  kind: emailKindSchema,
+  accepted: count,
+  failed: count,
+  latestFailure: z.strictObject({ day, outcomes: z.array(emailSendFailureSchema).min(1) }).nullable(),
+});
+export type EmailKindCount = z.infer<typeof kindCountSchema>;
+
+/**
+ * `GET /api/v1/admin/email/kinds?period=`, exactly as the API sends it: our own count of handovers to the provider per
+ * mail kind in the period. `from` is the period's first day; `coverage` says whether our count covers the whole period
+ * or began inside it, and `coveredFrom` is when it began. `NotObserved` is a deployment without Scaleway, and
+ * `NotObservable` a count with no sends in a period the provider sent mail in, so a zero could not be told from a
+ * count that stopped (ADR 0150 D2). The counts exist exactly when the read was observed.
+ */
+export const emailKindsSchema = z
+  .discriminatedUnion("status", [
+    z.strictObject({
+      period: emailDeliveryPeriodSchema,
+      status: z.literal("Observed"),
+      from: day,
+      coverage: z.enum(["Complete", "Partial"]),
+      coveredFrom: instant.nullable(),
+      kinds: z.array(kindCountSchema),
+    }),
+    z.strictObject({
+      period: emailDeliveryPeriodSchema,
+      status: z.literal("NotObserved"),
+      from: z.null(),
+      coverage: z.null(),
+      coveredFrom: z.null(),
+      kinds: z.null(),
+    }),
+    z.strictObject({
+      period: emailDeliveryPeriodSchema,
+      status: z.literal("NotObservable"),
+      from: day,
+      coverage: z.null(),
+      coveredFrom: z.null(),
+      kinds: z.null(),
+    }),
+  ])
+  .superRefine((read, ctx) => {
+    if (read.status !== "Observed") return;
+    if ((read.coveredFrom !== null) !== (read.coverage === "Partial")) {
+      ctx.addIssue({ code: "custom", path: ["coveredFrom"], message: "A start exists exactly when the count began inside the period." });
+    }
+    // Every kind once, in the API's order: a missing kind would read as one that sent nothing.
+    if (read.kinds.length !== EMAIL_KINDS.length || read.kinds.some((row, index) => row.kind !== EMAIL_KINDS[index])) {
+      ctx.addIssue({ code: "custom", path: ["kinds"], message: "Not the seven kinds in their order." });
+    }
+    read.kinds.forEach((row, index) => {
+      if ((row.failed === 0) !== (row.latestFailure === null)) {
+        ctx.addIssue({ code: "custom", path: ["kinds", index, "latestFailure"], message: "A latest failure exists exactly when one failed." });
+      }
+      const order = row.latestFailure?.outcomes.map((outcome) => EMAIL_SEND_FAILURES.indexOf(outcome)) ?? [];
+      if (order.some((position, at) => at > 0 && position <= (order[at - 1] ?? -1))) {
+        ctx.addIssue({ code: "custom", path: ["kinds", index, "latestFailure", "outcomes"], message: "The classes are not distinct and in order." });
+      }
+    });
+  });
+export type EmailKindsDto = z.infer<typeof emailKindsSchema>;

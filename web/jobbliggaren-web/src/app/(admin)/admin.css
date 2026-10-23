@@ -1205,6 +1205,22 @@
 }
 .jp-table .jp-admintable__run { font-variant-numeric: tabular-nums; }
 .jp-admintable .jp-pill { white-space: nowrap; }
+/* A row's header names the row (#1981 PR 3): body text like the cells beside it, not the head's mono caps, which
+   `.jp-table thead th` keeps to the head. Where the table scrolls in its region the name stays in view, on the
+   surface so the figures never show through it, and it takes the row's hover like the cells. */
+.jp-table.jp-admintable tbody th[scope="row"] {
+  position: sticky;
+  inset-inline-start: 0;
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--jp-border);
+  background: var(--jp-surface);
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-regular);
+  text-align: start;
+  vertical-align: middle;
+}
+.jp-table.jp-admintable tbody tr:hover th[scope="row"] { background: var(--jp-surface-tertiary); }
+.jp-table.jp-admintable tbody tr:last-child th[scope="row"] { border-bottom: 2px solid var(--jp-border-strong); }
 
 /* ── Responsive ──────────────────────────────────────────────────────────────────────── */
 @media (max-width: 1099px) {

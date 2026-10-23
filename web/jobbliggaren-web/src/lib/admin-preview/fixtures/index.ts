@@ -10,6 +10,7 @@ import type {
   AdminEmailAllowance,
   AdminEmailDelivery,
   AdminEmailFailures,
+  AdminEmailKinds,
   AdminEmailPeriod,
   AdminErrorLogRow,
   AdminFeedbackAvailability,
@@ -29,7 +30,15 @@ import type {
 } from "@/lib/admin/view-models";
 import type { AdminPendingEmailChange } from "@/lib/admin/account-email-change";
 import type { AuditLogEntryDto, FailedJobsResponse, RecurringJobStatusDto } from "@/lib/dto/admin";
-import { EMAIL_FAILURES_LIMIT, type EmailAllowanceFailure, type EmailFailureReason } from "@/lib/dto/admin-email";
+import {
+  EMAIL_FAILURES_LIMIT,
+  EMAIL_KINDS,
+  type EmailAllowanceFailure,
+  type EmailFailureReason,
+  type EmailKind,
+  type EmailKindCount,
+  type EmailSendFailure,
+} from "@/lib/dto/admin-email";
 /**
  * The admin preview's fictional data (ADR 0150 D5). Addresses are on a reserved `.invalid`
  * domain, IP addresses are from the documentation ranges, and every date is counted from one
@@ -757,4 +766,78 @@ export const PREVIEW_EMAIL_DELIVERY: Readonly<Record<PreviewDeliveryScenario, Re
     keyRefused: byPeriod("keyRefused"),
     refused: byPeriod("refused"),
     malformed: byPeriod("malformed"),
+  });
+
+// ── Utskick per mejltyp (#1981 PR 3) ─────────────────────────────────────────────────────────
+
+/** Every state the per-kind table has from an answer (ADR 0150 D5); failed and loading come from the band. */
+export type PreviewKindsScenario = "observed" | "noneFailed" | "nothingSent" | "partial" | "notConfigured" | "notObservable";
+
+/** The period's first Swedish date at the fixed clock: the day the period's start falls on (#1981 PR 3). */
+const KINDS_FROM: Readonly<Record<AdminEmailPeriod, string>> = { h24: "2026-10-03", d3: "2026-10-01", d7: "2026-09-27" };
+
+/** When the preview's count began, inside every period: the fixed clock's previous day, 15:12 in Stockholm. */
+const KINDS_COVERED_FROM = daysAgo(1, 13, 12);
+
+/**
+ * Each kind's handovers in the last 24 hours, scaled for the longer periods, and the latest failure: one day with two
+ * classes, every one of the six classes somewhere, and kinds with no failure at all.
+ */
+const KIND_COUNTS: Readonly<Record<EmailKind, {
+  readonly accepted: number;
+  readonly failed: number;
+  readonly latest: { readonly day: string; readonly outcomes: ReadonlyArray<EmailSendFailure> } | null;
+}>> = {
+  "login-challenge": { accepted: 41, failed: 2, latest: { day: "2026-10-04", outcomes: ["Refused", "Timeout"] } },
+  "account-email-change-requested-notification": { accepted: 3, failed: 0, latest: null },
+  "email-changed-notification": { accepted: 2, failed: 1, latest: { day: "2026-10-03", outcomes: ["RateLimited"] } },
+  "match-notification": { accepted: 118, failed: 3, latest: { day: "2026-10-04", outcomes: ["Unreachable", "ProviderError"] } },
+  "followed-company-notification": { accepted: 26, failed: 0, latest: null },
+  "feedback-received-notification": { accepted: 4, failed: 1, latest: { day: "2026-10-03", outcomes: ["Other"] } },
+  "feedback-reply": { accepted: 1, failed: 0, latest: null },
+};
+
+const PERIOD_SCALE: Readonly<Record<AdminEmailPeriod, number>> = { h24: 1, d3: 3, d7: 7 };
+
+function kindRows(period: AdminEmailPeriod, failures: "some" | "none" | "nothingSent"): EmailKindCount[] {
+  return EMAIL_KINDS.map((kind) => {
+    const { accepted, failed, latest } = KIND_COUNTS[kind];
+    if (failures === "nothingSent") return marked({ kind, accepted: 0, failed: 0, latestFailure: null });
+    const scaled = accepted * PERIOD_SCALE[period];
+    if (failures === "none" || latest === null) return marked({ kind, accepted: scaled, failed: 0, latestFailure: null });
+    return marked({ kind, accepted: scaled, failed, latestFailure: marked({ day: latest.day, outcomes: [...latest.outcomes] }) });
+  });
+}
+
+function kindsAnswer(name: PreviewKindsScenario, period: AdminEmailPeriod): AdminEmailKinds {
+  const from = KINDS_FROM[period];
+  switch (name) {
+    case "observed":
+      return marked({ period, status: "Observed" as const, from, coverage: "Complete" as const, coveredFrom: null, kinds: kindRows(period, "some") });
+    case "noneFailed":
+      return marked({ period, status: "Observed" as const, from, coverage: "Complete" as const, coveredFrom: null, kinds: kindRows(period, "none") });
+    case "nothingSent":
+      return marked({ period, status: "Observed" as const, from, coverage: "Complete" as const, coveredFrom: null, kinds: kindRows(period, "nothingSent") });
+    case "partial":
+      return marked({ period, status: "Observed" as const, from, coverage: "Partial" as const, coveredFrom: KINDS_COVERED_FROM, kinds: kindRows(period, "some") });
+    case "notConfigured":
+      return marked({ period, status: "NotObserved" as const, from: null, coverage: null, coveredFrom: null, kinds: null });
+    case "notObservable":
+      return marked({ period, status: "NotObservable" as const, from, coverage: null, coveredFrom: null, kinds: null });
+  }
+}
+
+function kindsByPeriod(name: PreviewKindsScenario): Readonly<Record<AdminEmailPeriod, AdminEmailKinds>> {
+  return marked({ h24: kindsAnswer(name, "h24"), d3: kindsAnswer(name, "d3"), d7: kindsAnswer(name, "d7") });
+}
+
+/** Each per-kind scenario's answer for each of the three periods; the preview reads them by the period in its URL. */
+export const PREVIEW_EMAIL_KINDS: Readonly<Record<PreviewKindsScenario, Readonly<Record<AdminEmailPeriod, AdminEmailKinds>>>> =
+  marked({
+    observed: kindsByPeriod("observed"),
+    noneFailed: kindsByPeriod("noneFailed"),
+    nothingSent: kindsByPeriod("nothingSent"),
+    partial: kindsByPeriod("partial"),
+    notConfigured: kindsByPeriod("notConfigured"),
+    notObservable: kindsByPeriod("notObservable"),
   });

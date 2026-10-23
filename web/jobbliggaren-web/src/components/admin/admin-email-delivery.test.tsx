@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import type { EmailDeliveryDto, EmailFailureReason, EmailFailuresDto } from "@/lib/dto/admin-email";
+import {
+  EMAIL_KINDS,
+  type EmailDeliveryDto,
+  type EmailFailureReason,
+  type EmailFailuresDto,
+  type EmailKindsDto,
+} from "@/lib/dto/admin-email";
 import type { AdminEmailPeriod, AdminEmailRead } from "@/lib/admin/view-models";
 import { AdminEmailDelivery } from "./admin-email-delivery";
 
@@ -21,6 +27,12 @@ const listed = (failures: Extract<EmailFailuresDto, { status: "Observed" }>["fai
   ({ period, status: "Observed", reason: null, observedAt: ASKED_AT, failures, limit: 10 });
 const row = (createdAt: string, recipient: string, reason: EmailFailureReason) => ({ createdAt, recipient, reason });
 
+/** Our own count per kind (#1981 PR 3), observed: every kind handed over, none failed. */
+const counted: EmailKindsDto = {
+  period: "h24", status: "Observed", from: "2026-10-18", coverage: "Complete", coveredFrom: null,
+  kinds: EMAIL_KINDS.map((kind) => ({ kind, accepted: 4, failed: 0, latestFailure: null })),
+};
+
 type Unanswered = Exclude<EmailDeliveryDto["status"], "Observed" | "NotObserved" | "Failed">;
 const unansweredSummary = (status: Unanswered): EmailDeliveryDto =>
   ({ period: "h24", status, reason: null, observedAt: null, sent: null, failed: null });
@@ -30,13 +42,15 @@ const unansweredList = (status: Unanswered): EmailFailuresDto =>
 function show({
   summary = { kind: "loaded", data: observed(57, 2) },
   failures = { kind: "loaded", data: listed([row("2026-10-19T14:32:51+00:00", "k•••@example.com", "MailboxNotFound")]) },
+  kinds = { kind: "loaded", data: counted },
   period = "h24",
 }: {
   readonly summary?: AdminEmailRead<EmailDeliveryDto>;
   readonly failures?: AdminEmailRead<EmailFailuresDto>;
+  readonly kinds?: AdminEmailRead<EmailKindsDto>;
   readonly period?: AdminEmailPeriod | null;
 } = {}) {
-  render(<AdminEmailDelivery pagePath="/admin/e-post" period={period} summary={summary} failures={failures} />);
+  render(<AdminEmailDelivery pagePath="/admin/e-post" period={period} summary={summary} failures={failures} kinds={kinds} />);
   return screen.getByRole("region", { name: "Leverans" });
 }
 
@@ -79,13 +93,17 @@ describe("Leverans's structure (#1981 PR 2)", () => {
     expect(failuresTable()).toHaveAccessibleName("Misslyckade utskick");
   });
 
-  it("keeps the per-type table at Kommer snart whatever the reads answer, since it is not built", () => {
-    show();
+  it("ends with our own count per mail kind, a sub-section of its own after the failures, and says Kommer snart nowhere", () => {
+    const section = show();
 
-    const table = screen.getByRole("table", { name: "Utskick per mejltyp" });
-    expect(within(table).getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["Mejltyp", "Skickade", "Fel", "Senaste fel"]);
-    const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.map((tableRow) => tableRow.textContent)).toEqual(["Kommer snart"]);
+    const subsections = [...section.querySelectorAll(":scope > section")];
+    expect(subsections.map((sub) => sub.querySelector("h3")?.textContent)).toEqual([
+      "Senaste misslyckade utskick",
+      "Utskick per mejltyp",
+    ]);
+    expect(section.lastElementChild).toBe(subsections[1]);
+    expect(within(subsections[1] as HTMLElement).getAllByRole("rowheader")).toHaveLength(7);
+    expect(section.textContent).not.toContain("Kommer snart");
   });
 });
 
@@ -278,14 +296,17 @@ describe("Leverans's states (ADR 0150 D2): unknown is never zero and never empty
     expect(screen.getByRole("alert").textContent).toBe("Leverans: Din session saknar Admin-rollen.");
   });
 
-  it("shows loading in the summary and the list, announced once as a status, and the per-type table still Kommer snart", () => {
-    const section = show({ period: null, summary: { kind: "loading" }, failures: { kind: "loading" } });
+  it("shows loading in the summary, the list and the per-kind table, announced once as a status", () => {
+    const section = show({ period: null, summary: { kind: "loading" }, failures: { kind: "loading" }, kinds: { kind: "loading" } });
 
     expect(values(section)).toEqual([UNKNOWN, UNKNOWN]);
-    expect(within(section).getAllByText("Hämtar uppgifter…")).toHaveLength(2);
+    expect(within(section).getAllByText("Hämtar uppgifter…")).toHaveLength(3);
+    const kinds = screen.getByRole("region", { name: "Utskick per mejltyp" });
+    expect(within(kinds).getByRole("heading", { level: 3, name: "Utskick per mejltyp" })).toBeInTheDocument();
+    expect(within(kinds).getAllByText("Hämtar uppgifter…")).toHaveLength(1);
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.getByRole("status").textContent).toBe("Leverans: Hämtar uppgifter…");
-    expect(within(screen.getByRole("table", { name: "Utskick per mejltyp" })).getByText("Kommer snart")).toBeInTheDocument();
+    expect(screen.getAllByRole("status").map((status) => status.textContent)).toEqual(["Leverans: Hämtar uppgifter…"]);
+    expect(section.textContent).not.toContain("Kommer snart");
   });
 });
 
@@ -319,5 +340,62 @@ describe("Leverans's failures list beside the summary's line (#1981 PR 2, design
 
     expect(section.querySelector("dl + p.jp-adminsoon")).toHaveTextContent(summaryText);
     expect(failureRows().map((tableRow) => tableRow.textContent)).toEqual([listText]);
+  });
+});
+
+describe("Leverans's announcement with our own count per mail kind (#1981 PR 3)", () => {
+  const OUR_READ = "Uppgifterna kunde inte hämtas. Försök igen om en stund.";
+  const REFUSED = "Din session saknar Admin-rollen.";
+  const KINDS_NOT_OBSERVABLE =
+    "Jobbliggarens räkning visar inga utskick under perioden, fast Scaleway har skickat. Se runbooken för admin-e-post.";
+  const announcements = () => [...screen.queryAllByRole("alert"), ...screen.queryAllByRole("status")].map((line) => line.textContent);
+
+  it("names the per-kind read as its own source where only it failed", () => {
+    show({ kinds: { kind: "failed" } });
+
+    expect(announcements()).toEqual([`Utskick per mejltyp: ${OUR_READ}`]);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("names Leverans alone where only the provider's reads failed", () => {
+    show({ summary: { kind: "failed" }, failures: { kind: "failed" } });
+
+    expect(announcements()).toEqual([`Leverans: ${OUR_READ}`]);
+  });
+
+  it("names each source in one line where both failed, each on its own", () => {
+    show({ summary: { kind: "failed" }, failures: { kind: "failed" }, kinds: { kind: "failed" } });
+
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(announcements()).toEqual([`Leverans: ${OUR_READ} Utskick per mejltyp: ${OUR_READ}`]);
+  });
+
+  it("reads a refused session once, since it is every region's cause", () => {
+    const refused = { kind: "failed", line: REFUSED } as const;
+    const section = show({ summary: refused, failures: refused, kinds: refused });
+
+    expect(announcements()).toEqual([`Leverans: ${REFUSED}`]);
+    // Each region still says it where it is seen: the summary, and our own count under its own heading.
+    expect(within(screen.getByRole("region", { name: "Utskick per mejltyp" })).getByText(REFUSED)).toBeInTheDocument();
+    expect(within(section).getAllByText(REFUSED)).toHaveLength(2);
+  });
+
+  it("announces a count that cannot be told from a stopped one as an alert, under its own source", () => {
+    show({
+      kinds: { kind: "loaded", data: { period: "h24", status: "NotObservable", from: "2026-10-22", coverage: null, coveredFrom: null, kinds: null } },
+    });
+
+    expect(screen.getByRole("alert").textContent).toBe(`Utskick per mejltyp: ${KINDS_NOT_OBSERVABLE}`);
+  });
+
+  it("announces nothing for a deployment without Scaleway, which every region says on screen", () => {
+    show({
+      summary: { kind: "loaded", data: { period: "h24", status: "NotObserved", reason: "NotConfigured", observedAt: null, sent: null, failed: null } },
+      failures: { kind: "loaded", data: { period: "h24", status: "NotObserved", reason: "NotConfigured", observedAt: null, failures: null, limit: 10 } },
+      kinds: { kind: "loaded", data: { period: "h24", status: "NotObserved", from: null, coverage: null, coveredFrom: null, kinds: null } },
+    });
+
+    expect(announcements()).toEqual([]);
+    expect(screen.getByRole("table", { name: "Antal utskick per mejltyp" })).toHaveTextContent("Räknas inte i den här miljön.");
   });
 });

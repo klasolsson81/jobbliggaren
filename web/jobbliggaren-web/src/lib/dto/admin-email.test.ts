@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { emailAllowanceSchema, emailDeliverySchema, emailFailuresSchema } from "./admin-email";
+import {
+  EMAIL_KINDS,
+  emailAllowanceSchema,
+  emailDeliverySchema,
+  emailFailuresSchema,
+  emailKindsSchema,
+} from "./admin-email";
 
 /** The body the API sends (#1981 PR 1), with the wire form of System.Text.Json for a DateTimeOffset in UTC. */
 const EXAMPLE = {
@@ -192,5 +198,70 @@ describe("emailFailuresSchema (#1981 PR 2)", () => {
     ["a row time without an offset", withRow({ createdAt: "2026-10-19T14:32:51" })],
   ])("rejects %s", (_name, body) => {
     expect(lists(body)).toBe(false);
+  });
+});
+
+/** The per-kind read as the API sends it (#1981 PR 3): our own count, seven kinds in a fixed order. */
+const quiet = (kind: string) => ({ kind, accepted: 5, failed: 0, latestFailure: null });
+const KINDS = {
+  period: "d3", status: "Observed", from: "2026-10-20", coverage: "Complete", coveredFrom: null,
+  kinds: [
+    { kind: "login-challenge", accepted: 12, failed: 2, latestFailure: { day: "2026-10-22", outcomes: ["Refused", "Timeout"] } },
+    ...EMAIL_KINDS.slice(1).map(quiet),
+  ],
+};
+const withKind = (index: number, row: Record<string, unknown>) =>
+  ({ ...KINDS, kinds: KINDS.kinds.map((kind, at) => (at === index ? { ...kind, ...row } : kind)) });
+const NO_KINDS = { coverage: null, coveredFrom: null, kinds: null };
+
+describe("emailKindsSchema (#1981 PR 3)", () => {
+  const counts = (body: unknown) => emailKindsSchema.safeParse(body).success;
+
+  it.each<readonly [string, unknown]>([
+    ["the seven kinds in their order", KINDS],
+    ["a count that began inside the period", { ...KINDS, coverage: "Partial", coveredFrom: "2026-10-23T05:12:34+00:00" }],
+    ["every kind at zero", { ...KINDS, kinds: EMAIL_KINDS.map((kind) => ({ kind, accepted: 0, failed: 0, latestFailure: null })) }],
+    ["every failure class on one day, in their order", withKind(0, {
+      latestFailure: { day: "2026-10-22", outcomes: ["Refused", "RateLimited", "Unreachable", "ProviderError", "Timeout", "Other"] },
+    })],
+    ["one failure class", withKind(3, { failed: 1, latestFailure: { day: "2026-10-21", outcomes: ["Other"] } })],
+    ["a deployment without Scaleway", { period: "d3", status: "NotObserved", from: null, ...NO_KINDS }],
+    ["a count with no sends while the provider sent", { period: "h24", status: "NotObservable", from: "2026-10-22", ...NO_KINDS }],
+  ])("accepts %s", (_name, body) => {
+    expect(counts(body)).toBe(true);
+  });
+
+  it.each<readonly [string, unknown]>([
+    ["six kinds", { ...KINDS, kinds: KINDS.kinds.slice(0, 6) }],
+    ["eight kinds", { ...KINDS, kinds: [...KINDS.kinds, quiet("feedback-reply")] }],
+    ["a kind twice", withKind(1, { kind: "login-challenge" })],
+    ["the kinds in another order", { ...KINDS, kinds: [...KINDS.kinds].reverse() }],
+    ["a kind outside the seven", withKind(6, { kind: "newsletter" })],
+    ["a failure without its latest day", withKind(0, { latestFailure: null })],
+    ["a latest day without a failure", withKind(1, { latestFailure: { day: "2026-10-22", outcomes: ["Refused"] } })],
+    ["a latest day without a class", withKind(0, { latestFailure: { day: "2026-10-22", outcomes: [] } })],
+    ["a class twice", withKind(0, { latestFailure: { day: "2026-10-22", outcomes: ["Timeout", "Timeout"] } })],
+    ["the classes out of their order", withKind(0, { latestFailure: { day: "2026-10-22", outcomes: ["Timeout", "Refused"] } })],
+    ["Accepted as a failure class", withKind(0, { latestFailure: { day: "2026-10-22", outcomes: ["Accepted"] } })],
+    ["the old name of the default class", withKind(0, { latestFailure: { day: "2026-10-22", outcomes: ["Interrupted"] } })],
+    ["a latest failure with a time of day", withKind(0, { latestFailure: { day: "2026-10-22T13:04:00+00:00", outcomes: ["Refused"] } })],
+    ["a negative count", withKind(2, { accepted: -1 })],
+    ["a fractional count", withKind(2, { accepted: 1.5 })],
+    ["a recipient on a row", withKind(0, { recipient: "k•••@example.com" })],
+    ["a total beside the kinds", { ...KINDS, total: 21 }],
+    ["a partial count without its start", { ...KINDS, coverage: "Partial" }],
+    ["a complete count with a start", { ...KINDS, coveredFrom: "2026-10-23T05:12:34+00:00" }],
+    ["a start without an offset", { ...KINDS, coverage: "Partial", coveredFrom: "2026-10-23T05:12:34" }],
+    ["a first day with a time", { ...KINDS, from: "2026-10-20T00:00:00+02:00" }],
+    ["an observed read without its first day", { ...KINDS, from: null }],
+    ["an observed read without its kinds", { ...KINDS, kinds: null }],
+    ["a coverage outside the two", { ...KINDS, coverage: "Unknown" }],
+    ["an unobserved read with a first day", { period: "d3", status: "NotObserved", from: "2026-10-20", ...NO_KINDS }],
+    ["an unobservable read without its first day", { period: "d3", status: "NotObservable", from: null, ...NO_KINDS }],
+    ["an unobservable read with its kinds", { period: "d3", status: "NotObservable", from: "2026-10-20", ...NO_KINDS, kinds: [] }],
+    ["a failed state, which our own read never answers", { period: "d3", status: "Failed", from: null, ...NO_KINDS }],
+    ["a period outside the three", { ...KINDS, period: "d30" }],
+  ])("rejects %s", (_name, body) => {
+    expect(counts(body)).toBe(false);
   });
 });

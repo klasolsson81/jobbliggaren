@@ -1,8 +1,9 @@
-# Runbook — `/admin/e-post`: the allowance and Leverans
+# Runbook — `/admin/e-post`: the allowance, Leverans and our own counts per mail kind
 
-The page answers two questions. First, how this month's sent mail stands against the provider's free monthly allowance,
+The page answers three questions. First, how this month's sent mail stands against the provider's free monthly allowance,
 and what the mail beyond it costs (ADR 0178). Second, Leverans: how many mails the provider sent and failed per period, and
-which sends failed recently (ADR 0179). This runbook is the one home for what the figures mean and how they are kept
+which sends failed recently (ADR 0179). Third, under Leverans, how many attempts of each mail kind we handed over to
+Scaleway and how many failed (ADR 0181). This runbook is the one home for what the figures mean and how they are kept
 true.
 
 ## What the figures are
@@ -28,7 +29,56 @@ true.
 
 The two "Skickade" are different measures: the month's count from `project-consumption`, and a rolling period's count
 from `statistics`. They are not reconciled on the page. A mail the provider never accepted (our send failed before
-Scaleway took it) is in neither.
+Scaleway took it) is in neither; our own count below shows it as a failure.
+
+**Utskick per mejltyp (our own count, per period, ADR 0181):**
+
+| Shown | Source | Meaning |
+|---|---|---|
+| Överlämnade | `email_send_daily_counts`, outcome Accepted | Attempts of the kind that Scaleway answered 2xx: handed over, not proof of delivery. |
+| Fel | the same table, every other outcome | Attempts that failed at the handover: refused (4xx, our own 401/403 included), over the rate limit (429), Scaleway not reached, an error at Scaleway (5xx), no answer in time, or another failure. The last three may still have been delivered. |
+| Senaste fel | the same table | The latest date in the period with a failure of the kind, and every failure class seen that date. A daily count does not know which came last. "Inget" when there was none. |
+
+- **The unit is the attempt.** A feedback notice the provider refused is retried, so it can count as several failures and then one handover.
+- **The dates.** The table covers every whole Swedish date the rolling period touches, from the first date the note names through today, so it may span more than the period. It is counted by Jobbliggaren in the Scaleway send path and is never Scaleway's statistics.
+- **Partial.** Counting began when the migration ran (`email_send_counting.started_at`). A period reaching further back is shown from that instant, which the note names; the figures are exact for that span.
+- **The gate.** When our count is zero for the whole period while Scaleway's own read of the period shows a sent mail, the table says so and shows no figure ("Jobbliggarens räkning visar inga utskick under perioden, fast Scaleway har skickat."). Our count has stopped writing: look for Warning 3009 (`[EmailSendTally] … was not confirmed as counted`) in the api and worker logs, by event id and count only. The gate does nothing without the read key, and catches a total loss, not a partial one.
+- **Not counted:** a template fault before the send, a send cancelled at shutdown, and every mail held back before the sender (no recipient, a closed gate, a spent budget). "No recipient" is not observable from the send path (ADR 0181 D9).
+- **Kept** no longer than eight Swedish dates plus the time to the next successful scheduled run: `email-send-count-retention` runs daily at 04:40 UTC and deletes every count dated before the first date the seven-day period reads. A failed run leaves the rows for the next one.
+- **Never a send log** in the sense of CLAUDE.md §9.6 (3)(ii), and never a measurement of "no reached bearer" or of ADR 0133's bound: a count is not a set of recipients.
+
+The kinds, in the table's order:
+
+| Row | Kind (logs, exceptions, the wire) |
+|---|---|
+| Inloggning och koder | `login-challenge` (sign-in, new-account, re-authentication and address-change codes, and the replies about a pending deletion or closed registration) |
+| Adressbyte begärt | `account-email-change-requested-notification` |
+| Adressbyte genomfört | `email-changed-notification` |
+| Matchningar | `match-notification` (Toppmatch and the digests) |
+| Bevakade företag | `followed-company-notification` |
+| Ny feedback | `feedback-received-notification` |
+| Svar på feedback | `feedback-reply` |
+
+**Reading on the box (CLAUDE.md §9.2).** The rows of `email_send_daily_counts` are personal data (§9.2 (b)): a day's count of
+a rare kind can be linked to our own records per person (ADR 0181 D8). Only these are (a):
+- that both tables exist;
+- `count(*) > 0` and `max(day) =` today's Swedish date, each printed as a boolean;
+- one whole-table `sum(attempts)`;
+- `email_send_counting.started_at`;
+- the migrate tool's output;
+- one number: the union of log events 3005 and 3006 in the api and worker container logs together since `started_at`, counted
+  in one command and matched on event id and category, never on message text. It means something only while both containers
+  started after `started_at` and were neither recreated nor rotated, and within seven days. A difference from the sum is a
+  hint to read the page, never a reason to read rows;
+- a count of event 3009 lines, on the same terms.
+
+Never printed: a row, any grouping by kind, outcome or day, a total of failures, or anything from Seq or the log archive. The
+table per kind is read on the page, by Klas.
+
+**After a rollback across `AddEmailSendDailyCounts`** (run under `MIGRATE_ALLOW_SCHEMA_AHEAD`): older code counts nothing, so
+after the roll-forward the dates in between would read as zeros under a start that predates them. Klas re-takes the start
+with a box write under his GO (ADR 0154): `UPDATE email_send_counting SET started_at = now()` once the counting release runs
+again (ADR 0181 lapse trigger 7).
 
 **Counted for the project, free tier per organisation.** The free tier is "300 per organization". The count is the project's.
 They are the same while the organisation has one project sending through Transactional Email (measured 2026-10-19, ADR 0178).
@@ -130,6 +180,7 @@ the set is given back to it.
 | "Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen…" | NotObservable | Either nothing was sent for 32 days, or the read key cannot see mails. Check the read key's sets; send a sign-in code to yourself and read the page again after a few minutes. |
 | "Läsnyckeln är inte installerad…" | ReadKeyMissing | Place the read key (above). |
 | "Räknas inte i den här miljön." | NotConfigured | Expected in dev, CI and the harness: `Email:Provider` is not Scaleway. |
+| "Jobbliggarens räkning visar inga utskick under perioden, fast Scaleway har skickat…" | NotObservable (per mail kind) | Our count stopped writing. Count event 3009 in the api and worker logs (above); a database or permission fault on the table is the usual cause. |
 
 The plan's own lines follow the same reasons, and say the cost is not computed.
 

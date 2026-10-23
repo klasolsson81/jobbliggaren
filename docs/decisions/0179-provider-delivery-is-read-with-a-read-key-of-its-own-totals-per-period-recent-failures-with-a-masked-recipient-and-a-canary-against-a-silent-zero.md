@@ -12,6 +12,8 @@ console change and each read probe its own GO.
 `design-reviewer` read the plan (`…-pr2-plan-architect.md` with its re-check, `…-pr2-plan-design-reviewer.md`).
 **Amends:** ADR 0178, by its Amendment of 2026-10-19 (trigger 4 fires; the allowance reads with this key); ADR 0150, by its
 Amendment of 2026-10-19 (#1981 PR 2).
+**Amended:** 2026-10-23 by ADR 0181 (#1981 PR 3): D1 no longer names an expiry date, whose home is `master-key-ops.md`, and
+D5's "nothing is stored" is scoped to the provider reads.
 **Related:** [#1981](https://github.com/klasolsson81/jobbliggaren/issues/1981) (PR 2 of 4 after the re-cut) · ADR 0178 ·
 ADR 0150 D2 · ADR 0131 (Scaleway Transactional Email) · ADR 0133 (the TEM retention question) · ADR 0154
 **Measured against:** `origin/main` `c49b4d4f2`; Scaleway's API reference v1.9008.0 and its IAM permission-set page
@@ -50,8 +52,8 @@ total exists without a key that reaches every recipient.
 
 The IAM application `jobbliggaren-tem-read` holds one policy, `jobbliggaren-tem-read`, with one rule:
 `TransactionalEmailEmailReadOnly` and `TransactionalEmailOfferSubscriptionReadOnly`, scoped to the project Jobbliggaren,
-without conditions. It has exactly one API key, which expires 2027-10-19 (Klas's reading). The key is injected into the
-api only (D7). The console reading was made by Klas on 2026-10-19 and transcribed from his screenshots, names only. A
+without conditions. It has exactly one API key, whose expiry is recorded in `master-key-ops.md` (D7). The key is
+injected into the api only (D7). The console reading was made by Klas on 2026-10-19 and transcribed from his screenshots, names only. A
 first attempt selected `TransactionalEmailReadOnly` by mistake; it was removed before the policy was saved.
 
 The key's only justification is the recent-failures read (D5), the purpose "leveransuppföljning". The totals (D3) and the
@@ -127,8 +129,8 @@ which RFC 5321 bounds per line but not per reply; an estimate is 20–25 KB for 
 not ten, and an over-cap answer fails closed. The cap is re-derived if a later measurement (lapse trigger 3) finds a
 failed item.
 
-Nothing is stored. The masked list is unreferenced by the API 60 s after the provider's answer: its memo entry is evicted
-then. That is the property the code holds; runtime buffer pools and garbage collection are not claimed.
+Nothing read from the provider is stored; our own counts per mail kind are ADR 0181's. The masked list is unreferenced
+by the API 60 s after the provider's answer: its memo entry is evicted then. That is the property the code holds; runtime buffer pools and garbage collection are not claimed.
 
 ### D6 — A missing read key is a state of its own
 

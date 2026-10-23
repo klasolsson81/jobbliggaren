@@ -432,3 +432,26 @@ This Amendment owns only the surface contract. The read, the key, the masking an
   and raises the card; at 0 it says there were no failed sends at the provider; any other state is the unread form and
   never counts as clear. "E-postfel kan ännu inte bedömas." is gone.
 - The e-post card's no-recipient line does not return: no source exists.
+
+## Amendment 2026-10-23 (3) — Our own counts per mail kind (#1981 PR 3, ADR 0181)
+
+This Amendment owns only the surface contract. What is counted, the table, the gate and the retention are ADR 0181's.
+
+- **D4.** #1981's row is made real further: the table per mail kind shows our own counts. The sentence of the Amendment
+  2026-10-19 (2) that counts per mail kind "stay 'Kommer snart' until #1981's own-aggregates PR" ends.
+- **D2, three states of the per-kind region** (design-reviewer):
+  - **Partial.** The note and the caption name when counting began; the values are exact counts for that shorter span,
+    never lower bounds for the whole period.
+  - **NotObserved.** "Räknas inte i den här miljön.", as on the allowance.
+  - **NotObservable.** Our count is zero for the whole period while Scaleway's own count for it shows a sent mail: no figure,
+    and a line saying why (ADR 0181 D6).
+- **D8, six rows** (design-reviewer's plan read of 2026-10-23, verbatim; the ADR number corrected to 0181):
+
+  | Handoff | Here | Why |
+  |---|---|---|
+  | The per-function table between the summary and the failures list | Its own sub-section "Utskick per mejltyp" after the failures list, with a note naming Jobbliggaren as the counter and the first date | The provider's regions stay together and our count is never read as theirs (ADR 0178 D1) |
+  | Funktion as code identifiers in mono | Mejltyp: seven Swedish labels in a fixed order, sans, as row headers | DESIGN.md §4; WCAG 1.3.1 |
+  | Skickade per function | Överlämnade: attempts Scaleway accepted, counted by us | "Skickade" is the provider's figure (ADR 0179) |
+  | Senaste fel as the provider's reply text, 14 px ink-2 | The latest day with an error and every error class that day, from a closed list, in the table's ink | Only the class is stored (ADR 0181); DESIGN.md §4 |
+  | A dash for no error | "Inget" | An en-dash means unknown (D2) |
+  | One period for every figure | Every whole Swedish day the period touches, the first date shown | Our counts are per day; a superset never hides an error the provider's period shows |

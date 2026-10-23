@@ -149,7 +149,14 @@ describe("Utskick per mejltyp's note and caption", () => {
   it("names when the count began, to the minute in Swedish time, where it began inside the period", () => {
     const section = show({
       kind: "loaded",
-      data: { ...observed(), coverage: "Partial", coveredFrom: "2026-10-23T05:12:34.123456+00:00" },
+      data: {
+        ...observed(rows({
+          0: { latestFailure: { day: "2026-10-23", outcomes: ["Refused", "Timeout"] } },
+          3: { latestFailure: { day: "2026-10-23", outcomes: ["Other"] } },
+        })),
+        coverage: "Partial",
+        coveredFrom: "2026-10-23T05:12:34.123456+00:00",
+      },
     });
 
     const note = within(section).getByText(/^Räknat av Jobbliggaren/);

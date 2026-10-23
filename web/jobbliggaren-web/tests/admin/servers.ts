@@ -289,13 +289,15 @@ function kindsAnswer(scenario: KindsScenario, period: EmailPeriod): unknown {
   const none = { coverage: null, coveredFrom: null, kinds: null };
   if (scenario === "notConfigured") return { period, status: "NotObserved", from: null, ...none };
   if (scenario === "notObservable") return { period, status: "NotObservable", from, ...none };
-  // Each failing kind's latest day is today or the period's first day, so it lies inside the period.
+  // Each failing kind's latest day lies inside what was counted: today, or the period's first day where the count
+  // spans the whole period.
+  const earliest = scenario === "partial" ? today : from;
   const failures: Readonly<Record<string, { failed: number; day: string; outcomes: string[] }>> = scenario === "observed" || scenario === "partial"
     ? {
       "login-challenge": { failed: 2, day: today, outcomes: ["Refused", "Timeout"] },
-      "email-changed-notification": { failed: 1, day: from, outcomes: ["RateLimited"] },
+      "email-changed-notification": { failed: 1, day: earliest, outcomes: ["RateLimited"] },
       "match-notification": { failed: 3, day: today, outcomes: ["Unreachable", "ProviderError"] },
-      "feedback-received-notification": { failed: 1, day: from, outcomes: ["Other"] },
+      "feedback-received-notification": { failed: 1, day: earliest, outcomes: ["Other"] },
     }
     : {};
   const scale = PERIOD_HOURS[period] / 24;

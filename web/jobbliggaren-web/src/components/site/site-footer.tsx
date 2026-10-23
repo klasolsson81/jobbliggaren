@@ -56,10 +56,10 @@ type FooterHeadKey =
 
 type FooterLinkKey =
   | "common.catalogueLink"
+  | "common.cvReviewLink"
   | "footer.start.auth"
   | "footer.support.help"
   | "footer.support.howMatching"
-  | "footer.support.cvReview"
   | "footer.support.faq"
   | "footer.support.tips"
   | "footer.about.self"
@@ -102,7 +102,7 @@ const COLUMNS: readonly FooterColumn[] = [
     links: [
       { labelKey: "footer.support.help", href: "/hjalpcenter" },
       { labelKey: "footer.support.howMatching", href: "/matchning" },
-      { labelKey: "footer.support.cvReview", href: "/cv-granskning" },
+      { labelKey: "common.cvReviewLink", href: "/cv-granskning" },
       { labelKey: "footer.support.faq", href: "/vanliga-fragor" },
       { labelKey: "footer.support.tips", href: "/tips" },
     ],

@@ -4,6 +4,7 @@ import { createTranslator } from "next-intl";
 import svTips from "../../../../messages/sv/content-tips.json";
 import svLanding from "../../../../messages/sv/landing.json";
 import { isProtectedPath } from "@/lib/auth/protected-routes";
+import { SITE_URL } from "@/lib/site-url";
 import TipsPage from "./page";
 
 vi.mock("next-intl/server", () => ({
@@ -54,8 +55,13 @@ describe("/tips page (#261)", () => {
   it("länkar aldrig in i en inloggad vy", async () => {
     await renderPage();
 
-    const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href") ?? "");
-    expect(hrefs.length).toBeGreaterThan(0);
-    expect(hrefs.filter(isProtectedPath)).toEqual([]);
+    const origin = new URL(SITE_URL).origin;
+    const paths = screen
+      .getAllByRole("link")
+      .map((link) => new URL(link.getAttribute("href") ?? "", SITE_URL))
+      .filter((url) => url.origin === origin)
+      .map((url) => url.pathname);
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths.filter(isProtectedPath)).toEqual([]);
   });
 });

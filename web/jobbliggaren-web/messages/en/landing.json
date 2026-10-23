@@ -6,6 +6,7 @@
   "common": {
     "loginLink": "Log in",
     "catalogueLink": "Job vacancies",
+    "cvReviewLink": "How we review your CV",
     "headerNavAriaLabel": "Site navigation",
     "skipToContent": "Skip to main content"
   },
@@ -84,7 +85,6 @@
     "support": {
       "help": "Help centre",
       "howMatching": "How matching works",
-      "cvReview": "How we review your CV",
       "faq": "FAQ",
       "tips": "Tips for job seekers"
     },

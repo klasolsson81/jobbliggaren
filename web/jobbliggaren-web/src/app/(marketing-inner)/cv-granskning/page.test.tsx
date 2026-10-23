@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svCv from "../../../../messages/sv/content-cv-granskning.json";
 import { isProtectedPath } from "@/lib/auth/protected-routes";
+import { SITE_URL } from "@/lib/site-url";
 import CvGranskningPage from "./page";
 
 vi.mock("next-intl/server", () => ({
@@ -59,8 +60,13 @@ describe("/cv-granskning page (#368)", () => {
   it("länkar aldrig in i en inloggad vy", async () => {
     await renderPage();
 
-    const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href") ?? "");
-    expect(hrefs.length).toBeGreaterThan(0);
-    expect(hrefs.filter(isProtectedPath)).toEqual([]);
+    const origin = new URL(SITE_URL).origin;
+    const paths = screen
+      .getAllByRole("link")
+      .map((link) => new URL(link.getAttribute("href") ?? "", SITE_URL))
+      .filter((url) => url.origin === origin)
+      .map((url) => url.pathname);
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths.filter(isProtectedPath)).toEqual([]);
   });
 });

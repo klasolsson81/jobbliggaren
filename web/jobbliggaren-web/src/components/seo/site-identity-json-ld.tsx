@@ -8,7 +8,7 @@ import { SITE_URL, absoluteUrl } from "@/lib/site-url";
  * and `Organization` (name and logo). Rendered on the home page only, which is where
  * Google reads a site name (#2092).
  *
- * Only facts the site already states: the name is the one `og:site_name` carries, the
+ * The name is the one `og:site_name` carries, the
  * alternate name is the domain itself, and the logo is the 180 px touch icon
  * (`app/apple-icon.tsx`), a PNG on white above Google's 112 px minimum. `sameAs` lists
  * the project's own pages elsewhere (`OFFICIAL_PROFILES`). No address or rating,

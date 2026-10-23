@@ -106,7 +106,7 @@ describe("the public job page's metadata", () => {
   });
 
   // #2178: the template's own full stop after a title that already ends its sentence rendered "…!. Publicerad".
-  it.each(["!", "?", "."])("puts no second stop after a title ending in %s, with and without a deadline", async (mark) => {
+  it.each(["!", "?", ".", "…"])("puts no second stop after a title ending in %s, with and without a deadline", async (mark) => {
     const title = `Sjuksköterska sökes${mark}`;
 
     getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: { ...AD, title } });

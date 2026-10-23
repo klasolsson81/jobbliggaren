@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
   return {
-    title: t("auth.passwordless.link.meta.title"),
+    title: { absolute: t("auth.passwordless.link.meta.title") },
     robots: { index: false, follow: false },
     // `same-origin`: see `LOGIN_LINK_REFERRER_POLICY`.
     referrer: LOGIN_LINK_REFERRER_POLICY,

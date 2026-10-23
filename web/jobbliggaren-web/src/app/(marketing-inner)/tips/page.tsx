@@ -4,6 +4,7 @@ import { InformationLink as Link } from "@/components/information/InformationLin
 import { getTranslations } from "next-intl/server";
 import { absoluteUrl } from "@/lib/site-url";
 import { PUBLIC_CATALOGUE_PATH } from "@/lib/job-ads/public-catalogue-url";
+import informationStyles from "@/components/information/information.module.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("content-tips");
@@ -50,10 +51,10 @@ export default async function TipsPage() {
 
         {/* Public destinations only: the gated /jobb and /cv send an anonymous visitor to the sign-in wall (#2178).
             The catalogue is a plain <a>, which never prefetches, as in the header and footer (ADR 0176 F14/F15). */}
-        <div className="mt-10 flex flex-wrap gap-4">
+        <div className="mt-10 flex flex-wrap items-center gap-4">
           <a
             href={PUBLIC_CATALOGUE_PATH}
-            className="font-medium text-text-primary underline underline-offset-4 hover:no-underline"
+            className={`${informationStyles.entryLink} font-medium text-text-primary underline underline-offset-4 hover:no-underline`}
           >
             {tLanding("common.catalogueLink")}
           </a>
@@ -61,7 +62,7 @@ export default async function TipsPage() {
             href="/cv-granskning"
             className="font-medium text-text-primary underline underline-offset-4 hover:no-underline"
           >
-            {tLanding("footer.support.cvReview")}
+            {tLanding("common.cvReviewLink")}
           </Link>
         </div>
       </>

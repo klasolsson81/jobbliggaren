@@ -674,3 +674,11 @@ Each reading below is recorded here before the merge, with its date and its sour
   December 2017)
 - Next 16.3.8: `docs/01-app/03-api-reference/04-functions/generate-metadata.md:46-48, 1240-1248` · `03-file-conventions/not-found.md` L8, L13, L43 · `error.md` L96
 - #2090 · #2172 · #1477 · #1738 · #390 · #256 · #1149 · #2133
+
+## Amendment 2026-10-23 (#2090 S6a, #2203) — D4: `PublicPlaceNames` is renamed `PublicTaxonomyNames`
+
+D1–D10 stand and nothing above is rewritten. D4's place-naming helper is renamed `PublicTaxonomyNames`, with the same `ResolveAsync` and `NameOf` and the same pinned semantics, because S6a uses it to
+name the occupation group on the job page as well (senior-cto-advisor F3; ADR 0160 and ADR 0171, amendments of the same date). The catalogue's handler and tests are unchanged apart from the
+name. Where D4 above says `PublicPlaceNames`, read `PublicTaxonomyNames`.
+
+ADR 0176 remains **Accepted**.

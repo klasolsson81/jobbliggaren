@@ -396,3 +396,19 @@ the API authoritative for "now", so an ad erased after the sample is absent from
 new route sits under the existing prefix block.
 
 ADR 0160 remains **Accepted**.
+
+## Amendment 2026-10-23 (#2090 S6a, #2203) — D4's member set grows from 14 to 15; D7 is resolved for the occupation group
+
+D1–D9 and the earlier amendments stand and nothing above is rewritten. This amendment records what the S6a PR settles. senior-cto-advisor's ruling of 2026-10-23 (F3) is the
+reasoning, and ADR 0171's amendment of the same date records the page side.
+
+**1. D4's member set grows from 14 to 15.** `PublicJobAdDto` gains `OccupationGroupName`, nullable, beside `OccupationGroupConceptId`, which stays. Like the kommun and län names it
+is register data, not personal data. `PublicJobAdDtoContractTests` and the wire pin in `PublicJobAdEndpointTests` are updated to the 15-member set, and the wire test carries a real
+snapshot name. D4's "never carried" and "left out on purpose" lists are unchanged.
+
+**2. D7 is resolved for the occupation group.** The S3 amendment's "Occupation group is not resolved; it belongs to S6" is settled. `GetPublicJobAdQueryHandler` sends the group id in
+the same single `ResolveLabelsAsync` call as kommun and län, still only after the second `Classify` returns Listed. A null id is never sent, and an id the snapshot does not know gives a
+null name. The shared helper is renamed from `PublicPlaceNames` to `PublicTaxonomyNames` (behaviour unchanged). The name is shown on the page only. It never feeds the `JobPosting`
+block, where `occupationalCategory` stays "never emitted" (ADR 0171 D4).
+
+ADR 0160 remains **Accepted**.

@@ -286,8 +286,8 @@ What it does, in order:
 > identity is also part of what escrow must hold — **the bytes AND the identity**, not just the
 > bytes.
 >
-> ⚠ **AN EMPTY RESULT DOES NOT MEAN THE DEFAULT IS CORRECT, AND SINCE 2026-08-15 THIS BOX IS THE
-> COUNTEREXAMPLE.** An earlier version of this line said it did. `user_data_keys` is empty
+> ⚠ **AN EMPTY RESULT DOES NOT MEAN THE DEFAULT IS CORRECT.** An earlier version of this line said it did.
+> `user_data_keys` is empty
 > whenever no DEK has been minted yet — which is true both before the first rotation *and* after
 > a rotation performed while the table was empty. **This box has been rotated**: on 2026-08-15
 > the identity in force became **`local-v2`** while the query returned nothing. It has been

@@ -5,6 +5,15 @@ import userEvent from "@testing-library/user-event";
 import type { TaxonomyOccupationField } from "@/lib/dto/taxonomy";
 import type { CvSuggestResult } from "@/lib/actions/match-preferences";
 import type { UploadOutcome } from "@/components/resumes/cv-upload-form";
+import type { OccupationSearchResolver } from "@/lib/occupation-search/resolve-occupation-search";
+import {
+  EL_GROUP,
+  IT_GROUP,
+  answer,
+  elingenjorRow,
+  groupRow,
+  projektledareRow,
+} from "@/test/fixtures/occupation-search";
 
 const { cvSuggestMock, parsedSuggestMock } = vi.hoisted(() => ({
   cvSuggestMock: vi.fn(),
@@ -13,6 +22,14 @@ const { cvSuggestMock, parsedSuggestMock } = vi.hoisted(() => ({
 vi.mock("@/lib/actions/match-preferences", () => ({
   suggestOccupationsFromCvAction: cvSuggestMock,
   suggestOccupationsFromParsedResumeAction: parsedSuggestMock,
+}));
+// #2198: the search's client read, so no test reaches a network.
+const { resolveSearchMock } = vi.hoisted(() => ({
+  resolveSearchMock: vi.fn<OccupationSearchResolver>(),
+}));
+vi.mock("@/lib/occupation-search/resolve-occupation-search", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/occupation-search/resolve-occupation-search")>()),
+  resolveOccupationSearch: resolveSearchMock,
 }));
 
 // Stub CvUploadForm (Spår 4 inline-upload) — the real one uses next/navigation +
@@ -119,6 +136,8 @@ function Host({
 }
 
 beforeEach(() => {
+  resolveSearchMock.mockReset();
+  resolveSearchMock.mockResolvedValue({ kind: "ok", result: answer([]) });
   cvSuggestMock.mockReset();
   parsedSuggestMock.mockReset();
   cvSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
@@ -143,7 +162,7 @@ describe("OccupationSection — ingen egen rubrik (#1918)", () => {
       "aria-expanded",
       "true"
     );
-    expect(screen.getByLabelText("Filtrera yrkesgrupper")).not.toHaveFocus();
+    expect(screen.getByLabelText("Sök yrke")).not.toHaveFocus();
   });
 });
 
@@ -210,13 +229,13 @@ describe("OccupationSection — 'Lägg till yrken'-disclosure", () => {
     render(<HostHarness />);
 
     // Filterfältet/kaskaden finns inte i DOM:en förrän disclosuren öppnas.
-    expect(screen.queryByLabelText("Filtrera yrkesgrupper")).toBeNull();
+    expect(screen.queryByLabelText("Sök yrke")).toBeNull();
     const cta = screen.getByRole("button", { name: "Lägg till yrken" });
     expect(cta).toHaveAttribute("aria-expanded", "false");
 
     await user.click(cta);
     expect(cta).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByLabelText("Filtrera yrkesgrupper")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sök yrke")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Data\/IT/ })).toBeInTheDocument();
   });
 
@@ -666,5 +685,160 @@ describe("OccupationSection — 'Välj alla yrkesgrupper'", () => {
     expect(
       screen.getByRole("button", { name: "Ta bort Sjuksköterskor" })
     ).toBeInTheDocument();
+  });
+});
+
+// #2198 — the structured occupation search in the picker's one box.
+describe("OccupationSection — yrkessök (#2198)", () => {
+  // Fields holding the fixtures' real groups, so chips resolve to their group labels.
+  const realFields: ReadonlyArray<TaxonomyOccupationField> = [
+    {
+      conceptId: "field_data",
+      label: "Data/IT",
+      occupationGroups: [{ conceptId: IT_GROUP.id, label: IT_GROUP.label }],
+    },
+    {
+      conceptId: "field_teknik",
+      label: "Tekniskt arbete",
+      occupationGroups: [{ conceptId: EL_GROUP.id, label: EL_GROUP.label }],
+    },
+  ];
+
+  async function openAndType(user: ReturnType<typeof userEvent.setup>, word: string) {
+    await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
+    await user.type(screen.getByLabelText("Sök yrke"), word);
+  }
+
+  it("opening the picker puts focus in the search field", async () => {
+    const user = userEvent.setup();
+    render(<HostHarness />);
+
+    await user.click(screen.getByRole("button", { name: "Lägg till yrken" }));
+
+    await waitFor(() => expect(screen.getByRole("searchbox", { name: "Sök yrke" })).toHaveFocus());
+  });
+
+  it("sends the typed word once, then shows the answer in place of the browse cascade", async () => {
+    const user = userEvent.setup();
+    resolveSearchMock.mockResolvedValue({
+      kind: "ok",
+      result: answer([groupRow(IT_GROUP, ["Backend-utvecklare"])]),
+    });
+    render(<HostHarness occupationFields={realFields} />);
+
+    await openAndType(user, "backend");
+
+    expect(
+      await screen.findByRole("checkbox", { name: IT_GROUP.label }),
+    ).toHaveAccessibleDescription("träff på Backend-utvecklare");
+    expect(screen.getByRole("status")).toHaveTextContent("1 träff");
+    expect(screen.queryByRole("group", { name: "Yrkesområde" })).toBeNull();
+    expect(resolveSearchMock).toHaveBeenCalledTimes(1);
+    expect(resolveSearchMock).toHaveBeenCalledWith("backend", expect.any(AbortSignal));
+  });
+
+  it("stays idle below two characters: the cascade stays and the status is silent", async () => {
+    const user = userEvent.setup();
+    render(<HostHarness />);
+
+    await openAndType(user, "s");
+    await new Promise((r) => setTimeout(r, 400));
+
+    expect(screen.getByRole("group", { name: "Yrkesområde" })).toBeInTheDocument();
+    expect(screen.getByRole("status").textContent).toBe("");
+    expect(resolveSearchMock).not.toHaveBeenCalled();
+  });
+
+  it("while pending shows Söker… and no row from the earlier word", async () => {
+    const user = userEvent.setup();
+    resolveSearchMock.mockImplementation((word) =>
+      word === "proj"
+        ? Promise.resolve({ kind: "ok", result: answer([groupRow(IT_GROUP, ["Projektledare, IT"])]) })
+        : new Promise(() => {}),
+    );
+    render(<HostHarness occupationFields={realFields} />);
+
+    await openAndType(user, "proj");
+    await screen.findByRole("checkbox", { name: IT_GROUP.label });
+
+    await user.type(screen.getByLabelText("Sök yrke"), "ektledare");
+
+    expect(screen.getByRole("status")).toHaveTextContent("Söker…");
+    expect(screen.queryByRole("checkbox", { name: IT_GROUP.label })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Yrkesområde" })).toBeNull();
+  });
+
+  it.each([
+    ["no hits", { kind: "ok", result: answer([]) } as const, "Inga träffar. Välj bland yrkesområdena nedan."],
+    [
+      "an unavailable search",
+      { kind: "unavailable" } as const,
+      "Sökningen fungerar inte just nu. Välj bland yrkesområdena nedan.",
+    ],
+    ["a missing session", { kind: "unauthorized" } as const, "Du är inte inloggad. Logga in och försök igen."],
+  ])("gives the box back to browsing on %s, and the status says why", async (_name, outcome, text) => {
+    const user = userEvent.setup();
+    resolveSearchMock.mockResolvedValue(outcome);
+    render(<HostHarness />);
+
+    await openAndType(user, "chaufför");
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(text));
+    expect(screen.getByRole("group", { name: "Yrkesområde" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Data\/IT/ })).toBeInTheDocument();
+  });
+
+  it("opens an exact Word row by itself and selects nothing (security-auditor Minor 5)", async () => {
+    const user = userEvent.setup();
+    const onToggle = vi.fn();
+    const onReplace = vi.fn();
+    resolveSearchMock.mockResolvedValue({
+      kind: "ok",
+      result: answer([elingenjorRow, groupRow(EL_GROUP, ["Projektledare, el"])]),
+    });
+    render(
+      <OccupationSection
+        occupationFields={realFields}
+        selected={[]}
+        onToggle={onToggle}
+        onReplace={onReplace}
+        onClear={vi.fn()}
+        importCvHref="/cv/importera"
+      />,
+    );
+
+    await openAndType(user, "Elingenjör");
+
+    expect(await screen.findByRole("group", { name: "Elingenjör" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Elingenjör" })).toHaveAttribute("aria-pressed", "true");
+    expect(onToggle).toHaveBeenCalledTimes(0);
+    expect(onReplace).toHaveBeenCalledTimes(0);
+    // The field keeps focus: opening by default is not a move.
+    expect(screen.getByLabelText("Sök yrke")).toHaveFocus();
+  });
+
+  it("a variant selects its group: the chip is the group, and browsing shows the same group checked", async () => {
+    const user = userEvent.setup();
+    resolveSearchMock.mockResolvedValue({ kind: "ok", result: answer([projektledareRow]) });
+    render(<HostHarness occupationFields={realFields} />);
+
+    await openAndType(user, "projektledare");
+    await user.click(await screen.findByRole("checkbox", { name: "Projektledare, el" }));
+
+    expect(screen.getByRole("button", { name: `Ta bort ${EL_GROUP.label}` })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Projektledare, telekom" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(
+      screen.getByRole("button", { name: "Projektledare" }).querySelector(".rounded-full"),
+    ).not.toBeNull();
+
+    await user.clear(screen.getByLabelText("Sök yrke"));
+    await user.click(screen.getByRole("button", { name: /Tekniskt arbete/ }));
+    expect(screen.getByRole("checkbox", { name: EL_GROUP.label })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
 });

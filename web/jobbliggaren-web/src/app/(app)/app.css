@@ -431,11 +431,68 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   border-bottom: 1px solid var(--jp-border-soft);
 }
 /* Synlig fokus-ring för .jp-checkitem i dialog-kontext (samma om-scoping som
-   .jp-matchprefs — den befintliga regeln är scoped till .jp-panel). */
+   .jp-matchprefs — den befintliga regeln är scoped till .jp-panel). The onboarding rail is not
+   inside .jp-matchdialog, and its rows sit edge to edge in the same scrolling columns, where the
+   global ring's 2px outset is clipped on both sides (#2198, design-reviewer B1). */
 .jp-matchdialog .jp-checkitem:focus-visible,
-.jp-matchdialog .jp-popover-row:focus-visible {
+.jp-matchdialog .jp-popover-row:focus-visible,
+.jp-matchdialog .jp-occsearch__heading:focus-visible,
+.jp-wizard--rail .jp-checkitem:focus-visible,
+.jp-wizard--rail .jp-popover-row:focus-visible,
+.jp-wizard--rail .jp-occsearch__heading:focus-visible {
   outline: 2px solid var(--jp-focus);
   outline-offset: -2px;
+}
+
+/* ── #2198: the occupation search (components/occupation-search) ──
+   Search and browse share ONE box: the search answer takes the browse cascade's place, with the
+   same border and the same column cap, so the field and its status line never move when the box
+   changes what it holds (design-reviewer Minor 2). The host's wrapper is the query container,
+   because the same box sits in hosts of different widths and the viewport cannot say how much room
+   it has (design-reviewer Major 2). */
+.jp-occsearch {
+  container-type: inline-size;
+}
+/* The browse cascade's column cap as an explicit row, so the box holds that height while a word is
+   pending and when an answer is shorter than the cap. */
+.jp-occsearch__box {
+  grid-template-rows: 320px;
+}
+/* No Word row in the answer: one full-width column in the same box. */
+.jp-occsearch__box--single {
+  grid-template-columns: 1fr;
+}
+.jp-occsearch__box--single > .jp-matchdialog__cascade-col:first-child {
+  border-right: 0;
+}
+/* One scroller per column: reaching a column's end does not carry on into the dialog or rail body
+   behind it (design-reviewer Minor 3). */
+.jp-occsearch .jp-matchdialog__cascade-col {
+  overscroll-behavior: contain;
+}
+/* The right column's heading takes focus when a Word row opens; it is a block so the inset ring
+   above has a box to sit in. */
+.jp-occsearch__heading {
+  display: block;
+}
+/* Narrow: the columns stack, left list first, as they are in the DOM. Browse and search alike,
+   since they are one box. */
+@container (max-width: 559px) {
+  .jp-occsearch .jp-matchdialog__cascade {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+  /* Stacked, the box grows with a second column; a pending or one-column answer keeps one
+     column's cap. */
+  .jp-occsearch .jp-occsearch__box {
+    min-height: 320px;
+  }
+  .jp-occsearch .jp-matchdialog__cascade-col:first-child {
+    border-right: 0;
+  }
+  .jp-occsearch .jp-matchdialog__cascade-col + .jp-matchdialog__cascade-col {
+    border-top: 1px solid var(--jp-border-soft);
+  }
 }
 .jp-matchdialog__suggest {
   margin: 12px 0;
@@ -494,6 +551,14 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 .jp-occpicker__cta:hover {
   background: var(--jp-surface-3);
   border-color: var(--jp-border-strong);
+}
+/* The touch floor (DESIGN.md §5, a11y skill §9), in the rule itself: `.jp-*` is unlayered and a
+   utility could not lift the 40px above (#2198, design-reviewer B2). */
+@media (max-width: 768px) {
+  .jp-occpicker__cta {
+    height: auto;
+    min-height: 44px;
+  }
 }
 .jp-occpicker__panel {
   margin-top: 12px;

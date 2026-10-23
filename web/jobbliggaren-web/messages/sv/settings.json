@@ -99,8 +99,6 @@
     },
     "occupation": {
       "addOccupations": "Lägg till yrken",
-      "filterLabel": "Filtrera yrkesgrupper",
-      "noMatch": "Ingen yrkesgrupp matchar filtret.",
       "occupationField": "Yrkesområde",
       "occupationGroups": "Yrkesgrupper",
       "fieldsUnavailable": "Yrkesområdena kunde inte läsas in just nu.",

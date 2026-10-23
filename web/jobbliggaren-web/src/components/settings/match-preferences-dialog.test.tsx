@@ -31,6 +31,11 @@ vi.mock("@/lib/actions/match-preferences", () => ({
   suggestSkillsFromParsedResumeAction: skillSuggestMock,
 }));
 
+// #2198: the occupation search's client read, so typing in the field reaches no network.
+vi.mock("@/lib/occupation-search/resolve-occupation-search", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/occupation-search/resolve-occupation-search")>()),
+  resolveOccupationSearch: vi.fn(async () => ({ kind: "ok", result: { rows: [], totalRows: 0 } })),
+}));
 import { MatchPreferencesDialog } from "./match-preferences-dialog";
 
 const occupationFields: ReadonlyArray<TaxonomyOccupationField> = [
@@ -491,5 +496,26 @@ describe("MatchPreferencesDialog — locale en (#1537)", () => {
     expect(
       screen.queryByText(/Tillsvidareanställning \(inkl\. eventuell provanställning\)/)
     ).toBeNull();
+  });
+});
+
+// #2198 (design-reviewer Major 5): Escape in a filled search field clears it instead of closing the
+// dialog and dropping the draft. Radix listens on the document in the capture phase, before the
+// field's own handler, which is what this pins end to end.
+describe("MatchPreferencesDialog — Escape i yrkessöket (#2198)", () => {
+  it("Escape med text tömmer fältet och dialogen förblir öppen; nästa Escape stänger", async () => {
+    const user = userEvent.setup();
+    const { onOpenChange } = renderDialog(EMPTY.occupations);
+    const field = screen.getByRole("searchbox", { name: "Sök yrke" });
+
+    await user.type(field, "projektledare");
+    await user.keyboard("{Escape}");
+
+    expect(field).toHaveValue("");
+    expect(field).toHaveFocus();
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

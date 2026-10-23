@@ -18,6 +18,7 @@ import { codedTaxonomyOptions } from "@/lib/i18n/coded-taxonomy";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { PendingLabel } from "@/components/forms/pending-label";
+import { keepHostOpenWhileSearchHasText } from "@/components/occupation-search/keep-host-open";
 import type {
   TaxonomyOccupationField,
   TaxonomyOption,
@@ -394,6 +395,7 @@ function PartDialog({
           (focusOnOpen?.current ?? titleRef.current)?.focus();
         }}
         onCloseAutoFocus={onCloseAutoFocus}
+        onEscapeKeyDown={keepHostOpenWhileSearchHasText}
       >
         <div className="jp-matchdialog__head">
           {/* Stäng-knappen = shadcn/radix Close inbyggd i DialogContent, inte en egen

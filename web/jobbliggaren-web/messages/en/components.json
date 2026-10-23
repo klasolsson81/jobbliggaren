@@ -20,5 +20,20 @@
     "occupationAdsSeen": "{count, plural, one {# ad} other {# ads}} seen",
     "occupationTooFewShort": "too few ads ({count})",
     "occupationNotProfiledShort": "distribution unavailable"
+  },
+  "occupationSearch": {
+    "fieldLabel": "Search occupations (names in Swedish)",
+    "pending": "Searching…",
+    "count": "{count, plural, one {# match} other {# matches}}",
+    "noHits": "No matches. Choose from the occupation fields below.",
+    "unavailable": "Search is not working right now. Choose from the occupation fields below.",
+    "unauthorized": "You are not logged in. Log in and try again.",
+    "hitsHeading": "Matches",
+    "chooseWord": "Choose an occupation with several occupation groups on the left.",
+    "notShown": "{count, plural, one {# match is not shown} other {# matches are not shown}}. Type more to narrow the search.",
+    "groupEvidence": "matches {names}",
+    "groupEvidenceMore": "matches {names} and {more} more",
+    "wordGroups": "{count, plural, one {# occupation group} other {# occupation groups}}",
+    "variantGroup": "Occupation group: {group}"
   }
 }

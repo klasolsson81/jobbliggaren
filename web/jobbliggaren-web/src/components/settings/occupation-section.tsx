@@ -12,12 +12,16 @@ import { ChevronRight, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   CvUploadForm,
   type UploadOutcome,
 } from "@/components/resumes/cv-upload-form";
 import { InfoDialog } from "@/components/common/info-dialog";
+import { OccupationSearchField } from "@/components/occupation-search/occupation-search-field";
+import {
+  OccupationSearchResults,
+  occupationSearchBox,
+} from "@/components/occupation-search/occupation-search-results";
 import type { TaxonomyOccupationField } from "@/lib/dto/taxonomy";
 import {
   suggestOccupationsFromCvAction,
@@ -25,8 +29,8 @@ import {
   type CvSuggestResult,
 } from "@/lib/actions/match-preferences";
 import { useFocusAfterCommit } from "@/lib/hooks/use-focus-after-commit";
+import { useOccupationSearch } from "@/lib/hooks/use-occupation-search";
 import {
-  filterOptions,
   flattenOccupationGroups,
   labelsForSelected,
   type Option,
@@ -129,7 +133,11 @@ export function OccupationSection({
     [occupationFields]
   );
 
-  const [occupationFilter, setOccupationFilter] = useState("");
+  // The search term lives in this state and nowhere else: never a URL, storage, a Server Action
+  // argument or a DTO (security-auditor Minor 6).
+  const [occupationQuery, setOccupationQuery] = useState("");
+  const occupationSearch = useOccupationSearch(occupationQuery);
+  const searchBox = occupationSearchBox(occupationSearch);
   const [activeField, setActiveField] = useState<string | null>(null);
 
   // Manuell "Lägg till yrken"-disclosure (kollapsad tills CTA:n klickas — inget
@@ -217,11 +225,6 @@ export function OccupationSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoSuggestFromCv]);
 
-  const filteredOccupations = useMemo(
-    () => filterOptions(occupationOptions, occupationFilter),
-    [occupationOptions, occupationFilter]
-  );
-  const isFiltering = occupationFilter.trim().length > 0;
   const occupationChips = labelsForSelected(selected, occupationOptions);
   const activeGroups =
     occupationFields.find((f) => f.conceptId === activeField)?.occupationGroups ??
@@ -258,7 +261,7 @@ export function OccupationSection({
     // följer den nyöppnade ytan). queueMicrotask kör efter React-commit.
     queueMicrotask(() => {
       panelRef.current
-        ?.querySelector<HTMLElement>("input, [role='option']")
+        ?.querySelector<HTMLElement>("input")
         ?.focus();
     });
   }
@@ -337,40 +340,26 @@ export function OccupationSection({
           <div
             id={panelId}
             ref={panelRef}
-            className="jp-occpicker__panel"
+            className="jp-occpicker__panel jp-occsearch"
             role="group"
             aria-label={t("matchPrefs.occupation.addOccupations")}
           >
-            <div className="flex flex-col gap-1.5 mb-2">
-              <Label htmlFor={`${idPrefix}-occ-filter`}>
-                {t("matchPrefs.occupation.filterLabel")}
-              </Label>
-              <Input
-                id={`${idPrefix}-occ-filter`}
-                type="text"
-                value={occupationFilter}
-                onChange={(e) => setOccupationFilter(e.target.value)}
-                maxLength={80}
-              />
-            </div>
+            {/* #2198: the search and the browse view share one box. The field's status line says
+                which of them the box holds and why; no hits, an unavailable search and a missing
+                session all leave browsing in place. */}
+            <OccupationSearchField
+              id={`${idPrefix}-occ-search`}
+              value={occupationQuery}
+              onChange={setOccupationQuery}
+              state={occupationSearch}
+            />
 
-            {isFiltering ? (
-              <div className="jp-matchdialog__list">
-                {filteredOccupations.length === 0 ? (
-                  <p className="text-body-sm text-text-primary px-4 py-3">
-                    {t("matchPrefs.occupation.noMatch")}
-                  </p>
-                ) : (
-                  filteredOccupations.map((o) => (
-                    <CheckItem
-                      key={o.conceptId}
-                      label={o.label}
-                      checked={selected.includes(o.conceptId)}
-                      onToggle={() => onToggle(o.conceptId)}
-                    />
-                  ))
-                )}
-              </div>
+            {searchBox.kind !== "browse" ? (
+              <OccupationSearchResults
+                result={searchBox.kind === "rows" ? searchBox.result : null}
+                selected={selected}
+                onToggle={onToggle}
+              />
             ) : (
               <div className="jp-matchdialog__cascade">
                 {/* Vänsterkolumnen NAVIGERAR vilket yrkesområde som är aktivt
@@ -431,6 +420,7 @@ export function OccupationSection({
                 </div>
                 <div
                   className="jp-matchdialog__cascade-col"
+                  role="group"
                   aria-label={t("matchPrefs.occupation.occupationGroups")}
                 >
                   <div className="jp-matchdialog__cascade-colhead">

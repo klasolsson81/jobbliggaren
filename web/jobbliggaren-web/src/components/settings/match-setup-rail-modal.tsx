@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { BrandMarkSvg } from "@/components/brand/brand-mark-svg";
+import { keepHostOpenWhileSearchHasText } from "@/components/occupation-search/keep-host-open";
 import {
   CvUploadForm,
   type UploadOutcome,
@@ -568,6 +569,7 @@ export function MatchSetupRailModal({
           titleRef.current?.focus();
         }}
         onCloseAutoFocus={onCloseAutoFocus}
+        onEscapeKeyDown={keepHostOpenWhileSearchHasText}
       >
         {/* Mobil topp-rad (dold på desktop): sigill + titel. Kryss = radix Close. */}
         <div className="jp-wizard__mobilebar">

@@ -30,7 +30,6 @@ import { updateMatchPreferencesAction } from "@/lib/actions/match-preferences";
 import { Button } from "@/components/ui/button";
 import {
   flattenOccupationGroups,
-  filterOptions,
   groupsForSelected,
   hasValues,
   labelsForSelected,
@@ -65,7 +64,7 @@ const MatchPreferencesDialogLazy = dynamic(
 
 // Pure helpers re-exporteras så befintliga tester/konsumenter (som importerar
 // dem härifrån) inte bryts; definitionen bor i match-preferences-shared.
-export { flattenOccupationGroups, filterOptions };
+export { flattenOccupationGroups };
 
 /** The parts drawn as chips; Antal års erfarenhet is one value. */
 type ListPart = Exclude<MatchPart, "experience">;

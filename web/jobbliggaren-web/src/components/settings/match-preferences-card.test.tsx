@@ -45,8 +45,8 @@ import {
 import {
   MatchPreferencesCard,
   flattenOccupationGroups,
-  filterOptions,
 } from "./match-preferences-card";
+import { filterOptions } from "./match-preferences-shared";
 
 // ── Fixtures ────────────────────────────────────────────────
 const occupationFields: ReadonlyArray<TaxonomyOccupationField> = [
@@ -626,7 +626,8 @@ describe("the part's dialog (#1918 Binding 3–5)", () => {
 
     await user.click(screen.getByRole("button", { name: "Lägg till Yrken" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "Yrken" });
+    // The file's first real lazy import also transforms the dialog's modules in the Vitest worker.
+    const dialog = await screen.findByRole("dialog", { name: "Yrken" }, { timeout: 5_000 });
     expect(within(dialog).getByRole("heading", { name: "Yrken" })).toHaveFocus();
     expect(within(dialog).getByRole("button", { name: "Lägg till yrken" })).toHaveAttribute(
       "aria-expanded",

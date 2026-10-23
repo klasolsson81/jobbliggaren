@@ -5,7 +5,7 @@
 // match-setup-rail-modal (DRY, ADR 0077 STEG 5, amendad #526) — extraherade ur dialogen utan
 // beteendeändring (samma roller/etiketter/markup som tidigare).
 
-import { useCallback, useRef } from "react";
+import { type KeyboardEvent, useCallback, useId, useRef } from "react";
 import { Check } from "lucide-react";
 import { useFocusAfterCommit } from "@/lib/hooks/use-focus-after-commit";
 import { PreferenceChip } from "./preference-chip";
@@ -20,22 +20,16 @@ import type { Option } from "./match-preferences-shared";
  * skärmläsares forms-mode läses bara namnet + beskrivningen, så en text som
  * BARA står bredvid kontrollen når aldrig fram (bevakning F4b: skälet till att
  * ett filter är inert). Alla tre är opt-in — default = oförändrat beteende.
+ *
+ * `secondary` (#2198) gives the row a second line, the evidence the user chooses by. The row's name
+ * is then the first line alone and the second becomes its description, so a screen reader does not
+ * run the two together. Without it the row renders exactly as before.
  */
-export function CheckItem({
-  label,
-  checked,
-  onToggle,
-  isAll,
-  indeterminate,
-  describedBy,
-}: {
-  readonly label: string;
-  readonly checked: boolean;
-  readonly onToggle: () => void;
-  readonly isAll?: boolean;
-  readonly indeterminate?: boolean;
-  readonly describedBy?: string;
-}) {
+export function CheckItem(props: CheckItemProps) {
+  if (props.secondary !== undefined) {
+    return <TwoLineCheckItem {...props} secondary={props.secondary} />;
+  }
+  const { label, checked, onToggle, isAll, indeterminate, describedBy } = props;
   return (
     <div
       className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
@@ -44,17 +38,67 @@ export function CheckItem({
       aria-describedby={describedBy}
       tabIndex={0}
       onClick={onToggle}
-      onKeyDown={(e) => {
-        if (e.key === " " || e.key === "Enter") {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
+      onKeyDown={(e) => toggleOnSpaceOrEnter(e, onToggle)}
     >
       <span className="jp-checkitem__box">
         {checked && <Check size={14} aria-hidden="true" />}
       </span>
       {label}
+    </div>
+  );
+}
+
+interface CheckItemProps {
+  readonly label: string;
+  readonly checked: boolean;
+  readonly onToggle: () => void;
+  readonly isAll?: boolean;
+  readonly indeterminate?: boolean;
+  readonly describedBy?: string;
+  readonly secondary?: string;
+}
+
+function toggleOnSpaceOrEnter(e: KeyboardEvent<HTMLElement>, onToggle: () => void) {
+  if (e.key === " " || e.key === "Enter") {
+    e.preventDefault();
+    onToggle();
+  }
+}
+
+// Its own component so the ids it needs are created only where a second line exists: the one-line
+// row keeps its markup, and calls no hook it did not call before.
+function TwoLineCheckItem({
+  label,
+  checked,
+  onToggle,
+  isAll,
+  indeterminate,
+  describedBy,
+  secondary,
+}: CheckItemProps & { readonly secondary: string }) {
+  const id = useId();
+  const nameId = `${id}-name`;
+  const secondaryId = `${id}-secondary`;
+  return (
+    <div
+      className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
+      role="checkbox"
+      aria-checked={indeterminate ? "mixed" : checked}
+      aria-labelledby={nameId}
+      aria-describedby={describedBy === undefined ? secondaryId : `${secondaryId} ${describedBy}`}
+      tabIndex={0}
+      onClick={onToggle}
+      onKeyDown={(e) => toggleOnSpaceOrEnter(e, onToggle)}
+    >
+      <span className="jp-checkitem__box">
+        {checked && <Check size={14} aria-hidden="true" />}
+      </span>
+      <span className="flex min-w-0 flex-col">
+        <span id={nameId}>{label}</span>
+        <span id={secondaryId} className="text-body-sm text-text-secondary">
+          {secondary}
+        </span>
+      </span>
     </div>
   );
 }

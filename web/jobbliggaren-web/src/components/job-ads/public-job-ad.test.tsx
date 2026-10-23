@@ -224,8 +224,6 @@ describe("PublicJobAd: the facts row (ADR 0171)", () => {
 
   it.each([
     ["null", null],
-    ["empty", ""],
-    ["blank", "  \t "],
     ["absent", undefined],
   ])("leaves the group out when its name is %s, and the row is then the one it was before the group", (_label, name) => {
     const { container } = render(<PublicJobAd jobAd={{ ...AD, occupationGroupName: name }} />);

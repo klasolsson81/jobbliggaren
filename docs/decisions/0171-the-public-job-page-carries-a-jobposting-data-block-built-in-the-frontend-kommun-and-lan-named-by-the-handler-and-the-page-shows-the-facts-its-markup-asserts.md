@@ -240,7 +240,7 @@ Files as delivered on the branch `feat/seo-s3-jobposting-jsonld`:
 D1–D8 stand and nothing above is rewritten. S6 is split into two PRs (senior-cto-advisor F0, 2026-10-23; Klas: "Två PR (Rek.)"). This amendment records S6a: the
 occupation group on the page, and two links to the explainers. S6b, the related ads, has its own record.
 
-**D1: the occupation group is named by the handler.** The "Occupation group is not resolved; it belongs to S6" of D1 is settled. `GetPublicJobAdQueryHandler` sends the group id
+**D1: the occupation group is named by the handler.** D1's "Occupation group is not resolved. S3 has no consumer for it; it belongs to S6." is settled. `GetPublicJobAdQueryHandler` sends the group id
 in the same single `ResolveLabelsAsync` call as kommun and län, only after the second `Classify` returns Listed. The DTO's new member is recorded in ADR 0160's amendment of the
 same date. The name is register data, and Swedish in every locale, like the place names.
 

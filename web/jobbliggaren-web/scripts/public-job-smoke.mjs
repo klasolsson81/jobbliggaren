@@ -169,6 +169,7 @@ try {
     const [block] = jsonLdBlocks(res.body);
     assert.doesNotMatch(block, /occupationalCategory/);
     assert.ok(!block.includes(AD.occupationGroupName), "the group is not in the JobPosting");
+    assert.ok(inHead(res.body, /<title>/), "the page's metadata sits in the head, so the head is where to look");
     const head = res.body.slice(0, res.body.indexOf("</head>"));
     assert.ok(!head.includes(AD.occupationGroupName), "the group is not in the title, a description or an OpenGraph tag");
   });

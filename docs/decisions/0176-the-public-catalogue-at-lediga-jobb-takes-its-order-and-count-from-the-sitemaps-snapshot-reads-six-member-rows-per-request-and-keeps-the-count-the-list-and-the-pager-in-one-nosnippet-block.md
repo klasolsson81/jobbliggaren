@@ -677,7 +677,7 @@ Each reading below is recorded here before the merge, with its date and its sour
 
 ## Amendment 2026-10-23 (#2090 S6a, #2203) — D4: `PublicPlaceNames` is renamed `PublicTaxonomyNames`
 
-D1–D10 stand and nothing above is rewritten. D4's place-naming helper is renamed `PublicTaxonomyNames`, with the same `ResolveAsync` and `NameOf` and the same pinned semantics, because S6a uses it to
+D1–D14 stand and nothing above is rewritten. D4's place-naming helper is renamed `PublicTaxonomyNames`, with the same `ResolveAsync` and `NameOf` and the same pinned semantics, because S6a uses it to
 name the occupation group on the job page as well (senior-cto-advisor F3; ADR 0160 and ADR 0171, amendments of the same date). The catalogue's handler and tests are unchanged apart from the
 name. Where D4 above says `PublicPlaceNames`, read `PublicTaxonomyNames`.
 

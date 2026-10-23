@@ -76,6 +76,14 @@ describe("publicJobAdDtoSchema", () => {
     expect(publicJobAdDtoSchema.safeParse({ ...WIRE, occupationGroupName: 7 }).success).toBe(false);
   });
 
+  it("parses a wire without the occupation group's name, which then reads as undefined", () => {
+    const { occupationGroupName: _omitted, ...withoutGroupName } = WIRE;
+
+    const parsed = publicJobAdDtoSchema.parse(withoutGroupName);
+
+    expect(parsed.occupationGroupName).toBeUndefined();
+  });
+
   it("accepts an ad with no deadline", () => {
     expect(publicJobAdDtoSchema.parse({ ...WIRE, expiresAt: null }).expiresAt).toBeNull();
   });

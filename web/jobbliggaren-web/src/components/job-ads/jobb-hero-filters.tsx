@@ -29,6 +29,7 @@ import {
   type PopoverGroup,
 } from "./jobb-filter-popover";
 import { JobbToolbarPopover } from "./jobb-toolbar-popover";
+import { JobbYrkePopover } from "./jobb-yrke-popover";
 import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 
 /**
@@ -559,22 +560,16 @@ export function JobbHeroFilters({
         triggerRef={ortBtnRef}
       />
 
-      <JobbFilterPopover
+      {/* The same key remount also starts the occupation search empty on every opening. */}
+      <JobbYrkePopover
         key={openPop === "yrke" ? "yrke-open" : "yrke-closed"}
         open={openPop === "yrke"}
-        leftTitle={t("heroFilters.yrkeLeftTitle")}
-        dialogLabel={t("heroFilters.yrke")}
-        rightTitle={t("heroFilters.yrkeRightTitle")}
-        selectAllLabel={() => t("heroFilters.yrkeSelectAll")}
-        emptyText={t("heroFilters.yrkeEmpty")}
-        rightEmptyText={t("heroFilters.yrkeRightEmpty")}
         groups={occupationFieldGroups}
         selected={occupationGroup}
         onChange={changeOccupationGroup}
         counts={occupationGroupCounts}
         footer={showResultsFooter}
         onClose={() => setOpenPop(null)}
-        onClearAll={() => changeOccupationGroup([])}
         triggerRef={yrkeBtnRef}
       />
 

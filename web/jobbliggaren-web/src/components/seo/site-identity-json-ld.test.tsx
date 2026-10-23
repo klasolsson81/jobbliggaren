@@ -21,6 +21,7 @@ function renderBlocks(): unknown[] {
 }
 
 describe("SiteIdentityJsonLd (#2092)", () => {
+  // `sameAs` holds the project's own pages only: never a person's profile, never a `founder` (#2178).
   it("is exactly a WebSite and an Organization on the site's own origin, with nothing invented", () => {
     expect(renderBlocks()).toEqual([
       {
@@ -36,6 +37,10 @@ describe("SiteIdentityJsonLd (#2092)", () => {
         name: "Jobbliggaren",
         url: SITE_URL,
         logo: `${SITE_URL}/apple-icon`,
+        sameAs: [
+          "https://github.com/klasolsson81/jobbliggaren",
+          "https://www.linkedin.com/company/jobbliggaren",
+        ],
       },
     ]);
   });

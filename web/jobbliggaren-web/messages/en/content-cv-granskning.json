@@ -129,10 +129,9 @@
       "The rules are versioned and traceable."
     ]
   },
-  "links": {
+  "cta": {
     "heading": "Get started",
-    "text": "Upload your CV to see your review, or read our tips for job seekers.",
-    "cvLink": "To CV",
-    "tipsLink": "Tips for job seekers"
+    "text": "Create an account and upload your CV to see your review.",
+    "button": "Create account"
   }
 }

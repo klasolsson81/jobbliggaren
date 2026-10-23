@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svLegal from "../../../../messages/sv/content-legal.json";
-import OmPage from "./page";
+import svMetadata from "../../../../messages/sv/metadata.json";
+import OmPage, { generateMetadata } from "./page";
 
 vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace?: "content-legal") =>
@@ -31,6 +32,14 @@ describe("/om page (#262)", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Vad vi står för" })
     ).toBeInTheDocument();
+  });
+
+  // #2178: the template would render "Om Jobbliggaren | Jobbliggaren", a repeated site name.
+  it("names the site once in its title, outside the root's title template", async () => {
+    const { title } = await generateMetadata();
+
+    expect(title).toEqual({ absolute: "Om Jobbliggaren" });
+    expect(svMetadata.titleTemplate.replace("%s", "")).toContain(svMetadata.applicationName);
   });
 
   it("länkar till Klas projekt och till /kontakt", async () => {

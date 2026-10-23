@@ -118,15 +118,19 @@ function resolveTitle(source: string, file = ""): string {
     return `<record title: ${file}>`;
   }
 
-  const [, key] = /title:\s*t\("([^"]+)"\)/.exec(block) ?? [];
+  const isAbsolute = /title:\s*\{\s*absolute:/.test(block);
+  const shown = (title: string): string =>
+    isAbsolute ? title : message("metadata.titleTemplate").replace("%s", () => title);
+
+  const [, key] = /title:\s*(?:\{\s*absolute:\s*)?t\("([^"]+)"\)/.exec(block) ?? [];
   if (key !== undefined) {
     const [, namespace] = /getTranslations\("([^"]+)"\)/.exec(block) ?? [];
     if (namespace === undefined) throw new Error(`title key ${key} has no namespace`);
-    return message(`${namespace}.${key}`);
+    return shown(message(`${namespace}.${key}`));
   }
 
   const [, literal] = /title:\s*"([^"]+)"/.exec(block) ?? [];
-  if (literal !== undefined) return literal;
+  if (literal !== undefined) return shown(literal);
 
   if (/\bnotFoundMetadata\(/.test(block)) return SHARED_NOT_FOUND_TITLE;
 
@@ -188,7 +192,7 @@ describe("document title coverage", () => {
     ].join("\n");
 
     expect(resolveTitle(conditional)).toBe(
-      message("pages.ansokningar.detail.meta.title")
+      message("metadata.titleTemplate").replace("%s", () => message("pages.ansokningar.detail.meta.title"))
     );
     expect(resolveTitle(unconditional)).toBe(SHARED_NOT_FOUND_TITLE);
   });

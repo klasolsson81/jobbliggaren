@@ -11,6 +11,8 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+const SENTENCE_END = /[.!?…]$/u;
+
 /**
  * The public job page (ADR 0165): an internal page behind `proxy.ts`, which rewrites a cookieless `/jobb/<uuid>` here
  * after asking the public read whether the ad is listed. The address in the browser stays `/jobb/<uuid>`.
@@ -36,10 +38,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const deadline = formatDate(format, jobAd.expiresAt);
 
   const documentTitle = `${jobAd.title} – ${jobAd.companyName}`;
+  // A title that already ends its sentence gets no full stop from the template, so "Säljare!" never reads "Säljare!.".
+  const titleEnd = SENTENCE_END.test(jobAd.title) ? "punctuated" : "open";
   const description =
     deadline === null
-      ? t("meta.description", { company: jobAd.companyName, title: jobAd.title, published })
-      : t("meta.descriptionWithDeadline", { company: jobAd.companyName, title: jobAd.title, published, deadline });
+      ? t("meta.description", { company: jobAd.companyName, title: jobAd.title, titleEnd, published })
+      : t("meta.descriptionWithDeadline", { company: jobAd.companyName, title: jobAd.title, titleEnd, published, deadline });
   const url = publicJobAdUrl(jobAd.id);
 
   return {

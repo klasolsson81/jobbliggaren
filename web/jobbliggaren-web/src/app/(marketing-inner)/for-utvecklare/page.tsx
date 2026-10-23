@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { InformationLink as Link } from "@/components/information/InformationLink";
 import { getTranslations } from "next-intl/server";
 import { absoluteUrl } from "@/lib/site-url";
+import { REPOSITORY_URL } from "@/lib/seo/official-profiles";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("content-legal");
@@ -18,11 +19,6 @@ type Section = {
   paragraphs: string[];
   list?: string[];
 };
-
-// Jobbliggarens publika kodförråd (källtillgängligt, PolyForm Noncommercial
-// 1.0.0, ADR 0072). Verifierat publikt 2026-06-30. Extern länk öppnas i samma
-// flik (myndighetston), samma idiom som /om.
-const REPO_URL = "https://github.com/klasolsson81/jobbliggaren";
 
 
 export default async function ForUtvecklarePage() {
@@ -68,7 +64,8 @@ export default async function ForUtvecklarePage() {
             {t("developers.repoText")}
           </p>
           <p className="mt-2 text-body">
-            <a href={REPO_URL} className="underline">
+            {/* An external link opens in the same tab, the same idiom as /om. */}
+            <a href={REPOSITORY_URL} className="underline">
               {t("developers.repoLinkLabel")}
             </a>
           </p>

@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svCv from "../../../../messages/sv/content-cv-granskning.json";
+import { isProtectedPath } from "@/lib/auth/protected-routes";
+import { SITE_URL } from "@/lib/site-url";
 import CvGranskningPage from "./page";
 
 vi.mock("next-intl/server", () => ({
@@ -39,7 +41,7 @@ describe("/cv-granskning page (#368)", () => {
     ).toBeInTheDocument();
   });
 
-  it("visar de fyra omdömena, förbättrings-exemplet och länken till /cv", async () => {
+  it("visar de fyra omdömena, förbättrings-exemplet och vägen till ett konto", async () => {
     await renderPage();
 
     for (const verdict of ["Godkänt", "Delvis", "Underkänt", "Ej bedömt"]) {
@@ -50,7 +52,21 @@ describe("/cv-granskning page (#368)", () => {
       screen.getByText("Ansvarig för olika uppgifter inom marknadsföring.")
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Till CV" })
-    ).toHaveAttribute("href", "/cv");
+      screen.getByRole("link", { name: "Skapa konto" })
+    ).toHaveAttribute("href", "/logga-in");
+  });
+
+  // An anonymous visitor following a link into the (app) group lands on the sign-in wall (#2178).
+  it("länkar aldrig in i en inloggad vy", async () => {
+    await renderPage();
+
+    const origin = new URL(SITE_URL).origin;
+    const paths = screen
+      .getAllByRole("link")
+      .map((link) => new URL(link.getAttribute("href") ?? "", SITE_URL))
+      .filter((url) => url.origin === origin)
+      .map((url) => url.pathname);
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths.filter(isProtectedPath)).toEqual([]);
   });
 });

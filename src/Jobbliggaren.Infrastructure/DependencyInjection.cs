@@ -383,6 +383,9 @@ public static class DependencyInjection
         services.AddHostedService<
             Jobbliggaren.Infrastructure.Taxonomy.TaxonomySnapshotSeeder>();
 
+        // The one occupation-name index the deriver reads (ADR 0180). A singleton with a lazy cache.
+        services.AddSingleton<Jobbliggaren.Infrastructure.Taxonomy.OccupationNameIndex>();
+
         // Deterministic derivation of an SSYK level-4 occupation group from a job title: the
         // engine proposes, the user confirms (ADR 0040 Beslut 4). A singleton with a lazy cache.
         services.AddSingleton<

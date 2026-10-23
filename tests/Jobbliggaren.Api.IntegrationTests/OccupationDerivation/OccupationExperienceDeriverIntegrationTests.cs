@@ -78,7 +78,8 @@ public sealed class OccupationExperienceDeriverIntegrationTests : IAsyncLifetime
     private OccupationExperienceDeriver NewSut()
     {
         var deriver = new OccupationCodeDeriver(
-            new TaxonomyReadModel(ScopeFactory), new LocalTextAnalyzer(new SnowballStemmer()));
+            new OccupationNameIndex(new TaxonomyReadModel(ScopeFactory)),
+            new LocalTextAnalyzer(new SnowballStemmer()));
         return new OccupationExperienceDeriver(deriver, Clock);
     }
 

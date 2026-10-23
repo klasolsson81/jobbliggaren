@@ -84,7 +84,8 @@ public sealed class CorpusFindingsReportTests : IAsyncLifetime
         var cvCorpus = new CorpusGenerator(config).GenerateCvCorpus(groundTruth);
 
         // ── Deriver pass: hit-rate per stratum + crash count ────────────────
-        var deriver = new OccupationCodeDeriver(new TaxonomyReadModel(ScopeFactory), new LocalTextAnalyzer(new SnowballStemmer()));
+        var deriver = new OccupationCodeDeriver(
+            new OccupationNameIndex(new TaxonomyReadModel(ScopeFactory)), new LocalTextAnalyzer(new SnowballStemmer()));
         var deriverStats = new Dictionary<CorpusStratum, int[]>(); // [total, exact, stemmed, empty]
         var deriverCrashes = 0;
         foreach (var c in titleCorpus)

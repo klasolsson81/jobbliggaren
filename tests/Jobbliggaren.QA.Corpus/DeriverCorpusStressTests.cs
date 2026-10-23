@@ -89,7 +89,7 @@ public sealed class DeriverCorpusStressTests : IAsyncLifetime
     }
 
     private OccupationCodeDeriver NewDeriver() =>
-        new(new TaxonomyReadModel(ScopeFactory), new LocalTextAnalyzer(new SnowballStemmer()));
+        new(new OccupationNameIndex(new TaxonomyReadModel(ScopeFactory)), new LocalTextAnalyzer(new SnowballStemmer()));
 
     // ===============================================================
     // GATE 1 — Crash-safety MUST be 100% across every stratum (CTO Fork 5 = 5C)

@@ -7,8 +7,7 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 /// Fas 4 STEG 3 (F4-3, ADR 0040 amendment + ADR 0074, senior-cto-advisor
 /// Decision 1–6) — deterministic SSYK level-4 derivation (Variant V2). A free-text
 /// occupational title is matched against the JobTech occupation-<b>name</b> labels
-/// (via <see cref="ITaxonomyReadModel.GetTreeAsync"/> — reusing the taxonomy ACL,
-/// ADR 0043) in two passes:
+/// (read from the shared <see cref="OccupationNameIndex"/>) in two passes:
 /// <list type="number">
 /// <item>exact normalized (OrdinalIgnoreCase, NO diacritic folding — Decision 4);</item>
 /// <item>stemmed token-overlap via the F4-2 NLP tier
@@ -20,22 +19,20 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 /// across 7 unrelated groups) is low-precision cross-group fan-out and is dropped
 /// (Klas 2026-06-21; senior-cto-advisor Variant C). Exact hits are never gated.</item>
 /// </list>
-/// Each occupation-name hit is resolved up to its ssyk-level-4 yrkesgrupp via the
-/// committed frozen map (<see cref="OccupationGroupMappingLoader"/>), deduplicated
-/// per group (strongest evidence kept) and returned as a ranked candidate list:
+/// Each occupation-name hit carries its ssyk-level-4 yrkesgrupp from the index,
+/// deduplicated per group (strongest evidence kept) and returned as a ranked candidate list:
 /// exact before stemmed, then group-label Ordinal. The engine PROPOSES, the user
 /// CONFIRMS (ADR 0040 Beslut 4); nothing is persisted; a title with no match →
 /// empty list → manual selection.
 /// <para>
 /// Singleton with a lazy single-load cache mirroring <see cref="TaxonomyReadModel"/>:
-/// the occupation-name exact-lookup index + precomputed label lexemes + the
-/// group-label lookup are built once from the cached snapshot tree + the frozen
-/// map. Bounded, immutable reference data → no per-call DB hit. The title is NEVER
+/// the occupation-name exact-lookup index + precomputed label lexemes are built once
+/// from the index entries. Bounded, immutable reference data → no per-call DB hit. The title is NEVER
 /// logged (CLAUDE.md §5 / BUILD §13) — this type takes no <c>ILogger</c>.
 /// </para>
 /// </summary>
 internal sealed class OccupationCodeDeriver(
-    ITaxonomyReadModel taxonomy, ITextAnalyzer analyzer) : IOccupationCodeDeriver
+    OccupationNameIndex index, ITextAnalyzer analyzer) : IOccupationCodeDeriver
 {
     // Bounded candidate cap — a relevance/UX/DoS bound so a single common token
     // ("chef") cannot fan out across the whole ~400-group taxonomy. NOT a coverage
@@ -257,46 +254,15 @@ internal sealed class OccupationCodeDeriver(
 
     private async Task<DerivationCache> BuildAsync(CancellationToken ct)
     {
-        var tree = await taxonomy.GetTreeAsync(ct);
-        var groupToSsyk = OccupationGroupMappingLoader.Load();
+        var contents = await index.GetAsync(ct);
 
-        // ssyk-4 group id → label (from the tree's occupation-groups). If one
-        // concept-id ever surfaces under more than one occupation field, pick the
-        // Ordinal-minimum label deterministically — NEVER an enumeration-order-
-        // dependent First(): this deriver's whole contract is reproducibility
-        // (class docstring; ADR 0040/0071), and the rest of the file already
-        // Ordinal-tie-breaks (the candidate ThenBy on GroupLabel). Today the
-        // snapshot carries one label per group, so this is a defensive pin, not a
-        // visible change — it forecloses a silent drift if a future snapshot ever
-        // lists a group twice with diverging labels.
-        var groupLabelById = tree.OccupationFields
-            .SelectMany(f => f.OccupationGroups)
-            .GroupBy(g => g.ConceptId, StringComparer.Ordinal)
-            .ToDictionary(
-                g => g.Key,
-                g => g.OrderBy(x => x.Label, StringComparer.Ordinal).First().Label,
-                StringComparer.Ordinal);
-
-        var entries = new List<NameEntry>();
-        foreach (var occupation in tree.OccupationFields.SelectMany(f => f.Occupations))
+        var entries = new List<NameEntry>(contents.Names.Count);
+        foreach (var name in contents.Names)
         {
-            // V2: an occupation-name is matchable only if the frozen map resolves
-            // it to a ssyk-4 group that exists in the snapshot. Occupation-names
-            // absent from the map degrade to manual selection — the F4-3
-            // partial-coverage rule (ADR 0040 amendment). Live-verified 2026-06-14:
-            // 2153 of the 2323 snapshot occupation-names map; 170 are unmapped (the
-            // frozen map's 2179 entries include ids not in this v30 snapshot —
-            // benign taxonomy drift; 0 dangling group targets).
-            if (!groupToSsyk.TryGetValue(occupation.ConceptId, out var groupId)
-                || !groupLabelById.TryGetValue(groupId, out var groupLabel))
-            {
-                continue;
-            }
-
-            var lexemes = analyzer.ToLexemes(occupation.Label, TextLanguage.Swedish)
+            var lexemes = analyzer.ToLexemes(name.NameLabel, TextLanguage.Swedish)
                 .ToHashSet(StringComparer.Ordinal);
 
-            entries.Add(new NameEntry(occupation.Label, lexemes, groupId, groupLabel));
+            entries.Add(new NameEntry(name.NameLabel, lexemes, name.GroupConceptId, name.GroupLabel));
         }
 
         var byExactLabel = entries

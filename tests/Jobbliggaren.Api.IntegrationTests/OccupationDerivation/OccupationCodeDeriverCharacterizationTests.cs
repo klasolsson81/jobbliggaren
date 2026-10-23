@@ -69,7 +69,8 @@ public sealed class OccupationCodeDeriverCharacterizationTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var scopeFactory = _provider.GetRequiredService<IServiceScopeFactory>();
         var taxonomy = new TaxonomyReadModel(scopeFactory);
-        var sut = new OccupationCodeDeriver(taxonomy, new LocalTextAnalyzer(new SnowballStemmer()));
+        var sut = new OccupationCodeDeriver(
+            new OccupationNameIndex(taxonomy), new LocalTextAnalyzer(new SnowballStemmer()));
 
         var frozenMap = await ReadFrozenMapAsync();
         var tree = await taxonomy.GetTreeAsync(ct);

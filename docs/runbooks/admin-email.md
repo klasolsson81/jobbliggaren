@@ -78,7 +78,7 @@ table per kind is read on the page, by Klas.
 **After a rollback across `AddEmailSendDailyCounts`** (run under `MIGRATE_ALLOW_SCHEMA_AHEAD`): older code counts nothing, so
 after the roll-forward the dates in between would read as zeros under a start that predates them. Klas empties the counts and
 re-takes the start in one box write under his GO (ADR 0154), once the counting release runs again (ADR 0181 lapse trigger 7):
-`BEGIN; DELETE FROM email_send_daily_counts; UPDATE email_send_counting SET started_at = now(); COMMIT;`
+`DO $$ BEGIN DELETE FROM email_send_daily_counts; UPDATE email_send_counting SET started_at = now(); END $$;`
 
 **Counted for the project, free tier per organisation.** The free tier is "300 per organization". The count is the project's.
 They are the same while the organisation has one project sending through Transactional Email (measured 2026-10-19, ADR 0178).

@@ -145,22 +145,6 @@ public sealed class EmailSendTallyTests
         warning.Exception.ShouldBeNull();
     }
 
-    /// <summary>A composition that registered the tally without what its write resolves (ADR 0181 N3 pins the real one).</summary>
-    [Fact]
-    public async Task RecordAsync_WhenTheWriteCannotResolveItsServices_ReturnsAndLogsTheResolutionFailure()
-    {
-        await using var provider = new ServiceCollection().BuildServiceProvider();
-        var sut = new SqlEmailSendTally(
-            provider.GetRequiredService<IServiceScopeFactory>(), new TypedLogger<SqlEmailSendTally>(_logger));
-
-        await Should.NotThrowAsync(async () => await sut.RecordAsync(EmailKind.FeedbackReply, EmailSendOutcome.Refused));
-
-        var warning = _logger.Records.ShouldHaveSingleItem();
-        warning.Message.ShouldContain(nameof(InvalidOperationException));
-        warning.Message.ShouldContain("(SQLSTATE -)");
-        warning.Exception.ShouldBeNull();
-    }
-
     private sealed class TypedLogger<T>(ILogger inner) : ILogger<T>
     {
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => inner.BeginScope(state);

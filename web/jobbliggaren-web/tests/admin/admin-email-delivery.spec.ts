@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, win32 } from "node:path";
 import {
@@ -14,10 +14,10 @@ import {
 } from "./servers";
 
 /**
- * Leverans on `/admin/e-post` and the overview's failed-sends line, in a real browser (#1981 PR 2): the period links
- * (each its own URL, focus kept, the allowance untouched by a change, a deep link), every state the two reads can be
- * in, and the document's `no-store`. With ADMIN_OVERVIEW_SCREENSHOT_DIR set, each state is rendered at 1280 and
- * 375 px in both themes into that directory.
+ * Leverans on `/admin/e-post` and the overview's failed-sends line, in a real browser (#1981 PR 2 and PR 3): the period
+ * links (each its own URL, focus kept, the allowance untouched by a change, a deep link), every state the provider's
+ * two reads and our own count per mail kind can be in, the section's announcement, and the document's `no-store`.
+ * With ADMIN_OVERVIEW_SCREENSHOT_DIR set, each state is rendered at 1280 and 375 px in both themes into that directory.
  */
 
 let harness: Harness;
@@ -47,6 +47,9 @@ const periods = (page: Page) => leverans(page).getByRole("navigation", { name: "
 const periodLink = (page: Page, name: string) => periods(page).getByRole("link", { name, exact: true });
 const failuresTable = (page: Page) => page.getByRole("table", { name: /^Misslyckade utskick/ });
 const failureRows = (page: Page) => failuresTable(page).locator("tbody tr");
+const kindsSection = (page: Page) => leverans(page).getByRole("region", { name: "Utskick per mejltyp", exact: true });
+const kindsTable = (page: Page) => page.getByRole("table", { name: /^(Antal u|U)tskick per mejltyp/ });
+const kindsRows = (page: Page) => kindsTable(page).locator("tbody tr");
 /** Alerts with content: Next's route announcer is an empty role=alert that is always there. */
 const alerts = (page: Page) => page.getByRole("alert").filter({ hasText: /\S/ });
 const card = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -112,14 +115,16 @@ async function verifyEverywhere(page: Page, path: string, state: string, ready: 
 }
 
 test.describe("the period links", () => {
-  test("open on 7 dygn, ask both reads for it, and mark it alone", async ({ page }) => {
+  test("open on 7 dygn, ask every Leverans read for it, and mark it alone", async ({ page }) => {
     await page.goto(PAGE);
 
     await expect(periods(page).getByRole("link")).toHaveText(["24 tim", "3 dygn", "7 dygn"]);
     await expect(periodLink(page, "7 dygn")).toHaveAttribute("aria-current", "true");
     await expect(periods(page).locator("[aria-current]")).toHaveCount(1);
     await expect(leverans(page).getByRole("definition")).toHaveText(["384", "5"]);
-    expect(harness.emailQueries.sort()).toEqual(["/api/v1/admin/email/delivery?period=d7", "/api/v1/admin/email/failures?period=d7"]);
+    expect(harness.emailQueries.sort()).toEqual([
+      "/api/v1/admin/email/delivery?period=d7", "/api/v1/admin/email/failures?period=d7", "/api/v1/admin/email/kinds?period=d7",
+    ]);
   });
 
   test("a deep link to ?period=h24 opens on 24 tim, never on 7 dygn", async ({ page }) => {
@@ -129,7 +134,9 @@ test.describe("the period links", () => {
     await expect(periodLink(page, "7 dygn")).not.toHaveAttribute("aria-current", /.*/);
     await expect(leverans(page).getByRole("definition")).toHaveText(["57", "2"]);
     await expect(failuresTable(page)).toHaveAccessibleName("Misslyckade utskick, senaste 24 tim");
-    expect(harness.emailQueries.sort()).toEqual(["/api/v1/admin/email/delivery?period=h24", "/api/v1/admin/email/failures?period=h24"]);
+    expect(harness.emailQueries.sort()).toEqual([
+      "/api/v1/admin/email/delivery?period=h24", "/api/v1/admin/email/failures?period=h24", "/api/v1/admin/email/kinds?period=h24",
+    ]);
   });
 
   test("an unknown period falls back to 7 dygn, and never reaches the API", async ({ page }) => {
@@ -265,8 +272,8 @@ test.describe("each state, never a zero or an empty list it did not observe (ADR
       if (!expected.list.includes(EMPTY)) await expect(section).not.toContainText(EMPTY);
       if (expected.alert === null) await expect(alerts(page)).toHaveCount(0);
       else await expect(alerts(page)).toHaveText([expected.alert]);
-      await expect(page.getByRole("table", { name: "Utskick per mejltyp" }).locator("tbody")).toHaveText("Kommer snart");
-      // Each region fails on its own: the allowance still shows its month.
+      // Each region fails on its own: our own count still shows its seven kinds, and the allowance its month.
+      await expect(kindsTable(page).getByRole("rowheader")).toHaveCount(7);
       await expect(allowance(page).getByRole("definition")).toHaveText(["142", "300", /^0,00\skr$/]);
       await verify(page, expected.state);
     });
@@ -354,10 +361,15 @@ test.describe("rendered states (#1981 PR 2, DESIGN.md §12)", () => {
       await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
       harness.emailDelay = 8_000;
       await page.goto(`${PAGE}?period=h24`, { waitUntil: "commit" });
-      await expect(leverans(page).getByText("Hämtar uppgifter…", { exact: true })).toHaveCount(2);
+      await expect(leverans(page).getByText("Hämtar uppgifter…", { exact: true })).toHaveCount(3);
       await expect(allowance(page).getByText("Hämtar uppgifter…", { exact: true })).toBeVisible();
       await expect(periods(page).locator("[aria-current]")).toHaveCount(0);
-      await expect(page.getByRole("table", { name: "Utskick per mejltyp" }).locator("tbody")).toHaveText("Kommer snart");
+      await expect(kindsSection(page).getByRole("heading", { level: 3, name: "Utskick per mejltyp" })).toBeVisible();
+      await expect(kindsRows(page)).toHaveText(["Hämtar uppgifter…"]);
+      await expect(page.getByRole("status").filter({ hasText: /\S/ })).toHaveText([
+        "Utskick mot gratiskvoten: Hämtar uppgifter…", "Leverans: Hämtar uppgifter…",
+      ]);
+      await expect(page.locator("main")).not.toContainText("Kommer snart");
       await verify(page, "loading");
       await darken(page);
       await verify(page, "loading");
@@ -450,5 +462,175 @@ test.describe("the overview's failed-sends line", () => {
       await expect(card(current, "E-post")).toContainText(READ_KEY_MISSING);
       await expect(card(current, "E-post")).not.toContainText("Räknas inte i den här miljön.");
     });
+  });
+});
+
+const KIND_LABELS = [
+  "Inloggning och koder", "Adressbyte begärt", "Adressbyte genomfört", "Matchningar", "Bevakade företag", "Ny feedback",
+  "Svar på feedback",
+];
+const KINDS_NOT_OBSERVABLE =
+  "Jobbliggarens räkning visar inga utskick under perioden, fast Scaleway har skickat. Se runbooken för admin-e-post.";
+const REFUSED = "Din session saknar Admin-rollen.";
+const COUNTED_BY_US = "Räknat av Jobbliggaren vid varje försök att lämna över ett mejl till Scaleway";
+/** The harness's per-day handovers for each kind, which the longer periods scale (`servers.ts`). */
+const HANDOVERS = [12, 3, 2, 35, 8, 4, 1];
+const PERIOD_DAYS = { h24: 1, d3: 3, d7: 7 } as const;
+const swedishDate = (ms: number) => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm" }).format(ms);
+
+/** Writes what a screen reader is told, beside the renders, since a screenshot cannot show it. */
+function record(name: string, value: unknown) {
+  const directory = screenshotDirectory();
+  if (directory === null) return;
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, name), typeof value === "string" ? value : JSON.stringify(value, null, 2));
+}
+
+test.describe("Utskick per mejltyp (#1981 PR 3)", () => {
+  test("is our own count's sub-section, after the failures, with the seven kinds as row headers in a fixed order", async ({ page }) => {
+    await page.goto(PAGE);
+
+    await expect(leverans(page).getByRole("heading", { level: 3 })).toHaveText(["Senaste misslyckade utskick", "Utskick per mejltyp"]);
+    await expect(kindsTable(page).getByRole("columnheader")).toHaveText(["Mejltyp", "Överlämnade", "Fel", "Senaste fel"]);
+    await expect(page.getByRole("rowheader")).toHaveCount(7);
+    await expect(kindsTable(page).getByRole("rowheader")).toHaveText(KIND_LABELS);
+    await expect(kindsRows(page)).toHaveCount(7);
+    await expect(kindsTable(page)).not.toContainText(/totalt|summa|–/i);
+    record("epost-kinds-aria-d7.txt", await kindsSection(page).ariaSnapshot());
+  });
+
+  for (const period of ["h24", "d3", "d7"] as const) {
+    test(`shows the ${period} counts from the period's first day, every failure class and Inget, at 1280 and 375 px in both themes`, async ({ page }) => {
+      await verifyEverywhere(page, `${PAGE}?period=${period}`, `kinds-observed-${period}`, async (current) => {
+        const from = swedishDate(Date.now() - PERIOD_DAYS[period] * 86_400_000);
+        const today = swedishDate(Date.now());
+        await expect(kindsSection(current).locator(".jp-adminmailsum__note")).toHaveText(`${COUNTED_BY_US}, från och med ${from}.`);
+        await expect(kindsTable(current)).toHaveAccessibleName(`Utskick per mejltyp från och med ${from}`);
+        const scale = PERIOD_DAYS[period];
+        const rows = await kindsRows(current).evaluateAll((trs) =>
+          trs.map((tr) => [...tr.querySelectorAll("th, td")].map((cell) => (cell.textContent ?? "").replace(/\u00a0/g, " "))));
+        expect(rows).toEqual([
+          [KIND_LABELS[0], String(HANDOVERS[0]! * scale), "2", `${today}: avvisat av Scaleway och inget svar i tid`],
+          [KIND_LABELS[1], String(HANDOVERS[1]! * scale), "0", "Inget"],
+          [KIND_LABELS[2], String(HANDOVERS[2]! * scale), "1", `${from}: över Scaleways taktgräns`],
+          [KIND_LABELS[3], String(HANDOVERS[3]! * scale), "3", `${today}: Scaleway nåddes inte och fel hos Scaleway`],
+          [KIND_LABELS[4], String(HANDOVERS[4]! * scale), "0", "Inget"],
+          [KIND_LABELS[5], String(HANDOVERS[5]! * scale), "1", `${from}: annat fel`],
+          [KIND_LABELS[6], String(HANDOVERS[6]! * scale), "0", "Inget"],
+        ]);
+        await expect(kindsTable(current).locator("tbody td .jp-admin-danger")).toHaveText(["2", "1", "3", "1"]);
+        await expect(kindsTable(current).locator("tbody time").first()).toHaveAttribute("datetime", today);
+        await expect(alerts(current)).toHaveCount(0);
+      });
+    });
+  }
+
+  const KINDS_STATES: ReadonlyArray<{
+    readonly state: string;
+    readonly set: (h: Harness) => void;
+    readonly ready: (page: Page) => Promise<void>;
+  }> = [
+    { state: "none-failed", set: (h) => { h.emailKinds = "noneFailed"; }, ready: async (page) => {
+      await expect(kindsRows(page).locator("td:last-child")).toHaveText(Array(7).fill("Inget"));
+      await expect(kindsTable(page).locator(".jp-admin-danger")).toHaveCount(0);
+    } },
+    { state: "nothing-sent", set: (h) => { h.emailKinds = "nothingSent"; }, ready: async (page) => {
+      await expect(kindsRows(page)).toHaveText(KIND_LABELS.map((label) => `${label}00Inget`));
+    } },
+    { state: "partial", set: (h) => { h.emailKinds = "partial"; }, ready: async (page) => {
+      await expect(kindsSection(page).locator(".jp-adminmailsum__note"))
+        .toHaveText(new RegExp(`^${COUNTED_BY_US}, sedan räkningen började \\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d\\.$`));
+      await expect(kindsTable(page)).toHaveAccessibleName(/^Utskick per mejltyp sedan \d{4}-\d\d-\d\d \d\d:\d\d$/);
+      await expect(kindsRows(page)).toHaveCount(7);
+    } },
+    { state: "not-configured", set: (h) => { h.emailKinds = "notConfigured"; }, ready: async (page) => {
+      await expect(kindsRows(page)).toHaveText(["Räknas inte i den här miljön."]);
+      await expect(alerts(page)).toHaveCount(0);
+    } },
+    { state: "not-observable", set: (h) => { h.emailKinds = "notObservable"; }, ready: async (page) => {
+      await expect(kindsRows(page)).toHaveText([KINDS_NOT_OBSERVABLE]);
+      await expect(alerts(page)).toHaveText([`Utskick per mejltyp: ${KINDS_NOT_OBSERVABLE}`]);
+    } },
+    { state: "our-read-failed", set: (h) => { h.overviewReads.kinds = "error"; }, ready: async (page) => {
+      await expect(kindsRows(page)).toHaveText([OUR_READ_FAILED]);
+    } },
+    { state: "refused", set: (h) => { h.overviewReads.kinds = "forbidden"; }, ready: async (page) => {
+      await expect(kindsRows(page)).toHaveText([REFUSED]);
+      await expect(alerts(page)).toHaveText([`Utskick per mejltyp: ${REFUSED}`]);
+    } },
+  ];
+
+  for (const expected of KINDS_STATES) {
+    test(`renders the ${expected.state} count at 1280 and 375 px in both themes, never a zero it did not observe`, async ({ page }) => {
+      expected.set(harness);
+      await verifyEverywhere(page, PAGE, `kinds-${expected.state}`, async (current) => {
+        await expected.ready(current);
+        // Outside an observed count: the column heads stay, one line, no note and no row of figures.
+        if (!["none-failed", "nothing-sent", "partial"].includes(expected.state)) {
+          await expect(kindsTable(current).getByRole("columnheader")).toHaveCount(4);
+          await expect(kindsRows(current)).toHaveCount(1);
+          await expect(kindsRows(current).locator("td.jp-admintable__soon")).toHaveCount(1);
+          await expect(kindsSection(current).locator(".jp-adminmailsum__note")).toHaveCount(0);
+          await expect(kindsTable(current)).toHaveAccessibleName("Antal utskick per mejltyp");
+        }
+        // The provider's regions are untouched by our own count's state.
+        await expect(leverans(current).getByRole("definition")).toHaveText(["384", "5"]);
+      });
+    });
+  }
+
+  const ANNOUNCEMENTS: ReadonlyArray<{ readonly state: string; readonly set: (h: Harness) => void; readonly alerts: string[] }> = [
+    { state: "only-ours-failed", set: (h) => { h.overviewReads.kinds = "error"; },
+      alerts: [`Utskick per mejltyp: ${OUR_READ_FAILED}`] },
+    { state: "only-leverans-failed", set: (h) => { h.overviewReads.delivery = h.overviewReads.failures = "error"; },
+      alerts: [`Leverans: ${OUR_READ_FAILED}`] },
+    { state: "both-failed", set: (h) => { h.overviewReads.delivery = h.overviewReads.failures = h.overviewReads.kinds = "error"; },
+      alerts: [`Leverans: ${OUR_READ_FAILED} Utskick per mejltyp: ${OUR_READ_FAILED}`] },
+    { state: "all-refused", set: (h) => { h.mode = "forbidden"; },
+      alerts: [`Utskick mot gratiskvoten: ${REFUSED}`, `Leverans: ${REFUSED}`] },
+  ];
+
+  for (const expected of ANNOUNCEMENTS) {
+    test(`announces ${expected.state} with each region's own source, a shared cause once, at 1280 and 375 px in both themes`, async ({ page }) => {
+      expected.set(harness);
+      await verifyEverywhere(page, PAGE, `announce-${expected.state}`, async (current) => {
+        await expect(alerts(current)).toHaveText(expected.alerts);
+      });
+      record(`epost-announce-${expected.state}.json`, await alerts(page).allTextContents());
+    });
+  }
+
+  test("keeps each kind's name and its column head in view while the table scrolls in its region at 375 px, on the page's own ground", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(PAGE);
+    const region = page.getByRole("region", { name: /^Utskick per mejltyp från och med/ });
+    await region.scrollIntoViewIfNeeded();
+    for (const theme of ["light", "dark"] as const) {
+      if (theme === "dark") await darken(page);
+      await region.evaluate((element) => { element.scrollLeft = 0; });
+      const header = kindsTable(page).getByRole("rowheader").first();
+      const head = kindsTable(page).getByRole("columnheader", { name: "Mejltyp" });
+      const atRest = await header.boundingBox();
+      await region.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+      await expect.poll(async () => region.evaluate((element) => element.scrollLeft)).toBeGreaterThan(100);
+      const regionBox = await region.boundingBox();
+      for (const cell of [header, head]) {
+        const scrolled = await cell.boundingBox();
+        expect(scrolled?.x, "the kind's column stays at the region's start").toBeCloseTo(regionBox?.x ?? -1, 0);
+        expect(scrolled?.x).toBeCloseTo(atRest?.x ?? -1, 0);
+      }
+      // The cells cover the figures that scroll under them in the colour of what the table stands on.
+      const backgrounds = await header.evaluate((cell) => {
+        let ground = cell.closest(".jp-admintable-scroll")?.parentElement ?? null;
+        while (ground !== null && getComputedStyle(ground).backgroundColor === "rgba(0, 0, 0, 0)") ground = ground.parentElement;
+        return { cell: getComputedStyle(cell).backgroundColor, ground: ground === null ? null : getComputedStyle(ground).backgroundColor };
+      });
+      expect(backgrounds.cell).toBe(backgrounds.ground);
+      const directory = screenshotDirectory();
+      if (directory !== null) {
+        mkdirSync(directory, { recursive: true });
+        await region.screenshot({ path: join(directory, `epost-kinds-sticky-${theme}-375.png`), animations: "disabled" });
+      }
+    }
   });
 });

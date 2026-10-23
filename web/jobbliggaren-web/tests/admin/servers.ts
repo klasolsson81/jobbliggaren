@@ -264,6 +264,57 @@ function failuresAnswer(scenario: FailuresScenario, period: EmailPeriod): unknow
   return observed(rows);
 }
 
+/**
+ * What the per-kind read answers (#1981 PR 3), as the API states it: our own count of handovers per mail kind.
+ * `observed` has failures on three days' worth of kinds, one day with two classes and every class somewhere;
+ * `noneFailed` counts no failure, and `nothingSent` no handover; `partial` is a count that began five hours ago;
+ * `notConfigured` a deployment without Scaleway, and `notObservable` a count with no sends while the provider sent.
+ */
+export type KindsScenario = "observed" | "noneFailed" | "nothingSent" | "partial" | "notConfigured" | "notObservable";
+
+const EMAIL_KINDS = [
+  "login-challenge", "account-email-change-requested-notification", "email-changed-notification", "match-notification",
+  "followed-company-notification", "feedback-received-notification", "feedback-reply",
+] as const;
+const PERIOD_HOURS: Readonly<Record<EmailPeriod, number>> = { h24: 24, d3: 72, d7: 168 };
+const KIND_HANDOVERS = [12, 3, 2, 35, 8, 4, 1] as const;
+
+/** The Swedish civil date an instant falls on, as the API's per-kind read dates its days. */
+const swedishDate = (ms: number) => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm" }).format(ms);
+
+function kindsAnswer(scenario: KindsScenario, period: EmailPeriod): unknown {
+  const now = Date.now();
+  const from = swedishDate(now - PERIOD_HOURS[period] * 3_600_000);
+  const today = swedishDate(now);
+  const none = { coverage: null, coveredFrom: null, kinds: null };
+  if (scenario === "notConfigured") return { period, status: "NotObserved", from: null, ...none };
+  if (scenario === "notObservable") return { period, status: "NotObservable", from, ...none };
+  // Each failing kind's latest day is today or the period's first day, so it lies inside the period.
+  const failures: Readonly<Record<string, { failed: number; day: string; outcomes: string[] }>> = scenario === "observed" || scenario === "partial"
+    ? {
+      "login-challenge": { failed: 2, day: today, outcomes: ["Refused", "Timeout"] },
+      "email-changed-notification": { failed: 1, day: from, outcomes: ["RateLimited"] },
+      "match-notification": { failed: 3, day: today, outcomes: ["Unreachable", "ProviderError"] },
+      "feedback-received-notification": { failed: 1, day: from, outcomes: ["Other"] },
+    }
+    : {};
+  const scale = PERIOD_HOURS[period] / 24;
+  const kinds = EMAIL_KINDS.map((kind, index) => {
+    const failure = failures[kind];
+    return {
+      kind,
+      accepted: scenario === "nothingSent" ? 0 : (KIND_HANDOVERS[index] ?? 0) * scale,
+      failed: failure?.failed ?? 0,
+      latestFailure: failure === undefined ? null : { day: failure.day, outcomes: failure.outcomes },
+    };
+  });
+  return scenario === "partial"
+    ? { period, status: "Observed", from, coverage: "Partial",
+      // A timestamptz as the API writes it: six decimals of a second and an offset.
+      coveredFrom: new Date(now - 5 * 3_600_000).toISOString().replace(/Z$/, "456+00:00"), kinds }
+    : { period, status: "Observed", from, coverage: "Complete", coveredFrom: null, kinds };
+}
+
 /** The four reads the feedback page makes side by side (#1979). */
 export type FeedbackRead = "list" | "detail" | "summary" | "availability";
 export type FeedbackScreenshotRead = "ok" | "notFound" | "error" | "loading";
@@ -276,7 +327,7 @@ export type Harness = {
   who: "admin" | "member" | "stale";
   mode: AdminMode;
   readonly overviewReads: Record<
-    "accounts" | "audit" | "jobs" | "backup" | "host" | "services" | "email" | "delivery" | "failures",
+    "accounts" | "audit" | "jobs" | "backup" | "host" | "services" | "email" | "delivery" | "failures" | "kinds",
     AdminMode
   >;
   overviewBackup: BackupScenario;
@@ -289,9 +340,13 @@ export type Harness = {
   emailDelivery: DeliveryScenario | null;
   /** What the failures read answers; null answers the delivery read's own state. */
   emailFailures: FailuresScenario | null;
-  /** How long the delivery and failures reads take to answer, for a period change seen mid-flight. */
+  /** What the per-kind read answers (#1981 PR 3); our own count, so it never follows the delivery read. */
+  emailKinds: KindsScenario;
+  /** How long the delivery, failures and per-kind reads take to answer, for a period change seen mid-flight. */
   emailDelay: number;
-  /** Every delivery and failures read's path and query string, as the backend received them. */
+  /** How long the per-kind read alone takes to answer, beyond `emailDelay`. */
+  kindsDelay: number;
+  /** Every delivery, failures and per-kind read's path and query string, as the backend received them. */
   readonly emailQueries: string[];
   /** Every body the failures read answered, so a test can look for what must never reach the page. */
   readonly failuresAnswers: unknown[];
@@ -403,12 +458,15 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     mode: "ok",
     overviewReads: {
       accounts: "ok", audit: "ok", jobs: "ok", backup: "ok", host: "ok", services: "ok", email: "ok", delivery: "ok", failures: "ok",
+      kinds: "ok",
     },
     overviewBackup: "observed",
     overviewEmail: "observed",
     emailDelivery: null,
     emailFailures: null,
+    emailKinds: "observed",
     emailDelay: 0,
+    kindsDelay: 0,
     emailQueries,
     failuresAnswers,
     overviewHost: "measured",
@@ -481,12 +539,14 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.mode = "ok";
       harness.overviewReads.accounts = harness.overviewReads.audit = harness.overviewReads.jobs = harness.overviewReads.backup = "ok";
       harness.overviewReads.host = harness.overviewReads.services = harness.overviewReads.email = "ok";
-      harness.overviewReads.delivery = harness.overviewReads.failures = "ok";
+      harness.overviewReads.delivery = harness.overviewReads.failures = harness.overviewReads.kinds = "ok";
       harness.overviewBackup = "observed";
       harness.overviewEmail = "observed";
       harness.emailDelivery = null;
       harness.emailFailures = null;
+      harness.emailKinds = "observed";
       harness.emailDelay = 0;
+      harness.kindsDelay = 0;
       emailQueries.length = 0;
       failuresAnswers.length = 0;
       harness.overviewHost = "measured";
@@ -537,8 +597,9 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     const url = new URL(request.url ?? "/", `http://localhost:${ports.backend}`);
     const route = `${request.method} ${url.pathname}`;
     requests.push(route);
-    // #1981 PR 2: the two Leverans reads take one of three periods, and the API refuses any other with a 400.
-    const isEmailRead = route === "GET /api/v1/admin/email/delivery" || route === "GET /api/v1/admin/email/failures";
+    // #1981 PR 2 and PR 3: the three Leverans reads take one of three periods, and the API refuses any other with a 400.
+    const isEmailRead = route === "GET /api/v1/admin/email/delivery" || route === "GET /api/v1/admin/email/failures"
+      || route === "GET /api/v1/admin/email/kinds";
     if (isEmailRead) emailQueries.push(`${url.pathname}${url.search}`);
     const emailPeriod = EMAIL_PERIODS.find((period) => period === url.searchParams.get("period")) ?? null;
     const emailScenario = (): DeliveryScenario =>
@@ -592,6 +653,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
         failuresAnswers.push(body);
         return body;
       },
+      "GET /api/v1/admin/email/kinds": () => kindsAnswer(harness.emailKinds, emailPeriod ?? "d7"),
     };
     const refusal = (mode: AdminMode = harness.mode) => {
       switch (mode) {
@@ -902,7 +964,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
         : route.endsWith("/overview/services") ? "services"
         : route.endsWith("/email/allowance") ? "email"
         : route.endsWith("/email/delivery") ? "delivery"
-        : route.endsWith("/email/failures") ? "failures" : null;
+        : route.endsWith("/email/failures") ? "failures"
+        : route.endsWith("/email/kinds") ? "kinds" : null;
       const mode = harness.mode === "ok" && source !== null ? harness.overviewReads[source] : harness.mode;
       const respond = () => {
         if (mode !== "ok") return refusal(mode);
@@ -911,7 +974,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
           ...(source !== null && harness.overviewSampledAt !== null ? { "X-Admin-Sampled-At": harness.overviewSampledAt } : {}),
         });
       };
-      const delay = isEmailRead && harness.emailDelay > 0 ? harness.emailDelay : source !== null ? harness.overviewDelayMs : 0;
+      const emailWait = harness.emailDelay + (source === "kinds" ? harness.kindsDelay : 0);
+      const delay = isEmailRead && emailWait > 0 ? emailWait : source !== null ? harness.overviewDelayMs : 0;
       if (delay > 0) {
         const timer = setTimeout(respond, delay);
         response.once("close", () => clearTimeout(timer));

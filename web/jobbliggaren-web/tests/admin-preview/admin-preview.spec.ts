@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { join, win32 } from "node:path";
 import { startHarness, type Harness } from "../admin/servers";
 import { PREVIEW_PORTS } from "./ports";
 
@@ -479,11 +481,101 @@ test("Leverans reads its period from the URL, as the live page does, and shows e
   await scenario.selectOption({ label: "Läsnyckeln ser inga utskick" });
   await expect(leverans).toContainText("Scaleways leveransstatistik visar inga utskick de senaste 32 dygnen");
   await expect(rows).toHaveText(["Uppgift saknas"]);
-  await expect(page.getByRole("table", { name: "Utskick per mejltyp" }).locator("tbody")).toHaveText("Kommer snart");
+  // Our own count is its own region and its own choice: the provider's state leaves it as it was.
+  await expect(page.getByRole("region", { name: "Utskick per mejltyp", exact: true }).getByRole("rowheader")).toHaveCount(7);
+  await expect(page.locator("main")).not.toContainText("Kommer snart");
 
   await state(page, "Fel");
-  await expect(leverans.getByText("Uppgifterna kunde inte hämtas. Försök igen om en stund.", { exact: true })).toHaveCount(1);
+  await expect(leverans.getByText("Uppgifterna kunde inte hämtas. Försök igen om en stund.", { exact: true })).toHaveCount(2);
   await expect(rows).toHaveText(["Uppgift saknas"]);
+});
+
+test("the count per mail kind shows each fixture state for the URL's period, and follows the band only when it fails or loads (#1981 PR 3)", async ({ page }) => {
+  await page.goto(`${ROOT}/e-post?period=h24`);
+  const kinds = page.getByRole("region", { name: "Utskick per mejltyp", exact: true });
+  const table = page.getByRole("table", { name: /^(Antal u|U)tskick per mejltyp/ });
+  const rows = table.locator("tbody tr");
+  const scenario = page.getByLabel("Visa utskick per mejltyp");
+  await expect(table.getByRole("rowheader")).toHaveText([
+    "Inloggning och koder", "Adressbyte begärt", "Adressbyte genomfört", "Matchningar", "Bevakade företag", "Ny feedback",
+    "Svar på feedback",
+  ]);
+  await expect(kinds).toContainText("från och med 2026-10-03.");
+  await expect(rows.first()).toContainText("2026-10-04: avvisat av Scaleway och inget svar i tid");
+  await expect(rows.nth(3)).toContainText("2026-10-04: Scaleway nåddes inte och fel hos Scaleway");
+
+  await expect(kinds.getByRole("link")).toHaveCount(0);
+  await page.getByRole("link", { name: "7 dygn", exact: true }).click();
+  await expect(page).toHaveURL(/\/e-post\?period=d7$/);
+  await expect(kinds).toContainText("från och med 2026-09-27.");
+
+  await scenario.selectOption({ label: "Inga fel" });
+  await expect(rows.locator("td:last-child")).toHaveText(Array(7).fill("Inget"));
+  await scenario.selectOption({ label: "Räkningen började inom perioden" });
+  await expect(kinds).toContainText("sedan räkningen började 2026-10-03 15:12.");
+  await scenario.selectOption({ label: "Räknas inte i miljön" });
+  await expect(rows).toHaveText(["Räknas inte i den här miljön."]);
+  await scenario.selectOption({ label: "Räkningen visar inga utskick" });
+  await expect(rows).toHaveText([
+    "Jobbliggarens räkning visar inga utskick under perioden, fast Scaleway har skickat. Se runbooken för admin-e-post.",
+  ]);
+
+  await state(page, "Fel");
+  await expect(rows).toHaveText(["Uppgifterna kunde inte hämtas. Försök igen om en stund."]);
+});
+
+/** With ADMIN_PREVIEW_SCREENSHOT_DIR set to an absolute C:/tmp directory, the renders below are written into it. */
+function previewScreenshotDirectory(): string | null {
+  const requested = process.env.ADMIN_PREVIEW_SCREENSHOT_DIR;
+  if (!requested) return null;
+  const directory = win32.resolve(requested);
+  if (!win32.isAbsolute(requested) || !/^c:\\tmp\\/i.test(directory)) {
+    throw new Error("ADMIN_PREVIEW_SCREENSHOT_DIR must be an absolute C:/tmp directory");
+  }
+  return directory;
+}
+
+test("renders every state of the count per mail kind at 1280 and 375 px in both themes (#1981 PR 3)", async ({ page }) => {
+  const directory = previewScreenshotDirectory();
+  test.skip(directory === null, "renders only with ADMIN_PREVIEW_SCREENSHOT_DIR");
+  if (directory === null) return;
+  mkdirSync(directory, { recursive: true });
+  const kinds = page.getByRole("region", { name: "Utskick per mejltyp", exact: true });
+  const shoot = async (name: string, width: number) => {
+    for (const theme of ["light", "dark"] as const) {
+      await page.evaluate(async (dark) => {
+        if (dark) document.documentElement.dataset.theme = "dark";
+        else delete document.documentElement.dataset.theme;
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        await Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined)));
+      }, theme === "dark");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${name} scrolls sideways`).toBe(true);
+      await kinds.screenshot({ path: join(directory, `preview-kinds-${name}-${theme}-${width}.png`), animations: "disabled" });
+    }
+  };
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
+    await page.goto(`${ROOT}/e-post?period=d7`);
+    const scenario = page.getByLabel("Visa utskick per mejltyp");
+    for (const [name, label] of [
+      ["observed", "Fel finns"], ["none-failed", "Inga fel"], ["nothing-sent", "Inga utskick"],
+      ["partial", "Räkningen började inom perioden"], ["not-configured", "Räknas inte i miljön"],
+      ["not-observable", "Räkningen visar inga utskick"],
+    ] as const) {
+      await scenario.selectOption({ label });
+      await expect(kinds.getByRole("table")).toBeVisible();
+      await shoot(name, width);
+    }
+    for (const [name, band, line] of [
+      ["failed", "Fel", "Uppgifterna kunde inte hämtas. Försök igen om en stund."],
+      ["loading", "Laddar", "Hämtar uppgifter…"],
+    ] as const) {
+      await state(page, band);
+      await expect(kinds.locator("tbody tr")).toHaveText([line]);
+      await shoot(name, width);
+    }
+    await state(page, "Inkopplad");
+  }
 });
 
 test("the month against the free allowance shows each fixture state, and follows the band only when it fails or loads", async ({ page }) => {

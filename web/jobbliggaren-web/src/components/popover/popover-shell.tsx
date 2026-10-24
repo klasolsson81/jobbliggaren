@@ -64,15 +64,17 @@ export function PopoverShell({
   const target =
     placement === null ? "none" : focusOnOpen(placement, open && isCoarsePointer(), fieldRef !== undefined);
 
-  // Once the panel has its place (WCAG 2.4.3), and again only if a resize changes what should hold
-  // focus. Focus already inside the panel stays where it is.
+  // Once the panel has its place (WCAG 2.4.3), and again when a resize changes its placement. Focus
+  // already on a shown element inside the panel stays; one a sheet's drill-down just hid does not.
   useEffect(() => {
     const panel = ref.current;
-    if (!ready || target === "none" || !panel || panel.contains(document.activeElement)) return;
-    const next =
-      target === "root" ? panel : fieldRef?.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-    next?.focus({ preventScroll: true });
-  }, [ready, target, fieldRef, ref]);
+    if (!ready || target === "none" || !panel) return;
+    const active = document.activeElement;
+    if (active && panel.contains(active) && !active.closest("[hidden]")) return;
+    const field =
+      target === "field" ? fieldRef?.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR) : null;
+    (field ?? panel).focus({ preventScroll: true });
+  }, [ready, target, placement, fieldRef, ref]);
 
   if (!open) return null;
 
@@ -111,7 +113,7 @@ export function PopoverShell({
       aria-labelledby={named ? titleId : undefined}
       style={style}
       data-placement={sheet ? "sheet" : undefined}
-      tabIndex={target === "root" ? -1 : undefined}
+      tabIndex={target === "root" || sheet ? -1 : undefined}
     >
       {bandNode}
       {typeof children === "function" ? children(sheet ? "sheet" : "anchored") : children}

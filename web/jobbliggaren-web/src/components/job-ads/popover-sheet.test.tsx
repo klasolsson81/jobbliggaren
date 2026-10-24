@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Clock } from "lucide-react";
 import { JobbHeroFilters } from "./jobb-hero-filters";
@@ -218,6 +218,27 @@ describe("a sheet's cascade shows one column at a time (#2212)", () => {
     expect(items).toHaveAttribute("hidden");
     expect(within(dialog).getByRole("button", { name: "Stockholms län" })).toHaveFocus();
     expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it("keeps focus in the dialog when a resize makes an open popover a sheet at level two", async () => {
+    // The window narrows from 1280x720 to 375x812 with Ort open and a län picked: the län's row,
+    // which held focus, is hidden in the sheet.
+    stubViewport(1280, 720);
+    const user = userEvent.setup();
+    renderJobb();
+    await user.click(screen.getByRole("button", { name: /^Ort/ }));
+    await user.click(within(screen.getByRole("dialog", { name: "Ort" })).getByRole("button", { name: "Stockholms län" }));
+
+    vi.restoreAllMocks();
+    stubViewport(375, 812);
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Ort" });
+    expect(dialog).toHaveAttribute("data-placement", "sheet");
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement?.closest("[hidden]")).toBeNull();
   });
 
   it("drills in from the keyboard too", async () => {

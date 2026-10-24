@@ -39,8 +39,8 @@ internal static class JobAdSearchComposition
     //
     // ADR 0067 Beslut 1 (Platsbanken sök-paritet Fas C1, Variant C) — yrke-
     // nivåbyte: det explicita yrke-filtret targetar OccupationGroupConceptId
-    // (ssyk-level-4/yrkesgrupp) i stället för SsykConceptId (occupation-name).
-    // Den tidigare Ssyk-equality-grenen är BORTTAGEN. SsykConceptId-kolumnen
+    // (ssyk-level-4/yrkesgrupp) i stället för OccupationNameConceptId (occupation-name).
+    // Den tidigare Ssyk-equality-grenen är BORTTAGEN. OccupationNameConceptId-kolumnen
     // lever vidare i q-vägens synonym-expansion nedan (recall-substrat bevarat).
     // Municipality (kommun) tillkommer som ny dimension (analogt Region).
     //
@@ -252,7 +252,7 @@ internal static class JobAdSearchComposition
 #pragma warning restore CA1304, CA1311
 
         if (expandedSsyks.Count > 0)
-            arms.Add(j => expandedSsyks.Contains(j.SsykConceptId));
+            arms.Add(j => expandedSsyks.Contains(j.OccupationNameConceptId));
 
         if (term.Role == TextTermRole.Excluded)
         {
@@ -298,7 +298,7 @@ internal static class JobAdSearchComposition
         if (labels.Occupation.Count > 0)
         {
             var ids = labels.Occupation;
-            source = source.Where(j => j.SsykConceptId == null || !ids.Contains(j.SsykConceptId));
+            source = source.Where(j => j.OccupationNameConceptId == null || !ids.Contains(j.OccupationNameConceptId));
         }
 
         if (labels.EmploymentType.Count > 0)

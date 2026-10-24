@@ -53,7 +53,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     // company-watch scan dropped still-ACTIVE ads ~21.5 h out of every 24, every day.
     // They ARE the "sanitized fields" ADR 0032 §8 promised to keep INDEFINITELY; they
     // must outlive the payload they were parsed from. That is what this shape buys.
-    public string? SsykConceptId { get; private set; }
+    public string? OccupationNameConceptId { get; private set; }
     public string? OccupationGroupConceptId { get; private set; }
     public string? MunicipalityConceptId { get; private set; }
     public string? RegionConceptId { get; private set; }
@@ -467,7 +467,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         JobAdTermExtraction extractTerms)
     {
         RawPayload = rawPayload;
-        SsykConceptId = facets.SsykConceptId;
+        OccupationNameConceptId = facets.OccupationNameConceptId;
         OccupationGroupConceptId = facets.OccupationGroupConceptId;
         MunicipalityConceptId = facets.MunicipalityConceptId;
         RegionConceptId = facets.RegionConceptId;

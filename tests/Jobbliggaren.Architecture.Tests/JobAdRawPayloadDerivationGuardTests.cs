@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.RegularExpressions;
+using Jobbliggaren.Domain.JobAds;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -211,7 +212,7 @@ public class JobAdRawPayloadDerivationGuardTests
 
         // The seven facets: nobody may bulk-write them today. When #842 Tier B lands, add its file to
         // OrganizationNumber's list — the build will demand it, which is the point.
-        ["SsykConceptId"] = [],
+        ["OccupationNameConceptId"] = [],
         ["OccupationGroupConceptId"] = [],
         ["MunicipalityConceptId"] = [],
         ["RegionConceptId"] = [],
@@ -252,6 +253,18 @@ public class JobAdRawPayloadDerivationGuardTests
             "If you genuinely need one (e.g. #842's Art. 17 tombstone must clear organization_number — " +
             "it no longer self-nulls with the purge), add the file to BulkWritableJobAdFields for that " +
             "field and say why. Offenders: " + string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void Every_bulk_writable_field_is_a_property_of_JobAd()
+    {
+        // The scan above matches field names as text, so a key that no longer names a JobAd property
+        // matches nothing and stays green while the real property goes unguarded (#2199's rename of
+        // SsykConceptId would have done exactly that).
+        var properties = typeof(JobAd).GetProperties().Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+
+        BulkWritableJobAdFields.Keys.Where(field => !properties.Contains(field)).ShouldBeEmpty(
+            "every key in BulkWritableJobAdFields must name a JobAd property, or the bulk-write scan guards nothing");
     }
 
     /// <summary>

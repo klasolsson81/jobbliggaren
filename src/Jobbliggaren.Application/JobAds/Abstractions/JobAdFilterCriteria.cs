@@ -14,7 +14,7 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// och C2-reverse-lookup-migrationen + VO-/entity-expansionen upplöste de två
 /// persistens-bundna konsumenter som motiverade fältets överlevnad.
 /// occupation-name lever vidare som synonym-/recall-substrat på q-FTS-vägen
-/// (<c>SsykConceptId</c>-kolumnen + <c>IOccupationSynonymExpander</c> i
+/// (<c>OccupationNameConceptId</c>-kolumnen + <c>IOccupationSynonymExpander</c> i
 /// <c>JobAdSearchQuery</c> — orörda; ingen recall förloras).
 /// </para>
 /// <para>

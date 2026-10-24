@@ -81,7 +81,7 @@ public class JobAdPublicSurfaceGuardTests
                          "SetSourcePayload, atomically with the seven facets below.",
 
         // --- #841: the seven source facets. Ordinary columns, C#-written, purge-surviving. ---
-        ["SsykConceptId"] = "source facet (#841): parsed by the ACL, written by SetSourcePayload with the " +
+        ["OccupationNameConceptId"] = "source facet (#841): parsed by the ACL, written by SetSourcePayload with the " +
                             "payload, MUST survive the purge",
         ["OccupationGroupConceptId"] = "source facet (#841): same",
         ["MunicipalityConceptId"] = "source facet (#841): same. Frozen into AdSnapshot at apply time, so a " +
@@ -186,7 +186,7 @@ public class JobAdPublicSurfaceGuardTests
         // guarding the thing it exists for.
         string[] facets =
         [
-            "SsykConceptId", "OccupationGroupConceptId", "MunicipalityConceptId", "RegionConceptId",
+            "OccupationNameConceptId", "OccupationGroupConceptId", "MunicipalityConceptId", "RegionConceptId",
             "EmploymentTypeConceptId", "WorktimeExtentConceptId", "OrganizationNumber",
         ];
 
@@ -324,7 +324,7 @@ public class JobAdPublicSurfaceGuardTests
     }
 
     private static JobAdFacets TestFacetsForGuard() =>
-        new(ssykConceptId: "Ssyk_uwa_111",
+        new(occupationNameConceptId: "Ssyk_uwa_111",
             occupationGroupConceptId: null,
             municipalityConceptId: "AvNB_uwa_6n6",
             regionConceptId: null,

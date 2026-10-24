@@ -119,7 +119,7 @@ describe("the public job page's related section (ADR 0182)", () => {
     const { container } = render(await PublicJobPage(params()));
 
     expect(screen.getByRole("heading", { level: 1, name: "Sjuksköterska" })).toBeInTheDocument();
-    expect(container.querySelector("[data-nosnippet]")).toBeNull();
+    expect(container.querySelector(`section[aria-labelledby="jp-related-title"]`)).toBeNull();
     expect(screen.queryByRole("heading", { name: "Andra jobb i samma yrkesgrupp" })).toBeNull();
   });
 

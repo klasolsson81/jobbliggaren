@@ -5,6 +5,7 @@ import { PublicJobAd } from "@/components/job-ads/public-job-ad";
 import { getPublicJobAd } from "@/lib/api/public-job-ad";
 import { getPublicJobAdRelated } from "@/lib/api/public-job-ad-related";
 import { formatDate } from "@/lib/i18n/format";
+import { publicJobAdTitle } from "@/lib/job-ads/public-job-ad-title";
 import { publicJobAdUrl } from "@/lib/job-ads/public-job-ad-url";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 
@@ -40,7 +41,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const published = formatDate(format, jobAd.publishedAt) ?? "";
   const deadline = formatDate(format, jobAd.expiresAt);
 
-  const documentTitle = `${jobAd.title} – ${jobAd.companyName}`;
+  const documentTitle = publicJobAdTitle(jobAd);
   // A title that already ends its sentence gets no full stop from the template, so "Säljare!" never reads "Säljare!.".
   const titleEnd = SENTENCE_END.test(jobAd.title) ? "punctuated" : "open";
   const description =

@@ -8,12 +8,18 @@ import type { PublicJobAdSummary } from "@/lib/dto/public-job-ad-catalogue";
 import { type CodedTaxonomyId, codedTaxonomyName, isCodedTaxonomyId } from "@/lib/i18n/coded-taxonomy";
 import { adSourceLink } from "@/lib/job-ads/ad-source-link";
 import { buildJobPosting } from "@/lib/job-ads/job-posting-json-ld";
+import { LOGIN_ENTRY_PATH } from "@/lib/auth/login-paths";
+import { publicJobAdPath } from "@/lib/job-ads/public-job-ad-url";
 import { formatAdDescription } from "./format-ad-description";
 import { JobAdDetailMeta } from "./job-ad-detail-meta";
 import { PublicJobAdList } from "./public-job-ad-list";
+import { ShareJobAd } from "./share-job-ad";
 import { StripBounceMarker } from "./strip-bounce-marker";
+import { useShareJobAdLabels } from "./use-share-job-ad-labels";
 import contactLinkStyles from "./recruiter-contact-link.module.css";
 
+const APPLY_TITLE_ID = "jp-apply-title";
+const SHARE_TITLE_ID = "jp-share-title";
 const RELATED_TITLE_ID = "jp-related-title";
 
 /**
@@ -29,8 +35,11 @@ const RELATED_TITLE_ID = "jp-related-title";
  * asserts nothing this row and the rest of the page do not show, and is absent when the ad is not complete enough for
  * it; the page stays indexable either way. It never carries the group.
  *
- * The link out appears twice: a secondary action under the dates and the one primary action in the footer. A long ad
- * puts the footer screens down the page, and a visitor from a search result should see where to apply without scrolling.
+ * The page is where a shared link lands, for a visitor who is not signed in (ADR 0183). The link out is the one primary
+ * action and appears once, in the head under "Sök jobbet", so a visitor from a search result or a shared link sees
+ * where to apply without scrolling. The share row follows the text, where the decision to pass the ad on is made. The
+ * footer invites the visitor to sign in and come back to this ad: a plain link with `rel="nofollow"`, since every
+ * listed ad would otherwise hand crawlers its own login URL.
  *
  * After the article, and outside it because the article is the employer's content, come other listed ads in the same
  * occupation group (ADR 0182) and then two links that explain how CV review and matching work, all in the column the
@@ -51,6 +60,7 @@ export function PublicJobAd({
   const tUi = useTranslations("jobads.ui");
   const tEnum = useTranslations("jobads.enums");
   const tLanding = useTranslations("landing");
+  const shareLabels = useShareJobAdLabels();
   const link = adSourceLink(jobAd.url);
 
   const location = [jobAd.municipalityName, jobAd.regionName]
@@ -107,11 +117,14 @@ export function PublicJobAd({
               </div>
             )}
             {link && (
-              <p className="mt-4">
-                <a href={link.href} target="_blank" rel="noopener noreferrer" className="jp-btn jp-btn--secondary">
+              <section aria-labelledby={APPLY_TITLE_ID} className="mt-4">
+                <h2 id={APPLY_TITLE_ID} className="jp-eyebrow mb-2">
+                  {tPublic("apply.heading")}
+                </h2>
+                <a href={link.href} target="_blank" rel="noopener noreferrer" className="jp-btn jp-btn--primary">
                   <ExternalLink size={14} aria-hidden="true" /> {tPublic(link.label)}
                 </a>
-              </p>
+              </section>
             )}
           </div>
         </header>
@@ -130,20 +143,30 @@ export function PublicJobAd({
               href="/kontaktperson-i-annons"
               className={contactLinkStyles.link}
             >
-              {tUi("detail.recruiterNoticeLink")}
+              {tPublic("recruiterNoticeLink")}
             </InformationLink>
           </p>
+
+          <ShareJobAd jobAd={jobAd} labels={shareLabels} headingId={SHARE_TITLE_ID} />
         </div>
 
-        {link && (
-          <div className="jp-modal__foot jp-modal__foot--split">
-            <div className="jp-modal__footgroup jp-modal__footgroup--end">
-              <a href={link.href} target="_blank" rel="noopener noreferrer" className="jp-btn jp-btn--primary">
-                <ExternalLink size={14} aria-hidden="true" /> {tPublic(link.label)}
-              </a>
-            </div>
+        <div className="jp-modal__foot jp-modal__foot--split" data-nosnippet="">
+          <div className="min-w-[min(100%,20rem)] flex-1">
+            <h2 className="text-h4 font-bold">
+              {tPublic("signIn.heading")}
+            </h2>
+            <p className="mt-1">{tPublic("signIn.body")}</p>
           </div>
-        )}
+          <div className="jp-modal__footgroup jp-modal__footgroup--end">
+            <a
+              href={`${LOGIN_ENTRY_PATH}?next=${encodeURIComponent(publicJobAdPath(jobAd.id))}`}
+              rel="nofollow"
+              className="jp-btn jp-btn--secondary"
+            >
+              {tLanding("footer.start.auth")}
+            </a>
+          </div>
+        </div>
       </article>
 
       <div className="mx-auto mt-10 w-full max-w-[760px]">

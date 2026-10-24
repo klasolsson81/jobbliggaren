@@ -3,9 +3,7 @@ import type { EdgeLogVerdicts } from "@/test/edge-log-pin";
 /**
  * The edge-log verdict for the query key the login flow carries its return path in (#1979).
  *
- * Two routes receive it in their request line: `/logga-in`, written by the proxy for a protected path, by
- * the `(admin)` layout through `adminLoginHref`, by the reauthentication links and by the feedback form's
- * signed-out link; and `/api/auth/oauth/{provider}/start`, written by `externalLoginStartHref`. Caddy's
+ * Two routes receive it in their request line: `/logga-in` and `/api/auth/oauth/{provider}/start`. Caddy's
  * default logger writes the whole request line on a 5xx, so the value reaches a stored log post unless the
  * edge removes it.
  */

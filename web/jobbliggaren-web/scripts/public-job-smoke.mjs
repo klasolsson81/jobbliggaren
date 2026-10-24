@@ -87,6 +87,14 @@ const locsOf = (xml) => [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1
 /** A `<loc>` names the public host the build was given; only its path is fetched from this server. */
 const pathOf = (loc) => new URL(loc).pathname;
 
+/** The job page's data-nosnippet elements in document order, named by what they are (ADR 0182, ADR 0183). */
+const nosnippetElements = (html) =>
+  [...html.matchAll(/<[a-z]+[^<>]*\sdata-nosnippet[^<>]*>/g)].map(([tag]) => {
+    if (tag.includes('aria-labelledby="jp-related-title"')) return "related";
+    if (tag.includes('aria-labelledby="jp-share-title"')) return "share";
+    if (tag.includes('class="jp-modal__foot')) return "sign-in";
+    return `unknown: ${tag.slice(0, 80)}`;
+  });
 /** Every JSON-LD data block on a page, as text. */
 const jsonLdBlocks = (html) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 
@@ -224,8 +232,8 @@ try {
     related.mode = "ok";
     const res = await get(origin, `/jobb/${ID.listed}`);
     assert.equal(res.status, 200);
-    assert.equal((res.body.match(/<[a-z]+[^<>]*\sdata-nosnippet/g) ?? []).length, 1, "one data-nosnippet element");
-    const section = /<section[^<>]*\sdata-nosnippet[^<>]*>([\s\S]*?)<\/section>/.exec(res.body);
+    assert.deepEqual(nosnippetElements(res.body), ["share", "sign-in", "related"], "the share row, the sign-in footer and the related section");
+    const section = /<section[^<>]*aria-labelledby="jp-related-title"[^<>]*\sdata-nosnippet[^<>]*>([\s\S]*?)<\/section>/.exec(res.body);
     assert.ok(section, "the related section is rendered");
     assert.match(section[0], /^<section[^<>]*aria-labelledby="jp-related-title"/);
     assert.match(section[1], /<h2 id="jp-related-title" class="jp-eyebrow">Andra jobb i samma yrkesgrupp<\/h2>/);
@@ -248,7 +256,7 @@ try {
     const res = await get(origin, `/jobb/${ID.listedNoKommun}`);
     assert.equal(res.status, 200);
     assert.ok(!res.body.includes("jp-related-title"));
-    assert.doesNotMatch(res.body, /<[a-z]+[^<>]*\sdata-nosnippet/);
+    assert.deepEqual(nosnippetElements(res.body), ["share", "sign-in"], "only the share row and the sign-in footer");
   });
 
   for (const mode of ["budget", "outage", "tooWide", "timeout"]) {

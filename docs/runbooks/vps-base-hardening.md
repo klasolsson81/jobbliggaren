@@ -539,6 +539,14 @@ ever changes.
 | 3 | UDP | any | any | 53 | ACCEPT | DNS |
 | 4 | TCP | any | any | 53 | ACCEPT | DNS over TCP (truncated answers) |
 | 5 | UDP | any | any | 123 | ACCEPT | NTP |
+| 6 | TCP | any | one `/32` per A record of `imap.strato.de` | 993 | ACCEPT | IMAPS to the DMARC report mailbox, read by the Worker (ADR 0183) |
+
+**Rule 6 is Klas's console step after #1981 PR 4a merges** (ADR 0154 §4: provider consoles are outside the standing GO);
+until it is applied the policy holds rules 1–5. It is scoped to the destination because the edge policy covers the whole
+box: a port-only rule would open IMAPS from caddy, the api and the Worker to every host. Resolve `imap.strato.de` at the step
+(A records only; no compose network enables IPv6, so the Worker egresses over IPv4) and add one `/32` per record. If STRATO
+renumbers, the ingestion's state row reads `Unreachable`; the fix is a rule edit with Klas's GO, never a port-only rule.
+The dated reading of the addresses belongs to the GO record, not to this table.
 
 SMTP needs no rule: `netcup Mail block` drops 25/465/587 outbound, and the `DROP_ALL` default
 covers everything else. Verified: port 587 outbound is dead.
@@ -676,7 +684,8 @@ curl -s -X PUT -H "Authorization: Bearer $AT" -H "Content-Type: application/json
 curl -s -H "Authorization: Bearer $AT" \
   "$BASE/servers/<serverId>/interfaces/<mac>/firewall"   | jq -c '{ingressImplicitRule, egressImplicitRule,
              policies: [.userPolicies[] | {name, n: (.rules|length)}]}'
-# Förväntat: both DROP_ALL, jbl-ingress n=5, jbl-egress n=5 — compare against §6.2/§6.3.
+# Förväntat: both DROP_ALL, jbl-ingress n=5, jbl-egress n=5 (+1 per imap.strato.de A record once rule 6 is
+# applied) — compare against §6.2/§6.3.
 ```
 
 Note that step 2's policy listing returns rules as **empty arrays**; that is fine here because

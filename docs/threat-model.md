@@ -247,6 +247,18 @@ allowed keys; retained free text may still contain PII. Its name is no retention
 or privacy guarantee. Product CV/matching logic is deterministic; no product LLM
 integration is authorized by development-time use of Codex.
 
+DMARC aggregate reports (ADR 0183) are an internet-facing input into the Worker:
+anyone can mail `dmarc@jobbliggaren.se`, and a report is the sender's statement,
+never verified. The Worker reads the mailbox read-only over IMAPS from the
+Worker-only `Jobbliggaren.Infrastructure.Mailbox` project with partial fetches
+only, so no attacker-built MIME structure reaches a recursive parser; the decoder
+in `src/Jobbliggaren.Infrastructure/Email/Dmarc/Decoding/` bounds decompression
+and reads XML with DTDs prohibited. Review the caps in `DmarcIngestionLimits`,
+whole-report rejection in `DmarcAggregateReport.Accept`, the claim/retry bounds,
+and that no source IP, reporter name, report id or mailbox credential reaches a
+log. The same Worker runs the erasure and retention jobs, so a crash or memory
+exhaustion caused by one message is an availability risk to them.
+
 ## Persistence, jobs, email and erasure
 
 `src/Jobbliggaren.Infrastructure/Security/LocalDataKeyProvider.cs` wraps per-user

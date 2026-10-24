@@ -49,7 +49,7 @@ export function JobbToolbarPopover({
   headerRight,
 }: JobbToolbarPopoverProps) {
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
-  const { style } = usePanelPosition(open, triggerRef, width);
+  const { style } = usePanelPosition(open, triggerRef, ref, width);
 
   if (!open) return null;
 

@@ -101,7 +101,7 @@ export function JobbKlass2Panel({
   const collator = new Intl.Collator(useLocale());
   const format = useFormatter();
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
-  const { style } = usePanelPosition(open, triggerRef, 320);
+  const { style } = usePanelPosition(open, triggerRef, ref, 320);
 
   if (!open) return null;
 

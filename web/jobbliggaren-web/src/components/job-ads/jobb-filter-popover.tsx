@@ -6,6 +6,7 @@ import { Check, ChevronRight } from "lucide-react";
 import { formatNumber } from "@/lib/i18n/format";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { usePanelPosition } from "@/lib/hooks/use-panel-position";
+import { FOCUSABLE_SELECTOR } from "@/lib/popover/focusable";
 
 /**
  * Platsbanken-mönster filter-popover (HANDOVER-v3.md §5.4, ADR 0055).
@@ -145,10 +146,6 @@ interface JobbFilterPopoverBaseProps {
   footer?: React.ReactNode;
 }
 
-// What the search slot focuses on open: its first focusable element, the field.
-const SEARCH_SLOT_FOCUSABLE =
-  "input, select, textarea, button, [href], [tabindex]:not([tabindex='-1'])";
-
 // ADR 0055 Beslut 1's width; usePanelPosition narrows it to the viewport.
 const PREFERRED_WIDTH = 580;
 
@@ -274,7 +271,7 @@ export function JobbFilterPopover({
     triggerRef,
     search ? keepOpenOnEscape : undefined,
   );
-  const { style, ready: positioned } = usePanelPosition(open, triggerRef, PREFERRED_WIDTH);
+  const { style, ready: positioned } = usePanelPosition(open, triggerRef, ref, PREFERRED_WIDTH);
   const hasSearch = search !== undefined;
 
   // With a search, focus goes to the field once the popover has its place (WCAG 2.4.3). Before
@@ -282,7 +279,7 @@ export function JobbFilterPopover({
   useEffect(() => {
     if (!hasSearch || !positioned) return;
     searchSlotRef.current
-      ?.querySelector<HTMLElement>(SEARCH_SLOT_FOCUSABLE)
+      ?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
       ?.focus({ preventScroll: true });
   }, [hasSearch, positioned]);
 

@@ -4,22 +4,42 @@ import { act, render, screen } from "@testing-library/react";
 import { usePanelPosition } from "./use-panel-position";
 
 /**
- * The trigger rects and client sizes are the layout engine's for the Yrke pill on /jobb, measured
- * 2026-10-24 on 5ad51c9c1 (headless Chromium, sv, unselected pills): at 1280x720 its left edge is
- * 745.078125 and its bottom 387.421875; at 1024x768 they are 617.078125 and 455.5625.
+ * The trigger rects, first-stop depths and client sizes are the layout engine's, measured 2026-10-24
+ * on 5ad51c9c1 (headless Chromium, sv, unselected pills). `depth` is how far below the panel's top
+ * its first focusable element ends:
+ * - the Yrke pill on /jobb: at 1280x720 its left edge is 745.078125 and its bottom 387.421875; the
+ *   panel opens at 395.421875 and its search field ends at 472.421875 (depth 77). At 1024x768 the
+ *   pill's left edge is 617.078125 and its bottom 455.5625;
+ * - the Ort trigger on /foretag/sok: at 1280x720 its left edge is 416 and its bottom 669.984375;
+ *   the panel opens at 677.984375 and the first län row ends at 774.921875 (depth 96.9375), below
+ *   the 720px fold. At 1920x1080 the left edge is 736 and the rest is the same, inside the fold.
  */
-const YRKE_1280 = { left: 745.078125, bottom: 387.421875 };
-const YRKE_1024 = { left: 617.078125, bottom: 455.5625 };
+const YRKE_1280 = { left: 745.078125, bottom: 387.421875, depth: 77 };
+const YRKE_1024 = { left: 617.078125, bottom: 455.5625, depth: 77 };
+const FORETAG_ORT_1280 = { left: 416, bottom: 669.984375, depth: 96.9375 };
+const FORETAG_ORT_1920 = { left: 736, bottom: 669.984375, depth: 96.9375 };
 
 const layout = { trigger: YRKE_1280, clientWidth: 1280, clientHeight: 720 };
 let renders = 0;
+const scrollIntoView = vi.fn();
 
 function stubLayout() {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
     this: HTMLElement,
   ) {
-    const r = this.dataset.trigger !== undefined ? layout.trigger : { left: 0, bottom: 0 };
-    return { x: r.left, y: 0, left: r.left, top: 0, right: r.left, bottom: r.bottom, width: 0, height: 0, toJSON: () => r };
+    const t = layout.trigger;
+    // The panel's viewport top follows its own inline `top`, off screen before it is placed, and
+    // the first stop sits `depth` below it, as the browser lays them out.
+    const panelTop = (el: HTMLElement) => parseFloat(el.style.top) - window.scrollY;
+    const r =
+      this.dataset.trigger !== undefined
+        ? { left: t.left, top: 0, bottom: t.bottom }
+        : this.getAttribute("role") === "dialog"
+          ? { left: 0, top: panelTop(this), bottom: panelTop(this) }
+          : this.dataset.first !== undefined
+            ? { left: 0, top: 0, bottom: panelTop(this.closest<HTMLElement>("[role=dialog]")!) + t.depth }
+            : { left: 0, top: 0, bottom: 0 };
+    return { x: r.left, y: r.top, left: r.left, top: r.top, right: r.left, bottom: r.bottom, width: 0, height: 0, toJSON: () => r };
   });
   vi.spyOn(Element.prototype, "clientWidth", "get").mockImplementation(function (this: Element) {
     return this === document.documentElement ? layout.clientWidth : 0;
@@ -31,15 +51,17 @@ function stubLayout() {
 
 function Harness({ open }: { open: boolean }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const { style, ready } = usePanelPosition(open, triggerRef, 580);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { style, ready } = usePanelPosition(open, triggerRef, panelRef, 580);
   renders++;
   return (
     <>
       <button ref={triggerRef} data-trigger="">
-        Yrke
+        Pill
       </button>
       {open && (
-        <div role="dialog" style={style} data-ready={ready}>
+        <div ref={panelRef} role="dialog" style={style} data-ready={ready}>
+          <button data-first="">First stop</button>
           <div data-testid="column" style={{ overflowY: "auto" }} />
         </div>
       )}
@@ -47,8 +69,12 @@ function Harness({ open }: { open: boolean }) {
   );
 }
 
+// jsdom implements no scrolling, so the method the hook calls is put on the prototype per test.
+Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, writable: true, value: scrollIntoView });
+
 afterEach(() => {
   vi.restoreAllMocks();
+  scrollIntoView.mockClear();
   Object.assign(layout, { trigger: YRKE_1280, clientWidth: 1280, clientHeight: 720 });
 });
 
@@ -106,7 +132,40 @@ describe("usePanelPosition (#2212)", () => {
     expect(screen.getByRole("dialog").style.left).toBe("428px");
   });
 
-  it("keeps the trigger's own left edge when the document has no layout", () => {
+  it("scrolls the trigger to the top of the scroll padding when the first stop would open below the fold", () => {
+    layout.trigger = FORETAG_ORT_1280;
+    stubLayout();
+    render(<Harness open />);
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+    expect(scrollIntoView.mock.contexts[0]).toBe(screen.getByRole("button", { name: "Pill" }));
+    expect(screen.getByRole("dialog").dataset.ready).toBe("true");
+  });
+
+  it("leaves the page where it is when the first stop opens in view", () => {
+    stubLayout();
+    render(<Harness open />);
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("scrolls at most once per opening, never on a re-measure", () => {
+    Object.assign(layout, { trigger: FORETAG_ORT_1920, clientWidth: 1920, clientHeight: 1080 });
+    stubLayout();
+    const { rerender } = render(<Harness open />);
+
+    // The window shrinks to 1280x720 while the panel is open: the first län row now ends below
+    // the fold, but this opening has already been placed and revealed.
+    resizeTo(1280, 720, FORETAG_ORT_1280);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    rerender(<Harness open={false} />);
+    rerender(<Harness open />);
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the trigger's own left edge and never scrolls when the document has no layout", () => {
     // jsdom only, unstubbed: zero rects and a zero-size viewport, which no browser produces for a
     // rendered page. The panel degrades to where it was before the clamp existed.
     render(<Harness open />);
@@ -114,5 +173,6 @@ describe("usePanelPosition (#2212)", () => {
     const panel = screen.getByRole("dialog");
     expect(panel.style.left).toBe("0px");
     expect(panel.style.width).toBe("580px");
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });

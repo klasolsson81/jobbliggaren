@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Admin.Email.Dmarc;
+using Jobbliggaren.Infrastructure.Email.Dmarc.Decoding;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Jobbliggaren.Infrastructure.Email.Dmarc;
@@ -9,9 +10,10 @@ namespace Jobbliggaren.Infrastructure.Email.Dmarc;
 /// </summary>
 public static class DmarcReportPersistenceCollectionExtensions
 {
-    /// <summary>The Worker's side: the ingestion store and the retention.</summary>
+    /// <summary>The Worker's side: the report decoder, the ingestion store and the retention.</summary>
     public static IServiceCollection AddDmarcReportIngestionStores(this IServiceCollection services)
     {
+        services.AddSingleton<IDmarcReportDecoder, XmlDmarcReportDecoder>();
         services.AddScoped<IDmarcReportStore, SqlDmarcReportStore>();
         services.AddScoped<IDmarcReportRetention, SqlDmarcReportRetention>();
         return services;

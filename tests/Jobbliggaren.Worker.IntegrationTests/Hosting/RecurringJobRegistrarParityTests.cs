@@ -137,6 +137,46 @@ public class RecurringJobRegistrarParityTests
         ((Hangfire.Common.Job)call.GetArguments()[1]!).Type.ShouldBe(typeof(EmailSendCountRetentionWorker));
     }
 
+    /// <summary>
+    /// #1981 PR 4a (ADR 0183) — the DMARC ingestion runs hourly on its own worker, which Hangfire never retries, and the
+    /// twelve-month retention runs daily at 04:20 UTC. A changed retention schedule changes the retention bound.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_TheDmarcIngestionRunsHourly_AndItsRetentionDailyAt0420Utc()
+    {
+        var manager = Substitute.For<IRecurringJobManager>();
+        var registrar = new RecurringJobRegistrar(
+            manager,
+            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
+            Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
+            Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
+            Options.Create(new CompanyWatchCriterionScanOptions()),
+            NullLogger<RecurringJobRegistrar>.Instance);
+
+        await registrar.StartAsync(CancellationToken.None);
+
+        var calls = manager.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IRecurringJobManager.AddOrUpdate))
+            .ToList();
+        var ingestion = calls.Single(c => (string)c.GetArguments()[0]! == RecurringJobIds.DmarcReportIngestion);
+        ((string)ingestion.GetArguments()[2]!).ShouldBe("23 * * * *");
+        ((Hangfire.Common.Job)ingestion.GetArguments()[1]!).Type.ShouldBe(typeof(DmarcReportIngestionWorker));
+        var retention = calls.Single(c => (string)c.GetArguments()[0]! == RecurringJobIds.DmarcReportRetention);
+        ((string)retention.GetArguments()[2]!).ShouldBe("20 4 * * *");
+        ((Hangfire.Common.Job)retention.GetArguments()[1]!).Type.ShouldBe(typeof(DmarcReportRetentionWorker));
+    }
+
+    [Fact]
+    public void TheDmarcIngestionWrapper_IsNeverRetriedByHangfire_AndWaitsOutARunningOne()
+    {
+        var method = typeof(DmarcReportIngestionWorker).GetMethod(nameof(DmarcReportIngestionWorker.RunAsync))!;
+
+        method.GetCustomAttributes(typeof(Hangfire.AutomaticRetryAttribute), inherit: false)
+            .Cast<Hangfire.AutomaticRetryAttribute>().Single().Attempts.ShouldBe(0);
+        method.GetCustomAttributes(typeof(Hangfire.DisableConcurrentExecutionAttribute), inherit: false)
+            .ShouldHaveSingleItem();
+    }
+
     [Fact]
     public async Task StartAsync_TheStreamImportRunsEveryTenMinutes_SoTheCardsOverdueLimitMeansTwoMissedRunsAndFive()
     {

@@ -82,6 +82,9 @@ public sealed partial class DmarcFixtureAddressGuardTests
     [InlineData("\"999.1.1.1\"")]
     [InlineData("global::System.Net.IPAddress.Loopback")]
     [InlineData("\"1792713600.0123\"")]
+    [InlineData("/// as RFC 3501 §2.3.1.2 orders them")]
+    [InlineData("$\"{type.FullName}::{member.Name}\"")]
+    [InlineData(@"FETCH \d+(?::\d+)?")]
     public void Text_that_is_not_an_address_is_not_read_as_one(string source)
     {
         FixtureAddressScan.Addresses(source).ShouldBeEmpty();
@@ -108,8 +111,9 @@ public sealed partial class DmarcFixtureAddressGuardTests
 
 /// <summary>
 /// Finds the IPv4 and IPv6 addresses written in a text, wherever they stand: a string, a comment, XML. A dotted quad
-/// is four decimal octets that no further digit group continues; an IPv6 address is a run of hex groups and colons the
-/// base library parses, its zone dropped.
+/// is four decimal octets that no further digit group continues and no section sign precedes (an RFC section number is
+/// not an address); an IPv6 address is a run of hex groups and colons the base library parses, its zone dropped, other
+/// than the bare "::" that a member separator or a regex can spell.
 /// </summary>
 internal static partial class FixtureAddressScan
 {
@@ -126,7 +130,9 @@ internal static partial class FixtureAddressScan
 
         foreach (Match match in ColonGroups().Matches(text))
         {
-            if (IPAddress.TryParse(match.Value, out var address) && address.AddressFamily == AddressFamily.InterNetworkV6)
+            if (IPAddress.TryParse(match.Value, out var address)
+                && address.AddressFamily == AddressFamily.InterNetworkV6
+                && !address.Equals(IPAddress.IPv6Any))
                 addresses.Add(address);
         }
 
@@ -144,7 +150,7 @@ internal static partial class FixtureAddressScan
             : bytes is [0x20, 0x01, 0x0D, 0xB8, ..];
     }
 
-    [GeneratedRegex(@"(?<![\w.])\d{1,3}(?:\.\d{1,3}){3}(?!\w|\.\d)", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<![\w.§])\d{1,3}(?:\.\d{1,3}){3}(?!\w|\.\d)", RegexOptions.CultureInvariant)]
     private static partial Regex DottedQuad();
 
     [GeneratedRegex(@"(?<![\w:])[0-9A-Fa-f.]*:[0-9A-Fa-f:.]*:[0-9A-Fa-f.]*(?![\w:])", RegexOptions.CultureInvariant)]

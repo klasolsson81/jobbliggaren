@@ -116,6 +116,9 @@ builder.Services.AddScoped<Jobbliggaren.Application.Feedback.Jobs.FeedbackRetent
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.FeedbackRetentionWorker>();
 builder.Services.AddScoped<Jobbliggaren.Application.Admin.Email.Jobs.EmailSendCountRetention.EmailSendCountRetentionJob>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.EmailSendCountRetentionWorker>();
+// The DMARC report ingestion and its retention (ADR 0183): the mailbox, decoder and stores, the jobs and their wrappers,
+// in one registration that WorkerTestFixture calls too.
+builder.Services.AddDmarcReportIngestion(builder.Configuration);
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillFieldEncryptionWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdSsykWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdKlass2Worker>();

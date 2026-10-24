@@ -95,6 +95,12 @@ public static class RecurringJobIds
     /// <summary>#1981 PR 3 (ADR 0181) — deletes our own send counts the longest delivery period can no longer read, daily.</summary>
     public const string EmailSendCountRetention = "email-send-count-retention";
 
+    /// <summary>#1981 PR 4a (ADR 0183) — reads the DMARC report mailbox read-only and stores accepted reports, hourly.</summary>
+    public const string DmarcReportIngestion = "dmarc-report-ingestion";
+
+    /// <summary>#1981 PR 4a (ADR 0183) — deletes DMARC reports and ledger rows received twelve months ago, daily.</summary>
+    public const string DmarcReportRetention = "dmarc-report-retention";
+
     /// <summary>
     /// The closed set of triggerable recurring-job ids. Ordinal comparison — these
     /// are stable internal slugs, not user text.
@@ -124,5 +130,7 @@ public static class RecurringJobIds
         FeedbackRetention,
         ScanCompanyWatchCriteria,
         EmailSendCountRetention,
+        DmarcReportIngestion,
+        DmarcReportRetention,
     }.ToFrozenSet(StringComparer.Ordinal);
 }

@@ -475,18 +475,21 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 }
 .jp-popover .jp-occsearch .jp-matchdialog__cascade-col {
   max-height: none;
-  padding: 6px 0;
 }
 .jp-popover .jp-occsearch .jp-matchdialog__cascade-colhead {
   display: flex;
   align-items: center;
   padding: 12px 16px 10px;
 }
-/* The columns' header bands stick at the column's top edge rather than under its 6px padding, so
-   a scrolled row never shows above a band. */
+/* A column's top 6px sits inside its sticky header band, not above it, so a scrolled row never
+   shows above a band and two bands side by side stay level. */
+.jp-popover .jp-popover__col,
+.jp-popover .jp-occsearch .jp-matchdialog__cascade-col {
+  padding: 0 0 6px;
+}
 .jp-popover .jp-popover__colhead,
 .jp-popover .jp-occsearch .jp-matchdialog__cascade-colhead {
-  top: -6px;
+  padding-top: 18px;
 }
 /* Synlig fokus-ring för .jp-checkitem i dialog-kontext (samma om-scoping som
    .jp-matchprefs — den befintliga regeln är scoped till .jp-panel). The onboarding rail is not

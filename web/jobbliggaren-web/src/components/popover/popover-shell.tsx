@@ -17,9 +17,10 @@ export type ShellPlacement = "anchored" | "sheet";
 
 /**
  * The one shell every `.jp-popover` root renders through (#2212): the dialog element, its place in
- * the viewport (anchored under its trigger, or a sheet under the header), Escape and outside-click
- * dismissal with focus back on the trigger, closing when keyboard focus leaves it, focus on open,
- * and a band that names the dialog and carries the close button in a sheet. The body is the host's.
+ * the viewport (anchored under its trigger, or a sheet under the header), dismissal by an outside
+ * click or by Escape with focus back on the trigger, closing when keyboard focus leaves it, focus
+ * on open, and a band that names the dialog and carries the close button in a sheet. The body is
+ * the host's.
  */
 export interface PopoverShellProps {
   readonly open: boolean;
@@ -29,8 +30,8 @@ export interface PopoverShellProps {
   readonly preferredWidth: number;
   /** The dialog's accessible name, and the sheet band's title when the body has no band. */
   readonly label: string;
-  /** `jp-popover`, plus the body's own root class where it has one. */
-  readonly className: string;
+  /** The body's own root class, where it has one, beside `jp-popover`. */
+  readonly className?: string;
   /** When given, its first focusable element is where focus goes on open, as `focusOnOpen` rules. */
   readonly fieldRef?: React.RefObject<HTMLElement | null>;
   /** Passed to `useDismissable`: an Escape this returns true for leaves the panel open. */
@@ -59,7 +60,7 @@ export function PopoverShell({
   const titleId = useId();
   const ref = useDismissable<HTMLDivElement, HTMLElement>(open, onClose, triggerRef, keepOpenOnEscape);
   const { style, placement, ready } = usePanelPosition(open, triggerRef, ref, preferredWidth);
-  useCloseOnFocusOut(open, ref, triggerRef, onClose);
+  useCloseOnFocusOut(open, ref, triggerRef, onClose, placement);
 
   const target =
     placement === null ? "none" : focusOnOpen(placement, open && isCoarsePointer(), fieldRef !== undefined);
@@ -94,20 +95,13 @@ export function PopoverShell({
   ) : null;
   const bandNode = band
     ? band({ titleId, closeButton })
-    : sheet && (
-        <div className="jp-popover__head">
-          <span id={titleId} className="jp-popover__title">
-            {label}
-          </span>
-          {closeButton}
-        </div>
-      );
+    : sheet && <PopoverBand titleId={titleId} label={label} closeButton={closeButton} />;
   const named = band !== undefined || sheet;
 
   return (
     <div
       ref={ref}
-      className={className}
+      className={className ? `jp-popover ${className}` : "jp-popover"}
       role="dialog"
       aria-label={named ? undefined : label}
       aria-labelledby={named ? titleId : undefined}
@@ -117,6 +111,26 @@ export function PopoverShell({
     >
       {bandNode}
       {typeof children === "function" ? children(sheet ? "sheet" : "anchored") : children}
+    </div>
+  );
+}
+
+/** The shell's band: the title that names the dialog, then the close button when there is one. */
+export function PopoverBand({
+  titleId,
+  label,
+  closeButton,
+}: {
+  readonly titleId: string;
+  readonly label: string;
+  readonly closeButton: React.ReactNode;
+}) {
+  return (
+    <div className="jp-popover__head">
+      <span id={titleId} className="jp-popover__title">
+        {label}
+      </span>
+      {closeButton}
     </div>
   );
 }

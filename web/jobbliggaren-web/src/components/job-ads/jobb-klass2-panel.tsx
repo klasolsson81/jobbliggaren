@@ -99,8 +99,6 @@ export function JobbKlass2Panel({
   const collator = new Intl.Collator(useLocale());
   const format = useFormatter();
 
-  if (!open) return null;
-
   // Aktivt radio-värde: första (enda) valda conceptId eller "Alla"-sentinel.
   const activeWorktime = worktimeExtent[0] ?? WORKTIME_ALL;
   // "Alla" först, därefter options ordnade efter det NAMN som visas (Klas-beslut
@@ -131,7 +129,7 @@ export function JobbKlass2Panel({
       triggerRef={triggerRef}
       preferredWidth={320}
       label={t("klass2.dialogLabel")}
-      className="jp-popover jp-panel"
+      className="jp-panel"
     >
       {noOptions ? (
         <div className="jp-popover__empty p-4">

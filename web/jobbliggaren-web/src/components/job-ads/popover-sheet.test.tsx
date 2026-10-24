@@ -14,9 +14,10 @@ import { IT_GROUP, ruleAnswer } from "@/test/fixtures/occupation-search";
  * #2212: below the breakpoint every popover is a sheet under the header, its cascade shows one
  * column at a time, and focus moves into it.
  *
- * The client sizes are the layout engine's for a phone in portrait (375x812) and a desktop window
- * (1280x720), measured 2026-10-24 on 5ad51c9c1; a sheet does not read its trigger's rect. A coarse
- * pointer is what a touch device's browser answers to `(pointer: coarse)`.
+ * The client sizes are the layout engine's for a phone in portrait (375x812), a tablet-sized window
+ * (1024x768) and a desktop window (1280x720), measured 2026-10-24 on 5ad51c9c1; a sheet does not
+ * read its trigger's rect. A coarse pointer is what a touch device's browser answers to
+ * `(pointer: coarse)`, and a fine pointer is what a desktop browser with a mouse answers.
  */
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -76,9 +77,9 @@ function stubViewport(clientWidth: number, clientHeight: number) {
   });
 }
 
-function stubCoarsePointer() {
+function stubPointer(coarse: boolean) {
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(pointer: coarse)",
+    matches: coarse && query === "(pointer: coarse)",
     media: query,
     onchange: null,
     addEventListener: () => {},
@@ -122,6 +123,21 @@ function renderJobb() {
   );
 }
 
+function renderChip() {
+  render(
+    <HeroChip
+      label="Senaste sökningar"
+      icon={<Clock size={14} aria-hidden="true" />}
+      count={1}
+      items={[{ id: "a1", label: "projektledare" }]}
+      getKey={(it) => it.id}
+      getHref={(it) => `/jobb?q=${it.label}`}
+      getLabel={(it) => it.label}
+      emptyText="Inga senaste sökningar än."
+    />,
+  );
+}
+
 function expectSheet(dialog: HTMLElement) {
   expect(dialog).toHaveAttribute("data-placement", "sheet");
   expect(dialog.style.top).toBe("");
@@ -153,18 +169,7 @@ describe("every popover is a sheet on a phone (#2212)", () => {
 
   it("a hero chip at 375x812", async () => {
     stubViewport(375, 812);
-    render(
-      <HeroChip
-        label="Senaste sökningar"
-        icon={<Clock size={14} aria-hidden="true" />}
-        count={1}
-        items={[{ id: "a1", label: "projektledare" }]}
-        getKey={(it) => it.id}
-        getHref={(it) => `/jobb?q=${it.label}`}
-        getLabel={(it) => it.label}
-        emptyText="Inga senaste sökningar än."
-      />,
-    );
+    renderChip();
     await userEvent.setup().click(screen.getByRole("button", { name: /Senaste sökningar/ }));
 
     expectSheet(screen.getByRole("dialog", { name: "Senaste sökningar" }));
@@ -275,7 +280,7 @@ describe("a sheet's cascade shows one column at a time (#2212)", () => {
 });
 
 describe("a sheet closes from its band and returns focus to the pill (#2212)", () => {
-  it.each(["Ort", "Matchning"])("/jobb %s", async (name) => {
+  it.each(["Ort", "Yrke", "Filter", "Matchning"])("/jobb %s", async (name) => {
     stubViewport(375, 812);
     const user = userEvent.setup();
     renderJobb();
@@ -288,12 +293,145 @@ describe("a sheet closes from its band and returns focus to the pill (#2212)", (
     expect(pill).toHaveFocus();
   });
 
+  it.each([
+    ["Välj ort eller län", "Ort eller län"],
+    [/Välj bransch/, "Välj bransch"],
+  ])("/foretag/sok %s", async (pillName, name) => {
+    stubViewport(375, 812);
+    const user = userEvent.setup();
+    render(<ForetagSokSearchbar reference={reference} referenceOk namn="" sni={[]} kommun={[]} />);
+    const pill = screen.getByRole("button", { name: pillName });
+    await user.click(pill);
+
+    await user.click(within(screen.getByRole("dialog", { name })).getByRole("button", { name: "Stäng" }));
+
+    expect(screen.queryByRole("dialog", { name })).toBeNull();
+    expect(pill).toHaveFocus();
+  });
+
+  it("a hero chip", async () => {
+    stubViewport(375, 812);
+    const user = userEvent.setup();
+    renderChip();
+    const pill = screen.getByRole("button", { name: /Senaste sökningar/ });
+    await user.click(pill);
+
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Senaste sökningar" })).getByRole("button", { name: "Stäng" }),
+    );
+
+    expect(screen.queryByRole("dialog", { name: "Senaste sökningar" })).toBeNull();
+    expect(pill).toHaveFocus();
+  });
+
+  it("closes when Shift+Tab moves focus back to the pill the sheet covers", async () => {
+    stubViewport(375, 812);
+    const user = userEvent.setup();
+    renderChip();
+    const pill = screen.getByRole("button", { name: /Senaste sökningar/ });
+    await user.click(pill);
+    expect(screen.getByRole("dialog", { name: "Senaste sökningar" })).toHaveFocus();
+
+    await user.tab({ shift: true });
+
+    expect(screen.queryByRole("dialog", { name: "Senaste sökningar" })).toBeNull();
+    expect(pill).toHaveFocus();
+  });
+
+  it("a press on the pill closes the sheet once, without opening it again", async () => {
+    stubViewport(375, 812);
+    const user = userEvent.setup();
+    renderChip();
+    const pill = screen.getByRole("button", { name: /Senaste sökningar/ });
+    await user.click(pill);
+    expect(screen.getByRole("dialog", { name: "Senaste sökningar" })).toBeInTheDocument();
+
+    await user.click(pill);
+
+    expect(screen.queryByRole("dialog", { name: "Senaste sökningar" })).toBeNull();
+  });
+
   it("has no close button when anchored", async () => {
     stubViewport(1280, 720);
     renderJobb();
     await userEvent.setup().click(screen.getByRole("button", { name: /^Ort/ }));
 
     expect(within(screen.getByRole("dialog", { name: "Ort" })).queryByRole("button", { name: "Stäng" })).toBeNull();
+  });
+});
+
+describe("a sheet's footer closes it and returns focus to the pill (#2212)", () => {
+  it.each(["Ort", "Yrke", "Filter"])("/jobb %s", async (name) => {
+    stubViewport(375, 812);
+    const user = userEvent.setup();
+    renderJobb();
+    const pill = screen.getByRole("button", { name: new RegExp(`^${name}`) });
+    await user.click(pill);
+
+    within(screen.getByRole("dialog", { name })).getByRole("button", { name: /^Visa / }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(screen.queryByRole("dialog", { name })).toBeNull();
+    expect(pill).toHaveFocus();
+  });
+
+  it("/jobb Ort from level two", async () => {
+    stubViewport(375, 812);
+    const user = userEvent.setup();
+    renderJobb();
+    const pill = screen.getByRole("button", { name: /^Ort/ });
+    await user.click(pill);
+    const dialog = screen.getByRole("dialog", { name: "Ort" });
+    await user.click(within(dialog).getByRole("button", { name: "Stockholms län" }));
+
+    within(dialog).getByRole("button", { name: /^Visa / }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(screen.queryByRole("dialog", { name: "Ort" })).toBeNull();
+    expect(pill).toHaveFocus();
+  });
+});
+
+describe("Escape closes a sheet from either level and returns focus to the pill (#2212)", () => {
+  it("/jobb Ort at level one", async () => {
+    stubViewport(375, 812);
+    const user = userEvent.setup();
+    renderJobb();
+    const pill = screen.getByRole("button", { name: /^Ort/ });
+    await user.click(pill);
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Ort" })).toBeNull();
+    expect(pill).toHaveFocus();
+  });
+
+  it("/jobb Ort at level two", async () => {
+    stubViewport(375, 812);
+    const user = userEvent.setup();
+    renderJobb();
+    const pill = screen.getByRole("button", { name: /^Ort/ });
+    await user.click(pill);
+    await user.click(within(screen.getByRole("dialog", { name: "Ort" })).getByRole("button", { name: "Stockholms län" }));
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Ort" })).toBeNull();
+    expect(pill).toHaveFocus();
+  });
+
+  it("/jobb Yrke with its field empty", async () => {
+    stubViewport(375, 812);
+    const user = userEvent.setup();
+    renderJobb();
+    const pill = screen.getByRole("button", { name: /^Yrke/ });
+    await user.click(pill);
+    await waitFor(() => expect(screen.getByRole("searchbox", { name: "Sök yrke" })).toHaveFocus());
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Yrke" })).toBeNull();
+    expect(pill).toHaveFocus();
   });
 });
 
@@ -306,40 +444,67 @@ describe("what takes focus when a popover opens (#2212)", () => {
     expect(screen.getByRole("dialog", { name: "Ort" })).toHaveFocus();
   });
 
+  it("moves that focus without scrolling the page", async () => {
+    stubViewport(375, 812);
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    renderJobb();
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Ort/ }));
+
+    const dialog = screen.getByRole("dialog", { name: "Ort" });
+    const call = focus.mock.contexts.indexOf(dialog);
+    expect(call).toBeGreaterThanOrEqual(0);
+    expect(focus.mock.calls[call]).toEqual([{ preventScroll: true }]);
+  });
+
   it("a sheet with a field focuses the field for a fine pointer", async () => {
     stubViewport(375, 812);
+    stubPointer(false);
     renderJobb();
     await userEvent.setup().click(screen.getByRole("button", { name: /^Yrke/ }));
 
+    expectSheet(screen.getByRole("dialog", { name: "Yrke" }));
     await waitFor(() => expect(screen.getByRole("searchbox", { name: "Sök yrke" })).toHaveFocus());
   });
 
   it("a sheet with a field focuses the dialog for a coarse pointer, so no soft keyboard rises", async () => {
     stubViewport(375, 812);
-    stubCoarsePointer();
+    stubPointer(true);
     renderJobb();
     await userEvent.setup().click(screen.getByRole("button", { name: /^Yrke/ }));
 
+    expectSheet(screen.getByRole("dialog", { name: "Yrke" }));
     await waitFor(() => expect(screen.getByRole("dialog", { name: "Yrke" })).toHaveFocus());
+  });
+
+  it("an anchored popover with a field focuses the field for a fine pointer", async () => {
+    stubViewport(1280, 720);
+    stubPointer(false);
+    renderJobb();
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Yrke/ }));
+
+    expect(screen.getByRole("dialog", { name: "Yrke" })).not.toHaveAttribute("data-placement");
+    await waitFor(() => expect(screen.getByRole("searchbox", { name: "Sök yrke" })).toHaveFocus());
   });
 
   it("an anchored popover with a field focuses the dialog for a coarse pointer", async () => {
     // A tablet: 1024x768 is anchored, and its browser answers (pointer: coarse).
     stubViewport(1024, 768);
-    stubCoarsePointer();
+    stubPointer(true);
     renderJobb();
     await userEvent.setup().click(screen.getByRole("button", { name: /^Yrke/ }));
 
+    expect(screen.getByRole("dialog", { name: "Yrke" })).not.toHaveAttribute("data-placement");
     await waitFor(() => expect(screen.getByRole("dialog", { name: "Yrke" })).toHaveFocus());
   });
 
   it("an anchored popover without a field leaves focus on its pill for a coarse pointer", async () => {
     stubViewport(1024, 768);
-    stubCoarsePointer();
+    stubPointer(true);
     renderJobb();
     const pill = screen.getByRole("button", { name: /^Ort/ });
     await userEvent.setup().click(pill);
 
+    expect(screen.getByRole("dialog", { name: "Ort" })).not.toHaveAttribute("data-placement");
     expect(pill).toHaveFocus();
   });
 });

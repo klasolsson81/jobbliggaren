@@ -283,8 +283,6 @@ export function JobbFilterPopover({
     [groupAxis?.selected],
   );
 
-  if (!open) return null;
-
   // Ingen groups[0]-fallback (E2f) — null tills användaren klickar vänster.
   const activeGroup =
     groups.find((g) => g.conceptId === activeLeft) ?? null;
@@ -513,7 +511,6 @@ export function JobbFilterPopover({
       triggerRef={triggerRef}
       preferredWidth={PREFERRED_WIDTH}
       label={dialogLabel ?? leftTitle}
-      className="jp-popover"
       fieldRef={search ? searchSlotRef : undefined}
       keepOpenOnEscape={search ? keepOpenOnEscape : undefined}
     >

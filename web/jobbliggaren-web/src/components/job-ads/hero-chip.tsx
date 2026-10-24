@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
-import { PopoverShell } from "@/components/popover/popover-shell";
+import { PopoverBand, PopoverShell } from "@/components/popover/popover-shell";
 import { onPlainNav } from "@/lib/nav/modified-click";
 
 interface HeroChipProps<T> {
@@ -115,14 +115,8 @@ export function HeroChip<T>({
         triggerRef={triggerRef}
         preferredWidth={320}
         label={label}
-        className="jp-popover"
         band={({ titleId, closeButton }) => (
-          <div className="jp-popover__head">
-            <span id={titleId} className="jp-popover__title">
-              {label}
-            </span>
-            {closeButton}
-          </div>
+          <PopoverBand titleId={titleId} label={label} closeButton={closeButton} />
         )}
       >
         <div className="jp-hero-chip__list">

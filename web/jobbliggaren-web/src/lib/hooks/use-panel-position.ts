@@ -13,7 +13,9 @@ import { PANEL_GAP, placePanel, type PanelPlacement } from "@/lib/popover/placem
  * inside the viewport.
  *
  * Precondition: the panel's containing block is the initial containing block and no scroll
- * container sits between the trigger and the document. Under it a page scroll moves the trigger and
+ * container sits between the trigger and the document; as a fixed box, a sheet's containing block
+ * is the viewport only while no ancestor establishes a containing block for fixed-position
+ * descendants (CSS Positioned Layout 3). Under it a page scroll moves the trigger and
  * the page offset by the same amount, so only a `resize` re-measures.
  *
  * Once per opening, before the first anchored placement: when the panel's first focusable element

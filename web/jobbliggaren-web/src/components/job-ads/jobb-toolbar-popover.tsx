@@ -53,7 +53,7 @@ export function JobbToolbarPopover({
       triggerRef={triggerRef}
       preferredWidth={width}
       label={title}
-      className="jp-popover jp-panel"
+      className="jp-panel"
       band={({ titleId, closeButton }) => (
         <div className="jp-panel__sectionhead">
           <span id={titleId} className="jp-popover__title">

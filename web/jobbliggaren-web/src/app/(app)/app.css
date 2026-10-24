@@ -516,6 +516,41 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   outline: 2px solid var(--jp-focus);
   outline-offset: -2px;
 }
+/* #2212 — every control in a popover is at least 44px tall at ≤768 (DESIGN.md §5). Rows and links
+   grow. Rensa and the Matchning switch keep their glyphs and get an invisible ::before instead, as
+   ToggleRow's switch does; Rensa's stops 9px under its text, inside its band's bottom padding, so
+   it never covers the first row under the band. */
+@media (max-width: 768px) {
+  .jp-popover .jp-checkitem,
+  .jp-popover .jp-radioitem,
+  .jp-popover .jp-popover-row,
+  .jp-popover .jp-popover__rowbtn {
+    min-height: 44px;
+  }
+  .jp-popover .jp-popover__footlink {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .jp-popover [data-slot="dialog-trigger"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .jp-popover .jp-clearlink {
+    position: relative;
+  }
+  .jp-popover .jp-clearlink::before,
+  .jp-popover .jp-gradefilter__switch::before {
+    content: "";
+    position: absolute;
+  }
+  .jp-popover .jp-clearlink::before {
+    inset: -16px -8px -9px;
+  }
+  .jp-popover .jp-gradefilter__switch::before {
+    inset: -13px -5px;
+  }
+}
 
 /* ── #2198: the occupation search (components/occupation-search) ──
    Search and browse share ONE box: the search answer takes the browse cascade's place, with the

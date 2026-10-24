@@ -57,6 +57,24 @@ public class JobAdListDtoShapeTests
             "probe is broken or the field has moved.");
     }
 
+    /// <summary>
+    /// #2214 PR 3 (ADR 0183 D6) — listedness is a DETAIL-only member: the signed-in "Dela annonsen"
+    /// row reads it, no list card does. It is the backend's single <c>JobAdPublication</c> verdict
+    /// carried on the read so the client never re-derives it; adding it to the LIST wire would both
+    /// bloat every search row and invite a second, drifting copy of the gate (SA-2 M-2).
+    /// </summary>
+    [Fact]
+    public void List_dto_omits_is_listed_detail_dto_keeps_it()
+    {
+        HasPublicProperty(typeof(JobAdDto), "IsListed").ShouldBeFalse(
+            "JobAdDto is the LIST wire — no list surface renders the share row, so it carries no " +
+            "listedness bool (#2214 PR 3).");
+
+        HasPublicProperty(typeof(JobAdDetailDto), "IsListed").ShouldBeTrue(
+            "JobAdDetailDto is the DETAIL wire — the signed-in share row reads IsListed. If this fails, " +
+            "the probe is broken or the member has moved.");
+    }
+
     private static bool HasPublicProperty(Type type, string name) =>
         type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance) is not null;
 }

@@ -44,7 +44,7 @@ export interface PopoverItem {
 
 /**
  * A search composed into the popover (#2198, ADR 0180 D8): nodes the host renders. `field` sits
- * above the columns and gets focus on open; `results`, while not null, takes the columns' place.
+ * above the columns; `results`, while not null, takes the columns' place.
  * The popover holds no query state, no matching and no fetch.
  */
 export interface PopoverSearch {
@@ -95,7 +95,7 @@ interface JobbFilterPopoverBaseProps {
   /** Vänster kolumn-titel (t.ex. "Yrkesområde", "Län"). */
   leftTitle: string;
   /**
-   * Dialogens `aria-label` (E2d-Minor): bör matcha TRIGGERNS namn ("Ort"/
+   * Dialogens namn (E2d-Minor): bör matcha TRIGGERNS namn ("Ort"/
    * "Yrke") så skärmläsaren annonserar samma sak som pillen. Utelämnad →
    * faller till `leftTitle` (bakåtkompat).
    */
@@ -514,7 +514,6 @@ export function JobbFilterPopover({
       preferredWidth={PREFERRED_WIDTH}
       label={dialogLabel ?? leftTitle}
       className="jp-popover"
-      // With a search, its field takes focus on open; without one, nothing moves (ADR 0055).
       fieldRef={search ? searchSlotRef : undefined}
       keepOpenOnEscape={search ? keepOpenOnEscape : undefined}
     >

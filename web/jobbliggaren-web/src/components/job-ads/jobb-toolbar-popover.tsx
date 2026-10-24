@@ -20,7 +20,7 @@ import { PopoverShell } from "@/components/popover/popover-shell";
  */
 interface JobbToolbarPopoverProps {
   open: boolean;
-  /** Tillgängligt namn på dialogen (aria-label) + synlig header-titel. */
+  /** Tillgängligt namn på dialogen + synlig header-titel. */
   title: string;
   /** Triggerns ref — position-mätning + fokus-retur vid Esc/utanför-klick. */
   triggerRef: React.RefObject<HTMLButtonElement | null>;

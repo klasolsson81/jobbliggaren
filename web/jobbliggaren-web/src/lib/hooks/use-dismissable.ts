@@ -6,8 +6,8 @@ import { useEffect, useRef } from "react";
  * Portaled surfaces that belong to the open panel but live outside its DOM (portaled to
  * document.body), so an interaction there is not read as leaving the panel:
  * - `[data-radix-popper-content-wrapper]`: Popper surfaces (Select/Popover/Dropdown/Menu/HoverCard).
- *   Klas-rapporterad bug 2026-05-20: AddFollowUpForm Kanal + RecordFollowUpOutcomeForm Utfall gick ej
- *   att välja — SelectItem-klick inuti en modal lästes som utanför-klick.
+ *   Klas reported a bug on 2026-05-20: AddFollowUpForm's Kanal and RecordFollowUpOutcomeForm's Utfall
+ *   could not be picked, because a SelectItem click inside a modal read as a click outside.
  * - `[data-slot="dialog-content"]`/`[data-slot="dialog-overlay"]`: a Radix MODAL Dialog (e.g. the
  *   InfoDialog "?") opened from INSIDE a dismissable popover. It is not Popper-based and is portaled
  *   via DialogPortal (#419 pt7). The `data-slot` attributes are set by `ui/dialog.tsx`, our own

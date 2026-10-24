@@ -14,14 +14,13 @@ dated amendment at the end of that file. It extends ADR 0067 E2h VAL 2 (D12). No
 (the results toolbar, filed from a measurement, D12) · [#2214](https://github.com/klasolsson81/jobbliggaren/issues/2214) (held `hotspot:css`, D5) · [#2198](https://github.com/klasolsson81/jobbliggaren/issues/2198)
 (PR 2, ADR 0180, which measured the overflow and handed it on) · ADR 0067 (E2b, E2c, E2f, E2h) · ADR 0053 (its amendment of 2026-10-03: the detail modal's sheet) · ADR 0162 (the bell's sheet) ·
 ADR 0047 · ADR 0117 (Bransch) · #2033 (the browser-floor question, D9)
-**Measured against:** `origin/main` `5ad51c9c1` (the base: code read with `git show`, and the "before" readings rendered), 2026-10-24; the "after" readings are on the branch `fix/popover-viewport` in
-`C:/tmp/jbl-popover-viewport`, the same day. Every reading is headless Chromium against a local stub, sv unless it says en, with no real account and never the box (CLAUDE.md §9.2 (d)). Nothing here is
+**Measured against:** `origin/main` `5ad51c9c1` (the base: code read with `git show`, and the "before" readings rendered), 2026-10-24; the "after" readings are on the branch `fix/popover-viewport`, the same day. Every reading is headless Chromium against a local stub, sv unless it says en, with no real account and never the box (CLAUDE.md §9.2 (d)). Nothing here is
 merged.
 
 > **Provenance.** Written by `adr-keeper` for the driving session from its brief (CLAUDE.md §9.2, §13); it adds no decision of its own. D1 to D12 follow the CTO's ruling and the branch as the brief
 > describes it; the plan reads are marked "(DR)", "(CR)", "(TW)", "(DA)" and "(ALT)" where each changed or added to the ruling. The six reports are local files. Facts about the code were read at
 > `5ad51c9c1`, and line numbers are that commit's. The numbers under *Measurements* are the driving session's of 2026-10-24, and none was re-run for this ADR. What no source measures is listed under
-> *What is not measured, and what is owed*. The ADR lies in the ignored 0071–0199 range and needs `git add -f` and a README row (precedent 0167–0183).
+> *What is not measured*. The ADR lies in the ignored 0071–0199 range and needs `git add -f` and a README row (precedent 0167–0183).
 >
 > **Numbering.** 0184 was measured free on 2026-10-24, before this file was written: the highest number in `docs/decisions/` of this worktree was 0183.
 
@@ -45,7 +44,7 @@ amendment of 2026-10-23, point 7). Nine facts shape the decision.
 - **The keyboard can leave a panel and still see it.** Tab past the last control focused the results sort select under the still-open popover. On `/foretag/sok` at 1280×720 both popovers opened with
   their first control below the fold (the first row ending at 774.9 and 816.8 px), so the panel looks as if nothing happened (R1).
 - **A pick moves the page.** A pick at scrollY 200 landed at 0 on `/jobb`, and `/foretag/sok` kept 200 (R1): `foretag-sok-searchbar.tsx:371-372` already passes `{ scroll: false }`.
-- **The house has the pieces for a phone.** The bell's panel is a fixed sheet under the header at `top: calc(var(--jp-header-h) + 8px)` (`globals.css:4834`, ADR 0162), and non-modal (DESIGN.md:148). The
+- **The house has the pieces for a phone.** The bell's panel is a fixed sheet under the header (`globals.css:4834`, ADR 0162), and non-modal (DESIGN.md:148). The
   detail modal is a sheet at ≤ 768 px and at `(max-height: 500px)` (`globals.css:3020`, ADR 0053 amendment of 2026-10-03). `lib/applications/anchored-top.ts` is a pure placement function. The house has
   no `scroll-behavior` rule (`git grep`, 2026-10-24).
 - **The form is bound from outside.** ADR 0067 E2b: no prop names a mode (`:171`). ADR 0180 D8: `JobbFilterPopover` has one optional composition prop, `search`. `useDismissable`'s signature is settled
@@ -98,7 +97,7 @@ decision and not an edit of this one. The results toolbar's sort and chip-×, th
 
 - **The hook.** `usePanelPosition(open, triggerRef, panelRef, preferredWidth)` in `src/lib/hooks/use-panel-position.ts` returns `{ style, placement, ready }`. The file and the name stay, because the
   name is still true in a sheet. `style` holds the off-screen sentinel before the first measurement, `{ top, left, width }` when anchored and nothing positional in a sheet; `placement` is null until
-  the panel is placed. Hosts spread `style` and never branch on a position. The panel ref is the one `useDismissable` returns, and `useDismissable`'s signature did not change.
+  the panel is placed. The panel ref is the one `useDismissable` returns, and `useDismissable`'s signature did not change.
 - **What it reads.** The trigger's rect, `window.scrollX/scrollY` and `document.documentElement.clientWidth/clientHeight`, so a scrollbar is excluded. It measures in `useEffect`: a layout effect
   with no dependency array would force a layout on every Yrke keystroke, and the sentinel hides the first frame. The file carries a `"use client"` reason line.
 - **Only `resize` re-measures, and the capture-phase `scroll` listener is deleted.** Under the precondition below, a page scroll moves the trigger's rect and the scroll offset by the same amount, so
@@ -165,11 +164,10 @@ The table is a pure function, `src/lib/popover/focus-on-open.ts`, and the shell'
 | sheet | fine | the field | the dialog |
 | sheet | coarse | the dialog | the dialog |
 
-- **The coarse pointer** is `(pointer: coarse)`, the query the house already uses for touch-only rules (`globals.css:3371,6462`), read at opening, guarded by
+- **The coarse pointer** is `(pointer: coarse)`, the query the house already uses for touch-only rules (`globals.css:3371,6462`), guarded by
   `typeof window.matchMedia === "function"`, with a fine pointer as the default. A stub in a test names a touch device as its actor and pins the exact query string (TW m5).
 - **When.** The table applies once the panel is placed, and again when the placement changes, so a resize that turns an open anchored popover into a sheet applies the sheet row. Focus already on a
   shown element inside the panel stays: a field that has focus never loses it. Focus inside a `hidden` ancestor does not stay, which is the case of a resize to a sheet at level two (D10).
-- **`tabIndex=-1`** sits on the root only where the table can focus it.
 - **Closing.** Escape, the footer and the X return focus to the pill, with its scroll (`use-dismissable.ts:86-87`, `jobb-hero-filters.tsx:423-428`).
 - **Why two inputs.** A sheet covers its pill (Context). Whether a soft keyboard opens is a property of the input method and not of the width. Keying on placement alone gets two cases wrong, a zoomed
   keyboard user (sheet, fine pointer) and a tablet (anchored, coarse pointer); keying on the pointer alone gets the covered pill wrong.
@@ -234,19 +232,12 @@ The table is a pure function, `src/lib/popover/focus-on-open.ts`, and the shell'
   §9.6). Whether a sort keeps the position or jumps to the results is its own design decision, next to ADR 0067 E2h VAL 2's documented asymmetry (the
   CTO (p)). The toolbar's current assertions stay as the pin of its current behaviour.
 
-## What is not measured, and what is owed
+## What is not measured
 
 **Not measured, and not claimed:**
 - The soft keyboard and `dvh` on a real iPhone and a real Android. Klas checks them live (notice N5): Yrke must not raise the keyboard when it opens on a phone (D7).
 - The real dark theme. Klas checks it live (the CTO (t)).
 - The scrollbar renders count only where `clientWidth < innerWidth`; elsewhere they are recorded as "not reached", and Klas checks in Windows Chrome (the CTO (t)).
-
-**Owed in the PR:**
-- `design-reviewer`'s verdict on the rendered matrix (the CTO (t)): the sheet viewports 640×360, 600×900, 375×812, 320×640, 320×256, 812×375, 844×390 and 683×384; the boundaries 640×900 and 641×900,
-  1280×500 and 1280×501; the anchored viewports including 769×900, 768×1024 and 700×900; the in-between band of D4. This ADR records no reading of them.
-- The panel (the CTO (z)): `code-reviewer`, `dotnet-architect` (more than 5 files, the new shared shell, the ADR and the spec edit), `design-reviewer` (the a11y veto) and `test-writer`. Not
-  `security-auditor`: no PII, auth, secret, external integration or accepted vulnerability. Klas tries the UI live before the panel. The review cycle is §9.6's: one batched round, then at most one
-  scoped, report-only re-check per issuing agent.
 
 ## Measurements
 

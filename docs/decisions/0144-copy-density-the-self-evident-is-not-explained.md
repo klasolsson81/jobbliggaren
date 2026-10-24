@@ -604,6 +604,6 @@ local-only, (iv) and Major M-1). Klas answered her escalation "Ja, ingen trigger
   not reach the public page. It is visible without a click, never sr-only, `aria-hidden` or behind help, an expander or a tooltip;
   at least 13 px, at least 4.5:1 and underlined; it points at `/kontaktperson-i-annons`; it stands inside `<article>`, directly
   after the description, never only in the footer and never in the related section. Moving it needs her signature, and
-  `DESIGN.md:190` follows any move.
+  DESIGN.md §8's exception for the public job page follows any move.
 - **Pins.** `legally-bound-copy.test.ts` pins the key whole in sv and en as row 10. `public-job-ad.test.tsx` pins its place after
   the description, its target and its text.

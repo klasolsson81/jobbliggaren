@@ -1,10 +1,9 @@
 /**
  * The two share controls that need a browser (ADR 0183): the visitor's own share sheet, where the browser has one,
- * and copying the link. Each does one thing and reports its own outcome; neither falls back to the other, because
- * both are on the row and a copy after the sheet has used the click's activation is the failure the field catches.
- * Tested against a navigator-shaped port, without a browser.
+ * and copying the link. Each does one thing and reports its own outcome; neither falls back to the other. Tested
+ * against a navigator-shaped port, without a browser.
  *
- * Feature detection only, never the user agent. A cancelled sheet is the visitor's choice and reports nothing.
+ * Feature detection only, never the user agent.
  */
 
 export interface JobAdShareData {

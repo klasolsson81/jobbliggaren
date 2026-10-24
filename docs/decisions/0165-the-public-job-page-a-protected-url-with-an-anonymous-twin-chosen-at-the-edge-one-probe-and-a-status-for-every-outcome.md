@@ -367,7 +367,7 @@ D1–D7 and the earlier amendments stand and nothing above is rewritten. This am
 
 **3. The notice row's label is reworded; its presence and its place are not.** The ratified deviation from DESIGN.md §8 and the place after the description stand. The `/kontaktperson-i-annons` link on this page now reads "Så behandlar vi uppgifter om kontaktpersoner i annonser" (`publicjob.recruiterNoticeLink`), as bound copy: ADR 0144 Amendment 2026-10-24 (ADR 0183 D3).
 
-**4. The page gains a share row.** "Dela annonsen", `data-nosnippet`, in the card body after the notice row: Facebook, LinkedIn, WhatsApp and E-post as plain anchors, then "Kopiera länken" and "Fler sätt att dela" (ADR 0183 D4, D5). D4's metadata rule is unchanged: the row hands on the canonical address and, in the mail's subject only, the page's `<title>` string, which is built from structured fields and never from the free text.
+**4. The page gains a share row.** "Dela annonsen", `data-nosnippet`, in the card body after the notice row: Facebook, LinkedIn, WhatsApp and E-post as plain anchors, then "Kopiera länken" and "Fler sätt att dela" (ADR 0183 D4, D5). D4's metadata rule is unchanged: the row hands on the canonical address and the page's `og:title` string, which is built from structured fields and never from the free text.
 
 **5. Not changed.** "There is no per-ad image" and the shared `/opengraph-image` stand; #2214's PR 2 amends them. D3 is unchanged, because this PR adds no read and no endpoint. D6 is unchanged: crawlers are kept from the page's login URLs by `rel="nofollow"` on the link, not by a `Disallow`.
 

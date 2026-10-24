@@ -1,8 +1,8 @@
 # ADR 0183 — Sharing a job ad: the public page links out once and invites the visitor to sign in, and a visible share row of four plain links, a copy button and the share sheet
 
 **Date:** 2026-10-24
-**Status:** Accepted 2026-10-24 (the CTO's rulings under CLAUDE.md §9.2, as changed by Klas's override and his answers of the same day, D7 and D8). No ADR 0166 D10 trigger fires and none is added,
-so there is no ADR 0166 amendment and no sign-off block here; the legal reading has its home in D7. The mandatory agents review the delivered diff in the PR against the conditions D7 lists.
+**Status:** Accepted 2026-10-24 (the CTO's rulings under CLAUDE.md §9.2, as changed by Klas's override and his answers of the same day, D7 and D8). No ADR 0166 D10 trigger fires and none is added;
+the legal reading has its home in D7. The mandatory agents review the delivered diff in the PR against the conditions D7 lists.
 **Deciders:** Klas Olsson (controller and product owner; directives and answers in chat on 2026-10-24, recorded in Context, D7 and D8) · `senior-cto-advisor`, "the CTO" below (decision-maker under
 CLAUDE.md §9.2; the plan read, and the re-ruling inside Klas's override with its addendum; report-only, `docs/reviews/2026-10-24-share-plan-senior-cto-advisor.md` and `…-senior-cto-advisor-2.md`) ·
 `security-auditor` (two plan reads, report-only, `docs/reviews/2026-10-24-share-plan-security-auditor.md` and `…-security-auditor-2.md`, the second with its *Tillägg*) · `design-reviewer` (two plan
@@ -181,14 +181,13 @@ and ADR 0165 D4's ratified deviation stand. The detail's and the panel's keys ar
 
 - **"Kopiera länken"** is a `<button type="button">` in an `li` with `noscript:hidden` (Tailwind 4.3.3's `noscript:` is `@media (scripting: none)`, measured in `node_modules`). It is rendered by the
   server with a fixed label, because the label no longer depends on the browser, and it does nothing until hydration, like the house's other server-rendered islands. On success the label becomes
-  "Länken är kopierad" for three seconds and a new click restarts the time. Both labels sit in one grid cell, the inactive one `invisible`, so the button keeps the wider label's width and the row
-  never re-wraps. An `sr-only` `role="status"` region, empty from the first paint, reads "Länken är kopierad".
+  "Kopierad" for three seconds and a new click restarts the time. Both labels sit in one grid cell, the inactive one `invisible`, so the button keeps the wider label's width and the row
+  never re-wraps. An `sr-only` `role="status"` region, empty from the first paint, reads "Kopierad".
 - **"Fler sätt att dela"** is rendered by the server in an `li` with `noscript:hidden` and `invisible`. It becomes visible after mount, and only where `typeof navigator.share === "function"` and,
   where `navigator.canShare` exists, `canShare(data)` accepts the data (`hasNativeShare`; the server snapshot of `useSyncExternalStore` is `false`). Feature detection only, never the user agent: a
   device discriminator misclassifies touch laptops and iPadOS (MDN, *Browser detection using the user agent*). Its place is reserved from the first paint, so mounting changes no height; an invisible
   item is outside the tab order and hidden from assistive technology. The name is "Fler sätt att dela" and not "Fler sätt…", because a button's name is often read out of context (WCAG 2.4.6).
-- **The payload is exactly `{ title, url }`**: `publicJobAdTitle(jobAd)`, the same string as `<title>` and `og:title`, and `publicJobAdUrl(id)`. No `text`, no `files`. The title is what the browser's
-  own share menu sends, so the button adds nothing the browser would not. `text` would duplicate the receiving app's unfurl, some targets put it in front of the URL, and it would write a third,
+- **The payload is exactly `{ title, url }`**: `publicJobAdTitle(jobAd)`, the same string as `og:title`, and `publicJobAdUrl(id)`. No `text`, no `files`. `text` would duplicate the receiving app's unfurl, some targets put it in front of the URL, and it would write a third,
   static copy of the company and the dates that no 410 and no erasure step reaches (Art. 5(1)(c); ADR 0166 W4). The url is never `location.href`: before `StripBounceMarker` runs, the address can carry
   `?vidare=1`.
 - **Outcomes.** A shared sheet and a cancelled one (an `AbortError`) show nothing, and focus stays on the button; the visitor's cancel is never answered with a clipboard write they did not ask for.
@@ -208,19 +207,16 @@ and ADR 0165 D4's ratified deviation stand. The detail's and the panel's keys ar
 ### D6 — The component shape that PR 3 reuses (CTO-2 (e); design-2 1)
 
 - **Two builders, one knowledge each** (DRY). `publicJobAdPath(id)` in `lib/job-ads/public-job-ad-url.ts`, from which `publicJobAdUrl` is built (same output as before) and from which the
-  invitation's `next` is built. `publicJobAdTitle(jobAd)` in `lib/job-ads/public-job-ad-title.ts`, used by `generateMetadata` and by the share title, so `<title>`, `og:title` and the shared title are
-  one string.
+  invitation's `next` is built. `publicJobAdTitle(jobAd)` in `lib/job-ads/public-job-ad-title.ts`, used by `generateMetadata` and by the share title, so `og:title` and the shared title are one string.
 - **Two pure modules for two change-reasons** (SRP, CCP). `lib/job-ads/share-job-ad-links.ts`: `shareTargetLinks(data)`, the fixed order and the platforms' URL forms. `lib/job-ads/share-job-ad.ts`:
   `hasNativeShare`, `shareNatively` (`shared` | `cancelled` | `failed`) and `copyLink` (`copied` | `failed`) against a navigator-shaped `SharePort`, tested without a browser.
   `aktivitetsrapport/copy-button.tsx` is not generalised: its silent-failure contract is different.
-- **`ShareJobAd`** (`components/job-ads/share-job-ad.tsx`) has no `"use client"`, no hooks and no translations. It takes `{ data, labels, headingId, headingLevel?: 2 | 3 }` and renders the section,
-  the heading and the island. The labels are one typed record, `ShareJobAdLabels`, resolved by the caller (here the Server Component, from `publicjob.share.*`), so it works in the public page and
-  inside PR 3's client modal shell alike (DIP, ISP). The house precedent for labels as props is `jobb-results.tsx`, `feedback-form.tsx` and `foretag-sok-*`.
-- **`ShareJobAdControls`** (`components/job-ads/share-job-ad-controls.tsx`, `"use client"`) is the island, and **it also renders the four links.** This is a deliberate deviation from the CTO's
-  sketch (CTO-2 (e)), where `ShareJobAd` rendered the links and the island, named `share-job-ad-actions.tsx`, held only copy, Web Share, the status region and the field. The reason: `design-reviewer`
-  ruled one `<ul>` with one `<li>` per item, all six in one list, and an island beside the list would have put the two buttons outside it. A client component is still rendered on the server, so the
-  four links are in the first response and work without script (the no-JS renders confirm it). The cost is that `shareTargetLinks` and the links' markup also ship in the island's client bundle. That
-  delta is not measured in this ADR.
+- **`ShareJobAd`** (`components/job-ads/share-job-ad.tsx`) has no `"use client"`, no hooks and no translations. It takes `{ jobAd: Pick<PublicJobAdDto, "id" | "title" | "companyName">,
+  labels, headingId, headingLevel?: 2 | 3 }`, builds `{ title, url }` from the ad itself, renders the section, the heading and the four links on the server, and hands the links to the island as
+  `children` (`dotnet-architect`, PR review). The labels are one typed record, `ShareJobAdLabels`, from `useShareJobAdLabels()` (`publicjob.share.*`), resolved in the Server Component that renders
+  the row.
+- **`ShareJobAdControls`** (`components/job-ads/share-job-ad-controls.tsx`, `"use client"`) is the island: one `<ul>` with the links it is given, then the two buttons, the status region and the
+  field (design-2 2).
 - **What PR 3 carries** (CTO-2 addendum; SA-2 (4), M-2; design-2 1):
   - The same `ShareJobAd`, as the last child of `JobAdDetail`'s body, after the description and the contact card with its notice, with `headingLevel={3}` when `inModal`, and the same labels and order on
     both surfaces (WCAG 3.2.4). Not in the footer: it is full, and five controls broke it into two rows (#2193).
@@ -229,14 +225,14 @@ and ADR 0165 D4's ratified deviation stand. The detail's and the panel's keys ar
     `description` or `applicationUrl`. The guest modal is outside this reading.
   - **The row renders only for an ad that is publicly listed.** The signed-in read returns every ad that is not `Erased`, and `source` is user-settable (`POST /api/v1/job-ads` accepts
     "Platsbanken"), so a link to such an ad answers 404 or 410, and a mail subject would carry a title the public surface does not carry (SA-2 M-2; design-2 1: a link that leads to a 410 is a
-    task the receiver cannot complete, ADR 0047 point 1). **Listedness comes from the backend, as a value computed by `JobAdPublication.IsListed(now)` and carried on the modal's read; it is never
+    task the receiver cannot complete, ADR 0047 point 1). **Listedness comes from the backend, as a value computed by `JobAdPublication` and carried on the modal's read; it is never
     re-derived on the client from status, source and expiry** (CTO-2 addendum; SA-2 M-2). A second copy of the publication predicate drifts (DRY), and it is the class that
     SA-1's proposed trigger 19 names, "a second copy of the gate". Whether that needs a DTO member is PR 3's plan read, with `dotnet-architect`.
 
 ### D7 — The ADR 0166 D10 reading, and the binding on agents (SA-2 and her *Tillägg*; Klas's answers)
 
 - **The single home** of the legal reading for the share row is this decision (SA-2 C-10). It adds no D10 trigger: trigger 5, read with S4's criterion, already covers every automatic
-  transfer (SA-2). ADR 0166 is not amended.
+  transfer (SA-2).
 - **Trigger 5 is not fired**, in PR 1 or PR 3, by plain anchors that carry no identifier from us. The trigger concerns a "push … to a third party", and all its examples are transmissions we make.
   The criterion signed in S4 (viii) is that "we send nothing to anyone" and that a pull is "not a transmission by us"; the Search Console amendment (point 2) applies the same criterion. An anchor sends no byte
   from our origin, neither when the page renders nor at the click. The only request is the one the visitor's browser makes when the visitor clicks.
@@ -322,7 +318,6 @@ and ADR 0165 D4's ratified deviation stand. The detail's and the panel's keys ar
 - That `sharer.php`, `share-offsite` and `wa.me` start a share today. No agent clicks them (D7); Klas does, from his own device, after the merge.
 - Whether Facebook's Sharing Debugger or LinkedIn's Post Inspector drops its copy of an address on a 410.
 - Whether a prefetch of `/logga-in` would run `getExternalLoginProviders()` on an anonymous view (D2).
-- The size of the island's client bundle with the four links in it (D6).
 - How often the row is used. Nothing is recorded at the click, by design (D7), so there is no usage signal.
 - The sign-in paths against the live providers; they were traced in code (D2).
 
@@ -364,7 +359,7 @@ until the visitor clicks, and nothing is recorded at it; one set of builders, so
   account included.
 - The row works without script (four links), each control reports its own outcome, and mounting moves nothing.
 - No third-party script, resource or identifier, and nothing stored, logged or counted. The cookie and privacy policies need no new sentence.
-- `<title>`, `og:title` and the shared title are one string, and the canonical, the sitemap's `loc` and the shared address are one builder.
+- `og:title` and the shared title are one string, and the canonical, the sitemap's `loc` and the shared address are one builder.
 - `ShareJobAd` takes props only, so PR 3 reuses it on the signed-in surface with its own labels.
 
 ### Negative and accepted trade-offs
@@ -374,7 +369,6 @@ until the visitor clicks, and nothing is recorded at it; one set of builders, so
 - **Until PR 2, a shared link's preview carries the page's title and description but the shared Jobbliggaren image** (ADR 0165 D4: "There is no per-ad image"). That is what Klas's first directive
   wants changed, and PR 2 amends it.
 - **The platforms become known holders of previews**, which the runbook step asks them to re-read after a 410, with an outcome that is not measured (D7).
-- **The island is larger than CTO-2's sketch,** by the four links' markup and `shareTargetLinks` (D6).
 - **No usage signal,** because nothing is recorded at the click (D7).
 - **Three share URLs per listed page,** about 130 000 in all, kept from crawlers by `nofollow`.
 - **The head changes again in PR 1b** (D1), and the modal's listedness is PR 3's plan read (D6).
@@ -408,14 +402,14 @@ Each reading below is dated and has its source. Nothing is estimated.
 | Reading | What | Recorded |
 |---|---|---|
 | R1 | the tests | 2026-10-24, at `dfbb23b9a`, run by `adr-keeper` for this ADR: seven files, 142 tests, all passing — `share-job-ad-links.test.ts`, `share-job-ad.test.ts`, `public-job-ad-url.test.ts`, `share-job-ad.test.tsx`, `public-job-ad.test.tsx`, `legally-bound-copy.test.ts` and `(public-job)/public-job-pages.test.tsx`. One assertion in the last was narrowed from "no `[data-nosnippet]`" to "no related section", because the footer and the share row now carry `data-nosnippet` too. |
-| R2 | the render matrix | 2026-10-24, Playwright against `next dev` and a stub of the API: 26 renders, in the light theme, the only one the app renders (`DARK_MODE_ENABLED = false` in `theme-provider.tsx`). Rest, rest with a share sheet, copied, failed copy, failed share and no script at 375, 1280, 1920 and 3440 px, plus English and keyboard at 1280 px. Axe (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`) reports 0 violations, no page error occurred, and no `layout-shift` entry of any kind was recorded at mount, in the 22 renders that ran script; the four no-script renders run neither measure. At 375 px every item is 44 px high, and "Kopiera länken" is 114 px wide both at rest and when it reads "Länken är kopierad". Without script the four links render and the two buttons' items are `display: none`. The render tool never clicks a platform link. The evidence is local: `C:/tmp/jobbliggaren-visual/2214-pr1/` (the screenshots and `results.json`). |
+| R2 | the render matrix | 2026-10-24, Playwright against `next dev` and a stub of the API: 26 renders, in the light theme, the only one the app renders (`DARK_MODE_ENABLED = false` in `theme-provider.tsx`). Rest, rest with a share sheet, copied, failed copy, failed share and no script at 375, 1280, 1920 and 3440 px, plus English and keyboard at 1280 px. Axe (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`) reports 0 violations, no page error occurred, and no `layout-shift` entry of any kind was recorded at mount, in the 22 renders that ran script; the four no-script renders run neither measure. At 375 px every item is 44 px high, and "Kopiera länken" is 89 px wide both at rest and when it reads "Kopierad". Without script the four links render and the two buttons' items are `display: none`. The render tool never clicks a platform link. The evidence is local: `C:/tmp/jobbliggaren-visual/2214-pr1/` (the screenshots and `results.json`). |
 | R3 | the listed pages | `security-auditor`'s count on the box, 2026-10-24 (SA-1), counts only (CLAUDE.md §9.2 (a)): 43 635 listed ads. |
 
 The tests pin, in the order of the decisions:
 - **D1:** exactly one `--primary`; the link is in the head under the `h2` "Sök jobbet", with `target="_blank"` and `rel="noopener noreferrer"`; the footer holds no link to the ad's address; the plain
   label for a host other than Arbetsförmedlingen; no link and no heading for an empty address.
 - **D2:** the footer has `data-nosnippet` and an `h2`; the link is `rel="nofollow"`, `jp-btn--secondary`, without `target`, with the exact `href`, and its decoded `next` passes the real
-  `safeRedirectPath` unchanged; the invitation survives an empty address.
+  `safeRedirectPath` unchanged.
 - **D4:** the links out are exactly the ad's address plus the four targets from the builder, with no `utm_`, no `script[src]`, no `iframe` and no `img` from another host; every `https` link that is not
   Arbetsförmedlingen's has `rel` exactly `nofollow noopener noreferrer`; the order; host and path; exactly one parameter per platform, decoded to the canonical; no employer name in a platform link; the
   mail's keys exactly `subject` and `body`; the hostile title; `%20` and no `+`; the accessible names with no `aria-label`; the mailto without `target`.

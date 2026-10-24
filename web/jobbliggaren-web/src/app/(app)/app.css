@@ -585,8 +585,15 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 .jp-popover[data-placement="sheet"] > .jp-popover__frame,
 .jp-popover[data-placement="sheet"] > .jp-panel__body {
   flex: 1 1 auto;
-  min-height: 144px;
   max-height: none;
+}
+/* The list's floor is three rows wherever it sits; Yrke's frame holds its field and that floor. */
+.jp-popover[data-placement="sheet"] > .jp-popover__body,
+.jp-popover[data-placement="sheet"] > .jp-panel__body {
+  min-height: 144px;
+}
+.jp-popover[data-placement="sheet"] > .jp-popover__frame {
+  min-height: min-content;
 }
 /* A cascade asks for the whole sheet, so it keeps one height at both levels; the band and the
    footer take theirs first. */
@@ -601,7 +608,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 }
 .jp-popover[data-placement="sheet"] .jp-popover__frame > .jp-popover__body,
 .jp-popover[data-placement="sheet"] .jp-popover__results {
-  min-height: 0;
+  min-height: 144px;
 }
 .jp-popover[data-placement="sheet"] .jp-popover__col {
   max-height: none;

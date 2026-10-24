@@ -32,6 +32,13 @@ describe("isCoarsePointer (#2212)", () => {
     expect(COARSE_POINTER_QUERY).toBe("(pointer: coarse)");
   });
 
+  it("is false for a fine pointer", () => {
+    // What a desktop browser with a mouse answers: no query about a coarse pointer matches.
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+
+    expect(isCoarsePointer()).toBe(false);
+  });
+
   it("is false where there is no matchMedia", () => {
     vi.stubGlobal("matchMedia", undefined);
 

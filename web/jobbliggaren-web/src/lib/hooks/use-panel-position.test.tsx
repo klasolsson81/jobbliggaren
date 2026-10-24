@@ -13,10 +13,13 @@ import { usePanelPosition } from "./use-panel-position";
  * - the Ort trigger on /foretag/sok: at 1280x720 its left edge is 416 and its bottom 669.984375;
  *   the panel opens at 677.984375 and the first län row ends at 774.921875 (depth 96.9375), below
  *   the 720px fold. At 1920x1080 the left edge is 736 and the rest is the same, inside the fold.
+ *   With the page scrolled to 517 (measured the same day on the branch, after the reveal) its top
+ *   is 104.984375 and its bottom 152.984375.
  */
 const YRKE_1280 = { left: 745.078125, bottom: 387.421875, depth: 77 };
 const YRKE_1024 = { left: 617.078125, bottom: 455.5625, depth: 77 };
 const FORETAG_ORT_1280 = { left: 416, bottom: 669.984375, depth: 96.9375 };
+const FORETAG_ORT_1280_AT_517 = { left: 416, bottom: 152.984375, depth: 96.9375 };
 const FORETAG_ORT_1920 = { left: 736, bottom: 669.984375, depth: 96.9375 };
 
 const layout = { trigger: YRKE_1280, clientWidth: 1280, clientHeight: 720 };
@@ -69,12 +72,18 @@ function Harness({ open }: { open: boolean }) {
   );
 }
 
-// jsdom implements no scrolling, so the method the hook calls is put on the prototype per test.
+// jsdom implements no scrolling, so the method the hook calls is defined on the prototype once and
+// cleared after each test.
 Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, writable: true, value: scrollIntoView });
+
+function scrollPageTo(y: number) {
+  Object.defineProperty(window, "scrollY", { configurable: true, writable: true, value: y });
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
   scrollIntoView.mockClear();
+  scrollPageTo(0);
   Object.assign(layout, { trigger: YRKE_1280, clientWidth: 1280, clientHeight: 720 });
 });
 
@@ -117,6 +126,27 @@ describe("usePanelPosition (#2212)", () => {
     });
 
     expect(renders).toBe(before);
+  });
+
+  it("places a panel opened on a scrolled page in document coordinates, and keeps it there as the page scrolls", () => {
+    Object.assign(layout, { trigger: FORETAG_ORT_1280_AT_517 });
+    scrollPageTo(517);
+    stubLayout();
+    render(<Harness open />);
+    const panel = screen.getByRole("dialog");
+    expect(panel.style.top).toBe("677.984375px");
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    const before = renders;
+
+    // The page scrolls back to the top: the trigger moves down by as much as the offset falls.
+    layout.trigger = FORETAG_ORT_1280;
+    scrollPageTo(0);
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+    });
+
+    expect(renders).toBe(before);
+    expect(panel.style.top).toBe("677.984375px");
   });
 
   it("stops listening once the panel closes, and measures afresh when it opens again", () => {

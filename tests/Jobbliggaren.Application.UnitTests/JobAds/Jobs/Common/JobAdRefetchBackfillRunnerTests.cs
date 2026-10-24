@@ -158,8 +158,6 @@ public class JobAdRefetchBackfillRunnerTests
         var clock = new FakeDateTimeProvider(Now);
         var db = TestAppDbContextFactory.Create();
 
-        // 3 imported JobAds med External satt — InMemory ger NULL shadow-OccupationNameConceptId
-        // (computed column körs inte i InMemory), så alla matchar filtret.
         db.JobAds.Add(CreateImportedJobAd("ext-1", clock));
         db.JobAds.Add(CreateImportedJobAd("ext-2", clock));
         db.JobAds.Add(CreateImportedJobAd("ext-3", clock));

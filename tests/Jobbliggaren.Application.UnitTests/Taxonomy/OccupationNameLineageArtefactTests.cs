@@ -8,7 +8,7 @@ namespace Jobbliggaren.Application.UnitTests.Taxonomy;
 /// <summary>
 /// #2199 — the committed occupation-name lineage, through the real loader. The premises below are the
 /// shapes measured against JobTech's taxonomy on 2026-10-24 that the /jobb occupation-name filter rests
-/// on; each one names the ids it was measured with.
+/// on.
 /// </summary>
 public sealed class OccupationNameLineageArtefactTests
 {

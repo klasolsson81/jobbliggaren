@@ -175,10 +175,18 @@ public class GetFacetCountsQueryValidatorTests
             .IsValid.ShouldBeTrue();
 
     [Fact]
-    public void Validate_AnOccupationNameOutsideTheGrammar_Fails() =>
+    public void Validate_AnOccupationNameOutsideTheGrammar_FailsOnThatProperty() =>
         new GetFacetCountsQueryValidator()
             .Validate(new GetFacetCountsQuery(FacetDimension.OccupationName, OccupationName: ["dot.notation"]))
-            .IsValid.ShouldBeFalse();
+            .Errors.ShouldContain(e => e.PropertyName.StartsWith("OccupationName", StringComparison.Ordinal));
+
+    [Fact]
+    public void Validate_ExactlyTheCapOfOccupationNames_Passes() =>
+        new GetFacetCountsQueryValidator()
+            .Validate(new GetFacetCountsQuery(
+                FacetDimension.OccupationName,
+                OccupationName: [.. Enumerable.Range(0, SearchCriteria.MaxConceptIds).Select(i => $"n{i}")]))
+            .IsValid.ShouldBeTrue();
 
     [Fact]
     public void Validate_OneOccupationNameOverTheCap_Fails() =>

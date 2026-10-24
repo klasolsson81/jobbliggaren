@@ -1041,7 +1041,7 @@ public static class DependencyInjection
         // #2199 — the occupation-name lineage the resolver expands /jobb's occupation-name picks and
         // folds their counts with. A constructed instance, so a malformed embedded artefact stops the
         // host at startup rather than failing a search.
-        services.TryAddSingleton<Jobbliggaren.Application.JobAds.Abstractions.IOccupationNameLineageProvider>(
+        services.AddSingleton<Jobbliggaren.Application.JobAds.Abstractions.IOccupationNameLineageProvider>(
             new Taxonomy.OccupationNameLineageProvider(Taxonomy.OccupationNameLineageLoader.Load()));
         AddTaxonomyReadModel(services);
 

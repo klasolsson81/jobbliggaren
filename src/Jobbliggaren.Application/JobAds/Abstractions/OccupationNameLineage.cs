@@ -21,11 +21,6 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// terminal. A pick with several terminals has no terminal of its own to share, so it matches its own
 /// ads only.
 /// </para>
-///
-/// <para>
-/// Referential integrity (unique ids, known targets, an acyclic graph) is checked fail-loud by the
-/// Infrastructure loader at host start. The constructor re-checks what its own lookups need.
-/// </para>
 /// </summary>
 public sealed class OccupationNameLineage
 {

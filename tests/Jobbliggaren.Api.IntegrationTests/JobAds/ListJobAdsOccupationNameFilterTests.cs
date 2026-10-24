@@ -16,8 +16,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
 /// #2199 — the /jobb occupation-name filter against real Postgres, through the host's search port and
-/// the committed occupation-name lineage. Every id is a real JobTech concept, and each premise about
-/// the lineage is asserted before the search it explains.
+/// the committed occupation-name lineage.
 /// <para>
 /// Every seed is an imported ad whose facets are read from its payload, as
 /// <c>PlatsbankenJobSource.MapFacets</c> reads them: it copies <c>occupation.concept_id</c>
@@ -146,6 +145,7 @@ public class ListJobAdsOccupationNameFilterTests(ApiFactory factory)
         await SeedAsync("äldre", LarareGrundskolan46, GrundskollarareGroup, run, ct);
         await SeedAsync("Intendent", Fiskeriintendent, FiskeriintendentGroup, run, ct);
         await SeedAsync("Specialist", Specialistlakare, SpecialistlakareGroup, run, ct);
+        await SeedAsync("Utan yrke", occupationName: null, MjukvaruGroup, run, ct);
 
         using var scope = _factory.Services.CreateScope();
         var search = scope.ServiceProvider.GetRequiredService<IJobAdSearchQuery>();
@@ -159,11 +159,17 @@ public class ListJobAdsOccupationNameFilterTests(ApiFactory factory)
         counts.ShouldContainKeyAndValue(Grundlarare46V31, 3);
         counts.ShouldContainKeyAndValue(Fiskerikonsulent, 1);
         counts.ShouldNotContainKey(Fiskerikontrollant);
-        counts.ShouldNotContainKey(LarareGrundskolan46, "a name current in no version gets no count");
+        Lineage().CurrentConceptIds.ShouldNotContain(LarareGrundskolan46);
+        counts.ShouldNotContainKey(LarareGrundskolan46);
         counts.ShouldNotContainKey(Allmanmedicin, "the generic Specialistläkare attaches to no specialism");
 
         var groupCounts = await search.FacetCountsAsync(Filter(run, names: [ProjektledareIt]), FacetDimension.OccupationGroup, ct);
-        groupCounts.ShouldContainKeyAndValue(MjukvaruGroup, 2);
+        groupCounts.ShouldContainKeyAndValue(MjukvaruGroup, 3);
+
+        var namesWithAGroupTicked = await search.FacetCountsAsync(
+            Filter(run, groups: [GrundskollarareGroup]), FacetDimension.OccupationName, ct);
+        namesWithAGroupTicked.ShouldContainKeyAndValue(ProjektledareIt, 1);
+        namesWithAGroupTicked.ShouldContainKeyAndValue(Fiskerikonsulent, 1);
     }
 
     // The endpoint binds repeated ?occupationName= and ORs it with ?occupationGroup=.
@@ -179,12 +185,12 @@ public class ListJobAdsOccupationNameFilterTests(ApiFactory factory)
 
         var response = await client.GetAsync(
             $"/api/v1/job-ads?employmentType={run}&occupationName={ProjektledareIt}"
-            + $"&occupationGroup={GrundskollarareGroup}&pageSize=100", ct);
+            + $"&occupationName={Systemutvecklare}&occupationGroup={GrundskollarareGroup}&pageSize=100", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         json.GetProperty("items").EnumerateArray().Select(e => e.GetProperty("title").GetString())
-            .ShouldBe(["PL", "Lärare"], ignoreOrder: true);
+            .ShouldBe(["PL", "Utvecklare", "Lärare"], ignoreOrder: true);
     }
 
     [Fact]
@@ -205,6 +211,18 @@ public class ListJobAdsOccupationNameFilterTests(ApiFactory factory)
         counts.ShouldNotBeNull();
         counts.ShouldContainKeyAndValue(Grundlarare46V30, 2);
         counts.ShouldContainKeyAndValue(Grundlarare46V31, 2);
+    }
+
+    [Fact]
+    public async Task GET_facet_counts_RejectsAnOccupationNameOutsideTheConceptIdGrammar()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = await AuthenticatedClientAsync(ct);
+
+        var response = await client.GetAsync(
+            "/api/v1/job-ads/facet-counts?dimension=OccupationName&occupationName=dot.notation", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -260,14 +278,15 @@ public class ListJobAdsOccupationNameFilterTests(ApiFactory factory)
         Remote: false,
         Q: null);
 
-    private async Task SeedAsync(string title, string occupationName, string group, string run, CancellationToken ct)
+    private async Task SeedAsync(string title, string? occupationName, string group, string run, CancellationToken ct)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var externalId = $"ext-{Guid.NewGuid():N}";
         var rawPayload =
-            $"{{\"id\":\"{externalId}\",\"occupation\":{{\"concept_id\":\"{occupationName}\"}}," +
+            $"{{\"id\":\"{externalId}\"," +
+            (occupationName is null ? "" : $"\"occupation\":{{\"concept_id\":\"{occupationName}\"}},") +
             $"\"occupation_group\":{{\"concept_id\":\"{group}\"}},\"employment_type\":{{\"concept_id\":\"{run}\"}}}}";
 
         db.JobAds.Add(JobAd.Import(

@@ -73,11 +73,12 @@ public class OccupationNameLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
         var lineage = lineageProvider.Lineage;
         // Built by hand as ExcludedTermLatencyMeasurement builds it: the fixture composes persistence
         // only. No search here carries a minus-word, so the label matcher is never asked.
-        var search = new JobAdSearchQuery(db, new JobAdSearchTextResolver(
+        var resolver = new JobAdSearchTextResolver(
             new SearchQueryParser(),
             new OccupationSynonymExpander(Options.Create(new SearchSynonymsOptions())),
             Substitute.For<ITaxonomyLabelMatcher>(),
-            lineageProvider));
+            lineageProvider);
+        var search = new JobAdSearchQuery(db, resolver);
 
         var (current, deprecated) = ReadNames();
         var seeding = Stopwatch.StartNew();
@@ -132,7 +133,11 @@ public class OccupationNameLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
         foreach (var name in five)
             nameCounts.GetValueOrDefault(name).ShouldBe(await search.CountAsync(Filter(names: [name]), ct), name);
 
-        _output.WriteLine(await ExplainNameCountAsync(db, lineage.Expand(five), ct));
+        foreach (var (label, picks) in new[] { ("5 names", five), ("400 names", fourHundred) })
+        {
+            var resolved = await resolver.ResolveAsync(Filter(names: picks), ct);
+            _output.WriteLine(await ExplainAsync(db, label, JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), resolved), ct));
+        }
     }
 
     private const int SearchCriteriaMax = 400;
@@ -174,23 +179,24 @@ public class OccupationNameLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
     private static double Percentile(List<double> sorted, double p) =>
         sorted[Math.Clamp((int)Math.Ceiling(p * sorted.Count) - 1, 0, sorted.Count - 1)];
 
-    // The shape of the count for five picks: whether the planner reaches ix_job_ads_ssyk_concept_id
-    // for the name arm and ORs it with the group arm.
-    private static async Task<string> ExplainNameCountAsync(
-        AppDbContext db, OccupationNameExpansion expansion, CancellationToken ct)
+    private static async Task<string> ExplainAsync(
+        AppDbContext db, string label, IQueryable<JobAd> filtered, CancellationToken ct)
     {
-        await using var connection = new NpgsqlConnection(db.Database.GetConnectionString());
-        await connection.OpenAsync(ct);
-        await using var explain = new NpgsqlCommand(
-            "EXPLAIN SELECT count(*) FROM job_ads AS j WHERE j.status = 'Active' "
-            + "AND j.ssyk_concept_id = ANY(@names)",
-            connection);
-        explain.Parameters.AddWithValue("names", expansion.ConceptIds.ToArray());
-        var plan = new StringBuilder("EXPLAIN, count for five picks:\n");
-        await using var reader = await explain.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            plan.AppendLine(reader.GetString(0));
-        return plan.ToString();
+        await using var command = filtered.Select(j => j.Id).CreateDbCommand();
+        command.CommandText = "EXPLAIN " + command.CommandText;
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            var plan = new StringBuilder($"EXPLAIN, {label}:\n");
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                plan.AppendLine(reader.GetString(0));
+            return plan.ToString();
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
     }
 
     private static (List<Name> Current, List<Name> Deprecated) ReadNames()

@@ -1,11 +1,13 @@
+using System.Text;
+using System.Text.Json;
 using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Infrastructure.Taxonomy;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.JobAds;
 
 /// <summary>
-/// #2199 — the occupation-name lineage rule on a hand-built graph. Each shape below is one the real
-/// artefact holds (see <c>OccupationNameLineageArtefactTests</c> for the measured instances).
+/// #2199 — the occupation-name lineage rule on a hand-built graph.
 /// </summary>
 public sealed class OccupationNameLineageTests
 {
@@ -15,7 +17,7 @@ public sealed class OccupationNameLineageTests
     // A ← B ← C: a single chain.                      N → {S, T}, S → T: a merge that is not a multi.
     // M → {X (G3), Y (G4)}: a multi split by group.   W → M: a predecessor chained into the multi.
     // Z → {P, Q}, both in G6: an ambiguous multi.     7 → nothing, no group: deprecated outright.
-    private static OccupationNameLineage Lineage() => new("test",
+    private static OccupationNameLineage Lineage() => Load(
     [
         new("A", "G1", Current, []),
         new("B", "G1", Deprecated, ["A"]),
@@ -32,6 +34,23 @@ public sealed class OccupationNameLineageTests
         new("Q", "G6", Current, []),
         new("7", null, Deprecated, []),
     ]);
+
+    private static OccupationNameLineage Load(IReadOnlyList<OccupationNameLineageEntry> entries)
+    {
+        var json = JsonSerializer.Serialize(new
+        {
+            lineageVersion = "test",
+            taxonomyVersions = Current,
+            occupationNames = entries.Select(e => new
+            {
+                conceptId = e.ConceptId,
+                groupConceptId = e.GroupConceptId,
+                currentIn = e.CurrentIn,
+                replacedByConceptIds = e.ReplacedByConceptIds,
+            }),
+        });
+        return OccupationNameLineageLoader.LoadFrom(new MemoryStream(Encoding.UTF8.GetBytes(json)));
+    }
 
     private static readonly string[] Ids = ["A", "B", "C", "N", "S", "T", "M", "W", "X", "Y", "Z", "P", "Q", "7", "unknown"];
     private static readonly string?[] Groups = ["G1", "G2", "G3", "G4", "G5", "G6", null];

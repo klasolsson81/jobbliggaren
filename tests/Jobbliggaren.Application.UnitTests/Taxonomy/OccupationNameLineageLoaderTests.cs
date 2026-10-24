@@ -21,6 +21,11 @@ public sealed class OccupationNameLineageLoaderTests
     }
 
     [Fact]
+    public void LoadFrom_TheJsonNull_Throws() =>
+        Should.Throw<InvalidOperationException>(() => OccupationNameLineageLoader.LoadFrom(new MemoryStream("null"u8.ToArray())))
+            .Message.ShouldContain("null");
+
+    [Fact]
     public void LoadFrom_NotJson_Throws() =>
         Should.Throw<JsonException>(() => OccupationNameLineageLoader.LoadFrom(new MemoryStream("not json"u8.ToArray())));
 

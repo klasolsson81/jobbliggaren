@@ -34,7 +34,7 @@ public enum FacetDimension
     /// <summary>
     /// #2199 — yrkesbenämning. Its count is not one column's: an ad coded with a replaced name counts
     /// for the name that replaced it, so the counts are folded from (name, group) pairs through the
-    /// occupation-name lineage, keyed by every current name.
+    /// occupation-name lineage.
     /// </summary>
     OccupationName,
 }

@@ -82,9 +82,8 @@ public interface IJobAdSearchQuery
     /// </para>
     /// <para>
     /// <b>#2199:</b> Yrke is one dimension in two granularities, so the OccupationGroup and
-    /// OccupationName facets each exclude both lists. The OccupationName counts are keyed by every
-    /// current occupation-name and fold an ad coded with a replaced name into the name that replaced
-    /// it, with the same rule the filter expands a pick with.
+    /// OccupationName facets each exclude both lists. The OccupationName counts fold an ad coded with a
+    /// replaced name into the name that replaced it, with the same rule the filter expands a pick with.
     /// </para>
     /// </summary>
     ValueTask<IReadOnlyDictionary<string, int>> FacetCountsAsync(

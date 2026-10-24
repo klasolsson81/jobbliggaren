@@ -8,18 +8,18 @@ import type { PublicJobAdSummary } from "@/lib/dto/public-job-ad-catalogue";
 import { type CodedTaxonomyId, codedTaxonomyName, isCodedTaxonomyId } from "@/lib/i18n/coded-taxonomy";
 import { adSourceLink } from "@/lib/job-ads/ad-source-link";
 import { buildJobPosting } from "@/lib/job-ads/job-posting-json-ld";
-import { publicJobAdTitle } from "@/lib/job-ads/public-job-ad-title";
-import { publicJobAdPath, publicJobAdUrl } from "@/lib/job-ads/public-job-ad-url";
+import { LOGIN_ENTRY_PATH } from "@/lib/auth/login-paths";
+import { publicJobAdPath } from "@/lib/job-ads/public-job-ad-url";
 import { formatAdDescription } from "./format-ad-description";
 import { JobAdDetailMeta } from "./job-ad-detail-meta";
 import { PublicJobAdList } from "./public-job-ad-list";
 import { ShareJobAd } from "./share-job-ad";
 import { StripBounceMarker } from "./strip-bounce-marker";
+import { useShareJobAdLabels } from "./use-share-job-ad-labels";
 import contactLinkStyles from "./recruiter-contact-link.module.css";
 
 const APPLY_TITLE_ID = "jp-apply-title";
 const SHARE_TITLE_ID = "jp-share-title";
-const SIGN_IN_TITLE_ID = "jp-sign-in-title";
 const RELATED_TITLE_ID = "jp-related-title";
 
 /**
@@ -38,8 +38,8 @@ const RELATED_TITLE_ID = "jp-related-title";
  * The page is where a shared link lands, for a visitor who is not signed in (ADR 0183). The link out is the one primary
  * action and appears once, in the head under "Sök jobbet", so a visitor from a search result or a shared link sees
  * where to apply without scrolling. The share row follows the text, where the decision to pass the ad on is made. The
- * footer invites the visitor to sign in and come back to
- * this ad: a plain link with `rel="nofollow"`, since every listed ad would otherwise hand crawlers its own login URL.
+ * footer invites the visitor to sign in and come back to this ad: a plain link with `rel="nofollow"`, since every
+ * listed ad would otherwise hand crawlers its own login URL.
  *
  * After the article, and outside it because the article is the employer's content, come other listed ads in the same
  * occupation group (ADR 0182) and then two links that explain how CV review and matching work, all in the column the
@@ -60,6 +60,7 @@ export function PublicJobAd({
   const tUi = useTranslations("jobads.ui");
   const tEnum = useTranslations("jobads.enums");
   const tLanding = useTranslations("landing");
+  const shareLabels = useShareJobAdLabels();
   const link = adSourceLink(jobAd.url);
 
   const location = [jobAd.municipalityName, jobAd.regionName]
@@ -146,39 +147,19 @@ export function PublicJobAd({
             </InformationLink>
           </p>
 
-          <ShareJobAd
-            data={{ title: publicJobAdTitle(jobAd), url: publicJobAdUrl(jobAd.id) }}
-            headingId={SHARE_TITLE_ID}
-            labels={{
-              heading: tPublic("share.heading"),
-              via: tPublic("share.via"),
-              newTab: tPublic("share.newTab"),
-              targets: {
-                facebook: tPublic("share.facebook"),
-                linkedin: tPublic("share.linkedin"),
-                whatsapp: tPublic("share.whatsapp"),
-                email: tPublic("share.email"),
-              },
-              copy: tPublic("share.copy"),
-              copied: tPublic("share.copied"),
-              more: tPublic("share.more"),
-              field: tPublic("share.field"),
-              copyFailed: tPublic("share.copyFailed"),
-              shareFailed: tPublic("share.shareFailed"),
-            }}
-          />
+          <ShareJobAd jobAd={jobAd} labels={shareLabels} headingId={SHARE_TITLE_ID} />
         </div>
 
         <div className="jp-modal__foot jp-modal__foot--split" data-nosnippet="">
           <div className="min-w-[min(100%,20rem)] flex-1">
-            <h2 id={SIGN_IN_TITLE_ID} className="text-h4 font-bold">
+            <h2 className="text-h4 font-bold">
               {tPublic("signIn.heading")}
             </h2>
             <p className="mt-1">{tPublic("signIn.body")}</p>
           </div>
           <div className="jp-modal__footgroup jp-modal__footgroup--end">
             <a
-              href={`/logga-in?next=${encodeURIComponent(publicJobAdPath(jobAd.id))}`}
+              href={`${LOGIN_ENTRY_PATH}?next=${encodeURIComponent(publicJobAdPath(jobAd.id))}`}
               rel="nofollow"
               className="jp-btn jp-btn--secondary"
             >

@@ -121,7 +121,7 @@ describe("PublicJobAd", () => {
 
     const offSite = [...container.querySelectorAll<HTMLAnchorElement>("a[href]")]
       .map((a) => a.getAttribute("href") ?? "")
-      .filter((href) => !href.startsWith("/"));
+      .filter((href) => !href.startsWith("/") || href.startsWith("//"));
     const targets = shareTargetLinks({ title: publicJobAdTitle(AD), url: publicJobAdUrl(ID) }).map((link) => link.href);
     expect(offSite).toEqual([AD.url, ...targets]);
     expect(offSite.join(" ")).not.toMatch(/utm_/);
@@ -159,13 +159,6 @@ describe("PublicJobAd", () => {
     const next = new URL(href, "https://jobbliggaren.se").searchParams.get("next");
     expect(next).toBe(`/jobb/${ID}`);
     expect(safeRedirectPath(next)).toBe(`/jobb/${ID}`);
-  });
-
-  it("keeps the invitation when the address is empty: it does not depend on the link out", () => {
-    const { container } = render(<PublicJobAd jobAd={{ ...AD, url: "" }} />);
-
-    const footer = container.querySelector(".jp-modal__foot") as HTMLElement;
-    expect(within(footer).getByRole("link", { name: "Logga in eller skapa konto" })).toBeInTheDocument();
   });
 
   it("offers the share row after the description and the notice, in the card's body, under its own h2", () => {

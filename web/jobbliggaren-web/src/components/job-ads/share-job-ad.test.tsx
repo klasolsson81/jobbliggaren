@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { publicJobAdUrl } from "@/lib/job-ads/public-job-ad-url";
 import { ShareJobAd, type ShareJobAdLabels } from "./share-job-ad";
 
-const DATA = {
-  title: "Sjuksköterska till vårdcentral – Region Exempel",
-  url: "https://jobbliggaren.se/jobb/0b0b0b0b-1111-4222-8333-444444444444",
+const JOB_AD = {
+  id: "0b0b0b0b-1111-4222-8333-444444444444",
+  title: "Sjuksköterska till vårdcentral",
+  companyName: "Region Exempel",
 };
+const TITLE = "Sjuksköterska till vårdcentral – Region Exempel";
+const URL_ = publicJobAdUrl(JOB_AD.id);
 
 const LABELS: ShareJobAdLabels = {
   heading: "Dela annonsen",
@@ -13,7 +17,7 @@ const LABELS: ShareJobAdLabels = {
   newTab: "(öppnas i ny flik)",
   targets: { facebook: "Facebook", linkedin: "LinkedIn", whatsapp: "WhatsApp", email: "E-post" },
   copy: "Kopiera länken",
-  copied: "Länken är kopierad",
+  copied: "Kopierad",
   more: "Fler sätt att dela",
   field: "Länk till annonsen",
   copyFailed: "Länken kunde inte kopieras. Kopiera den från fältet.",
@@ -37,7 +41,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const renderRow = () => render(<ShareJobAd data={DATA} labels={LABELS} headingId="share-title" />);
+const renderRow = (extra: Record<string, unknown> = {}) =>
+  render(<ShareJobAd jobAd={{ ...JOB_AD, ...extra }} labels={LABELS} headingId="share-title" />);
 const moreItem = () => screen.getByRole("button", { name: "Fler sätt att dela" }).closest("li") as HTMLElement;
 
 describe("ShareJobAd", () => {
@@ -53,15 +58,27 @@ describe("ShareJobAd", () => {
       "Dela via LinkedIn (öppnas i ny flik)",
       "Dela via WhatsApp (öppnas i ny flik)",
       "Dela via E-post",
-      "Kopiera länkenLänken är kopierad",
+      "Kopiera länkenKopierad",
       "Fler sätt att dela",
     ]);
   });
 
   it("takes an h3 where the host asks for one", () => {
-    render(<ShareJobAd data={DATA} labels={LABELS} headingId="share-title" headingLevel={3} />);
+    render(<ShareJobAd jobAd={JOB_AD} labels={LABELS} headingId="share-title" headingLevel={3} />);
 
     expect(screen.getByRole("heading", { level: 3, name: "Dela annonsen" })).toBeInTheDocument();
+  });
+
+  it("builds every link from the canonical and the page title, never from another address the host's ad carries", () => {
+    renderRow({ url: "https://arbetsformedlingen.se/platsbanken/annonser/1", description: "Text", contacts: [] });
+
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href")).toContain(encodeURIComponent(URL_));
+      expect(link.getAttribute("href")).not.toContain("arbetsformedlingen");
+    }
+    expect(screen.getByRole("link", { name: "Dela via E-post" }).getAttribute("href")).toBe(
+      `mailto:?subject=${encodeURIComponent(TITLE)}&body=${encodeURIComponent(URL_)}`
+    );
   });
 
   it("names each link by what it does and keeps the visible name in it, with no aria-label (WCAG 2.4.4, 2.5.3)", () => {
@@ -95,7 +112,7 @@ describe("ShareJobAd", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fler sätt att dela" }));
 
     await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
-    expect(share.mock.calls[0]?.[0]).toStrictEqual({ title: DATA.title, url: DATA.url });
+    expect(share.mock.calls[0]?.[0]).toStrictEqual({ title: TITLE, url: URL_ });
     expect(writeText).not.toHaveBeenCalled();
     expect(screen.queryByRole("textbox")).toBeNull();
   });
@@ -135,33 +152,33 @@ describe("ShareJobAd", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fler sätt att dela" }));
 
     const field = await screen.findByRole("textbox", { name: "Länk till annonsen" });
-    expect(field).toHaveValue(DATA.url);
+    expect(field).toHaveValue(URL_);
     expect(field).toHaveAccessibleDescription(LABELS.shareFailed);
     expect(writeText).not.toHaveBeenCalled();
   });
 
-  it("copies the link and confirms it on the button and to a screen reader for three seconds, keeping the button's width", async () => {
+  it("copies the link and confirms it on the button and to a screen reader for three seconds", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     renderRow();
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
 
-    fireEvent.click(screen.getByRole("button", { name: "Kopiera länken" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Kopiera länken" }));
+    });
 
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith(DATA.url));
-    expect(await screen.findByText("Länken är kopierad", { selector: "[role=status]" })).toBeInTheDocument();
-    const button = screen.getByRole("button", { name: "Länken är kopierad" });
+    expect(writeText).toHaveBeenCalledWith(URL_);
+    const button = screen.getByRole("button", { name: "Kopierad" });
     const [idle, done] = [...button.querySelectorAll("span > span")];
     expect(idle).toHaveClass("invisible");
     expect(done).not.toHaveClass("invisible");
+    expect(screen.getByRole("status")).toHaveTextContent("Kopierad");
 
-    vi.useFakeTimers();
-    fireEvent.click(button);
-    await act(async () => {});
     await act(async () => vi.advanceTimersByTime(2999));
-    expect(screen.getByRole("status")).toHaveTextContent("Länken är kopierad");
+    expect(screen.getByRole("status")).toHaveTextContent("Kopierad");
     await act(async () => vi.advanceTimersByTime(1));
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
-    expect(idle).not.toHaveClass("invisible");
     expect(screen.getByRole("button", { name: "Kopiera länken" })).toBe(button);
+    expect(idle).not.toHaveClass("invisible");
   });
 
   it("shows the link in a labelled read-only field, focused and selected, when the copy fails", async () => {
@@ -171,14 +188,31 @@ describe("ShareJobAd", () => {
     fireEvent.click(screen.getByRole("button", { name: "Kopiera länken" }));
 
     const field = await screen.findByRole("textbox", { name: "Länk till annonsen" });
-    expect(field).toHaveValue(DATA.url);
+    expect(field).toHaveValue(URL_);
     expect(field).toHaveAttribute("readonly");
     expect(field).toHaveAccessibleDescription(LABELS.copyFailed);
     expect(field).not.toHaveAttribute("aria-invalid");
     expect(field).toHaveFocus();
     const input = field as HTMLInputElement;
-    expect([input.selectionStart, input.selectionEnd]).toEqual([0, DATA.url.length]);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, URL_.length]);
     expect(screen.queryByRole("alert")).toBeNull();
     expect(field.closest("ul")).toBeNull();
+  });
+
+  it("moves focus to the field again on every later failure, not only the first", async () => {
+    writeText.mockRejectedValue(refusal("NotAllowedError"));
+    renderRow();
+    const copy = screen.getByRole("button", { name: "Kopiera länken" });
+
+    fireEvent.click(copy);
+    const field = await screen.findByRole("textbox", { name: "Länk till annonsen" });
+    expect(field).toHaveFocus();
+
+    copy.focus();
+    expect(copy).toHaveFocus();
+    fireEvent.click(copy);
+
+    await waitFor(() => expect(field).toHaveFocus());
+    expect(writeText).toHaveBeenCalledTimes(2);
   });
 });

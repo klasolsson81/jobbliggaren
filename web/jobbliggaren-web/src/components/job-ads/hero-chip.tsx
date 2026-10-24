@@ -125,7 +125,6 @@ export function HeroChip<T>({
             top: "calc(100% + 6px)",
             left: 0,
             width: 320,
-            zIndex: 30,
           }}
         >
           <div className="jp-popover__head">

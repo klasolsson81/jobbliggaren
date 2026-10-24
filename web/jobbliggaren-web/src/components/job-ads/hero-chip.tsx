@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
+import { usePanelPosition } from "@/lib/hooks/use-panel-position";
 import { onPlainNav } from "@/lib/nav/modified-click";
 
 interface HeroChipProps<T> {
@@ -87,6 +88,7 @@ export function HeroChip<T>({
     () => setOpen(false),
     triggerRef,
   );
+  const { style } = usePanelPosition(open, triggerRef, panelRef, 320);
 
   // Notifiera konsumenten om öppna-tillståndet (lat on-demand-hämtning).
   useEffect(() => {
@@ -98,7 +100,7 @@ export function HeroChip<T>({
   const hasMore = items.length > maxItems;
 
   return (
-    <div style={{ position: "relative" }}>
+    <div>
       <button
         ref={triggerRef}
         type="button"
@@ -120,12 +122,7 @@ export function HeroChip<T>({
           role="dialog"
           aria-label={label}
           className="jp-popover"
-          style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            left: 0,
-            width: 320,
-          }}
+          style={style}
         >
           <div className="jp-popover__head">
             <span className="jp-popover__title">{label}</span>

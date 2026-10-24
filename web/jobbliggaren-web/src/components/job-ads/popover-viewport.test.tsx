@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Clock } from "lucide-react";
 import { JobbHeroFilters } from "./jobb-hero-filters";
+import { HeroChip } from "./hero-chip";
 import { ForetagSokSearchbar } from "@/components/company-criteria/foretag-sok-searchbar";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
@@ -139,6 +141,29 @@ describe("the /jobb filter popovers stay inside the viewport (#2212)", () => {
     const dialog = await openAt(screen.getByRole("button", { name: /^Filter/ }), { left: 591.921875, bottom: 475.703125 });
 
     expect(dialog.style.left).toBe("464px");
+  });
+});
+
+describe("the /jobb hero chips' panels are placed like the filter popovers (#2212)", () => {
+  it("Senaste sökningar at 1280x720 opens 8px under its chip, in document coordinates", async () => {
+    stubLayout(1280, 720);
+    render(
+      <HeroChip
+        label="Senaste sökningar"
+        icon={<Clock size={14} aria-hidden="true" />}
+        count={1}
+        items={[{ id: "a1", label: "projektledare" }]}
+        getKey={(it) => it.id}
+        getHref={(it) => `/jobb?q=${it.label}`}
+        getLabel={(it) => it.label}
+        emptyText="Inga senaste sökningar än."
+      />,
+    );
+    const dialog = await openAt(screen.getByRole("button", { name: /Senaste sökningar/ }), { left: 664, bottom: 195 });
+
+    expect(dialog.style.left).toBe("664px");
+    expect(dialog.style.top).toBe("203px");
+    expect(dialog.style.width).toBe("320px");
   });
 });
 

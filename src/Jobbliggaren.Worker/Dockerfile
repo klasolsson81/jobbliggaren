@@ -1,5 +1,7 @@
 # Jobbliggaren.Worker Dockerfile — HTTP-fri (ADR 0023), runtime-image utan ASP.NET.
 # Build context: repo root (`docker build -f src/Jobbliggaren.Worker/Dockerfile .`).
+# Jobbliggaren.Infrastructure.Mailbox (#1981, ADR 0183) is copied here and in no other Dockerfile: only the
+# Worker references it, so MailKit reaches this image alone.
 
 # ---------------------------------------------------------------------------
 # Stage 1: build + publish
@@ -12,6 +14,7 @@ COPY global.json Directory.Build.props Directory.Packages.props Jobbliggaren.sln
 COPY src/Jobbliggaren.Domain/Jobbliggaren.Domain.csproj src/Jobbliggaren.Domain/
 COPY src/Jobbliggaren.Application/Jobbliggaren.Application.csproj src/Jobbliggaren.Application/
 COPY src/Jobbliggaren.Infrastructure/Jobbliggaren.Infrastructure.csproj src/Jobbliggaren.Infrastructure/
+COPY src/Jobbliggaren.Infrastructure.Mailbox/Jobbliggaren.Infrastructure.Mailbox.csproj src/Jobbliggaren.Infrastructure.Mailbox/
 COPY src/Jobbliggaren.Worker/Jobbliggaren.Worker.csproj src/Jobbliggaren.Worker/
 
 RUN dotnet restore src/Jobbliggaren.Worker/Jobbliggaren.Worker.csproj
@@ -19,6 +22,7 @@ RUN dotnet restore src/Jobbliggaren.Worker/Jobbliggaren.Worker.csproj
 COPY src/Jobbliggaren.Domain/ src/Jobbliggaren.Domain/
 COPY src/Jobbliggaren.Application/ src/Jobbliggaren.Application/
 COPY src/Jobbliggaren.Infrastructure/ src/Jobbliggaren.Infrastructure/
+COPY src/Jobbliggaren.Infrastructure.Mailbox/ src/Jobbliggaren.Infrastructure.Mailbox/
 COPY src/Jobbliggaren.Worker/ src/Jobbliggaren.Worker/
 
 RUN --mount=type=secret,id=sixlabors_license,required=true dotnet publish src/Jobbliggaren.Worker/Jobbliggaren.Worker.csproj \

@@ -222,6 +222,7 @@ public class TaxonomyAclLayerTests
             typeof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver).Assembly,
             typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
             typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
+            typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
         };
 
         var consumers = assemblies

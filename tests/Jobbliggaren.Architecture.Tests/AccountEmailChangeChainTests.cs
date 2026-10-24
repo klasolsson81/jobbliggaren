@@ -36,6 +36,7 @@ public class AccountEmailChangeChainTests
         typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
         typeof(AuthEndpoints).Assembly,
         typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
+        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
         typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
     ];
 

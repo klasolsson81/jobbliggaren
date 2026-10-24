@@ -76,6 +76,8 @@
     <ProjectReference Include="..\..\src\Jobbliggaren.Application\Jobbliggaren.Application.csproj" />
     <ProjectReference Include="..\..\src\Jobbliggaren.Domain\Jobbliggaren.Domain.csproj" />
     <ProjectReference Include="..\..\src\Jobbliggaren.Infrastructure\Jobbliggaren.Infrastructure.csproj" />
+    <!-- #1981 PR 4a — the DMARC mailbox adapter, tested against a scripted in-process IMAP server. -->
+    <ProjectReference Include="..\..\src\Jobbliggaren.Infrastructure.Mailbox\Jobbliggaren.Infrastructure.Mailbox.csproj" />
   </ItemGroup>
 
   <!-- #841 - shared JobAdFacets test builder (tests/Shared). Linked rather than duplicated:

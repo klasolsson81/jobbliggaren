@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    #1981 PR 4a (ADR 0183) — the Worker reads dmarc@jobbliggaren.se over IMAPS, read-only, and this is the one
+    assembly that speaks IMAP. It is a project of its own so that MailKit, MimeKit and BouncyCastle reach the Worker
+    image and nothing else: the Api references Infrastructure, so MailKit in Infrastructure would put all three in the
+    Api's image, which never reads a mailbox (senior-cto-advisor, Beslut D2; Art. 25(2)). "The Api never builds the
+    mailbox" is then a compile-time fact rather than a registration test. Migrate.Provisioning is the precedent for a
+    production library outside Infrastructure.
+
+    It references Application and nothing else of ours: the port it implements lives there, and Infrastructure would
+    hand it EF Core, Npgsql and the field encryption it has no use for. Only the Worker references this project.
+    Architecture tests pin both directions, the package declarations and the IL calls it may never make.
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>Jobbliggaren.Infrastructure.Mailbox</RootNamespace>
+    <AssemblyName>Jobbliggaren.Infrastructure.Mailbox</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Jobbliggaren.Application\Jobbliggaren.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The scripted IMAP server and the TLS refusal test reach the adapter through its internal stream seam. -->
+    <InternalsVisibleTo Include="Jobbliggaren.Application.UnitTests" />
+  </ItemGroup>
+
+</Project>

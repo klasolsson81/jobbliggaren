@@ -51,6 +51,7 @@ public class JobSeekerWriterReplayGuardTests
         typeof(Jobbliggaren.Infrastructure.Persistence.AppDbContext).Assembly,
         typeof(Jobbliggaren.Api.Endpoints.AuthProblem).Assembly,
         typeof(Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker).Assembly,
+        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
     ];
 
     [Fact]

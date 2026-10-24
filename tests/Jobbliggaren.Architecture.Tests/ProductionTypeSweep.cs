@@ -17,6 +17,7 @@ internal static class ProductionTypeSweep
         typeof(SqlAccountDirectory).Assembly.Location,
         typeof(Jobbliggaren.Api.Endpoints.AuthProblem).Assembly.Location,
         typeof(Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker).Assembly.Location,
+        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly.Location,
         typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly.Location,
         typeof(Jobbliggaren.Migrate.Roles).Assembly.Location,
     ];

@@ -25,13 +25,14 @@ public class AdminAccountDirectoryTests
         BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic
         | BindingFlags.DeclaredOnly;
 
-    /// <summary>Every assembly that can resolve a port: Application declares, Infrastructure, Api, Worker and Migrate compose.</summary>
+    /// <summary>Every assembly that can resolve a port: Application declares, Infrastructure, Infrastructure.Mailbox, Api, Worker and Migrate compose.</summary>
     private static readonly Assembly[] OwnedAssemblies =
     [
         typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
         typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
         typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
         typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
+        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
         typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
     ];
 

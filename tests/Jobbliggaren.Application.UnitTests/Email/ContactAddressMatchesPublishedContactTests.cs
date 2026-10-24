@@ -54,11 +54,13 @@ public class ContactAddressMatchesPublishedContactTests
 
     /// <summary>
     /// Our own mailboxes the policy names that are NOT a contact route: no passage asks anyone to write
-    /// to them. Closed and named one by one, so the sweep below still fails on any other address, a
-    /// drifted contact address included. <c>dmarc@</c> receives the DMARC aggregate reports the policy
-    /// describes under Art. 14(5)(b) (#1981, security-auditor's signed text).
+    /// to them. Closed, named one by one, and bound to how often the copy names each per language: the
+    /// sweep below still fails on any other address, and a contact passage that drifts to one of them
+    /// fails the count. <c>dmarc@</c> receives the DMARC aggregate reports the policy describes under
+    /// Art. 14(5)(b) (#1981), in the two leaves security-auditor's signature 5 pins whole.
     /// </summary>
-    private static readonly string[] NamedNonContactMailboxes = ["dmarc@jobbliggaren.se"];
+    private static readonly (string Mailbox, int Occurrences)[] NamedNonContactMailboxes =
+        [("dmarc@jobbliggaren.se", 2)];
 
     [Theory]
     [InlineData("sv")]
@@ -75,20 +77,19 @@ public class ContactAddressMatchesPublishedContactTests
             .GetString()
             .ShouldBe(EmailTemplates.ContactAddress);
 
-        // And every prose passage: NO OTHER address may survive anywhere in the file, beyond the closed
-        // set of named non-contact mailboxes. Asserted at
-        // TOKEN level, not line level. A line-level ShouldContain says "this line mentions our
-        // address", which a line carrying both ours and a stranger's satisfies — so the prose claimed
-        // the strong property while the code implemented the weak one (code-reviewer Major 4 /
-        // security-auditor Minor 1, 2026-08-12). The sibling fact in
-        // EmailTemplatesEmailChangedNotificationTests already used this form, and two strengths of one
-        // property inside one PR is exactly the drift to avoid.
+        // And every prose passage: NO OTHER address may survive anywhere in the file, beyond the named
+        // non-contact mailboxes above. Asserted at TOKEN level, not line level. A line-level
+        // ShouldContain says "this line mentions our address", which a line carrying both ours and a
+        // stranger's satisfies — so the prose claimed the strong property while the code implemented
+        // the weak one (code-reviewer Major 4 / security-auditor Minor 1, 2026-08-12). The sibling fact
+        // in EmailTemplatesEmailChangedNotificationTests already used this form, and two strengths of
+        // one property inside one PR is exactly the drift to avoid.
         foreach (var token in json.Split(TokenSeparators, StringSplitOptions.RemoveEmptyEntries))
         {
             if (!token.Contains('@', StringComparison.Ordinal)) continue;
 
             var address = token.Trim('.', ':', ';');
-            if (NamedNonContactMailboxes.Contains(address, StringComparer.Ordinal)) continue;
+            if (NamedNonContactMailboxes.Any(named => named.Mailbox == address)) continue;
 
             address.ShouldBe(
                 EmailTemplates.ContactAddress,
@@ -100,14 +101,18 @@ public class ContactAddressMatchesPublishedContactTests
     [Theory]
     [InlineData("sv")]
     [InlineData("en")]
-    public void EveryNamedNonContactMailbox_IsStillPublished(string language)
+    public void EveryNamedNonContactMailbox_IsNamedExactlyAsOftenAsTheSignedCopyNamesIt(string language)
     {
-        // An exception the copy no longer needs would widen the sweep for nothing: when the policy stops
-        // naming a mailbox, its entry goes with it.
+        // Fewer: the exception widens the sweep for nothing, and goes when the copy stops naming it.
+        // More: a passage the exception was never meant to cover names the mailbox.
         var json = ContentLegalMessages.ReadAllText(language);
 
-        foreach (var mailbox in NamedNonContactMailboxes)
-            json.ShouldContain(mailbox, Case.Sensitive, $"{language}: {mailbox} is excepted but not published");
+        foreach (var (mailbox, occurrences) in NamedNonContactMailboxes)
+        {
+            json.Split(TokenSeparators, StringSplitOptions.RemoveEmptyEntries)
+                .Count(token => token.Trim('.', ':', ';') == mailbox)
+                .ShouldBe(occurrences, $"{language}: {mailbox} is named a different number of times than the signed copy");
+        }
     }
 
     [Fact]

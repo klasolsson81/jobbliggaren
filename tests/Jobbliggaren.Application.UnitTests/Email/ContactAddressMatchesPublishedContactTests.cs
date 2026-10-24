@@ -52,6 +52,14 @@ public class ContactAddressMatchesPublishedContactTests
     /// </summary>
     private static readonly char[] TokenSeparators = [' ', '\n', '\r', '\t', '"', ',', '(', ')'];
 
+    /// <summary>
+    /// Our own mailboxes the policy names that are NOT a contact route: no passage asks anyone to write
+    /// to them. Closed and named one by one, so the sweep below still fails on any other address, a
+    /// drifted contact address included. <c>dmarc@</c> receives the DMARC aggregate reports the policy
+    /// describes under Art. 14(5)(b) (#1981, security-auditor's signed text).
+    /// </summary>
+    private static readonly string[] NamedNonContactMailboxes = ["dmarc@jobbliggaren.se"];
+
     [Theory]
     [InlineData("sv")]
     [InlineData("en")]
@@ -67,7 +75,8 @@ public class ContactAddressMatchesPublishedContactTests
             .GetString()
             .ShouldBe(EmailTemplates.ContactAddress);
 
-        // And every prose passage: NO OTHER address may survive anywhere in the file. Asserted at
+        // And every prose passage: NO OTHER address may survive anywhere in the file, beyond the closed
+        // set of named non-contact mailboxes. Asserted at
         // TOKEN level, not line level. A line-level ShouldContain says "this line mentions our
         // address", which a line carrying both ours and a stranger's satisfies — so the prose claimed
         // the strong property while the code implemented the weak one (code-reviewer Major 4 /
@@ -78,11 +87,27 @@ public class ContactAddressMatchesPublishedContactTests
         {
             if (!token.Contains('@', StringComparison.Ordinal)) continue;
 
-            token.Trim('.', ':', ';').ShouldBe(
+            var address = token.Trim('.', ':', ';');
+            if (NamedNonContactMailboxes.Contains(address, StringComparer.Ordinal)) continue;
+
+            address.ShouldBe(
                 EmailTemplates.ContactAddress,
                 $"{language}: the file names an address other than "
                     + $"{EmailTemplates.ContactAddress}: {token}");
         }
+    }
+
+    [Theory]
+    [InlineData("sv")]
+    [InlineData("en")]
+    public void EveryNamedNonContactMailbox_IsStillPublished(string language)
+    {
+        // An exception the copy no longer needs would widen the sweep for nothing: when the policy stops
+        // naming a mailbox, its entry goes with it.
+        var json = ContentLegalMessages.ReadAllText(language);
+
+        foreach (var mailbox in NamedNonContactMailboxes)
+            json.ShouldContain(mailbox, Case.Sensitive, $"{language}: {mailbox} is excepted but not published");
     }
 
     [Fact]

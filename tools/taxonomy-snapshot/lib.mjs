@@ -10,6 +10,8 @@ export async function gql(query) {
   const res = await fetch(`${GRAPHQL}?query=${encodeURIComponent(query)}`);
   if (!res.ok) throw new Error(`GraphQL ${res.status} ${res.statusText}`);
   const body = await res.json();
+  // A GraphQL error can arrive beside a partial `data`, so `data` alone proves nothing (#2199).
+  if (body.errors?.length) throw new Error(`GraphQL-fel: ${JSON.stringify(body.errors)}`);
   if (!body.data?.concepts) throw new Error(`Oväntat GraphQL-svar: ${JSON.stringify(body)}`);
   return body.data.concepts;
 }

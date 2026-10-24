@@ -590,3 +590,20 @@ The privacy policy's withdrawal sentences (her signature 2) are not a catalogue 
 that both consent switches (rows 7 and 8) stay active, each with its description (V2). `EmailTemplatesMatchNotificationTests` pins the
 Direct and the Digest paragraphs word for word in the text part and the HTML part, each kind in its own test, and
 `EmailTemplatesFollowedCompanyNotificationTests` pins the follow paragraph the same way (V6).
+
+## Amendment 2026-10-24 — #2214 PR 1: row 10's third key, the public job page
+
+`security-auditor` signed the label in #2214's plan read on 2026-10-24 (`docs/reviews/2026-10-24-share-plan-security-auditor.md`,
+local-only, (iv) and Major M-1). Klas answered her escalation "Ja, ingen trigger (Rek.)" the same day.
+
+- Row 10 gains a third key, `publicjob.recruiterNoticeLink`: sv "Så behandlar vi uppgifter om kontaktpersoner i annonser", en "How
+  we process details about contact persons in job ads". It is the public job page's own label for the notice row ADR 0165 D4
+  carries (ADR 0166 D5/D7). It says what `/kontaktperson-i-annons` explains and presupposes no visible contact block, which the
+  public page never renders. The detail's and the panel's keys are unchanged.
+- It renders on every listed `/jobb/<uuid>` 200 whatever the contacts, because the #1944 gate is the signed-in detail's and does
+  not reach the public page. It is visible without a click, never sr-only, `aria-hidden` or behind help, an expander or a tooltip;
+  at least 13 px, at least 4.5:1 and underlined; it points at `/kontaktperson-i-annons`; it stands inside `<article>`, directly
+  after the description, never only in the footer and never in the related section. Moving it needs her signature, and
+  DESIGN.md §8's exception for the public job page follows any move.
+- **Pins.** `legally-bound-copy.test.ts` pins the key whole in sv and en as row 10. `public-job-ad.test.tsx` pins its place after
+  the description, its target and its text.

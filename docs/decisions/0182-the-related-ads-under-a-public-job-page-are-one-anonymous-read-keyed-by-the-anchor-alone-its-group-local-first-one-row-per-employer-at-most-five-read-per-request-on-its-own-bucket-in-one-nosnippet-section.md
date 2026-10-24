@@ -112,7 +112,7 @@ which she deliberately leaves out of the legal triggers, and the CTO needs no ne
   archived, past its deadline and erased. There is no `Classify` switch that could grow a 410 arm; this changes step 1 of the CTO's F2, which read the anchor and classified it through
   `Classify`. The detail read already tells 404 from 410, so this route tells strictly less and is no new erasure oracle. A listed anchor with a null group or without an organization number answers 200 with an empty list, makes no second read and does not ask the taxonomy port.
 - **The candidates read.** `.Where(IsListed(now))`, the group, `Id` and company filters, `OrderBy(CASE)`, `.ThenByDescending(PublishedAt).ThenBy(Id).Take(CandidateWindow)`, projected to a narrow
-  row (id, title, company name, kommun and län ids, publication date). It never materialises the entity, because `RawPayload` carries the pre-scrub text. The group
+  row. It never materialises the entity, because `RawPayload` carries the pre-scrub text. The group
   is a non-null value by the time this read runs (`is not { } group`), so the predicate `occupation_group_concept_id = @group` implies the condition of the partial index on that column; a
   null-safe `OR … IS NULL` arm would switch the index off silently, and `TheCandidatesStatement_ReachesTheOccupationGroupIndex` pins it (architect).
 - **The tier is an `int` CASE rank, never a boolean sort key (architect, Kritiskt).** EF's C# null semantics read the parameter at run time and rewrite `col == @p` to `col IS NULL` when `@p` is

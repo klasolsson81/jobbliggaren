@@ -876,7 +876,8 @@ five-minute refresh", which is not true of the section on a stable job page. The
 4. The Art. 36(1) determination is re-confirmed: **not a high risk, so no prior consultation with IMY is owed.**
 5. The Art. 9 row is untouched.
 
-Klas approved the **form** of the addendum on 2026-10-23 (answer 2). Its **text** is his to approve once written.
+Klas approved the **form** of the addendum on 2026-10-23 (answer 2), and its **text** on 2026-10-24 (answer 3), with `security-auditor`'s corrections (a)–(e) applied and
+senior-cto-advisor's choice (i) for the ads without an organization number.
 
 **D9: unchanged.**
 
@@ -910,7 +911,9 @@ personnummer-shaped test and the employer key assume that one form (a count abov
 `docs/runbooks/public-job-page-publication-count.md`. A count above 0 fires trigger 2, and S6b stops. If the merge slips past that UTC day, the reading is taken
 again.
 
-**The merge-day reading (counts only).** Pending.
+**The merge-day reading (counts only).** 2026-10-24 at 03:18 UTC, query blob `8c02e37`, on release sequence 1657 (source `515b7424b`), `--status` consistent before (03:17:58Z) and after
+(03:18:18Z): listed 43 602, shaped 215 (all in the description), **validated 0**, link host not Arbetsförmedlingen 0. The R-842-10 stock, the same minute, totals only: listed 43 602, with an
+organization number 43 185, personnummer-shaped 0, without one 417, with one that is not ten characters 0.
 
 **What the signature reads with** (her S1–S16). She signs at her scoped re-check of the S6b PR's final head, read with ADR 0182 as delivered and with the fourth DPIA addendum as Klas approves
 its text. The delivered properties are those of D5 above and ADR 0182 D1–D5. Scope (her S14): no migration, package, `deploy/` diff, `proxy.ts` edit or ACL change; no new recipient,
@@ -944,7 +947,8 @@ driving session through AskUserQuestion). The questions are quoted as asked, and
    > 3. **Godkänner du ett fjärde tillägg till DPIA:ns §8-B, inte en ny full DPIA och inget förhandssamråd med IMY?** Tredje tillägget säger att en enskild firmas namn visas på annonssidan, i Googles jobbdata och i katalogen, och att katalogens rader byts var femte minut. För sektionen stämmer inte det sista. Tillägget lägger till sektionen och skriver vad som gäller för den. Jag föreslår att bedömningarna står kvar: Låg × Medel för namnet och Medel × Medel för raderingsrisken. Räkningen av enskilda firmor görs om samma dag som mergen. Art. 9-raden berörs inte. Du godkänner texten när den är skriven. (Rek.: Ja. Utan tillägget signerar jag inte, och då mergas inte S6b.)
 
    "Ja (Rek.)": a fourth addendum to DPIA #456 §8-B and not a new full DPIA, and no Art. 36 prior consultation, on the ratings in D8.
-3. The addendum's text: pending.
+3. To the question, asked 2026-10-24 after her round-1 escalation and senior-cto-advisor's ruling were relayed to him verbatim, "Godkänner du texten i det fjärde DPIA §8-B-tillägget
+   (S6b) som den står ovan, med CTO:ns val att annonser utan organisationsnummer hålls utanför sektionen?": "Ja (Rek.)".
 
 **Signature:** pending: `security-auditor`, at her scoped re-check of the S6b PR's final head.
 

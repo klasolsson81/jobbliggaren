@@ -234,7 +234,7 @@ public sealed class JobAdCountBitmapPlanHygieneTests(ApiFactory factory)
         new(EmptyFilter(q), JobAdSortBy.PublishedAtDesc, Page: 1, PageSize: 20);
 
     private static JobAdFilterCriteria EmptyFilter(string? q) =>
-        new([], [], [], [], [], [], Remote: false, Q: q);
+        new([], [], [], [], [], [], [], Remote: false, Q: q);
 
     // A fresh AppDbContext against the SAME Testcontainers connection, carrying only the recording
     // interceptor (not the field-encryption pair — these counts touch no encrypted columns), so the SQL it

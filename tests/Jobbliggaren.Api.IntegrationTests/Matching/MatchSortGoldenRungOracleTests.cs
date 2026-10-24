@@ -167,6 +167,7 @@ public class MatchSortGoldenRungOracleTests(ApiFactory factory)
     // grade-neutral worktime-extent instead; mirrors MatchSortOracleTests.FilterFor).
     private static JobAdFilterCriteria FilterFor(string runWorktimeExtent) => new(
         OccupationGroup: [],
+        OccupationName: [],
         Municipality: [],
         Region: [],
         EmploymentType: [],

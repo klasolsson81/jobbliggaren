@@ -94,7 +94,8 @@ public class ExcludedTermLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
         var resolver = new JobAdSearchTextResolver(
             new SearchQueryParser(),
             new OccupationSynonymExpander(Options.Create(new SearchSynonymsOptions())),
-            labelMatcher);
+            labelMatcher,
+            _fixture.Services.GetRequiredService<IOccupationNameLineageProvider>());
         var sut = new JobAdSearchQuery(db, resolver);
 
         // Non-vacuity first: an exclusion that removed nothing would time a predicate that never ran.
@@ -154,7 +155,7 @@ public class ExcludedTermLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
 
     private static JobAdFilterCriteria Filter(string? q) =>
         new(
-            OccupationGroup: [], Municipality: [], Region: [], EmploymentType: [], WorktimeExtent: [],
+            OccupationGroup: [], OccupationName: [], Municipality: [], Region: [], EmploymentType: [], WorktimeExtent: [],
             Employer: [], Remote: false, Q: q);
 
     private static async Task<(double P50, double P95)> MeasureAsync(Func<Task> call, CancellationToken ct)

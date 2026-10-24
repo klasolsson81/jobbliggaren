@@ -47,6 +47,10 @@ public interface ICapturesRecentSearch
     // matchar → en committad ?remote=-sökning fångas till RecentJobSearch (parity Employer PR-2b C1).
     bool Remote { get; }
 
+    // #2199 — the occupation-name picks. Read only to skip capture: a recent search cannot store
+    // them until #2199 PR 2.
+    IReadOnlyList<string>? OccupationName { get; }
+
     JobAdSortBy SortBy { get; }
 
     /// <summary>

@@ -123,6 +123,32 @@ public class ListJobAdsQueryValidatorTests
         result.IsValid.ShouldBeFalse();
     }
 
+    // #2199 — yrkesbenämning: the group's concept-id grammar and cap.
+    [Theory]
+    [InlineData("has space")]
+    [InlineData("dot.notation")]
+    [InlineData("0123456789ABCDEFabcdef_-_-_-_-123")] // 33 tecken
+    public void Validate_OccupationName_AnyInvalidElement_Fails(string bad)
+    {
+        var result = _validator.Validate(new ListJobAdsQuery(OccupationName: ["z5AM_ayf_WcL", bad]));
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.PropertyName.StartsWith("OccupationName", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_OccupationName_ExactlyMax_Passes()
+    {
+        var max = Enumerable.Range(1, SearchCriteria.MaxConceptIds).Select(i => $"name{i}").ToArray();
+        _validator.Validate(new ListJobAdsQuery(OccupationName: max)).IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_OccupationName_OneOverMax_IsInvalid()
+    {
+        var overMax = Enumerable.Range(1, SearchCriteria.MaxConceptIds + 1).Select(i => $"name{i}").ToArray();
+        _validator.Validate(new ListJobAdsQuery(OccupationName: overMax)).IsValid.ShouldBeFalse();
+    }
+
     // ---------------------------------------------------------------
     // Municipality (NY dimension — kommun, barn under Region)
     // ---------------------------------------------------------------

@@ -153,6 +153,12 @@ public sealed class TaxonomyConceptIdGrammarTests
                 "Regenerating a taxonomy snapshot must not introduce ids outside the conceptId " +
                 "grammar — such an id seeds fine and then 400s every search that uses it.");
 
+            // #2199 — the occupation-name axis shares the grammar, so it accepts every id too.
+            var nameAxis = validator.Validate(new ListJobAdsQuery(OccupationName: batch));
+            nameAxis.IsValid.ShouldBeTrue(
+                $"{resourceName} contains a conceptId the occupation-name axis rejects: " +
+                string.Join("; ", nameAxis.Errors.Select(e => e.ErrorMessage)));
+
             var capture = SearchCriteria.Create(
                 occupationGroup: batch,
                 municipality: null,

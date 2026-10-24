@@ -65,6 +65,15 @@ public class ListRecentSearchesCountReplayParityTests
             ["Q"] = "Q",
         };
 
+    // Axes a recent search cannot store yet, so the count must run them empty: a replay that
+    // reproduces nothing and a count that filters on something would disagree. #2199's
+    // occupation-name gets its column in PR 2. Each entry leaves this set when it gains a
+    // ReplayProjection row.
+    private static readonly HashSet<string> NotYetPersisted = new(StringComparer.Ordinal)
+    {
+        "OccupationName",
+    };
+
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly ITaxonomyReadModel _taxonomy = Substitute.For<ITaxonomyReadModel>();
     private readonly IJobAdSearchQuery _search = Substitute.For<IJobAdSearchQuery>();
@@ -171,7 +180,7 @@ public class ListRecentSearchesCountReplayParityTests
 
         var unmapped = axes
             .Select(p => p.Name)
-            .Where(name => !ReplayProjection.ContainsKey(name))
+            .Where(name => !ReplayProjection.ContainsKey(name) && !NotYetPersisted.Contains(name))
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
         unmapped.ShouldBeEmpty(
@@ -185,7 +194,13 @@ public class ListRecentSearchesCountReplayParityTests
         stale.ShouldBeEmpty(
             $"ReplayProjection names axes JobAdFilterCriteria no longer has: {string.Join(", ", stale)}");
 
-        foreach (var axis in axes)
+        foreach (var axis in axes.Where(a => NotYetPersisted.Contains(a.Name)))
+        {
+            ((IEnumerable)axis.GetValue(counted)!).Cast<object>().ShouldBeEmpty(
+                $"axis {axis.Name} is not persisted yet, so the count must not filter on it");
+        }
+
+        foreach (var axis in axes.Where(a => !NotYetPersisted.Contains(a.Name)))
         {
             var projected = typeof(RecentJobSearchDto).GetProperty(ReplayProjection[axis.Name]);
             projected.ShouldNotBeNull(

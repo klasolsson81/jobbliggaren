@@ -79,6 +79,8 @@ public sealed class ListRecentSearchesQueryHandler(
             // for that row too.
             var replay = new JobAdFilterCriteria(
                 OccupationGroup: r.OccupationGroup,
+                // A recent search stores no occupation-name until #2199 PR 2.
+                OccupationName: [],
                 Municipality: r.Municipality,
                 Region: r.Region,
                 EmploymentType: r.EmploymentType,

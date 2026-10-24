@@ -59,6 +59,7 @@ public class JobAdYrkePredicateSqlTests(ApiFactory factory)
 
     private static JobAdFilterCriteria Criteria(IReadOnlyList<string> occupationGroup) => new(
         OccupationGroup: occupationGroup,
+        OccupationName: [],
         Municipality: [],
         Region: [],
         EmploymentType: [],

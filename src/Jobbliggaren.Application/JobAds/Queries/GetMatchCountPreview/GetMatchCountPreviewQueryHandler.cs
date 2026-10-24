@@ -30,6 +30,8 @@ public sealed class GetMatchCountPreviewQueryHandler(IJobAdSearchQuery search)
     {
         var filter = new JobAdFilterCriteria(
             OccupationGroup: query.OccupationGroups,
+            // Matchning selects whole groups (ADR 0040, ADR 0180 D4); the name axis is /jobb's alone.
+            OccupationName: [],
             Municipality: query.Municipalities,
             Region: query.Regions,
             EmploymentType: query.EmploymentTypes,

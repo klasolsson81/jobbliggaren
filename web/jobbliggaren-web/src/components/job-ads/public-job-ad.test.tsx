@@ -4,6 +4,10 @@ import { NextIntlClientProvider } from "next-intl";
 import enMessages from "../../../messages/en";
 import svMessages from "../../../messages/sv";
 import { PublicJobAd } from "./public-job-ad";
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
+import { publicJobAdTitle } from "@/lib/job-ads/public-job-ad-title";
+import { publicJobAdUrl } from "@/lib/job-ads/public-job-ad-url";
+import { shareTargetLinks } from "@/lib/job-ads/share-job-ad-links";
 import type { PublicJobAdDto } from "@/lib/dto/public-job-ad";
 
 const ID = "0b0b0b0b-1111-4222-8333-444444444444";
@@ -62,7 +66,10 @@ describe("PublicJobAd", () => {
 
     expect(container.querySelector("[data-collapsed]")).toBeNull();
     expect(container.querySelector("[aria-expanded]")).toBeNull();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getAllByRole("button")).toEqual([
+      screen.getByRole("button", { name: "Kopiera länken" }),
+      screen.getByRole("button", { name: "Fler sätt att dela" }),
+    ]);
   });
 
   it("renders the description as text, never as HTML (ADR 0160 D9.6); the only script is the JSON-LD data block", () => {
@@ -86,40 +93,86 @@ describe("PublicJobAd", () => {
     expect(container.querySelector(".jp-modal__company i")).toBeNull();
   });
 
-  it("carries the link out twice, as a secondary action under the dates and as the one primary action in the footer", () => {
+  it("carries the link out once, as the page's one primary action, in the head under its own heading (ADR 0183)", () => {
     const { container } = render(<PublicJobAd jobAd={AD} />);
 
     expect(container.querySelectorAll(".jp-btn--primary")).toHaveLength(1);
-    const links = screen.getAllByRole("link", { name: "Öppna annonsen hos Arbetsförmedlingen" });
-    expect(links).toHaveLength(2);
-    for (const link of links) {
-      expect(link).toHaveAttribute("href", AD.url);
-      expect(link).toHaveAttribute("target", "_blank");
-      expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    }
-    expect(links[0]).toHaveClass("jp-btn--secondary");
-    expect(links[0]?.closest("header")).not.toBeNull();
-    expect(links[1]).toHaveClass("jp-btn--primary");
-    expect(links[1]?.closest(".jp-modal__foot")).not.toBeNull();
+    const link = screen.getByRole("link", { name: "Öppna annonsen hos Arbetsförmedlingen" });
+    expect(link).toHaveAttribute("href", AD.url);
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).toHaveClass("jp-btn--primary");
+    expect(link.closest("header")).not.toBeNull();
+    const section = link.closest("section");
+    expect(section).toHaveAccessibleName("Sök jobbet");
+    expect(within(section as HTMLElement).getByRole("heading", { level: 2, name: "Sök jobbet" })).toBeInTheDocument();
+    expect(container.querySelector(".jp-modal__foot")?.querySelector(`a[href="${AD.url}"]`)).toBeNull();
   });
 
-  it("uses the plain label on both when the address is not Arbetsförmedlingen's", () => {
+  it("uses the plain label when the address is not Arbetsförmedlingen's", () => {
     render(<PublicJobAd jobAd={{ ...AD, url: "https://example.com/jobb/1" }} />);
 
-    const links = screen.getAllByRole("link", { name: "Öppna annonsen" });
-    expect(links).toHaveLength(2);
-    for (const link of links) expect(link).toHaveAttribute("href", "https://example.com/jobb/1");
+    expect(screen.getByRole("link", { name: "Öppna annonsen" })).toHaveAttribute("href", "https://example.com/jobb/1");
     expect(screen.queryByText(/hos Arbetsförmedlingen/)).toBeNull();
   });
 
+  it("links off the site only to the ad's own address and the share row's four targets, built from the canonical (ADR 0183)", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+
+    const offSite = [...container.querySelectorAll<HTMLAnchorElement>("a[href]")]
+      .map((a) => a.getAttribute("href") ?? "")
+      .filter((href) => !href.startsWith("/") || href.startsWith("//"));
+    const targets = shareTargetLinks({ title: publicJobAdTitle(AD), url: publicJobAdUrl(ID) }).map((link) => link.href);
+    expect(offSite).toEqual([AD.url, ...targets]);
+    expect(offSite.join(" ")).not.toMatch(/utm_/);
+    for (const a of container.querySelectorAll<HTMLAnchorElement>('a[href^="https://"]:not([href^="https://arbetsformedlingen"])')) {
+      expect(a.getAttribute("rel")?.split(" ").sort()).toEqual(["nofollow", "noopener", "noreferrer"]);
+    }
+    expect(container.querySelector("script[src]")).toBeNull();
+    expect(container.querySelector("iframe, img[src^='http']")).toBeNull();
+  });
+
   // Declared unreachable: JobAd refuses an empty address on write and the import skips such a record, so this only
-  // pins that the read side degrades to no link at all (no button, no footer, no head row) if that ever breaks.
-  it("renders no link, no footer and no head row if an address ever arrives empty", () => {
+  // pins that the read side degrades to no link out at all (no primary, no apply heading) if that ever breaks.
+  it("renders no link out and no apply heading if an address ever arrives empty", () => {
     const { container } = render(<PublicJobAd jobAd={{ ...AD, url: "" }} />);
 
-    expect(container.querySelector(".jp-btn")).toBeNull();
-    expect(container.querySelector(".jp-modal__foot")).toBeNull();
-    expect(container.querySelector("header p.mt-4")).toBeNull();
+    expect(container.querySelector(".jp-btn--primary")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Öppna annonsen/ })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Sök jobbet" })).toBeNull();
+  });
+
+  it("invites the visitor in the footer to sign in and come back to this ad, by a plain nofollow link (ADR 0183)", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+
+    const footer = container.querySelector(".jp-modal__foot") as HTMLElement;
+    expect(footer).toHaveAttribute("data-nosnippet");
+    expect(
+      within(footer).getByRole("heading", { level: 2, name: "Spara annonsen och håll ordning på din ansökan" })
+    ).toBeInTheDocument();
+    const link = within(footer).getByRole("link", { name: "Logga in eller skapa konto" });
+    expect(link).toHaveAttribute("rel", "nofollow");
+    expect(link).toHaveClass("jp-btn--secondary");
+    expect(link).not.toHaveAttribute("target");
+    const href = link.getAttribute("href") ?? "";
+    expect(href).toBe(`/logga-in?next=%2Fjobb%2F${ID}`);
+    const next = new URL(href, "https://jobbliggaren.se").searchParams.get("next");
+    expect(next).toBe(`/jobb/${ID}`);
+    expect(safeRedirectPath(next)).toBe(`/jobb/${ID}`);
+  });
+
+  it("offers the share row after the description and the notice, in the card's body, under its own h2", () => {
+    const { container } = render(<PublicJobAd jobAd={AD} />);
+
+    const row = screen.getByRole("region", { name: "Dela annonsen" });
+    expect(row).toHaveAttribute("data-nosnippet");
+    expect(within(row).getByRole("heading", { level: 2, name: "Dela annonsen" })).toBeInTheDocument();
+    expect(row.previousElementSibling).toHaveClass("jp-recruiter-notice");
+    expect(row.parentElement).toHaveClass("jp-modal__body");
+    expect(container.querySelector(".jp-modal__foot")?.contains(row)).toBe(false);
+    expect(within(row).getByRole("link", { name: "Dela via E-post" }).getAttribute("href")).toBe(
+      `mailto:?subject=${encodeURIComponent(publicJobAdTitle(AD))}&body=${encodeURIComponent(publicJobAdUrl(ID))}`
+    );
   });
 
   it("links the recruiter notice after the description, without any contact block", () => {
@@ -127,18 +180,30 @@ describe("PublicJobAd", () => {
 
     const notice = container.querySelector(".jp-recruiter-notice");
     expect(notice).not.toBeNull();
-    expect(within(notice as HTMLElement).getByRole("link")).toHaveAttribute("href", "/kontaktperson-i-annons");
+    const link = within(notice as HTMLElement).getByRole("link");
+    expect(link).toHaveAttribute("href", "/kontaktperson-i-annons");
+    expect(link).toHaveTextContent("Så behandlar vi uppgifter om kontaktpersoner i annonser");
+    expect(notice).not.toHaveTextContent(/Är du kontaktperson/);
     expect(notice?.previousElementSibling?.tagName).toBe("SECTION");
-    expect(container.querySelector('a[href^="mailto:"], a[href^="tel:"]')).toBeNull();
+    const outsideShareRow = [...container.querySelectorAll('a[href^="mailto:"], a[href^="tel:"]')].filter(
+      (a) => a.closest('[aria-labelledby="jp-share-title"]') === null
+    );
+    expect(outsideShareRow).toEqual([]);
   });
 
   it("offers nothing personal: no save, follow, applied, match or previous-applications", () => {
     const { container } = render(<PublicJobAd jobAd={AD} />);
 
+    const card = container.querySelector("article") as HTMLElement;
+    const personal = card.cloneNode(true) as HTMLElement;
+    personal.querySelector(".jp-modal__foot")?.remove();
     for (const label of [/Spara/, /Bevaka/, /Har ansökt/, /matchar/i, /tidigare ansökan/]) {
-      expect(container).not.toHaveTextContent(label);
+      expect(personal).not.toHaveTextContent(label);
     }
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getAllByRole("button")).toEqual([
+      screen.getByRole("button", { name: "Kopiera länken" }),
+      screen.getByRole("button", { name: "Fler sätt att dela" }),
+    ]);
   });
 
   it("is the borderless-page variant of the modal envelope, with its own edge: no shadow, no animation, no inline style", () => {
@@ -422,14 +487,15 @@ describe("PublicJobAd: the related section after the article (ADR 0182)", () => 
   });
   const FIVE = [1, 2, 3, 4, 5].map((n) => row(n));
 
-  const sectionOf = (container: HTMLElement) => container.querySelector<HTMLElement>("section[data-nosnippet]");
+  const sectionOf = (container: HTMLElement) =>
+    container.querySelector<HTMLElement>(`section[data-nosnippet][aria-labelledby="jp-related-title"]`);
 
   it("is absent with no rows, and the page is then the page without the prop", () => {
     const { container: without } = render(<PublicJobAd jobAd={AD} />);
     const { container: empty } = render(<PublicJobAd jobAd={AD} related={[]} />);
 
     expect(sectionOf(empty)).toBeNull();
-    expect(empty.querySelector("[data-nosnippet]")).toBeNull();
+    expect(empty.querySelector(`section[aria-labelledby="jp-related-title"]`)).toBeNull();
     expect(screen.queryAllByRole("heading", { name: "Andra jobb i samma yrkesgrupp" })).toHaveLength(0);
     expect(empty.innerHTML).toBe(without.innerHTML);
   });
@@ -437,7 +503,7 @@ describe("PublicJobAd: the related section after the article (ADR 0182)", () => 
   it.each([1, 5])("with %i rows is one nosnippet section named by its h2, with a plain h3 link per row", (count) => {
     const { container } = render(<PublicJobAd jobAd={AD} related={FIVE.slice(0, count)} />);
 
-    const sections = container.querySelectorAll("section[data-nosnippet]");
+    const sections = container.querySelectorAll(`section[data-nosnippet][aria-labelledby="jp-related-title"]`);
     expect(sections).toHaveLength(1);
     const section = sections[0] as HTMLElement;
     const heading = within(section).getByRole("heading", { level: 2, name: "Andra jobb i samma yrkesgrupp" });

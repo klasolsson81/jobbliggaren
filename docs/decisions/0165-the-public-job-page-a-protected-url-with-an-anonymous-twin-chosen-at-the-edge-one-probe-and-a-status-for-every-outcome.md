@@ -356,3 +356,19 @@ and any failure leaves its section out with the page still a 200, so the worst c
 too, through `forwardedHeaders()`, with a test of the key set.
 
 ADR 0165 remains **Accepted**.
+
+## Amendment 2026-10-24 (#2214 PR 1, ADR 0183) — D4: the link out appears once, the page invites sign-in and shares, and the notice label is reworded
+
+D1–D7 and the earlier amendments stand and nothing above is rewritten. This amendment records what the #2214 PR 1 changes in D4; the reasoning is in ADR 0183.
+
+**1. "Left out on purpose: … a call to action" is reversed.** The page now invites a visitor who is not signed in to sign in: in the card footer, a heading, one line and a plain `rel="nofollow"` link to `/logga-in?next=` plus the page's own path, so the visitor returns to the same ad (ADR 0183 D2). "A call to action" leaves D4's list. The rest of that sentence is as the earlier amendments leave it, and "any contact block, ever" stands.
+
+**2. The link out appears once.** D4's rule for the link's target and label is unchanged: the ad's `url`; "Öppna annonsen hos Arbetsförmedlingen" for an `arbetsformedlingen.se` host or subdomain and "Öppna annonsen" otherwise; no link for a value that is not `http` or `https`. The page showed that link twice, as a secondary action under the dates and as the only primary action in the footer. It now shows it once, as the page's one `--primary`, in the head under an `h2` "Sök jobbet", and the footer holds no copy of it. It is not relabelled "Ansök" (ADR 0183 D1).
+
+**3. The notice row's label is reworded; its presence and its place are not.** The ratified deviation from DESIGN.md §8 and the place after the description stand. The `/kontaktperson-i-annons` link on this page now reads "Så behandlar vi uppgifter om kontaktpersoner i annonser" (`publicjob.recruiterNoticeLink`), as bound copy: ADR 0144 Amendment 2026-10-24 (ADR 0183 D3).
+
+**4. The page gains a share row.** "Dela annonsen", `data-nosnippet`, in the card body after the notice row: Facebook, LinkedIn, WhatsApp and E-post as plain anchors, then "Kopiera länken" and "Fler sätt att dela" (ADR 0183 D4, D5). D4's metadata rule is unchanged: the row hands on the canonical address and the page's `og:title` string, which is built from structured fields and never from the free text.
+
+**5. Not changed.** "There is no per-ad image" and the shared `/opengraph-image` stand; #2214's PR 2 amends them. D3 is unchanged, because this PR adds no read and no endpoint. D6 is unchanged: crawlers are kept from the page's login URLs by `rel="nofollow"` on the link, not by a `Disallow`.
+
+ADR 0165 remains **Accepted**.

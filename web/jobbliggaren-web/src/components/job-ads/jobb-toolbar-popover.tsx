@@ -54,11 +54,22 @@ export function JobbToolbarPopover({
       preferredWidth={width}
       label={title}
       className="jp-popover jp-panel"
+      band={({ titleId, closeButton }) => (
+        <div className="jp-panel__sectionhead">
+          <span id={titleId} className="jp-popover__title">
+            {title}
+          </span>
+          {closeButton ? (
+            <span className="flex items-center gap-2">
+              {headerRight}
+              {closeButton}
+            </span>
+          ) : (
+            headerRight
+          )}
+        </div>
+      )}
     >
-      <div className="jp-panel__sectionhead">
-        <span className="jp-popover__title">{title}</span>
-        {headerRight}
-      </div>
       <div className="jp-panel__body">{children}</div>
     </PopoverShell>
   );

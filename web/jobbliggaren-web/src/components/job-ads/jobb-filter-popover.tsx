@@ -2,8 +2,9 @@
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatNumber } from "@/lib/i18n/format";
+import { useFocusAfterCommit } from "@/lib/hooks/use-focus-after-commit";
 import { PopoverShell } from "@/components/popover/popover-shell";
 
 /**
@@ -255,8 +256,13 @@ export function JobbFilterPopover({
   footer,
 }: JobbFilterPopoverProps) {
   const t = useTranslations("jobads.ui");
+  const tCommon = useTranslations("pages.common");
   const boolHintId = `jp-popover-boolaxis-hint-${useId()}`;
+  const groupHeadingId = useId();
   const searchSlotRef = useRef<HTMLDivElement>(null);
+  const groupHeadingRef = useRef<HTMLParagraphElement>(null);
+  const leftRows = useRef(new Map<string, HTMLButtonElement>());
+  const focusAfterCommit = useFocusAfterCommit();
   // An Escape the search field already handled (it clears its text) leaves the popover open.
   const keepOpenOnEscape = useCallback(
     (e: KeyboardEvent) =>
@@ -300,12 +306,17 @@ export function JobbFilterPopover({
     (groupAxis?.selected.length ?? 0) > 0 ||
     booleanAxis?.checked === true;
 
-  const columns = (
+  // In a sheet the columns show one at a time: the groups first, then the picked group's items.
+  // The row that opened a group is hidden at level 2, so focus goes to the group's heading, and
+  // back to that row when the user returns.
+  const back = () => {
+    const left = activeLeft;
+    setActiveLeft(null);
+    focusAfterCommit(() => (left === null ? null : leftRows.current.get(left)));
+  };
+
+  const renderColumns = (sheet: boolean) => (
     <div className="jp-popover__body">
-      {/* maxHeight/overflowY på själva kolumnen (ej enbart grid-
-          förälderns max-height) — grid-barn får ingen användbar höjd att
-          scrolla inom från förälderns max-height; constraint måste sitta
-          på scroll-elementet självt (design-reviewer F4 Blocker x2). */}
       {/* Vänsterkolumnen NAVIGERAR aktiv grupp (avslöjar dess val till
           höger) — den väljer inget värde (det gör höger-kolumnens
           checkbox-rader). Därför en knapp-grupp (role="group" + <button>),
@@ -317,7 +328,7 @@ export function JobbFilterPopover({
         className="jp-popover__col"
         role="group"
         aria-label={leftTitle}
-        style={{ maxHeight: "60vh", overflowY: "auto" }}
+        hidden={sheet && activeGroup !== null ? true : undefined}
       >
         <div className="jp-popover__colhead">
           <span className="jp-popover__title">{leftTitle}</span>
@@ -344,10 +355,17 @@ export function JobbFilterPopover({
             return (
               <button
                 key={g.conceptId}
+                ref={(el) => {
+                  if (el) leftRows.current.set(g.conceptId, el);
+                  else leftRows.current.delete(g.conceptId);
+                }}
                 type="button"
                 className="jp-popover-row"
                 aria-pressed={active}
-                onClick={() => setActiveLeft(g.conceptId)}
+                onClick={() => {
+                  setActiveLeft(g.conceptId);
+                  if (sheet) focusAfterCommit(() => groupHeadingRef.current);
+                }}
               >
                 <span
                   style={{
@@ -382,10 +400,19 @@ export function JobbFilterPopover({
 
       <div
         className="jp-popover__col"
-        style={{ maxHeight: "60vh", overflowY: "auto" }}
+        hidden={sheet && activeGroup === null ? true : undefined}
+        role={sheet && activeGroup ? "group" : undefined}
+        aria-labelledby={sheet && activeGroup ? groupHeadingId : undefined}
       >
         <div className="jp-popover__colhead">
-          <span className="jp-popover__title">{rightTitle}</span>
+          {sheet && activeGroup ? (
+            <button type="button" className="jp-textaction jp-popover__back" onClick={back}>
+              <ChevronLeft size={14} aria-hidden="true" />
+              {tCommon("back")}
+            </button>
+          ) : (
+            <span className="jp-popover__title">{rightTitle}</span>
+          )}
           {rightAnySelected && activeGroup && (
             <button
               type="button"
@@ -404,6 +431,16 @@ export function JobbFilterPopover({
             </button>
           )}
         </div>
+        {sheet && activeGroup && (
+          <p
+            id={groupHeadingId}
+            ref={groupHeadingRef}
+            tabIndex={-1}
+            className="jp-popover__grouphead"
+          >
+            {activeGroup.label}
+          </p>
+        )}
         {rightItems.length === 0 ? (
           <div className="jp-popover__empty px-4 py-3">
             {rightEmptyText}
@@ -481,48 +518,61 @@ export function JobbFilterPopover({
       fieldRef={search ? searchSlotRef : undefined}
       keepOpenOnEscape={search ? keepOpenOnEscape : undefined}
     >
-      {/* Utanför __body: distans har ingen län→kommun-hierarki att navigera.
-          Raden och dess hjälptext är EN grupp, och avdelaren sitter på gruppen —
-          den skiljer axeln från Län/Kommun-kolumnerna, inte kryssrutan från sin
-          egen förklaring. `isAll` blir därmed false för varje konsument som skickar en hint (alla
-          i dag) och är kvar bara för en framtida hint-lös rad, som behöver
-          avdelaren på själva raden. Att raden då också tappar `--all`:s semibold
-          är AVSIKTLIGT: "Distans räknas som egen ort" (designhandoffen), alltså
-          ett ort-val bland andra — inte en kategorirubrik. */}
-      {booleanAxis && (
-        <div className="jp-popover__boolaxis">
-          <CheckRow
-            label={booleanAxis.label}
-            checked={booleanAxis.checked}
-            onToggle={booleanAxis.onToggle}
-            describedBy={booleanAxis.hint ? boolHintId : undefined}
-            isAll={!booleanAxis.hint}
-          />
-          {booleanAxis.hint && (
-            <p
-              id={boolHintId}
-              className="text-body-sm text-text-primary px-4 pt-2 pb-2"
-            >
-              {booleanAxis.hint}
-            </p>
-          )}
-        </div>
-      )}
-      {search ? (
-        <div className="jp-popover__frame">
-          <div ref={searchSlotRef} className="jp-popover__search">
-            {search.field}
-          </div>
-          {search.results !== null ? (
-            <div className="jp-popover__results">{search.results}</div>
-          ) : (
-            columns
-          )}
-        </div>
-      ) : (
-        columns
-      )}
-      {footer && <div className="jp-popover__foot">{footer}</div>}
+      {(placement) => {
+        const sheet = placement === "sheet";
+        // Distans and the search field choose among the groups, so in a sheet they belong to the
+        // level where the groups show.
+        const levelOne = !sheet || activeGroup === null;
+        const columns = renderColumns(sheet);
+        return (
+          <>
+            {/* Utanför __body: distans har ingen län→kommun-hierarki att navigera.
+                Raden och dess hjälptext är EN grupp, och avdelaren sitter på gruppen —
+                den skiljer axeln från Län/Kommun-kolumnerna, inte kryssrutan från sin
+                egen förklaring. `isAll` blir därmed false för varje konsument som skickar en hint (alla
+                i dag) och är kvar bara för en framtida hint-lös rad, som behöver
+                avdelaren på själva raden. Att raden då också tappar `--all`:s semibold
+                är AVSIKTLIGT: "Distans räknas som egen ort" (designhandoffen), alltså
+                ett ort-val bland andra — inte en kategorirubrik. */}
+            {booleanAxis && levelOne && (
+              <div className="jp-popover__boolaxis">
+                <CheckRow
+                  label={booleanAxis.label}
+                  checked={booleanAxis.checked}
+                  onToggle={booleanAxis.onToggle}
+                  describedBy={booleanAxis.hint ? boolHintId : undefined}
+                  isAll={!booleanAxis.hint}
+                />
+                {booleanAxis.hint && (
+                  <p
+                    id={boolHintId}
+                    className="text-body-sm text-text-primary px-4 pt-2 pb-2"
+                  >
+                    {booleanAxis.hint}
+                  </p>
+                )}
+              </div>
+            )}
+            {search ? (
+              <div className="jp-popover__frame">
+                {levelOne && (
+                  <div ref={searchSlotRef} className="jp-popover__search">
+                    {search.field}
+                  </div>
+                )}
+                {search.results !== null ? (
+                  <div className="jp-popover__results">{search.results}</div>
+                ) : (
+                  columns
+                )}
+              </div>
+            ) : (
+              columns
+            )}
+            {footer && <div className="jp-popover__foot">{footer}</div>}
+          </>
+        );
+      }}
     </PopoverShell>
   );
 }

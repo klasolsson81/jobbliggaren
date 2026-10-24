@@ -116,10 +116,15 @@ export function HeroChip<T>({
         preferredWidth={320}
         label={label}
         className="jp-popover"
+        band={({ titleId, closeButton }) => (
+          <div className="jp-popover__head">
+            <span id={titleId} className="jp-popover__title">
+              {label}
+            </span>
+            {closeButton}
+          </div>
+        )}
       >
-        <div className="jp-popover__head">
-          <span className="jp-popover__title">{label}</span>
-        </div>
         <div style={{ padding: "6px 0", maxHeight: 320, overflow: "auto" }}>
           {visible.length === 0 ? (
             <div className="jp-popover__empty px-4 py-3.5">

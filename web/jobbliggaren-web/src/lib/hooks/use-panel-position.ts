@@ -16,17 +16,22 @@ import { PANEL_GAP, placePanel, type PanelPlacement } from "@/lib/popover/placem
  * container sits between the trigger and the document. Under it a page scroll moves the trigger and
  * the page offset by the same amount, so only a `resize` re-measures.
  *
- * Once per opening, before the first placement: when the panel's first focusable element would end
- * below the viewport, the page scrolls the trigger to the top of the scroll padding, so the pill
- * stays in view as the panel's anchor. Until the panel is placed, `style` holds it off screen and
- * `ready` is false.
+ * Once per opening, before the first anchored placement: when the panel's first focusable element
+ * would end below the viewport, the page scrolls the trigger to the top of the scroll padding, so
+ * the pill stays in view as the panel's anchor. A sheet carries no inline position: CSS places it
+ * from `data-placement`. Until the panel is placed, `style` holds it off screen, `placement` is
+ * null and `ready` is false.
  */
 export function usePanelPosition(
   open: boolean,
   triggerRef: React.RefObject<HTMLElement | null>,
   panelRef: React.RefObject<HTMLElement | null>,
   preferredWidth: number,
-): { style: React.CSSProperties; ready: boolean } {
+): {
+  style: React.CSSProperties;
+  placement: PanelPlacement["placement"] | null;
+  ready: boolean;
+} {
   const [placement, setPlacement] = useState<PanelPlacement | null>(null);
 
   useEffect(() => {
@@ -35,10 +40,10 @@ export function usePanelPosition(
       setPlacement(null);
       return;
     }
-    const measure = () => {
+    const place = () => {
       const r = trigger.getBoundingClientRect();
       const root = document.documentElement;
-      const next = placePanel(
+      return placePanel(
         { left: r.left, bottom: r.bottom },
         {
           clientWidth: root.clientWidth,
@@ -48,16 +53,12 @@ export function usePanelPosition(
         },
         preferredWidth,
       );
-      setPlacement((prev) =>
-        prev !== null &&
-        prev.top === next.top &&
-        prev.left === next.left &&
-        prev.width === next.width
-          ? prev
-          : next,
-      );
     };
-    if (firstStopOpensBelowFold(panelRef.current, trigger)) {
+    const measure = () => {
+      const next = place();
+      setPlacement((prev) => (prev !== null && samePlacement(prev, next) ? prev : next));
+    };
+    if (place().placement === "anchored" && firstStopOpensBelowFold(panelRef.current, trigger)) {
       trigger.scrollIntoView?.({ block: "start" });
     }
     measure();
@@ -68,8 +69,15 @@ export function usePanelPosition(
   const style: React.CSSProperties =
     placement === null
       ? { top: -9999, left: -9999, width: preferredWidth }
-      : { top: placement.top, left: placement.left, width: placement.width };
-  return { style, ready: placement !== null };
+      : placement.placement === "anchored"
+        ? { top: placement.top, left: placement.left, width: placement.width }
+        : {};
+  return { style, placement: placement?.placement ?? null, ready: placement !== null };
+}
+
+function samePlacement(a: PanelPlacement, b: PanelPlacement): boolean {
+  if (a.placement === "sheet" || b.placement === "sheet") return a.placement === b.placement;
+  return a.top === b.top && a.left === b.left && a.width === b.width;
 }
 
 /**

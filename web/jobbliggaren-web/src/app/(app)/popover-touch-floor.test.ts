@@ -31,7 +31,11 @@ describe("the popover touch floor at ≤768 (#2212)", () => {
     expect(declared(selector, "min-height")).toEqual(["44px"]);
   });
 
-  it.each([".jp-popover .jp-clearlink::before", ".jp-popover .jp-gradefilter__switch::before"])(
+  it.each([
+    ".jp-popover .jp-clearlink::before",
+    ".jp-popover .jp-popover__back::before",
+    ".jp-popover .jp-gradefilter__switch::before",
+  ])(
     "%s gives its control an invisible hit area",
     (selector) => {
       expect(declared(selector, "content")).toEqual(['""']);

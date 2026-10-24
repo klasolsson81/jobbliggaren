@@ -517,9 +517,9 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   outline-offset: -2px;
 }
 /* #2212 — every control in a popover is at least 44px tall at ≤768 (DESIGN.md §5). Rows and links
-   grow. Rensa and the Matchning switch keep their glyphs and get an invisible ::before instead, as
-   ToggleRow's switch does; Rensa's stops 9px under its text, inside its band's bottom padding, so
-   it never covers the first row under the band. */
+   grow. Rensa, Tillbaka and the Matchning switch keep their glyphs and get an invisible ::before
+   instead, as ToggleRow's switch does; Rensa's and Tillbaka's stop 9px under their text, inside the
+   band's bottom padding, so they never cover the first row under the band. */
 @media (max-width: 768px) {
   .jp-popover .jp-checkitem,
   .jp-popover .jp-radioitem,
@@ -536,20 +536,112 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
     min-height: 44px;
     min-width: 44px;
   }
-  .jp-popover .jp-clearlink {
+  .jp-popover .jp-clearlink,
+  .jp-popover .jp-popover__back {
     position: relative;
   }
   .jp-popover .jp-clearlink::before,
+  .jp-popover .jp-popover__back::before,
   .jp-popover .jp-gradefilter__switch::before {
     content: "";
     position: absolute;
   }
-  .jp-popover .jp-clearlink::before {
+  .jp-popover .jp-clearlink::before,
+  .jp-popover .jp-popover__back::before {
     inset: -16px -8px -9px;
   }
   .jp-popover .jp-gradefilter__switch::before {
     inset: -13px -5px;
   }
+}
+
+/* The browse columns' cap. A grid item gets no usable height from its grid parent's max-height,
+   so the cap sits on the scrolling column itself. */
+.jp-popover .jp-popover__col {
+  max-height: 60vh;
+}
+
+/* #2212 — on a narrow or short viewport usePanelPosition makes every popover a sheet under the
+   header, the bell panel's form (DESIGN.md §6): fixed, 8px in from the sides, no scrim and no
+   motion. Its band and footer stay put while the list scrolls; the sheet itself scrolls only when
+   they leave the list less than three rows. */
+.jp-popover[data-placement="sheet"] {
+  position: fixed;
+  top: calc(var(--jp-header-h) + 8px);
+  left: 8px;
+  right: 8px;
+  width: auto;
+  max-height: calc(100vh - var(--jp-header-h) - 16px);
+  max-height: calc(100dvh - var(--jp-header-h) - 16px);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.jp-popover[data-placement="sheet"] > * {
+  flex: none;
+}
+.jp-popover[data-placement="sheet"] > .jp-popover__body,
+.jp-popover[data-placement="sheet"] > .jp-popover__frame,
+.jp-popover[data-placement="sheet"] > .jp-panel__body {
+  flex: 1 1 auto;
+  min-height: 144px;
+  max-height: none;
+}
+/* A cascade asks for the whole sheet, so it keeps one height at both levels; the band and the
+   footer take theirs first. */
+.jp-popover[data-placement="sheet"] > .jp-popover__body,
+.jp-popover[data-placement="sheet"] > .jp-popover__frame {
+  height: calc(100vh - var(--jp-header-h) - 16px);
+  height: calc(100dvh - var(--jp-header-h) - 16px);
+}
+.jp-popover[data-placement="sheet"] .jp-popover__body {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr);
+}
+.jp-popover[data-placement="sheet"] .jp-popover__frame > .jp-popover__body,
+.jp-popover[data-placement="sheet"] .jp-popover__results {
+  min-height: 0;
+}
+.jp-popover[data-placement="sheet"] .jp-popover__col {
+  max-height: none;
+  overscroll-behavior: contain;
+}
+.jp-popover[data-placement="sheet"] .jp-popover__col:first-child {
+  border-right: 0;
+}
+.jp-popover[data-placement="sheet"] .jp-panel__body {
+  overscroll-behavior: contain;
+}
+/* Yrke's answer stacks under 560px of container (ADR 0180 D5); in a sheet its box is the one
+   scroller, so the stacked columns do not scroll inside it. */
+.jp-popover[data-placement="sheet"] .jp-occsearch .jp-occsearch__box {
+  grid-template-rows: none;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.jp-popover[data-placement="sheet"] .jp-occsearch .jp-matchdialog__cascade-col {
+  max-height: none;
+  overflow: visible;
+}
+/* The band holds the sheet's close button, so it gives up its own vertical padding. */
+.jp-popover[data-placement="sheet"] .jp-popover__head,
+.jp-popover[data-placement="sheet"] .jp-panel__sectionhead {
+  padding-block: 4px;
+}
+/* Level two of a sheet's cascade: the picked group, named under the band. */
+.jp-popover__grouphead {
+  margin: 0;
+  padding: 12px 16px 4px;
+  font-size: var(--text-ui);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+}
+.jp-popover__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* ── #2198: the occupation search (components/occupation-search) ──

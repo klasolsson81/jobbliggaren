@@ -165,6 +165,18 @@ describe("usePanelPosition (#2212)", () => {
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 
+  it("makes a sheet on a phone: no inline position, and no scroll even when the trigger sits low", () => {
+    // The Ort trigger on /foretag/sok at 375x812 has its bottom at 828.96875, below the fold.
+    Object.assign(layout, { trigger: { left: 20, bottom: 828.96875, depth: 96.9375 }, clientWidth: 375, clientHeight: 812 });
+    stubLayout();
+    render(<Harness open />);
+
+    const panel = screen.getByRole("dialog");
+    expect(panel.style.cssText).toBe("");
+    expect(panel.dataset.ready).toBe("true");
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
   it("keeps the trigger's own left edge and never scrolls when the document has no layout", () => {
     // jsdom only, unstubbed: zero rects and a zero-size viewport, which no browser produces for a
     // rendered page. The panel degrades to where it was before the clamp existed.

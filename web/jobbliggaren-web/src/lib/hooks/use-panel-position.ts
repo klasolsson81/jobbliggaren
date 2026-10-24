@@ -1,44 +1,65 @@
 "use client";
 
+// "use client": reads the trigger's rect and the viewport in an effect, and listens to `resize`.
+
 import { useEffect, useState } from "react";
+import { placePanel, type PanelPlacement } from "@/lib/popover/placement";
 
 /**
- * Delad position-mätning för enkelkolumns-popovers/paneler (DRY — CLAUDE.md
- * §9.1). Extraherad verbatim ur `JobbKlass2Panel.usePanelPosition` så att de
- * nya toolbar-popovrarna (Matchning/Status, #408) mäter sin position på exakt
- * samma sätt: under triggern, 8px luft, vänster-justerad mot triggern.
+ * The inline position of a `.jp-popover` panel anchored to its trigger: one home for every filter
+ * popover shell (#2212). It measures in an effect, because refs are not read during render, and
+ * hands `placePanel` the trigger's rect and the document element's client size, so the panel stays
+ * inside the viewport.
  *
- * Position härleds ur triggerns ref INNE I en effect (refs får inte läsas under
- * render). Mäts om vid resize/scroll så panelen följer triggern. `null` innan
- * mätningen (panelen positioneras off-screen tills `pos` finns).
+ * Precondition: the panel's containing block is the initial containing block and no scroll
+ * container sits between the trigger and the document. Under it a page scroll moves the trigger and
+ * the page offset by the same amount, so only a `resize` re-measures.
+ *
+ * Until the first measurement `style` holds the panel off screen, and `ready` is false.
  */
 export function usePanelPosition(
   open: boolean,
-  triggerRef: React.RefObject<HTMLButtonElement | null>,
-) {
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  triggerRef: React.RefObject<HTMLElement | null>,
+  preferredWidth: number,
+): { style: React.CSSProperties; ready: boolean } {
+  const [placement, setPlacement] = useState<PanelPlacement | null>(null);
 
   useEffect(() => {
     const trigger = triggerRef.current;
     if (!open || !trigger) {
-      setPos(null);
+      setPlacement(null);
       return;
     }
     const measure = () => {
       const r = trigger.getBoundingClientRect();
-      setPos({
-        top: r.bottom + 8 + window.scrollY,
-        left: r.left + window.scrollX,
-      });
+      const root = document.documentElement;
+      const next = placePanel(
+        { left: r.left, bottom: r.bottom },
+        {
+          clientWidth: root.clientWidth,
+          clientHeight: root.clientHeight,
+          scrollX: window.scrollX,
+          scrollY: window.scrollY,
+        },
+        preferredWidth,
+      );
+      setPlacement((prev) =>
+        prev !== null &&
+        prev.top === next.top &&
+        prev.left === next.left &&
+        prev.width === next.width
+          ? prev
+          : next,
+      );
     };
     measure();
     window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-    };
-  }, [open, triggerRef]);
+    return () => window.removeEventListener("resize", measure);
+  }, [open, triggerRef, preferredWidth]);
 
-  return pos;
+  const style: React.CSSProperties =
+    placement === null
+      ? { top: -9999, left: -9999, width: preferredWidth }
+      : { top: placement.top, left: placement.left, width: placement.width };
+  return { style, ready: placement !== null };
 }

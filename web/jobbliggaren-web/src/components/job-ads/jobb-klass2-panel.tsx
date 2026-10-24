@@ -101,13 +101,9 @@ export function JobbKlass2Panel({
   const collator = new Intl.Collator(useLocale());
   const format = useFormatter();
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
-  const pos = usePanelPosition(open, triggerRef);
+  const { style } = usePanelPosition(open, triggerRef, 320);
 
   if (!open) return null;
-
-  const style: React.CSSProperties = pos
-    ? { top: pos.top, left: pos.left, width: 320 }
-    : { top: -9999, left: -9999, width: 320 };
 
   // Aktivt radio-värde: första (enda) valda conceptId eller "Alla"-sentinel.
   const activeWorktime = worktimeExtent[0] ?? WORKTIME_ALL;

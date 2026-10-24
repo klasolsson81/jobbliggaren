@@ -149,6 +149,9 @@ interface JobbFilterPopoverBaseProps {
 const SEARCH_SLOT_FOCUSABLE =
   "input, select, textarea, button, [href], [tabindex]:not([tabindex='-1'])";
 
+// ADR 0055 Beslut 1's width; usePanelPosition narrows it to the viewport.
+const PREFERRED_WIDTH = 580;
+
 export function toggle(
   selected: ReadonlyArray<string>,
   conceptId: string,
@@ -271,9 +274,8 @@ export function JobbFilterPopover({
     triggerRef,
     search ? keepOpenOnEscape : undefined,
   );
-  const pos = usePanelPosition(open, triggerRef);
+  const { style, ready: positioned } = usePanelPosition(open, triggerRef, PREFERRED_WIDTH);
   const hasSearch = search !== undefined;
-  const positioned = pos !== null;
 
   // With a search, focus goes to the field once the popover has its place (WCAG 2.4.3). Before
   // that it sits off screen, where a focus could scroll the page.
@@ -298,11 +300,6 @@ export function JobbFilterPopover({
   );
 
   if (!open) return null;
-
-  const style: React.CSSProperties = pos
-    ? { top: pos.top, left: pos.left, width: 580 }
-    : // Innan mätning: håll utanför viewport (ingen flimmer-hopp).
-      { top: -9999, left: -9999, width: 580 };
 
   // Ingen groups[0]-fallback (E2f) — null tills användaren klickar vänster.
   const activeGroup =

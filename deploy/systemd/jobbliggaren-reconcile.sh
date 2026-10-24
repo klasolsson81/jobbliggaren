@@ -55,6 +55,8 @@ readonly REDIS_POLICY=/opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-policy
 readonly SECRETS_DIR=/run/jobbliggaren/secrets
 # What api alone may read (#1981 PR 2): its bind source in the compose file, mounted into no other service.
 readonly API_SECRETS_DIR=/run/jobbliggaren/api-secrets
+# What the worker alone may read (#1981 PR 4): its bind source in the compose file, mounted into no other service.
+readonly WORKER_SECRETS_DIR=/run/jobbliggaren/worker-secrets
 readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
 # Reads compose's resolved model in the binding step.
 readonly PYTHON=/usr/bin/python3
@@ -435,19 +437,24 @@ if [ "$mode" != stage ]; then
 fi
 
 if [ "$mode" = apply ] || [ "$mode" = prepare ]; then
-  # THE API-ONLY DIRECTORY EXISTS BEFORE ANY `up` (#1981 PR 2). api's bind of it carries create_host_path:
-  # false, and a box the read key never reached has no such directory, nor does any box after a reboot until
-  # tmpfiles or the injection made one. The record's deploy hash binds this script and the compose file into
-  # one release, so no apply runs the mount without its creator. Created empty and closed, 0700 and owned by
-  # root, which this unit runs as. An existing directory is never adjusted: the injection's 0710 grant must
-  # survive. A link or a non-directory is refused, because the mount would follow it.
-  if [ -L "$API_SECRETS_DIR" ] || { [ -e "$API_SECRETS_DIR" ] && [ ! -d "$API_SECRETS_DIR" ]; }; then
-    refuse "$API_SECRETS_DIR is not a plain directory, and api's bind mount would follow it; nothing is applied"
-  fi
-  if [ ! -d "$API_SECRETS_DIR" ]; then
-    install -d -m 0700 "$API_SECRETS_DIR" || cannot_answer "could not create $API_SECRETS_DIR; nothing is applied"
-    log "created $API_SECRETS_DIR, empty: api's bind source, which the read key's injection fills"
-  fi
+  # THE READER-ONLY DIRECTORIES EXIST BEFORE ANY `up` (#1981 PR 2, PR 4). api's bind of the api-only one and the
+  # worker's bind of the worker-only one carry create_host_path: false, and a box the secret never reached has
+  # no such directory, nor does any box after a reboot until tmpfiles or the injection made one. The record's
+  # deploy hash binds this script and the compose file into one release, so no apply runs a mount without its
+  # creator. Created empty and closed, 0700 and owned by root, which this unit runs as. An existing directory is
+  # never adjusted: the injection's 0710 grant must survive. A link or a non-directory is refused, because the
+  # mount would follow it.
+  ensure_bind_source() {  # ensure_bind_source <dir> <the one service that mounts it>
+    if [ -L "$1" ] || { [ -e "$1" ] && [ ! -d "$1" ]; }; then
+      refuse "$1 is not a plain directory, and $2's bind mount would follow it; nothing is applied"
+    fi
+    if [ ! -d "$1" ]; then
+      install -d -m 0700 "$1" || cannot_answer "could not create $1; nothing is applied"
+      log "created $1, empty: $2's bind source, which its injection fills"
+    fi
+  }
+  ensure_bind_source "$API_SECRETS_DIR" api
+  ensure_bind_source "$WORKER_SECRETS_DIR" worker
 
   # ---------------------------------------------------------------------------------------------------------
   # THE SECRETS GATE (#1295). The injected secrets are owned by the ids of the image that was current AT
@@ -456,31 +463,32 @@ if [ "$mode" = apply ] || [ "$mode" = prepare ]; then
   # then reports a MISSING KEY rather than a permission problem. Measuring the ids RUNS the image, so it
   # follows the verification above, and a refusal is never preceded by a line announcing an apply.
   #
-  # Both directories a container reads injected files from, each joining the gate only when it holds a file:
-  # the api-only one is empty and root's on a box the read key never reached, and its group would otherwise
-  # fail the comparison below for a key that does not exist.
+  # Every directory a container reads injected files from, each joining the gate only when it holds a file:
+  # a reader-only one is empty and root's on a box its secret never reached, and its group would otherwise
+  # fail the comparison below for a secret that does not exist. Each is judged against the image whose ids
+  # its injection measured: the api image for the two api mounts, the worker image for the worker-only one.
   # ---------------------------------------------------------------------------------------------------------
-  regular_secrets=()
-  secret_dirs=()
-  for dir in "$SECRETS_DIR" "$API_SECRETS_DIR"; do
-    held=0
-    for f in "$dir"/*; do
-      [ -e "$f" ] || continue
-      if [ -f "$f" ]; then
-        regular_secrets+=("$f")
-        held=1
-      fi
+  gated=0
+  gate_injected_secrets() {  # gate_injected_secrets <reader> <verified image> <dir>...
+    local reader="$1" image="$2" dir f held ids_out want_uid want_gid dir_gid file_meta file_uid file_mode
+    local -a regular_secrets=() secret_dirs=() runtime_ids=()
+    shift 2
+    for dir in "$@"; do
+      held=0
+      for f in "$dir"/*; do
+        [ -e "$f" ] || continue
+        if [ -f "$f" ]; then
+          regular_secrets+=("$f")
+          held=1
+        fi
+      done
+      [ "$held" -eq 0 ] || secret_dirs+=("$dir")
     done
-    [ "$held" -eq 0 ] || secret_dirs+=("$dir")
-  done
+    [ "${#regular_secrets[@]}" -ne 0 ] || return 0
+    gated=1
 
-  if [ "${#regular_secrets[@]}" -eq 0 ]; then
-    # NOT A HOLE: if nothing has been injected there is nothing an image bump can make unreadable, and a
-    # later injection measures the image this run is about to apply.
-    log "no injected secrets in $SECRETS_DIR or $API_SECRETS_DIR — ownership gate skipped (nothing to be unreadable)"
-  else
-    ids_out=$("$RUNTIME_IDS" "$api_digest") || {
-      log "CANNOT ANSWER: could not measure the runtime ids from the verified api image."
+    ids_out=$("$RUNTIME_IDS" "$image") || {
+      log "CANNOT ANSWER: could not measure the runtime ids from the verified $reader image."
       log "  Nothing is applied; the running containers stay up."
       exit 2
     }
@@ -499,7 +507,7 @@ if [ "$mode" = apply ] || [ "$mode" = prepare ]; then
         exit 2
       }
       if [ "$dir_gid" != "$want_gid" ]; then
-        log "REFUSING: the incoming api image cannot TRAVERSE $dir."
+        log "REFUSING: the incoming $reader image cannot TRAVERSE $dir."
         log "  directory group is $dir_gid; the image runs as gid $want_gid. The directory is 0710,"
         log "  so group traversal is the container's only way in — every container that mounts it"
         log "  would report a missing secret. Nothing is applied; the running containers stay up."
@@ -524,7 +532,7 @@ if [ "$mode" = apply ] || [ "$mode" = prepare ]; then
       file_uid="${file_meta% *}"
       file_mode="${file_meta#* }"
       if [ "$file_uid" != "$want_uid" ]; then
-        log "REFUSING: the incoming api image cannot READ the injected secrets."
+        log "REFUSING: the incoming $reader image cannot READ the injected secrets."
         log "  $f is owned by uid $file_uid; the image runs as uid $want_uid. The files are 0400,"
         log "  so the owner is the only reader. Nothing is applied; the running containers stay up."
         log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). The directory is"
@@ -546,7 +554,14 @@ if [ "$mode" = apply ] || [ "$mode" = prepare ]; then
       fi
     done
 
-    log "injected secrets are readable by the incoming image (uid $want_uid, gid $want_gid)"
+    log "injected secrets in ${secret_dirs[*]} are readable by the incoming $reader image (uid $want_uid, gid $want_gid)"
+  }
+  gate_injected_secrets api "$api_digest" "$SECRETS_DIR" "$API_SECRETS_DIR"
+  gate_injected_secrets worker "$worker_digest" "$WORKER_SECRETS_DIR"
+  if [ "$gated" -eq 0 ]; then
+    # NOT A HOLE: if nothing has been injected there is nothing an image bump can make unreadable, and a
+    # later injection measures the image this run is about to apply.
+    log "no injected secrets in $SECRETS_DIR, $API_SECRETS_DIR or $WORKER_SECRETS_DIR — ownership gate skipped (nothing to be unreadable)"
   fi
 
   if grep -q 'ConnectionStrings__Redis_FILE:' "$COMPOSE_FILE"; then

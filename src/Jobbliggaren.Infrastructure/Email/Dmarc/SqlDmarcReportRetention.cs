@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Jobbliggaren.Infrastructure.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the retention's deletes: reports received before the cutoff, whose records the database's
+/// #1981 PR 4a (ADR 0184) — the retention's deletes: reports received before the cutoff, whose records the database's
 /// cascade takes with them, and ledger rows received before it. The state row is never touched.
 /// </summary>
 internal sealed class SqlDmarcReportRetention(AppDbContext db) : IDmarcReportRetention

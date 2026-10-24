@@ -12,7 +12,7 @@ using static Jobbliggaren.Worker.IntegrationTests.Email.Dmarc.DmarcTestReports;
 namespace Jobbliggaren.Worker.IntegrationTests.Migrations;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — <c>AddDmarcAggregateReports</c> is additive: four new tables, four indexes, no seed, and
+/// #1981 PR 4a (ADR 0184) — <c>AddDmarcAggregateReports</c> is additive: four new tables, four indexes, no seed, and
 /// every other table's columns exactly as before, across Up, Down and a second Up. Run as <c>jobbliggaren_app</c>, the
 /// role production migrates with, so the role that owns the tables is the one the ingestion's ANALYZE runs as.
 /// </summary>

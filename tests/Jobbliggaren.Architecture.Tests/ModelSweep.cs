@@ -61,7 +61,7 @@ internal static class ModelSweep
     /// Both models' text-bearing AND network-address columns — what a restore exposes in readable form.
     /// </summary>
     /// <remarks>
-    /// #1981 PR 4a (ADR 0183). An address is not text, so <see cref="IsTextBearingStoreType"/> does not call it one,
+    /// #1981 PR 4a (ADR 0184). An address is not text, so <see cref="IsTextBearingStoreType"/> does not call it one,
     /// but a restore hands it over readable all the same, and an IP address is personal data when the host is a
     /// person's own (C-582/14 <i>Breyer</i>). The plaintext-exposure registry sweeps this. The Art. 17 cascade keeps
     /// the text sweep: its question is where a recruiter's free text can land, and an address column cannot hold any.

@@ -7,7 +7,7 @@ using MailKit.Security;
 namespace Jobbliggaren.Infrastructure.Mailbox.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183, CTO r2 §2a) — the exceptions a session can end in, each mapped to the fault the run records.
+/// #1981 PR 4a (ADR 0184, CTO r2 §2a) — the exceptions a session can end in, each mapped to the fault the run records.
 /// The set is closed: an exception not named here is a defect and propagates, and so does the caller's own
 /// cancellation. A tagged NO reaches this only where the step has no per-message meaning (opening, listing); per
 /// message it is a refusal, decided by the caller before this is asked.

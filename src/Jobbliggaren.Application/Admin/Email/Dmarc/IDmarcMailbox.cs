@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the mailbox the DMARC reports arrive in, read-only. Application defines the port in a
+/// #1981 PR 4a (ADR 0184) — the mailbox the DMARC reports arrive in, read-only. Application defines the port in a
 /// neutral vocabulary (an epoch and positions in it); the one implementation lives in the Worker-only mailbox project.
 /// Its one consumer is the ingestion job, which an architecture test pins.
 /// <para>

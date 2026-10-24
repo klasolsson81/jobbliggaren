@@ -145,7 +145,7 @@ Feedback (#1979) är valfri och stängd som standard. Sätt `Feedback:Enabled` t
 ingen av nycklarna krävs för att stacken ska starta. Webbens `APP_VERSION` är också valfri: utan den
 sparas inskick med okänd version, och den frivilliga tekniska informationen skickas inte vidare.
 
-DMARC-inläsningen (#1981 PR 4a, ADR 0183) är valfri och Worker-only. Utan `Dmarc:Mailbox:Password`
+DMARC-inläsningen (#1981 PR 4a, ADR 0184) är valfri och Worker-only. Utan `Dmarc:Mailbox:Password`
 skriver jobbet `NotConfigured` och läser ingenting; inget vägrar starta. Lägg aldrig det riktiga
 lösenordet till `dmarc@jobbliggaren.se` i en lokal fil — bara lådans `worker-secrets` håller det.
 

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Infrastructure.Mailbox.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — <c>dmarc@jobbliggaren.se</c> at STRATO, read over implicit TLS and opened with EXAMINE, so
+/// #1981 PR 4a (ADR 0184) — <c>dmarc@jobbliggaren.se</c> at STRATO, read over implicit TLS and opened with EXAMINE, so
 /// nothing in the mailbox can change: no flag, no move, no deletion. The host, port and account are constants, a
 /// one-member allowlist by construction. Certificate and revocation validation are MailKit's defaults and nothing here
 /// touches them; a missing root CA belongs in the image's trust store, never in a callback.

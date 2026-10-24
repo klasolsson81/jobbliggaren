@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the read side of the stored DMARC reports, for <c>/admin/e-post</c>. Application defines the
+/// #1981 PR 4a (ADR 0184) — the read side of the stored DMARC reports, for <c>/admin/e-post</c>. Application defines the
 /// port; Infrastructure implements it over the same tables, in one consistent read. Api-only; its one consumer is the
 /// reports query handler. A database failure is an exception.
 /// <para>

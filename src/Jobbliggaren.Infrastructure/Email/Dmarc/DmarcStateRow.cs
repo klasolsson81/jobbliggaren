@@ -5,7 +5,7 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the one read of <c>dmarc_mailbox_state</c>, shared by the ingestion store and the page's
+/// #1981 PR 4a (ADR 0184) — the one read of <c>dmarc_mailbox_state</c>, shared by the ingestion store and the page's
 /// read so both map it the same way. An outcome this release does not know fails the read rather than being shown as
 /// something it is not.
 /// </summary>

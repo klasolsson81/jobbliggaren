@@ -4,7 +4,7 @@ using System.Net.Sockets;
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the sending server's address in one report record, as the reporter wrote it. It is
+/// #1981 PR 4a (ADR 0184) — the sending server's address in one report record, as the reporter wrote it. It is
 /// personal data when the server is a person's own (C-582/14 <i>Breyer</i>), so it is never logged.
 /// <para>
 /// <see cref="IPAddress.TryParse(string?, out IPAddress?)"/> alone accepts the legacy inet_addr forms ("65536",

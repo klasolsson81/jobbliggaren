@@ -32,7 +32,7 @@ using static Jobbliggaren.Api.IntegrationTests.Admin.AdminAccountsKit;
 namespace Jobbliggaren.Api.IntegrationTests.Admin;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the stored DMARC aggregate reports, end to end through the real pipeline: who may call the
+/// #1981 PR 4a (ADR 0184) — the stored DMARC aggregate reports, end to end through the real pipeline: who may call the
 /// read, that every answer including a refusal is private and uncacheable, and exactly what the browser receives. The
 /// stored rows are written by the production store (<see cref="SqlDmarcReportStore"/>) in the order the ingestion job
 /// writes them, with reports made by <see cref="DmarcAggregateReport.Accept"/> (AGENTS.md §5 Tests); the mailbox itself

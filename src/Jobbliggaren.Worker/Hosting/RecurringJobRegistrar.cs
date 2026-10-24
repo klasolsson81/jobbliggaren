@@ -248,14 +248,14 @@ public sealed partial class RecurringJobRegistrar(
             job => job.RunAsync(CancellationToken.None),
             "40 4 * * *");
 
-        // #1981 PR 4a (ADR 0183) — the DMARC report mailbox, hourly at :23, a minute no other cron here takes. Reports
+        // #1981 PR 4a (ADR 0184) — the DMARC report mailbox, hourly at :23, a minute no other cron here takes. Reports
         // arrive once a day per reporter, so an hour is fresh enough; without a password a run only records that.
         manager.AddOrUpdate<DmarcReportIngestionWorker>(
             RecurringJobIds.DmarcReportIngestion,
             job => job.RunAsync(CancellationToken.None),
             "23 * * * *");
 
-        // #1981 PR 4a (ADR 0183) — the twelve-month retention of the DMARC reports, daily at 04:20 UTC, clear of the 04:00
+        // #1981 PR 4a (ADR 0184) — the twelve-month retention of the DMARC reports, daily at 04:20 UTC, clear of the 04:00
         // hard delete and the 04:30 purge. A changed schedule changes the retention bound and goes back to security-auditor.
         manager.AddOrUpdate<DmarcReportRetentionWorker>(
             RecurringJobIds.DmarcReportRetention,

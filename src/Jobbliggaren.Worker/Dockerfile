@@ -1,6 +1,6 @@
 # Jobbliggaren.Worker Dockerfile — HTTP-fri (ADR 0023), runtime-image utan ASP.NET.
 # Build context: repo root (`docker build -f src/Jobbliggaren.Worker/Dockerfile .`).
-# Jobbliggaren.Infrastructure.Mailbox (#1981, ADR 0183) is copied here and in no other Dockerfile: only the
+# Jobbliggaren.Infrastructure.Mailbox (#1981, ADR 0184) is copied here and in no other Dockerfile: only the
 # Worker references it, so MailKit reaches this image alone.
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the ingestion side of the stored DMARC reports: the reports, the per-message ledger and the
+/// #1981 PR 4a (ADR 0184) — the ingestion side of the stored DMARC reports: the reports, the per-message ledger and the
 /// one state row with the cursor. Application defines the port; Infrastructure implements it over its own tables. Its
 /// one consumer is the ingestion job. A database failure is an exception, as on every database write.
 /// </summary>

@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the two classes of message outcome that store nothing because of what the message held, as
+/// #1981 PR 4a (ADR 0184) — the two classes of message outcome that store nothing because of what the message held, as
 /// the page and the run summary count them.
 /// </summary>
 public static class DmarcOutcomeClasses

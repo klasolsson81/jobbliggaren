@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the one-row ingestion state (the <c>email_send_counting</c> singleton form, without a
+/// #1981 PR 4a (ADR 0184) — the one-row ingestion state (the <c>email_send_counting</c> singleton form, without a
 /// seed). The cursor's two halves are set together or not at all.
 /// </summary>
 internal sealed class DmarcMailboxStateConfiguration : IEntityTypeConfiguration<DmarcMailboxState>

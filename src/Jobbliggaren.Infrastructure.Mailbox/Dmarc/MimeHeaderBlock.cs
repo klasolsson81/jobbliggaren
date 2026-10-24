@@ -3,7 +3,7 @@ using System.Text;
 namespace Jobbliggaren.Infrastructure.Mailbox.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the three fields report selection reads from one fetched header block, unfolded (RFC 5322
+/// #1981 PR 4a (ADR 0184) — the three fields report selection reads from one fetched header block, unfolded (RFC 5322
 /// §2.2.3) by a single loop over its lines. Nothing recurses and nothing reads past the bytes the fetch cap let in. A
 /// block whose terminating blank line is not among those bytes is never read, because a truncated block can lack the
 /// very field that decides.

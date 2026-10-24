@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Infrastructure.Mailbox.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — one run's read-only view of the inbox. Every command it sends is bounded before it is sent:
+/// #1981 PR 4a (ADR 0184) — one run's read-only view of the inbox. Every command it sends is bounded before it is sent:
 /// the listing by the message count EXAMINE reported, captured once, and every content fetch by a partial range. Each
 /// command also has its own deadline. Once a session fault ends it, every later call answers with that fault and sends
 /// nothing, and disposing it closes the connection without a LOGOUT the server may never answer.

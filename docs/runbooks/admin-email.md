@@ -4,7 +4,7 @@ The page answers four questions. First, how this month's sent mail stands agains
 and what the mail beyond it costs (ADR 0178). Second, Leverans: how many mails the provider sent and failed per period, and
 which sends failed recently (ADR 0179). Third, under Leverans, how many attempts of each mail kind we handed over to
 Scaleway and how many failed (ADR 0181). Fourth, from the DMARC aggregate reports the receiving mail services send us, which
-servers sent mail as `jobbliggaren.se` and whether it authenticated (ADR 0183). This runbook is the one home for what the
+servers sent mail as `jobbliggaren.se` and whether it authenticated (ADR 0184). This runbook is the one home for what the
 figures mean and how they are kept true.
 
 ## What the figures are
@@ -93,7 +93,7 @@ They are the same while the organisation has one project sending through Transac
 
 The page names the month only where UTC and Stockholm agree on it; otherwise it reads "Utskick denna månad".
 
-## DMARC aggregate reports (ADR 0183)
+## DMARC aggregate reports (ADR 0184)
 
 **What they are.** Receiving mail services (only Google so far) send a daily aggregate report to `dmarc@jobbliggaren.se`, a
 STRATO mailbox. The Worker reads that mailbox every hour at :23, read-only, and stores the accepted reports;
@@ -157,7 +157,7 @@ mailbox's webmail login, so it changes there too.
 | `NotConfigured` | Expected in dev, CI and the harness. On the box: place the password (above). |
 | `Misconfigured` | The pointer is set but the password file is blank: remove the file and inject again. |
 | `Unreachable` | The egress rule is missing, or STRATO has renumbered `imap.strato.de`: re-resolve and edit rule 6 with Klas's GO. Never a port-only rule. |
-| `TlsFailed` | The certificate chain fails. Expected once a worker image lacks "T-TeleSec GlobalRoot Class 2" (ADR 0183 lapse trigger 1). Never fixed by relaxing validation. |
+| `TlsFailed` | The certificate chain fails. Expected once a worker image lacks "T-TeleSec GlobalRoot Class 2" (ADR 0184 lapse trigger 1). Never fixed by relaxing validation. |
 | `AuthRefused` | The password was refused. No run connects again for 24 hours, so a fixed password is picked up after that. Rotate it (above). |
 | `Timeout` | Transient. A lasting one: STRATO's status. |
 | `Protocol` | The server answered outside the protocol, or refused a command as malformed. Count the 3135–3139 events; a code change. |

@@ -8,7 +8,7 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183): a DMARC report's source address is personal data when the server is a person's own
+/// #1981 PR 4a (ADR 0184): a DMARC report's source address is personal data when the server is a person's own
 /// (C-582/14 <i>Breyer</i>), and the repository is public (CLAUDE.md §9.2 (c)). Every IP address written in a test
 /// source whose path names DMARC is therefore from the documentation ranges, RFC 5737 (192.0.2.0/24, 198.51.100.0/24,
 /// 203.0.113.0/24) and RFC 3849 (2001:db8::/32), so a fixture copied from a real report or from the dmarc@ mailbox

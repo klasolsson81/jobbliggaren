@@ -5,7 +5,7 @@ using MimeKit.Encodings;
 namespace Jobbliggaren.Infrastructure.Mailbox.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — which part of a message can be an aggregate report, decided from header fields alone. Each
+/// #1981 PR 4a (ADR 0184) — which part of a message can be an aggregate report, decided from header fields alone. Each
 /// field value reaches MimeKit's <c>TryParse</c> on its own; no MimeKit structure parser ever sees a message. A file
 /// name is read only to match its extension and goes nowhere else.
 /// </summary>

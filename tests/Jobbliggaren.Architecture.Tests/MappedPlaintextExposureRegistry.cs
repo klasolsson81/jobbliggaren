@@ -247,7 +247,7 @@ internal static class MappedPlaintextExposureRegistry
                 + "external_id joins to an organization_number that IS a personnummer for a "
                 + "sole trader (#841) — in the same dump.",
 
-            // ── #1981 PR 4a (ADR 0183): DMARC aggregate reports, which anyone can mail us. ────────
+            // ── #1981 PR 4a (ADR 0184): DMARC aggregate reports, which anyone can mail us. ────────
             ["dmarc_report_rows"] = "One row per record of a reporter's aggregate report. source_ip is the address of "
                 + "a server that sent mail as our domain, and an IP address is personal data when the server is a "
                 + "person's own (C-582/14 Breyer); header_from sits on the same row, and a column cannot be "

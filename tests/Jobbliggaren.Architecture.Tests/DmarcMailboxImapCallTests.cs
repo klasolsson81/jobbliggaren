@@ -6,7 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183; senior-cto-advisor r1 mechanism 6–8 and r2 §1; security-auditor rulings 1 and 5, B1, D2–D4)
+/// #1981 PR 4a (ADR 0184; senior-cto-advisor r1 mechanism 6–8 and r2 §1; security-auditor rulings 1 and 5, B1, D2–D4)
 /// — what the mailbox adapter may ask MailKit and MimeKit to do, read from its IL. Anyone can mail the report address,
 /// so the adapter reads only bounded, server-truncated ranges, opens the inbox read-only, never searches, never lets a
 /// MIME structure parser see a message, signs in with one constant mechanism, and leaves certificate validation and
@@ -147,7 +147,7 @@ public class DmarcMailboxImapCallTests
     {
         AdapterReferences().Where(reference => Bans[ban](reference.Member))
             .Select(reference => $"{reference.Owner}: {reference.Key}")
-            .ShouldBeEmpty($"{ban} is never sent or called by the DMARC mailbox adapter (ADR 0183)");
+            .ShouldBeEmpty($"{ban} is never sent or called by the DMARC mailbox adapter (ADR 0184)");
     }
 
     /// <summary>A ban that names no member MailKit or MimeKit has is a typo that bans nothing.</summary>

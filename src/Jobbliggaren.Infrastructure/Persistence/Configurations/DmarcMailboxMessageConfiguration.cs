@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — EF Core configuration for the ledger <c>dmarc_mailbox_messages</c>. Epoch and position
+/// #1981 PR 4a (ADR 0184) — EF Core configuration for the ledger <c>dmarc_mailbox_messages</c>. Epoch and position
 /// are <c>bigint</c> because IMAP's are unsigned 32-bit. The limits on retries live in code, so retuning one is a
 /// commit, not a migration.
 /// </summary>

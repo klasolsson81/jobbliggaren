@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the one retention rule for ingested DMARC reports: twelve calendar months from receipt
+/// #1981 PR 4a (ADR 0184) — the one retention rule for ingested DMARC reports: twelve calendar months from receipt
 /// (Klas, 2026-09-04). Ingestion skips a message received before the cutoff and the retention job deletes everything
 /// received before it, so neither can keep what the other would drop.
 /// </summary>

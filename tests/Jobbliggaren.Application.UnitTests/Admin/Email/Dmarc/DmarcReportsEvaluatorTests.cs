@@ -6,7 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — what the DMARC region may show. Every state row below is one the ingestion job writes: no
+/// #1981 PR 4a (ADR 0184) — what the DMARC region may show. Every state row below is one the ingestion job writes: no
 /// row before its first run, <see cref="DmarcRunOutcome.Incomplete"/> while a first run has not finished, a run outcome
 /// with the latest success kept. The totals and sources are the shapes the SQL source reads back, its addresses through
 /// <see cref="ReportedSourceAddress.FromStored"/>, from the documentation ranges only. A read no source can produce is

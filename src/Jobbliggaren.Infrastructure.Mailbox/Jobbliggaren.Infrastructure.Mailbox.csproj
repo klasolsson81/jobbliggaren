@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    #1981 PR 4a (ADR 0183) — the Worker reads dmarc@jobbliggaren.se over IMAPS, read-only, and this is the one
+    #1981 PR 4a (ADR 0184) — the Worker reads dmarc@jobbliggaren.se over IMAPS, read-only, and this is the one
     assembly that speaks IMAP. It is a project of its own so that MailKit, MimeKit and BouncyCastle reach the Worker
     image and nothing else: the Api references Infrastructure, so MailKit in Infrastructure would put all three in the
     Api's image, which never reads a mailbox (senior-cto-advisor, Beslut D2; Art. 25(2)). "The Api never builds the

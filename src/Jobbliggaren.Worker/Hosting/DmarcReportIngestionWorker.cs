@@ -5,7 +5,7 @@ using Jobbliggaren.Application.Admin.Email.Jobs.DmarcReportIngestion;
 namespace Jobbliggaren.Worker.Hosting;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0183) — the hourly DMARC report ingestion. Never retried by Hangfire: the next hourly run is the
+/// #1981 PR 4a (ADR 0184) — the hourly DMARC report ingestion. Never retried by Hangfire: the next hourly run is the
 /// retry, and an automatic retry would repeat a refused login against a mailbox whose lockout policy is unmeasured.
 /// </summary>
 public sealed class DmarcReportIngestionWorker(DmarcReportIngestionJob job)

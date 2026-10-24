@@ -5,8 +5,7 @@ import { Check } from "lucide-react";
 import type { TaxonomyOption } from "@/lib/dto/taxonomy";
 import { formatNumber } from "@/lib/i18n/format";
 import { codedTaxonomyOptions } from "@/lib/i18n/coded-taxonomy";
-import { useDismissable } from "@/lib/hooks/use-dismissable";
-import { usePanelPosition } from "@/lib/hooks/use-panel-position";
+import { PopoverShell } from "@/components/popover/popover-shell";
 
 /**
  * Klass-2-filterpanel (ADR 0067 Fas E, rad 109 "Filter-panel", 2026-06-13).
@@ -33,10 +32,9 @@ import { usePanelPosition } from "@/lib/hooks/use-panel-position";
  * pre-fetch); panelen är fullt funktionell utan dem. "Alla"-radion bär INGET tal
  * (summan ägs av list-svarets totalCount, SPOT — samma som Yrkes "Välj alla").
  *
- * Shell-infrastruktur (DRY, CLAUDE.md §9.1): återanvänder `useDismissable`
- * (Esc stänger + fokus-retur till triggern, klick-utanför) och samma
- * position-mätning som `JobbFilterPopover` så fokus/outside-click/Esc beter
- * sig konsekvent (jobbliggaren-design-a11y / ADR 0047).
+ * Shell-infrastruktur (DRY, CLAUDE.md §9.1): `PopoverShell`, samma skal som
+ * `JobbFilterPopover`, så position, fokus, outside-click och Esc beter sig
+ * konsekvent (jobbliggaren-design-a11y / ADR 0047).
  */
 
 // "Alla"-radens sentinel-värde i radio-gruppen — INTE ett conceptId. Tom
@@ -100,8 +98,6 @@ export function JobbKlass2Panel({
   const tEnum = useTranslations("jobads.enums");
   const collator = new Intl.Collator(useLocale());
   const format = useFormatter();
-  const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
-  const { style } = usePanelPosition(open, triggerRef, ref, 320);
 
   if (!open) return null;
 
@@ -129,12 +125,13 @@ export function JobbKlass2Panel({
     employmentTypeOptions.length === 0 && worktimeExtentOptions.length === 0;
 
   return (
-    <div
-      ref={ref}
+    <PopoverShell
+      open={open}
+      onClose={onClose}
+      triggerRef={triggerRef}
+      preferredWidth={320}
+      label={t("klass2.dialogLabel")}
       className="jp-popover jp-panel"
-      role="dialog"
-      aria-label={t("klass2.dialogLabel")}
-      style={style}
     >
       {noOptions ? (
         <div className="jp-popover__empty p-4">
@@ -286,6 +283,6 @@ export function JobbKlass2Panel({
         </div>
       )}
       {footer && <div className="jp-popover__foot">{footer}</div>}
-    </div>
+    </PopoverShell>
   );
 }

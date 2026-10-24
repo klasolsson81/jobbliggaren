@@ -4,8 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
-import { useDismissable } from "@/lib/hooks/use-dismissable";
-import { usePanelPosition } from "@/lib/hooks/use-panel-position";
+import { PopoverShell } from "@/components/popover/popover-shell";
 import { onPlainNav } from "@/lib/nav/modified-click";
 
 interface HeroChipProps<T> {
@@ -83,12 +82,6 @@ export function HeroChip<T>({
   const t = useTranslations("jobads.ui");
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useDismissable<HTMLDivElement, HTMLButtonElement>(
-    open,
-    () => setOpen(false),
-    triggerRef,
-  );
-  const { style } = usePanelPosition(open, triggerRef, panelRef, 320);
 
   // Notifiera konsumenten om öppna-tillståndet (lat on-demand-hämtning).
   useEffect(() => {
@@ -116,57 +109,56 @@ export function HeroChip<T>({
         )}
         <ChevronDown size={14} aria-hidden="true" />
       </button>
-      {open && (
-        <div
-          ref={panelRef}
-          role="dialog"
-          aria-label={label}
-          className="jp-popover"
-          style={style}
-        >
-          <div className="jp-popover__head">
-            <span className="jp-popover__title">{label}</span>
-          </div>
-          <div style={{ padding: "6px 0", maxHeight: 320, overflow: "auto" }}>
-            {visible.length === 0 ? (
-              <div className="jp-popover__empty px-4 py-3.5">
-                {emptyText}
-              </div>
-            ) : (
-              visible.map((item) => (
-                <Link
-                  key={getKey(item)}
-                  href={getHref(item)}
-                  onClick={(e) => onPlainNav(e, close)}
-                  className="jp-popover__rowbtn"
-                >
-                  <span
-                    className={
-                      isMuted?.(item)
-                        ? "jp-popover__rowlabel jp-popover__rowlabel--muted"
-                        : "jp-popover__rowlabel"
-                    }
-                  >
-                    {getLabel(item)}
-                  </span>
-                  {renderTrailing?.(item)}
-                </Link>
-              ))
-            )}
-          </div>
-          {footerHref && (hasMore || visible.length > 0) && (
-            <div className="jp-popover__foot">
-              <Link
-                href={footerHref}
-                onClick={(e) => onPlainNav(e, close)}
-                className="jp-popover__footlink"
-              >
-                {footerLabel ?? t("heroChip.showAll")}
-              </Link>
+      <PopoverShell
+        open={open}
+        onClose={close}
+        triggerRef={triggerRef}
+        preferredWidth={320}
+        label={label}
+        className="jp-popover"
+      >
+        <div className="jp-popover__head">
+          <span className="jp-popover__title">{label}</span>
+        </div>
+        <div style={{ padding: "6px 0", maxHeight: 320, overflow: "auto" }}>
+          {visible.length === 0 ? (
+            <div className="jp-popover__empty px-4 py-3.5">
+              {emptyText}
             </div>
+          ) : (
+            visible.map((item) => (
+              <Link
+                key={getKey(item)}
+                href={getHref(item)}
+                onClick={(e) => onPlainNav(e, close)}
+                className="jp-popover__rowbtn"
+              >
+                <span
+                  className={
+                    isMuted?.(item)
+                      ? "jp-popover__rowlabel jp-popover__rowlabel--muted"
+                      : "jp-popover__rowlabel"
+                  }
+                >
+                  {getLabel(item)}
+                </span>
+                {renderTrailing?.(item)}
+              </Link>
+            ))
           )}
         </div>
-      )}
+        {footerHref && (hasMore || visible.length > 0) && (
+          <div className="jp-popover__foot">
+            <Link
+              href={footerHref}
+              onClick={(e) => onPlainNav(e, close)}
+              className="jp-popover__footlink"
+            >
+              {footerLabel ?? t("heroChip.showAll")}
+            </Link>
+          </div>
+        )}
+      </PopoverShell>
     </div>
   );
 }

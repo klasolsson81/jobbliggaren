@@ -1,12 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Check, ChevronRight } from "lucide-react";
 import { formatNumber } from "@/lib/i18n/format";
-import { useDismissable } from "@/lib/hooks/use-dismissable";
-import { usePanelPosition } from "@/lib/hooks/use-panel-position";
-import { FOCUSABLE_SELECTOR } from "@/lib/popover/focusable";
+import { PopoverShell } from "@/components/popover/popover-shell";
 
 /**
  * Platsbanken-mönster filter-popover (HANDOVER-v3.md §5.4, ADR 0055).
@@ -265,23 +263,6 @@ export function JobbFilterPopover({
       e.defaultPrevented && searchSlotRef.current?.contains(e.target as Node) === true,
     [],
   );
-  const ref = useDismissable<HTMLDivElement>(
-    open,
-    onClose,
-    triggerRef,
-    search ? keepOpenOnEscape : undefined,
-  );
-  const { style, ready: positioned } = usePanelPosition(open, triggerRef, ref, PREFERRED_WIDTH);
-  const hasSearch = search !== undefined;
-
-  // With a search, focus goes to the field once the popover has its place (WCAG 2.4.3). Before
-  // that it sits off screen, where a focus could scroll the page.
-  useEffect(() => {
-    if (!hasSearch || !positioned) return;
-    searchSlotRef.current
-      ?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
-      ?.focus({ preventScroll: true });
-  }, [hasSearch, positioned]);
 
   // Aktiv grupp (vänsterrad). E2f (Klas rendered-feedback 2026-06-11,
   // Platsbanken-paritet): startar TOM — höger kolumn visas först när
@@ -489,12 +470,16 @@ export function JobbFilterPopover({
   );
 
   return (
-    <div
-      ref={ref}
+    <PopoverShell
+      open={open}
+      onClose={onClose}
+      triggerRef={triggerRef}
+      preferredWidth={PREFERRED_WIDTH}
+      label={dialogLabel ?? leftTitle}
       className="jp-popover"
-      role="dialog"
-      aria-label={dialogLabel ?? leftTitle}
-      style={style}
+      // With a search, its field takes focus on open; without one, nothing moves (ADR 0055).
+      fieldRef={search ? searchSlotRef : undefined}
+      keepOpenOnEscape={search ? keepOpenOnEscape : undefined}
     >
       {/* Utanför __body: distans har ingen län→kommun-hierarki att navigera.
           Raden och dess hjälptext är EN grupp, och avdelaren sitter på gruppen —
@@ -538,6 +523,6 @@ export function JobbFilterPopover({
         columns
       )}
       {footer && <div className="jp-popover__foot">{footer}</div>}
-    </div>
+    </PopoverShell>
   );
 }

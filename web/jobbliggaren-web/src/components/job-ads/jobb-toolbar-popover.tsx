@@ -5,16 +5,14 @@
 // Matchning-pillen i hero-filterraden (`JobbMatchGradeFilter`); 2026-06-30
 // flyttades Matchning från toolbaren hit och Status-popovern togs bort.
 
-import { useDismissable } from "@/lib/hooks/use-dismissable";
-import { usePanelPosition } from "@/lib/hooks/use-panel-position";
+import { PopoverShell } from "@/components/popover/popover-shell";
 
 /**
  * Enkelkolumns popover-skal för /jobb-filterradens `[Matchning ▾]`-pill
- * (#408; flyttad till hero-raden 2026-06-30). Speglar `JobbKlass2Panel`-skalet
- * (`.jp-popover.jp-panel` `role="dialog"`, `usePanelPosition` ur triggerns ref,
- * `useDismissable` för Esc/utanför-klick + fokus-retur till triggern) men tar
- * en titel-header + children i stället för Klass-2:ans sektioner. SPOT för
- * skal-infrastrukturen (DRY — CLAUDE.md §9.1): ingen ny globals.css, samma
+ * (#408; flyttad till hero-raden 2026-06-30). Samma `PopoverShell` som
+ * `JobbKlass2Panel` (`.jp-popover.jp-panel` `role="dialog"`, position ur
+ * triggerns ref, Esc/utanför-klick + fokus-retur till triggern) men tar
+ * en titel-header + children i stället för Klass-2:ans sektioner. Samma
  * `.jp-panel__sectionhead`/`.jp-popover__title`-rytm som Klass-2-panelen.
  *
  * Renderar ingenting när `open` är false (samma mönster som JobbKlass2Panel —
@@ -48,24 +46,20 @@ export function JobbToolbarPopover({
   width = 320,
   headerRight,
 }: JobbToolbarPopoverProps) {
-  const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
-  const { style } = usePanelPosition(open, triggerRef, ref, width);
-
-  if (!open) return null;
-
   return (
-    <div
-      ref={ref}
+    <PopoverShell
+      open={open}
+      onClose={onClose}
+      triggerRef={triggerRef}
+      preferredWidth={width}
+      label={title}
       className="jp-popover jp-panel"
-      role="dialog"
-      aria-label={title}
-      style={style}
     >
       <div className="jp-panel__sectionhead">
         <span className="jp-popover__title">{title}</span>
         {headerRight}
       </div>
       <div className="jp-panel__body">{children}</div>
-    </div>
+    </PopoverShell>
   );
 }

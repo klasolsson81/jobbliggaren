@@ -22,7 +22,9 @@ describe("CheckItem — the facet count (#2198 PR 2)", () => {
     render(<CheckItem label="Systemutvecklare" checked={false} count={12} onToggle={vi.fn()} />);
 
     const row = screen.getByRole("checkbox", { name: /^Systemutvecklare\s?\(12\)$/ });
-    expect(row.querySelector(".jp-checkitem__count")).toHaveTextContent("(12)");
+    const count = row.querySelector(".jp-checkitem__count");
+    expect(count).toHaveTextContent("(12)");
+    expect(count?.parentElement).toBe(screen.getByText("Systemutvecklare"));
   });
 
   it("makes the count part of a two-line row's name, on the first line, and keeps the second line its description", () => {

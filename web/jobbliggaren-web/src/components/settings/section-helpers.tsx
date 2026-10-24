@@ -48,8 +48,14 @@ export function CheckItem(props: CheckItemProps) {
       <span className="jp-checkitem__box">
         {checked && <Check size={14} aria-hidden="true" />}
       </span>
-      {label}
-      {count !== undefined && <CheckItemCount count={count} />}
+      {count === undefined ? (
+        label
+      ) : (
+        <span className="flex min-w-0 flex-1 items-baseline gap-3">
+          {label}
+          <CheckItemCount count={count} />
+        </span>
+      )}
     </div>
   );
 }

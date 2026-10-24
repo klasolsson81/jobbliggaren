@@ -103,7 +103,7 @@ decision and not an edit of this one. The results toolbar's sort and chip-×, th
 - **Only `resize` re-measures, and the capture-phase `scroll` listener is deleted.** Under the precondition below, a page scroll moves the trigger's rect and the scroll offset by the same amount, so
   the listener recomputed a constant, and its only effect was a commit per scroll event in a column. State updates only when a number or the placement changes. Measured after: 0 commits during a
   column scroll (R2), against 10 of 10 on the base (R1).
-- **The precondition**, in the hook's docblock and here: the panel's containing block is the initial containing block, and no scroll container sits between the trigger and the document. It is checked
+- **The precondition**, in the hook's docblock and here: the panel's containing block is the initial containing block, and no scroll container sits between the trigger and the document; as a fixed box, a sheet's containing block is the viewport only while no ancestor establishes a containing block for fixed-position descendants (CSS Positioned Layout 3). It is checked
   in the rendered matrix, for every host at every anchored width: `getBoundingClientRect().left` equals `parseFloat(style.left) - scrollX` within 0.5 (the CTO (b), (t)). On the base it was measured on
   `/jobb` and only derived on `/foretag/sok`.
 - **No `ResizeObserver`.** The CTO ordered two cases measured and a `ResizeObserver` added in this PR if either failed (guarded as at `ad-description-excerpt.tsx:50`). The reflow after a pick was
@@ -189,15 +189,15 @@ The table is a pure function, `src/lib/popover/focus-on-open.ts`, and the shell'
 
 - **Placement.** `position: fixed` at `top: calc(var(--jp-header-h) + 8px)` (97 px, the bell's: `globals.css:4834`), 8 px from both sides, `width: auto`. `--jp-shadow-pop` and `--jp-r-md`. No scrim,
   no motion, no scroll lock, no portal and no `:has()` (#2033, the browser-floor question, is open). A tap on the inset margins or on the header closes the sheet, as today; a scroll does not.
-- **Inside.** A flex column. The band and the footer are fixed; the list is `flex: 1; min-height: 0` with a three-row floor (144 px); the sheet itself scrolls (`overflow-y: auto`) as a last resort.
-  A cascade host asks for the whole sheet height, `calc(100dvh - var(--jp-header-h) - 16px)` with the `vh` fallback declared first (`globals.css:3017-3018`); a single-column host takes its content
+- **Inside.** A flex column. The sheet itself scrolls (`overflow-y: auto`).
+  A cascade host asks for the whole sheet height with the `vh` fallback declared first (`globals.css:3017-3018`); a single-column host takes its content
   height up to that.
 - **Minimum heights and caps.** The panel's minimum heights (`.jp-popover__body` 360, `.jp-popover__frame` 60vh, the 360 px results and frame body) are reset by rules in `app.css` scoped to the
   attribute, without `!important`. The browse columns' `60vh` cap moves from an inline style (`jobb-filter-popover.tsx:378,443`) to one `app.css` rule with the same computed value when anchored and a
   reset in a sheet; the inline `overflowY` duplicated `globals.css:1807` and is dropped.
 - **`overscroll-behavior: contain`** on every scroller in a sheet (`globals.css:4734`).
 - **Yrke's stacked answer** (ADR 0180 D5, the container query below 560 px) has one scroller in a sheet: at most one vertical scroller sits between the band or the field and the footer, the stacked
-  columns lose their caps, and the results box scrolls as one (DR Major 5).
+  columns lose their caps (DR Major 5).
 - **The anchored DOM** carries no sheet-only attribute, class or element; they exist only in a sheet.
 
 ### D10 — The drill-down: a sheet shows one column at a time (CTO (l); DR Blocker 4, Majors 3 and 4; TW M4; DA)

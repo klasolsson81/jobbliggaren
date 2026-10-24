@@ -13,6 +13,9 @@
   "explainers": {
     "heading": "Relaterade sidor"
   },
+  "related": {
+    "heading": "Andra jobb i samma yrkesgrupp"
+  },
   "gone": {
     "title": "Annonsen är inte längre tillgänglig",
     "body": "Sista ansökningsdagen kan ha passerat eller så har annonsen tagits bort."

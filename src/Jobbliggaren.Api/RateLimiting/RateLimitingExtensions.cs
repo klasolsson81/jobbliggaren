@@ -32,6 +32,7 @@ public static partial class RateLimitingExtensions
     public const string PublicJobAdReadPolicy = "public-job-ad-read";
     public const string PublicJobAdListedIdsPolicy = "public-job-ad-listed-ids";
     public const string PublicJobAdCataloguePolicy = "public-job-ad-catalogue";
+    public const string PublicJobAdRelatedPolicy = "public-job-ad-related";
     public const string MeListReadPolicy = "me-list-read";
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
@@ -366,6 +367,13 @@ public static partial class RateLimitingExtensions
             // sitemap's, so a crawler walking the catalogue cannot drain the job pages' budget, or the reverse. Each
             // call reads at most a page of rows by primary key; the limit protects availability, not confidentiality.
             AddIpTokenBucketPolicy(options, PublicJobAdCataloguePolicy, rateLimitOpts.PublicJobAdCatalogue);
+
+            // Partition: IP. The related ads under a public job page (ADR 0182), its own budget beside the detail's, so
+            // the section can never starve the ad itself (least common mechanism). The page calls it once per view
+            // against the detail's two calls, so the detail budget binds first. Each call is a primary-key read and one
+            // group's indexed read; the limit protects availability, not
+            // confidentiality.
+            AddIpTokenBucketPolicy(options, PublicJobAdRelatedPolicy, rateLimitOpts.PublicJobAdRelated);
 
             // Partition: UserId (claim "sub"). Auth-gated GET-ytor under /me/* +
             // /applications/pipeline + /resumes (Pre-4 STEG 5, TD-92). Egen policy
@@ -880,11 +888,11 @@ public static partial class RateLimitingExtensions
         };
 
     /// <summary>
-    /// The anonymous public job-ad reads' shared mechanism (ADR 0160 D5, ADR 0174 D5, ADR 0176): a TokenBucket per
-    /// client IP, refilled in <see cref="RateLimitingOptions.PolicyOptions.SegmentsPerWindow"/> slices so a crawler that
-    /// honours Retry-After recovers softly, with no queue. Never a per-user partition, which would give an anonymous
-    /// caller NoLimiter. The IP is real only behind the trusted X-Forwarded-For; if the apex ever gets an AAAA record,
-    /// the partition becomes the /64 here, once, for every surface that uses it.
+    /// The anonymous public job-ad reads' shared mechanism (ADR 0160 D5, ADR 0174 D5, ADR 0176, ADR 0182): a
+    /// TokenBucket per client IP, refilled in <see cref="RateLimitingOptions.PolicyOptions.SegmentsPerWindow"/> slices
+    /// so a crawler that honours Retry-After recovers softly, with no queue. Never a per-user partition, which would
+    /// give an anonymous caller NoLimiter. The IP is real only behind the trusted X-Forwarded-For; if the apex ever
+    /// gets an AAAA record, the partition becomes the /64 here, once, for every surface that uses it.
     /// </summary>
     private static void AddIpTokenBucketPolicy(
         RateLimiterOptions options, string policyName, RateLimitingOptions.PolicyOptions budget)

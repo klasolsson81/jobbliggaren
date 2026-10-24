@@ -3,14 +3,16 @@ using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.JobAds.Queries.GetListedJobAdIds;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
+using Jobbliggaren.Application.JobAds.Queries.GetRelatedPublicJobAds;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
 
 /// <summary>
-/// The anonymous reads of job ads: one ad (ADR 0160), the ids of one job-sitemap part (ADR 0174) and one page of the
-/// public catalogue (ADR 0176). Their own group, outside the authenticated <c>/api/v1/job-ads</c>: anonymous by omitting
-/// <c>RequireAuthorization</c>, each with its own IP-partitioned policy.
+/// The anonymous reads of job ads: one ad (ADR 0160), the ids of one job-sitemap part (ADR 0174), one page of the
+/// public catalogue (ADR 0176) and the related ads under one ad's page (ADR 0182). Their own group, outside the
+/// authenticated <c>/api/v1/job-ads</c>: anonymous by omitting <c>RequireAuthorization</c>, each with its own
+/// IP-partitioned policy.
 /// </summary>
 public static class PublicJobAdsEndpoints
 {
@@ -27,6 +29,15 @@ public static class PublicJobAdsEndpoints
                 return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemResult();
             })
             .RequireRateLimiting(RateLimitingExtensions.PublicJobAdReadPolicy);
+
+        // The id alone: the group, the places and the order are read from the anchor's row, never from the request.
+        // Every anchor that is not listed is the same 404, so this route tells strictly less than the detail above.
+        group.MapGet("/{id:guid}/related", async (Guid id, IMediator mediator, CancellationToken ct) =>
+            {
+                var result = await mediator.Send(new GetRelatedPublicJobAdsQuery(id), ct);
+                return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemResult();
+            })
+            .RequireRateLimiting(RateLimitingExtensions.PublicJobAdRelatedPolicy);
 
         // A 503 is the availability axis, which the ErrorKind union does not model (AGENTS.md §3, like the 401 arm):
         // the snapshot is missing or outside its bound, and a crawler must retry rather than read a removal.

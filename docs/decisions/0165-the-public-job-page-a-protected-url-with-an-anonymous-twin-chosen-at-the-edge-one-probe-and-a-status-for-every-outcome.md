@@ -343,3 +343,16 @@ rule, with its vendor page cited. `Google-Extended` stays allowed, as Klas chose
 **3. No ADR 0166 re-take and no notice change.** `security-auditor` (stage B, §5): blocking a crawler narrows copying and adds no recipient.
 
 ADR 0165 remains **Accepted**.
+
+## Amendment 2026-10-23 (#2090 S6b, ADR 0182) — D3: a 200 view also makes one related read, on its own budget
+
+D1–D7 and the earlier amendments stand and nothing above is rewritten. This amendment records what the S6b PR settles in D3; the reasoning is in ADR 0182.
+
+**D3: a 200 view makes two reads on the page's budget and one on the related budget.** The render also reads the related ads (`getPublicJobAdRelated`), in parallel with its own read and
+only in the page body, never in `generateMetadata`. That read is on `public-job-ad-related`, 60 per 60 s per IP (ADR 0182 D4), not on the page's bucket, so D3's "about 30 ads a minute"
+stands: each view spends two of the page's tokens and one of the related ones, and the page's budget binds first. A 404, 410 or 503 from the probe still makes one read and no related read,
+because the page is never rendered (the smoke pins both counts). The race D2 describes (probe 200, render 404) spends one related read for nothing. The related read has a 2-second timeout,
+and any failure leaves its section out with the page still a 200, so the worst case adds at most that bound to the time to first byte. The client address is relayed on the related call
+too, through `forwardedHeaders()`, with a test of the key set.
+
+ADR 0165 remains **Accepted**.

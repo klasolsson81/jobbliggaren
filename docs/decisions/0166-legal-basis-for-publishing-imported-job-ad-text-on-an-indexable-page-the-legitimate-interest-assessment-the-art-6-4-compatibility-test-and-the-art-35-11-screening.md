@@ -793,3 +793,164 @@ driving session through AskUserQuestion). The questions are quoted as asked, and
 refusal class. A reading appended under this rule does not reopen the signature unless it fires trigger 14. Reading: pending: the first run on `main` after the merge.
 
 ADR 0166 remains Accepted for D1–D11; this amendment is **Accepted** (approved by Klas 2026-10-18 and signed by `security-auditor` 2026-10-19).
+
+## Amendment 2026-10-23 (#2090 S6b, ADR 0182) — the D10 re-take for the related section on a job page; approved by Klas 2026-10-23, signed by `security-auditor` 2026-10-24
+
+D1–D11 and the earlier amendments stand and nothing above is rewritten. D10's trigger 1 fires for S6b on its head clause, "any widening of the public surface" (`senior-cto-advisor`, F6;
+`security-auditor` agrees). Three reasons: the related read is a new anonymous read surface, the first since S5; the job page now carries other ads' titles and employers, from a read it did not
+make before, so S3's decisive ground (the value comes from the read the page already makes) fails for it; and the section puts an occupation × place grouping of listed ads on every listed ad's
+page, the axis that stage B gates for hubs. The conclusion is withdrawn **for the related section only**: the read `GET /api/v1/public/job-ads/{id}/related`, the section on `/jobb/<uuid>`
+and the reach it gives a reader. The page, the sitemap, the catalogue and the Search Console read path keep their conclusions. Two signatures of `security-auditor` lapse "with any D10 trigger
+that fires after it", by their own words: the S5 signature of 2026-10-18 and the Search Console signature of 2026-10-19. Read with D10's scope rule, neither lapse withdraws anything, and both are
+renewed in the Signature below (her S15). Klas took the conclusion again for the section on 2026-10-23 (sign-off below). This amendment is the single home of the legal outcome for the section:
+ADR 0182 D6 points here and does not restate it. It follows `security-auditor`'s M1, D by D, and her M2, M3, m2, m3 and S1–S16, in her plan read of 2026-10-23
+(`docs/reviews/2026-10-23-2090-s6-plan-security-auditor.md`, local). The merge waits for her signature. Without it the processing would rest on a withdrawn conclusion, and the notice's "Vi har
+vägt de intressena mot dina rättigheter" would be untrue for the section (Art. 5(1)(a), 12(1), 14(2)(b)).
+
+**D1: unchanged,** and applied to the section as written. A visitor who has found one ad is shown the work, and other employers, in the same occupation group.
+
+**D2, necessity: re-taken.**
+- *Why the section is needed.* A visitor who lands on one job page from a search has no way to the next relevant ad without an account: the catalogue is newest first across Sweden and has no
+  group or place filter. The section exists for that visitor, not for search (stage B, `:186`).
+- *Its own minimisation:*
+  - six row members, the catalogue's, and no free text or excerpt;
+  - at most five rows, and at most one per employer, never the page's own employer;
+  - every selection key read from the anchor's row on the server, and no parameter a caller can supply;
+  - content read and classified per request through `JobAdPublication.IsListed(now)`;
+  - the section in `data-nosnippet`;
+  - nothing of it in the title, meta, OpenGraph or Twitter tags or in any JSON-LD;
+  - no count and no "see more" link.
+- *Alternatives the amendment names:*
+  - no section: the visitor's path to the next relevant ad is not met;
+  - a national, newest-first order: it costs the section its purpose and buys no Art. 9 reduction (below);
+  - filling across groups by place: a related list with no relation, in practice a per-ad place listing;
+  - a link from the section to a list of the group or the place: a new public page, which is trigger 1.
+
+**D3: unchanged.**
+
+**D4, the weights:**
+- **W1: unchanged.** The section carries no free text.
+- **W2: re-weighed.** The employer name is the section's main personal datum, and for a sole trader it can be a personal name. The section puts a name on more URLs than the catalogue does
+  (every listed page in the group where the ad ranks among the first five employers), and on URLs that change more slowly: a job page is a stable address for as long as its ad is listed, and
+  does not shift its rows at a five-minute refresh. Measured on 2026-10-23 at 18:38 UTC, counts only, on the box: 0 of the 44 290 listed ads that carry an organization number carry a
+  personnummer-shaped one; 426 of 44 716 listed ads carry none, and their kind is unknown. The stock is read again on the merge day with D11. The 426 take no part in the section: an employer is
+  its organization number (ADR 0182 D1). Rows are kept out of snippets and AI answers on both engines. *Left:* both engines still index the marked text, so another ad's page can match a name until that page's next crawl.
+- **W3:** handled by D11.
+- **W4: re-weighed.** An anchor page's index copy holds a related row until that page's next crawl. *Done:* snippet and AI-answer copies are suppressed; link previews carry no row, because the
+  page's metadata is built from the anchor's own fields. *Left:* the index association until recrawl, and web-archive snapshots of job pages, out of reach.
+- **W5: unchanged in kind.** The section offers no join the catalogue does not: the same six values, for ads the catalogue already lists. An erased ad leaves every section at once.
+- **Art. 9.** Ads for personal assistance can describe the person who is to receive the assistance. The section shows no ad text. Ads about one assisted person come from one provider, and the
+  section knows a provider by its organization number, takes at most one row per employer, never the page's own, and no ad without a number, so two ads about one person never stand in one section, on any page (ADR 0182 D1: the rule is load-bearing for Art. 9 as
+  well as for relevance). Ads about different persons in one small kommun can stand side by side; that reveals nothing about any of them beyond what each row already shows on its own page and
+  in the catalogue. `security-auditor` grades the kommun × group juxtaposition neither Blocker nor Major, so the CTO's pre-ruled national fallback does not apply: it would put rows from the same
+  group on the same number of pages, changing which rows appear and not what they carry. None of the three triggers of the Amendment 2026-10-11 fires: no request or complaint, no measurement
+  asked for, and the same public readers on the same pages, so no new register of bearers. Whether Klas's decision of 2026-10-11 covers the section was his to say and was not inferred: he
+  answered that it does (sign-off, answer 1). Her Art. 9 Blocker keeps its grade and stays unsigned.
+
+**D5 gains S6b's safeguards:**
+- the six-member row, pinned by a contract test, a wire test and a boundary test, in an envelope of exactly one member, `items`;
+- the employer is its organization number, and an ad without one takes no part, as a row or as an anchor; the number stays in the handler and is never on
+  the wire or in a log;
+- the route binds `{id:guid}` alone, and the query has one member, `Id`;
+- every anchor that is not listed answers the identical 404 (unknown, never imported, archived, past its deadline, erased), with the predicate in the anchor read;
+- content per request through `IsListed(now)`, never the entity, never a SQL copy of the predicate;
+- `no-store` on the related route's 200, 400, 404 and 429;
+- the policy `public-job-ad-related`, 60 per 60 s per relayed client address, its own, never shared;
+- the web reader relays only `pickForwardedHeaders`, with a 2-second timeout, and any failure leaves the section out;
+- the section in one `<section data-nosnippet>`, only on a listed ad's 200, and nothing of it in metadata or JSON-LD;
+- plain anchors on rows;
+- no log line carrying a title, an employer or an id.
+
+**D6:** (c) unchanged. (d) updated by W2, W4 and W5 above. (e) is D5.
+
+**D7: no change,** and both texts were measured by `security-auditor` on 2026-10-23: the notice and the policy read as they did at S5. The categories
+(title, employer) and the recipients (the public, and search engines) are unchanged. The notice's "Vi har vägt de intressena mot dina rättigheter" becomes true for the section only at Klas's
+approval, so the merge cannot come before it. Signature 3's pinned text does not change.
+
+**D8: a fourth addendum to DPIA #456 §8-B,** and not a new full DPIA (Klas, answer 2). The third addendum's R-842-10 is limited by "A page's rows shift when the listed set changes, at the
+five-minute refresh", which is not true of the section on a stable job page. The fourth addendum is a local file, written in the main copy by the driving session on these terms (her M2):
+1. R-842-10 gains the related section and a limit that is true for it, and states that the section takes no row without an organization number and that an ad without one gets no
+   section. Her reading: **Low × Med**, unchanged. The stock counts are read again, counts only, with D11.
+2. R-842-9 is unchanged at **Med × Med**: the section gives no join beyond the catalogue's.
+3. R-842-1, R-842-3, R-842-4 and R-842-8 are unchanged, because the section carries no free text.
+4. The Art. 36(1) determination is re-confirmed: **not a high risk, so no prior consultation with IMY is owed.**
+5. The Art. 9 row is untouched.
+
+Klas approved the **form** of the addendum on 2026-10-23 (answer 2), and its **text** on 2026-10-24 (answer 3), with `security-auditor`'s corrections (a)–(e) applied and
+senior-cto-advisor's choice (i) for the ads without an organization number.
+
+**D9: unchanged.**
+
+**D10.** Trigger 1 fired for the related section, and Klas took the conclusion again for it on 2026-10-23. This withdraws no finding and none of D4's residuals. Three triggers are added,
+continuing the numbering after the amendments of 2026-10-17 (5–7), 2026-10-18 for S4 (8–9), 2026-10-18 for S5 (10–12) and 2026-10-18 for the Search Console read (13–14). Their wording is
+`security-auditor`'s (her answer 4):
+
+15. Any of these: a related row member outside the six of `PublicJobAdSummaryDto`; any other value of another ad anywhere on a job page; a related value in the page's title, meta, OpenGraph
+    or Twitter tags, or in any JSON-LD; the related section rendered without `data-nosnippet`; the section on any answer other than a listed ad's 200 at `/jobb/<uuid>`.
+16. A related row, or the anchor that selects it, whose content is not read and classified through `JobAdPublication.IsListed(now)` at request time. That covers content from the listed-ad
+    snapshot, a precomputed or materialised table, any process or Next cache, ISR, a static render or a CDN, and a hand-written copy of the predicate.
+17. Selection widened beyond the anchor-keyed rule. The rule is: the anchor's own occupation group; same kommun, then same län, then the rest, newest first; at most one row per employer and
+    never the anchor's; at most five; no fallback across groups or by place alone. Widening means any of these: a selection key other than those; a second row per employer, or the anchor's own
+    employer; a cap above five; any key, filter, sort or place a caller can supply, by query, path, header or cookie; any selection keyed by the visitor (sign-in state, history or location); a
+    link from the section to a list of the group or the place. Such a list at its own address is a new public page, which is trigger 1. Dropping a tier is a narrowing and is deliberately not a
+    trigger.
+
+The readings recorded with them:
+- **Trigger 2:** the merge-day reading in D11.
+- **Trigger 5:** not fired. Nothing is pushed to anyone.
+- **Triggers 6 and 7:** not fired. `buildJobPosting` takes the anchor's DTO only, and the group test pins JSON-LD to one file.
+- **Triggers 8 and 9:** not touched. The sitemap is unchanged.
+- **Triggers 10–12:** not fired. The catalogue's markup is unchanged by `PublicJobAdList`'s two new props (a render hashed the same before and after), and its membership, order and count are
+  untouched.
+- **Triggers 13 and 14:** not touched. The Search Console workflow, its script, suite and samples are unchanged.
+
+**D11: the merge-day reading (W3).** D11 is condition (1) of the conclusion being re-taken, and a reading is dated. The section puts listed titles and employers on more pages. S6b takes a fresh
+S2-P3 reading on the day of the merge: the same query blob (`8c02e37`), counts only, on the merge's UTC day, before `agents-done`. The validated count must be 0. The same reading takes the R-842-10 stock again, totals
+only: listed, with an organization number, personnummer-shaped, without one, and listed with an organization number that is not ten characters, which must be 0, since both the
+personnummer-shaped test and the employer key assume that one form (a count above 0 goes back to `senior-cto-advisor`). It is recorded in two places: here, and in the record table of
+`docs/runbooks/public-job-page-publication-count.md`. A count above 0 fires trigger 2, and S6b stops. If the merge slips past that UTC day, the reading is taken
+again.
+
+**The merge-day reading (counts only).** 2026-10-24 at 03:18 UTC, query blob `8c02e37`, on release sequence 1657 (source `515b7424b`), `--status` consistent before (03:17:58Z) and after
+(03:18:18Z): listed 43 602, shaped 215 (all in the description), **validated 0**, link host not Arbetsförmedlingen 0. The R-842-10 stock, the same minute, totals only: listed 43 602, with an
+organization number 43 185, personnummer-shaped 0, without one 417, with one that is not ten characters 0.
+
+**What the signature reads with** (her S1–S16). She signs at her scoped re-check of the S6b PR's final head, read with ADR 0182 as delivered and with the fourth DPIA addendum as Klas approves
+its text. The delivered properties are those of D5 above and ADR 0182 D1–D5. Scope (her S14): no migration, package, `deploy/` diff, `proxy.ts` edit or ACL change; no new recipient,
+sub-processor, transfer or PII field; nothing pushed; edge exposure unchanged.
+
+**Her S5 and Search Console signatures, and their renewal (her S15).** Both lapse by their own words now, because trigger 1 fires after them; read with D10's scope rule, neither lapse withdraws
+anything. She renews them in the same signature on two conditions:
+- **S5:** S5's tests pass, with only the stated `PublicJobAdList` call-site delta (`git diff -U0`: no assertion line touched), and the S5 properties are re-verified at the S6b head.
+- **Search Console:** the workflow, its script, suite and samples, and the `google-github-actions/auth` pin are byte-unchanged at the S6b head.
+
+**Sign-off**
+
+**Controller approval:** Klas Olsson, 2026-10-23, in the session's chat, to `security-auditor`'s escalation (`docs/reviews/2026-10-23-2090-s6-plan-security-auditor.md`, relayed verbatim by the
+driving session through AskUserQuestion). The questions are quoted as asked, and his answers without edits:
+1. To her question 2, on the re-take:
+
+   > 2. **S6b: godkänner du omprövningen för sektionen med liknande annonser på annonssidan?** Trigger 1 utlöses, eftersom sidan nu visar andra annonsers titel och arbetsgivare. Omprövningen gäller bara sektionen. Annonssidan, kartan och katalogen behåller sina slutsatser. Tillägget säger:
+   >    - Syftet är oförändrat. Sektionen visar upp till fem andra öppna annonser i samma yrkesgrupp, först i samma kommun, sedan i samma län och sedan i resten av landet, nyast först. Den tar högst en annons per arbetsgivare och aldrig annonsens egen arbetsgivare. Varje rad visar samma sex uppgifter som katalogen, aldrig annonstext. Urvalet styrs bara av annonsen själv, så ingen besökare kan välja yrke eller ort. Sektionen märks så att Google och Bing inte citerar den, och inget ur den hamnar i sidans titel, beskrivning eller förhandsvisning.
+   >    - Det som tillkommer: en arbetsgivares namn, som för en enskild firma kan vara ett personnamn, syns på fler sidor och kan ligga kvar där längre än i katalogen, eftersom en annonssida inte byter rader var femte minut. Sökmotorerna indexerar ändå texten, och en kopia hos dem eller i ett webbarkiv kan vi inte nå. En raderad annons försvinner direkt ur alla sektioner. Eftersom det högst är en annons per arbetsgivare försvinner annonser som raderats på samma begäran aldrig samtidigt ur en sektion.
+   >    - Art. 9: annonser för personlig assistans kan beskriva den som ska få assistansen. Sektionen visar ingen annonstext, och regeln om en annons per arbetsgivare gör att två annonser om samma person aldrig står i samma sektion. Annonser om olika personer i samma lilla kommun kan stå bredvid varandra, men det avslöjar inget om någon av dem utöver det varje rad redan visar på sin egen sida. Jag kräver därför inte att ordningen efter kommun och län tas bort. Tillägget skriver att ditt beslut från 2026-10-11, att inte undanta någon yrkesgrupp, gäller även sektionen. Mitt Blocker-fynd står kvar med sin gradering.
+   >    - Personnummerräkningen (S2-P3) görs om samma dag som S6b mergas, bara som antal, och måste visa 0.
+   >    - Notisen och integritetspolicyn stämmer som de står och ändras inte.
+   >    - Tre nya triggers (15–17) läggs till. Den första gäller en uppgift i sektionen utöver de sex, eller sektionen utan märkningen eller i sidans titel och beskrivning. Den andra gäller innehåll som inte läses vid varje visning. Den tredje gäller ett bredare urval än annonsens egen yrkesgrupp och ort, eller något som en besökare kan välja.
+   >    - Mina signaturer för katalogen (2026-10-18) och för Search Console-läsningen (2026-10-19) förfaller enligt sina egna ord när trigger 1 utlöses. Det drar inte tillbaka något från dem, och jag förnyar båda när jag signerar.
+   >
+   >    (Rek.: Ja. Svarar du nej mergas inte S6b.)
+
+   "Ja (Rek.)": the re-take of this ADR's conclusion for the related section, as D1–D11 above list it, including that his decision of 2026-10-11 covers the section, and triggers 15–17.
+2. To her question 3, on the DPIA:
+
+   > 3. **Godkänner du ett fjärde tillägg till DPIA:ns §8-B, inte en ny full DPIA och inget förhandssamråd med IMY?** Tredje tillägget säger att en enskild firmas namn visas på annonssidan, i Googles jobbdata och i katalogen, och att katalogens rader byts var femte minut. För sektionen stämmer inte det sista. Tillägget lägger till sektionen och skriver vad som gäller för den. Jag föreslår att bedömningarna står kvar: Låg × Medel för namnet och Medel × Medel för raderingsrisken. Räkningen av enskilda firmor görs om samma dag som mergen. Art. 9-raden berörs inte. Du godkänner texten när den är skriven. (Rek.: Ja. Utan tillägget signerar jag inte, och då mergas inte S6b.)
+
+   "Ja (Rek.)": a fourth addendum to DPIA #456 §8-B and not a new full DPIA, and no Art. 36 prior consultation, on the ratings in D8.
+3. To the question, asked 2026-10-24 after her round-1 escalation and senior-cto-advisor's ruling were relayed to him verbatim, "Godkänner du texten i det fjärde DPIA §8-B-tillägget
+   (S6b) som den står ovan, med CTO:ns val att annonser utan organisationsnummer hålls utanför sektionen?": "Ja (Rek.)".
+
+**Signature:** `security-auditor`, 2026-10-24, on her scoped re-check of PR [#2210](https://github.com/klasolsson81/jobbliggaren/pull/2210) at head `9595d44b6`: signs this amendment, D1–D11 as re-taken for the related section, D10 triggers 15–17, the readings for triggers 2 and 5–14 recorded under D10, and D11's merge-day reading of 2026-10-24 at 03:18 UTC (validated 0; personnummer-shaped 0; not ten characters 0), read with ADR 0182 as delivered and with the fourth addendum to DPIA #456 §8-B as Klas approved its text on 2026-10-24 (local): a related row carries exactly the six members of `PublicJobAdSummaryDto`, in an envelope of exactly one member, `items`; `GET /api/v1/public/job-ads/{id:guid}/related` binds the id alone, the query has one member, `Id`, and every selection key is read from the anchor's row on the server; the selection is the anchor's occupation group, same kommun, then same län, then the rest, newest first, at most five rows, with no fallback across groups or by place; an employer is its organization number, and two rows with one number or one name are one employer, so a section holds at most one row per employer and never the anchor's, by number or by name; an ad without an organization number is never a row, and an anchor without one answers an empty list after the anchor read alone, without asking the taxonomy port; the organization number stays in the handler's private row, whose `ToString()` redacts it, and is never on the wire or in a log; every anchor that is not listed answers the identical uncacheable 404, with `JobAdPublication.IsListed(now)` in the anchor read, and every row's content is read and classified per request through `IsListed(now)`, never from the entity, a snapshot, a cache or a copy of the predicate; `no-store` is on the 200, 400, 404 and 429; `public-job-ad-related` allows 60 per 60 s per relayed client address, its own policy, never shared; the web reader relays only `pickForwardedHeaders`, times out at 2 s, and any failure leaves the section out; the section sits in one `<section data-nosnippet>`, only on a listed ad's 200, with plain anchors, and no related value reaches the title, meta, OpenGraph or Twitter tags or any JSON-LD; nothing of the related read is logged; nothing is pushed to anyone. The Art. 9 paragraph's "never … in one section" is signed as a property of that selection rule, on the paragraph's own premise that ads about one assisted person come from one provider. It renews, for the page, sitemap and catalogue scope, her signature of 2026-10-18 for S5, S5's tests passing at this head with only the stated `PublicJobAdList` call-site delta and no test line removed, and through it her signatures of 2026-10-18 for S4 and of 2026-10-12 and 2026-10-17 for the page; and her signature of 2026-10-19 for the Search Console read path, whose workflow, script, suite, samples and `google-github-actions/auth` pin are byte-unchanged at this head. It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override; her Art. 9 Blocker keeps its grade. It lapses with any D10 trigger that fires after it, 5–17 included (trigger 1's "any widening of the public surface" for the related section is the firing this amendment answers), and with any change to this amendment's text, to the properties above or to that addendum. A merge after 2026-10-24 UTC needs a fresh reading appended to D11 under its own rule, which does not reopen it unless its validated count is above 0, which is trigger 2, or its stock reads a personnummer-shaped organization number or one that is not ten characters. The edit that writes this line, updates the amendment's heading and marks the amendment Accepted does not reopen it.
+
+ADR 0166 remains **Accepted** for D1–D11 for the page, and for the sitemap and the catalogue by their amendments. This amendment is **Accepted** (approved by Klas 2026-10-23 and 2026-10-24, and signed by
+`security-auditor` 2026-10-24).

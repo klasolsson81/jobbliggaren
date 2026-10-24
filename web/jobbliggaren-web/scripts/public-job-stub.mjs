@@ -1,6 +1,6 @@
 /**
- * The stub backend of the public job page, the sitemap's job parts and the public catalogue (ADR 0165, ADR 0174 and
- * ADR 0176, SEO epic #2090). One stub, two readers:
+ * The stub backend of the public job page, its related ads, the sitemap's job parts and the public catalogue (ADR 0165,
+ * ADR 0182, ADR 0174 and ADR 0176, SEO epic #2090). One stub, two readers:
  *
  * - `public-job-smoke.mjs` asserts the HTTP contract against it, and sets the modes below to reach every outcome.
  * - `lighthouse-server.mjs` serves the pages Lighthouse measures from it, in the default mode, so a measured page is
@@ -10,7 +10,9 @@
  * one, the budget (429), an outage (500), and the two races where the render's read disagrees with the probe's. It
  * answers the sitemap's parts in a mode a check sets: the ids, an outage, the budget, its own 503, ids in the wrong case,
  * or an answer held past the web's timeout. It answers the catalogue's pages in a mode too: three pages of rows, a page
- * past the end, the budget, its own 503, an outage, or an answer held past the web's timeout. Any other path is a 401.
+ * past the end, the budget, its own 503, an outage, or an answer held past the web's timeout. It answers the related ads
+ * in a mode too: five rows under the listed ad and none under the one without a kommun, the budget, an outage, a row
+ * with a member beyond the six, or an answer held past the web's 2-second timeout. Any other path is a 401.
  */
 import { createServer } from "node:http";
 
@@ -125,6 +127,40 @@ function answerCatalogue(url, res, send) {
   }
 }
 
+/** The related rows under the listed ad: five employers, one row each, the last with no place (ADR 0182). */
+export const relatedRow = (n) => ({
+  id: `bbbbbbbb-0000-4000-8000-${String(n).padStart(12, "0")}`,
+  title: `Distriktssköterska ${n}`,
+  companyName: `Vårdgivare ${n} AB`,
+  municipalityName: n < 3 ? "Stockholm" : n < 5 ? "Solna" : null,
+  regionName: n < 5 ? "Stockholms län" : null,
+  publishedAt: `2026-10-0${n}T08:00:00+00:00`,
+});
+/** How the stub answers the related ads; a check sets it, and the checks reset it to "ok". */
+export const related = { mode: "ok" };
+
+function answerRelated(id, res, send) {
+  const items = id === ID.listed ? [1, 2, 3, 4, 5].map(relatedRow) : [];
+  switch (related.mode) {
+    case "ok":
+      return id === ID.listed || id === ID.listedNoKommun ? send(200, JSON.stringify({ items })) : send(404, "{}");
+    case "budget":
+      return send(429, "{}", { "retry-after": "9" });
+    case "tooWide":
+      return send(200, JSON.stringify({ items: [{ ...relatedRow(1), description: "En text som aldrig får visas." }] }));
+    case "timeout": {
+      // Held past the web's 2-second timeout, so only the web's own clock can end the read.
+      const held = setTimeout(() => {
+        if (!res.destroyed) send(200, JSON.stringify({ items }));
+      }, 7_000);
+      res.on("close", () => clearTimeout(held));
+      return undefined;
+    }
+    default:
+      return send(500, "{}");
+  }
+}
+
 export function stubHandler(req, res) {
   seen.push({ method: req.method, path: req.url, headers: { ...req.headers } });
 
@@ -137,6 +173,10 @@ export function stubHandler(req, res) {
   }
   if (url.pathname === "/api/v1/public/job-ads/catalogue") {
     return answerCatalogue(url, res, send);
+  }
+  const relatedMatch = /^\/api\/v1\/public\/job-ads\/([0-9a-f-]{36})\/related$/.exec(url.pathname);
+  if (relatedMatch !== null) {
+    return answerRelated(relatedMatch[1], res, send);
   }
 
   const match = /^\/api\/v1\/public\/job-ads\/([0-9a-f-]{36})$/.exec(req.url ?? "");

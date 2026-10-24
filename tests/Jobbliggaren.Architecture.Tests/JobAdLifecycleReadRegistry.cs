@@ -152,6 +152,16 @@ public static class JobAdLifecycleReadRegistry
                     + "public catalogue (ADR 0176). The ids are a slice of the listed-ad snapshot; the content is read "
                     + "and classified again now, so an ad that ended or was erased after the snapshot's read is absent. "
                     + "A narrow row: id, title, company name, kommun and län ids, publication date.")),
+            ["Jobbliggaren.Application.JobAds.Queries.GetRelatedPublicJobAds.GetRelatedPublicJobAdsQueryHandler.Handle"] =
+            [
+                Active(".Where(j.Id == id).Where(JobAdPublication.IsListed(now)).Select(group, kommun, län, company, org.nr) — "
+                    + "the related section's anchor (ADR 0182). The predicate is in the read, so a non-listed anchor reads no "
+                    + "row and answers the same 404 whatever its state."),
+                Active(".Where(JobAdPublication.IsListed(now)).Where(group == the anchor's, Id != the anchor, org.nr set and "
+                    + "not the anchor's, company != the anchor's).OrderBy(CASE tier rank).ThenByDescending(PublishedAt)"
+                    + ".ThenBy(Id).Take(CandidateWindow) — the related candidates, read and classified per request. A narrow "
+                    + "row: id, title, company name, org.nr (the handler's own key), kommun and län ids, publication date."),
+            ],
             ["Jobbliggaren.Application.CompanyWatches.Queries.NewFollowedCompanyAdSet.NewHits"] =
                 One(Active("join JobAds where j.Status == Active — the single definition of the follow "
                     + "rail's new-ad set, shared by the /oversikt count and the destination it links to "

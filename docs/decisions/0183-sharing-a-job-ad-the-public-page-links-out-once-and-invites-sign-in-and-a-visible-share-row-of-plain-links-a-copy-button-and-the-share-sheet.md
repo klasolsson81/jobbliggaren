@@ -440,3 +440,67 @@ The tests pin, in the order of the decisions:
   edition for the earlier X figures · Meta for Developers, Send Dialog reference and Share Dialog reference, read 2026-10-24 · Google Search Central, read 2026-10-24: *Crawl budget management*
   (updated 2026-07-22), *Qualify outbound links* (updated 2025-12-10). These pages change; the dates say what was read.
 - #2214 · #2090 · #2191 · #2092 · #2094 · #2193
+
+---
+
+## Amendment 2026-10-24 — PR 3: the share row on the signed-in modal and the signed-in `/jobb/[id]`
+
+PR 3 of #2214 delivers what D6 ("What PR 3 carries") reserved to this PR's plan read. It amends D6 only
+where it names the mechanics D6 deferred; D4, D5 and D7 are unchanged, and the reused `ShareJobAd` family
+(D4–D6) ships byte-unchanged.
+
+**Measured against** the branch `feat/share-modal` in `C:/tmp/jbl-share-modal`, cut from `origin/main`
+(`92fb5d4ac`, which already contains PR 1 `d44980358`), on 2026-10-24.
+
+**Plan reads (report-only, before code; CLAUDE.md §9.2),** local files
+`docs/reviews/2026-10-24-share-modal-{dotnet-architect,security-auditor,design-reviewer,test-writer}.md`:
+- **dotnet-architect:** `bool IsListed`, not the whole `JobAdPublicationState` (the client needs one bit; the
+  enum would re-invite a client-side map, the second copy of the gate D6 forbids). The handler projection is
+  byte-identical to the shipping `GetPublicJobAdQueryHandler` (ADR 0160), so the Npgsql translation of
+  `External?.Source` is already proven in production; a Testcontainers test is owed for the *value per state*,
+  not the translation. 0 Kritiskt.
+- **security-auditor:** M-2 satisfied — listedness is the one `JobAdPublication` verdict, from the import
+  provenance (`External?.Source`), never the user-settable `JobAd.Source`. `noreferrer` (D4, load-bearing in
+  PR 3) holds through the reused component; the `bool` surfaces no PII/org.nr; no D10 trigger fires (D7,
+  Klas's answers #1/#2 stand). 1 Major (binding: the diff must feed `External?.Source`, not `row.Source` —
+  honoured), 1 Minor (make `isListed` non-optional), no escalation to Klas.
+- **design-reviewer:** placement, heading level and spacing confirmed. The share row is the **last child of
+  `JobAdDetail`'s body**, after the description and the contact card, never the footer (#2193); the body's
+  `flex gap:20px` spaces it, so no CSS change. `headingLevel={3}` in the modal is required, not merely nice:
+  the modal shell's focus trap targets `h2[tabindex="-1"]`, so a new h2 in the body would break it; `{2}` on
+  the full page. The sibling sections' `jp-eyebrow` divs are out of scope and unchanged. 1 Major (the gate +
+  the guest exclusion must land — they did), 1 Minor (verify `publicjob` resolves on `(app)` — it does:
+  `JobAdDetail` renders server-side and `i18n/request.ts` loads every namespace).
+- **test-writer:** all five backend premises are production-reachable (the named trap — `Source="Platsbanken"`
+  with no `External` — is exactly what `POST /api/v1/job-ads` → `JobAd.Create` produces). The FE fixture
+  default is `isListed:false`, so the existing footer-button-order test is unaffected.
+
+**D6, as delivered.**
+- **The DTO member.** `JobAdDetailDto` gains `bool IsListed`, set by `GetJobAdQueryHandler` to
+  `JobAdPublication.Classify(status, expiresAt, External?.Source, clock.UtcNow) == Listed`. The handler now
+  injects `IDateTimeProvider`; the projection mirrors `GetPublicJobAdQueryHandler` exactly
+  (`ImportedFrom = j.External != null ? j.External.Source : null`, `j.Status` whole). `Source` stays the
+  user-settable string the DTO already carried and is never fed to `Classify`. `IsListed` is detail-only,
+  locked by `JobAdListDtoShapeTests.List_dto_omits_is_listed_detail_dto_keeps_it`.
+- **The reuse.** `JobAdDetail` renders `ShareJobAd` as the last child of its body, gated on `jobAd.isListed`,
+  `headingLevel={inModal ? 3 : 2}`, labels from `useShareJobAdLabels()` resolved server-side and handed to the
+  island as props. The URL is always `publicJobAdUrl(id)` (the reused component builds it from the id), never
+  the signed-in route or its search state.
+- **The guest surfaces.** `JobAdDetail` is shared by the signed-in modal and page and the two guest routes.
+  The guest adapter (`toJobAdDetail`) sets `isListed: false`, so the row never renders in the guest modal or
+  page — "the guest modal is outside this reading" (D6) is enforced by the one gate, with no separate flag.
+- **The Zod schema.** `isListed: z.boolean().default(false)`. The inferred output type is required, so every
+  DTO producer must set it (security-auditor Minor 2); the default only fills a wire that omits it (a web/api
+  image-build skew) and fails safe — a missing value hides the row, never shows it (test-writer). This
+  reconciles the two agents' guidance on one line.
+
+**D7 is unchanged.** PR 3 fires no ADR 0166 D10 trigger (security-auditor's second plan read, Klas's answers
+#1/#2). The modal is a signed-in surface (trigger 1 reads it as no new public page), the anchors carry only
+the canonical public address, nothing is pushed or recorded at the click, and the component is reused
+byte-unchanged.
+
+**This PR adds** one DTO member, the handler's clock, the FE gate and its one gating prop, the guest adapter's
+`isListed:false`, and tests (handler Classify modes, a Testcontainers read-surface test
+`JobAdListedReadSurfaceTests`, the DTO-shape lock, the FE share-row tests). It adds no migration, no package,
+no CSS, no i18n key (the `publicjob.share.*` keys are reused), and no `deploy/` change.
+`hotspot:i18n`/`hotspot:css` are not claimed (Klas, 2026-10-24).

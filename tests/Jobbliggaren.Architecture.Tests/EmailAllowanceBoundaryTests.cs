@@ -70,11 +70,18 @@ public class EmailAllowanceBoundaryTests
                 "System.Net.Http",
                 "System.Text.Json.JsonDocument",
                 "System.Text.Json.Utf8JsonReader",
-                "System.Text.Json.JsonSerializer")
+                "System.Text.Json.JsonSerializer",
+                // #1981 PR 4a: the DMARC report's wire format, its compression and the mailbox transport are the
+                // adapters' too. System.Net.Sockets stays allowed: an address family is vocabulary, not transport.
+                "System.Xml",
+                "System.IO.Compression",
+                "System.Net.Security",
+                "MailKit",
+                "MimeKit")
             .GetResult();
 
         result.IsSuccessful.ShouldBeTrue(
-            $"The provider's wire format belongs to the adapter: {string.Join(", ", result.FailingTypeNames ?? [])}");
+            $"The wire format and the transport belong to the adapters: {string.Join(", ", result.FailingTypeNames ?? [])}");
     }
 
     [Fact]

@@ -48,6 +48,9 @@ export function toJobAdDetail(
     // #2191 — the demo never invents an employer's application page, so its footer keeps
     // "Öppna annonsen" as the primary.
     applicationUrl: null,
+    // #2214 PR 3 (ADR 0183 D6) — a guest demo ad is fictional; its public /jobb/<id> would 404, so it
+    // is never listed and the "Dela annonsen" row never renders in the guest modal or page.
+    isListed: false,
   };
 }
 

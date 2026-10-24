@@ -2,6 +2,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { JobAdDetail } from "./job-ad-detail";
 import type { AdContactDto, JobAdDetailDto } from "@/lib/dto/job-ads";
+import { publicJobAdUrl } from "@/lib/job-ads/public-job-ad-url";
 
 // #745 — the LIST type `JobAdDto` no longer carries `description`; the detail component
 // takes the detail projection minus its contacts block. This fixture mirrors that prop.
@@ -17,6 +18,9 @@ const baseAd: Omit<JobAdDetailDto, "contacts"> = {
   expiresAt: "2026-06-13T08:00:00Z",
   createdAt: "2026-05-13T08:01:00Z",
   applicationUrl: null,
+  // #2214 PR 3 — default false so existing tests render no share row (its two buttons would
+  // otherwise join getAllByRole("button")); the share-row tests below opt in with isListed: true.
+  isListed: false,
 };
 
 const EMPLOYER_PAGE = "https://career.example.se/jobs/4567890";
@@ -304,5 +308,37 @@ describe("JobAdDetail — the excerpt, the modal body and the ad text's headings
     render(<JobAdDetail jobAd={sectioned} />);
     expect(screen.getByRole("heading", { level: 1, name: baseAd.title })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Om rollen" }).tagName).toBe("H2");
+  });
+});
+
+describe("JobAdDetail — the share row (#2214 PR 3, ADR 0183 D6)", () => {
+  it("renders the share row only for a listed ad, and never otherwise", () => {
+    const { unmount } = render(<JobAdDetail jobAd={{ ...baseAd, isListed: true }} />);
+    expect(screen.getByRole("heading", { name: "Dela annonsen" })).toBeInTheDocument();
+    unmount();
+
+    render(<JobAdDetail jobAd={baseAd} />); // baseAd.isListed === false
+    expect(screen.queryByRole("heading", { name: "Dela annonsen" })).toBeNull();
+  });
+
+  it("puts the share heading one level under the surface's title: h3 in the modal, h2 on the page", () => {
+    const listed = { ...baseAd, isListed: true };
+    const { unmount } = render(<JobAdDetail jobAd={listed} headless inModal />);
+    expect(screen.getByRole("heading", { name: "Dela annonsen" }).tagName).toBe("H3");
+    unmount();
+
+    render(<JobAdDetail jobAd={listed} />);
+    expect(screen.getByRole("heading", { name: "Dela annonsen" }).tagName).toBe("H2");
+  });
+
+  it("hands on the canonical public ad URL, never the signed-in route or any search state", () => {
+    render(<JobAdDetail jobAd={{ ...baseAd, isListed: true }} />);
+    // One guard that the shared link is the canonical public URL (ADR 0183 D6 / SA-2 M-2); the URL
+    // forms, rel and encoding are exhaustively pinned by share-job-ad.test.ts, not re-asserted here.
+    const facebook = screen.getByRole("link", { name: /Facebook/ });
+    expect(facebook).toHaveAttribute(
+      "href",
+      expect.stringContaining(encodeURIComponent(publicJobAdUrl(baseAd.id))),
+    );
   });
 });

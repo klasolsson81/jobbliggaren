@@ -137,6 +137,13 @@ export const jobAdDetailDtoSchema = jobAdDtoSchema.extend({
     .regex(/^https?:\/\//i)
     .nullable()
     .default(null),
+  // #2214 PR 3 (ADR 0183 D6) — the backend's single JobAdPublication verdict: whether this ad is
+  // publicly listed, carried on the DETAIL wire so the signed-in "Dela annonsen" row shows only for
+  // an ad the public surface actually lists and the client NEVER re-derives listedness from
+  // status/source/expiry (SA-2 M-2). The output type is required, so every DTO producer (the guest
+  // adapter, future server paths) must set it; `.default(false)` only fills a wire that omits it
+  // (web/api image deploy skew), and it fails SAFE — a missing value hides the row, never shows it.
+  isListed: z.boolean().default(false),
 });
 export type JobAdDetailDto = z.infer<typeof jobAdDetailDtoSchema>;
 

@@ -377,9 +377,15 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
    not.
 4. **Bing Webmaster Tools**: the same, with *Block URLs*. Both properties are verified before the public page goes live
    (the date of each is recorded on #2090), because the notice tells recruiters that we ask the search engines.
-5. **Record in the case file, not in the repo:** the date, how many addresses, and who did
+5. **Link previews on Facebook and LinkedIn** (ADR 0183): since the job page has a share
+   row, these two can hold previews of shared addresses. Klas, with his own accounts, enters each
+   address in Facebook's Sharing Debugger (*Scrape Again*) and in LinkedIn's Post Inspector,
+   so each re-reads the 410. Never an agent: no agent session puts a job address into a
+   third-party tool. Whether either tool drops its copy on a 410 is not measured.
+6. **Record in the case file, not in the repo:** the date, how many addresses, and who did
    it. Do not write the addresses or the names into an issue, a commit or a PR.
-6. **Say what cannot be reached**, in the reply: a link-preview cache, another search
+7. **Say what cannot be reached**, in the reply: a link-preview cache (step 5 only asks
+   two of them to re-read), another search
    engine, an archive and a copy someone else made are outside our reach, and so is a
    search engine's index copy of a catalogue page (`/lediga-jobb`), refreshed at its next
    crawl; the catalogue's rows are not quoted in snippets. So is an index copy of another

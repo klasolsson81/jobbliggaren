@@ -147,3 +147,13 @@ Per [ADR 0060](./0060-recent-job-searches-auto-capture.md) Beslut 8 (F6 P4a back
 - **The term is never in the URL.** The typed word lives in the Yrke popover's own state, starts empty on every opening and reaches nothing but the search's own `q` (ADR 0180 D1). Beslut 2's live commit is unchanged: a pick commits at the click, as group ids through the same path a browse pick takes, and the popover stays open.
 - **Escape.** Beslut 2's "ESC … stänger popovern" holds, with one addition in search mode: an Escape in a field that holds text clears the field instead of closing. That behaviour and its mechanism have one home, ADR 0180 D5 as amended 2026-10-23.
 - **Beslut 2's "Ingen footer, ingen Använd/Stäng-knapp" is superseded by ADR 0067 E2c:** the popover has a footer, "Visa N annonser", which closes it. Live commit and the click-outside close stand.
+
+---
+
+## Amendment 2026-10-24 (#2212, ADR 0184) — Beslut 1's 580 px is a preferred width bounded by the viewport, with a sheet on a narrow or short viewport; Beslut 2 gains a close control in a sheet and a close when keyboard focus leaves; the focus-on-open sentence of the 2026-10-23 amendment is superseded by ADR 0184 D7's table
+
+**Status:** Accepted 2026-10-24. **Source:** [ADR 0184](./0184-the-filter-popovers-are-placed-by-one-pure-policy-and-one-shell-anchored-inside-the-viewport-a-sheet-on-a-narrow-or-short-viewport-one-focus-table-and-closing-when-focus-leaves.md) D1, D6, D7, D8, D9 and D10 (#2212, the filter popovers placed inside the viewport; senior-cto-advisor's ruling (a) to (z)). Additive, and pointers only: the text of Beslut 1 to 4 and of the three earlier amendments is untouched, and the reasoning is ADR 0184's.
+
+- **Beslut 1, the width.** The 580 px of Beslut 1 (`:42`) and the "580px-chrome" of the 2026-05-19 amendment (`:69`) is now a preferred width bounded by the viewport, and on a narrow or short viewport the popover is a sheet under the header instead (ADR 0184 D1, D9). The columns, the column headers and Rensa of Beslut 1 stand; in a sheet they are shown one column at a time (ADR 0184 D10).
+- **Beslut 2, a close control and a focus-out close.** A sheet's band has a close button, "Stäng" (ADR 0184 D6), and a popover closes when keyboard focus leaves it, in both placements (ADR 0184 D8). Live commit, Escape and the click-outside close stand.
+- **The 2026-10-23 amendment, focus on open.** The sentence in its bullet "The field, focus and one height", "It takes focus when the popover opens, once the popover is positioned (WCAG 2.4.3); a popover without a search moves no focus on opening", is superseded by ADR 0184 D7's table of placement × pointer. The rest of that bullet stands.

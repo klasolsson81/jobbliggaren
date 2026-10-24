@@ -54,13 +54,12 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
     // replaces OpenXmlReader MUST be hardened — a DOCX is attacker-controlled. DTDs are
     // prohibited (a legitimate document.xml never carries one; a DOCTYPE → throw →
     // fail-soft Empty), no resolver (no external entity / external DTD fetch → no
-    // SSRF/file-read), and entity/document char ceilings as belt-and-suspenders.
-    // (OWASP XXE Prevention Cheat Sheet.)
+    // SSRF/file-read), and a document char ceiling. With DTDs prohibited no entity can be
+    // declared, so there is no entity expansion to bound. (OWASP XXE Prevention Cheat Sheet.)
     private static readonly XmlReaderSettings HardenedXmlSettings = new()
     {
         DtdProcessing = DtdProcessing.Prohibit,
         XmlResolver = null,
-        MaxCharactersFromEntities = 0,
         MaxCharactersInDocument = MaxOutputChars * 4L,
         CloseInput = true,
         IgnoreProcessingInstructions = true,

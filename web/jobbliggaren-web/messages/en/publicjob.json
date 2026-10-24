@@ -5,6 +5,29 @@
   },
   "openAd": "Open the ad",
   "openAdAf": "Open the ad at Arbetsförmedlingen",
+  "apply": {
+    "heading": "Apply for the job"
+  },
+  "recruiterNoticeLink": "How we process details about contact persons in job ads",
+  "share": {
+    "heading": "Share the ad",
+    "via": "Share via",
+    "newTab": "(opens in a new tab)",
+    "facebook": "Facebook",
+    "linkedin": "LinkedIn",
+    "whatsapp": "WhatsApp",
+    "email": "Email",
+    "copy": "Copy the link",
+    "copied": "Link copied",
+    "more": "More ways to share",
+    "field": "Link to the ad",
+    "copyFailed": "The link could not be copied. Copy it from the field.",
+    "shareFailed": "Sharing could not be started. Copy the link from the field."
+  },
+  "signIn": {
+    "heading": "Save the ad and keep track of your application",
+    "body": "With an account you can also follow the company and see how the ad matches your occupations and skills."
+  },
   "facts": {
     "location": "Location",
     "employment": "Employment",

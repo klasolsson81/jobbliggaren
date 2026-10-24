@@ -5,6 +5,29 @@
   },
   "openAd": "Öppna annonsen",
   "openAdAf": "Öppna annonsen hos Arbetsförmedlingen",
+  "apply": {
+    "heading": "Sök jobbet"
+  },
+  "recruiterNoticeLink": "Så behandlar vi uppgifter om kontaktpersoner i annonser",
+  "share": {
+    "heading": "Dela annonsen",
+    "via": "Dela via",
+    "newTab": "(öppnas i ny flik)",
+    "facebook": "Facebook",
+    "linkedin": "LinkedIn",
+    "whatsapp": "WhatsApp",
+    "email": "E-post",
+    "copy": "Kopiera länken",
+    "copied": "Länken är kopierad",
+    "more": "Fler sätt att dela",
+    "field": "Länk till annonsen",
+    "copyFailed": "Länken kunde inte kopieras. Kopiera den från fältet.",
+    "shareFailed": "Delningen kunde inte startas. Kopiera länken från fältet."
+  },
+  "signIn": {
+    "heading": "Spara annonsen och håll ordning på din ansökan",
+    "body": "Med ett konto kan du också bevaka företaget och se hur annonsen matchar dina yrken och kompetenser."
+  },
   "facts": {
     "location": "Ort",
     "employment": "Anställning",

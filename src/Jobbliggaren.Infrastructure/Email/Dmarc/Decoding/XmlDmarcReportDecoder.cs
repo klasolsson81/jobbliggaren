@@ -16,13 +16,6 @@ namespace Jobbliggaren.Infrastructure.Email.Dmarc.Decoding;
 /// </summary>
 internal sealed class XmlDmarcReportDecoder : IDmarcReportDecoder
 {
-    /// <summary>
-    /// The deepest element a report may hold, the root at depth 0. The report trees nest four levels; an unread
-    /// extension may nest further, but not without bound, because the reader keeps a node per open element (8 MiB of
-    /// open tags held about 500 MB, measured 2026-10-24).
-    /// </summary>
-    internal const int MaxElementDepth = 32;
-
     private static readonly DmarcDecoding Malformed = new DmarcDecoding.Malformed();
 
     public DmarcDecoding Decode(byte[] content, DmarcReportPartKind kind)
@@ -266,7 +259,7 @@ internal sealed class XmlDmarcReportDecoder : IDmarcReportDecoder
             var depth = _reader.Depth;
             while (_reader.Read())
             {
-                if (_reader.Depth > MaxElementDepth)
+                if (_reader.Depth > DmarcIngestionLimits.MaxXmlElementDepth)
                     return Walk.Malformed;
                 if (_reader.NodeType == XmlNodeType.EndElement && _reader.Depth == depth)
                 {

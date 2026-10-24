@@ -492,8 +492,8 @@ public sealed class XmlDmarcReportDecoderTests
     public void Decode_NestingAtTheDepthBound_IsDecoded_AndOneLevelDeeperIsMalformed()
     {
         // feedback is depth 0 and <extension> depth 1, so the innermost <x> sits at depth levels + 1.
-        Decoded(Nested(XmlDmarcReportDecoder.MaxElementDepth - 1), DmarcReportPartKind.Gzip).Reporter.ShouldBe("Yahoo");
-        ShouldBeMalformed(Nested(XmlDmarcReportDecoder.MaxElementDepth), DmarcReportPartKind.Gzip);
+        Decoded(Nested(DmarcIngestionLimits.MaxXmlElementDepth - 1), DmarcReportPartKind.Gzip).Reporter.ShouldBe("Yahoo");
+        ShouldBeMalformed(Nested(DmarcIngestionLimits.MaxXmlElementDepth), DmarcReportPartKind.Gzip);
     }
 
     [Fact]

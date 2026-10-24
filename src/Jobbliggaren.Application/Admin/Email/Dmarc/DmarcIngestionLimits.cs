@@ -32,6 +32,13 @@ public static class DmarcIngestionLimits
     /// <summary>What the decoder may decompress from one report part; the one bound on the XML document.</summary>
     public const long MaxDecompressedXmlBytes = 8L * 1024 * 1024;
 
+    /// <summary>
+    /// The deepest element a report may hold, the root at depth 0. The report trees nest four levels; an unread
+    /// extension may nest further, but not without bound, because the reader keeps a node per open element (8 MiB of
+    /// open tags held about 500 MB, measured 2026-10-24).
+    /// </summary>
+    public const int MaxXmlElementDepth = 32;
+
     /// <summary>Records one report may carry.</summary>
     public const int MaxRecordsPerReport = 5_000;
 

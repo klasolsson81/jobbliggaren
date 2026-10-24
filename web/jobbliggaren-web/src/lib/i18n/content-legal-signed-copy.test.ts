@@ -85,6 +85,26 @@ const SIGNED_COMPANY_WATCHES: ReadonlyArray<{ key: string; sv: string; en: strin
   },
 ];
 
+// Signature 5 (security-auditor, #1981 PR 4 plan ruling 8, 2026-10-24): the DMARC aggregate reports dmarc@ receives,
+// published under Art. 14(5)(b). Her B1/B2 sentences are not here yet; they need her re-sign when they ship.
+const SIGNED_DMARC_REPORTS: ReadonlyArray<{ key: string; sv: string; en: string }> = [
+  {
+    key: "privacy.sections.3.list.10",
+    sv: "Rapporter om e-post som skickas i vårt namn. E-postleverantörer som tar emot mejl där jobbliggaren.se står som avsändare, till exempel Google, skickar oss sammanställningar över vilka servrar som har skickat sådana mejl och om mejlen klarade kontrollen av att de verkligen kom från oss. Sammanställningarna innehåller de avsändande servrarnas IP-adresser, antal mejl och kontrollernas resultat, men inte mejlens innehåll. En IP-adress kan ibland höra till en enskild person, till exempel den som skickar e-post från en egen server. Rapporterna tas emot i vår brevlåda dmarc@jobbliggaren.se. Vårt berättigade intresse är att upptäcka om någon skickar e-post i vårt namn utan att få göra det, och att våra egna mejl inte stoppas som förfalskade. Uppgifterna kommer från de leverantörer som skickar rapporterna, inte från den som skickade mejlet. Rapporterna innehåller inga kontaktuppgifter till dem det gäller, så vi kan inte informera dem direkt och beskriver därför behandlingen här. Vill du utöva dina rättigheter för en sådan uppgift behöver du ange vilken IP-adress det gäller.",
+    en: "Reports on email sent in our name. Email providers that receive emails where jobbliggaren.se appears as the sender, for example Google, send us summaries of which servers have sent such emails and whether the emails passed the check that they really came from us. The summaries contain the sending servers' IP addresses, the number of emails and the results of the checks, but not the content of the emails. An IP address can sometimes belong to an individual, for example someone who sends email from their own server. The reports are received in our mailbox dmarc@jobbliggaren.se. Our legitimate interest is to detect whether anyone sends email in our name without being allowed to, and to keep our own emails from being stopped as forged. The data comes from the providers that send the reports, not from the person who sent the email. The reports contain no contact details for the people concerned, so we cannot inform them directly and therefore describe the processing here. If you want to exercise your rights regarding such data, you need to state which IP address it concerns.",
+  },
+  {
+    key: "privacy.sections.7.paragraphs.6",
+    sv: "STRATO GmbH (leverantör för inkommande e-post, Tyskland) tar emot och lagrar den e-post du skickar till vår kontaktadress kontakt@jobbliggaren.se, till exempel när du vill utöva dina rättigheter. De uppgifter som lämnas är din e-postadress och det du själv skriver i meddelandet. Vi behåller sådan korrespondens i tolv månader efter att ärendet har avslutats. Om posten aldrig blir ett avslutat ärende behåller vi den i tolv månader från det att den kom in. STRATO tar också emot och lagrar de rapporter om e-post som skickas i vårt namn som andra e-postleverantörer skickar till dmarc@jobbliggaren.se, se avsnittet Säkerhet, drift och produktfunktioner.",
+    en: "STRATO GmbH (provider for incoming email, Germany) receives and stores the email you send to our contact address kontakt@jobbliggaren.se, for example when you want to exercise your rights. The data disclosed is your email address and what you write in the message yourself. We keep such correspondence for twelve months after the matter has been closed. If the message never becomes a closed matter, we keep it for twelve months from the day it arrived. STRATO also receives and stores the reports on email sent in our name that other email providers send to dmarc@jobbliggaren.se, see the section Security, operations and product features.",
+  },
+  {
+    key: "privacy.sections.9.list.13",
+    sv: "Rapporter om e-post som skickas i vårt namn. Rapporterna sparas i tolv månader från det att de kom in och raderas därefter.",
+    en: "Reports on email sent in our name. The reports are kept for twelve months from the day they arrived and are then deleted.",
+  },
+];
+
 function read(catalogue: unknown, key: string): unknown {
   return key
     .split(".")
@@ -113,6 +133,13 @@ describe("content-legal public-page notice (ADR 0166, security-auditor signature
 
 describe("content-legal company watches and Branschbevakningar (ADR 0175, security-auditor signature 4)", () => {
   it.each(SIGNED_COMPANY_WATCHES)("$key stands whole in sv and en", ({ key, sv: s, en: e }) => {
+    expect(read(sv, key)).toBe(s);
+    expect(read(en, key)).toBe(e);
+  });
+});
+
+describe("content-legal DMARC aggregate reports (#1981, security-auditor signature 5)", () => {
+  it.each(SIGNED_DMARC_REPORTS)("$key stands whole in sv and en", ({ key, sv: s, en: e }) => {
     expect(read(sv, key)).toBe(s);
     expect(read(en, key)).toBe(e);
   });

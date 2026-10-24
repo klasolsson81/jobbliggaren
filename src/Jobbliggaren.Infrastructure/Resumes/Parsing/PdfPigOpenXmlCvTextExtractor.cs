@@ -3,6 +3,7 @@ using System.Text;
 using System.Xml;
 using DocumentFormat.OpenXml.Packaging;
 using Jobbliggaren.Application.Resumes.Abstractions;
+using Jobbliggaren.Infrastructure.Common.IO;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
@@ -51,20 +52,11 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
         "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
     // #272 SEC-1 (XXE / billion-laughs / external-entity): the hand-rolled XmlReader that
-    // replaces OpenXmlReader MUST be hardened — a DOCX is attacker-controlled. DTDs are
-    // prohibited (a legitimate document.xml never carries one; a DOCTYPE → throw →
-    // fail-soft Empty), no resolver (no external entity / external DTD fetch → no
-    // SSRF/file-read), and a document char ceiling. With DTDs prohibited no entity can be
-    // declared, so there is no entity expansion to bound. (OWASP XXE Prevention Cheat Sheet.)
-    private static readonly XmlReaderSettings HardenedXmlSettings = new()
-    {
-        DtdProcessing = DtdProcessing.Prohibit,
-        XmlResolver = null,
-        MaxCharactersInDocument = MaxOutputChars * 4L,
-        CloseInput = true,
-        IgnoreProcessingInstructions = true,
-        IgnoreComments = true,
-    };
+    // replaces OpenXmlReader MUST be hardened — a DOCX is attacker-controlled. The shared
+    // settings prohibit DTDs and resolve nothing; this extractor adds its own document char
+    // ceiling.
+    private static XmlReaderSettings HardenedXmlSettings() =>
+        HardenedXmlReaderSettings.Create(MaxOutputChars * 4L);
 
     public CvExtractionResult Extract(
         ReadOnlyMemory<byte> file, CvFileKind kind, CancellationToken cancellationToken)
@@ -219,7 +211,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             var mainRevision = new RevisionRooms();
             using (var partStream = entry.Open())
             using (var cappedStream = new ByteCappedReadStream(partStream, budget, MaxDecompressedMainPartBytes))
-            using (var reader = XmlReader.Create(cappedStream, HardenedXmlSettings))
+            using (var reader = XmlReader.Create(cappedStream, HardenedXmlSettings()))
             {
                 new StoryReader(mainStory, mainRevision).Read(reader, cancellationToken);
             }
@@ -258,7 +250,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
 
             using var partStream = relationships.Open();
             using var cappedStream = new ByteCappedReadStream(partStream, budget);
-            using var reader = XmlReader.Create(cappedStream, HardenedXmlSettings);
+            using var reader = XmlReader.Create(cappedStream, HardenedXmlSettings());
             var scanned = 0;
             while (stories.Count < MaxOtherStories && reader.Read())
             {
@@ -322,7 +314,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                 StartOwnLine(builder);
                 using var partStream = story.Open();
                 using var cappedStream = new ByteCappedReadStream(partStream, budget);
-                using var reader = XmlReader.Create(cappedStream, HardenedXmlSettings);
+                using var reader = XmlReader.Create(cappedStream, HardenedXmlSettings());
                 new StoryReader(builder, revision).Read(reader, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -893,67 +885,6 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
 
             StartOwnLine(room);
             room.Append(reading.AsSpan(0, Math.Min(reading.Length, Math.Max(0, MaxOutputChars - room.Length))));
-        }
-    }
-
-    // #1810: what the parts this extractor streams from one document may inflate together. A part that fails
-    // is still charged.
-    private sealed class ByteBudget(long bytes)
-    {
-        private long _remaining = bytes;
-
-        public void Charge(int n)
-        {
-            _remaining -= n;
-            if (_remaining < 0)
-                throw new InvalidDataException("Decompressed DOCX parts exceeded the document's byte budget.");
-        }
-    }
-
-    // #272 SEC-1: a read-only stream wrapper that hard-caps the decompressed bytes read from
-    // the underlying DeflateStream and charges them to the document's budget (#1810). It
-    // throws once either is crossed, so the "lying" zip bomb is bounded DURING inflation,
-    // not after materialization. Never surfaces file content in the message.
-    private sealed class ByteCappedReadStream(Stream inner, ByteBudget budget, long cap = long.MaxValue) : Stream
-    {
-        private long _read;
-
-        private int Account(int n)
-        {
-            _read += n;
-            budget.Charge(n);
-            if (_read > cap)
-                throw new InvalidDataException(
-                    "Decompressed DOCX part exceeded the allowed byte ceiling.");
-            return n;
-        }
-
-        public override int Read(byte[] buffer, int offset, int count) =>
-            Account(inner.Read(buffer, offset, count));
-
-        public override int Read(Span<byte> buffer) =>
-            Account(inner.Read(buffer));
-
-        public override bool CanRead => true;
-        public override bool CanSeek => false;
-        public override bool CanWrite => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position
-        {
-            get => throw new NotSupportedException();
-            set => throw new NotSupportedException();
-        }
-
-        public override void Flush() { }
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-                inner.Dispose();
-            base.Dispose(disposing);
         }
     }
 }

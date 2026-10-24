@@ -491,6 +491,13 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 .jp-popover .jp-occsearch .jp-matchdialog__cascade-colhead {
   padding-top: 18px;
 }
+/* Where the columns open the popover, their bands follow its rounded inner corners. */
+.jp-popover > .jp-popover__body:first-child > .jp-popover__col:first-child > .jp-popover__colhead {
+  border-top-left-radius: calc(var(--jp-r-md) - 1px);
+}
+.jp-popover > .jp-popover__body:first-child > .jp-popover__col:last-child > .jp-popover__colhead {
+  border-top-right-radius: calc(var(--jp-r-md) - 1px);
+}
 /* Synlig fokus-ring för .jp-checkitem i dialog-kontext (samma om-scoping som
    .jp-matchprefs — den befintliga regeln är scoped till .jp-panel). The onboarding rail is not
    inside .jp-matchdialog, and its rows sit edge to edge in the same scrolling columns, where the

@@ -1056,6 +1056,10 @@ rows can stay: they match only this app's subject ids.
 `/run/jobbliggaren/api-secrets`, which only api mounts. Placing, rotating and removing it are `admin-email.md`'s, not this
 section's.
 
+**The DMARC mailbox password** (#1981 PR 4a, ADR 0183) is the one worker-only secret, in
+`/run/jobbliggaren/worker-secrets`, which only the worker mounts. Placing, rotating and removing it, and the egress rule it
+needs, are `admin-email.md`'s too.
+
 ## 3e. Image retention (#2016, ADR 0149)
 
 Reconcile runs `jobbliggaren-image-retention.sh` under its existing lock before

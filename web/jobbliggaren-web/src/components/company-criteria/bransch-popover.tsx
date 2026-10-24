@@ -28,8 +28,7 @@ import {
  *     two of them. Collapsing section→division drops all 835 detail codes out of the UI, which is less
  *     than the single-select typeahead this replaces could already reach; collapsing division→leaf
  *     turns the left column into an 87-row dump and loses the sections as an entry point.
- *  2. "A list I can open AND filter in" is the actual ask behind #999. `JobbFilterPopover` filters only
- *     through a search its host composes into it (ADR 0180 D8, /jobb Yrke), and none exists for SNI.
+ *  2. "A list I can open AND filter in" is the actual ask behind #999 (see ADR 0180 D8).
  *
  * `CriterionPicker` already answers both, is already reviewed, and already ships on the sibling browse
  * surface (Branschbevakningar). ADR 0117 Beslut 3 makes that a requirement rather than a convenience:

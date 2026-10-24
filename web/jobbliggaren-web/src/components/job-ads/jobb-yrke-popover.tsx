@@ -31,8 +31,8 @@ interface JobbYrkePopoverProps {
  * columns, and the answer in the columns' place while it has rows.
  *
  * The typed word lives here and nowhere else. It starts empty on every opening, because the host
- * remounts this component by key, and it never leaves this component: what a row selects goes out
- * through `onChange` as group ids, like a browse pick.
+ * remounts this component by key. What a row selects goes out through `onChange` as group ids, like
+ * a browse pick.
  */
 export function JobbYrkePopover({
   open,

@@ -95,6 +95,7 @@ public class JobAdSearchLifecycleOracleTests(ApiFactory factory)
 
     private static JobAdFilterCriteria CriteriaFor(string occupationGroup) => new(
         OccupationGroup: [occupationGroup],
+        OccupationName: [],
         Municipality: [],
         Region: [],
         EmploymentType: [],

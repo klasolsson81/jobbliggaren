@@ -43,11 +43,10 @@ public sealed class ListJobAdsQueryHandler(
         ListJobAdsQuery query, CancellationToken cancellationToken)
     {
         // null → tom lista: "inget filter" (ADR 0042 Beslut B).
-        // ADR 0067 Fas C2 (CTO-dom (e)): Ssyk-dimensionen borttagen ur SPOT:en —
-        // q-vägens synonym-expansion mot SsykConceptId drivs separat av Q.
         // Samma filter används av båda grenarna (samma träff-mängd, SPOT).
         var filter = new JobAdFilterCriteria(
             OccupationGroup: query.OccupationGroup ?? [],
+            OccupationName: query.OccupationName ?? [],
             Municipality: query.Municipality ?? [],
             Region: query.Region ?? [],
             EmploymentType: query.EmploymentType ?? [],

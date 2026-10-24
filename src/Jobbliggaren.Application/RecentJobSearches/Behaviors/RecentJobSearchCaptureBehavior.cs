@@ -166,6 +166,13 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         if ((capt.Employer ?? []).Any(EmployerAxisGate.IsWithheld))
             return response;
 
+        // #2199 — a recent search cannot store an occupation-name until #2199 PR 2. Capturing the
+        // search without it would store a wider search than the one that ran, and for the same
+        // FilterHash reason as the employer guard above it would Bump() a real search on the same
+        // other dimensions. Skip until it is persisted; the SEARCH still runs.
+        if (capt.OccupationName is { Count: > 0 })
+            return response;
+
         // Same sink and the same skip-reason as the employer guard above, so that block governs
         // here too - with one widening. There the bearer is NECESSARILY a third party, since the
         // value is by construction someone else's org.nr. A free-text box can carry the user's own

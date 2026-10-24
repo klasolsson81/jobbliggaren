@@ -86,7 +86,7 @@ public class PlatsbankenJobSourceFacetMappingTests
         item.ShouldNotBeNull();
         var facets = item.Facets;
 
-        facets.SsykConceptId.ShouldBe("Ssyk_uwa_111", "occupation.concept_id — NESTED");
+        facets.OccupationNameConceptId.ShouldBe("Ssyk_uwa_111", "occupation.concept_id — NESTED");
         facets.OccupationGroupConceptId.ShouldBe("DJh5_yyF_hEM", "occupation_group.concept_id — TOP-LEVEL");
         facets.MunicipalityConceptId.ShouldBe("AvNB_uwa_6n6", "workplace_address.municipality_concept_id");
         facets.RegionConceptId.ShouldBe("CaRE_1nn_hRb", "workplace_address.region_concept_id");
@@ -115,7 +115,7 @@ public class PlatsbankenJobSourceFacetMappingTests
             "ext-facets-2", TestContext.Current.CancellationToken);
 
         item.ShouldNotBeNull();
-        item.Facets.SsykConceptId.ShouldBeNull(
+        item.Facets.OccupationNameConceptId.ShouldBeNull(
             "no `occupation` node → no ssyk facet. It must NOT fall back to occupation_group: they are " +
             "different taxonomy levels, and conflating them would return the wrong ads.");
         item.Facets.OccupationGroupConceptId.ShouldBe("DJh5_yyF_hEM", "the sibling is unaffected");
@@ -161,7 +161,7 @@ public class PlatsbankenJobSourceFacetMappingTests
             "ext-facets-4", TestContext.Current.CancellationToken);
 
         item.ShouldNotBeNull();
-        item.Facets.SsykConceptId.ShouldBeNull("a blank concept id is an absent one");
+        item.Facets.OccupationNameConceptId.ShouldBeNull("a blank concept id is an absent one");
         item.Facets.OrganizationNumber.ShouldBeNull("whitespace is blank too");
     }
 

@@ -107,6 +107,23 @@ public class GetFacetCountsQueryHandlerTests
         captured!.Q.ShouldBe("  lärare   -deltid  ");
     }
 
+    // #2199 — the occupation-name picks are Yrke filter context, passed through as they came.
+    [Fact]
+    public async Task Handle_ThreadsOccupationNamesToThePort_AndNullIsEmpty()
+    {
+        var captured = new List<JobAdFilterCriteria>();
+        _search.FacetCountsAsync(Arg.Do<JobAdFilterCriteria>(captured.Add), Arg.Any<FacetDimension>(), Arg.Any<CancellationToken>())
+            .Returns(EmptyCounts());
+        var handler = new GetFacetCountsQueryHandler(_search);
+
+        await handler.Handle(
+            new GetFacetCountsQuery(FacetDimension.OccupationName, OccupationName: ["z5AM_ayf_WcL"]),
+            TestContext.Current.CancellationToken);
+        await handler.Handle(new GetFacetCountsQuery(FacetDimension.OccupationName), TestContext.Current.CancellationToken);
+
+        captured.Select(c => c.OccupationName).ShouldBe([["z5AM_ayf_WcL"], []]);
+    }
+
     [Fact]
     public async Task Handle_ReturnsPortResultUnchanged()
     {

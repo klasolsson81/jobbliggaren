@@ -54,7 +54,7 @@ internal static class TestFacets
         string? worktimeExtent = null,
         string? organizationNumber = null,
         bool? remote = null) =>
-        new(ssykConceptId: ssyk,
+        new(occupationNameConceptId: ssyk,
             occupationGroupConceptId: occupationGroup,
             municipalityConceptId: municipality,
             regionConceptId: region,
@@ -106,7 +106,7 @@ internal static class TestFacets
                 // The blank-payload path still has to carry an explicit remote verdict when one is given
                 // (JobAdFacets.None is a shared readonly instance whose get-only props preclude a `with`).
                 : new JobAdFacets(
-                    ssykConceptId: null,
+                    occupationNameConceptId: null,
                     occupationGroupConceptId: null,
                     municipalityConceptId: null,
                     regionConceptId: null,
@@ -119,7 +119,7 @@ internal static class TestFacets
         var root = doc.RootElement;
 
         return new JobAdFacets(
-            ssykConceptId: Nested(root, "occupation", "concept_id"),
+            occupationNameConceptId: Nested(root, "occupation", "concept_id"),
             occupationGroupConceptId: Nested(root, "occupation_group", "concept_id"),
             municipalityConceptId: Nested(root, "workplace_address", "municipality_concept_id"),
             regionConceptId: Nested(root, "workplace_address", "region_concept_id"),

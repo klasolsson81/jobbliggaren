@@ -145,6 +145,7 @@ public class MatchCountOracleTests(ApiFactory factory)
     // included (the grade-WHERE then gallrar within that mass).
     private static JobAdFilterCriteria FilterFor(string runWorktimeExtent) => new(
         OccupationGroup: [],
+        OccupationName: [],
         Municipality: [],
         Region: [],
         EmploymentType: [],

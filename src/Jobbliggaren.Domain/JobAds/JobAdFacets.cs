@@ -47,7 +47,7 @@ public sealed record JobAdFacets
     /// seven nulls makes the absence deliberate rather than accidental.
     /// </summary>
     public static readonly JobAdFacets None = new(
-        ssykConceptId: null,
+        occupationNameConceptId: null,
         occupationGroupConceptId: null,
         municipalityConceptId: null,
         regionConceptId: null,
@@ -62,7 +62,7 @@ public sealed record JobAdFacets
     // type), so the #841 named-argument discipline it would otherwise weaken does not apply — and the
     // single production caller that DOES harvest (PlatsbankenJobSource.MapFacets) passes it explicitly.
     public JobAdFacets(
-        string? ssykConceptId,
+        string? occupationNameConceptId,
         string? occupationGroupConceptId,
         string? municipalityConceptId,
         string? regionConceptId,
@@ -71,7 +71,7 @@ public sealed record JobAdFacets
         string? organizationNumber,
         bool? remote = null)
     {
-        SsykConceptId = Normalize(ssykConceptId);
+        OccupationNameConceptId = Normalize(occupationNameConceptId);
         OccupationGroupConceptId = Normalize(occupationGroupConceptId);
         MunicipalityConceptId = Normalize(municipalityConceptId);
         RegionConceptId = Normalize(regionConceptId);
@@ -81,8 +81,12 @@ public sealed record JobAdFacets
         Remote = remote;
     }
 
-    /// <summary>ssyk-level-4 occupation concept (payload: <c>occupation.concept_id</c>, NESTED).</summary>
-    public string? SsykConceptId { get; }
+    /// <summary>
+    /// Yrkesbenämning, the JobTech occupation-name (payload: <c>occupation.concept_id</c>, NESTED). It is
+    /// one level below the group, never ssyk-level-4. Its column keeps the historical name
+    /// <c>ssyk_concept_id</c>.
+    /// </summary>
+    public string? OccupationNameConceptId { get; }
 
     /// <summary>Yrkesgrupp (payload: <c>occupation_group.concept_id</c>, TOP-LEVEL).</summary>
     public string? OccupationGroupConceptId { get; }
@@ -131,7 +135,7 @@ public sealed record JobAdFacets
 
     /// <summary>True when the payload carried no facet at all (parity <see cref="None"/>).</summary>
     public bool IsEmpty =>
-        SsykConceptId is null
+        OccupationNameConceptId is null
         && OccupationGroupConceptId is null
         && MunicipalityConceptId is null
         && RegionConceptId is null

@@ -158,7 +158,7 @@ internal static class OccupationSearchRule
             .ThenBy(h => h.Name.Entry.NameLabel, Collation)
             .ThenBy(h => h.Name.Entry.NameLabel, StringComparer.Ordinal)
             .Select(h => new OccupationSearchVariant(
-                h.Name.Entry.NameLabel, h.Name.Entry.GroupConceptId, h.Name.Entry.GroupLabel))
+                h.Name.Entry.ConceptId, h.Name.Entry.NameLabel, h.Name.Entry.GroupConceptId, h.Name.Entry.GroupLabel))
             .ToList();
 
         var tier = word.Hits.Min(h => h.Tier);

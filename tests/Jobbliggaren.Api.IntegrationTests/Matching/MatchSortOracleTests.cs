@@ -202,6 +202,7 @@ public class MatchSortOracleTests(ApiFactory factory)
     // the run-isolation key). Municipality is left free as a genuine ort signal.
     private static JobAdFilterCriteria FilterFor(string runWorktimeExtent) => new(
         OccupationGroup: [],
+        OccupationName: [],
         Municipality: [],
         Region: [],
         EmploymentType: [],

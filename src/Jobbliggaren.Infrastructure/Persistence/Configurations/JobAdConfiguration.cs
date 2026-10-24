@@ -153,7 +153,7 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // and EF's model snapshot is blind to them. Those predicates are NULL-SPARSITY, not
         // lifecycle-derived, and they stay —
         // #821 Q2 bans lifecycle-derived predicates on job_ads indexes, nothing else.
-        builder.Property(j => j.SsykConceptId)
+        builder.Property(j => j.OccupationNameConceptId)
             .HasColumnName("ssyk_concept_id")
             .ValueGeneratedNever();
 

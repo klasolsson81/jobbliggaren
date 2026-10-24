@@ -44,7 +44,9 @@ public class RecentJobSearchCaptureBehaviorTests
         // befintliga (remote-agnostiska) capture-testerna består; remote-guarden testas explicit nedan.
         bool Remote = false,
         JobAdSortBy SortBy = JobAdSortBy.PublishedAtDesc,
-        bool Commit = true)
+        bool Commit = true,
+        // #2199 — the occupation-name picks, which the behaviour skips until PR 2 persists them.
+        IReadOnlyList<string>? OccupationName = null)
         : IQuery<FakeCaptureResponse>, ICapturesRecentSearch;
 
     // Message UTAN markören — behaviorn ska vara no-op.
@@ -170,6 +172,32 @@ public class RecentJobSearchCaptureBehaviorTests
         // skipped. Refusing the search would break a legitimate filter on a sole trader's ads.
         await _capturer.DidNotReceive().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    // #2199 — a recent search has no occupation-name column until PR 2, so a search carrying a pick
+    // runs and is not captured, alone or beside other filters.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("DJh5_yyF_hEM")]
+    public async Task Handle_OccupationName_RunsTheSearchButCapturesNothing(string? group)
+    {
+        var response = await HandleAsync(new FakeSearchQuery(
+            Q: "projekt", OccupationGroup: group is null ? null : [group], Municipality: null, Region: null,
+            OccupationName: ["z5AM_ayf_WcL"]));
+
+        response.TotalCount.ShouldBe(7, "the search itself still runs");
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_AnEmptyOccupationNameList_StillCaptures()
+    {
+        await HandleAsync(new FakeSearchQuery(
+            Q: "projekt", OccupationGroup: null, Municipality: null, Region: null, OccupationName: []));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -917,8 +945,9 @@ public class RecentJobSearchCaptureBehaviorTests
     // would be closing an instance and leaving the mechanism.
     //
     // Every string-bearing member must be read by a personnummer guard before capture: Q and
-    // Employer by their own, the five taxonomy axes by BearsPersonnummer. Remote, SortBy and
-    // Commit are bool/enum and carry no text.
+    // Employer by their own, the five taxonomy axes by BearsPersonnummer. OccupationName never
+    // reaches the sink: a search carrying it is skipped (#2199). Remote, SortBy and Commit are
+    // bool/enum and carry no text.
     [Fact]
     public void ICapturesRecentSearch_HasExactlyTheseMembers_SoANewDimensionCannotArriveUnguarded()
     {
@@ -935,8 +964,8 @@ public class RecentJobSearchCaptureBehaviorTests
             .ToList();
 
         actual.ShouldBe(
-            ["Commit", "Employer", "EmploymentType", "Municipality", "OccupationGroup", "Q",
-             "Region", "Remote", "SortBy", "WorktimeExtent"],
+            ["Commit", "Employer", "EmploymentType", "Municipality", "OccupationGroup", "OccupationName",
+             "Q", "Region", "Remote", "SortBy", "WorktimeExtent"],
             "a member arrived on or left ICapturesRecentSearch. If it is a NEW string-bearing " +
             "dimension it reaches recent_job_searches in plaintext, and it must be added to the " +
             "BearsPersonnummer chain in RecentJobSearchCaptureBehavior AND to the default-browse " +

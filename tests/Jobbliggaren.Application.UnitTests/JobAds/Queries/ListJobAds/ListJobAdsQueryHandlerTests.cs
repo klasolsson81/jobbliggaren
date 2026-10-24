@@ -97,6 +97,21 @@ public class ListJobAdsQueryHandlerTests
         captured!.Filter.Region.ShouldBeEmpty();
     }
 
+    // #2199 — the occupation-name picks reach the filter as they came; null is no filter.
+    [Fact]
+    public async Task Handle_OccupationName_ThreadsToTheFilter_AndNullIsEmpty()
+    {
+        var captured = new List<JobAdSearchCriteria>();
+        _search.SearchAsync(Arg.Do<JobAdSearchCriteria>(captured.Add), Arg.Any<CancellationToken>())
+            .Returns(EmptyPage());
+        var handler = NewHandler();
+
+        await handler.Handle(new ListJobAdsQuery(OccupationName: ["z5AM_ayf_WcL"]), TestContext.Current.CancellationToken);
+        await handler.Handle(new ListJobAdsQuery(OccupationName: null), TestContext.Current.CancellationToken);
+
+        captured.Select(c => c.Filter.OccupationName).ShouldBe([["z5AM_ayf_WcL"], []]);
+    }
+
     // #551 PR-B D5 — the ?remote= facet must thread through the adapter to the filter, else the
     // whole /jobb remote-filter goes silently dead (the D5 integration oracles go via CountAsync,
     // past this handler, so only THIS pins the handler's Remote: query.Remote mapping).

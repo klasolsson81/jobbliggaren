@@ -39,10 +39,9 @@ internal static class JobAdSearchComposition
     //
     // ADR 0067 Beslut 1 (Platsbanken sök-paritet Fas C1, Variant C) — yrke-
     // nivåbyte: det explicita yrke-filtret targetar OccupationGroupConceptId
-    // (ssyk-level-4/yrkesgrupp) i stället för SsykConceptId (occupation-name).
-    // Den tidigare Ssyk-equality-grenen är BORTTAGEN. SsykConceptId-kolumnen
-    // lever vidare i q-vägens synonym-expansion nedan (recall-substrat bevarat).
-    // Municipality (kommun) tillkommer som ny dimension (analogt Region).
+    // (ssyk-level-4/yrkesgrupp). #2199 (ADR 0067 Amendment 2026-10-24) adds the occupation-name
+    // inside the same Yrke dimension; see MatchesOccupation below. The column also feeds the q
+    // synonym expansion. Municipality (kommun) tillkommer som ny dimension (analogt Region).
     //
     // ADR 0062 — q-FTS-hybrid. FTS-grenen (search_vector @@ websearch_to_tsquery)
     // är den snabba primärvägen: GIN-index på tsvector + svensk stemming
@@ -76,7 +75,14 @@ internal static class JobAdSearchComposition
         // Erased seed — the row where the two forms disagree, reachable since #886).
         var source = root.Where(j => j.Status == JobAdStatus.Active);
 
-        if (criteria.OccupationGroup.Count > 0)
+        // #2199 — Yrke is one dimension in two granularities, as Ort is below: an occupation-name
+        // pick widens the group selection and never narrows it. Without a name pick the group step
+        // is the single IN it always was, byte for byte (JobAdYrkePredicateSqlTests).
+        if (!filter.OccupationNames.IsEmpty)
+        {
+            source = source.Where(MatchesOccupation(criteria.OccupationGroup, filter.OccupationNames));
+        }
+        else if (criteria.OccupationGroup.Count > 0)
         {
             var groupValues = criteria.OccupationGroup;
             source = source.Where(j => groupValues.Contains(j.OccupationGroupConceptId));
@@ -99,8 +105,7 @@ internal static class JobAdSearchComposition
         // lokala bool:ar (@__hasMuni) för plan-cache — den vik-konstant-viker dem INTE bort
         // vid translation, så ett unifierat `(hasMuni && muni.Contains) || ... || (remote &&
         // j.Remote)` emitterar `(@__hasMuni AND col IN (...)) OR ...`, INTE byte-identiskt
-        // mot dagens `col IN (...)` när remote=false. En Expression.OrElse-kombinator vore
-        // byte-identisk men kräver LinqKit (utanför BUILD.md §3.1). Därför: den befintliga
+        // mot dagens `col IN (...)` när remote=false. Därför: den befintliga
         // muni/län-stegen ORÖRD i else-grenen (Remote=false ⇒ byte-identisk SQL, strukturellt
         // garanterat), och en 4-fallsswitch (parity q-grens-switchen nedan) för remote=true.
         //
@@ -252,7 +257,7 @@ internal static class JobAdSearchComposition
 #pragma warning restore CA1304, CA1311
 
         if (expandedSsyks.Count > 0)
-            arms.Add(j => expandedSsyks.Contains(j.SsykConceptId));
+            arms.Add(j => expandedSsyks.Contains(j.OccupationNameConceptId));
 
         if (term.Role == TextTermRole.Excluded)
         {
@@ -263,6 +268,37 @@ internal static class JobAdSearchComposition
         {
             arms.Add(j => EF.Property<NpgsqlTsVector>(j, "SearchVector")
                 .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q)));
+        }
+
+        return arms.Aggregate(OrElse);
+    }
+
+    // #2199 — the Yrke union: the picked groups, the names that answer a pick in any group, and per
+    // group the names that answer it only there (OccupationNameLineage.Expand). Every arm reads
+    // captured lists or strings only, so none of the geo union's captured-bool parameters reaches the
+    // SQL, and each arm can use its column's index.
+    private static Expression<Func<JobAd, bool>> MatchesOccupation(
+        IReadOnlyList<string> groups, OccupationNameExpansion names)
+    {
+        var arms = new List<Expression<Func<JobAd, bool>>>(2 + names.SameGroupOnly.Count);
+
+        if (groups.Count > 0)
+        {
+            var groupValues = groups;
+            arms.Add(j => groupValues.Contains(j.OccupationGroupConceptId));
+        }
+
+        if (names.ConceptIds.Count > 0)
+        {
+            var nameValues = names.ConceptIds;
+            arms.Add(j => nameValues.Contains(j.OccupationNameConceptId));
+        }
+
+        foreach (var sameGroup in names.SameGroupOnly)
+        {
+            var group = sameGroup.GroupConceptId;
+            var sameGroupNames = sameGroup.ConceptIds;
+            arms.Add(j => j.OccupationGroupConceptId == group && sameGroupNames.Contains(j.OccupationNameConceptId));
         }
 
         return arms.Aggregate(OrElse);
@@ -298,7 +334,7 @@ internal static class JobAdSearchComposition
         if (labels.Occupation.Count > 0)
         {
             var ids = labels.Occupation;
-            source = source.Where(j => j.SsykConceptId == null || !ids.Contains(j.SsykConceptId));
+            source = source.Where(j => j.OccupationNameConceptId == null || !ids.Contains(j.OccupationNameConceptId));
         }
 
         if (labels.EmploymentType.Count > 0)

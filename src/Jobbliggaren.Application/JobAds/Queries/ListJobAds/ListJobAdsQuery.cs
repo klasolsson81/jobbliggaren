@@ -108,7 +108,13 @@ public sealed record ListJobAdsQuery(
     // specifik grad-delmängd är vald → återbrukar det BEFINTLIGA positiv-only grad-WHERE:t
     // verbatim (DRY; ingen ny rank>0-Expression, ingen ny port-param). En specifik
     // grad-delmängd VINNER (only-matched = det tomma-delmängds-fallet). Default false.
-    bool OnlyMatched = false)
+    bool OnlyMatched = false,
+    // #2199 — the occupation-names (yrkesbenämningar) picked in Yrke, OR-ed with OccupationGroup and
+    // expanded through the occupation-name lineage by the search port. Bound from repeated
+    // ?occupationName=. Appended last so no positional argument above can shift into it. A recent
+    // search cannot store it until #2199 PR 2, so RecentJobSearchCaptureBehavior skips a search that
+    // carries it.
+    IReadOnlyList<string>? OccupationName = null)
     : IQuery<PagedResult<JobAdDto>>, ICapturesRecentSearch
 {
     // ICapturesRecentSearch + default/fallback-väg ser ALLTID ett rent

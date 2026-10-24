@@ -5,9 +5,10 @@ import { z } from "zod";
  * `OccupationSearchResult` (`Jobbliggaren.Application.JobAds.Abstractions`), camelCase per ADR 0020 §6.
  *
  * Both row kinds carry every key; the factories on the backend leave the other kind's keys null or
- * empty, never absent, so each branch below types them exactly that way. What the user selects is
- * always a group id: no occupation-name concept id is on the wire. The server is the only ordering
- * authority for rows, `matchedNames` and `variants`; nothing here sorts.
+ * empty, never absent, so each branch below types them exactly that way. A variant also carries its
+ * `occupationNameConceptId` on the wire (#2199); this schema does not parse it yet, so every host
+ * still selects a group id. The server is the only ordering authority for rows, `matchedNames` and
+ * `variants`; nothing here sorts.
  */
 
 // The taxonomy DTO's concept-id shape (1–32 characters, [A-Za-z0-9_-]).

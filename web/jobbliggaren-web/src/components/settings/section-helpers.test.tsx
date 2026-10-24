@@ -25,6 +25,7 @@ describe("CheckItem — the facet count (#2198 PR 2)", () => {
     const count = row.querySelector(".jp-checkitem__count");
     expect(count).toHaveTextContent("(12)");
     expect(count?.parentElement).toBe(screen.getByText("Systemutvecklare"));
+    expect(count?.parentElement).not.toBe(row);
   });
 
   it("makes the count part of a two-line row's name, on the first line, and keeps the second line its description", () => {

@@ -122,7 +122,8 @@ function hrefWithGroups(occupationGroup: string[], q = "") {
 const yrkePill = () => screen.getByRole("button", { name: /^Yrke/ });
 const yrkeDialog = () => screen.getByRole("dialog", { name: "Yrke" });
 const field = () => screen.getByRole("searchbox", { name: "Sök yrke" });
-const itRow = () => screen.findByRole("checkbox", { name: new RegExp(`^${IT_GROUP.label.replace(/[.]/g, "\\.")}`) });
+// The row's name is its group label, followed by "(n)" once facet counts have loaded.
+const itRow = () => screen.findByRole("checkbox", { name: (name) => name.startsWith(IT_GROUP.label) });
 
 async function openYrke(user: ReturnType<typeof userEvent.setup>) {
   await user.click(yrkePill());

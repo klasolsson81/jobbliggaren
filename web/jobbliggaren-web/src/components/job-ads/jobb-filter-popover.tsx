@@ -5,6 +5,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { Check, ChevronRight } from "lucide-react";
 import { formatNumber } from "@/lib/i18n/format";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
+import { usePanelPosition } from "@/lib/hooks/use-panel-position";
 
 /**
  * Platsbanken-mönster filter-popover (HANDOVER-v3.md §5.4, ADR 0055).
@@ -148,40 +149,6 @@ interface JobbFilterPopoverBaseProps {
 const SEARCH_SLOT_FOCUSABLE =
   "input, select, textarea, button, [href], [tabindex]:not([tabindex='-1'])";
 
-// Position härleds ur triggerns ref INNE I en effect (refs får inte läsas
-// under render — react-hooks/refs). Mätningen sker efter mount/öppning och
-// uppdateras vid scroll/resize.
-function usePopoverPosition(
-  open: boolean,
-  triggerRef: React.RefObject<HTMLButtonElement | null>,
-) {
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-
-  useEffect(() => {
-    const trigger = triggerRef.current;
-    if (!open || !trigger) {
-      setPos(null);
-      return;
-    }
-    const measure = () => {
-      const r = trigger.getBoundingClientRect();
-      setPos({
-        top: r.bottom + 8 + window.scrollY,
-        left: r.left + window.scrollX,
-      });
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-    };
-  }, [open, triggerRef]);
-
-  return pos;
-}
-
 export function toggle(
   selected: ReadonlyArray<string>,
   conceptId: string,
@@ -304,7 +271,7 @@ export function JobbFilterPopover({
     triggerRef,
     search ? keepOpenOnEscape : undefined,
   );
-  const pos = usePopoverPosition(open, triggerRef);
+  const pos = usePanelPosition(open, triggerRef);
   const hasSearch = search !== undefined;
   const positioned = pos !== null;
 

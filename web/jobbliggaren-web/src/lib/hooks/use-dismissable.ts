@@ -3,6 +3,20 @@
 import { useEffect, useRef } from "react";
 
 /**
+ * Portaled surfaces that belong to the open panel but live outside its DOM (portaled to
+ * document.body), so an interaction there is not read as leaving the panel:
+ * - `[data-radix-popper-content-wrapper]`: Popper surfaces (Select/Popover/Dropdown/Menu/HoverCard).
+ *   Klas-rapporterad bug 2026-05-20: AddFollowUpForm Kanal + RecordFollowUpOutcomeForm Utfall gick ej
+ *   att välja — SelectItem-klick inuti en modal lästes som utanför-klick.
+ * - `[data-slot="dialog-content"]`/`[data-slot="dialog-overlay"]`: a Radix MODAL Dialog (e.g. the
+ *   InfoDialog "?") opened from INSIDE a dismissable popover. It is not Popper-based and is portaled
+ *   via DialogPortal (#419 pt7). The `data-slot` attributes are set by `ui/dialog.tsx`, our own
+ *   stable convention, sturdier than a Radix-internal attribute.
+ */
+export const PORTALED_LAYER_SELECTOR =
+  '[data-radix-popper-content-wrapper], [data-slot="dialog-content"], [data-slot="dialog-overlay"]';
+
+/**
  * Delat dismiss-idiom för popover/dropdown-ytor (DRY — CLAUDE.md §9.1).
  * Extraherat verbatim ur app-shell.tsx (NotificationsBell/UserMenu) så att
  * F4:s hero-filter-popovers återanvänder exakt samma stängningssemantik:
@@ -33,27 +47,8 @@ export function useDismissable<
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
       const target = e.target as Element | null;
-      // Ignorera klick inuti portalerade ytor som logiskt hör till den öppna
-      // panelen men lever utanför dess DOM (portalerade till document.body), så
-      // ett klick där inte miss-läses som "klick utanför" och stänger panelen:
-      // - `[data-radix-popper-content-wrapper]`: Popper-ytor (Select/Popover/
-      //   Dropdown/Menu/HoverCard). Klas-rapporterad bug 2026-05-20: AddFollowUpForm
-      //   Kanal + RecordFollowUpOutcomeForm Utfall gick ej att välja — SelectItem-
-      //   klick inuti en modal lästes som utanför-klick.
-      // - `[data-slot="dialog-content"]`/`[data-slot="dialog-overlay"]`: en Radix
-      //   MODAL Dialog (t.ex. InfoDialog "?") öppnad från INUTI en dismissable
-      //   popover. Dialogen är INTE Popper-baserad (ingen popper-content-wrapper)
-      //   och portaleras via DialogPortal, så utan detta skulle första mousedown
-      //   inuti dialogen/overlayen stänga popovern under modalen (#419 pt7). De
-      //   `data-slot`-attributen sätts av `ui/dialog.tsx` (våra egna stabila
-      //   konventionsattribut, robustare än ett Radix-internt data-attribut).
-      //   (Den tidigare `[data-radix-portal]`-token togs bort — den finns inte i
-      //   den installerade Radix-buildens output och matchade därför noll.)
-      if (
-        target?.closest?.(
-          '[data-radix-popper-content-wrapper], [data-slot="dialog-content"], [data-slot="dialog-overlay"]',
-        )
-      ) {
+      // A click inside a portaled layer of the open panel is not a click outside it.
+      if (target?.closest?.(PORTALED_LAYER_SELECTOR)) {
         return;
       }
       if (

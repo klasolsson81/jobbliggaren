@@ -4,14 +4,15 @@
 // focus it moves on open.
 
 import { useEffect } from "react";
+import { useCloseOnFocusOut } from "@/lib/hooks/use-close-on-focus-out";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { usePanelPosition } from "@/lib/hooks/use-panel-position";
 import { FOCUSABLE_SELECTOR } from "@/lib/popover/focusable";
 
 /**
  * The one shell every `.jp-popover` root renders through (#2212): the dialog element, its place in
- * the viewport, Escape and outside-click dismissal with focus back on the trigger, and focus on
- * open. The body is the host's.
+ * the viewport, Escape and outside-click dismissal with focus back on the trigger, closing when
+ * keyboard focus leaves it, and focus on open. The body is the host's.
  */
 export interface PopoverShellProps {
   readonly open: boolean;
@@ -43,6 +44,7 @@ export function PopoverShell({
 }: PopoverShellProps) {
   const ref = useDismissable<HTMLDivElement, HTMLElement>(open, onClose, triggerRef, keepOpenOnEscape);
   const { style, ready } = usePanelPosition(open, triggerRef, ref, preferredWidth);
+  useCloseOnFocusOut(open, ref, triggerRef, onClose);
 
   // Once the panel has its place (WCAG 2.4.3); before that it sits off screen, where a focus could
   // scroll the page.

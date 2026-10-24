@@ -79,7 +79,7 @@ public class OccupationSearchRuleTests
         var groupList = groups.Select(g => new OccupationGroupEntry(g.Id, g.Label)).ToList();
         var labelById = groupList.ToDictionary(g => g.ConceptId, g => g.Label, StringComparer.Ordinal);
         return new OccupationNameIndexContents(
-            names.Select(n => new OccupationNameEntry(n.Name, n.GroupId, labelById[n.GroupId])).ToList(),
+            names.Select(n => new OccupationNameEntry($"id-{n.Name}", n.Name, n.GroupId, labelById[n.GroupId])).ToList(),
             groupList);
     }
 

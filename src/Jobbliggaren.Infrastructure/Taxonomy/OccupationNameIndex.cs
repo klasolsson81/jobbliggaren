@@ -75,7 +75,7 @@ internal sealed class OccupationNameIndex(ITaxonomyReadModel taxonomy)
                 continue;
             }
 
-            names.Add(new OccupationNameEntry(occupation.Label, groupId, groupLabel));
+            names.Add(new OccupationNameEntry(occupation.ConceptId, occupation.Label, groupId, groupLabel));
         }
 
         return new OccupationNameIndexContents(names, groups);
@@ -94,7 +94,7 @@ internal sealed record OccupationNameIndexContents(
     IReadOnlyList<OccupationGroupEntry> Groups);
 
 /// <summary>One matchable occupation-name and the ssyk-4 group the frozen map resolves it to.</summary>
-internal sealed record OccupationNameEntry(string NameLabel, string GroupConceptId, string GroupLabel);
+internal sealed record OccupationNameEntry(string ConceptId, string NameLabel, string GroupConceptId, string GroupLabel);
 
 /// <summary>One ssyk-4 group with its deterministic label.</summary>
 internal sealed record OccupationGroupEntry(string ConceptId, string Label);

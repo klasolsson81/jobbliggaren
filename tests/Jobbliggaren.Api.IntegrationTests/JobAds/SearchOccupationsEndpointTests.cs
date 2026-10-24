@@ -88,7 +88,11 @@ public class SearchOccupationsEndpointTests(ApiFactory factory)
         row.GetProperty("exactMatch").GetBoolean().ShouldBeFalse();
         var variant = row.GetProperty("variants").EnumerateArray().First();
         variant.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal)
-            .ShouldBe(["groupConceptId", "groupLabel", "nameLabel"]);
+            .ShouldBe(["groupConceptId", "groupLabel", "nameLabel", "occupationNameConceptId"]);
+        // #2199 — Projektledare, IT's own occupation-name id, the id /jobb filters on.
+        row.GetProperty("variants").EnumerateArray()
+            .Single(v => v.GetProperty("nameLabel").GetString() == "Projektledare, IT")
+            .GetProperty("occupationNameConceptId").GetString().ShouldBe("z5AM_ayf_WcL");
     }
 
     [Fact]

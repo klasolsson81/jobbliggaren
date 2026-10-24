@@ -12,7 +12,7 @@ import { readRules } from "@/test/css-rules";
  * matrix's.
  */
 const APP_CSS = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "app.css"), "utf8");
-const TOUCH = "@media (max-width: 768px)";
+const TOUCH = "@media (max-width: 768px), (pointer: coarse)";
 const rules = readRules(APP_CSS).filter((r) => r.inMedia === TOUCH);
 const declared = (selector: string, property: string) =>
   rules
@@ -29,6 +29,16 @@ describe("the popover touch floor at ≤768 (#2212)", () => {
     '.jp-popover [data-slot="dialog-trigger"]',
   ])("%s is at least 44px tall", (selector) => {
     expect(declared(selector, "min-height")).toEqual(["44px"]);
+  });
+
+  it("makes the sheet's close button 44px on a landscape phone too", () => {
+    expect(declared(".jp-popover .jp-icon-btn", "width")).toEqual(["44px"]);
+    expect(declared(".jp-popover .jp-icon-btn", "height")).toEqual(["44px"]);
+  });
+
+  it("stops Rensa's and Tillbaka's hit area 8px under their text", () => {
+    expect(declared(".jp-popover .jp-clearlink::before", "inset")).toEqual(["-16px -8px -8px"]);
+    expect(declared(".jp-popover .jp-popover__back::before", "inset")).toEqual(["-16px -8px -8px"]);
   });
 
   it.each([

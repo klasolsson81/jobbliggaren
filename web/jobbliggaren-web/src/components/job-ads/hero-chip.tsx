@@ -125,7 +125,7 @@ export function HeroChip<T>({
           </div>
         )}
       >
-        <div style={{ padding: "6px 0", maxHeight: 320, overflow: "auto" }}>
+        <div className="jp-hero-chip__list">
           {visible.length === 0 ? (
             <div className="jp-popover__empty px-4 py-3.5">
               {emptyText}

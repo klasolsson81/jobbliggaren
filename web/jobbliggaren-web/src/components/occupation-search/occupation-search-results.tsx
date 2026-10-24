@@ -50,6 +50,9 @@ export interface OccupationSearchResultsProps {
   readonly selected: ReadonlyArray<string>;
   /** Toggles one group id: the same call a group row in the browse view makes. */
   readonly onToggle: (groupConceptId: string) => void;
+  /** Facet counts by group id, shown as "(n)" on Group rows only; a missing key is 0. `null` or
+   *  omitted shows no numbers. */
+  readonly counts?: Readonly<Record<string, number>> | null;
 }
 
 // How many matched names a group row spells out before "och N till".
@@ -74,12 +77,12 @@ const EVIDENCE_NAME_SEPARATOR = "; ";
  * selects nothing. Any other Word row waits to be chosen. There is no "Välj alla" here: it would make
  * a Word row checkable in practice. Labels render as text, with no match highlighting.
  */
-export function OccupationSearchResults({ result, selected, onToggle }: OccupationSearchResultsProps) {
+export function OccupationSearchResults({ result, selected, onToggle, counts }: OccupationSearchResultsProps) {
   if (result === null) {
     // Pending: the box keeps its place and height, and shows nothing from an earlier word.
     return <div className="jp-matchdialog__cascade jp-occsearch__box jp-occsearch__box--single" />;
   }
-  return <Answer result={result} selected={selected} onToggle={onToggle} />;
+  return <Answer result={result} selected={selected} onToggle={onToggle} counts={counts} />;
 }
 
 interface Opened {
@@ -91,10 +94,12 @@ function Answer({
   result,
   selected,
   onToggle,
+  counts,
 }: {
   readonly result: OccupationSearchResult;
   readonly selected: ReadonlyArray<string>;
   readonly onToggle: (groupConceptId: string) => void;
+  readonly counts: Readonly<Record<string, number>> | null | undefined;
 }) {
   const t = useTranslations("components.occupationSearch");
   const id = useId();
@@ -143,6 +148,7 @@ function Answer({
               key={`group:${row.groupConceptId}`}
               label={row.groupLabel}
               secondary={groupEvidence(t, row)}
+              count={counts ? (counts[row.groupConceptId] ?? 0) : undefined}
               checked={selected.includes(row.groupConceptId)}
               onToggle={() => onToggle(row.groupConceptId)}
             />

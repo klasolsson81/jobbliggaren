@@ -407,8 +407,8 @@ async function shoot(page: Page, outDir: string, name: string): Promise<void> {
  * Robusta selektorer (role/aria/text):
  *  - Hero-pill: `<button class="jp-hero-pill">Yrke|Ort</button>` med
  *    aria-haspopup="dialog" + aria-expanded (jobb-hero-filters).
- *  - Popover: role="dialog" + aria-label (jobb-filter-popover). Yrke =
- *    tvåkolumns (vänsterkolumn role="listbox"); Ort = enkelkolumns Län.
+ *  - Popover: role="dialog" + aria-label (jobb-filter-popover), whose left
+ *    column is a role="group" named by its title (Yrkesområde, Län).
  *
  * Gated till 1280 + 3440 (breddspann); körs i light+dark via THEME-loopen.
  * Best-effort: en miss fäller inte hela körningen (defensiv catch → varning,
@@ -435,15 +435,14 @@ async function shootJobbInteractiveStates(
     if ((await yrkePill.getAttribute("aria-expanded")) !== "true") {
       await yrkePill.click();
     }
-    // Popovern är role="dialog"; vänster kategorikolumn är role="listbox"
-    // (jobb-filter-popover tvåkolumns) — bevisar att popovern faktiskt
-    // renderat, inte bara att klicket gick igenom.
+    // The left column proves the popover rendered, not only that the click
+    // went through.
     await page
       .getByRole("dialog")
       .first()
       .waitFor({ state: "visible", timeout: 5000 });
     await page
-      .getByRole("listbox")
+      .getByRole("group", { name: "Yrkesområde" })
       .first()
       .waitFor({ state: "visible", timeout: 5000 });
     // Fade/rise-animation (DESIGN.md §10) settlar.
@@ -486,8 +485,7 @@ async function shootJobbInteractiveStates(
     );
   }
 
-  // State 2 — Ort-popover öppen (enkelkolumns Län; ADR 0055-amendment —
-  // ingen kommun-nivå, regions enkelnivå).
+  // State 2 — Ort-popover öppen (Län → Kommun, ADR 0067 E2b).
   try {
     await page.goto(`${BASE_URL}/jobb`, { waitUntil: "load", timeout: 15_000 });
     const ortPill = page
@@ -501,10 +499,9 @@ async function shootJobbInteractiveStates(
       .getByRole("dialog")
       .first()
       .waitFor({ state: "visible", timeout: 5000 });
-    // Enkelkolumns Ort: "Välj alla län"-checkitem bevisar Län-listan
-    // renderat (role="checkbox", jobb-filter-popover enkelkolumns).
+    // The left column proves the Län list rendered.
     await page
-      .getByRole("checkbox", { name: /Välj alla län/ })
+      .getByRole("group", { name: "Län" })
       .first()
       .waitFor({ state: "visible", timeout: 5000 });
     await page.waitForTimeout(300);

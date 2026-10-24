@@ -29,6 +29,7 @@ import {
   type PopoverGroup,
 } from "./jobb-filter-popover";
 import { JobbToolbarPopover } from "./jobb-toolbar-popover";
+import { JobbYrkePopover } from "./jobb-yrke-popover";
 import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 
 /**
@@ -418,11 +419,18 @@ export function JobbHeroFilters({
           count: totalCount,
         })
       : t("heroFilters.showResultsEmpty");
+  // The footer closes the open popover and returns focus to its pill, as Escape does (WCAG 2.4.3).
+  function closeFromFooter() {
+    const pills = { ort: ortBtnRef, yrke: yrkeBtnRef, filter: filterBtnRef, match: matchBtnRef };
+    const pill = openPop === null ? null : pills[openPop].current;
+    setOpenPop(null);
+    pill?.focus();
+  }
   const showResultsFooter = (
     <button
       type="button"
       className="jp-btn jp-btn--primary jp-btn--sm"
-      onClick={() => setOpenPop(null)}
+      onClick={closeFromFooter}
     >
       {showResultsLabel}
     </button>
@@ -559,22 +567,16 @@ export function JobbHeroFilters({
         triggerRef={ortBtnRef}
       />
 
-      <JobbFilterPopover
+      {/* The same key remount also starts the occupation search empty on every opening. */}
+      <JobbYrkePopover
         key={openPop === "yrke" ? "yrke-open" : "yrke-closed"}
         open={openPop === "yrke"}
-        leftTitle={t("heroFilters.yrkeLeftTitle")}
-        dialogLabel={t("heroFilters.yrke")}
-        rightTitle={t("heroFilters.yrkeRightTitle")}
-        selectAllLabel={() => t("heroFilters.yrkeSelectAll")}
-        emptyText={t("heroFilters.yrkeEmpty")}
-        rightEmptyText={t("heroFilters.yrkeRightEmpty")}
         groups={occupationFieldGroups}
         selected={occupationGroup}
         onChange={changeOccupationGroup}
         counts={occupationGroupCounts}
         footer={showResultsFooter}
         onClose={() => setOpenPop(null)}
-        onClearAll={() => changeOccupationGroup([])}
         triggerRef={yrkeBtnRef}
       />
 

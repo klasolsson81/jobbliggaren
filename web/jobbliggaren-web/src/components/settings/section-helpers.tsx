@@ -7,6 +7,8 @@
 
 import { type KeyboardEvent, useCallback, useId, useRef } from "react";
 import { Check } from "lucide-react";
+import { useFormatter } from "next-intl";
+import { formatNumber } from "@/lib/i18n/format";
 import { useFocusAfterCommit } from "@/lib/hooks/use-focus-after-commit";
 import { PreferenceChip } from "./preference-chip";
 import type { Option } from "./match-preferences-shared";
@@ -24,12 +26,15 @@ import type { Option } from "./match-preferences-shared";
  * `secondary` (#2198) gives the row a second line, the evidence the user chooses by. The row's name
  * is then the first line alone and the second becomes its description, so a screen reader does not
  * run the two together. Without it the row renders exactly as before.
+ *
+ * `count` (#2198 PR 2) is a facet count, "(n)", shown on the first line and part of the row's name in
+ * both forms, as the /jobb popover's own rows show it. Without it the row renders exactly as before.
  */
 export function CheckItem(props: CheckItemProps) {
   if (props.secondary !== undefined) {
     return <TwoLineCheckItem {...props} secondary={props.secondary} />;
   }
-  const { label, checked, onToggle, isAll, indeterminate, describedBy } = props;
+  const { label, checked, onToggle, isAll, indeterminate, describedBy, count } = props;
   return (
     <div
       className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
@@ -43,7 +48,14 @@ export function CheckItem(props: CheckItemProps) {
       <span className="jp-checkitem__box">
         {checked && <Check size={14} aria-hidden="true" />}
       </span>
-      {label}
+      {count === undefined ? (
+        label
+      ) : (
+        <span className="flex min-w-0 flex-1 items-baseline gap-3">
+          {label}
+          <CheckItemCount count={count} />
+        </span>
+      )}
     </div>
   );
 }
@@ -56,6 +68,7 @@ interface CheckItemProps {
   readonly indeterminate?: boolean;
   readonly describedBy?: string;
   readonly secondary?: string;
+  readonly count?: number;
 }
 
 function toggleOnSpaceOrEnter(e: KeyboardEvent<HTMLElement>, onToggle: () => void) {
@@ -63,6 +76,16 @@ function toggleOnSpaceOrEnter(e: KeyboardEvent<HTMLElement>, onToggle: () => voi
     e.preventDefault();
     onToggle();
   }
+}
+
+// Its own component so the formatter is called only where a count is shown.
+function CheckItemCount({ id, count }: { readonly id?: string; readonly count: number }) {
+  const format = useFormatter();
+  return (
+    <span id={id} className="jp-checkitem__count">
+      ({formatNumber(format, count)})
+    </span>
+  );
 }
 
 // Its own component so the ids it needs are created only where a second line exists: the one-line
@@ -75,16 +98,18 @@ function TwoLineCheckItem({
   indeterminate,
   describedBy,
   secondary,
+  count,
 }: CheckItemProps & { readonly secondary: string }) {
   const id = useId();
   const nameId = `${id}-name`;
   const secondaryId = `${id}-secondary`;
+  const countId = `${id}-count`;
   return (
     <div
       className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
       role="checkbox"
       aria-checked={indeterminate ? "mixed" : checked}
-      aria-labelledby={nameId}
+      aria-labelledby={count === undefined ? nameId : `${nameId} ${countId}`}
       aria-describedby={describedBy === undefined ? secondaryId : `${secondaryId} ${describedBy}`}
       tabIndex={0}
       onClick={onToggle}
@@ -93,8 +118,15 @@ function TwoLineCheckItem({
       <span className="jp-checkitem__box">
         {checked && <Check size={14} aria-hidden="true" />}
       </span>
-      <span className="flex min-w-0 flex-col">
-        <span id={nameId}>{label}</span>
+      <span className={count === undefined ? "flex min-w-0 flex-col" : "flex min-w-0 flex-1 flex-col"}>
+        {count === undefined ? (
+          <span id={nameId}>{label}</span>
+        ) : (
+          <span className="flex items-baseline gap-3">
+            <span id={nameId}>{label}</span>
+            <CheckItemCount id={countId} count={count} />
+          </span>
+        )}
         <span id={secondaryId} className="text-body-sm text-text-secondary">
           {secondary}
         </span>

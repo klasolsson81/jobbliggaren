@@ -14,6 +14,9 @@ import { useEffect, useRef } from "react";
  * `triggerRef` är generisk över HTMLElement-subtyp (app-shell använder
  * `<button>`, hero-pillen likaså, men typen låses inte till button så
  * andra triggers kan återanvända idiomet utan cast).
+ *
+ * `keepOpenOnEscape` (optional, #2198): when it returns true for an Escape, the panel neither
+ * closes nor moves focus. Omitted, every Escape closes as before. Mousedown is not affected.
  */
 export function useDismissable<
   TPanel extends HTMLElement = HTMLDivElement,
@@ -22,6 +25,7 @@ export function useDismissable<
   open: boolean,
   onClose: () => void,
   triggerRef: React.RefObject<TTrigger | null>,
+  keepOpenOnEscape?: (event: KeyboardEvent) => boolean,
 ) {
   const ref = useRef<TPanel>(null);
 
@@ -78,6 +82,7 @@ export function useDismissable<
         ) {
           return;
         }
+        if (keepOpenOnEscape?.(e)) return;
         onClose();
         triggerRef.current?.focus();
       }
@@ -88,7 +93,7 @@ export function useDismissable<
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose, triggerRef]);
+  }, [open, onClose, triggerRef, keepOpenOnEscape]);
 
   return ref;
 }

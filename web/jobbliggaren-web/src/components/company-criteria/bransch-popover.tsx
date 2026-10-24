@@ -22,15 +22,13 @@ import {
  * the trigger, the `.jp-popover` panel, Esc/outside-click dismissal with focus return, and the
  * checkbox rhythm all come from the same family, and the ort trigger beside it literally renders
  * `JobbFilterPopover`. What is deliberately NOT adopted is that component's two-column cascade BODY,
- * for two measured reasons:
+ * for two reasons:
  *
  *  1. SNI 2025 is THREE levels — 22 sections, 87 divisions, 835 leaves. A two-level contract can hold
  *     two of them. Collapsing section→division drops all 835 detail codes out of the UI, which is less
  *     than the single-select typeahead this replaces could already reach; collapsing division→leaf
  *     turns the left column into an 87-row dump and loses the sections as an entry point.
- *  2. `JobbFilterPopover` has no filter field, and "a list I can open AND filter in" is the actual ask
- *     behind #999. Adding one there would put a third responsibility on a component whose documented
- *     identity is the Platsbanken two-column cascade, and would do it inside another lane's surface.
+ *  2. "A list I can open AND filter in" is the actual ask behind #999 (see ADR 0180 D8).
  *
  * `CriterionPicker` already answers both, is already reviewed, and already ships on the sibling browse
  * surface (Branschbevakningar). ADR 0117 Beslut 3 makes that a requirement rather than a convenience:

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Check, ChevronRight } from "lucide-react";
 import { formatNumber } from "@/lib/i18n/format";
@@ -23,8 +23,7 @@ import { useDismissable } from "@/lib/hooks/use-dismissable";
  * mode-flagga — Flag Argument-smell avvisat). Det tidigare enkelkolumns-
  * läget (Ort som platt Län-lista) utgick i E2b — noll konsumenter.
  *
- * Ingen footer, ingen Använd/Stäng-knapp (ADR 0055 Beslut 2). ESC + klick
- * utanför stänger, fokus återförs till triggern (jobbliggaren-design-a11y,
+ * ESC + klick utanför stänger, fokus återförs till triggern (jobbliggaren-design-a11y,
  * delat `useDismissable`-idiom — DRY, CLAUDE.md §9.1).
  */
 
@@ -42,7 +41,46 @@ export interface PopoverItem {
   label: string;
 }
 
-interface JobbFilterPopoverProps {
+/**
+ * A search composed into the popover (#2198, ADR 0180 D8): nodes the host renders. `field` sits
+ * above the columns and gets focus on open; `results`, while not null, takes the columns' place.
+ * The popover holds no query state, no matching and no fetch.
+ */
+export interface PopoverSearch {
+  readonly field: React.ReactElement;
+  readonly results: React.ReactElement | null;
+}
+
+/** The boolean row above the columns, and the composed search, are never passed together. */
+type PopoverTopSlot =
+  | {
+      /**
+       * #551 punkt 4 — en BOOLESK rad ovanför de två kolumnerna (Ort: "Distans").
+       * Samma parameterisering-med-data som `groupAxis`, inte en flagga:
+       * utelämnad (Yrke, Klass 2) → popovern renderar exakt som förut, byte för
+       * byte. Raden ligger utanför kolumnerna därför att distans inte HAR någon
+       * län→kommun-hierarki att navigera — backend unionerar den vid sidan av de
+       * två id-axlarna (kommun ∨ län ∨ remote).
+       */
+      booleanAxis?: BooleanAxis;
+      search?: never;
+    }
+  | {
+      booleanAxis?: never;
+      search?: PopoverSearch;
+    };
+
+interface BooleanAxis {
+  label: string;
+  /** Hjälptext under raden — förklarar att axeln BREDDAR, inte skär. */
+  hint?: string;
+  checked: boolean;
+  onToggle: () => void;
+}
+
+type JobbFilterPopoverProps = JobbFilterPopoverBaseProps & PopoverTopSlot;
+
+interface JobbFilterPopoverBaseProps {
   open: boolean;
   /** conceptId-lista för ITEM-axeln (occupationGroup eller municipality). */
   selected: ReadonlyArray<string>;
@@ -94,21 +132,6 @@ interface JobbFilterPopoverProps {
     onToggleItem: (itemConceptId: string, groupConceptId: string) => void;
   };
   /**
-   * #551 punkt 4 — en BOOLESK rad ovanför de två kolumnerna (Ort: "Distans").
-   * Samma parameterisering-med-data som `groupAxis` ovan, inte en flagga:
-   * utelämnad (Yrke, Klass 2) → popovern renderar exakt som förut, byte för
-   * byte. Raden ligger utanför kolumnerna därför att distans inte HAR någon
-   * län→kommun-hierarki att navigera — backend unionerar den vid sidan av de
-   * två id-axlarna (kommun ∨ län ∨ remote).
-   */
-  booleanAxis?: {
-    label: string;
-    /** Hjälptext under raden — förklarar att axeln BREDDAR, inte skär. */
-    hint?: string;
-    checked: boolean;
-    onToggle: () => void;
-  };
-  /**
    * Fas E2c (ADR 0067 Beslut 4) — per-option-counts för höger-kolumnens
    * item-rader (concept-id → count; saknad nyckel = 0). `null`/utelämnad =
    * counts ej laddade/degraderade → inga tal visas (popovern fullt
@@ -120,6 +143,10 @@ interface JobbFilterPopoverProps {
   /** Footer-yta ("Visa N annonser"-knappen, CTO VAL 2 — föräldern äger). */
   footer?: React.ReactNode;
 }
+
+// What the search slot focuses on open: its first focusable element, the field.
+const SEARCH_SLOT_FOCUSABLE =
+  "input, select, textarea, button, [href], [tabindex]:not([tabindex='-1'])";
 
 // Position härleds ur triggerns ref INNE I en effect (refs får inte läsas
 // under render — react-hooks/refs). Mätningen sker efter mount/öppning och
@@ -155,7 +182,7 @@ function usePopoverPosition(
   return pos;
 }
 
-function toggle(
+export function toggle(
   selected: ReadonlyArray<string>,
   conceptId: string,
   onChange: (next: string[]) => void,
@@ -257,14 +284,38 @@ export function JobbFilterPopover({
   rightEmptyText,
   groupAxis,
   booleanAxis,
+  search,
   counts,
   groupCounts,
   footer,
 }: JobbFilterPopoverProps) {
   const t = useTranslations("jobads.ui");
   const boolHintId = `jp-popover-boolaxis-hint-${useId()}`;
-  const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
+  const searchSlotRef = useRef<HTMLDivElement>(null);
+  // An Escape the search field already handled (it clears its text) leaves the popover open.
+  const keepOpenOnEscape = useCallback(
+    (e: KeyboardEvent) =>
+      e.defaultPrevented && searchSlotRef.current?.contains(e.target as Node) === true,
+    [],
+  );
+  const ref = useDismissable<HTMLDivElement>(
+    open,
+    onClose,
+    triggerRef,
+    search ? keepOpenOnEscape : undefined,
+  );
   const pos = usePopoverPosition(open, triggerRef);
+  const hasSearch = search !== undefined;
+  const positioned = pos !== null;
+
+  // With a search, focus goes to the field once the popover has its place (WCAG 2.4.3). Before
+  // that it sits off screen, where a focus could scroll the page.
+  useEffect(() => {
+    if (!hasSearch || !positioned) return;
+    searchSlotRef.current
+      ?.querySelector<HTMLElement>(SEARCH_SLOT_FOCUSABLE)
+      ?.focus({ preventScroll: true });
+  }, [hasSearch, positioned]);
 
   // Aktiv grupp (vänsterrad). E2f (Klas rendered-feedback 2026-06-11,
   // Platsbanken-paritet): startar TOM — höger kolumn visas först när
@@ -307,6 +358,175 @@ export function JobbFilterPopover({
     (groupAxis?.selected.length ?? 0) > 0 ||
     booleanAxis?.checked === true;
 
+  const columns = (
+    <div className="jp-popover__body">
+      {/* maxHeight/overflowY på själva kolumnen (ej enbart grid-
+          förälderns max-height) — grid-barn får ingen användbar höjd att
+          scrolla inom från förälderns max-height; constraint måste sitta
+          på scroll-elementet självt (design-reviewer F4 Blocker x2). */}
+      {/* Vänsterkolumnen NAVIGERAR aktiv grupp (avslöjar dess val till
+          höger) — den väljer inget värde (det gör höger-kolumnens
+          checkbox-rader). Därför en knapp-grupp (role="group" + <button>),
+          inte role="listbox" (en listbox lovar single-tab-stop + roving
+          tabindex + piltangenter, vilket interaktionen aldrig hade). Native
+          <button> ger Enter/Space + fokus gratis; aktiv rad via aria-pressed.
+          Paritet med ort-kaskaden (CTO-verdikt 2026-06-22). */}
+      <div
+        className="jp-popover__col"
+        role="group"
+        aria-label={leftTitle}
+        style={{ maxHeight: "60vh", overflowY: "auto" }}
+      >
+        <div className="jp-popover__colhead">
+          <span className="jp-popover__title">{leftTitle}</span>
+          {anySelectedAnywhere && (
+            <button
+              type="button"
+              className="jp-clearlink"
+              onClick={onClearAll}
+            >
+              {t("popover.clear")}
+            </button>
+          )}
+        </div>
+        {groups.length === 0 ? (
+          <div className="jp-popover__empty px-4 py-3">
+            {emptyText}
+          </div>
+        ) : (
+          groups.map((g) => {
+            const active = activeGroup?.conceptId === g.conceptId;
+            const hasSel =
+              g.items.some((it) => selectedSet.has(it.conceptId)) ||
+              groupSelectedSet.has(g.conceptId);
+            return (
+              <button
+                key={g.conceptId}
+                type="button"
+                className="jp-popover-row"
+                aria-pressed={active}
+                onClick={() => setActiveLeft(g.conceptId)}
+              >
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  {hasSel && !active && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        background: "var(--jp-leaf-600)",
+                      }}
+                    />
+                  )}
+                  {g.label}
+                </span>
+                <ChevronRight
+                  size={14}
+                  className="jp-popover-row__chev"
+                  aria-hidden="true"
+                />
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      <div
+        className="jp-popover__col"
+        style={{ maxHeight: "60vh", overflowY: "auto" }}
+      >
+        <div className="jp-popover__colhead">
+          <span className="jp-popover__title">{rightTitle}</span>
+          {rightAnySelected && activeGroup && (
+            <button
+              type="button"
+              className="jp-clearlink"
+              onClick={() => {
+                if (groupAxis) {
+                  groupAxis.onClearColumn(activeGroup.conceptId);
+                } else {
+                  onChange(
+                    selected.filter((v) => !rightIds.includes(v)),
+                  );
+                }
+              }}
+            >
+              {t("popover.clear")}
+            </button>
+          )}
+        </div>
+        {rightItems.length === 0 ? (
+          <div className="jp-popover__empty px-4 py-3">
+            {rightEmptyText}
+          </div>
+        ) : (
+          <>
+            <CheckRow
+              label={activeGroup ? selectAllLabel(activeGroup) : ""}
+              checked={selectAllChecked}
+              indeterminate={selectAllMixed}
+              isAll
+              // "Hela länet"-radens count = gruppens eget id i grupp-
+              // facetten (region). Enaxel-fallet (Yrke) har ingen
+              // grupp-count — summan vore semantiskt fel (CTO VAL 2-not).
+              count={
+                groupAxis && activeGroup && groupCounts
+                  ? (groupCounts[activeGroup.conceptId] ?? 0)
+                  : undefined
+              }
+              onToggle={() => {
+                if (groupAxis && activeGroup) {
+                  groupAxis.onToggleGroup(activeGroup.conceptId);
+                } else {
+                  toggleAll(
+                    selected,
+                    rightIds,
+                    selectAllChecked,
+                    onChange,
+                  );
+                }
+              }}
+            />
+            {rightItems.map((it) => (
+              <CheckRow
+                key={it.conceptId}
+                label={it.label}
+                // E2f: när hela länet är valt RENDERAS alla kommun-rader
+                // markerade (Platsbanken-paritet — tydligt vad valet
+                // omfattar); klick på en sådan rad = "hela länet minus
+                // denna" (förälderns semantik via onToggleItem).
+                checked={
+                  selectedSet.has(it.conceptId) ||
+                  (groupAxis !== undefined && activeGroupChecked)
+                }
+                // Saknad nyckel = 0 träffar (counts laddade); null/undefined
+                // counts = inget tal alls (tyst degradering).
+                count={counts ? (counts[it.conceptId] ?? 0) : undefined}
+                onToggle={() => {
+                  if (groupAxis && activeGroup) {
+                    groupAxis.onToggleItem(
+                      it.conceptId,
+                      activeGroup.conceptId,
+                    );
+                  } else {
+                    toggle(selected, it.conceptId, onChange);
+                  }
+                }}
+              />
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div
       ref={ref}
@@ -318,10 +538,7 @@ export function JobbFilterPopover({
       {/* Utanför __body: distans har ingen län→kommun-hierarki att navigera.
           Raden och dess hjälptext är EN grupp, och avdelaren sitter på gruppen —
           den skiljer axeln från Län/Kommun-kolumnerna, inte kryssrutan från sin
-          egen förklaring. `.jp-popover__boolaxis` ligger i `(app)/app.css` och är
-          den ENDA `.jp-popover__*`-regeln utanför `globals.css`, där resten bor.
-          Den hör hemma hos sina syskon och kan flyttas dit när någon ändå rör dem.
-          `isAll` blir därmed false för varje konsument som skickar en hint (alla
+          egen förklaring. `isAll` blir därmed false för varje konsument som skickar en hint (alla
           i dag) och är kvar bara för en framtida hint-lös rad, som behöver
           avdelaren på själva raden. Att raden då också tappar `--all`:s semibold
           är AVSIKTLIGT: "Distans räknas som egen ort" (designhandoffen), alltså
@@ -345,172 +562,20 @@ export function JobbFilterPopover({
           )}
         </div>
       )}
-      <div className="jp-popover__body">
-        {/* maxHeight/overflowY på själva kolumnen (ej enbart grid-
-            förälderns max-height) — grid-barn får ingen användbar höjd att
-            scrolla inom från förälderns max-height; constraint måste sitta
-            på scroll-elementet självt (design-reviewer F4 Blocker x2). */}
-        {/* Vänsterkolumnen NAVIGERAR aktiv grupp (avslöjar dess val till
-            höger) — den väljer inget värde (det gör höger-kolumnens
-            checkbox-rader). Därför en knapp-grupp (role="group" + <button>),
-            inte role="listbox" (en listbox lovar single-tab-stop + roving
-            tabindex + piltangenter, vilket interaktionen aldrig hade). Native
-            <button> ger Enter/Space + fokus gratis; aktiv rad via aria-pressed.
-            Paritet med ort-kaskaden (CTO-verdikt 2026-06-22). */}
-        <div
-          className="jp-popover__col"
-          role="group"
-          aria-label={leftTitle}
-          style={{ maxHeight: "60vh", overflowY: "auto" }}
-        >
-          <div className="jp-popover__colhead">
-            <span className="jp-popover__title">{leftTitle}</span>
-            {anySelectedAnywhere && (
-              <button
-                type="button"
-                className="jp-clearlink"
-                onClick={onClearAll}
-              >
-                {t("popover.clear")}
-              </button>
-            )}
+      {search ? (
+        <div className="jp-popover__frame">
+          <div ref={searchSlotRef} className="jp-popover__search">
+            {search.field}
           </div>
-          {groups.length === 0 ? (
-            <div className="jp-popover__empty px-4 py-3">
-              {emptyText}
-            </div>
+          {search.results !== null ? (
+            <div className="jp-popover__results">{search.results}</div>
           ) : (
-            groups.map((g) => {
-              const active = activeGroup?.conceptId === g.conceptId;
-              const hasSel =
-                g.items.some((it) => selectedSet.has(it.conceptId)) ||
-                groupSelectedSet.has(g.conceptId);
-              return (
-                <button
-                  key={g.conceptId}
-                  type="button"
-                  className="jp-popover-row"
-                  aria-pressed={active}
-                  onClick={() => setActiveLeft(g.conceptId)}
-                >
-                  <span
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    {hasSel && !active && (
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 999,
-                          background: "var(--jp-leaf-600)",
-                        }}
-                      />
-                    )}
-                    {g.label}
-                  </span>
-                  <ChevronRight
-                    size={14}
-                    className="jp-popover-row__chev"
-                    aria-hidden="true"
-                  />
-                </button>
-              );
-            })
+            columns
           )}
         </div>
-
-        <div
-          className="jp-popover__col"
-          style={{ maxHeight: "60vh", overflowY: "auto" }}
-        >
-          <div className="jp-popover__colhead">
-            <span className="jp-popover__title">{rightTitle}</span>
-            {rightAnySelected && activeGroup && (
-              <button
-                type="button"
-                className="jp-clearlink"
-                onClick={() => {
-                  if (groupAxis) {
-                    groupAxis.onClearColumn(activeGroup.conceptId);
-                  } else {
-                    onChange(
-                      selected.filter((v) => !rightIds.includes(v)),
-                    );
-                  }
-                }}
-              >
-                {t("popover.clear")}
-              </button>
-            )}
-          </div>
-          {rightItems.length === 0 ? (
-            <div className="jp-popover__empty px-4 py-3">
-              {rightEmptyText}
-            </div>
-          ) : (
-            <>
-              <CheckRow
-                label={activeGroup ? selectAllLabel(activeGroup) : ""}
-                checked={selectAllChecked}
-                indeterminate={selectAllMixed}
-                isAll
-                // "Hela länet"-radens count = gruppens eget id i grupp-
-                // facetten (region). Enaxel-fallet (Yrke) har ingen
-                // grupp-count — summan vore semantiskt fel (CTO VAL 2-not).
-                count={
-                  groupAxis && activeGroup && groupCounts
-                    ? (groupCounts[activeGroup.conceptId] ?? 0)
-                    : undefined
-                }
-                onToggle={() => {
-                  if (groupAxis && activeGroup) {
-                    groupAxis.onToggleGroup(activeGroup.conceptId);
-                  } else {
-                    toggleAll(
-                      selected,
-                      rightIds,
-                      selectAllChecked,
-                      onChange,
-                    );
-                  }
-                }}
-              />
-              {rightItems.map((it) => (
-                <CheckRow
-                  key={it.conceptId}
-                  label={it.label}
-                  // E2f: när hela länet är valt RENDERAS alla kommun-rader
-                  // markerade (Platsbanken-paritet — tydligt vad valet
-                  // omfattar); klick på en sådan rad = "hela länet minus
-                  // denna" (förälderns semantik via onToggleItem).
-                  checked={
-                    selectedSet.has(it.conceptId) ||
-                    (groupAxis !== undefined && activeGroupChecked)
-                  }
-                  // Saknad nyckel = 0 träffar (counts laddade); null/undefined
-                  // counts = inget tal alls (tyst degradering).
-                  count={counts ? (counts[it.conceptId] ?? 0) : undefined}
-                  onToggle={() => {
-                    if (groupAxis && activeGroup) {
-                      groupAxis.onToggleItem(
-                        it.conceptId,
-                        activeGroup.conceptId,
-                      );
-                    } else {
-                      toggle(selected, it.conceptId, onChange);
-                    }
-                  }}
-                />
-              ))}
-            </>
-          )}
-        </div>
-      </div>
+      ) : (
+        columns
+      )}
       {footer && <div className="jp-popover__foot">{footer}</div>}
     </div>
   );

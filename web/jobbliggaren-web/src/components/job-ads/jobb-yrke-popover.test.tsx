@@ -6,8 +6,9 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import type { OccupationSearchResolver } from "@/lib/occupation-search/resolve-occupation-search";
 import { buildJobbHref } from "@/lib/job-ads/search-params";
 import { EL_GROUP, IT_GROUP, USK_VARD_GROUP, ruleAnswer } from "@/test/fixtures/occupation-search";
+import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
-const pushMock = vi.fn<(href: string) => void>();
+const pushMock = vi.fn<AppRouterInstance["push"]>();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
 }));
@@ -174,7 +175,7 @@ describe("/jobb Yrke: the typed word stays in the popover (#2198 PR 2, ADR 0180 
     await user.type(field(), CANARY);
     await user.click(await itRow());
     expect(pushMock).toHaveBeenCalledTimes(1);
-    expect(pushMock).toHaveBeenLastCalledWith(hrefWithGroups([IT_GROUP.id], "backend"));
+    expect(pushMock).toHaveBeenLastCalledWith(hrefWithGroups([IT_GROUP.id], "backend"), { scroll: false });
     navigate([IT_GROUP.id]);
 
     resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.underskoterska });
@@ -183,7 +184,7 @@ describe("/jobb Yrke: the typed word stays in the popover (#2198 PR 2, ADR 0180 
     await user.click(await screen.findByRole("button", { name: "Undersköterska" }));
     await user.click(screen.getByRole("checkbox", { name: "Undersköterska, hemtjänst, äldreboende och habilitering" }));
     expect(pushMock).toHaveBeenCalledTimes(2);
-    expect(pushMock).toHaveBeenLastCalledWith(hrefWithGroups([IT_GROUP.id, USK_HEMTJANST_GROUP.id], "backend"));
+    expect(pushMock).toHaveBeenLastCalledWith(hrefWithGroups([IT_GROUP.id, USK_HEMTJANST_GROUP.id], "backend"), { scroll: false });
   });
 
   it("no push, no other fetch, no URL, storage or cookie ever carries the word", async () => {
@@ -269,7 +270,7 @@ describe("/jobb Yrke: the typed word stays in the popover (#2198 PR 2, ADR 0180 
     await user.click(within(yrkeDialog()).getByRole("checkbox", { name: IT_GROUP.label }));
 
     expect(fromSearch).toBe(hrefWithGroups([IT_GROUP.id]));
-    expect(pushMock).toHaveBeenLastCalledWith(fromSearch);
+    expect(pushMock).toHaveBeenLastCalledWith(fromSearch, { scroll: false });
   });
 });
 

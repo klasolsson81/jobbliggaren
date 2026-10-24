@@ -365,7 +365,10 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
 
    The public catalogue (`/lediga-jobb`, ADR 0176) needs no check: it reads and
    classifies each row's content per request, so an erased ad is absent from its page at
-   once (`PublicJobAdCatalogueReadTests`, `PublicJobAdCatalogueEndpointTests`).
+   once (`PublicJobAdCatalogueReadTests`, `PublicJobAdCatalogueEndpointTests`). Nor does
+   the related section on other ads' job pages (ADR 0182): it reads and classifies each
+   row per request, so an erased ad leaves every section at once
+   (`RelatedPublicJobAdsReadTests`).
 3. **Search Console** (the Domain property): *Removals → New request → Temporary
    removal → Remove this URL only*, for each address. Per Google it takes effect within
    about a day and lasts about six months; the permanent removal is the 410, which Google
@@ -379,7 +382,9 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
 6. **Say what cannot be reached**, in the reply: a link-preview cache, another search
    engine, an archive and a copy someone else made are outside our reach, and so is a
    search engine's index copy of a catalogue page (`/lediga-jobb`), refreshed at its next
-   crawl; the catalogue's rows are not quoted in snippets. Arbetsförmedlingen keeps the
+   crawl; the catalogue's rows are not quoted in snippets. So is an index copy of another
+   ad's job page whose related section held the erased ad, refreshed at that page's next
+   crawl; its rows are not quoted in snippets either. Arbetsförmedlingen keeps the
    original until the ad's own deadline. Since the page carries
    `JobPosting` markup (ADR 0171), Google's own jobs experience holds a listing too; it drops
    it on the 410 or on `validThrough`, with a lag Google itself states, and whether the

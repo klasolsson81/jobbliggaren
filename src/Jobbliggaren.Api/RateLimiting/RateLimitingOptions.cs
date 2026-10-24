@@ -979,6 +979,17 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// The related ads under a public job page <c>GET /api/v1/public/job-ads/{id}/related</c> (ADR 0182) — partitioned
+    /// per client IP, TokenBucket, never shared with the detail's: a shared bucket would cut the views a visitor gets
+    /// from 30 to 20 a minute. security-auditor approved the numbers (2026-10-23).
+    /// </summary>
+    public PolicyOptions PublicJobAdRelated { get; init; } = new()
+    {
+        PermitLimit = 60,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

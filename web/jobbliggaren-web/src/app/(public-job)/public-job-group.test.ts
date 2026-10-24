@@ -43,6 +43,7 @@ const PUBLIC_SURFACE = [
   resolve(SRC, "lib/api/public-job-ad.ts"),
   resolve(SRC, "lib/api/public-job-ad-catalogue.ts"),
   resolve(SRC, "lib/api/public-job-ad-probe.ts"),
+  resolve(SRC, "lib/api/public-job-ad-related.ts"),
   resolve(SRC, "lib/auth/public-job-ad-route.ts"),
   resolve(SRC, "lib/job-ads/job-posting-json-ld.ts"),
   resolve(SRC, "lib/job-ads/catalogue-page-param.ts"),
@@ -96,6 +97,7 @@ describe("(public-job) route group", () => {
     expect(readers.sort()).toEqual([
       "lib/api/public-job-ad-catalogue.ts",
       "lib/api/public-job-ad-probe.ts",
+      "lib/api/public-job-ad-related.ts",
       "lib/api/public-job-ad.ts",
     ]);
   });

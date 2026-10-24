@@ -1,6 +1,6 @@
 /**
- * The public job page's, the sitemap's and the public catalogue's HTTP contract, measured against a production build
- * (ADR 0165, ADR 0174 and ADR 0176, SEO epic #2090 S2, S4 and S5).
+ * The public job page's, its related section's, the sitemap's and the public catalogue's HTTP contract, measured against a
+ * production build (ADR 0165, ADR 0182, ADR 0174 and ADR 0176, SEO epic #2090 S2, S6b, S4 and S5).
  *
  * Why this is a script and not a unit test: the statuses are the contract a crawler reads (a 410 drops the URL from an
  * index, a 503 does not), and the page's are produced by a Next feature with no documented status contract:
@@ -19,7 +19,18 @@ import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
-import { AD, ID, catalogue, catalogueRow, freePort, listedIds, seen, startStub } from "./public-job-stub.mjs";
+import {
+  AD,
+  ID,
+  catalogue,
+  catalogueRow,
+  freePort,
+  listedIds,
+  related,
+  relatedRow,
+  seen,
+  startStub,
+} from "./public-job-stub.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -57,6 +68,8 @@ const publicCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/
 const callsFor = (id) => publicCalls().filter((r) => r.path.endsWith(`/${id}`));
 const listedIdsCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/listed-ids"));
 const catalogueCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/catalogue"));
+const relatedCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/") && r.path.endsWith("/related"));
+const RELATED = [1, 2, 3, 4, 5].map(relatedRow);
 
 /** The `<head>` of a page and what follows it, so a tag can be placed: metadata must sit in the head (M5). */
 function inHead(html, pattern) {
@@ -193,6 +206,74 @@ try {
       assert.equal(call.headers.cookie, undefined);
       assert.equal(call.headers.authorization, undefined);
     }
+  });
+
+  await check("a listed ad costs the API exactly one related read, for the visitor and with no credential", async () => {
+    related.mode = "ok";
+    seen.length = 0;
+    await get(origin, `/jobb/${ID.listed}`, { headers: { cookie: "other=1", authorization: "Bearer x" } });
+    const calls = relatedCalls();
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].path, `/api/v1/public/job-ads/${ID.listed}/related`);
+    assert.equal(calls[0].headers["x-forwarded-for"], CLIENT_IP);
+    assert.equal(calls[0].headers.cookie, undefined);
+    assert.equal(calls[0].headers.authorization, undefined);
+  });
+
+  await check("a listed ad shows its related ads after the article in one data-nosnippet section, before the explainer links, in no head tag and no JobPosting", async () => {
+    related.mode = "ok";
+    const res = await get(origin, `/jobb/${ID.listed}`);
+    assert.equal(res.status, 200);
+    assert.equal((res.body.match(/<[a-z]+[^<>]*\sdata-nosnippet/g) ?? []).length, 1, "one data-nosnippet element");
+    const section = /<section[^<>]*\sdata-nosnippet[^<>]*>([\s\S]*?)<\/section>/.exec(res.body);
+    assert.ok(section, "the related section is rendered");
+    assert.match(section[0], /^<section[^<>]*aria-labelledby="jp-related-title"/);
+    assert.match(section[1], /<h2 id="jp-related-title" class="jp-eyebrow">Andra jobb i samma yrkesgrupp<\/h2>/);
+    const rows = [...section[1].matchAll(/<h3 class="jp-job__title"><a href="\/jobb\/([0-9a-f-]{36})"/g)].map((m) => m[1]);
+    assert.deepEqual(rows, RELATED.map((r) => r.id), "five h3 rows, each a plain link to its job page");
+    const articleEnd = res.body.indexOf("</article>");
+    const sectionAt = res.body.indexOf(section[0]);
+    const explainersAt = res.body.indexOf(">Relaterade sidor<");
+    assert.ok(articleEnd > 0 && articleEnd < sectionAt && sectionAt < explainersAt, "the article, then related, then the explainer links");
+    const head = res.body.slice(0, res.body.indexOf("</head>"));
+    const [block] = jsonLdBlocks(res.body);
+    for (const row of RELATED) {
+      assert.ok(!head.includes(row.title) && !head.includes(row.companyName), "no related value in the title, a description or an OpenGraph tag");
+      assert.ok(!block.includes(row.title) && !block.includes(row.companyName), "no related value in the JobPosting");
+    }
+  });
+
+  await check("a listed ad with no related rows has no section", async () => {
+    related.mode = "ok";
+    const res = await get(origin, `/jobb/${ID.listedNoKommun}`);
+    assert.equal(res.status, 200);
+    assert.ok(!res.body.includes("jp-related-title"));
+    assert.doesNotMatch(res.body, /<[a-z]+[^<>]*\sdata-nosnippet/);
+  });
+
+  for (const mode of ["budget", "outage", "tooWide", "timeout"]) {
+    await check(`a related read the backend cannot give (${mode}) leaves the section out, and the ad is still a 200 within the bound`, async () => {
+      related.mode = mode;
+      try {
+        const started = Date.now();
+        const res = await get(origin, `/jobb/${ID.listed}`);
+        const elapsed = Date.now() - started;
+        assert.equal(res.status, 200);
+        assert.match(res.body, /<h1[^>]*>Sjuksköterska till vårdcentral<\/h1>/);
+        assert.ok(!res.body.includes("jp-related-title"), "no section");
+        assert.ok(!res.body.includes("En text som aldrig får visas"), "no member beyond the six reaches the page");
+        assert.ok(elapsed < 5_000, `the stub holds its answer 7 s and the web waits 2 s at most; the page took ${elapsed} ms`);
+      } finally {
+        related.mode = "ok";
+      }
+    });
+  }
+
+  await check("an ad the probe does not answer 200 (404, 410, the budget, an outage) makes no related read", async () => {
+    seen.length = 0;
+    for (const id of [ID.unknown, ID.ended, ID.erased, ID.budget, ID.outage]) await get(origin, `/jobb/${id}`);
+    assert.ok(publicCalls().length >= 5, "non-vacuity: the probe ran for each");
+    assert.equal(relatedCalls().length, 0);
   });
 
   await check("an ended and an erased ad are one 410 page: same status, same headers, same landmark, one read each", async () => {

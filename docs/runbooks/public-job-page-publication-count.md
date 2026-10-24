@@ -77,6 +77,7 @@ Re-run it against such a fixture after any change to the query.
 | 2026-10-12 05:15 | Release 1628 (`9ca862013`), `--status` consistent before (05:14:58Z) and after (05:15:14Z), the merge day; same query blob `8c02e37` | 39 415 | 177 | **0** | shaped 177 in the description; validated: no row printed (0) | 0 | Claude Code |
 | 2026-10-18 01:27 | Release 1636 (`d7b242b12`), `--status` consistent (01:27:54Z); the S4 merge day (ADR 0166 Amendment 2026-10-18 (ix)); same query blob `8c02e37` | 42 223 | 231 | **0** | shaped 231 in the description; validated: no row printed (0) | 0 | Claude Code |
 | 2026-10-18 17:12 | Release 1641 (`c14ac57a1`), `--status` consistent before (17:12:17Z) and after (17:12:44Z); the S5 merge day (ADR 0166, the amendment for S5, D11); same query blob `8c02e37` | 42 295 | 231 | **0** | shaped 231 in the description; validated: no row printed (0) | 0 | Claude Code |
+| 2026-10-24 03:18 | Release sequence 1657 (source `515b7424b`), `--status` consistent before (03:17:58Z) and after (03:18:18Z); the S6b merge day (ADR 0166, the amendment for S6b, D11); same query blob `8c02e37` | 43 602 | 215 | **0** | shaped 215 in the description; validated: no row printed (0) | 0 | Claude Code |
 
 The record is also posted on [#2090](https://github.com/klasolsson81/jobbliggaren/issues/2090) with the same date.
 

@@ -1383,3 +1383,21 @@ not edited.
 - The company name leaves in a row, as on the job page; the organization number never does (ADR 0087 D8(c)).
 
 No supersession: ADR 0106 remains **Accepted**.
+
+## Amendment 2026-10-23 (#2090 S6b, ADR 0182) — D9 read-path table: the related section's two reads
+
+ADR 0182 adds two sites that project `JobAd` fields for the related ads under a public job page (`GET /api/v1/public/job-ads/{id}/related`). The D9 table gains two rows. They are recorded
+here, as the amendments above recorded theirs, and the table is not restated.
+
+| Site | Surface | Projects | Gated on `Status != Erased`? | Issue |
+|---|---|---|---|---|
+| `GetRelatedPublicJobAdsQueryHandler` (the anchor read) | Anonymous related section (through `{id}/related`) | Occupation group, kommun and län ids, Company.Name, organization number; none of it leaves the handler | ✅ Yes — `JobAdPublication.IsListed(now)` in the read (ADR 0182 D2): a non-listed anchor, Erased included, reads no row and answers the same 404 | — |
+| `GetRelatedPublicJobAdsQueryHandler` (the candidates read) | Anonymous related section (through `{id}/related`) | Id, Title, Company.Name, kommun and län ids, PublishedAt; the organization number, the handler's employer key, which stays in it | ✅ Yes — `JobAdPublication.IsListed(now)` at request time (ADR 0182 D2), so an Erased row is never read | — |
+
+- Both reads are registered in `JobAdLifecycleReadRegistry` (ADR 0113) as Active sites.
+- **Tier B is how an erasure is honoured in the related section.** Every row is read and classified per request, so an erased ad leaves every section at once, on every page. No check step
+  and no removal request is owed for a related section (`docs/runbooks/recruiter-pii-erasure.md` §2.4a; `RelatedPublicJobAdsReadTests` pins the absence through the production erase path).
+- The company name leaves in a row, as on the job page and in the catalogue; the organization number never does (ADR 0087 D8(c)), and the anchor's company and organization number are filter
+  parameters that are never returned or logged.
+
+No supersession: ADR 0106 remains **Accepted**.

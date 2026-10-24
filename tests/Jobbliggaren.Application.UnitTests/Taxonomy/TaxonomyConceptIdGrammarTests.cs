@@ -65,7 +65,7 @@ public sealed class TaxonomyConceptIdGrammarTests
 
     /// <summary>
     /// Discovered from the assembly rather than hand-listed: a hand-written list
-    /// silently leaves a FIFTH taxonomy asset unguarded the day one is added,
+    /// silently leaves a newly added taxonomy asset unguarded,
     /// which is the same "guard narrower than its stated subject" failure this
     /// file exists to prevent (dotnet-architect, #1144).
     /// </summary>
@@ -91,8 +91,8 @@ public sealed class TaxonomyConceptIdGrammarTests
         // changed, every theory below would simply not run, and the suite would
         // stay green while measuring nothing.
         ResourceNames().Length.ShouldBeGreaterThanOrEqualTo(
-            4,
-            "the four known taxonomy assets must be discovered as embedded resources — " +
+            5,
+            "the five known taxonomy assets must be discovered as embedded resources — " +
             "if this drops, the grammar guard below runs on fewer files than it claims");
     }
 
@@ -120,8 +120,12 @@ public sealed class TaxonomyConceptIdGrammarTests
             224,
             "the collector is missing ids that live only inside `relatedConceptIds` arrays");
 
+        // 4,512 = 4,112 occupation-names, deprecated ones included, plus their groups (#2199).
+        perFile.Single(kv => kv.Key.Contains("occupation-name-lineage", StringComparison.Ordinal))
+            .Value.ShouldBeGreaterThanOrEqualTo(4_512, "the collector is missing ids in the occupation-name lineage");
+
         perFile.Values.Sum().ShouldBeGreaterThanOrEqualTo(
-            23_968,
+            28_480,
             "either the collector's reach shrank or the snapshot legitimately did — " +
             "verify the collector against the file BEFORE lowering this number, because " +
             "lowering it is also the cheapest way to re-open the blindness it was written for");
@@ -148,6 +152,12 @@ public sealed class TaxonomyConceptIdGrammarTests
                 $"{string.Join("; ", readPath.Errors.Select(e => e.ErrorMessage))}. " +
                 "Regenerating a taxonomy snapshot must not introduce ids outside the conceptId " +
                 "grammar — such an id seeds fine and then 400s every search that uses it.");
+
+            // #2199 — the occupation-name axis shares the grammar, so it accepts every id too.
+            var nameAxis = validator.Validate(new ListJobAdsQuery(OccupationName: batch));
+            nameAxis.IsValid.ShouldBeTrue(
+                $"{resourceName} contains a conceptId the occupation-name axis rejects: " +
+                string.Join("; ", nameAxis.Errors.Select(e => e.ErrorMessage)));
 
             var capture = SearchCriteria.Create(
                 occupationGroup: batch,

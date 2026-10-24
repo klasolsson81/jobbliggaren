@@ -24,7 +24,7 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Jobs.Common;
 /// kolumnerna i C# (JobAd.SetSourcePayload). Det gör runnern till #841:s DEPLOY-
 /// REPARATIONSVERKTYG: annonser vars facetter purgen redan nollat matchar NULL-
 /// predikatet, re-fetchas, och får alla sju skrivna på nytt. Testerna använder
-/// ssyk-predikatet (<c>SsykConceptId IS NULL</c>) som representativ stand-in — de
+/// ssyk-predikatet (<c>OccupationNameConceptId IS NULL</c>) som representativ stand-in — de
 /// seedade raderna skrivs utan facetter, så predikatet matchar dem; samma täckning
 /// som gällde när loopen bodde i ssyk-jobbet. Klass2-/ssyk-wrappers är tunna
 /// delegationer (predikat + auditJobType) och verifieras via runnern +
@@ -49,7 +49,7 @@ public class JobAdRefetchBackfillRunnerTests
     // Representativt NULL-kolumn-predikat (ssyk). I InMemory är shadow-kolumnen
     // alltid NULL → matchar alla seedade rader.
     private static System.Linq.Expressions.Expression<Func<JobAd, bool>> SsykNullPredicate =>
-        j => j.SsykConceptId == null;
+        j => j.OccupationNameConceptId == null;
 
     private static JobAd CreateImportedJobAd(string externalId, FakeDateTimeProvider clock) =>
         JobAd.Import(
@@ -158,8 +158,6 @@ public class JobAdRefetchBackfillRunnerTests
         var clock = new FakeDateTimeProvider(Now);
         var db = TestAppDbContextFactory.Create();
 
-        // 3 imported JobAds med External satt — InMemory ger NULL shadow-SsykConceptId
-        // (computed column körs inte i InMemory), så alla matchar filtret.
         db.JobAds.Add(CreateImportedJobAd("ext-1", clock));
         db.JobAds.Add(CreateImportedJobAd("ext-2", clock));
         db.JobAds.Add(CreateImportedJobAd("ext-3", clock));

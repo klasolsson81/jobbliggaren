@@ -412,7 +412,7 @@ public class ListJobAdsFtsTests(ApiFactory factory)
             SearchTextResolvers.For(scope, Substitute.For<IOccupationSynonymExpander>()));
 
         var filter = new JobAdFilterCriteria(
-            OccupationGroup: [], Municipality: [], Region: [],
+            OccupationGroup: [], OccupationName: [], Municipality: [], Region: [],
             EmploymentType: [], WorktimeExtent: [], Employer: [], Remote: false, Q: word);
 
         // CountAsync (recent-search-konsumentens väg) i bitmap-plan-transaktionen.

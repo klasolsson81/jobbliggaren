@@ -5,8 +5,9 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// <summary>
 /// The answer of <see cref="IOccupationSearcher"/> (#2198, ADR 0180): the rows in display order,
 /// capped by the searcher, and the exact number of rows the query reached.
-/// No occupation-name concept id is part of it, so a variant cannot be stored; what the user
-/// selects is always a group id.
+/// A Group row selects its group. A variant carries its own occupation-name concept id (#2199,
+/// ADR 0180 Amendment 2026-10-24): /jobb filters on it, while Matchning and the onboarding rail
+/// still select the variant's group (ADR 0040 Beslut 4).
 /// </summary>
 public sealed record OccupationSearchResult(IReadOnlyList<OccupationSearchRow> Rows, int TotalRows)
 {
@@ -110,5 +111,6 @@ public sealed record OccupationSearchRow
     }
 }
 
-/// <summary>One occupation-name under a Word row and the group choosing it selects.</summary>
-public sealed record OccupationSearchVariant(string NameLabel, string GroupConceptId, string GroupLabel);
+/// <summary>One occupation-name under a Word row, with its own concept id and its group.</summary>
+public sealed record OccupationSearchVariant(
+    string OccupationNameConceptId, string NameLabel, string GroupConceptId, string GroupLabel);

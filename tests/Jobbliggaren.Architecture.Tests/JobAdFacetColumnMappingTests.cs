@@ -42,7 +42,7 @@ public class JobAdFacetColumnMappingTests
 {
     public static readonly TheoryData<string, string> Facets = new()
     {
-        { nameof(JobAd.SsykConceptId), "ssyk_concept_id" },
+        { nameof(JobAd.OccupationNameConceptId), "ssyk_concept_id" },
         { nameof(JobAd.OccupationGroupConceptId), "occupation_group_concept_id" },
         { nameof(JobAd.MunicipalityConceptId), "municipality_concept_id" },
         { nameof(JobAd.RegionConceptId), "region_concept_id" },

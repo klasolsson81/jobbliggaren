@@ -10,13 +10,13 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.SearchOccupations;
 public class OccupationSearchRowTests
 {
     private static readonly OccupationSearchVariant ProjektledareIt =
-        new("Projektledare, IT", "DJh5_yyF_hEM", "Mjukvaru- och systemutvecklare m.fl.");
+        new("z5AM_ayf_WcL", "Projektledare, IT", "DJh5_yyF_hEM", "Mjukvaru- och systemutvecklare m.fl.");
 
     private static readonly OccupationSearchVariant ProjektledareEl =
-        new("Projektledare, el", "nDaB_vdy_eAy", "Ingenjörer och tekniker inom elektroteknik");
+        new("1jm3_XFQ_TdJ", "Projektledare, el", "nDaB_vdy_eAy", "Ingenjörer och tekniker inom elektroteknik");
 
     private static readonly OccupationSearchVariant ProjektledareTelekom =
-        new("Projektledare, telekom", "nDaB_vdy_eAy", "Ingenjörer och tekniker inom elektroteknik");
+        new("T55e_efV_Eqh", "Projektledare, telekom", "nDaB_vdy_eAy", "Ingenjörer och tekniker inom elektroteknik");
 
     [Fact]
     public void ForWord_TwoVariantsInTwoGroups_CarriesNoGroupOfItsOwn()

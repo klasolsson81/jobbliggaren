@@ -468,4 +468,99 @@ their text.
 
 ---
 
+## Amendment 2026-10-24 — Beslut 1's Option B is reversed for the /jobb list and its facet counts: an occupation-name pick is a Yrke filter OR-ed with the group, resolved through a committed lineage artefact, a deprecated name with several replacements never spills past its own group, and VAL 2b is still not triggered (#2199 PR 1, ADR 0180)
+
+**Status:** Accepted 2026-10-24. **Source:** `senior-cto-advisor`'s ruling for #2199, A (i) to (v), B and C1 (local, ADR 0072, so every operative point is
+restated here); the PR 1 measurements of 2026-10-24 (local); Klas, 2026-10-24, AskUserQuestion: "Ja, enligt förslaget (Rek.)" for the variant tick and
+"Bara inom samma grupp (Rek.)" for a deprecated name with several replacements. [ADR 0180's Amendment 2026-10-24](./0180-the-occupation-pickers-search-every-occupation-name-by-word-start-and-compound-head-on-the-server-over-the-derivers-shared-index-and-answer-in-rows-that-select-a-group.md)
+carries the picker half. Additive: Beslut 1, the E2a note, the VAL 2b note and the Amendment 2026-10-23 are untouched in their text. On the points below this
+amendment is the operative text, for the /jobb list and its facet counts only.
+
+1. **Option B is reversed for the /jobb list and its facet counts.** On /jobb a variant tick filters on the occupation-name the employer gave, a deprecated
+   predecessor that resolves to it included, and every variant shows an exact count. This supersedes the Amendment 2026-10-23's "`JobAdFilterCriteria` gains no
+   occupation-name dimension" and, for a variant in a search answer, its "no name id is on the wire" (ADR 0180's amendment). #2199 is where Option B was
+   reconsidered, as that amendment said it could be.
+   - `JobAdFilterCriteria` gains `OccupationName`. Inside the Yrke dimension `JobAdSearchComposition.ApplyFilter` OR-s it with `OccupationGroup`, so a name pick
+     widens a group selection and never narrows it, as Ort's municipality widens its region (E2b note). With no name pick the Yrke SQL is byte-identical to
+     before, which `JobAdYrkePredicateSqlTests` pins. A group pick still matches the ad's own group, unchanged.
+   - The API takes a repeatable `?occupationName=` on `GET /api/v1/job-ads` and `GET /api/v1/job-ads/facet-counts`. `FacetDimension.OccupationName` counts it, and
+     the Yrke facets exclude both lists. Until #2199 PR 2 the axis is stored nowhere, and the page URL has no name key until PR 3.
+
+2. **The four grounds Beslut 1 gave against Option B, each answered.**
+   - **Speculative Generality (Fowler 2018, ch. 3).** The ground was a dimension nothing consumed. A real user's feedback of 2026-10-22 (rated 2/5) said project
+     managers could not be found on /jobb, and on 2026-10-24 Klas found that ticking *Projektledare, IT* returned the whole group, 1,167 ads that are mostly
+     developers (#2199). The name pick returns that name's own 136 ads. The ground still bounds the scope: no curated synonym clusters and no Word-row "(alla)"
+     (ADR 0180's amendment), and no matching on occupation-name.
+   - **Platsbanken parity.** The ground was a third level Platsbanken lacks. JobTech's own search API has an `occupation-name` filter, and parity with it was
+     measured for all 2,153 picker names (point 5). The one named deviation is point 6's no spill for a predecessor with several replacements: allmänmedicin is
+     55 here against JobTech's 565.
+   - **Pre-empting ADR 0040.** Beslut 1 said B pre-empts ADR 0040 Beslut 3. Matchning and the onboarding rail still select a group, which the user confirms
+     (ADR 0040 Beslut 4), and the shared picker component carries no meaning of its own: each host maps the pick (ADR 0180 D8). PR 1 passes the axis empty from
+     the Matchning match-count preview, the match profile, saved searches and the recent-search replay.
+   - **The CV roadmap.** Beslut 1 read Klas's CV roadmap as pointing at ssyk-level-4 matching. That is untouched. Matching on occupation-name stays out of scope
+     as a separate and larger decision (#2199), and this reversal reaches only the /jobb list and its facet counts.
+
+3. **The rule is the decision, and it is one function.** `OccupationNameLineage.Resolve` is the rule. `Expand` (the filter) and `CountByPick` (the counts) are both
+   derived from it, so the two cannot disagree, and a rendered count is exact (ADR 0120).
+   - Terminals, the current names an edge set leads to, are computed over the union of both taxonomy versions' replaced-by edges and not over raw edges, so a
+     re-pointed edge is not a second replacement: 5 raw multi-edge sources that lead to one current name are not multis.
+   - A name with one terminal resolves to it. A name with several resolves to the one terminal in the ad's own group, and to nothing when no terminal or more than
+     one is in that group; the ad is then reachable only through its group. A name the lineage does not know resolves to itself.
+   - A pick matches the ads coded with exactly that name and the ads that resolve to its single terminal. A pick with several terminals matches its own ads only.
+   - The picked id is what is stored and sent, and its extension is computed at query time, so a stored pick improves when the artefact is refreshed (Evans 2003,
+     ch. 2).
+   - Why expansion is required: 10,377 of 43,692 active ads (23.8%) are coded with a deprecated name (production, 2026-10-24). Merging both versions' edges is
+     required too: the CTO measured v31's alone reaching 99.0% of ads and the merged chains 99.48%, against JobTech's own union of 99.47%.
+
+4. **The artefact is a decision.** `src/Jobbliggaren.Infrastructure/Taxonomy/occupation-name-lineage.json`, generated by
+   `tools/taxonomy-snapshot/generate-occupation-name-lineage.mjs`, committed and embedded. It holds every occupation-name, deprecated ones included, from taxonomy
+   v30 and v31 (fetched 2026-10-24, `lineageVersion` 1), with `replacedByConceptIds` as the union of both versions' edges (v31 dropped 6 of v30's edges and added
+   103, so neither version alone holds them all), `groupConceptId` and `currentIn`. It is loaded fail-loud at host start behind the Application port
+   `IOccupationNameLineageProvider`, and only `JobAdSearchTextResolver` injects it, so the filter and the counts have one reader. It is never the frozen v30
+   crosswalk (migration-owned) and never the picker snapshot. The property `SsykConceptId` is renamed `OccupationNameConceptId` (CTO C1), because the comments that
+   called it ssyk-level-4 were wrong; the column `ssyk_concept_id` and its index are unchanged, so Beslut 1's retention of the column holds and no migration is
+   needed.
+
+5. **Measured 2026-10-24** with the committed artefact and the Application's own rule. Production was read at 19:20Z, read-only and counts only (CLAUDE.md §9.2 (a)); JobTech's
+   public jobsearch `occupation-name` filter was read for each of the 2,153 picker names from about 19:15Z.
+   - **Coverage.** 43,692 active ads, all with an occupation-name (the last figure, from 2026-05, was about 88%). 10,377 (23.8%) are coded with a deprecated name,
+     and none with an id the artefact does not know. 42,230 (96.65%) are reachable through at least one picker name under the rule.
+   - **Recovery by the same-group rule.** Over the edge union 277 sources have several terminals. 1,447 active ads are coded with such a name; the rule recovers
+     202 (14%), and 1,245 are reachable only through their group.
+   - **Parity.** Our count equals JobTech's for 1,889 of the 2,153 names. 264 differ: JobTech is higher for 232 (sum 14,159 ads) and ours for 32 (sum 364). With
+     each name's own multi-replacement spill removed, 2,067 differ by 0 and 2,113 by at most 6 (the two reads were minutes apart); the largest remaining
+     difference is 201. *Projektledare, IT* is 136 against 136 and *Grundlärare, 4-6* 208 against 208.
+   - **Latency** (ADR 0045 class (a), 300 ms p95; `OccupationNameLatencyMeasurement`, 40,000 ads of which 32,000 active, 24.0% coded with a deprecated name,
+     Testcontainers, developer machine). The slowest list, 400 picks expanding to 681 names and 33 same-group arms, is 28.8 ms p95. The slowest name-facet reading
+     is 45.7 ms p95, against the group facet's 16.3 ms. The name arm reads `ix_job_ads_ssyk_concept_id` through a bitmap index scan. The name facet returns 1,492
+     keys on production's pairs and 2,184 on the synthetic corpus.
+
+6. **Named deviations and limits.**
+   - **No spill, a named deviation from Platsbanken.** JobTech spreads an ad coded with a deprecated name to every successor. Here it attaches to a successor only
+     when exactly one shares the ad's group (Klas: "Bara inom samma grupp (Rek.)"), because the spill is what makes *Specialistläkare, allmänmedicin* return 565 of
+     its group's 582 ads (97%), which the CTO identified as the defect Klas described. The cost is recall in that class. *Specialistläkare, allmänmedicin* is 55 here
+     against JobTech's 565, since all 18 successors of the generic *Specialistläkare* share its group and none of its 510 ads is recovered. *Grundlärare,
+     fritidshem* is 11 against 212 and *Fritidspedagog* 6 against 207. *Fritidsledare i församling* is 0 against 207, of which 201 are fritidshem ads outside its
+     group.
+   - **A pick with several terminals** counts its own ads only: *Informationsmäklare* is 0 against 142 and *Dokumentalist* 10 against 136, two of the 5 picker
+     names that v31 split into several successors.
+   - **Names v31 merged into one:** *Mediakonsulent*, *Reklamkonsulent*, *Mediaplanerare*, *Relationsmarknadsförare*, *Marknadskonsult* and
+     *Onlinemarknadsförare* lead to one current name and count 60 each here; JobTech counts each 38 to 54.
+   - **UNVERIFIED.** For *Maskinmekaniker* (48 against 187), *Park- och trädgårdsarbetare* (39 against 105) and *IT-arkitekt* (100 against 123) JobTech reaches more
+     ads with no multi-replacement spill in our graph. The likely source is edges older than v30, which the artefact does not hold. This was not verified.
+   - **What the tick means.** It filters on the name the employer coded, and the copy must say it that way (CTO A (ii)). On a sample of 40 names in 21 fields, one
+     reader, the occupation-name is about 59% precise because employers mis-code ads (#2199); "the employer gave this occupation" stays true even then.
+   - **Until PR 2 a search carrying `occupationName` is not captured to recent searches** (`RecentJobSearchCaptureBehavior`). The search still runs. Capturing it
+     without the name would store a wider search than the one that ran.
+
+7. **VAL 2b is not triggered.** It requires an amendment if occupation-names enter `SuggestionKind` or `/job-ads/suggest`. Neither changes: a variant's id travels in
+   the picker's search answer and not in a suggestion, and the hero typeahead keeps its whole-label prefix rule (ADR 0180 names that divergence).
+
+8. **What follows.** PR 2 (backend persistence, a new session) adds a `SearchCriteria` jsonb key, never `"Ssyk"`, the `recent_job_searches` `text[]` migration with
+   existing hashes kept, and erasure going from five axes to six; Klas's migration GO is still to ask. PR 3 (frontend, after #2212 and PR 2) does the URL key and
+   page parsing, the pick and checked state per host, variant counts through `FacetDimension.OccupationName`, chips, the saved and recent DTOs, i18n, the edge-log
+   inventory, and every non-resting state rendered. Until then every host still selects a group.
+
+---
+
 *ADR-index underhålls av docs-keeper. ADR 0067 fastställer Platsbanken-sök-paritets-initiativets design: yrke-filter-nivåskifte till ssyk-level-4 (occupation-name-substrat bevarat), nya STORED-dimensioner (kommun/yrkesgrupp/anställningsform/omfattning) i Klass 1/Klass 2-sekvens, distans-defer, facet-counts via port-metod, typeahead-chip-sök med residual-FTS, VO-expansion, och fas-uppdelning A–E. Kompletteras av ADR 0043-amendment 2026-06-08 (kommun-dimension + yrkesgrupp-nivå).*

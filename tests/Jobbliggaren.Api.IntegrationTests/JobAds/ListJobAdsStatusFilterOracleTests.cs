@@ -68,6 +68,7 @@ public class ListJobAdsStatusFilterOracleTests(ApiFactory factory)
     // Filter on the unique test-run worktime-extent only → exactly the run's seeded ads.
     private static JobAdFilterCriteria FilterFor(string runWorktimeExtent) => new(
         OccupationGroup: [],
+        OccupationName: [],
         Municipality: [],
         Region: [],
         EmploymentType: [],

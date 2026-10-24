@@ -22,6 +22,7 @@ public sealed class GetFacetCountsQueryHandler(IJobAdSearchQuery search)
         => search.FacetCountsAsync(
             new JobAdFilterCriteria(
                 OccupationGroup: query.OccupationGroup ?? [],
+                OccupationName: query.OccupationName ?? [],
                 Municipality: query.Municipality ?? [],
                 Region: query.Region ?? [],
                 EmploymentType: query.EmploymentType ?? [],

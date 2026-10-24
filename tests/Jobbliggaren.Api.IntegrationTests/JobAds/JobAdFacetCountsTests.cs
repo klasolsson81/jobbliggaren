@@ -135,6 +135,7 @@ public class JobAdFacetCountsTests(ApiFactory factory)
         bool remote = false) =>
         new(
             OccupationGroup: occupationGroup ?? [],
+            OccupationName: [],
             Municipality: municipality ?? [],
             Region: region ?? [],
             EmploymentType: employmentType ?? [],

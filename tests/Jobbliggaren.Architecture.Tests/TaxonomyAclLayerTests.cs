@@ -236,4 +236,31 @@ public class TaxonomyAclLayerTests
 
         consumers.ShouldBe([nameof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver)]);
     }
+
+    // #2199 — the occupation-name lineage reaches the search path at the same one point, so the
+    // filter's expansion and the counts' fold cannot come from two readers.
+    [Fact]
+    public void Only_the_search_text_resolver_injects_IOccupationNameLineageProvider()
+    {
+        var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.IOccupationNameLineageProvider);
+        var assemblies = new[]
+        {
+            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
+            typeof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver).Assembly,
+            typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
+            typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
+        };
+
+        var consumers = assemblies
+            .SelectMany(a => a.GetTypes())
+            .Where(t => t is { IsClass: true, IsAbstract: false })
+            .Where(t => t.GetConstructors(
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
+                    | System.Reflection.BindingFlags.Instance)
+                .Any(c => c.GetParameters().Any(p => port.IsAssignableFrom(p.ParameterType))))
+            .Select(t => t.Name)
+            .ToList();
+
+        consumers.ShouldBe([nameof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver)]);
+    }
 }

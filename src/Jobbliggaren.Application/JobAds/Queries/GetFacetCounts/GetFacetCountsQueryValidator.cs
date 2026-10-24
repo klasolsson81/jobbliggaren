@@ -33,6 +33,16 @@ public sealed class GetFacetCountsQueryValidator : AbstractValidator<GetFacetCou
             .When(q => q.OccupationGroup is not null)
             .WithMessage("Yrkesgrupp måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
 
+        RuleFor(q => q.OccupationName!)
+            .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
+            .When(q => q.OccupationName is not null)
+            .WithMessage($"Max {SearchCriteria.MaxConceptIds} yrkesbenämningar per sökning.");
+
+        RuleForEach(q => q.OccupationName)
+            .Matches(ConceptIdPattern)
+            .When(q => q.OccupationName is not null)
+            .WithMessage("Yrkesbenämning måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).");
+
         RuleFor(q => q.Municipality!)
             .Must(l => l.Count <= SearchCriteria.MaxConceptIds)
             .When(q => q.Municipality is not null)

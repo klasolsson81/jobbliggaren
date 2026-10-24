@@ -96,6 +96,7 @@ public class JobAdSearchRemoteFilterTests(ApiFactory factory)
         bool remote = false) =>
         new(
             OccupationGroup: [runKey],
+            OccupationName: [],
             Municipality: municipality ?? [],
             Region: region ?? [],
             EmploymentType: [],

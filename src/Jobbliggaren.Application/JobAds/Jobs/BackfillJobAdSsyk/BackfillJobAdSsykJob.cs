@@ -10,7 +10,7 @@ namespace Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdSsyk;
 /// <c>JobTechHit.Occupation</c>-fix). Tunn wrapper kring
 /// <see cref="JobAdRefetchBackfillRunner"/> (2026-06-08, senior-cto-advisor
 /// Variant H): all iterations-/refetch-/throttle-/upsert-mekanik bor i runnern;
-/// detta jobb bidrar endast med NULL-kolumn-predikatet (<c>SsykConceptId IS
+/// detta jobb bidrar endast med NULL-kolumn-predikatet (<c>OccupationNameConceptId IS
 /// NULL</c>) + sina IOptions-tunables. Publikt beteende (signatur, endpoint,
 /// Worker-wrapper) oförändrat när loop-kroppen flyttades till runnern.
 ///
@@ -34,7 +34,7 @@ public sealed class BackfillJobAdSsykJob(
             // re-ingested through UpsertExternalJobAd, which writes all seven columns in C#. (Ads that
             // have LEFT the feed 404 on refetch and are skipped — their facets are unrecoverable, and
             // were so before this PR too.)
-            nullColumnPredicate: j => j.SsykConceptId == null,
+            nullColumnPredicate: j => j.OccupationNameConceptId == null,
             options: new BackfillRunnerOptions(
                 opts.PerItemDelayMs, opts.MaxItemsPerRun, opts.ProgressLogEvery),
             auditJobType: "backfill",

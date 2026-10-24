@@ -117,7 +117,7 @@ public sealed class DmarcAggregateReportTests
     [Theory]
     [InlineData("65536")]
     [InlineData("192.0.2")]
-    [InlineData("fe80::1%1")]
+    [InlineData("2001:db8::1%1")]
     public void Accept_ARecordWithAMalformedSource_RefusesTheWholeReport(string source)
     {
         Rejection(Candidate(records: [Record(), Record(source: source)])).ShouldBe(DmarcRejection.MalformedSource);

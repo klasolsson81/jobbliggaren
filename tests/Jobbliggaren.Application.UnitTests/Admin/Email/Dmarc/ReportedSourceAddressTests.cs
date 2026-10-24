@@ -33,7 +33,7 @@ public sealed class ReportedSourceAddressTests
     [InlineData("0x7f.0.0.1")]
     [InlineData(" 192.0.2.1")]
     [InlineData("192.0.2.1 ")]
-    [InlineData("fe80::1%eth0")]
+    [InlineData("2001:db8::1%eth0")]
     [InlineData("2001:db8::1%2")]
     [InlineData("not-an-address")]
     [InlineData("192.0.2.1/24")]

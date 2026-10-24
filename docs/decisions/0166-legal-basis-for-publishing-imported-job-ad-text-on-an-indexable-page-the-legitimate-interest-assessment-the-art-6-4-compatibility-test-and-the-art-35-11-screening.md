@@ -955,11 +955,11 @@ driving session through AskUserQuestion). The questions are quoted as asked, and
 ADR 0166 remains **Accepted** for D1–D11 for the page, and for the sitemap and the catalogue by their amendments. This amendment is **Accepted** (approved by Klas 2026-10-23 and 2026-10-24, and signed by
 `security-auditor` 2026-10-24).
 
-## Amendment 2026-10-24 (b) — #2214 PR 1: the share row on the public job page, a pointer to ADR 0183 D7
+## Amendment 2026-10-24 — #2214 PR 1: the share row on the public job page, a pointer to ADR 0183 D7
 
 - The share row on the public job page (ADR 0183 D4 and D5) fires no D10 trigger. Its plain anchors do not fire trigger 5, read with the S4 (viii) criterion.
 - The reading, the list of what stays inside trigger 5 for the row, its conditions and the binding on agents are in ADR 0183 D7, which is their single home. They are not repeated here.
 - No trigger is added, and no conclusion or signature of this ADR changes.
 - Klas's answers of 2026-10-24 to the reading stand in ADR 0183 D7.
 
-**Signature:** due from `security-auditor` at her scoped re-check of PR #2216.
+**Signature:** signed by `security-auditor` 2026-10-24, at her scoped re-check of PR #2216.

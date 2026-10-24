@@ -39,7 +39,17 @@ export function ShareJobAd({
       <Heading id={headingId} className="jp-eyebrow mb-2">
         {labels.heading}
       </Heading>
-      <ShareJobAdControls data={data} labels={labels}>
+      <ShareJobAdControls
+        data={data}
+        labels={{
+          copy: labels.copy,
+          copied: labels.copied,
+          more: labels.more,
+          field: labels.field,
+          copyFailed: labels.copyFailed,
+          shareFailed: labels.shareFailed,
+        }}
+      >
         {shareTargetLinks(data).map(({ target, href }) => (
           <li key={target}>
             {target === "email" ? (

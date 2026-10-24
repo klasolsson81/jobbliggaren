@@ -87,7 +87,6 @@ const locsOf = (xml) => [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1
 /** A `<loc>` names the public host the build was given; only its path is fetched from this server. */
 const pathOf = (loc) => new URL(loc).pathname;
 
-/** Every JSON-LD data block on a page, as text. */
 /** The job page's data-nosnippet elements in document order, named by what they are (ADR 0182, ADR 0183). */
 const nosnippetElements = (html) =>
   [...html.matchAll(/<[a-z]+[^<>]*\sdata-nosnippet[^<>]*>/g)].map(([tag]) => {
@@ -96,6 +95,7 @@ const nosnippetElements = (html) =>
     if (tag.includes('class="jp-modal__foot')) return "sign-in";
     return `unknown: ${tag.slice(0, 80)}`;
   });
+/** Every JSON-LD data block on a page, as text. */
 const jsonLdBlocks = (html) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 
 /** The part of a page that is the same for an ended and an erased ad, stripped of Next's per-request script ids. */

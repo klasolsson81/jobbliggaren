@@ -157,7 +157,7 @@ describe("ShareJobAd", () => {
     expect(writeText).not.toHaveBeenCalled();
   });
 
-  it("copies the link and confirms it on the button and to a screen reader for three seconds", async () => {
+  it("copies the link and confirms it on the button and to a screen reader for three seconds, and a new click restarts them", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     renderRow();
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
@@ -173,6 +173,10 @@ describe("ShareJobAd", () => {
     expect(done).not.toHaveClass("invisible");
     expect(screen.getByRole("status")).toHaveTextContent("Kopierad");
 
+    await act(async () => vi.advanceTimersByTime(2000));
+    await act(async () => {
+      fireEvent.click(button);
+    });
     await act(async () => vi.advanceTimersByTime(2999));
     expect(screen.getByRole("status")).toHaveTextContent("Kopierad");
     await act(async () => vi.advanceTimersByTime(1));

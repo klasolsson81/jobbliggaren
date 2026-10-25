@@ -7,6 +7,7 @@ import {
   PROVIDER_EMAIL_ID,
   SESSION_COOKIE,
   SESSION_ID,
+  TEXT_SPACING,
   startHarness,
   DMARC_LONG_DOMAIN,
   DMARC_LONG_IPV6,
@@ -652,9 +653,6 @@ const dmarc = (page: Page) => page.getByRole("region", { name: "DMARC-rapporter"
 const dmarcTable = (page: Page) => page.getByRole("table", { name: /^DMARC-resultat per IP-adress/ });
 const dmarcLines = (page: Page) => dmarc(page).locator(":scope > div > p.jp-adminsoon");
 const RUNBOOK = "Se runbooken för admin-e-post.";
-/** WCAG 1.4.12's spacing, as its bookmarklets apply it. */
-const TEXT_SPACING =
-  "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
 const MINUTE = String.raw`\d{4}-\d\d-\d\d \d\d:\d\d`;
 const DMARC_FIXED =
   "Rapporterna, som vi inte har kontrollerat, visar autentisering, inte om meddelandena hamnade i inkorgen eller bland skräpposten.";

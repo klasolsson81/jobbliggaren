@@ -43,6 +43,10 @@ export type HarnessPorts = { readonly proxy: number; readonly next: number; read
 
 const portBase = Number(process.env.ADMIN_HARNESS_PORT_BASE ?? "3120");
 if (!Number.isInteger(portBase) || portBase < 1024 || portBase > 65533) throw new Error("Invalid ADMIN_HARNESS_PORT_BASE");
+/** WCAG 1.4.12's spacing, as its bookmarklets apply it. */
+export const TEXT_SPACING =
+  "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
+
 export const HARNESS_PORTS: HarnessPorts = { proxy: portBase, next: portBase + 1, backend: portBase + 2 };
 
 export const APP_ORIGIN = `https://localhost:${HARNESS_PORTS.proxy}`;

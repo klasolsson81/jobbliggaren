@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, win32 } from "node:path";
 import { ACCOUNT_D_DELETION_EARLIEST, STEP_UP_CHALLENGE, STEP_UP_GRANT } from "./fixtures";
-import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
+import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, TEXT_SPACING, startHarness, type Harness } from "./servers";
 
 /**
  * The seven admin routes in a real browser (#1973, ADR 0150): the nav reaches every page and marks
@@ -684,10 +684,6 @@ function expectInside(parts: Awaited<ReturnType<typeof regionLineParts>>, where:
     expect(part.right, where).toBeGreaterThanOrEqual(0);
   }
 }
-
-/** WCAG 1.4.12's spacing, as its bookmarklets apply it. */
-const TEXT_SPACING =
-  "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
 
 const ACCOUNT_LINES = [
   { state: "empty", mode: "ok", term: "ingen-traff", text: "Inga konton matchar sökningen eller filtret." },

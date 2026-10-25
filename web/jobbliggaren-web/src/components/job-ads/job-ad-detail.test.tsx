@@ -334,7 +334,7 @@ describe("JobAdDetail — the share row (#2214 PR 3, ADR 0183 D6)", () => {
   it("hands on the canonical public ad URL, never the signed-in route or any search state", () => {
     render(<JobAdDetail jobAd={{ ...baseAd, isListed: true }} />);
     // One guard that the shared link is the canonical public URL (ADR 0183 D6 / SA-2 M-2); the URL
-    // forms, rel and encoding are exhaustively pinned by share-job-ad.test.ts, not re-asserted here.
+    // forms, rel and encoding are exhaustively pinned by share-job-ad.test.tsx, not re-asserted here.
     const facebook = screen.getByRole("link", { name: /Facebook/ });
     expect(facebook).toHaveAttribute(
       "href",

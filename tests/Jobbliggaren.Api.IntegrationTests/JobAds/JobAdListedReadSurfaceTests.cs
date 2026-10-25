@@ -59,7 +59,10 @@ public sealed class JobAdListedReadSurfaceTests(ApiFactory factory)
             facets: TestFacets.From(organizationNumber: NewOrgNr()),
             declaredContacts: [],
             publishedAt: T0,
-            expiresAt: T0.AddDays(30),
+            // No deadline → Active ⇒ Listed regardless of the Api host's wall clock (the host does
+            // not use the seed's fixed clock). An absolute expiresAt would turn this green->red on a
+            // calendar date with no code change; null keeps the listedness guard time-stable.
+            expiresAt: null,
             clock: clock,
             extractTerms: TestKeywordExtraction.None,
             applicationUrl: null).Value;

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { emailAllowanceFixture } from "@/test/fixtures/admin-overview";
 import { EMAIL_KINDS } from "@/lib/dto/admin-email";
+import { observedDmarc } from "@/test/fixtures/admin-email-dmarc";
 
 const { session, transport } = vi.hoisted(() => ({ session: vi.fn(), transport: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getSessionId: session }));
@@ -8,10 +9,12 @@ vi.mock("@/lib/http/authed-fetch", () => ({ authedFetch: transport }));
 import {
   EMAIL_ALLOWANCE_PATH,
   EMAIL_DELIVERY_PATH,
+  EMAIL_DMARC_PATH,
   EMAIL_FAILURES_PATH,
   EMAIL_KINDS_PATH,
   loadEmailAllowance,
   loadEmailDelivery,
+  loadEmailDmarc,
   loadEmailFailures,
   loadEmailKinds,
 } from "./admin-email";
@@ -182,5 +185,45 @@ describe("loadEmailKinds and the contract (#1981 PR 3)", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     transport.mockImplementation(() => answer({ ...KINDS, kinds: KINDS.kinds.slice(1) }));
     expect(await loadEmailKinds("h24")).toEqual({ kind: "error" });
+  });
+});
+
+describe("loadEmailDmarc (#1981 PR 4b, ADR 0185 D9)", () => {
+  beforeEach(() => {
+    transport.mockImplementation(() => answer(observedDmarc()));
+  });
+
+  it("asks the fixed window at its own path, with no period or query, and answers the body as the schema parsed it", async () => {
+    expect(EMAIL_DMARC_PATH).toBe("/api/v1/admin/email/dmarc");
+    expect(await loadEmailDmarc()).toEqual({ kind: "ok", data: observedDmarc() });
+    expect(transport.mock.calls.map(([, path]) => path)).toEqual([EMAIL_DMARC_PATH]);
+  });
+
+  it("reads nothing without a session", async () => {
+    session.mockResolvedValue(null);
+    expect(await loadEmailDmarc()).toEqual({ kind: "unauthorized" });
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [401, "unauthorized"],
+    [403, "forbidden"],
+    [404, "error"],
+    [429, "error"],
+    [500, "error"],
+  ] as const)("answers status %i as %s", async (status, kind) => {
+    transport.mockImplementation(() => answer(null, status));
+    expect(await loadEmailDmarc()).toEqual({ kind });
+  });
+
+  it("answers a body outside the contract as an error, never as a guess", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    transport.mockImplementation(() => answer({ ...observedDmarc(), reporter: "reporter.example" }));
+    expect(await loadEmailDmarc()).toEqual({ kind: "error" });
+  });
+
+  it("answers a transport failure as an error and never throws", async () => {
+    transport.mockImplementation(() => Promise.reject(new TypeError("fetch failed")));
+    await expect(loadEmailDmarc()).resolves.toEqual({ kind: "error" });
   });
 });

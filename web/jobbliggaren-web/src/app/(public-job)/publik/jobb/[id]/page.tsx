@@ -8,6 +8,7 @@ import { formatDate } from "@/lib/i18n/format";
 import { publicJobAdTitle } from "@/lib/job-ads/public-job-ad-title";
 import { publicJobAdUrl } from "@/lib/job-ads/public-job-ad-url";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
+import { SHARE_IMAGE } from "@/lib/seo/share-image";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -25,8 +26,8 @@ const SENTENCE_END = /[.!?…]$/u;
  * here, never in `generateMetadata`: nothing of another ad reaches the title, the description or OpenGraph, and a
  * failed related read only leaves its section out.
  *
- * Title, description and OpenGraph are built from structured fields only, never from the ad text: a link preview is
- * a copy held by a third party, and the free text can name a person.
+ * Title, description, OpenGraph and the Twitter card are built from structured fields only, never from the ad text: a
+ * link preview is a copy held by a third party, and the free text can name a person.
  */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
@@ -49,6 +50,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       ? t("meta.description", { company: jobAd.companyName, title: jobAd.title, titleEnd, published })
       : t("meta.descriptionWithDeadline", { company: jobAd.companyName, title: jobAd.title, titleEnd, published, deadline });
   const url = publicJobAdUrl(jobAd.id);
+  // The compact card's square brand mark, the same for every ad (ADR 0165 Amendment 2026-10-25), never the root's
+  // large card: a page's own `openGraph` and `twitter` replace the root's wholesale (measured in the production build),
+  // so both name it here.
+  const image = {
+    url: SHARE_IMAGE.path,
+    width: SHARE_IMAGE.width,
+    height: SHARE_IMAGE.height,
+    alt: tMeta("applicationName"),
+  };
 
   return {
     title: documentTitle,
@@ -62,10 +72,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title: documentTitle,
       description,
       url,
-      // A page's own `openGraph` replaces the root's wholesale, file-based image and locale included (measured in
-      // the production build), so both are named here. The image is the one `app/opengraph-image.tsx` renders.
-      images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
+      images: [image],
     },
+    twitter: { card: "summary", title: documentTitle, description, images: [image] },
   };
 }
 

@@ -1,10 +1,12 @@
-import { TEXT_LINK } from "@/components/auth/mail-link";
-
 /**
- * One look for every item on the share row (ADR 0183): the house text link, semibold, with the 32 px target floor that
- * grows to 44 px at ≤768 px. Its own module because the server-rendered links and the client island both use it.
+ * One look for every item on the share row (ADR 0183, Amendment 2026-10-25): the house's secondary button at 44 px,
+ * filling its cell. Its own module because the server-rendered links and the
+ * client island both use it. `.jp-btn` is unlayered, so nothing here may set a property that rule sets (DESIGN.md §6).
  */
-export const SHARE_ITEM = `${TEXT_LINK} inline-flex min-h-8 min-w-8 items-center justify-center text-body-sm font-semibold [@media(max-width:768px)]:min-h-11 [@media(max-width:768px)]:min-w-11`;
+export const SHARE_ITEM = "jp-btn jp-btn--secondary w-full";
 
-/** A button that reads as the row's links, down to the hover tone the global link rule gives an anchor. */
-export const SHARE_BUTTON = `${SHARE_ITEM} cursor-pointer border-0 bg-transparent p-0 hover:text-[var(--jp-accent-600)]`;
+/** The row: wrapping on a narrow screen; from 640 px the three platforms on one line and the other three under them. */
+export const SHARE_LIST = "flex flex-wrap gap-2 sm:grid sm:grid-cols-[repeat(3,max-content)]";
+
+/** Lucide's size for an icon inline with text (DESIGN.md §7). */
+export const SHARE_ICON_SIZE = 16;

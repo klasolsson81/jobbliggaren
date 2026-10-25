@@ -4,7 +4,7 @@
 #   bash deploy/caddy/edge-modes.test.sh <caddy image>
 #
 # SITE_ADMISSION: the gate stands unless the value is exactly `open`. SITE_ALIASES: `apex` adds the
-# www 308 and dev. 302 sites. Each admission case runs in a fresh
+# www and dev. 308 sites, on both schemes. Each admission case runs in a fresh
 # container on the shipped Caddyfile's adapted config, with ONE change: the TLS issuer becomes
 # Caddy's internal CA, so no ACME request leaves the sandbox. The script asserts that the HTTP app
 # it runs is byte-equal to the shipped one, so the route tree under test is the one that ships.
@@ -162,6 +162,21 @@ get() {
     | tr -d '\r' | sed 's/^\([^:]*\):/\L\1:/'
 }
 
+# get_http <port> <host> <path> [curl args...] — the same over plain HTTP on the published port 80.
+get_http() {
+  local port=$1 host=$2 path=$3; shift 3
+  { curl -s -D - -o "$scratch/body" --max-time 20 --connect-to "$host:80:127.0.0.1:$port" "$@" "http://$host$path" || true; } \
+    | tr -d '\r' | sed 's/^\([^:]*\):/\L\1:/'
+}
+
+no_hsts() {
+  local count
+  count=$(grep -ci '^strict-transport-security:' <<<"$1" || true)
+  [ "$count" = 0 ] && return 0
+  echo "HSTS fields=$count over plain HTTP, expected none" >&2
+  return 1
+}
+
 one_hsts() {
   local count
   count=$(grep -ci '^strict-transport-security:' <<<"$1" || true)
@@ -256,10 +271,24 @@ h=$(get "$port" "www.$SITE" '/p?q=1')
 [ "$(status_of "$h")" = 308 ] && grep -qx "location: https://$SITE/p?q=1" <<<"$h" && one_hsts "$h" \
   && ! grep -qx "$MARKER" <<<"$h" && pass "www 308 to the apex, path and query kept, HSTS" || fail "www: $(status_of "$h") $(grep '^location' <<<"$h" || true)"
 h=$(get "$port" "dev.$SITE" '/p?q=1')
-[ "$(status_of "$h")" = 302 ] && grep -qx "location: https://$SITE/p?q=1" <<<"$h" && one_hsts "$h" \
-  && ! grep -qx "$MARKER" <<<"$h" && pass "dev. 302 to the apex, path and query kept, HSTS" || fail "dev.: $(status_of "$h") $(grep '^location' <<<"$h" || true)"
+[ "$(status_of "$h")" = 308 ] && grep -qx "location: https://$SITE/p?q=1" <<<"$h" && one_hsts "$h" \
+  && ! grep -qx "$MARKER" <<<"$h" && pass "dev. 308 to the apex, path and query kept, HSTS" || fail "dev.: $(status_of "$h") $(grep '^location' <<<"$h" || true)"
 h=$(get "$port" "www.$SITE" '/p?q=1' -H "Host: WWW.$SITE:443")
 grep -qx "location: https://$SITE/p?q=1" <<<"$h"   && pass "the redirect target is SITE_HOST, never the request's Host" || fail "Host-derived location: $(grep '^location' <<<"$h" || true)"
+# Plain HTTP on the aliases: ONE hop straight to the apex, never via https://<alias> first, and no
+# HSTS (RFC 6797 §7.2). The ACME prefix is not proxied there either. That is all these lines show:
+# a local run has no pending HTTP-01 challenge, so they prove nothing about answering a live one.
+for alias in www dev; do
+  h=$(get_http "$PORT_HTTP" "$alias.$SITE" '/p?q=1')
+  [ "$(status_of "$h")" = 308 ] && grep -qx "location: https://$SITE/p?q=1" <<<"$h" && no_hsts "$h" \
+    && ! grep -qx "$MARKER" <<<"$h" && pass "http://$alias. 308 straight to the apex, path and query kept, no HSTS" \
+    || fail "http://$alias.: $(status_of "$h") $(grep '^location' <<<"$h" || true)"
+  h=$(get_http "$PORT_HTTP" "$alias.$SITE" /.well-known/acme-challenge/x)
+  [ -n "$(status_of "$h")" ] && ! grep -qx "$MARKER" <<<"$h" && no_hsts "$h" \
+    && pass "http://$alias. ACME prefix answered at the edge ($(status_of "$h")), no HSTS" || fail "http://$alias. ACME prefix: $(status_of "$h")"
+done
+h=$(get_http "$PORT_HTTP" "www.$SITE" '/p?q=1' -H "Host: WWW.$SITE:80")
+grep -qx "location: https://$SITE/p?q=1" <<<"$h" && pass "the http redirect target is SITE_HOST, never the request's Host" || fail "Host-derived http location: $(grep '^location' <<<"$h" || true)"
 h=$(get "$port" "$SITE" /)
 [ "$(status_of "$h")" = 401 ] && pass "aliases leave admission alone: apex still 401" || fail "apex with aliases: $(status_of "$h")"
 rc=0

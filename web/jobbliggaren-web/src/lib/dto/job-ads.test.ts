@@ -589,6 +589,28 @@ describe("jobAdDetailDtoSchema (#842 PR4 — detail twin of the list schema)", (
       ).toBe(false);
     },
   );
+
+  // #2214 PR 3 (ADR 0183 D6) — listedness, detail-only. `.default(false)` fails SAFE: a wire that
+  // omits it (web/api image deploy skew) hides the share row, never shows it.
+  it("defaults a missing isListed to false (an API deployed before the field)", () => {
+    const parsed = jobAdDetailDtoSchema.parse({ ...baseJobAd, contacts: [] });
+    expect(parsed.isListed).toBe(false);
+  });
+
+  it("accepts isListed true and false", () => {
+    expect(
+      jobAdDetailDtoSchema.parse({ ...baseJobAd, contacts: [], isListed: true }).isListed,
+    ).toBe(true);
+    expect(
+      jobAdDetailDtoSchema.parse({ ...baseJobAd, contacts: [], isListed: false }).isListed,
+    ).toBe(false);
+  });
+
+  it.each([1, "true", null])("rejects a non-boolean isListed %j", (isListed) => {
+    expect(
+      jobAdDetailDtoSchema.safeParse({ ...baseJobAd, contacts: [], isListed }).success,
+    ).toBe(false);
+  });
 });
 
 describe("jobAdDtoSchema stays the LIST wire (R2 — contacts never on search; #745 — no description)", () => {

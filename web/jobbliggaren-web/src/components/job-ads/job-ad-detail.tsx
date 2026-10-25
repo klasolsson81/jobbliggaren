@@ -15,6 +15,8 @@ import { AdDescriptionExcerpt } from "./ad-description-excerpt";
 import { JobAdDetailMeta } from "./job-ad-detail-meta";
 import { JobAdSourceLink } from "./job-ad-source-link";
 import { formatAdDescription } from "./format-ad-description";
+import { ShareJobAd } from "./share-job-ad";
+import { useShareJobAdLabels } from "./use-share-job-ad-labels";
 import contactLinkStyles from "./recruiter-contact-link.module.css";
 
 /**
@@ -116,6 +118,10 @@ export function JobAdDetail({
   // Synchronous next-intl translator — keep JobAdDetail a non-async RSC (it is
   // shared by the full page and the @modal serialized slot, with sync tests).
   const tUi = useTranslations("jobads.ui");
+  // #2214 PR 3 — the share row's labels (publicjob.share.*), resolved here in the Server
+  // Component and handed to the client island as props (ADR 0183 D6), the same pattern the public
+  // page uses. Called unconditionally (rules of hooks); the row itself is gated on jobAd.isListed.
+  const shareLabels = useShareJobAdLabels();
   // Typ-narrowing-pattern: bind till en `userActions`-konst som är non-null
   // när BÅDA props är definierade. Eliminerar `!`-suppressions i JSX nedan
   // (code-reviewer Minor 6).
@@ -203,6 +209,22 @@ export function JobAdDetail({
               </InformationLink>
             </p>
           </div>
+        )}
+
+        {/* #2214 PR 3 (ADR 0183 D6) — "Dela annonsen", the last child of the body, after the
+            description and the contact card with its notice (never the footer, #2193; the body's
+            flex gap spaces it). Renders only for a publicly listed ad — listedness is the backend's
+            JobAdPublication verdict carried on the read, never re-derived here from status/source/
+            expiry — so it is absent on a non-listed ad and on the guest surfaces (isListed is false
+            there). headingLevel is 3 in the modal, where the dialog title is the h2 and the shell's
+            focus-trap targets h2[tabindex=-1], and 2 on the full page, where the title is the h1. */}
+        {jobAd.isListed && (
+          <ShareJobAd
+            jobAd={{ id: jobAd.id, title: jobAd.title, companyName: jobAd.companyName }}
+            labels={shareLabels}
+            headingId={`jp-share-${jobAd.id}`}
+            headingLevel={inModal ? 3 : 2}
+          />
         )}
       </div>
 

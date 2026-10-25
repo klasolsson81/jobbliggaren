@@ -31,6 +31,15 @@ namespace Jobbliggaren.Application.JobAds.Queries;
 /// and the public DTO never carries it (ADR 0166 D10, ADR 0171). Null when the ad has none, which
 /// includes every non-Active ad, since the aggregate clears it at archival.
 /// </para>
+/// <para>
+/// <b><see cref="IsListed"/> (#2214 PR 3, ADR 0183 D6)</b> is whether this ad is publicly listed,
+/// computed by the one <see cref="Jobbliggaren.Application.JobAds.Publication.JobAdPublication"/>
+/// predicate from the import provenance (<c>External?.Source</c>), NEVER the user-settable
+/// <see cref="Source"/>. The signed-in "Dela annonsen" row renders only when this is true, so a
+/// share never hands on a link that answers 404/410 on the public surface. Carried on the read so
+/// the client never re-derives listedness from status/source/expiry (a second copy of the gate
+/// drifts, SA-2 M-2). Always <see langword="false"/> for a non-Active or never-imported ad.
+/// </para>
 /// </remarks>
 public sealed record JobAdDetailDto(
     Guid Id,
@@ -44,4 +53,5 @@ public sealed record JobAdDetailDto(
     DateTimeOffset PublishedAt,
     DateTimeOffset? ExpiresAt,
     DateTimeOffset CreatedAt,
-    IReadOnlyList<JobAdContactDto> Contacts);
+    IReadOnlyList<JobAdContactDto> Contacts,
+    bool IsListed);

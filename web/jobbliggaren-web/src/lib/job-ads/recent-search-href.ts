@@ -15,11 +15,13 @@ import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
  * filter (empty list). #1471 closed the same gap on the employer axis: `employerList`
  * rides along too, so every axis the count is computed on is one the click reproduces.
  * What that list may carry is decided server-side (`EmployerAxisGate`), never here.
+ * #2199 PR 3 closed the same gap on the occupation-name axis (`occupationNameList`).
  */
 export function buildRecentSearchHref(item: RecentJobSearchDto): string {
   return buildJobbHref({
     q: item.q ?? "",
     occupationGroup: item.occupationGroupList,
+    occupationName: item.occupationNameList,
     region: item.regionList,
     municipality: item.municipalityList,
     employmentType: item.employmentTypeList,

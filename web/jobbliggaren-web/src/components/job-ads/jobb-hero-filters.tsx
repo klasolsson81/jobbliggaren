@@ -52,6 +52,8 @@ import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 interface JobbHeroFiltersProps {
   taxonomy: TaxonomyTree | null;
   initialOccupationGroup: ReadonlyArray<string>;
+  /** `?occupationName=`: occupation-names picked in the Yrke search (#2199). */
+  initialOccupationName: ReadonlyArray<string>;
   initialRegion: ReadonlyArray<string>;
   initialMunicipality: ReadonlyArray<string>;
   /**
@@ -97,6 +99,7 @@ type OpenPop = "ort" | "yrke" | "filter" | "match" | null;
 // router.push transition an optimistic overlay shows the new value at once.
 interface FilterSelection {
   occupationGroup: string[];
+  occupationName: string[];
   region: string[];
   municipality: string[];
   remote: boolean;
@@ -112,6 +115,7 @@ interface FilterSelection {
 export function JobbHeroFilters({
   taxonomy,
   initialOccupationGroup,
+  initialOccupationName,
   initialRegion,
   initialMunicipality,
   initialRemote,
@@ -144,6 +148,7 @@ export function JobbHeroFilters({
   const base = useMemo<FilterSelection>(
     () => ({
       occupationGroup: [...initialOccupationGroup],
+      occupationName: [...initialOccupationName],
       region: [...initialRegion],
       municipality: [...initialMunicipality],
       remote: initialRemote,
@@ -157,6 +162,7 @@ export function JobbHeroFilters({
     }),
     [
       initialOccupationGroup,
+      initialOccupationName,
       initialRegion,
       initialMunicipality,
       initialRemote,
@@ -234,6 +240,7 @@ export function JobbHeroFilters({
         buildJobbHref({
           q,
           occupationGroup: next.occupationGroup,
+          occupationName: next.occupationName,
           region: next.region,
           municipality: next.municipality,
           remote: next.remote,
@@ -381,6 +388,7 @@ export function JobbHeroFilters({
   // with only remote work selected would count the whole corpus.
   const facetFilter = {
     occupationGroup,
+    occupationName: selection.occupationName,
     municipality: ort.municipality,
     region: ort.region,
     employmentType: selection.employmentType,

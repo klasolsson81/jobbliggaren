@@ -8,6 +8,7 @@ const wireBase = {
   id: "33333333-3333-3333-3333-333333333333",
   q: "backend",
   occupationGroupList: ["MVqp_eS8_kDZ"],
+  occupationNameList: [],
   municipalityList: ["zHxw_uJZ_NNh"],
   regionList: ["CifL_Rzy_Mku"],
   employmentTypeList: ["gro4_cWF_6D7"],
@@ -161,6 +162,29 @@ describe("recentJobSearchDtoSchema", () => {
     // filter" — a replay that silently widens, which is #1471's own failure mode one layer out.
     const { employerList: _omitted, ...withoutEmployerList } = wireBase;
     expect(() => recentJobSearchDtoSchema.parse(withoutEmployerList)).toThrow();
+  });
+
+  it("carries occupationNameList and its labels from the wire (#2199)", () => {
+    const parsed = recentJobSearchDtoSchema.parse({
+      ...wireBase,
+      occupationNameList: ["z5AM_ayf_WcL"],
+      occupationNameLabels: [{ conceptId: "z5AM_ayf_WcL", label: "Projektledare, IT" }],
+    });
+    expect(parsed.occupationNameList).toEqual(["z5AM_ayf_WcL"]);
+    expect(parsed.occupationNameLabels).toEqual([
+      { conceptId: "z5AM_ayf_WcL", label: "Projektledare, IT" },
+    ]);
+  });
+
+  it("defaults missing occupationNameLabels to an empty array, like the other labels", () => {
+    expect(recentJobSearchDtoSchema.parse(wireBase).occupationNameLabels).toEqual([]);
+  });
+
+  it("rejects a payload with no occupationNameList field rather than defaulting it to empty", () => {
+    // Same actor and reason as the employerList and remote cases: the deploy-skew window
+    // (#1238), where a replay that silently drops the axis would widen the search.
+    const { occupationNameList: _omitted, ...withoutNames } = wireBase;
+    expect(() => recentJobSearchDtoSchema.parse(withoutNames)).toThrow();
   });
 
   it("parses an Employer part, which carries neither text nor code (#1471)", () => {

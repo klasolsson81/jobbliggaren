@@ -67,11 +67,16 @@ const taxonomy: TaxonomyTree = {
 const CANARY = "Kanarieyrke Ö";
 const CANARY_TOKEN = "kanarieyrke";
 
-function hero(q: string, occupationGroup: ReadonlyArray<string>) {
+function hero(
+  q: string,
+  occupationGroup: ReadonlyArray<string>,
+  occupationName: ReadonlyArray<string> = [],
+) {
   return (
     <JobbHeroFilters
       taxonomy={taxonomy}
       initialOccupationGroup={occupationGroup}
+      initialOccupationName={occupationName}
       initialRegion={[]}
       initialMunicipality={[]}
       initialRemote={false}
@@ -105,6 +110,7 @@ function hrefWithGroups(occupationGroup: string[], q = "") {
   return buildJobbHref({
     q,
     occupationGroup,
+    occupationName: [],
     region: [],
     municipality: [],
     remote: false,

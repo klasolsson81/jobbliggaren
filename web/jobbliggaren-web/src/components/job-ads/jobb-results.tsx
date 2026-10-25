@@ -42,6 +42,8 @@ interface JobbResultsProps {
   pageSize: number;
   sortBy: JobAdSortBy;
   occupationGroup: string[];
+  /** Occupation-names (#2199), OR-ed with occupationGroup inside the Yrke dimension. */
+  occupationName: string[];
   region: string[];
   municipality: string[];
   /** A place facet the backend combines with region and municipality. */
@@ -91,6 +93,7 @@ export async function JobbResults({
   pageSize,
   sortBy,
   occupationGroup,
+  occupationName,
   region,
   municipality,
   remote,
@@ -115,6 +118,7 @@ export async function JobbResults({
   // names its chip from the catalogue instead (ADR 0043 Beslut B).
   const selectedConceptIds = [
     ...occupationGroup,
+    ...occupationName,
     ...region,
     ...municipality,
     ...employmentType,
@@ -155,6 +159,7 @@ export async function JobbResults({
   const listHref = buildJobbHref({
     q,
     occupationGroup,
+    occupationName,
     region,
     municipality,
     remote,
@@ -185,6 +190,7 @@ export async function JobbResults({
       pageSize,
       sortBy: effectiveSortBy,
       occupationGroup,
+      occupationName,
       region,
       municipality,
       remote,
@@ -305,6 +311,7 @@ export async function JobbResults({
           <JobbResultsToolbar
             totalCount={result.data.totalCount}
             occupationGroup={occupationGroup}
+            occupationName={occupationName}
             region={region}
             municipality={municipality}
             remote={remote}

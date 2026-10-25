@@ -312,8 +312,7 @@ export const FACET_DIMENSIONS = [
   // exkluderar endast EGEN lista (ortogonala IN-dims, ej geo-union).
   "EmploymentType",
   "WorktimeExtent",
-  // #2199 — yrkesbenämning, with counts folded through the occupation-name lineage. The backend
-  // accepts it; no surface requests it yet.
+  // #2199 — yrkesbenämning, with counts folded through the occupation-name lineage.
   "OccupationName",
 ] as const;
 export type FacetDimension = (typeof FACET_DIMENSIONS)[number];

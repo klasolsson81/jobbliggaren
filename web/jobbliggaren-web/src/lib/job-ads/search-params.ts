@@ -24,6 +24,11 @@ import { Q_MIN_LENGTH, type JobAdSortBy } from "@/lib/dto/job-ads";
 export interface JobbUrlState {
   q: string;
   occupationGroup: ReadonlyArray<string>;
+  // #2199 — occupation-name conceptIds, the Yrke dimension's finer granularity. The
+  // backend ORs them with `occupationGroup` inside that dimension (ADR 0067 Amendment
+  // 2026-10-24), so a name WIDENS a group selection. Never text-representable in the
+  // hero field. Required for the same reason as `remote` below.
+  occupationName: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   municipality: ReadonlyArray<string>;
   // #551 punkt 4 — distans. Samma ORT-dimension som region/municipality, inte en
@@ -403,6 +408,7 @@ export function parseQParam(
 export function buildJobbHref(state: JobbUrlState): string {
   const params = new URLSearchParams();
   setAxis(params, "occupationGroup", state.occupationGroup);
+  setAxis(params, "occupationName", state.occupationName);
   setAxis(params, "region", state.region);
   setAxis(params, "municipality", state.municipality);
   // Klass 2 — one param per axis, same as the dimensions above. Ordered after
@@ -469,6 +475,7 @@ export interface JobbRawSearchParams {
   pageSize?: string;
   sortBy?: string;
   occupationGroup?: string | string[];
+  occupationName?: string | string[];
   region?: string | string[];
   municipality?: string | string[];
   employmentType?: string | string[];
@@ -565,6 +572,7 @@ export function buildPageHref(
   // `toStringList` first is also what makes a legacy repeated-form arrival heal:
   // a page-2 link built from one comes out in the joined form.
   setAxis(url, "occupationGroup", toStringList(params.occupationGroup));
+  setAxis(url, "occupationName", toStringList(params.occupationName));
   setAxis(url, "region", toStringList(params.region));
   // E2b — utan denna rad tappar sida-2-klicket kommun-filtret (samma
   // felklass som F3 B-FIX; buildPageHref är en ANDRA URL-builder vid

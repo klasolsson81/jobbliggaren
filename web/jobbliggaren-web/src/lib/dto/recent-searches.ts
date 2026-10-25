@@ -111,12 +111,15 @@ export type RecentSearchLabelPart = z.infer<typeof recentSearchLabelPartSchema>;
 export const recentJobSearchDtoSchema = z.object({
   id: z.string(),
   q: z.string().nullable(),
-  // ADR 0067 Fas E2a — yrke-dimensionen är yrkesgrupp (ssyk-level-4), ej
-  // occupation-name. Backend `RecentJobSearchDto` bär `occupationGroupList`
-  // (C2-reverse-lookup-migrerade ids); FE konsumerar yrkesgrupp-fältet.
+  // ADR 0067 Fas E2a — `occupationGroupList` är yrkesgrupp (ssyk-level-4),
+  // C2-reverse-lookup-migrerade ids.
   // Fas E2b: municipality-dimensionen (Län→Kommun-kaskaden) konsumeras —
   // backend-fälten fanns sedan C2.
   occupationGroupList: z.array(z.string()),
+  // #2199 PR 3 — the picked occupation-names, OR-ed with the groups inside the Yrke
+  // dimension and replayed by `buildRecentSearchHref`. Required like every raw
+  // dimension here, for the reason the `remote` note below gives.
+  occupationNameList: z.array(z.string()),
   municipalityList: z.array(z.string()),
   regionList: z.array(z.string()),
   // ADR 0067 Beslut 6 (Fas B2) — Klass 2: anställningsform + omfattning. Råa
@@ -145,6 +148,7 @@ export const recentJobSearchDtoSchema = z.object({
   // nästa reconcile läker det.
   remote: z.boolean(),
   occupationGroupLabels: z.array(taxonomyLabelSchema).default([]),
+  occupationNameLabels: z.array(taxonomyLabelSchema).default([]),
   municipalityLabels: z.array(taxonomyLabelSchema).default([]),
   regionLabels: z.array(taxonomyLabelSchema).default([]),
   sortBy: sortByFromWire,

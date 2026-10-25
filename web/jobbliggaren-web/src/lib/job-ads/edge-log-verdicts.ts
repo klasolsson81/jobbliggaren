@@ -37,6 +37,13 @@ export const EDGE_LOG_VERDICT: EdgeLogVerdicts = {
       "A JobTech taxonomy conceptId. Identical for every visitor who picks the same filter; it " +
       "names an occupation, never a person, and any visitor can type it unauthenticated.",
   },
+  occupationName: {
+    verdict: "kept",
+    reason:
+      "A JobTech taxonomy occupation-name conceptId (#2199), same class as occupationGroup at " +
+      "a finer granularity: it names an occupation, never a person, and the same value is " +
+      "produced by every visitor who picks that occupation.",
+  },
   region: {
     verdict: "kept",
     reason:

@@ -69,6 +69,7 @@ public class ListRecentSearchesQueryHandlerTests
     {
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grp_12345"],
+            occupationName: [],
             municipality: ["sthlm_kn"],
             region: ["stockholm"],
             employmentType: null,
@@ -177,6 +178,7 @@ public class ListRecentSearchesQueryHandlerTests
         var seeker = await SeedSeekerAsync(db);
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grp_54321"],
+            occupationName: [],
             municipality: ["gbg_kn"],
             region: ["goteborg"],
             employmentType: null,
@@ -215,7 +217,7 @@ public class ListRecentSearchesQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db);
         var criteria = SearchCriteria.Create(
-            occupationGroup: null, municipality: null, region: null,
+            occupationGroup: null, occupationName: [], municipality: null, region: null,
             employmentType: null, worktimeExtent: null, employer: null, remote: true,
             q: null,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
@@ -312,6 +314,7 @@ public class ListRecentSearchesQueryHandlerTests
         // Q=null + yrkesgrupp + kommun + region → label från occupationGroupLabel
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grp_77777"],
+            occupationName: [],
             municipality: ["sthlm_kn"],
             region: ["stockholm"],
             employmentType: null,
@@ -339,6 +342,7 @@ public class ListRecentSearchesQueryHandlerTests
 
         var criteria = SearchCriteria.Create(
             occupationGroup: null,
+            occupationName: [],
             municipality: ["gbg_kn"],
             region: ["goteborg"],
             employmentType: null,
@@ -363,6 +367,7 @@ public class ListRecentSearchesQueryHandlerTests
 
         var criteria = SearchCriteria.Create(
             occupationGroup: null,
+            occupationName: [],
             municipality: ["gbg_kn"],
             region: null,
             employmentType: null,
@@ -389,6 +394,7 @@ public class ListRecentSearchesQueryHandlerTests
 
         var criteria = SearchCriteria.Create(
             occupationGroup: null,
+            occupationName: [],
             municipality: null,
             region: null,
             employmentType: null,
@@ -413,6 +419,7 @@ public class ListRecentSearchesQueryHandlerTests
 
         var criteria = SearchCriteria.Create(
             occupationGroup: null,
+            occupationName: [],
             municipality: ["gbg_kn"],
             region: null,
             employmentType: null,
@@ -437,6 +444,7 @@ public class ListRecentSearchesQueryHandlerTests
 
         var criteria = SearchCriteria.Create(
             occupationGroup: null,
+            occupationName: [],
             municipality: ["gbg_kn"],
             region: ["goteborg"],
             employmentType: null,
@@ -462,6 +470,7 @@ public class ListRecentSearchesQueryHandlerTests
 
         var criteria = SearchCriteria.Create(
             occupationGroup: null,
+            occupationName: [],
             municipality: ["gbg_kn", "sthlm_kn"],
             region: null,
             employmentType: null,
@@ -494,6 +503,8 @@ public class ListRecentSearchesQueryHandlerTests
         {
             ["Q"] = (Axis(q: "backend dev"), "Query/None:backend dev"),
             ["OccupationGroup"] = (Axis(occupationGroup: ["grp_77777"]), "Dimensions/None:Label-grp_77777"),
+            // #2199 PR 2 — a name-only row is named after its occupation-name, an egennamn like the group.
+            ["OccupationName"] = (Axis(occupationName: ["name_77777"]), "Dimensions/None:Label-name_77777"),
             ["Municipality"] = (Axis(municipality: ["gbg_kn"]), "Dimensions/None:Label-gbg_kn"),
             ["Region"] = (Axis(region: ["stockholm"]), "Dimensions/None:Label-stockholm"),
             // Klass 2 namnger raden med sin KOD, inte sin etikett: orden är allmänsubstantiv
@@ -514,6 +525,7 @@ public class ListRecentSearchesQueryHandlerTests
 
     private static SearchCriteria Axis(
         IReadOnlyList<string>? occupationGroup = null,
+        IReadOnlyList<string>? occupationName = null,
         IReadOnlyList<string>? municipality = null,
         IReadOnlyList<string>? region = null,
         IReadOnlyList<string>? employmentType = null,
@@ -523,6 +535,7 @@ public class ListRecentSearchesQueryHandlerTests
         string? q = null) =>
         SearchCriteria.Create(
             occupationGroup: occupationGroup,
+            occupationName: occupationName,
             municipality: municipality,
             region: region,
             employmentType: employmentType,
@@ -792,6 +805,7 @@ public class ListRecentSearchesQueryHandlerTests
 
         var criteria = SearchCriteria.Create(
             occupationGroup: null,
+            occupationName: [],
             municipality: null,
             region: ["stockholm"],
             employmentType: null,
@@ -840,6 +854,7 @@ public class ListRecentSearchesQueryHandlerTests
     {
         var criteria = SearchCriteria.Create(
             occupationGroup: groups,
+            occupationName: [],
             municipality: null,
             region: null,
             employmentType: null,
@@ -869,6 +884,91 @@ public class ListRecentSearchesQueryHandlerTests
         Shape(result.ShouldHaveSingleItem().Label).ShouldBe("OccupationField/None:Data/IT");
     }
 
+    // ---------------------------------------------------------------
+    // #2199 PR 2 — Yrke is one dimension in two granularities, OR-ed by the search port. The
+    // label names each set granularity (group, then name), joined as a disjunction, like Ort.
+    // ---------------------------------------------------------------
+
+    private static RecentJobSearch YrkeRow(
+        JobSeekerId seekerId, IReadOnlyList<string> groups, IReadOnlyList<string> names)
+    {
+        var criteria = SearchCriteria.Create(
+            occupationGroup: groups,
+            occupationName: names,
+            municipality: null,
+            region: null,
+            employmentType: null,
+            worktimeExtent: null, employer: null, remote: false,
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        return RecentJobSearch.Capture(
+            seekerId, criteria, 0, FakeDateTimeProvider.Default.UtcNow);
+    }
+
+    [Fact]
+    public async Task Handle_YrkeLabel_NamesTheGroupAndTheName_AsADisjunction()
+    {
+        // A label naming only the group would describe a strict subset of what the click runs,
+        // since the name pick widens the group selection (#1413's defect on the Yrke axis).
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        db.RecentJobSearches.Add(YrkeRow(seeker.Id, ["grp_a"], ["name_a"]));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/Disjunction:Label-grp_a|Label-name_a");
+    }
+
+    [Fact]
+    public async Task Handle_YrkeLabel_CountsTheNamesInTheirOwnPart_WhenOnlyNamesArePicked()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        db.RecentJobSearches.Add(YrkeRow(seeker.Id, [], ["name_b", "name_a"]));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-name_a+1");
+    }
+
+    [Fact]
+    public async Task Handle_YrkeLabel_DoesNotCollapseToTheField_WhenANameIsPickedBesideIt()
+    {
+        // The whole-field collapse names the field; a picked occupation-name is not in that name,
+        // so with one present the groups are counted instead.
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        StubTree(Field("falt_datait", "Data/IT", "grp_a", "grp_b", "grp_c"));
+        db.RecentJobSearches.Add(YrkeRow(seeker.Id, ["grp_a", "grp_b", "grp_c"], ["name_x"]));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/Disjunction:Label-grp_a+2|Label-name_x");
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsTheOccupationNamesAndTheirLabels()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        db.RecentJobSearches.Add(YrkeRow(seeker.Id, [], ["name_a"]));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var dto = (await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None))
+            .ShouldHaveSingleItem();
+
+        dto.OccupationNameList.ShouldBe(["name_a"]);
+        dto.OccupationNameLabels.ShouldBe([new TaxonomyLabelDto("name_a", "Label-name_a")]);
+        dto.OccupationGroupList.ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task Handle_DerivesPlusNLabel_WhenMultipleGroupsNotWholeField()
     {
@@ -915,6 +1015,7 @@ public class ListRecentSearchesQueryHandlerTests
 
         var criteria = SearchCriteria.Create(
             occupationGroup: null,
+            occupationName: [],
             municipality: ["kn_a", "kn_b", "kn_c"],
             region: null,
             employmentType: null,
@@ -962,6 +1063,7 @@ public class ListRecentSearchesQueryHandlerTests
 
         var criteria = SearchCriteria.Create(
             occupationGroup: null,
+            occupationName: [],
             municipality: null,
             region: ["reg_a", "reg_b"],
             employmentType: null,

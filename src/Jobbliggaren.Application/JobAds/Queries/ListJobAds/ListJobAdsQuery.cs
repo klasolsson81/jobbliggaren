@@ -111,9 +111,8 @@ public sealed record ListJobAdsQuery(
     bool OnlyMatched = false,
     // #2199 — the occupation-names (yrkesbenämningar) picked in Yrke, OR-ed with OccupationGroup and
     // expanded through the occupation-name lineage by the search port. Bound from repeated
-    // ?occupationName=. Appended last so no positional argument above can shift into it. A recent
-    // search cannot store it until #2199 PR 2, so RecentJobSearchCaptureBehavior skips a search that
-    // carries it.
+    // ?occupationName=. Appended last so no positional argument above can shift into it. A
+    // committed search carrying it is captured with it (#2199 PR 2).
     IReadOnlyList<string>? OccupationName = null)
     : IQuery<PagedResult<JobAdDto>>, ICapturesRecentSearch
 {

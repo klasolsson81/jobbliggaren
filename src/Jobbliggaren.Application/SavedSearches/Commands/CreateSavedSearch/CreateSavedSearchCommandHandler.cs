@@ -30,6 +30,12 @@ public sealed class CreateSavedSearchCommandHandler(
 
         var criteriaResult = SearchCriteria.Create(
             occupationGroup: command.OccupationGroup,
+            // #2199 PR 2: same posture as employer and remote below. The SavedSearch WRITE path does
+            // not carry occupation-names (no command field, and no FE caller of this endpoint; /jobb
+            // saves through the recent-search capture). The VO and the jsonb converter are
+            // name-aware, so a future save-with-names only sets this here. Not a silent drop: no
+            // name flows in to drop.
+            occupationName: [],
             municipality: command.Municipality,
             region: command.Region,
             employmentType: command.EmploymentType,

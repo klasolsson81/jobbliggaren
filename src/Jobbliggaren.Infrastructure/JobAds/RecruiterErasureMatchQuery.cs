@@ -466,7 +466,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
 
         // The exact arm must meet the STORE's form, not the request's. employer_list normalises
         // on write (ValidateEmployerList -> OrganizationNumber.Create), so the 10-digit form is
-        // the only one there. The five axes validate on SHAPE ONLY and store whatever was typed,
+        // the only one there. The six axes validate on SHAPE ONLY and store whatever was typed,
         // so `550928-1234`, `195509281234` and `19550928-1234` all sit there unreached by a
         // normalised comparison. OrganizationNumber owns the rendering as the inverse of
         // TryFromWrittenForm, so the pair cannot drift (#844). Empty for a non-org.nr
@@ -483,9 +483,10 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
         // over this column on the ground that it held employer NAMES — a name never matches a
         // ten-digit string, and the zero was certified as a search result.)
         //
-        // #1425 — THE FIVE CONCEPT-ID AXES. They are shape-validated (^[A-Za-z0-9_-]{1,32}) and
-        // never taxonomy-resolved, so a hand-edited ?occupationGroup= persists a name or a
-        // ten-digit org.nr. `unnest` is not style: a regex against the ARRAY compares against its
+        // #1425 — THE SIX CONCEPT-ID AXES (#2199 PR 2 added occupation_name_list). They are
+        // shape-validated (^[A-Za-z0-9_-]{1,32}) and never taxonomy-resolved, so a hand-edited
+        // ?occupationGroup= persists a name or a ten-digit org.nr, and ?occupationName= is validated
+        // the same way. `unnest` is not style: a regex against the ARRAY compares against its
         // literal text form and would match on the punctuation between elements
         // (CountResumeMetadataAsync says the same about top_skills).
         //
@@ -503,6 +504,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
                    OR EXISTS (
                         SELECT 1 FROM unnest(
                              coalesce(occupation_group_list, ARRAY[]::text[])
+                          || coalesce(occupation_name_list,  ARRAY[]::text[])
                           || coalesce(municipality_list,     ARRAY[]::text[])
                           || coalesce(region_list,           ARRAY[]::text[])
                           || coalesce(employment_type_list,  ARRAY[]::text[])
@@ -536,6 +538,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
                 WHERE EXISTS (
                         SELECT 1 FROM unnest(
                              coalesce(occupation_group_list, ARRAY[]::text[])
+                          || coalesce(occupation_name_list,  ARRAY[]::text[])
                           || coalesce(municipality_list,     ARRAY[]::text[])
                           || coalesce(region_list,           ARRAY[]::text[])
                           || coalesce(employment_type_list,  ARRAY[]::text[])
@@ -577,6 +580,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
                 Id = r.Id.Value,
                 r.Q,
                 OccupationGroup = EF.Property<List<string>>(r, "_occupationGroup"),
+                OccupationName = EF.Property<List<string>>(r, "_occupationName"),
                 Municipality = EF.Property<List<string>>(r, "_municipality"),
                 Region = EF.Property<List<string>>(r, "_region"),
                 EmploymentType = EF.Property<List<string>>(r, "_employmentType"),
@@ -595,8 +599,8 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
                 qSet.Contains(r.Id) ? r.Q : null,
                 employerSet.Contains(r.Id) ? orgNr : null,
                 taxonomySet.Contains(r.Id)
-                    ? FirstMatchedAxisValue(r.OccupationGroup, r.Municipality, r.Region,
-                        r.EmploymentType, r.WorktimeExtent, needle, writtenForms)
+                    ? FirstMatchedAxisValue(r.OccupationGroup, r.OccupationName, r.Municipality,
+                        r.Region, r.EmploymentType, r.WorktimeExtent, needle, writtenForms)
                     : null)),
         ];
     }
@@ -627,11 +631,12 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
     /// </para>
     /// </remarks>
     private static string? FirstMatchedAxisValue(
-        List<string> occupationGroup, List<string> municipality, List<string> region,
-        List<string> employmentType, List<string> worktimeExtent, string needle,
+        List<string> occupationGroup, List<string> occupationName, List<string> municipality,
+        List<string> region, List<string> employmentType, List<string> worktimeExtent, string needle,
         IReadOnlyList<string> writtenForms)
     {
-        List<string>[] axes = [occupationGroup, municipality, region, employmentType, worktimeExtent];
+        List<string>[] axes =
+            [occupationGroup, occupationName, municipality, region, employmentType, worktimeExtent];
 
         foreach (var axis in axes)
         {
@@ -682,7 +687,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
         // every document — so a four-character identifier (the validator's floor) reported every row
         // that has criteria at all. Walking values names no property, so an additive key stays
         // covered, and drops the key-name over-match with it. `$.**` is lax and unwraps arrays, so
-        // it reaches the six concept-id lists' elements as well as `Q`.
+        // it reaches every concept-id list's elements as well as `Q`.
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM saved_searches
@@ -852,7 +857,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
     /// <remarks>
     /// A column validated on SHAPE ONLY stores whatever was typed, so comparing one normalised
     /// request against an unnormalised store reaches only the form that happens to coincide (#1425).
-    /// The five <c>recent_job_searches</c> axes close that with <c>= ANY(writtenForms)</c> because
+    /// The six <c>recent_job_searches</c> axes close that with <c>= ANY(writtenForms)</c> because
     /// they are <c>text[]</c>; every other channel needs the same set as LIKE patterns instead.
     /// <b>This does NOT apply to a normalising column</b> — <c>company_watches.organization_number</c>
     /// and <c>recent_job_searches.employer_list</c> both reach the database through a ten-digit gate,

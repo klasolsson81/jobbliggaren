@@ -79,8 +79,7 @@ public sealed class ListRecentSearchesQueryHandler(
             // for that row too.
             var replay = new JobAdFilterCriteria(
                 OccupationGroup: r.OccupationGroup,
-                // A recent search stores no occupation-name until #2199 PR 2.
-                OccupationName: [],
+                OccupationName: r.OccupationName,
                 Municipality: r.Municipality,
                 Region: r.Region,
                 EmploymentType: r.EmploymentType,
@@ -91,6 +90,10 @@ public sealed class ListRecentSearchesQueryHandler(
 
             var occupationGroupLabels = await taxonomy.ResolveLabelsAsync(
                 replay.OccupationGroup, cancellationToken);
+            // #2199 PR 2 — the read model's reverse lookup is kind-agnostic, so occupation-name
+            // ids resolve through the same call as the groups.
+            var occupationNameLabels = await taxonomy.ResolveLabelsAsync(
+                replay.OccupationName, cancellationToken);
             var municipalityLabels = await taxonomy.ResolveLabelsAsync(
                 replay.Municipality, cancellationToken);
             var regionLabels = await taxonomy.ResolveLabelsAsync(
@@ -123,7 +126,8 @@ public sealed class ListRecentSearchesQueryHandler(
 
             var newCount = Math.Max(0, currentCount - r.LastSeenCount);
             var label = DeriveLabel(
-                replay, occupationGroupLabels, municipalityLabels, regionLabels, occupationFields);
+                replay, occupationGroupLabels, occupationNameLabels, municipalityLabels, regionLabels,
+                occupationFields);
 
             // Named throughout: a run of positional lists is the transposition trap
             // JobAdFilterCriteria's own docblock names, and the raw dimensions below are the
@@ -132,6 +136,7 @@ public sealed class ListRecentSearchesQueryHandler(
                 Id: r.Id.Value,
                 Q: replay.Q,
                 OccupationGroupList: replay.OccupationGroup,
+                OccupationNameList: replay.OccupationName,
                 MunicipalityList: replay.Municipality,
                 RegionList: replay.Region,
                 EmploymentTypeList: replay.EmploymentType,
@@ -139,6 +144,7 @@ public sealed class ListRecentSearchesQueryHandler(
                 EmployerList: replay.Employer,
                 Remote: replay.Remote,
                 OccupationGroupLabels: occupationGroupLabels,
+                OccupationNameLabels: occupationNameLabels,
                 MunicipalityLabels: municipalityLabels,
                 RegionLabels: regionLabels,
                 SortBy: r.SortBy,
@@ -170,17 +176,46 @@ public sealed class ListRecentSearchesQueryHandler(
     private static RecentSearchLabelDto DeriveLabel(
         JobAdFilterCriteria criteria,
         IReadOnlyList<TaxonomyLabelDto> occupationGroupLabels,
+        IReadOnlyList<TaxonomyLabelDto> occupationNameLabels,
         IReadOnlyList<TaxonomyLabelDto> municipalityLabels,
         IReadOnlyList<TaxonomyLabelDto> regionLabels,
         IReadOnlyList<TaxonomyOccupationFieldDto>? occupationFields)
     {
         if (!string.IsNullOrWhiteSpace(criteria.Q))
             return Single(RecentSearchLabelKind.Query, Named(criteria.Q));
-        if (occupationGroupLabels.Count > 0)
+        if (occupationGroupLabels.Count > 0 || occupationNameLabels.Count > 0)
+            return DeriveYrkeLabel(
+                criteria.OccupationGroup, occupationGroupLabels, occupationNameLabels, occupationFields);
+        if (municipalityLabels.Count > 0 || regionLabels.Count > 0 || criteria.Remote)
+            return DeriveOrtLabel(municipalityLabels, regionLabels, criteria.Remote);
+        if (criteria.EmploymentType.Count > 0 || criteria.WorktimeExtent.Count > 0
+            || criteria.Employer.Count > 0)
+            return DeriveRefinementLabel(criteria.EmploymentType, criteria.WorktimeExtent, criteria.Employer);
+        return new RecentSearchLabelDto(RecentSearchLabelKind.All, RecentSearchLabelJoin.None, []);
+    }
+
+    // Yrke is ONE dimension in two granularities, and the search port OR-s them
+    // (JobAdSearchComposition, #2199): a name pick widens a group selection. So the label names
+    // each set granularity, as DeriveOrtLabel does for its union — a row with a group and a name
+    // that is named after the group alone would name a strict subset of what the click runs
+    // (#1413's defect, on the Yrke axis). Per granularity before the join, in the filter's
+    // canonical order (group, then name), because a merged list breaks "+N"'s unit.
+    //
+    // With no name the output is exactly what it was before #2199 PR 2: the whole-field collapse
+    // (E2g) or the groups. The collapse applies only then, since a field's name says nothing
+    // about a picked occupation-name. Called only when at least one granularity is set — the
+    // same call-site invariant as WithMoreCount.
+    private static RecentSearchLabelDto DeriveYrkeLabel(
+        IReadOnlyList<string> occupationGroup,
+        IReadOnlyList<TaxonomyLabelDto> occupationGroupLabels,
+        IReadOnlyList<TaxonomyLabelDto> occupationNameLabels,
+        IReadOnlyList<TaxonomyOccupationFieldDto>? occupationFields)
+    {
+        if (occupationNameLabels.Count == 0)
         {
-            if (criteria.OccupationGroup.Count > 1 && occupationFields is not null)
+            if (occupationGroup.Count > 1 && occupationFields is not null)
             {
-                var selected = criteria.OccupationGroup.ToHashSet(StringComparer.Ordinal);
+                var selected = occupationGroup.ToHashSet(StringComparer.Ordinal);
                 var wholeField = occupationFields.FirstOrDefault(f =>
                     f.OccupationGroups.Count == selected.Count
                     && f.OccupationGroups.All(g => selected.Contains(g.ConceptId)));
@@ -189,12 +224,16 @@ public sealed class ListRecentSearchesQueryHandler(
             }
             return Single(RecentSearchLabelKind.Dimensions, WithMoreCount(occupationGroupLabels));
         }
-        if (municipalityLabels.Count > 0 || regionLabels.Count > 0 || criteria.Remote)
-            return DeriveOrtLabel(municipalityLabels, regionLabels, criteria.Remote);
-        if (criteria.EmploymentType.Count > 0 || criteria.WorktimeExtent.Count > 0
-            || criteria.Employer.Count > 0)
-            return DeriveRefinementLabel(criteria.EmploymentType, criteria.WorktimeExtent, criteria.Employer);
-        return new RecentSearchLabelDto(RecentSearchLabelKind.All, RecentSearchLabelJoin.None, []);
+
+        var parts = new List<RecentSearchLabelPartDto>(2);
+        if (occupationGroupLabels.Count > 0)
+            parts.Add(WithMoreCount(occupationGroupLabels));
+        parts.Add(WithMoreCount(occupationNameLabels));
+
+        return new RecentSearchLabelDto(
+            RecentSearchLabelKind.Dimensions,
+            parts.Count == 1 ? RecentSearchLabelJoin.None : RecentSearchLabelJoin.Disjunction,
+            parts);
     }
 
     private static RecentSearchLabelPartDto Named(string text) =>

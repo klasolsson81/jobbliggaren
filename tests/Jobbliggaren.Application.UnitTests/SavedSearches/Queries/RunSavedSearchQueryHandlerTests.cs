@@ -53,6 +53,7 @@ public class RunSavedSearchQueryHandlerTests
         var employerList = employer is not null ? new[] { employer } : System.Array.Empty<string>();
         var criteria = SearchCriteria.Create(
             occupationGroup: groupList,
+            occupationName: [],
             municipality: municipalityList,
             region: regionList,
             employmentType: null,

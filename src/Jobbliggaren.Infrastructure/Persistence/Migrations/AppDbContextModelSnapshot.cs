@@ -826,6 +826,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("occupation_group_concept_id");
 
+                    b.Property<string>("OccupationNameConceptId")
+                        .HasColumnType("text")
+                        .HasColumnName("ssyk_concept_id");
+
                     b.Property<string>("OrganizationNumber")
                         .HasColumnType("text")
                         .HasColumnName("organization_number");
@@ -857,10 +861,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("source");
-
-                    b.Property<string>("SsykConceptId")
-                        .HasColumnType("text")
-                        .HasColumnName("ssyk_concept_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1113,6 +1113,11 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text[]")
                         .HasColumnName("occupation_group_list");
+
+                    b.PrimitiveCollection<List<string>>("_occupationName")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("occupation_name_list");
 
                     b.PrimitiveCollection<List<string>>("_region")
                         .IsRequired()

@@ -37,8 +37,8 @@ public class GeoUnionLabelParityTests
     // Axes AND-ed against the geo predicate. They narrow rather than widen, so a label that
     // omits them still describes a superset of what the click returns — never a subset.
     // #1418 owns whether a row carrying only one of them deserves a label of its own.
-    // OccupationName (#2199) is OR-ed with OccupationGroup inside Yrke, never with the geo terms; a
-    // recent search cannot carry it until #2199 PR 2, which owns the Yrke label's own parity.
+    // OccupationName (#2199) is OR-ed with OccupationGroup inside Yrke, never with the geo terms;
+    // the Yrke union's own label parity is pinned below (#2199 PR 2).
     private static readonly HashSet<string> Orthogonal = new(StringComparer.Ordinal)
     {
         "OccupationGroup", "OccupationName", "EmploymentType", "WorktimeExtent", "Employer", "Q",
@@ -131,5 +131,43 @@ public class GeoUnionLabelParityTests
             + $"{string.Join(", ", leaked)}. Either the classification is wrong or the axis "
             + "genuinely joined the geo union, and then it belongs in GeoUnion with the "
             + "predicate changed to match.");
+    }
+
+    // #2199 PR 2 — the same defect class on the Yrke axis. The search port ORs OccupationName with
+    // OccupationGroup (JobAdSearchComposition.ApplyFilter), so a name pick widens a group
+    // selection; a Yrke label that never reads the names would name a strict subset of what the
+    // click returns. Both terms must reach DeriveYrkeLabel, the Yrke label's only producer.
+    private static readonly HashSet<string> YrkeUnion = new(StringComparer.Ordinal)
+    {
+        "OccupationGroup", "OccupationName",
+    };
+
+    [Fact]
+    public void EveryYrkeUnionTerm_IsReadableByTheYrkeLabel()
+    {
+        var yrkeLabel = typeof(ListRecentSearchesQueryHandler)
+            .GetMethod("DeriveYrkeLabel", BindingFlags.NonPublic | BindingFlags.Static);
+
+        yrkeLabel.ShouldNotBeNull(
+            "DeriveYrkeLabel is the Yrke label's only producer; if it was renamed or inlined this "
+            + "guard stops measuring anything and must be re-pointed, not deleted.");
+
+        var covered = yrkeLabel!
+            .GetParameters()
+            .Select(p => p.Name!)
+            .Select(n => n.EndsWith("Labels", StringComparison.Ordinal)
+                ? n[..^"Labels".Length]
+                : n)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var unreachable = YrkeUnion
+            .Where(term => !covered.Contains(term))
+            .OrderBy(term => term, StringComparer.Ordinal)
+            .ToArray();
+
+        unreachable.ShouldBeEmpty(
+            "every Yrke-union term must be a parameter of DeriveYrkeLabel, else the label cannot "
+            + $"name it. Unreachable: {string.Join(", ", unreachable)}. The predicate would still "
+            + "OR the term, so the label would silently name a strict subset (#1413, #2199).");
     }
 }

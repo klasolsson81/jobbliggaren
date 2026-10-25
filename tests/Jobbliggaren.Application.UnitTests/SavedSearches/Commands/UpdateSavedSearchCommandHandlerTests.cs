@@ -27,7 +27,7 @@ public class UpdateSavedSearchCommandHandlerTests
         db.JobSeekers.Add(seeker);
 
         var criteria = SearchCriteria.Create(
-            occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
+            occupationGroup: ["grp_12345"], occupationName: [], municipality: ["sthlm_kn"],
             region: ["stockholm"], employmentType: null, worktimeExtent: null, employer: null, remote: false,
             q: "backend",
             sortBy: JobAdSortBy.PublishedAtDesc).Value;

@@ -46,6 +46,9 @@ public sealed class UpdateSavedSearchCommandHandler(
             var c = command.Criteria;
             var criteriaResult = SearchCriteria.Create(
                 occupationGroup: c.OccupationGroup,
+                // #2199 PR 2: the WRITE path does not carry occupation-names (no command field, no FE
+                // caller). Not a silent drop — no name flows in. (Parity CreateSavedSearch.)
+                occupationName: [],
                 municipality: c.Municipality,
                 region: c.Region,
                 employmentType: c.EmploymentType,

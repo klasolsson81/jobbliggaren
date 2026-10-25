@@ -18,7 +18,7 @@ public class SavedSearchTests
 
     private static SearchCriteria ValidCriteria() =>
         SearchCriteria.Create(
-            occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
+            occupationGroup: ["grp_12345"], occupationName: [], municipality: ["sthlm_kn"],
             region: ["stockholm"], employmentType: null, worktimeExtent: null,
             employer: null,
             remote: false,
@@ -181,7 +181,7 @@ public class SavedSearchTests
         var savedSearch = CreateValid();
         var later = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(2));
         var newCriteria = SearchCriteria.Create(
-            occupationGroup: ["grp_99999"], municipality: null, region: null,
+            occupationGroup: ["grp_99999"], occupationName: [], municipality: null, region: null,
             employmentType: null, worktimeExtent: null, employer: null, remote: false,
             q: null, sortBy: JobAdSortBy.PublishedAtAsc).Value;
 

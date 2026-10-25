@@ -142,7 +142,7 @@ public sealed record ErasureRecentSearchMatch
     public string? MatchedEmployerOrgNr { get; }
 
     /// <summary>
-    /// The matched ELEMENT of one of the five concept-id axes (#1425) - the whole stored value,
+    /// The matched ELEMENT of one of the six concept-id axes (#1425) - the whole stored value,
     /// not the identifier, exactly as <see cref="Q"/> is the whole search term: a request for
     /// <c>Karlsson</c> that hits <c>Anna-Karlsson</c> shows the operator <c>Anna-Karlsson</c>,
     /// because what he is authorising is the deletion of THAT string. The exact arm can put a

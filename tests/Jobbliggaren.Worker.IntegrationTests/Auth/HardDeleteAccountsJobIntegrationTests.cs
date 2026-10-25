@@ -504,7 +504,7 @@ $fn$ LANGUAGE plpgsql;";
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock(oldDeletedAt.AddDays(-2));
             var criteria = SearchCriteria.Create(
-                occupationGroup: ["grp_12345"], municipality: ["sthlm_kn"],
+                occupationGroup: ["grp_12345"], occupationName: [], municipality: ["sthlm_kn"],
                 region: ["stockholm"], employmentType: null, worktimeExtent: null,
                 employer: null,
                 remote: false,

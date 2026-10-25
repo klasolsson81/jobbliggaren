@@ -136,8 +136,8 @@ public sealed class AdminAccountOverviewTests(ApiFactory factory, ITestOutputHel
         var day = DateOnly.Parse(civilDate, System.Globalization.CultureInfo.InvariantCulture);
         var window = new SwedishCalendar().DayWindow(day);
         (window.End - window.Start).ShouldBe(TimeSpan.FromHours(expectedHours));
-        var before = await ReadDirectoryAsync(window);
         var (admin, _, _) = await AdminAsync(factory, NewToken(), Ct);
+        var before = await ReadDirectoryAsync(window);
         var token = NewToken();
         var leftOut = await OpenActiveAsync(factory, Address(token, "before"), Ct);
         var atStart = await OpenActiveAsync(factory, Address(token, "start"), Ct);

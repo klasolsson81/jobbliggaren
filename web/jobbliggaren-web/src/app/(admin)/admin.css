@@ -1239,6 +1239,16 @@
     background: var(--jp-border);
   }
 }
+/* The DMARC table's row header (#1981 PR 4b): a long address wraps at its colons and keeps the frozen column at most
+   half the region, so the figures never slide under it; a part that cannot break still wraps rather than overflowing. */
+.jp-admindmarc__addr {
+  display: inline-block;
+  max-inline-size: calc(50cqi - 24px);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+/* A header-from domain can be 253 characters; it wraps inside its cell. */
+.jp-admindmarc__domain { overflow-wrap: anywhere; }
 
 /* ── Responsive ──────────────────────────────────────────────────────────────────────── */
 @media (max-width: 1099px) {

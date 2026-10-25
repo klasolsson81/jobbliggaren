@@ -6,7 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — where the stored DMARC reports may go. Their configurations map the four tables, the
+/// #1981 PR 4a (ADR 0185) — where the stored DMARC reports may go. Their configurations map the four tables, the
 /// ingestion store, the page's read and the retention reach them, the Art. 17 registry classifies the report columns,
 /// and nothing else in the production assemblies names a table or references an entity. The sites are the IL's own, by
 /// owning type; EF migrations and model snapshots are admitted by kind (<see cref="EmailSendCountBoundaryTests"/>). The
@@ -15,7 +15,7 @@ namespace Jobbliggaren.Architecture.Tests;
 public class DmarcReportStorageBoundaryTests
 {
     private const string Bound =
-        "ADR 0184: the reports hold third parties' addresses and reach the page through one read; a new reader or "
+        "ADR 0185: the reports hold third parties' addresses and reach the page through one read; a new reader or "
         + "writer is a new use of that data and needs its own review.";
 
     [Fact]

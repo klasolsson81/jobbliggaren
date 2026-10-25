@@ -8,7 +8,7 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — a report part a sender wrote is read in memory and never written to disk: no type in the
+/// #1981 PR 4a (ADR 0185) — a report part a sender wrote is read in memory and never written to disk: no type in the
 /// DMARC infrastructure, nor the bounded-read helpers its decoder reads through, names a file, a directory, a zip file
 /// on disk or a temporary path. The sites are the IL's own, by owning type.
 /// </summary>
@@ -16,7 +16,7 @@ public class DmarcReportDiskBoundaryTests
 {
     private const string Namespace = "Jobbliggaren.Infrastructure.Email.Dmarc";
 
-    private const string Bound = "ADR 0184: a sender's report part is read in memory only, never written to disk.";
+    private const string Bound = "ADR 0185: a sender's report part is read in memory only, never written to disk.";
 
     private static readonly string[] DecoderHelpers =
     [

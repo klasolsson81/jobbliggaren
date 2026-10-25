@@ -3,7 +3,7 @@ using Jobbliggaren.Application.Admin.Email.Jobs.DmarcReportRetention;
 
 namespace Jobbliggaren.Worker.Hosting;
 
-/// <summary>#1981 PR 4a (ADR 0184) — the daily twelve-month retention of the stored DMARC reports.</summary>
+/// <summary>#1981 PR 4a (ADR 0185) — the daily twelve-month retention of the stored DMARC reports.</summary>
 public sealed class DmarcReportRetentionWorker(DmarcReportRetentionJob job)
 {
     [DisableConcurrentExecution(timeoutInSeconds: 1800)]

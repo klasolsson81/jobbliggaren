@@ -3,7 +3,7 @@ using Jobbliggaren.Application.Admin.Email.Dmarc;
 namespace Jobbliggaren.Infrastructure.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the ledger row of one message in the report mailbox, by epoch (UIDVALIDITY) and position
+/// #1981 PR 4a (ADR 0185) — the ledger row of one message in the report mailbox, by epoch (UIDVALIDITY) and position
 /// (UID): when the mailbox received it and what became of it. No sender, subject, body or filename.
 /// <see cref="Retries"/> counts the caught failures it was retried after.
 /// </summary>

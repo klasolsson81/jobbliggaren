@@ -84,7 +84,7 @@ public class OrgNrRecordLoggingGuardTests
         // Worker has no org.nr-bearing record to anchor a type-reach assertion on; it is scanned
         // fail-closed so a future one is caught, and the by-name pin keeps it in the list.
         typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly, // Jobbliggaren.Worker
-        // The DMARC mailbox adapter (#1981, ADR 0184) is scanned fail-closed for the same reason.
+        // The DMARC mailbox adapter (#1981, ADR 0185) is scanned fail-closed for the same reason.
         typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly, // Jobbliggaren.Infrastructure.Mailbox
     ];
 

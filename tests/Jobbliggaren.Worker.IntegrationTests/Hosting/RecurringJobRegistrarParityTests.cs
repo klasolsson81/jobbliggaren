@@ -138,7 +138,7 @@ public class RecurringJobRegistrarParityTests
     }
 
     /// <summary>
-    /// #1981 PR 4a (ADR 0184) — the DMARC ingestion runs hourly on its own worker, which Hangfire never retries, and the
+    /// #1981 PR 4a (ADR 0185) — the DMARC ingestion runs hourly on its own worker, which Hangfire never retries, and the
     /// twelve-month retention runs daily at 04:20 UTC. A changed retention schedule changes the retention bound.
     /// </summary>
     [Fact]

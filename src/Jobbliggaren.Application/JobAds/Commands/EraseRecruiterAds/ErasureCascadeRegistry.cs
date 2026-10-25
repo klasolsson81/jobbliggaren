@@ -559,7 +559,7 @@ public static class ErasureCascadeRegistry
             ["company_register.scb_status_raw"] = ErasureColumnDisposition.NotRecruiterData,
             ["company_register.status"] = ErasureColumnDisposition.NotRecruiterData,
 
-            // ── DMARC aggregate reports (#1981 PR 4a, ADR 0184): a SEPARATE processing ──────
+            // ── DMARC aggregate reports (#1981 PR 4a, ADR 0185): a SEPARATE processing ──────
             ["dmarc_reports.reporter"] = ErasureColumnDisposition.SeparateProcessing,
             ["dmarc_reports.reporter_report_id"] = ErasureColumnDisposition.SeparateProcessing,
             ["dmarc_reports.content_sha256"] = ErasureColumnDisposition.NotRecruiterData,
@@ -1011,15 +1011,15 @@ public static class ErasureCascadeRegistry
                 + "processing, out of scope for #842. Recorded, not omitted.",
 
             ["dmarc_reports:SeparateProcessing"] =
-                "A SEPARATE PROCESSING (ADR 0184). reporter is the reporting organisation's own name for itself and "
+                "A SEPARATE PROCESSING (ADR 0185). reporter is the reporting organisation's own name for itself and "
                 + "reporter_report_id its id for the report: free text a sender writes into an aggregate report "
                 + "mailed to dmarc@, which anyone can do. The table holds receivers' statements about mail sent as "
                 + "our domain, under that processing's own register entry and its 12-month retention - never our "
                 + "copy of an ad, so an Art. 17 request about an imported ad does not reach it. An erasure here is "
-                + "the manual route ADR 0184 names, which deletes whole reports. Recorded, not omitted.",
+                + "the manual route ADR 0185 names, which deletes whole reports. Recorded, not omitted.",
 
             ["dmarc_report_rows:SeparateProcessing"] =
-                "A SEPARATE PROCESSING (ADR 0184). header_from is the From domain a receiver saw on mail sent as us, "
+                "A SEPARATE PROCESSING (ADR 0185). header_from is the From domain a receiver saw on mail sent as us, "
                 + "kept only as LDH labels equal to or under jobbliggaren.se - and a label can still spell a name, so "
                 + "it is not called a closed domain. The row is a receiver's statement under the DMARC processing's "
                 + "own register entry and retention, never our copy of an ad. Recorded, not omitted.",

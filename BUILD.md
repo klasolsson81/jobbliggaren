@@ -38,7 +38,7 @@
 | Svensk ordlista | sv_SE Hunspell-ordlista (DSSO) | datafil | **LGPL-3.0** — oförändrad separat datafil, ej statiskt länkad/inbäddad/modifierad → copyleft smittar ej produkten (se §3.1-notis) |
 | HTTP | HttpClientFactory + Refit | 10.x | JobTech-klient |
 | Transaktionell e-post | **Inget paket** — handrullad `HttpClient` + `System.Text.Json` (Scaleway Transactional Email, `fr-par`) | — | Scaleway publicerar officiella SDK:er för Python, Go och JavaScript och **ingen för .NET** (mätt 2026-08-15), och behövs ingen: sändningen är en POST med JSON-kropp. `AWSSDK.SimpleEmailV2` togs bort i #183 utan ersättare, och `NoAmazonReferenceTests` är därefter ett **totalförbud** mot Amazon-paket och Amazon-importer, inte en allow-list. Infrastructure-confined (wire-payloaden är nästlad i avsändaren och korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF); **all** utgående e-post: notiser (ADR 0080 Vag 4 PR-4) + kontolivscykel (§13.4); **HTTPS-API, aldrig SMTP** (Netcup blockerar 25/465/587, ADR 0050 §10); transport-retry stängs av att armen **inte registrerar någon resilience-handler** — se `ScalewayClientRegistration`, som också säger varför ingen får läggas till (sändnings-endpointen bär ingen idempotensparameter); **prod-utskick aktiverat 2026-08-16 utan att §2.5-grinden passerades** (raden sa "grindat" till dess) — se §13.4 + release-checklist.md §2.5, som bär grindens oförändrade KVAR-status. [#183](https://github.com/klasolsson81/jobbliggaren/issues/183) |
-| Brevlådeläsning (DMARC-rapporter) | MailKit | 4.18.2 | MIT, .NET Foundation. Läser `dmarc@jobbliggaren.se` över IMAPS 993, enbart läsning (#1981 PR 4a, ADR 0184; Klas 2026-10-24 "Ja, MailKit 4.18.2 (Rek.)"). Refereras **bara** av `Jobbliggaren.Infrastructure.Mailbox`, som bara Workern refererar — API:t får det aldrig. Drar in MimeKit, BouncyCastle.Cryptography, System.Security.Cryptography.Pkcs och System.Formats.Asn1; ingen S/MIME eller PGP används. MimeKits parser används aldrig på avsändarens MIME-struktur (ADR 0184) |
+| Brevlådeläsning (DMARC-rapporter) | MailKit | 4.18.2 | MIT, .NET Foundation. Läser `dmarc@jobbliggaren.se` över IMAPS 993, enbart läsning (#1981 PR 4a, ADR 0185; Klas 2026-10-24 "Ja, MailKit 4.18.2 (Rek.)"). Refereras **bara** av `Jobbliggaren.Infrastructure.Mailbox`, som bara Workern refererar — API:t får det aldrig. Drar in MimeKit, BouncyCastle.Cryptography, System.Security.Cryptography.Pkcs och System.Formats.Asn1; ingen S/MIME eller PGP används. MimeKits parser används aldrig på avsändarens MIME-struktur (ADR 0185) |
 | Database | PostgreSQL | 18.3 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050, ingen separat managed-DB) |
 | Cache | Redis | 8.6 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050) |
 | Test-assertions | Shouldly | 4.3.x | MIT, ersätter commercial FluentAssertions |
@@ -1460,7 +1460,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   efterträdare, så posten stryks utan ersättare i stället för att pekas om.
   **Som brevlådeleverantör är STRATO GmbH däremot biträde** (sedan apex-MX flyttades 2026-09-04): `kontakt@`, `webmaster@`
   och `dmarc@jobbliggaren.se`. Workern läser `dmarc@` enbart läsande över IMAPS för DMARC-aggregatrapporterna
-  (#1981 PR 4a, ADR 0184); posten och dess villkor står i registret (`gdpr-processing-register.md`, huvudkopian).
+  (#1981 PR 4a, ADR 0185); posten och dess villkor står i registret (`gdpr-processing-register.md`, huvudkopian).
 - Transaktionell e-post: **Scaleway S.A.S. (Paris, Frankrike — R.C.S. Paris 433 115 904)** via
   **Scaleway Transactional Email** i **`fr-par` (Paris)** — beslutad (Klas-val 2026-08-14/15;
   ADR 0131, #183 — ersätter Amazon SES, som föll när AWS permanent vägrade häva sandbox-läget,
@@ -1952,8 +1952,8 @@ inom 30 s består oavsett plattform.
 | `dispatch-feedback-notifications` | `* * * * *` | Operatörsavisering per sparad feedback; aldrig omsändning vid okänt utfall; högst 20 till e-posttjänsten per 24 timmar över alla konton, resten väntar köade (#1979, ADR 0156) |
 | `feedback-retention` | 04:50 daglig | Delete feedback screenshots first, then notices and submissions after 90 days from submission (#1979, ADR 0156) |
 | `email-send-count-retention` | 04:40 daglig | Delete our own send counts dated before the first Swedish date the 7-day delivery period reads: at most 8 dates plus the time to the next successful scheduled run (#1981 PR 3, ADR 0181) |
-| `dmarc-report-ingestion` | `23 * * * *` | Read the DMARC report mailbox read-only over IMAPS and store accepted aggregate reports, within per-run and per-day caps; writes nothing but the state row when no password is configured (#1981 PR 4a, ADR 0184) |
-| `dmarc-report-retention` | 04:20 daglig | Delete DMARC reports and ledger rows received more than 12 calendar months ago (#1981 PR 4a, ADR 0184) |
+| `dmarc-report-ingestion` | `23 * * * *` | Read the DMARC report mailbox read-only over IMAPS and store accepted aggregate reports, within per-run and per-day caps; writes nothing but the state row when no password is configured (#1981 PR 4a, ADR 0185) |
+| `dmarc-report-retention` | 04:20 daglig | Delete DMARC reports and ledger rows received more than 12 calendar months ago (#1981 PR 4a, ADR 0185) |
 
 **Planerat / ej registrerat** (speccat men inte byggt — finns inte i
 `RecurringJobRegistrar`):

@@ -9,7 +9,7 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the page's read of the stored reports, in one repeatable-read snapshot so the state row,
+/// #1981 PR 4a (ADR 0185) — the page's read of the stored reports, in one repeatable-read snapshot so the state row,
 /// the figures and the ledger counts describe the same moment. The conflict rule is declared once, in
 /// <see cref="IncludedRecords"/>: a reporter and report id stored with more than one digest is judged over every
 /// stored version, whatever the window, and none of its versions counts. A stored value this release does not know

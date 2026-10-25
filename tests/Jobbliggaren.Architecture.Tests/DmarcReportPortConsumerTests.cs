@@ -14,7 +14,7 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — who may hold each DMARC port, and where each half is composed. The mailbox, the decoder and
+/// #1981 PR 4a (ADR 0185) — who may hold each DMARC port, and where each half is composed. The mailbox, the decoder and
 /// the ingestion store reach the ingestion job alone, the retention reaches the retention job alone, and the read
 /// reaches the reports query alone. The Worker composes its half through one registration, which only its Program
 /// calls; the Api's half is composed by <c>AddInfrastructure</c>, which only the Api's Program calls, and no type written
@@ -24,7 +24,7 @@ namespace Jobbliggaren.Architecture.Tests;
 public class DmarcReportPortConsumerTests
 {
     private const string Bound =
-        "ADR 0184: a new holder of a DMARC port is a new reader or writer of report data, whose source addresses are "
+        "ADR 0185: a new holder of a DMARC port is a new reader or writer of report data, whose source addresses are "
         + "personal data; it needs its own review.";
 
     /// <summary>The tool name the Mediator source generator stamps on the types it writes, in every host that runs it.</summary>

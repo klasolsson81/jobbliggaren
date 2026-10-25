@@ -224,7 +224,7 @@ public class MappedPlaintextExposureRegistryTests
     }
 
     /// <summary>
-    /// #1981 PR 4a (ADR 0184) — anti-vacuity for the ADDRESS form. An address is not text, so the text predicate never
+    /// #1981 PR 4a (ADR 0185) — anti-vacuity for the ADDRESS form. An address is not text, so the text predicate never
     /// sees one; narrow <see cref="ModelSweep.IsAddressStoreType"/> and the stored IP address leaves the enumeration
     /// while every completeness fact above stays green.
     /// </summary>

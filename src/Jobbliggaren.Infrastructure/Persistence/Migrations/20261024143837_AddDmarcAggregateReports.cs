@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     /// <summary>
-    /// #1981 PR 4a (ADR 0184) — stored DMARC aggregate reports: four new tables and no change to any existing one.
+    /// #1981 PR 4a (ADR 0185) — stored DMARC aggregate reports: four new tables and no change to any existing one.
     /// <c>dmarc_reports</c> holds one row per accepted report, unique on reporter, reporter's report id and content
     /// digest; <c>dmarc_report_rows</c> its records, keyed <c>(report_id, ordinal)</c> and deleted with the report by
     /// cascade; <c>dmarc_mailbox_messages</c> the per-message ledger by epoch and position; <c>dmarc_mailbox_state</c>

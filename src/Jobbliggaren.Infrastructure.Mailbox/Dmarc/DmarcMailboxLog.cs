@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Infrastructure.Mailbox.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the adapter's own lines: an event id, a closed reason and the step it happened in. Never an
+/// #1981 PR 4a (ADR 0185) — the adapter's own lines: an event id, a closed reason and the step it happened in. Never an
 /// address, a sender, a subject, a file name, a UID, a server's text or an exception's message, since anyone can mail
 /// the report address and the server's text can quote what they wrote.
 /// </summary>

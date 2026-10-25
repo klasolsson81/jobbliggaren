@@ -87,7 +87,7 @@
   },
 
   "Dmarc": {
-    "//": "OPTIONAL (#1981 PR 4a, ADR 0184) and Worker-only. Leave this whole section out locally: with no",
+    "//": "OPTIONAL (#1981 PR 4a, ADR 0185) and Worker-only. Leave this whole section out locally: with no",
     "//1": "Dmarc:Mailbox:Password the Worker's DMARC ingestion records NotConfigured and reads nothing; a",
     "//2": "blank value records Misconfigured. Nothing refuses to start either way. NEVER put the real",
     "//3": "dmarc@jobbliggaren.se password in any local file: only the box's worker-secrets directory holds it.",

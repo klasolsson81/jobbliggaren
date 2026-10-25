@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
-// #1981 PR 4a (ADR 0184) — the closed sets of DMARC report ingestion. Every member has an explicit number from 1,
+// #1981 PR 4a (ADR 0185) — the closed sets of DMARC report ingestion. Every member has an explicit number from 1,
 // because the tables store the number and a CHECK rejects 0; a member is never renumbered.
 
 /// <summary>

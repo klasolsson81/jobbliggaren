@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — one aggregate report as the decoder read it: syntax only, nothing accepted yet. Only the
+/// #1981 PR 4a (ADR 0185) — one aggregate report as the decoder read it: syntax only, nothing accepted yet. Only the
 /// fields ingestion may keep are carried; the decoder never surfaces the reporter's contact address, extra contact
 /// information, envelope identifiers, raw authentication results, disposition, reasons, comments, errors or extension
 /// elements. <see cref="DmarcAggregateReport.Accept"/> decides whether it is stored.

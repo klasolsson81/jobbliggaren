@@ -6,7 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the retention deletes by the same cutoff ingestion skips by, and logs counts only.
+/// #1981 PR 4a (ADR 0185) — the retention deletes by the same cutoff ingestion skips by, and logs counts only.
 /// </summary>
 public sealed class DmarcReportRetentionJobTests
 {

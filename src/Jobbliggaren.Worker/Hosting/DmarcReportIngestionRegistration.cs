@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Jobbliggaren.Worker.Hosting;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the DMARC report ingestion and retention in one registration, which <c>Program.cs</c> and the
+/// #1981 PR 4a (ADR 0185) — the DMARC report ingestion and retention in one registration, which <c>Program.cs</c> and the
 /// Worker test fixture both call. Only the Worker references the mailbox project, so only this host can build the mailbox.
 /// The jobs are always registered: without a password the ingestion records that the mailbox is not configured.
 /// </summary>

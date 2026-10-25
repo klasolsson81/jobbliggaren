@@ -10,7 +10,7 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the ingestion side of the stored DMARC reports: parameterised PostgreSQL against the
+/// #1981 PR 4a (ADR 0185) — the ingestion side of the stored DMARC reports: parameterised PostgreSQL against the
 /// concrete <see cref="AppDbContext"/>'s connection (the <c>CompanyWatchCriterionMemberStore</c> form). Every write that
 /// spans two rows is one transaction; a write that would move the cursor backwards, or end a turn the message is not
 /// in, fails loud instead of being absorbed.

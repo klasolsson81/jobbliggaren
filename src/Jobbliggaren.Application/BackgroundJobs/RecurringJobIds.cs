@@ -95,10 +95,10 @@ public static class RecurringJobIds
     /// <summary>#1981 PR 3 (ADR 0181) — deletes our own send counts the longest delivery period can no longer read, daily.</summary>
     public const string EmailSendCountRetention = "email-send-count-retention";
 
-    /// <summary>#1981 PR 4a (ADR 0184) — reads the DMARC report mailbox read-only and stores accepted reports, hourly.</summary>
+    /// <summary>#1981 PR 4a (ADR 0185) — reads the DMARC report mailbox read-only and stores accepted reports, hourly.</summary>
     public const string DmarcReportIngestion = "dmarc-report-ingestion";
 
-    /// <summary>#1981 PR 4a (ADR 0184) — deletes DMARC reports and ledger rows received twelve months ago, daily.</summary>
+    /// <summary>#1981 PR 4a (ADR 0185) — deletes DMARC reports and ledger rows received twelve months ago, daily.</summary>
     public const string DmarcReportRetention = "dmarc-report-retention";
 
     /// <summary>

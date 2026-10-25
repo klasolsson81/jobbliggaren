@@ -26,7 +26,7 @@ public enum EmailDmarcStatus
 }
 
 /// <summary>
-/// The DMARC reports for the fixed window as the browser receives them (#1981 PR 4a, ADR 0184). A closed union like the
+/// The DMARC reports for the fixed window as the browser receives them (#1981 PR 4a, ADR 0185). A closed union like the
 /// other regions': the ingestion state once a run has read the mailbox, the window and the mailbox counts once one has
 /// succeeded, and figures only when a report is in the window. An unknown figure is absent, never zero. The figures are
 /// the reporters' own statements. A test pins the serialised key set.

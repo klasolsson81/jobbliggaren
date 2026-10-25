@@ -4,7 +4,7 @@ using Jobbliggaren.Application.Admin.Email.Dmarc;
 namespace Jobbliggaren.Infrastructure.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — one record of a stored report in <c>dmarc_report_rows</c>, at its position in the report.
+/// #1981 PR 4a (ADR 0185) — one record of a stored report in <c>dmarc_report_rows</c>, at its position in the report.
 /// The source address is personal data (C-582/14 <i>Breyer</i>); the rest is a count, our own domain and two results.
 /// Deleted with its report by the database's cascade.
 /// </summary>

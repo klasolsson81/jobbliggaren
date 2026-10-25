@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Jobbliggaren.Infrastructure.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the stored DMARC reports' registrations, split by host: the Worker ingests and deletes,
+/// #1981 PR 4a (ADR 0185) — the stored DMARC reports' registrations, split by host: the Worker ingests and deletes,
 /// the Api only reads. Each needs the <c>AppDbContext</c> that <c>AddPersistence</c> registers.
 /// </summary>
 public static class DmarcReportPersistenceCollectionExtensions

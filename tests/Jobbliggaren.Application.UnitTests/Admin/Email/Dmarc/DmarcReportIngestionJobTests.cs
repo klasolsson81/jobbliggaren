@@ -7,7 +7,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the ingestion run against fakes of its ports. Every state a test starts from is one an
+/// #1981 PR 4a (ADR 0185) — the ingestion run against fakes of its ports. Every state a test starts from is one an
 /// earlier run of the job produced through the same fakes; nothing is seeded by hand. The mailbox's answers are the
 /// port's own closed set, and the reports are synthetic, with addresses from the documentation ranges only.
 /// </summary>

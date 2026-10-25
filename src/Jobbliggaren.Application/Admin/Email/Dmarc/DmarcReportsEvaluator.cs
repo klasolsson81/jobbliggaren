@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — turns one read of the stored DMARC reports into what the region may show. Pure and static;
+/// #1981 PR 4a (ADR 0185) — turns one read of the stored DMARC reports into what the region may show. Pure and static;
 /// it throws on a read no source can produce.
 /// <para>
 /// <b>The states, in precedence order:</b> no state row is <see cref="EmailDmarcStatus.NotObservable"/>; a latest run

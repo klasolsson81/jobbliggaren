@@ -539,7 +539,7 @@ ever changes.
 | 3 | UDP | any | any | 53 | ACCEPT | DNS |
 | 4 | TCP | any | any | 53 | ACCEPT | DNS over TCP (truncated answers) |
 | 5 | UDP | any | any | 123 | ACCEPT | NTP |
-| 6 | TCP | any | one `/32` per A record of `imap.strato.de` | 993 | ACCEPT | IMAPS to the DMARC report mailbox, read by the Worker (ADR 0184) |
+| 6 | TCP | any | one `/32` per A record of `imap.strato.de` | 993 | ACCEPT | IMAPS to the DMARC report mailbox, read by the Worker (ADR 0185) |
 
 **Rule 6 is Klas's console step after #1981 PR 4a merges** (ADR 0154 §4: provider consoles are outside the standing GO);
 until it is applied the policy holds rules 1–5. It is scoped to the destination because the edge policy covers the whole

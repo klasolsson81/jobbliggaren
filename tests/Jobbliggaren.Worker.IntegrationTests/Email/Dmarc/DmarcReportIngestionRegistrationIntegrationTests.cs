@@ -14,7 +14,7 @@ using static Jobbliggaren.Worker.IntegrationTests.Email.Dmarc.DmarcTestReports;
 namespace Jobbliggaren.Worker.IntegrationTests.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the DMARC ingestion and retention resolve through the registration
+/// #1981 PR 4a (ADR 0185) — the DMARC ingestion and retention resolve through the registration
 /// <c>Worker/Program.cs</c> makes (<see cref="DmarcReportIngestionRegistration.AddDmarcReportIngestion"/>, which the
 /// fixture calls rather than mirrors). The fixture configures no mailbox password, so the mailbox is the not-configured
 /// one: it never connects, and a run only records that it is not configured.

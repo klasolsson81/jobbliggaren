@@ -7,7 +7,7 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184; senior-cto-advisor Beslut D2, r2 §3; dotnet-architect re-check Rekommendation 1) — MailKit,
+/// #1981 PR 4a (ADR 0185; senior-cto-advisor Beslut D2, r2 §3; dotnet-architect re-check Rekommendation 1) — MailKit,
 /// MimeKit and BouncyCastle reach the Worker and nothing else. The mail packages are declared in one project, that
 /// project references Application alone, only the Worker references it, and only its assembly references the mail
 /// assemblies. Each fact is read where it is decided: the build files as text, the compiled assemblies as IL.
@@ -48,7 +48,7 @@ public class DmarcMailboxDependencyTests
                 $"{MailboxProject} PackageReference MailKit",
             ],
             ignoreOrder: true,
-            "MailKit is declared once for its version and once where it is used (ADR 0184, Klas GO K2). MimeKit and "
+            "MailKit is declared once for its version and once where it is used (ADR 0185, Klas GO K2). MimeKit and "
             + "the obsolete Lite variants reach the mailbox project through MailKit and are never declared.");
     }
 
@@ -109,7 +109,7 @@ public class DmarcMailboxDependencyTests
             .Select(Path.GetFileNameWithoutExtension)
             .ToList();
 
-        referencing.ShouldBe(["Jobbliggaren.Worker"], "only the Worker reads the DMARC mailbox (ADR 0184)");
+        referencing.ShouldBe(["Jobbliggaren.Worker"], "only the Worker reads the DMARC mailbox (ADR 0185)");
         referencing.ShouldNotContain("Jobbliggaren.Infrastructure");
         referencing.ShouldNotContain("Jobbliggaren.Application");
         referencing.ShouldNotContain("Jobbliggaren.Api");

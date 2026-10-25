@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Infrastructure.Mailbox.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — which mailbox the Worker reads, chosen from the one password key. No key means the
+/// #1981 PR 4a (ADR 0185) — which mailbox the Worker reads, chosen from the one password key. No key means the
 /// deployment does not read DMARC reports; a key that is set but blank is a deployment mistake, shown as its own state
 /// and never as a stopped Worker, because the same process runs the erasure and retention jobs. Nothing is validated
 /// at start for the same reason; the only DMARC setting that can stop the Worker is the house <c>_FILE</c> seam, which

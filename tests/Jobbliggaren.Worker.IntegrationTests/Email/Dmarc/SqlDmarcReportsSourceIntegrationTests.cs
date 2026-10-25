@@ -11,7 +11,7 @@ using static Jobbliggaren.Worker.IntegrationTests.Email.Dmarc.DmarcTestReports;
 namespace Jobbliggaren.Worker.IntegrationTests.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the page's read against the migrated schema: which reports a window holds, the conflict rule
+/// #1981 PR 4a (ADR 0185) — the page's read against the migrated schema: which reports a window holds, the conflict rule
 /// over every stored version, the largest sources in their fixed order with totals over all of them, and the ledger
 /// counts by receipt. Every row is written by the production store, on 2032 dates no other test uses.
 /// </summary>

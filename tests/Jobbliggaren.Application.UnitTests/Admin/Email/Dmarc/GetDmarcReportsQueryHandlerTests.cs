@@ -6,7 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the DMARC query: an admin request with no period, one read of the fixed window ending now,
+/// #1981 PR 4a (ADR 0185) — the DMARC query: an admin request with no period, one read of the fixed window ending now,
 /// at most the source cap, and the evaluator's verdict.
 /// </summary>
 public sealed class GetDmarcReportsQueryHandlerTests

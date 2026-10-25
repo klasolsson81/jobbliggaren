@@ -8,7 +8,7 @@ using Jobbliggaren.Infrastructure.Common.IO;
 namespace Jobbliggaren.Infrastructure.Email.Dmarc.Decoding;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — reads one report part, base library only. Anyone can mail the report address, so the part
+/// #1981 PR 4a (ADR 0185) — reads one report part, base library only. Anyone can mail the report address, so the part
 /// is hostile input: it is decompressed in memory under <see cref="DmarcIngestionLimits.MaxDecompressedXmlBytes"/>,
 /// never written to disk, and read by the hardened <see cref="XmlReader"/> alone. The RFC 7489 form (with or without
 /// its namespace) and the RFC 9990 form are read by local name at fixed paths; an element in any other namespace, and

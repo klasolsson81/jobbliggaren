@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — EF Core configuration for <c>dmarc_reports</c>. The table is written and read through
+/// #1981 PR 4a (ADR 0185) — EF Core configuration for <c>dmarc_reports</c>. The table is written and read through
 /// raw SQL inside Infrastructure, so this configuration exists for the migration schema and the retention's delete.
 /// </summary>
 internal sealed class DmarcStoredReportConfiguration : IEntityTypeConfiguration<DmarcStoredReport>

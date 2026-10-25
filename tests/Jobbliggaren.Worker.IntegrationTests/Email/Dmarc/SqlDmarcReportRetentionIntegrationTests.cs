@@ -9,7 +9,7 @@ using static Jobbliggaren.Worker.IntegrationTests.Email.Dmarc.DmarcTestReports;
 namespace Jobbliggaren.Worker.IntegrationTests.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the retention's delete against the migrated schema: a strict cutoff on receipt for reports
+/// #1981 PR 4a (ADR 0185) — the retention's delete against the migrated schema: a strict cutoff on receipt for reports
 /// and ledger rows alike, the records going with their report through the database's cascade, nothing more on a second
 /// run, and the state row never touched. Rows are written by the production store, on 2033 dates no other test uses.
 /// </summary>

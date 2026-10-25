@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Application.Admin.Email.Jobs.DmarcReportRetention;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — deletes every DMARC report and ledger row received before <see cref="DmarcRetention.CutoffOf"/>,
+/// #1981 PR 4a (ADR 0185) — deletes every DMARC report and ledger row received before <see cref="DmarcRetention.CutoffOf"/>,
 /// the cutoff ingestion skips by, so neither keeps what the other drops. A report lives at most twelve calendar months
 /// from receipt plus the time to the next successful run. A failed run leaves the rows for the next one. Logs counts only.
 /// </summary>

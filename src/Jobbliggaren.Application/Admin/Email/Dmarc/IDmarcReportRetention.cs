@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — deletes what was received before the retention cutoff: reports (their records with them)
+/// #1981 PR 4a (ADR 0185) — deletes what was received before the retention cutoff: reports (their records with them)
 /// and ledger rows. Application defines the port; Infrastructure implements it. Its one consumer is the retention job.
 /// The state row holds no personal data and is never deleted.
 /// </summary>

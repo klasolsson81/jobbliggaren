@@ -1,4 +1,4 @@
-# ADR 0184 — DMARC aggregate reports are read by the Worker, read-only over IMAPS, bounded by construction, minimised, and kept twelve months
+# ADR 0185 — DMARC aggregate reports are read by the Worker, read-only over IMAPS, bounded by construction, minimised, and kept twelve months
 
 **Date:** 2026-10-24
 **Status:** Accepted

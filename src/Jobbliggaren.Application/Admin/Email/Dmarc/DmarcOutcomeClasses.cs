@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the one partition of message outcomes into the classes the page, the run summary and the
+/// #1981 PR 4a (ADR 0185) — the one partition of message outcomes into the classes the page, the run summary and the
 /// store count by. Total over the closed set: an outcome this release does not know throws.
 /// </summary>
 public enum DmarcOutcomeClass

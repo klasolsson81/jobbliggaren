@@ -4,7 +4,7 @@ using System.Text;
 namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — one aggregate report ingestion has accepted. It exists only through <see cref="Accept"/>,
+/// #1981 PR 4a (ADR 0185) — one aggregate report ingestion has accepted. It exists only through <see cref="Accept"/>,
 /// and the store takes nothing else, so a report that broke a bound cannot be stored.
 /// <para>
 /// A report is the reporter's own statement and is never verified (anyone can mail the report address). What

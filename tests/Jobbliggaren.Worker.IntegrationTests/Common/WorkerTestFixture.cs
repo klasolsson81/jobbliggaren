@@ -197,7 +197,7 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         services.AddScoped<Jobbliggaren.Application.Admin.Email.Jobs.EmailSendCountRetention.EmailSendCountRetentionJob>();
         services.AddScoped<Jobbliggaren.Worker.Hosting.EmailSendCountRetentionWorker>();
 
-        // #1981 PR 4a (ADR 0184) — NOT a mirror: the same registration Worker/Program.cs makes. No mailbox password is
+        // #1981 PR 4a (ADR 0185) — NOT a mirror: the same registration Worker/Program.cs makes. No mailbox password is
         // configured here, so the mailbox is the not-configured one.
         Jobbliggaren.Worker.Hosting.DmarcReportIngestionRegistration.AddDmarcReportIngestion(services, configuration);
 

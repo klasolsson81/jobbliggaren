@@ -11,7 +11,7 @@ using static Jobbliggaren.Worker.IntegrationTests.Email.Dmarc.DmarcTestReports;
 namespace Jobbliggaren.Worker.IntegrationTests.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the ingestion store against the migrated schema: the state row, the cursor and its epochs,
+/// #1981 PR 4a (ADR 0185) — the ingestion store against the migrated schema: the state row, the cursor and its epochs,
 /// the claim ledger with its crash and retry bounds, and the report write with its daily caps, its content key and its
 /// conflict outcome. Every row is written by the production store, in the order the ingestion job calls it, on 2031
 /// dates no other test uses.

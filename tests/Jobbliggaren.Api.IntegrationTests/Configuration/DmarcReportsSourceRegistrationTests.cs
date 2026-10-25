@@ -11,7 +11,7 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — the Api reads the stored DMARC reports and does nothing else with them: its composition
+/// #1981 PR 4a (ADR 0185) — the Api reads the stored DMARC reports and does nothing else with them: its composition
 /// registers the read and none of the Worker's side, neither the mailbox, the decoder, the ingestion store nor the
 /// retention. The mailbox's own project is not referenced by the Api at all (an architecture test pins that); this pins
 /// the registrations the Api's shared Infrastructure could still make.

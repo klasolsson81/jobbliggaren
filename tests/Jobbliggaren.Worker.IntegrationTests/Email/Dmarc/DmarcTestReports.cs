@@ -11,7 +11,7 @@ using Shouldly;
 namespace Jobbliggaren.Worker.IntegrationTests.Email.Dmarc;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — synthetic reports for the DMARC storage tests, made the one way production makes them:
+/// #1981 PR 4a (ADR 0185) — synthetic reports for the DMARC storage tests, made the one way production makes them:
 /// through <see cref="DmarcAggregateReport.Accept"/>. Every name is under <c>.example</c> or is our own domain, and
 /// every address is from the documentation ranges (RFC 5737, RFC 3849); nothing is copied from a real report.
 /// </summary>

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Application.Admin.Email.Jobs.DmarcReportIngestion;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — reads the DMARC report mailbox read-only and stores what it may keep. One run, in a fixed
+/// #1981 PR 4a (ADR 0185) — reads the DMARC report mailbox read-only and stores what it may keep. One run, in a fixed
 /// order: the sign-in back-off, the crash sweep, the mailbox, the epoch, the new mail in position order, the retries
 /// last, the run's outcome, then ANALYZE.
 /// <para>

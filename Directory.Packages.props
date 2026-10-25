@@ -71,7 +71,7 @@
          Tidigare transitiv via FluentValidation.DependencyInjectionExtensions;
          explicit ref = versionshygien (senior-cto-advisor + dotnet-architect 2026-05-16). -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
-    <!-- #1981 PR 4a (ADR 0184) — IConfiguration for Jobbliggaren.Infrastructure.Mailbox's AddDmarcMailbox, which
+    <!-- #1981 PR 4a (ADR 0185) — IConfiguration for Jobbliggaren.Infrastructure.Mailbox's AddDmarcMailbox, which
          reads the one password key. Already in every host's graph through Microsoft.Extensions.Hosting 10.0.12; the
          Mailbox project references Application only, which does not carry it, so it is declared rather than reached
          through Infrastructure. -->
@@ -288,7 +288,7 @@
          ett AWSSDK-paket "bara för att"; kryptering är fortsatt Local-only (#802) och
          SecretsManager/KeyManagementService/S3/Bedrock/AWS.Logger.* var bannade redan innan. -->
     <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.2" />
-    <!-- #1981 PR 4a (ADR 0184, Klas GO K2 2026-10-24) — the Worker reads the DMARC aggregate reports sent to
+    <!-- #1981 PR 4a (ADR 0185, Klas GO K2 2026-10-24) — the Worker reads the DMARC aggregate reports sent to
          dmarc@jobbliggaren.se over IMAPS, read-only. The BCL has no IMAP client and no MIME body parser, and
          Microsoft's own SmtpClient page points to MailKit. The PackageReference lives ONLY in
          Jobbliggaren.Infrastructure.Mailbox, which only the Worker references, so none of this reaches the Api

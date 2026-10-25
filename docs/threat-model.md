@@ -247,7 +247,7 @@ allowed keys; retained free text may still contain PII. Its name is no retention
 or privacy guarantee. Product CV/matching logic is deterministic; no product LLM
 integration is authorized by development-time use of Codex.
 
-DMARC aggregate reports (ADR 0184) are an internet-facing input into the Worker:
+DMARC aggregate reports (ADR 0185) are an internet-facing input into the Worker:
 anyone can mail `dmarc@jobbliggaren.se`, and a report is the sender's statement,
 never verified. The Worker reads the mailbox read-only over IMAPS from the
 Worker-only `Jobbliggaren.Infrastructure.Mailbox` project with partial fetches

@@ -135,6 +135,34 @@ public sealed class DmarcReportIngestionJobTests
         h.Mailbox.Opens.ShouldBe(opens ? 2 : 1);
     }
 
+    // The page says when a backed-off sign-in may resume (#1981 PR 4b); the instant the read gives is the job's own.
+    [Theory]
+    [InlineData(DmarcSessionFault.AuthRefused, false)]
+    [InlineData(DmarcSessionFault.AuthRefused, true)]
+    [InlineData(DmarcSessionFault.AuthUnconfirmed, false)]
+    [InlineData(DmarcSessionFault.AuthUnconfirmed, true)]
+    public async Task TheReadsSignInResumesAt_IsTheFirstInstantTheJobSignsInAgain(DmarcSessionFault fault, bool succeededBefore)
+    {
+        var h = new Harness();
+        if (succeededBefore)
+        {
+            await h.RunAtAsync(Now.AddHours(-1));
+        }
+
+        h.Mailbox.OpenOutcome = new DmarcMailboxOpen.Failed(fault);
+        await h.RunAtAsync(Now);
+        h.Mailbox.OpenOutcome = null;
+        var read = new DmarcReportsRead(h.Store.State, [], new DmarcReportsTotals(0, 0, 0, 0, 0, 0, null, null), [], 0);
+        var resumesAt = DmarcReportsEvaluator.Evaluate(read, Now).Ingestion.ShouldNotBeNull().SignInResumesAt.ShouldNotBeNull();
+        var opens = h.Mailbox.Opens;
+
+        await h.RunAtAsync(resumesAt - TimeSpan.FromTicks(1));
+        h.Mailbox.Opens.ShouldBe(opens);
+
+        await h.RunAtAsync(resumesAt);
+        h.Mailbox.Opens.ShouldBe(opens + 1);
+    }
+
     [Theory]
     [InlineData(DmarcSessionFault.Unreachable)]
     [InlineData(DmarcSessionFault.TlsFailed)]

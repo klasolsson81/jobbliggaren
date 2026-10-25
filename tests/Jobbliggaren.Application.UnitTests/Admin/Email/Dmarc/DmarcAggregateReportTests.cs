@@ -81,7 +81,7 @@ public sealed class DmarcAggregateReportTests
 
     [Theory]
     [InlineData("google‮com", DmarcRejection.ForbiddenCharacter)]
-    [InlineData("google\u0007", DmarcRejection.ForbiddenCharacter)]
+    [InlineData("google\u0085", DmarcRejection.ForbiddenCharacter)]
     [InlineData("google​com", DmarcRejection.ForbiddenCharacter)]
     [InlineData("google\ncom", DmarcRejection.ForbiddenCharacter)]
     [InlineData("   ", DmarcRejection.ForbiddenCharacter)]
@@ -99,22 +99,19 @@ public sealed class DmarcAggregateReportTests
     [InlineData("1234\u2029")]
     [InlineData("1234\uE000")]
     [InlineData("1234\u0378")]
-    [InlineData("1234\u0007")]
+    [InlineData("1234\u0085")]
     public void Accept_AReportIdWithAForbiddenCharacter_IsRefused(string reportId)
     {
         Rejection(Candidate() with { ReportId = reportId }).ShouldBe(DmarcRejection.ForbiddenCharacter);
     }
 
-    // A code literal rather than an attribute argument, so the lone surrogate reaches Accept as written.
     [Fact]
-    public void Accept_ALoneSurrogateInTheReporterOrTheReportId_IsRefused()
+    public void Accept_AReplacementCharacterInTheReporterOrTheReportId_IsRefused()
     {
-        const string loneSurrogate = "a\uD800b";
-        char.IsHighSurrogate(loneSurrogate[1]).ShouldBeTrue();
-        char.IsLowSurrogate(loneSurrogate[2]).ShouldBeFalse();
+        const string replaced = "a�b";
 
-        Rejection(Candidate() with { Reporter = loneSurrogate }).ShouldBe(DmarcRejection.ForbiddenCharacter);
-        Rejection(Candidate() with { ReportId = loneSurrogate }).ShouldBe(DmarcRejection.ForbiddenCharacter);
+        Rejection(Candidate() with { Reporter = replaced }).ShouldBe(DmarcRejection.ForbiddenCharacter);
+        Rejection(Candidate() with { ReportId = replaced }).ShouldBe(DmarcRejection.ForbiddenCharacter);
     }
 
     [Fact]

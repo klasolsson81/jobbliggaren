@@ -2,6 +2,7 @@ using System.IO.Compression;
 using Jobbliggaren.Infrastructure.Common.IO;
 using Jobbliggaren.Infrastructure.Email.Dmarc;
 using Jobbliggaren.Infrastructure.Email.Dmarc.Decoding;
+using Jobbliggaren.Infrastructure.Mailbox.Dmarc;
 using Mono.Cecil;
 using Shouldly;
 
@@ -14,7 +15,9 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </summary>
 public class DmarcReportDiskBoundaryTests
 {
-    private const string Namespace = "Jobbliggaren.Infrastructure.Email.Dmarc";
+    private static readonly string[] Namespaces = ["Jobbliggaren.Infrastructure.Email.Dmarc", "Jobbliggaren.Infrastructure.Mailbox.Dmarc"];
+
+    private const string MailboxSession = "Jobbliggaren.Infrastructure.Mailbox.Dmarc.ImapDmarcMailboxSession";
 
     private const string Bound = "ADR 0185: a sender's report part is read in memory only, never written to disk.";
 
@@ -63,32 +66,41 @@ public class DmarcReportDiskBoundaryTests
         owners.ShouldContain(typeof(XmlDmarcReportDecoder).FullName!);
         owners.ShouldContain(typeof(SqlDmarcReportStore).FullName!);
         owners.ShouldContain(typeof(ByteCappedReadStream).FullName!);
+        owners.ShouldContain(MailboxSession);
 
         ProductionTypeSweep.OwnersReferencing(typeof(ZipArchive).FullName!).ShouldContain(typeof(XmlDmarcReportDecoder).FullName!);
         CallsInScope().ShouldContain(call => call.Owner == typeof(XmlDmarcReportDecoder).FullName
             && call.Method.DeclaringType.FullName == typeof(MemoryStream).FullName && call.Method.Name == ".ctor");
+        CallsInScope().ShouldContain(call => call.Owner == MailboxSession && call.Method.Name == "GetStreamAsync");
         typeof(Path).GetMethods().ShouldContain(method => method.Name.StartsWith("GetTemp", StringComparison.Ordinal));
     }
 
     private static bool InScope(string owner) =>
-        owner.StartsWith(Namespace + ".", StringComparison.Ordinal) || DecoderHelpers.Contains(owner);
+        Namespaces.Any(scope => owner.StartsWith(scope + ".", StringComparison.Ordinal)) || DecoderHelpers.Contains(owner);
 
     private static List<ScopedCall> CallsInScope()
     {
-        using var assembly = AssemblyDefinition.ReadAssembly(typeof(XmlDmarcReportDecoder).Assembly.Location);
         var calls = new List<ScopedCall>();
-        foreach (var type in assembly.MainModule.GetTypes())
+        foreach (var location in new[]
+                 {
+                     typeof(XmlDmarcReportDecoder).Assembly.Location,
+                     typeof(DmarcMailboxCollectionExtensions).Assembly.Location,
+                 })
         {
-            var owner = ProductionTypeSweep.OwnerOf(type).FullName;
-            if (!InScope(owner))
-                continue;
-
-            foreach (var method in type.Methods.Where(method => method.HasBody))
+            using var assembly = AssemblyDefinition.ReadAssembly(location);
+            foreach (var type in assembly.MainModule.GetTypes())
             {
-                foreach (var instruction in method.Body.Instructions)
+                var owner = ProductionTypeSweep.OwnerOf(type).FullName;
+                if (!InScope(owner))
+                    continue;
+
+                foreach (var method in type.Methods.Where(method => method.HasBody))
                 {
-                    if (instruction.Operand is MethodReference called)
-                        calls.Add(new ScopedCall(owner, called is GenericInstanceMethod generic ? generic.ElementMethod : called));
+                    foreach (var instruction in method.Body.Instructions)
+                    {
+                        if (instruction.Operand is MethodReference called)
+                            calls.Add(new ScopedCall(owner, called is GenericInstanceMethod generic ? generic.ElementMethod : called));
+                    }
                 }
             }
         }

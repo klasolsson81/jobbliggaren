@@ -134,6 +134,7 @@ public sealed class DmarcReportsEvaluatorTests
     [InlineData(DmarcRunOutcome.Unreachable)]
     [InlineData(DmarcRunOutcome.TlsFailed)]
     [InlineData(DmarcRunOutcome.AuthRefused)]
+    [InlineData(DmarcRunOutcome.AuthUnconfirmed)]
     [InlineData(DmarcRunOutcome.Timeout)]
     [InlineData(DmarcRunOutcome.Protocol)]
     public void AMailboxNeverReadSuccessfully_IsFailed_WithTheLatestOutcome_AndNoFigure(DmarcRunOutcome latest)

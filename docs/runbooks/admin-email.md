@@ -159,11 +159,17 @@ recorded as a date and a count:
 
 ```sql
 \prompt 'Address: ' addr
+SELECT pg_input_is_valid($1, 'inet') AS addr_ok \bind :addr \gset
+\if :addr_ok
 DELETE FROM dmarc_reports r
  USING (SELECT DISTINCT s.reporter, s.reporter_report_id
           FROM dmarc_reports s JOIN dmarc_report_rows w ON w.report_id = s.id
-         WHERE w.source_ip = :'addr'::inet) hit
- WHERE r.reporter = hit.reporter AND r.reporter_report_id = hit.reporter_report_id;
+         WHERE w.source_ip = $1::inet) hit
+ WHERE r.reporter = hit.reporter AND r.reporter_report_id = hit.reporter_report_id
+\bind :addr \g
+\else
+\echo 'Not an address'
+\endif
 ```
 
 He also deletes the messages that carry those reports from the mailbox in webmail.

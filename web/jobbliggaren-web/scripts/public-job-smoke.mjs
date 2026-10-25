@@ -158,10 +158,45 @@ try {
     assert.match(res.body, new RegExp(`<link rel="canonical" href="[^"]*/jobb/${ID.listed}"`));
     assert.doesNotMatch(res.body, /<meta name="robots" content="[^"]*noindex/);
     assert.match(res.body, /<meta property="og:title" content="Sjuksköterska till vårdcentral – Region Exempel"/);
-    assert.match(res.body, /<meta property="og:image" content="[^"]*\/opengraph-image/, "the shared OpenGraph image is named on the page");
-    assert.match(res.body, /<meta name="twitter:image"/, "the shared Twitter image is inherited");
-    assert.doesNotMatch(res.body, /<meta[^>]*(og:description|name="description")[^>]*Vi söker dig/, "no free text in a description tag");
+    assert.doesNotMatch(
+      res.body,
+      /<meta[^>]*(og:description|twitter:title|twitter:description|name="description")[^>]*Vi söker dig/,
+      "no free text in a title or description tag"
+    );
     assert.equal(res.headers.get("x-robots-tag"), null);
+  });
+
+  // ADR 0165 Amendment 2026-10-25: the compact card. The platforms read these tags, so they are asserted in the HTML the
+  // server sends, not in the metadata object: the twitter strings are the page's own now, no longer Next's copy.
+  await check("a listed ad names the square preview image and the summary card, with the same strings as OpenGraph", async () => {
+    const res = await get(origin, `/jobb/${ID.listed}`);
+    const meta = (key) =>
+      [...res.body.matchAll(new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`, "g"))].map((m) => m[1]);
+    for (const key of ["og:image", "twitter:image"]) {
+      assert.equal(meta(key).length, 1, `one ${key}`);
+      assert.match(meta(key)[0], /^https?:\/\/[^"?]+\/delningsbild$/, `${key} is the square, with no query`);
+    }
+    assert.deepEqual(meta("og:image:width"), ["400"]);
+    assert.deepEqual(meta("og:image:height"), ["400"]);
+    assert.deepEqual(meta("twitter:card"), ["summary"]);
+    assert.deepEqual(meta("twitter:title"), meta("og:title"));
+    assert.deepEqual(meta("twitter:description"), meta("og:description"));
+    assert.equal(meta("twitter:site").length + meta("twitter:creator").length + meta("fb:app_id").length, 0);
+  });
+
+  await check("the preview image is the 400 × 400 brand square, read from nothing and served with no cookie", async () => {
+    seen.length = 0;
+    const res = await fetch(`${origin}/delningsbild`, { redirect: "manual", signal: AbortSignal.timeout(20_000) });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("content-type"), "image/png");
+    assert.equal(res.headers.get("set-cookie"), null);
+    const cacheControl = res.headers.get("cache-control") ?? "";
+    assert.doesNotMatch(cacheControl, /immutable/, "the URL carries no content hash");
+    const png = Buffer.from(await res.arrayBuffer());
+    assert.equal(png.toString("ascii", 12, 16), "IHDR");
+    assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [400, 400]);
+    assert.equal(seen.length, 0, "no backend call");
+    console.log(`       /delningsbild cache-control: ${cacheControl}`);
   });
 
   await check("a listed, complete ad carries exactly one JobPosting data block that parses, matches the page and cannot close itself", async () => {

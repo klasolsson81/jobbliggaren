@@ -140,6 +140,7 @@ for (const [path, type] of [
   ["/opengraph-image", "image/png"],
   ["/twitter-image", "image/png"],
   ["/apple-icon", "image/png"],
+  ["/delningsbild", "image/png"],
 ] as const) {
   test(`${path} is served unauthenticated as ${type}, with no redirect`, async ({ request }) => {
     const res = await request.get(path, { maxRedirects: 0 });

@@ -170,8 +170,32 @@ describe("the public job page's metadata", () => {
       siteName: "Jobbliggaren",
       title: "Sjuksköterska – Region Exempel",
       url: `https://dev.jobbliggaren.se/jobb/${ID}`,
-      images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
+      images: [{ url: "/delningsbild", width: 400, height: 400, alt: "Jobbliggaren" }],
     });
+  });
+
+  // ADR 0165 Amendment 2026-10-25: the compact card. Exactly these four members: a handle or an app id of ours is an
+  // ADR 0166 D10 trigger-5 question (ADR 0183 D7), and the strings are the same ones OpenGraph carries.
+  it("names the summary card with the same title, description and square image as OpenGraph, and nothing of ours", async () => {
+    getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: AD });
+    const metadata = await generateMetadata(params());
+
+    expect(metadata.twitter).toStrictEqual({
+      card: "summary",
+      title: "Sjuksköterska – Region Exempel",
+      description: metadata.description,
+      images: [{ url: "/delningsbild", width: 400, height: 400, alt: "Jobbliggaren" }],
+    });
+  });
+
+  it("names the same image, with no query and no id, for every ad: nothing of an ad reaches the preview image", async () => {
+    const OTHER_ID = "0c0c0c0c-2222-4333-8444-555555555555";
+    getPublicJobAd.mockImplementation(async (id) => ({ kind: "ok", jobAd: { ...AD, id, title: `Annons ${id}` } }));
+    const [first, second] = await Promise.all([generateMetadata(params()), generateMetadata(params(OTHER_ID))]);
+
+    const images = [first, second].flatMap((metadata) => [metadata.openGraph?.images, metadata.twitter?.images]);
+    expect(new Set(images.map((value) => JSON.stringify(value))).size).toBe(1);
+    expect(JSON.stringify(images[0])).not.toMatch(/\?|0b0b0b0b|0c0c0c0c/);
   });
 
   // The JobPosting data block on the page DOES carry the description, by design and with Klas's and

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Link, Share2 } from "lucide-react";
+import { Check, LinkIcon, Share2 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { type JobAdShareData, copyLink, hasNativeShare, shareNatively } from "@/lib/job-ads/share-job-ad";
 import { SHARE_ICON_SIZE, SHARE_ITEM, SHARE_LIST } from "./share-job-ad-styles";
@@ -93,7 +93,7 @@ export function ShareJobAdControls({
             {copied ? (
               <Check size={SHARE_ICON_SIZE} aria-hidden="true" />
             ) : (
-              <Link size={SHARE_ICON_SIZE} aria-hidden="true" />
+              <LinkIcon size={SHARE_ICON_SIZE} aria-hidden="true" />
             )}
             <span className="grid text-start">
               <span className={`[grid-area:1/1] ${copied ? "invisible" : ""}`} aria-hidden={copied || undefined}>

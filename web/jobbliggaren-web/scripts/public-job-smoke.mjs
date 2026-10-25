@@ -179,7 +179,10 @@ try {
     assert.deepEqual(meta("og:image:width"), ["400"]);
     assert.deepEqual(meta("og:image:height"), ["400"]);
     assert.deepEqual(meta("twitter:card"), ["summary"]);
+    assert.ok(inHead(res.body, /<meta property="og:image"/), "og:image in the head");
+    assert.ok(inHead(res.body, /<meta name="twitter:card"/), "twitter:card in the head");
     assert.deepEqual(meta("twitter:title"), meta("og:title"));
+    assert.equal(meta("og:description").length, 1, "one og:description");
     assert.deepEqual(meta("twitter:description"), meta("og:description"));
     assert.equal(meta("twitter:site").length + meta("twitter:creator").length + meta("fb:app_id").length, 0);
   });

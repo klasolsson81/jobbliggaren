@@ -521,7 +521,7 @@ without edits:
 | 2 | whether the compact preview replaces PR 2 | "Ja, ersätter PR 2 (Rek.)" | PR 2 (the per-ad image) is withdrawn, and ADR 0165 D4's "There is no per-ad image" stands |
 | 3 | the new image's address | "Ny adress + Caddy-rad (Rek.)" | `/delningsbild` and one row in the edge's CORP map (ADR 0163, lapse trigger 5) |
 
-**Why there are no brand marks.** D4 left marks to "a bounded DESIGN.md §3 and §7 exception … with every owner's rules read". The rules were read on
+**Why there are no brand marks.** D4 left marks to "a new, bounded exception in DESIGN.md §3 and §7 with every owner's rules read". The rules were read on
 2026-10-25, and none admits a mark on a share link:
 - **LinkedIn** (brand.linkedin.com/in-logo) admits the [in] logo as a "Share" button only for "a third-party API developer with a client ID".
   - Members' uses do not include sharing.
@@ -541,8 +541,8 @@ written.
   - Every item is `jp-btn jp-btn--secondary` at 44 px in every width. It is never `--sm`'s 36, because Klas's approved preview said 44 px.
   - Each item fills its cell (`w-full`).
   - The list is `flex flex-wrap gap-2`. From 640 px it is a grid of three `max-content` columns: the platforms stand on one line, and E-post, Kopiera
-    länken and Fler sätt att dela stand under them in columns of one width. `design-reviewer` measured 3 + 3 at 640, 768 and 1280, in sv and en.
-  - The share sheet's reserved cell ends the second line, so it leaves no empty band.
+    länken and Fler sätt att dela stand under them. `design-reviewer` measured 3 + 3 at 640, 768 and 1280, in sv and en.
+  - The share sheet's reserved cell ends the second line.
   - The border carries the control's shape, so the underline goes (WCAG 1.4.1). `--jp-border-input` on `--jp-surface` is 3.50:1 in light, and 1.4.11's
     floor is 3:1.
 - **Icons**, replacing "Text only, no icons": Lucide, 16 px, `currentColor`, `aria-hidden`.

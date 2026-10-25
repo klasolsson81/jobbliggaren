@@ -381,7 +381,7 @@ D1–D7 and the earlier amendments stand and nothing above is rewritten. This am
 - **What it is:** a 400 × 400 PNG of the brand mark on white, the same for every ad, reading nothing.
 - **The root's large card stays for every other page.** A page's own `openGraph` and `twitter` replace the root's wholesale. Measured on the production build by `public-job-smoke.mjs`, 2026-10-25: one `og:image` and one `twitter:image`, both the square, and one `twitter:card`, `summary`.
 - **Why 400 px:** it is the widest image LinkedIn still shows as a thumbnail ("less than 401 pixels wide", linkedin.com/help/linkedin/answer/a521928). It is also under the 600 × 315 Facebook needs for its large card (developers.facebook.com/docs/sharing/webmasters/images). Both pages were read 2026-10-25.
-- **Not measured:** that Facebook shows the image as the compact card. Klas checks it from his own device.
+- **Not measured:** that Facebook, LinkedIn and WhatsApp show the image as the compact card. Klas checks it from his own device.
 
 **2. "There is no per-ad image" stands, and no PR is now pending against it.** The amendment of 2026-10-24 (point 5) said #2214's PR 2 would amend it. Klas withdrew PR 2 on 2026-10-25 ("Ja, ersätter PR 2 (Rek.)"). The ADR 0166 D10 reading has one home, ADR 0183 Amendment 2026-10-25, and it is not repeated here.
 

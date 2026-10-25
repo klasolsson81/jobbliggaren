@@ -110,12 +110,27 @@ public sealed class DmarcVocabularyTests
     }
 
     [Fact]
+    public void SignInResumesAt_IsTheBackOffAfterTheAttempt_ExactlyForARefusedOrUnansweredSignIn()
+    {
+        var attemptedAt = new DateTimeOffset(2026, 10, 25, 8, 23, 9, TimeSpan.Zero);
+        foreach (var outcome in Enum.GetValues<DmarcRunOutcome>())
+        {
+            DmarcOutcomes.SignInResumesAt(outcome, attemptedAt).ShouldBe(
+                outcome is DmarcRunOutcome.AuthRefused or DmarcRunOutcome.AuthUnconfirmed
+                    ? attemptedAt + DmarcIngestionLimits.SignInBackoff
+                    : null,
+                outcome.ToString());
+        }
+    }
+
+    [Fact]
     public void AnUnknownMember_IsRefusedRatherThanMapped()
     {
         Should.Throw<ArgumentOutOfRangeException>(() => DmarcOutcomes.OutcomeOf((DmarcSkipReason)99));
         Should.Throw<ArgumentOutOfRangeException>(() => DmarcOutcomes.OutcomeOf((DmarcRejection)99));
         Should.Throw<ArgumentOutOfRangeException>(() => DmarcOutcomes.RunOutcomeOf((DmarcSessionFault)99));
         Should.Throw<ArgumentOutOfRangeException>(() => DmarcOutcomes.BacksOffSignIn((DmarcRunOutcome)99));
+        Should.Throw<ArgumentOutOfRangeException>(() => DmarcOutcomes.SignInResumesAt((DmarcRunOutcome)99, DateTimeOffset.UnixEpoch));
         Should.Throw<ArgumentOutOfRangeException>(() => DmarcOutcomeClasses.ClassOf((DmarcMessageOutcome)99));
     }
 }

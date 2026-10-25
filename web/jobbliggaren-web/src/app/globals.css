@@ -1740,7 +1740,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border: 1px solid var(--jp-border);
   border-radius: var(--jp-r-md);
   box-shadow: var(--jp-shadow-pop);
-  z-index: 40;
+  z-index: 20;
   color: var(--jp-ink-1);
 }
 .jp-popover__colhead {

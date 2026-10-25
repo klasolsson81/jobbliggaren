@@ -104,7 +104,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
     await user.click(screen.getByText("Stockholms län"));
     await user.click(screen.getByText("Solna"));
 
-    expect(pushMock).toHaveBeenCalledWith("/jobb?municipality=zHxw_uJZ_NNh");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?municipality=zHxw_uJZ_NNh", { scroll: false });
   });
 
   it("Hela länet togglar ETT region-id — aldrig materialiserade kommun-ids", async () => {
@@ -114,7 +114,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
     await user.click(screen.getByText("Stockholms län"));
     await user.click(screen.getByText("Hela Stockholms län"));
 
-    expect(pushMock).toHaveBeenCalledWith("/jobb?region=CifL_Rzy_Mku");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?region=CifL_Rzy_Mku", { scroll: false });
   });
 
   it("kommun-rader RENDERAS markerade när Hela länet är valt (E2f)", async () => {
@@ -153,7 +153,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
     await user.click(screen.getByText("Solna"));
 
     // Region bort; länets ÖVRIGA kommun (Stockholm) materialiseras.
-    expect(pushMock).toHaveBeenCalledWith("/jobb?municipality=AvNB_uwa_6n6");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?municipality=AvNB_uwa_6n6", { scroll: false });
   });
 
   it("markering som kompletterar länets alla kommuner kollapsar till Hela länet (E2f)", async () => {
@@ -164,7 +164,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
     await user.click(screen.getByText("Solna"));
 
     // Stockholm + Solna = hela länet → region-id, kommun-ids bort.
-    expect(pushMock).toHaveBeenCalledWith("/jobb?region=CifL_Rzy_Mku");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?region=CifL_Rzy_Mku", { scroll: false });
   });
 
   it("Hela länet rensar länets egna kommun-val men inte andra läns", async () => {
@@ -177,6 +177,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
     // Solna (Sthlm) rensad; Göteborg (VG) kvar; region Sthlm in.
     expect(pushMock).toHaveBeenCalledWith(
       "/jobb?region=CifL_Rzy_Mku&municipality=PVZL_BQT_XtL",
+      { scroll: false },
     );
   });
 
@@ -189,6 +190,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
 
     expect(pushMock).toHaveBeenCalledWith(
       "/jobb?region=oDpK_oQy_3Zc&municipality=zHxw_uJZ_NNh",
+      { scroll: false },
     );
   });
 
@@ -206,7 +208,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
     expect(rensa).toBeDefined();
     await user.click(rensa!);
 
-    expect(pushMock).toHaveBeenCalledWith("/jobb");
+    expect(pushMock).toHaveBeenCalledWith("/jobb", { scroll: false });
   });
 
   it("Ort-pillens räknare = region + kommun", () => {
@@ -325,6 +327,7 @@ describe("JobbHeroFilters — Yrke tvåkolumns", () => {
 
     expect(pushMock).toHaveBeenCalledWith(
       "/jobb?occupationGroup=Z9zz_zzz_zzz",
+      { scroll: false },
     );
   });
 
@@ -339,6 +342,7 @@ describe("JobbHeroFilters — Yrke tvåkolumns", () => {
       // ONE param per axis with the ids joined (2026-08-01): the repeated form
       // made two different applied states share one Next router-cache entry.
       "/jobb?occupationGroup=MVqp_eS8_kDZ.Q5DF_juj_8do",
+      { scroll: false },
     );
   });
 
@@ -351,7 +355,27 @@ describe("JobbHeroFilters — Yrke tvåkolumns", () => {
 
     expect(pushMock).toHaveBeenCalledWith(
       "/jobb?occupationGroup=MVqp_eS8_kDZ&q=backend",
+      { scroll: false },
     );
+  });
+});
+
+describe("JobbHeroFilters — Filter (#2212)", () => {
+  it("an employment-type pick commits ?employmentType= and keeps the page where it is", async () => {
+    const user = userEvent.setup();
+    // The real concept id from klass2-taxonomy.json, as jobb-klass2-panel.test.tsx uses: the panel
+    // is fed exactly the frozen ids in production.
+    setup({
+      taxonomy: {
+        ...taxonomy,
+        employmentTypes: [{ conceptId: "PFZr_Syz_cUq", label: "Vanlig anställning" }],
+      },
+    });
+    await user.click(screen.getByRole("button", { name: /^Filter/ }));
+    const dialog = screen.getByRole("dialog", { name: "Filter" });
+    await user.click(within(dialog).getByText("Vanlig anställning"));
+
+    expect(pushMock).toHaveBeenLastCalledWith("/jobb?employmentType=PFZr_Syz_cUq", { scroll: false });
   });
 });
 
@@ -538,7 +562,7 @@ describe("JobbHeroFilters — Matchning (flyttad från toolbaren)", () => {
     setup({ hasStatedDesiredOccupation: true });
     await user.click(screen.getByRole("button", { name: /^Matchning/ }));
     await user.click(screen.getByRole("switch", { name: "Matchning" }));
-    expect(pushMock).toHaveBeenCalledWith("/jobb?matchning=off");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?matchning=off", { scroll: false });
   });
 });
 
@@ -569,14 +593,14 @@ describe("JobbHeroFilters — Dölj ansökta (hero-toggle)", () => {
     const user = userEvent.setup();
     setup({ hasSeeker: true });
     await user.click(screen.getByRole("switch", { name: "Dölj ansökta" }));
-    expect(pushMock).toHaveBeenCalledWith("/jobb?doljAnsokta=on");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?doljAnsokta=on", { scroll: false });
   });
 
   it("klick (på → av) navigerar till ren /jobb", async () => {
     const user = userEvent.setup();
     setup({ hasSeeker: true, initialHideApplied: true });
     await user.click(screen.getByRole("switch", { name: "Dölj ansökta" }));
-    expect(pushMock).toHaveBeenCalledWith("/jobb");
+    expect(pushMock).toHaveBeenCalledWith("/jobb", { scroll: false });
   });
 });
 
@@ -591,7 +615,7 @@ describe("Distans i ort-popovern (#551 punkt 4)", () => {
     setup();
     await user.click(screen.getByRole("button", { name: /^Ort/ }));
     await user.click(screen.getByRole("checkbox", { name: "Distans" }));
-    expect(pushMock).toHaveBeenCalledWith("/jobb?distans=on");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?distans=on", { scroll: false });
   });
 
   it("klick (på → av) navigerar till ren /jobb", async () => {
@@ -599,7 +623,7 @@ describe("Distans i ort-popovern (#551 punkt 4)", () => {
     setup({ initialRemote: true });
     await user.click(screen.getByRole("button", { name: /^Ort/ }));
     await user.click(screen.getByRole("checkbox", { name: "Distans" }));
-    expect(pushMock).toHaveBeenCalledWith("/jobb");
+    expect(pushMock).toHaveBeenCalledWith("/jobb", { scroll: false });
   });
 
   it("distans reser BREDVID ett kommun-val, aldrig i stället för det", async () => {
@@ -618,7 +642,7 @@ describe("Distans i ort-popovern (#551 punkt 4)", () => {
     await user.click(screen.getByRole("button", { name: /^Ort/ }));
     const dialog = screen.getByRole("dialog", { name: "Ort" });
     await user.click(within(dialog).getByRole("button", { name: /Rensa/ }));
-    expect(pushMock).toHaveBeenCalledWith("/jobb");
+    expect(pushMock).toHaveBeenCalledWith("/jobb", { scroll: false });
   });
 
   // Ort-pillens räknare är ort-dimensionens statusvisning. Utan distans i den

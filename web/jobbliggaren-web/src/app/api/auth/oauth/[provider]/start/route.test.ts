@@ -199,10 +199,9 @@ describe("the external login start", () => {
     expect(noticeOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider });
   });
 
-  // Reachable while the api and web images name different hosts, as during #1945's rollout (measured on the box
-  // 2026-10-03T08:48:24Z): an api image from before #2229 answers a LinkedIn start with the api host while this web
-  // names the www host. The start then fails closed with LinkedIn's own notice and no state cookie (ADR 0142
-  // Amendment (24)).
+  // Reachable while the api and web images name different hosts: an api image from before #2229 answers a LinkedIn
+  // start with the api host while this web names the www host. The start then fails closed with LinkedIn's own
+  // notice and no state cookie (ADR 0142 Amendment (24)).
   it("sends the browser back with LinkedIn's notice and no state cookie on a LinkedIn start answered with the api host", async () => {
     backendAnswers(200, { authorizeUrl: LINKEDIN_AUTHORIZE.replace("www.linkedin.com", "api.linkedin.com"), state: STATE });
 

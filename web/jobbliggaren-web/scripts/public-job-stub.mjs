@@ -6,7 +6,8 @@
  * - `lighthouse-server.mjs` serves the pages Lighthouse measures from it, in the default mode, so a measured page is
  *   the page the smoke asserts on.
  *
- * It answers the detail by id, so those cases are fixed: a listed ad, an ended and an erased one (both 410), an unknown
+ * It answers the detail by id, so those cases are fixed: a listed ad, one with the employer's application page (#2214
+ * PR 1b), an ended and an erased one (both 410), an unknown
  * one, the budget (429), an outage (500), and the two races where the render's read disagrees with the probe's. It
  * answers the sitemap's parts in a mode a check sets: the ids, an outage, the budget, its own 503, ids in the wrong case,
  * or an answer held past the web's timeout. It answers the catalogue's pages in a mode too: three pages of rows, a page
@@ -27,6 +28,8 @@ export const ID = {
   raceEnded: "88888888-8888-4888-8888-888888888888",
   /** Listed, but with no resolved kommun: no JobPosting, still indexable (ADR 0171). */
   listedNoKommun: "99999999-9999-4999-8999-999999999999",
+  /** Listed, with the employer's application page as the backend's gate admitted it: the head ends with Ansök. */
+  listedApply: "12121212-1212-4212-8212-121212121212",
   /** Hex digits that have a case, for the upper-case redirect; no read is ever made for it. */
   hexCase: "abcdefab-abcd-4abc-8abc-abcdefabcdef",
 };
@@ -48,6 +51,9 @@ export const AD = {
   employmentTypeConceptId: "gro4_cWF_6D7", // Vikariat
   worktimeExtentConceptId: "6YE1_gAC_R2G", // Heltid
 };
+
+/** The application page `ID.listedApply` carries. */
+export const APPLICATION_PAGE = "https://jobb.example.se/ansok/1";
 
 const GONE_BODY = JSON.stringify({ title: "Annonsen är inte längre tillgänglig.", status: 410 });
 
@@ -143,7 +149,9 @@ function answerRelated(id, res, send) {
   const items = id === ID.listed ? [1, 2, 3, 4, 5].map(relatedRow) : [];
   switch (related.mode) {
     case "ok":
-      return id === ID.listed || id === ID.listedNoKommun ? send(200, JSON.stringify({ items })) : send(404, "{}");
+      return id === ID.listed || id === ID.listedNoKommun || id === ID.listedApply
+        ? send(200, JSON.stringify({ items }))
+        : send(404, "{}");
     case "budget":
       return send(429, "{}", { "retry-after": "9" });
     case "tooWide":
@@ -194,6 +202,8 @@ export function stubHandler(req, res) {
       return send(200, JSON.stringify(AD));
     case ID.listedNoKommun:
       return send(200, JSON.stringify({ ...AD, id, municipalityConceptId: null, municipalityName: null }));
+    case ID.listedApply:
+      return send(200, JSON.stringify({ ...AD, id, applicationUrl: APPLICATION_PAGE }));
     case ID.ended:
     case ID.erased:
       return send(410, GONE_BODY);

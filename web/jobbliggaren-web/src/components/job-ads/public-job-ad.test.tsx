@@ -142,6 +142,93 @@ describe("PublicJobAd", () => {
     expect(screen.queryByRole("heading", { name: "Sök jobbet" })).toBeNull();
   });
 
+  describe("with the employer's application page the backend admitted (#2214 PR 1b)", () => {
+    const APPLY = "https://jobb.example.se/ansok/1";
+    const WITH_APPLY: PublicJobAdDto = { ...AD, applicationUrl: APPLY };
+
+    it("ends the head with Ansök as the one primary action, after the ad's own page as a text link, with no apply heading", () => {
+      const { container } = render(<PublicJobAd jobAd={WITH_APPLY} />);
+
+      const header = container.querySelector("header") as HTMLElement;
+      expect(container.querySelectorAll(".jp-btn--primary")).toHaveLength(1);
+      const apply = within(header).getByRole("link", { name: "Ansök" });
+      expect(apply).toHaveAttribute("href", APPLY);
+      expect(apply).toHaveAttribute("target", "_blank");
+      expect(apply.getAttribute("rel")?.split(" ").sort()).toEqual(["nofollow", "noopener", "noreferrer"]);
+      expect(apply).toHaveClass("jp-btn", "jp-btn--primary");
+      const source = within(header).getByRole("link", { name: "Visa annonsen på Platsbanken" });
+      expect(source).toHaveAttribute("href", AD.url);
+      expect(source).not.toHaveClass("jp-btn");
+      const headLinks: HTMLElement[] = [...header.querySelectorAll("a")];
+      expect(headLinks.at(-1)).toBe(apply);
+      expect(headLinks.indexOf(source)).toBeLessThan(headLinks.indexOf(apply));
+      expect(screen.queryByRole("heading", { name: "Sök jobbet" })).toBeNull();
+      expect(screen.queryByRole("link", { name: /Öppna annonsen/ })).toBeNull();
+      expect(container.querySelector(".jp-modal__foot")?.querySelector(`a[href="${APPLY}"]`)).toBeNull();
+    });
+
+    it("links off the site to the ad's own page, the application page and the share row's four targets, and nowhere else", () => {
+      const { container } = render(<PublicJobAd jobAd={WITH_APPLY} />);
+
+      const offSite = [...container.querySelectorAll<HTMLAnchorElement>("a[href]")]
+        .map((a) => a.getAttribute("href") ?? "")
+        .filter((href) => !href.startsWith("/") || href.startsWith("//"));
+      const targets = shareTargetLinks({ title: publicJobAdTitle(AD), url: publicJobAdUrl(ID) }).map((link) => link.href);
+      expect(offSite).toEqual([AD.url, APPLY, ...targets]);
+      expect(container.querySelectorAll(`a[href="${APPLY}"]`)).toHaveLength(1);
+      for (const a of container.querySelectorAll<HTMLAnchorElement>('a[href^="https://"]:not([href^="https://arbetsformedlingen"])')) {
+        expect(a.getAttribute("rel")?.split(" ").sort()).toEqual(["nofollow", "noopener", "noreferrer"]);
+      }
+    });
+
+    it("keeps the application page out of the JobPosting and out of every share link", () => {
+      const { container } = render(<PublicJobAd jobAd={WITH_APPLY} />);
+
+      for (const script of jsonLdScripts(container)) expect(script.textContent).not.toContain("jobb.example.se");
+      const share = screen.getByRole("heading", { level: 2, name: "Dela annonsen" }).closest("section") as HTMLElement;
+      for (const a of share.querySelectorAll("a")) expect(a.getAttribute("href")).not.toContain("jobb.example.se");
+    });
+
+    it("names the ad's own page plainly when it does not live at Arbetsförmedlingen", () => {
+      render(<PublicJobAd jobAd={{ ...WITH_APPLY, url: "https://example.com/jobb/1" }} />);
+
+      expect(screen.getByRole("link", { name: "Visa originalannonsen" })).toHaveAttribute("href", "https://example.com/jobb/1");
+      expect(screen.getByRole("link", { name: "Ansök" })).toHaveAttribute("href", APPLY);
+    });
+
+    // Declared unreachable, as above: an empty ad address is refused on write. This only pins that Ansök stands
+    // alone, still the one primary, if that ever breaks.
+    it("keeps Ansök as the one primary with no text link if the ad's own address ever arrives empty", () => {
+      const { container } = render(<PublicJobAd jobAd={{ ...WITH_APPLY, url: "" }} />);
+
+      expect(container.querySelectorAll(".jp-btn--primary")).toHaveLength(1);
+      expect(screen.getByRole("link", { name: "Ansök" })).toHaveAttribute("href", APPLY);
+      expect(screen.queryByRole("link", { name: /Visa (annonsen|originalannonsen)/ })).toBeNull();
+    });
+
+    // Declared unreachable: the schema refuses an application link that is not http(s). This only pins that the
+    // head degrades to the arm without one if that ever breaks.
+    it.each(["ftp://jobb.example.se/ansok", "javascript:alert(1)", ""])(
+      "shows the head without Ansök for an application link %j that is not http(s)",
+      (applicationUrl) => {
+        const { container } = render(<PublicJobAd jobAd={{ ...AD, applicationUrl }} />);
+
+        expect(container.querySelectorAll(".jp-btn--primary")).toHaveLength(1);
+        expect(screen.getByRole("link", { name: "Öppna annonsen hos Arbetsförmedlingen" })).toHaveClass("jp-btn--primary");
+        expect(screen.getByRole("heading", { level: 2, name: "Sök jobbet" })).toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: "Ansök" })).toBeNull();
+      }
+    );
+
+    it("shows the head without Ansök for a null link, which is also what a link the gate held back reads as", () => {
+      render(<PublicJobAd jobAd={{ ...AD, applicationUrl: null }} />);
+
+      expect(screen.getByRole("heading", { level: 2, name: "Sök jobbet" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Ansök" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Visa annonsen på Platsbanken" })).toBeNull();
+    });
+  });
+
   it("invites the visitor in the footer to sign in and come back to this ad, by a plain nofollow link (ADR 0183)", () => {
     const { container } = render(<PublicJobAd jobAd={AD} />);
 

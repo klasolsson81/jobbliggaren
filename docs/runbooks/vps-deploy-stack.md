@@ -1016,7 +1016,7 @@ sudo flock -n /run/jobbliggaren-reconcile.lock /bin/bash -c 'cd /opt/jobbliggare
   restore window, expected 0 (`account-deletion.md` §3.3);
 - `public.job_seekers` rows carrying the new `privacy_policy_version`;
 - the providers list, read from inside the web container, expected `["google","linkedin","github"]`;
-- the web start: a 302 to `https://api.linkedin.com/oauth/v2/authorization` with exactly
+- the web start: a 302 to `https://www.linkedin.com/oauth/v2/authorization` with exactly
   `response_type=code`, `client_id`, the box's callback as `redirect_uri`, `scope=openid email` and
   `state`, and neither `nonce` nor `code_challenge`; and the flow cookie's attributes;
 - the Chapter V readings above, and the app's registered redirect URLs.
@@ -1038,13 +1038,13 @@ the build could not: the form of `email_verified`, and that `sub` and `email` ar
 row that never works is not left standing. Any other refusal at the first login: deactivate, and file
 the defect, as for Google.
 
-**Every login through the button asks for the account.** The authorization request goes to `api.linkedin.com`,
-which LinkedIn does not document for it and which does not see a member's www session (measured 2026-10-03; ADR
-0142 Amendment (23), Klas's decision). Every login the button starts shows LinkedIn's sign-in page on
-`www.linkedin.com`, and, measured on 2026-10-03, no permission page follows for a member who has granted the app.
-A request edited back to the www host still asks nothing. The web start and the api name the host together, so both
-images run the same tag; one on each side refuses every LinkedIn start with the notice. If a login through the button
-shows no LinkedIn page, or fails at LinkedIn or at the exchange, (23)'s lapse applies.
+**A repeat login asks nothing.** A member with a grant is sent on without any LinkedIn page (documented, and
+measured on the box on 2026-10-02). LinkedIn documents no parameter that asks again, and honoured none of
+`prompt=login`, `prompt=consent` and `prompt=select_account` when probed on 2026-10-03 (ADR 0142 Amendment (22)).
+Its undocumented api host asked, but made every login a fresh LinkedIn sign-in, so the
+request left it (ADR 0142 Amendment (24), Klas's decision). Someone at a shared computer who wants another LinkedIn
+account signs out of LinkedIn first. The web start and the api name the host together, so both images run the same
+tag; one on each side of a host change refuses every LinkedIn start with the notice.
 
 **A Cancel** on LinkedIn's sign-in page names the request's `redirect_uri`, this box's callback (read
 2026-10-02, and on 2026-10-03 for a flow through the api host, on the local stack), and LinkedIn documents that a Cancel on its permission page goes to the request's `redirect_uri`.

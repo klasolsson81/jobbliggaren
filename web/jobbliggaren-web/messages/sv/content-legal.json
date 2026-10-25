@@ -5,7 +5,7 @@
       "description": "Hur Jobbliggaren behandlar dina personuppgifter: ändamål, laglig grund, lagringstid, dina rättigheter och säkerhet. Ingen spårning och ingen AI."
     },
     "title": "Integritetspolicy",
-    "updated": "Senast uppdaterad: 2026-10-24",
+    "updated": "Senast uppdaterad: 2026-10-25",
     "intro": "Den här integritetspolicyn beskriver hur Jobbliggaren behandlar dina personuppgifter, varför, med vilken laglig grund och hur länge. Här finns också dina rättigheter och hur du använder dem. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att hitta och hålla ordning på dina jobbansökningar, byggd på öppna data om lediga jobb från Arbetsförmedlingens JobTech (Platsbanken).",
     "sections": [
       {
@@ -74,7 +74,7 @@
         ],
         "list": [
           "Söktexten du skrev, upp till 100 tecken.",
-          "Vilka filter du valde: yrkesgrupp, kommun, län, anställningsform, omfattning, arbetsgivare och om du filtrerade på distansarbete.",
+          "Vilka filter du valde: yrkesgrupp, yrkesbenämning, kommun, län, anställningsform, omfattning, arbetsgivare och om du filtrerade på distansarbete.",
           "Vilken sortering sökningen kördes i.",
           "Hur många träffar sökningen gav senast, så att vi kan visa om den har gett nya träffar sedan dess.",
           "När sökningen sparades första gången och när du senast körde den."

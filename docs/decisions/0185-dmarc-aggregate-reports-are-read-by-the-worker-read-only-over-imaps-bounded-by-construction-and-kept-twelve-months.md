@@ -184,7 +184,7 @@ and delete the reports, the same risk class as the Scaleway sending key the Work
 
 The reports' `source_ip` is personal data when a server is a person's own (C-582/14 *Breyer*); the basis is legitimate interest,
 Art. 6(1)(f) and recital 49: detecting mail sent in our name without authority. We cannot identify the people concerned
-(Art. 11); Articles 15–21 apply once someone supplies the address. An Art. 17 erasure is manual: Klas deletes every report that
+(Art. 11); Articles 15–20 apply once someone supplies the address. An Art. 17 erasure is manual: Klas deletes every report that
 holds the address, with every version of its report id, and the messages in the mailbox; the address never enters chat or a
 transcript, and the erasure is recorded as a date and a count. The processing is described publicly under Art. 14(5)(b) by
 PR L; the sentences saying the service reads and deletes the reports automatically follow no later than one month after the

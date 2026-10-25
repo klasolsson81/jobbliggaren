@@ -298,6 +298,31 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         saved.Criteria.OccupationGroup.ShouldBe(["g1"]);
     }
 
+    [Fact]
+    public async Task MissingOccupationNameKey_ReadsAsEmptyList_CreatePasses()
+    {
+        // #2199 PR 2 back-compat: every saved_searches row written before the key existed lacks it
+        // (the pre-PR-2 Write emitted none), and it must read as no name pick. Never fail-loud: that
+        // is reserved for the REMOVED "Ssyk" key, while an ADDED key's absence is benign.
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = await SeedSeekerAsync(db, clock, ct);
+
+        // The exact form the pre-PR-2 Write produced: every key but OccupationName.
+        var json = """{"OccupationGroup":["g1"],"Municipality":[],"Region":[],"EmploymentType":[],"WorktimeExtent":[],"Employer":[],"Remote":false,"Q":null,"SortBy":0}""";
+        var id = await InsertRawSavedSearchAsync(seeker.Id.Value, json, ct);
+
+        using var readScope = Factory.Services.CreateScope();
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = await readDb.SavedSearches
+            .SingleAsync(s => s.Id == new SavedSearchId(id), ct);
+
+        saved.Criteria.OccupationName.ShouldBeEmpty();
+        saved.Criteria.OccupationGroup.ShouldBe(["g1"]);
+    }
+
     // ---------------------------------------------------------------
     // (4) Write-form on-disk — nya nycklar skrivs, "Ssyk" skrivs ALDRIG.
     // OBS: jsonb normaliserar nyckelordning i lagrad form — Write-blockets
@@ -317,7 +342,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         var seeker = await SeedSeekerAsync(db, clock, ct);
 
         var criteria = SearchCriteria.Create(
-            occupationGroup: ["g1"], municipality: ["m1"], region: ["r1"],
+            occupationGroup: ["g1"], occupationName: [], municipality: ["m1"], region: ["r1"],
             employmentType: ["et_fast"], worktimeExtent: ["wt_heltid"],
             employer: ["5566010101"],
             remote: false,
@@ -341,6 +366,8 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         raw.ShouldContain("\"Employer\"");
         // #551 PR-D: Remote-nyckeln skrivs alltid (skalär bool, mellan Employer och Q).
         raw.ShouldContain("\"Remote\"");
+        // #2199 PR 2: OccupationName is always written (array form, after OccupationGroup).
+        raw.ShouldContain("\"OccupationName\"");
         raw.ShouldContain("\"Q\"");
         raw.ShouldContain("\"SortBy\"");
     }
@@ -360,6 +387,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
 
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grpB", "grpA"],
+            occupationName: [],
             municipality: ["uppsala_kn", "sthlm_kn"],
             region: ["stockholm", "uppsala"],
             employmentType: ["et_vikariat", "et_fast"],
@@ -405,7 +433,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
         var seeker = await SeedSeekerAsync(db, clock, ct);
 
         var criteria = SearchCriteria.Create(
-            occupationGroup: [], municipality: [], region: [],
+            occupationGroup: [], occupationName: [], municipality: [], region: [],
             employmentType: [], worktimeExtent: [], employer: [],
             remote: true, q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Remote-roundtrip", criteria, false, clock).Value;

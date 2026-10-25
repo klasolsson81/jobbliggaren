@@ -30,10 +30,13 @@ namespace Jobbliggaren.Application.RecentJobSearches.Queries;
 // fails if one is missing, and ListRecentSearchesCountReplayParityTests fails if a projected value
 // differs from the counted one. EmployerList is org.nr per value, masked on the way out
 // (EmployerAxisGate — ADR 0087 D8(c), masked arm): a personnummer-shaped value never reaches the wire.
+// #2199 PR 2: OccupationNameList (the picked occupation-names) and their OccupationNameLabels, next
+// to the groups; the frontend replays and renders them from #2199 PR 3.
 public sealed record RecentJobSearchDto(
     Guid Id,
     string? Q,
     IReadOnlyList<string> OccupationGroupList,
+    IReadOnlyList<string> OccupationNameList,
     IReadOnlyList<string> MunicipalityList,
     IReadOnlyList<string> RegionList,
     IReadOnlyList<string> EmploymentTypeList,
@@ -41,6 +44,7 @@ public sealed record RecentJobSearchDto(
     IReadOnlyList<string> EmployerList,
     bool Remote,
     IReadOnlyList<TaxonomyLabelDto> OccupationGroupLabels,
+    IReadOnlyList<TaxonomyLabelDto> OccupationNameLabels,
     IReadOnlyList<TaxonomyLabelDto> MunicipalityLabels,
     IReadOnlyList<TaxonomyLabelDto> RegionLabels,
     JobAdSortBy SortBy,

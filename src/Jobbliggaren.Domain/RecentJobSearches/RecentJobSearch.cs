@@ -19,8 +19,8 @@ namespace Jobbliggaren.Domain.RecentJobSearches;
 /// </para>
 /// <list type="number">
 /// <item><b>Identitet via FilterHash:</b> UNIQUE(JobSeekerId, FilterHash) på persistens-yta.
-/// <see cref="FilterHashCalculator"/> är canonical-källan; Q/OccupationGroup/Municipality/
-/// Region/EmploymentType/WorktimeExtent/Employer/Remote/SortBy är derivat av hash och får aldrig
+/// <see cref="FilterHashCalculator"/> är canonical-källan; Q/OccupationGroup/OccupationName/
+/// Municipality/Region/EmploymentType/WorktimeExtent/Employer/Remote/SortBy är derivat av hash och får aldrig
 /// divergera (Bump muterar dem ej).</item>
 /// <item><b>Cap per seeker:</b> <see cref="MaxPerSeeker"/> — affärsregel, enforce:as i
 /// <c>IRecentJobSearchCapturer</c>-implementationen (evict äldsta LastViewedAt vid
@@ -50,6 +50,12 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
     private readonly List<string> _occupationGroup = [];
     public IReadOnlyList<string> OccupationGroup => _occupationGroup.AsReadOnly();
 
+    // #2199 PR 2 — the picked occupation-names, persisted as occupation_name_list text[] in the
+    // same backing-field pattern as the lists around it. Part of FilterHash only when non-empty
+    // (FilterHashCalculator), so a row captured before this axis keeps its hash.
+    private readonly List<string> _occupationName = [];
+    public IReadOnlyList<string> OccupationName => _occupationName.AsReadOnly();
+
     private readonly List<string> _municipality = [];
     public IReadOnlyList<string> Municipality => _municipality.AsReadOnly();
 
@@ -58,7 +64,7 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
 
     // ADR 0067 Beslut 6 (Fas B2, 2026-06-12) — Klass 2-dimensioner. Persisteras
     // som text[]-kolumner (employment_type_list/worktime_extent_list) i samma
-    // shadow-backing-field-mönster som de tre ovan; ingår i FilterHash → en
+    // shadow-backing-field-mönster som ovan; ingår i FilterHash → en
     // recent-rad reproducerar exakt sökningen inkl. Klass 2.
     private readonly List<string> _employmentType = [];
     public IReadOnlyList<string> EmploymentType => _employmentType.AsReadOnly();
@@ -101,6 +107,7 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
         FilterHash = filterHash;
         Q = criteria.Q;
         _occupationGroup.AddRange(criteria.OccupationGroup);
+        _occupationName.AddRange(criteria.OccupationName);
         _municipality.AddRange(criteria.Municipality);
         _region.AddRange(criteria.Region);
         _employmentType.AddRange(criteria.EmploymentType);

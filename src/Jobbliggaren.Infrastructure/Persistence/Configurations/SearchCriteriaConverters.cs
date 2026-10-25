@@ -29,6 +29,12 @@ namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 /// omappbart id; (2) skrivvägen stängdes i samma batch (Write emitterar aldrig
 /// nyckeln; commands bär inte fältet); (3) saved_searches hade 0 rader vid
 /// migrationen. Deploy-ordning: migrationen appliceras FÖRE ny binär startas.</para>
+///
+/// <para><b>#2199 PR 2 (ADR 0067 Amendment 2026-10-25) — <c>"OccupationName"</c>:</b> the picked
+/// occupation-names, written right after <c>OccupationGroup</c>. A different key from
+/// <c>"Ssyk"</c> by design: <c>"Ssyk"</c> held occupation-names that C2 converted to their groups,
+/// so it stays fail-loud, while <c>"OccupationName"</c> holds the pick itself. A row saved before
+/// the key reads it as an empty list, like every additive key before it.</para>
 /// </summary>
 internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria>
 {
@@ -39,6 +45,7 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
             throw new JsonException("SearchCriteria-jsonb måste vara ett objekt.");
 
         List<string> occupationGroup = [];
+        List<string> occupationName = [];
         List<string> municipality = [];
         List<string> region = [];
         List<string> employmentType = [];
@@ -62,6 +69,11 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
             {
                 case "OccupationGroup":
                     occupationGroup = ReadStringOrStringArray(ref reader, "OccupationGroup");
+                    break;
+                // #2199 PR 2: a missing key (row saved before PR 2) → empty list via the default,
+                // the same additive back-compat as every key below.
+                case "OccupationName":
+                    occupationName = ReadStringOrStringArray(ref reader, "OccupationName");
                     break;
                 case "Municipality":
                     municipality = ReadStringOrStringArray(ref reader, "Municipality");
@@ -131,6 +143,7 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
         // default-deny vid korrupt data.
         var result = SearchCriteria.Create(
             occupationGroup: occupationGroup,
+            occupationName: occupationName,
             municipality: municipality,
             region: region,
             employmentType: employmentType,
@@ -158,6 +171,13 @@ internal sealed class SearchCriteriaJsonConverter : JsonConverter<SearchCriteria
         writer.WriteStartArray();
         foreach (var g in value.OccupationGroup)
             writer.WriteStringValue(g);
+        writer.WriteEndArray();
+
+        // #2199 PR 2 — OccupationName right after OccupationGroup (the VO's canonical order).
+        writer.WritePropertyName("OccupationName");
+        writer.WriteStartArray();
+        foreach (var n in value.OccupationName)
+            writer.WriteStringValue(n);
         writer.WriteEndArray();
 
         writer.WritePropertyName("Municipality");

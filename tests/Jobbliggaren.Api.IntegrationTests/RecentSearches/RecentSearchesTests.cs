@@ -237,6 +237,42 @@ public class RecentSearchesTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Searching_jobs_with_an_occupation_name_persists_it_and_replays_and_names_it()
+    {
+        // #2199 PR 2: a committed ?occupationName= search captures a RecentJobSearch, persists the
+        // pick into occupation_name_list (the DB-level proof of the text[] column and the
+        // migration; the unit tests run on EF In-Memory), and the pick reaches the wire for the
+        // replay and its label. Projektledare, IT is a picker name in the seeded
+        // taxonomy, so the label resolves its name through the read model.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);
+        var userId = Guid.Parse(me.GetProperty("userId").GetString()!);
+        const string projektledareIt = "z5AM_ayf_WcL";
+
+        var searchResponse = await _client.GetAsync(
+            $"/api/v1/job-ads?occupationName={projektledareIt}&commit=true&page=1&pageSize=20", ct);
+        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
+        var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        items.GetArrayLength().ShouldBe(1, "a name-only search is a real filter and is captured");
+        var row = items[0];
+        row.GetProperty("occupationNameList").EnumerateArray().Select(e => e.GetString())
+            .ShouldBe([projektledareIt]);
+        row.GetProperty("occupationGroupList").GetArrayLength().ShouldBe(0);
+        row.GetProperty("label").GetProperty("parts")[0].GetProperty("text").GetString()
+            .ShouldBe("Projektledare, IT");
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var seeker = await db.JobSeekers.AsNoTracking().SingleAsync(js => js.UserId == userId, ct);
+        var recent = await db.RecentJobSearches.AsNoTracking()
+            .Where(r => r.JobSeekerId == seeker.Id).ToListAsync(ct);
+        recent.ShouldHaveSingleItem().OccupationName.ShouldBe([projektledareIt]);
+    }
+
+    [Fact]
     public async Task Re_searching_same_filter_bumps_existing_row_no_duplicate()
     {
         var ct = TestContext.Current.CancellationToken;

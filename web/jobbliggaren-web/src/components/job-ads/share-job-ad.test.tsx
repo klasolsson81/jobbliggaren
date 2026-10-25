@@ -153,9 +153,11 @@ describe("ShareJobAd", () => {
     renderRow();
 
     expect(moreItem()).not.toHaveClass("invisible");
-    fireEvent.click(screen.getByRole("button", { name: "Fler sätt att dela" }));
+    const button = screen.getByRole("button", { name: "Fler sätt att dela" });
+    fireEvent.click(button);
 
     await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
     expect(share.mock.calls[0]?.[0]).toStrictEqual({ title: TITLE, url: URL_ });
     expect(writeText).not.toHaveBeenCalled();
     expect(screen.queryByRole("textbox")).toBeNull();
@@ -166,9 +168,11 @@ describe("ShareJobAd", () => {
     stubNavigator({ share });
     renderRow();
 
-    fireEvent.click(screen.getByRole("button", { name: "Fler sätt att dela" }));
+    const button = screen.getByRole("button", { name: "Fler sätt att dela" });
+    fireEvent.click(button);
 
     await waitFor(() => expect(share).toHaveBeenCalled());
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
@@ -198,6 +202,9 @@ describe("ShareJobAd", () => {
     const field = await screen.findByRole("textbox", { name: "Länk till annonsen" });
     expect(field).toHaveValue(URL_);
     expect(field).toHaveAccessibleDescription(LABELS.shareFailed);
+    await waitFor(() => expect(field).toHaveFocus());
+    const input = field as HTMLInputElement;
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, URL_.length]);
     expect(writeText).not.toHaveBeenCalled();
   });
 
@@ -243,7 +250,7 @@ describe("ShareJobAd", () => {
     expect(field).toHaveAttribute("readonly");
     expect(field).toHaveAccessibleDescription(LABELS.copyFailed);
     expect(field).not.toHaveAttribute("aria-invalid");
-    expect(field).toHaveFocus();
+    await waitFor(() => expect(field).toHaveFocus());
     const input = field as HTMLInputElement;
     expect([input.selectionStart, input.selectionEnd]).toEqual([0, URL_.length]);
     expect(screen.queryByRole("alert")).toBeNull();
@@ -257,7 +264,7 @@ describe("ShareJobAd", () => {
 
     fireEvent.click(copy);
     const field = await screen.findByRole("textbox", { name: "Länk till annonsen" });
-    expect(field).toHaveFocus();
+    await waitFor(() => expect(field).toHaveFocus());
 
     copy.focus();
     expect(copy).toHaveFocus();

@@ -23,6 +23,7 @@ public class RecentJobSearchTests
     private static SearchCriteria ValidCriteria() =>
         SearchCriteria.Create(
             occupationGroup: ["grp_12345"],
+            occupationName: [],
             municipality: ["sthlm_kn"],
             region: ["stockholm"],
             employmentType: null,
@@ -35,6 +36,7 @@ public class RecentJobSearchTests
     private static SearchCriteria AlternateCriteria() =>
         SearchCriteria.Create(
             occupationGroup: ["grp_67890"],
+            occupationName: [],
             municipality: ["gbg_kn"],
             region: ["goteborg"],
             employmentType: null,
@@ -78,7 +80,7 @@ public class RecentJobSearchTests
         // C2 stänger C1:s live-gap: en yrkesgrupp-only-sökning ska kunna
         // captureras — övriga listor projiceras som tomma.
         var criteria = SearchCriteria.Create(
-            occupationGroup: ["grp_only"], municipality: null, region: null,
+            occupationGroup: ["grp_only"], occupationName: [], municipality: null, region: null,
             employmentType: null, worktimeExtent: null, employer: null,
             remote: false, q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
@@ -100,7 +102,7 @@ public class RecentJobSearchTests
         // the Remote assertion fails; if Compute ignored Remote, a remote=true row would collide
         // with the remote=false row this criteria otherwise is (identity leak).
         var criteria = SearchCriteria.Create(
-            occupationGroup: ["grp_12345"], municipality: null, region: null,
+            occupationGroup: ["grp_12345"], occupationName: [], municipality: null, region: null,
             employmentType: null, worktimeExtent: null, employer: null,
             remote: true, q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
@@ -108,6 +110,23 @@ public class RecentJobSearchTests
             ValidJobSeekerId, criteria, currentCount: 3, Clock.UtcNow);
 
         aggregate.Remote.ShouldBeTrue();
+        aggregate.FilterHash.ShouldBe(FilterHashCalculator.Compute(criteria));
+    }
+
+    [Fact]
+    public void Capture_WithOccupationNameCriteria_ProjectsTheNames()
+    {
+        // #2199 PR 2 — a name-only criteria projects its occupation-names onto the aggregate.
+        var criteria = SearchCriteria.Create(
+            occupationGroup: null, occupationName: ["z5AM_ayf_WcL"], municipality: null, region: null,
+            employmentType: null, worktimeExtent: null, employer: null,
+            remote: false, q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
+
+        var aggregate = RecentJobSearch.Capture(
+            ValidJobSeekerId, criteria, currentCount: 3, Clock.UtcNow);
+
+        aggregate.OccupationName.ShouldBe(["z5AM_ayf_WcL"]);
+        aggregate.OccupationGroup.ShouldBeEmpty();
         aggregate.FilterHash.ShouldBe(FilterHashCalculator.Compute(criteria));
     }
 
@@ -168,12 +187,12 @@ public class RecentJobSearchTests
     {
         // SearchCriteria.NormalizeList sorterar/dedupar → samma hash trots olika input-ordning.
         var c1 = SearchCriteria.Create(
-            occupationGroup: ["zzz", "aaa"], municipality: ["kkk", "jjj"],
+            occupationGroup: ["zzz", "aaa"], occupationName: [], municipality: ["kkk", "jjj"],
             region: ["bbb", "ccc"], employmentType: null, worktimeExtent: null,
             employer: ["5566020202", "5566010101"],
             remote: false, q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var c2 = SearchCriteria.Create(
-            occupationGroup: ["aaa", "zzz"], municipality: ["jjj", "kkk"],
+            occupationGroup: ["aaa", "zzz"], occupationName: [], municipality: ["jjj", "kkk"],
             region: ["ccc", "bbb"], employmentType: null, worktimeExtent: null,
             employer: ["5566010101", "5566020202"],
             remote: false, q: "xx", sortBy: JobAdSortBy.PublishedAtDesc).Value;

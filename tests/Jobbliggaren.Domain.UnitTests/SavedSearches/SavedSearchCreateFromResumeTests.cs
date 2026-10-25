@@ -19,6 +19,7 @@ public class SavedSearchCreateFromResumeTests
     private static SearchCriteria ConfirmedCriteria(params string[] occupationGroups) =>
         SearchCriteria.Create(
             occupationGroup: occupationGroups.Length == 0 ? ["grp_12345"] : occupationGroups,
+            occupationName: [],
             municipality: null, region: null, employmentType: null, worktimeExtent: null,
             employer: null,
             remote: false,

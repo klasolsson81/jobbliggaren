@@ -27,7 +27,7 @@ public class DeleteSavedSearchCommandHandlerTests
         db.JobSeekers.Add(seeker);
 
         var criteria = SearchCriteria.Create(
-            occupationGroup: ["grp_12345"], municipality: null, region: null,
+            occupationGroup: ["grp_12345"], occupationName: [], municipality: null, region: null,
             employmentType: null, worktimeExtent: null, employer: null, remote: false,
             q: null, sortBy: JobAdSortBy.PublishedAtDesc).Value;
         var saved = SavedSearch.Create(seeker.Id, "Att radera", criteria, false,

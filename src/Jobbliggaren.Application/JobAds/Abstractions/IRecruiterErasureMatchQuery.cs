@@ -66,8 +66,9 @@ public interface IRecruiterErasureMatchQuery
     /// <summary>
     /// Recent-search rows whose <c>q</c> contains <paramref name="identifier"/> <b>as a whole
     /// word</b>; whose <c>employer_list</c> contains it as an <b>exact normalised org.nr</b>; or
-    /// whose FIVE concept-id axes (<c>occupation_group_list</c>, <c>municipality_list</c>,
-    /// <c>region_list</c>, <c>employment_type_list</c>, <c>worktime_extent_list</c>) hold an
+    /// whose SIX concept-id axes (<c>occupation_group_list</c>, <c>occupation_name_list</c>,
+    /// <c>municipality_list</c>, <c>region_list</c>, <c>employment_type_list</c>,
+    /// <c>worktime_extent_list</c>) hold an
     /// element matching it as a whole word <b>OR</b> equal to the normalised org.nr exactly.
     /// Returns the rows with their match evidence — the term, the matched org.nr, or the matched
     /// axis value — because they are HARD-DELETED and the operator must see what will go.
@@ -86,7 +87,7 @@ public interface IRecruiterErasureMatchQuery
     /// returned and deleted like any other; round 5 threw exactly that row away after the SQL had
     /// found it.
     /// <para>
-    /// <b>THE FIVE CONCEPT-ID AXES ARE SEARCHED, and the ground that said otherwise was written
+    /// <b>THE SIX CONCEPT-ID AXES ARE SEARCHED, and the ground that said otherwise was written
     /// against the columns' PURPOSE (#1425).</b> They are shape-validated
     /// (<c>^[A-Za-z0-9_-]{1,32}\z</c>) and never taxonomy-resolved, so a hand-edited
     /// <c>?occupationGroup=…&amp;commit=true</c> persists a single-token name or a ten-digit org.nr.
@@ -96,7 +97,7 @@ public interface IRecruiterErasureMatchQuery
     /// Luhn-invalid residual — it does not make the column a closed domain.
     /// </para>
     /// <para>
-    /// <b>BOTH arms run over the five axes, and neither is redundant.</b> The word-boundary
+    /// <b>BOTH arms run over the six axes, and neither is redundant.</b> The word-boundary
     /// pattern is built from the identifier AS SUPPLIED, so a request for <c>550928-1234</c>
     /// yields a pattern that can never match a stored <c>5509281234</c>; only the exact arm
     /// reaches it. And the exact arm alone would never reach a NAME. Drop either and an enskild
@@ -106,7 +107,7 @@ public interface IRecruiterErasureMatchQuery
     /// <b>The exact arm binds every WRITTEN form, not the normalised one</b>
     /// (<c>OrganizationNumber.WrittenForms</c>, the inverse of <c>TryFromWrittenForm</c>).
     /// <c>employer_list</c> normalises on write, so matching its 10-digit form is complete there.
-    /// These five validate on SHAPE ONLY and store what was typed, so a normalised comparison
+    /// These six validate on SHAPE ONLY and store what was typed, so a normalised comparison
     /// reaches only the form that happens to coincide: measured against the live catalog, a request
     /// for <c>5509281234</c> reached a stored <c>5509281234</c> and NONE of <c>550928-1234</c>,
     /// <c>195509281234</c> or <c>19550928-1234</c>.

@@ -161,6 +161,7 @@ public sealed class TaxonomyConceptIdGrammarTests
 
             var capture = SearchCriteria.Create(
                 occupationGroup: batch,
+                occupationName: [],
                 municipality: null,
                 region: null,
                 employmentType: null,

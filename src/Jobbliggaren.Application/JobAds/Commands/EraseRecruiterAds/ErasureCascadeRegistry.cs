@@ -200,11 +200,13 @@ public static class ErasureCascadeRegistry
                 "recent_job_searches.q",
                 "recent_job_searches.employer_list",
 
-                // #1425 - the five concept-id axes. NOT a new surface: same rows, same disposition
-                // (Erased, hard-delete), same remedy (one RemoveRange in the handler), so one count
+                // #1425 - the six concept-id axes (#2199 PR 2 added occupation_name_list). NOT a new
+                // surface: same rows, same disposition (Erased, hard-delete), same remedy (one
+                // RemoveRange in the handler), so one count
                 // over one row set. Splitting would count a row that matched on both q and an axis
                 // TWICE in Matched.Total. See the port for the arms.
                 "recent_job_searches.occupation_group_list",
+                "recent_job_searches.occupation_name_list",
                 "recent_job_searches.municipality_list",
                 "recent_job_searches.region_list",
                 "recent_job_searches.employment_type_list",
@@ -342,11 +344,11 @@ public static class ErasureCascadeRegistry
                 + "argument, one storage form over. Follows extracted_terms to [] on Erase().",
 
             ["recent_job_searches.filter_hash"] =
-                "DERIVATION: filter_hash is SHA-256 over the WHOLE criteria - q, the five "
+                "DERIVATION: filter_hash is SHA-256 over the WHOLE criteria - q, the six "
                 + "concept-id lists, employer_list, remote and sort_by (FilterHashCalculator) - "
                 + "computed by RecentJobSearch.Capture, and it 'får aldrig divergera' from them. "
                 + "EVERY input to that derivation which can carry her identifier is a SEARCHED "
-                + "column of the RecentJobSearches channel: q, employer_list, and the five "
+                + "column of the RecentJobSearches channel: q, employer_list, and the six "
                 + "concept-id lists, which are shape-validated and never taxonomy-resolved "
                 + "(#1425). remote is a bool and sort_by an enum. A hash is one-way and cannot be "
                 + "searched for an identifier; the row is hard-deleted when any searched input "
@@ -417,7 +419,7 @@ public static class ErasureCascadeRegistry
             // Derived from the criteria; hard-deleted with the row (see ErasedWithoutSearchChannel).
             ["recent_job_searches.filter_hash"] = ErasureColumnDisposition.Erased,
 
-            // The other five list columns are SHAPE-VALIDATED, never TAXONOMY-RESOLVED, and that
+            // The other six list columns are SHAPE-VALIDATED, never TAXONOMY-RESOLVED, and that
             // difference is the whole of #1425. The write path is SearchCriteria.ValidateConceptList
             // against ^[A-Za-z0-9_-]{1,32}\z and nothing else; no lookup against taxonomy_concepts
             // exists on any path into these columns. `Karlsson`, `Anna-Karlsson` and a ten-digit
@@ -431,9 +433,10 @@ public static class ErasureCascadeRegistry
             // A guard over one value class does not make a column a closed domain.
             //
             // Erased with the row (ADR 0106 A4: hard-delete; nulling is unavailable because each of
-            // these five is an INPUT to FilterHash, which IS the row's identity) and SEARCHED by the
+            // these six is an INPUT to FilterHash, which IS the row's identity) and SEARCHED by the
             // RecentJobSearches channel. Not MatchedHumanErases: no human settles these rows.
             ["recent_job_searches.occupation_group_list"] = ErasureColumnDisposition.Erased,
+            ["recent_job_searches.occupation_name_list"] = ErasureColumnDisposition.Erased,
             ["recent_job_searches.municipality_list"] = ErasureColumnDisposition.Erased,
             ["recent_job_searches.region_list"] = ErasureColumnDisposition.Erased,
             ["recent_job_searches.employment_type_list"] = ErasureColumnDisposition.Erased,
@@ -498,7 +501,7 @@ public static class ErasureCascadeRegistry
             // her personnummer - and it has no remedy short of deleting the watch, so it is
             // MatchedHumanErases and never Erased: an Art. 17 request about a recruiter may not
             // silently destroy another user's deliberate configuration. `filter` is shape-validated
-            // and never taxonomy-resolved, the identical false ground as the five recent_job_searches
+            // and never taxonomy-resolved, the identical false ground as the six recent_job_searches
             // axes one table over (#1425).
             ["company_watches.organization_number"] = ErasureColumnDisposition.MatchedHumanErases,
             ["company_watches.filter"] = ErasureColumnDisposition.MatchedHumanErases,
@@ -802,7 +805,7 @@ public static class ErasureCascadeRegistry
                 + "match_preferences is jsonb holding six lists of up to 400 elements, every element "
                 + "gated by ^[A-Za-z0-9_-]{1,32} and by nothing else - no concept-id is resolved "
                 + "against any taxonomy table on that path. Same false ground, same shape, as "
-                + "company_watches.filter and the five recent_job_searches axes (#1425). "
+                + "company_watches.filter and the six recent_job_searches axes (#1425). "
                 + "Language has NO server-side validation at all: no validator class on "
                 + "UpdateMyProfileCommand, no guard in ChangeLanguage, no factory on the record, "
                 + "and no varchar(N) because it lives inside jsonb. It is unbounded arbitrary text. "

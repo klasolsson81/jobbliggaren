@@ -1217,7 +1217,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         await db.SaveChangesAsync(ct);
 
         var criteria = SearchCriteria.Create(
-            null, null, null, null, null, null, false, RecruiterName, JobAdSortBy.Relevance).Value;
+            null, null, null, null, null, null, null, false, RecruiterName, JobAdSortBy.Relevance).Value;
 
         db.RecentJobSearches.Add(
             RecentJobSearch.Capture(seeker.Id, criteria, currentCount: 0, now: clock.UtcNow));
@@ -1248,7 +1248,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         foreach (var q in queries)
         {
             var criteria = SearchCriteria.Create(
-                null, null, null, null, null, null, false, q, JobAdSortBy.Relevance).Value;
+                null, null, null, null, null, null, null, false, q, JobAdSortBy.Relevance).Value;
 
             db.RecentJobSearches.Add(
                 RecentJobSearch.Capture(seeker.Id, criteria, currentCount: 0, now: clock.UtcNow));
@@ -1286,13 +1286,14 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             string[]? one = [value];
             var criteria = SearchCriteria.Create(
-                axis == 0 ? one : null,   // occupation_group_list
-                axis == 1 ? one : null,   // municipality_list
-                axis == 2 ? one : null,   // region_list
-                axis == 3 ? one : null,   // employment_type_list
-                axis == 4 ? one : null,   // worktime_extent_list
+                occupationGroup: axis == 0 ? one : null,   // occupation_group_list
+                occupationName: axis == 5 ? one : null,    // occupation_name_list (#2199 PR 2)
+                municipality: axis == 1 ? one : null,      // municipality_list
+                region: axis == 2 ? one : null,            // region_list
+                employmentType: axis == 3 ? one : null,    // employment_type_list
+                worktimeExtent: axis == 4 ? one : null,    // worktime_extent_list
                 employer: null, remote: false, q: null,
-                JobAdSortBy.PublishedAtDesc).Value;
+                sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
             db.RecentJobSearches.Add(
                 RecentJobSearch.Capture(seeker.Id, criteria, currentCount: 0, now: clock.UtcNow));
@@ -2109,7 +2110,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
     /// <summary>
     /// <b>A saved search's <c>criteria</c> is shape-only validated, so it stores what was typed.</b>
-    /// The five concept axes admit <c>^[A-Za-z0-9_-]{1,32}\z</c> — hyphen included — and the one
+    /// The concept axes admit <c>^[A-Za-z0-9_-]{1,32}\z</c> — hyphen included — and the one
     /// axis that WOULD normalise (<c>Employer</c>, through <c>OrganizationNumber.Create</c>) is
     /// hard-coded empty on all three write paths, so no org.nr in this column is ever normalised.
     /// The row holds the ten-digit form; the request carries the hyphenated one.
@@ -2525,7 +2526,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         // employer is [] because the WRITE path hard-codes it so (#311 PR-2b C1). Threading an
         // org.nr through it here would seed a state src/ cannot produce.
         var criteria = SearchCriteria.Create(
-            occupationGroup, null, null, null, null, null,
+            occupationGroup, null, null, null, null, null, null,
             remote: false, q, JobAdSortBy.PublishedAtDesc).Value;
 
         db.SavedSearches.Add(
@@ -3184,7 +3185,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
 
             var employerOnly = SearchCriteria.Create(
-                null, null, null, null, null,
+                null, null, null, null, null, null,
                 employer: ["5509281234"], remote: false, q: null, JobAdSortBy.PublishedAtDesc).Value;
 
             db.RecentJobSearches.Add(
@@ -3326,7 +3327,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
 
             var neutralCriteria = SearchCriteria.Create(
-                null, null, null, null, null, null, false, "sjuksköterska", JobAdSortBy.Relevance).Value;
+                null, null, null, null, null, null, null, false, "sjuksköterska", JobAdSortBy.Relevance).Value;
 
             db.SavedSearches.Add(SavedSearch.Create(
                 seeker.Id, "Petra Sandelins annonser", neutralCriteria,
@@ -3634,18 +3635,18 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// #1425 — every one of the five concept-id axes is matched on THAT COLUMN ALONE. Remove any
+    /// #1425 — every one of the six concept-id axes is matched on THAT COLUMN ALONE. Remove any
     /// column from the <c>unnest(...)</c> chain in <c>FindRecentJobSearchesAsync</c> and exactly
-    /// one arm goes red.
+    /// one arm goes red. #2199 PR 2 added the sixth, <c>occupation_name_list</c>.
     /// </summary>
     /// <remarks>
-    /// The sixth arm is the LOOSENESS control and it is not decoration: without it, replacing the
-    /// word-boundary <c>~*</c> with a naked <c>ILIKE '%'||id||'%'</c> leaves all five arms green.
+    /// The seventh arm is the LOOSENESS control and it is not decoration: without it, replacing the
+    /// word-boundary <c>~*</c> with a naked <c>ILIKE '%'||id||'%'</c> leaves all six arms green.
     /// These rows are hard-deleted with no per-id confirmation ceremony, so an over-match here is
     /// an unreviewed deletion of another user's row — erasing <c>anna</c> must not take
     /// <c>marianna</c>. This is the taxonomy twin of the q-arm's own word-boundary pin.
     /// <para>
-    /// The seventh asserts the personnummer flag does NOT fire on ordinary names.
+    /// The eighth asserts the personnummer flag does NOT fire on ordinary names.
     /// <c>OrganizationNumber.IsPersonnummerShaped()</c> fails SAFE — it returns true for anything
     /// that is not ten ASCII digits — so a taxonomy evidence builder that skipped the
     /// recogniser gate would suffix "(personnummer-format)" onto every name it surfaced, and
@@ -3664,6 +3665,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             (2, "Solveig-Brandtberg"),
             (3, "Ingemar-Sparre"),
             (4, "Hedvig-Morner"),
+            (5, "Ragnhild-Ekdahl"),
             (0, "marianna"));
 
         (await EraseAsync("Vilhelmina-Roos", ct, dryRun: true)).Matched.RecentJobSearches
@@ -3676,6 +3678,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             .ShouldBe(1, "employment_type_list alone must carry the match.");
         (await EraseAsync("Hedvig-Morner", ct, dryRun: true)).Matched.RecentJobSearches
             .ShouldBe(1, "worktime_extent_list alone must carry the match.");
+        (await EraseAsync("Ragnhild-Ekdahl", ct, dryRun: true)).Matched.RecentJobSearches
+            .ShouldBe(1, "occupation_name_list alone must carry the match.");
 
         (await EraseAsync("anna", ct, dryRun: true)).Matched.RecentJobSearches
             .ShouldBe(0, "the axis match is a WHOLE WORD, not a substring: erasing `anna` must "
@@ -3699,7 +3703,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// </summary>
     /// <remarks>
     /// <b>The seeded state is producible by <c>src/</c> today, and the actor is named.</b>
-    /// <c>RecentJobSearchCaptureBehavior</c> guards these five axes with <c>BearsPersonnummer</c>
+    /// <c>RecentJobSearchCaptureBehavior</c> guards these six axes with <c>BearsPersonnummer</c>
     /// (#1419), whose detector runs <c>Personnummer.TryParse</c> — date sanity AND Luhn.
     /// <c>5509281234</c> fails Luhn, so it is not flagged and
     /// <c>?occupationGroup=5509281234&amp;commit=true</c> still persists it. That is #1419's own
@@ -3719,11 +3723,12 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         await IngestThroughProductionPathAsync(ct);
 
-        // EVERY seeded value, not just the first: the seed grew to four and a provenance claim
+        // EVERY seeded value, not just the first: the seed grew to five and a provenance claim
         // that covers a quarter of it is a claim about a different test. `5509281234_x` matters
         // most -- the assertion built on it is a claim about PROTECTING another user's row, and if
         // the guard refused that form the protection claim would be about nothing.
-        foreach (var seeded in new[] { "5509281234", "550928-1234", "19550928-1234", "5509281234_x" })
+        foreach (var seeded in new[]
+            { "5509281234", "550928-1234", "19550928-1234", "195509281234", "5509281234_x" })
         {
             PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(
                     seeded, PersonnummerGapProfile.SingleLineUserInput))
@@ -3732,20 +3737,21 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                     + "because the guard is Luhn-gated and this value is Luhn-invalid.");
         }
 
-        // Four rows: the bare form, the two WRITTEN forms the axes admit and store literally,
-        // and a looseness control. Measured before the fix: a request for the normalised form
+        // Five rows: the bare form, three WRITTEN forms the axes admit and store literally (the
+        // twelve-digit one on occupation_name_list, #2199 PR 2), and a looseness control. Measured before the fix: a request for the normalised form
         // reached ONLY the bare one; `550928-1234`, `195509281234` and `19550928-1234` were all
         // unreachable, on a column now certified Erased.
         await SeedTaxonomyAxisSearchesAsync(ct,
             (0, "5509281234"),
             (1, "550928-1234"),
             (2, "19550928-1234"),
+            (5, "195509281234"),
             (3, "5509281234_x"));
 
         var probe = await EraseAsync("550928-1234", ct, dryRun: true);
 
-        probe.Matched.RecentJobSearches.ShouldBe(3,
-            "all THREE written forms must be reached. The word-boundary pattern is built from the "
+        probe.Matched.RecentJobSearches.ShouldBe(4,
+            "all FOUR written forms must be reached, the fourth sitting in occupation_name_list. The word-boundary pattern is built from the "
             + "identifier as supplied, so it reaches `550928-1234` and neither of the others; the "
             + "exact arm must therefore bind every written form (OrganizationNumber.WrittenForms), "
             + "not the normalised one. And `5509281234_x` must NOT be taken: the exact arm is exact, "
@@ -3760,9 +3766,11 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             + "it un-flagged on the operator's own review screen.");
         probe.MatchedRecentSearchTerms.ShouldContain("sökfilter: 19550928-1234 (personnummer-format)",
             "including the century-prefixed form.");
+        probe.MatchedRecentSearchTerms.ShouldContain("sökfilter: 195509281234 (personnummer-format)",
+            "and the twelve-digit form, from the occupation-name axis (#2199 PR 2).");
 
         var result = await EraseAsync("550928-1234", ct);
-        result.Erased.RecentJobSearches.ShouldBe(3, "found by SQL must mean DELETED.");
+        result.Erased.RecentJobSearches.ShouldBe(4, "found by SQL must mean DELETED.");
 
         using var check = _provider.CreateScope();
         var after = check.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -3771,15 +3779,17 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                 SELECT count(*)::int AS "Value" FROM recent_job_searches
                 WHERE EXISTS (SELECT 1 FROM unnest(
                          coalesce(occupation_group_list, ARRAY[]::text[])
+                      || coalesce(occupation_name_list,  ARRAY[]::text[])
                       || coalesce(municipality_list,     ARRAY[]::text[])
                       || coalesce(region_list,           ARRAY[]::text[])
                       || coalesce(employment_type_list,  ARRAY[]::text[])
                       || coalesce(worktime_extent_list,  ARRAY[]::text[])
-                     ) AS axis WHERE axis IN ('5509281234', '550928-1234', '19550928-1234'))
+                     ) AS axis
+                     WHERE axis IN ('5509281234', '550928-1234', '19550928-1234', '195509281234'))
                 """)
             .ToListAsync(ct);
         surviving[0].ShouldBe(0,
-            "her personnummer-shaped org.nr must not survive in ANY of the five axes, in ANY "
+            "her personnummer-shaped org.nr must not survive in ANY of the six axes, in ANY "
             + "written form, after an erasure we certified as executed.");
     }
 
@@ -3813,7 +3823,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
 
             var criteria = SearchCriteria.Create(
-                occupationGroup: ["Anna-Karlsson"], null, null, null, null,
+                occupationGroup: ["Anna-Karlsson"], occupationName: [], null, null, null, null,
                 employer: null, remote: false, q: "Karlsson jobb",
                 JobAdSortBy.Relevance).Value;
 
@@ -3866,7 +3876,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
 
             var criteria = SearchCriteria.Create(
-                occupationGroup: ["Vilhelmina-Roos"], null, null, null, null,
+                occupationGroup: ["Vilhelmina-Roos"], occupationName: [], null, null, null, null,
                 employer: null, remote: false, q: "kock i Uppsala",
                 JobAdSortBy.Relevance).Value;
 

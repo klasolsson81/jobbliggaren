@@ -17,8 +17,7 @@ namespace Jobbliggaren.Domain.SavedSearches;
 /// + <see cref="Municipality"/> (kommun) ersätter occupation-name-dimensionen
 /// (Ssyk UTGICK — sparade rader reverse-lookup-migrerades occupation-name →
 /// parent ssyk-level-4; senior-cto-advisor-dom (a)/(f) 2026-06-09).
-/// occupation-name-substratet bevaras i job_ads (synonym-/recall-väg via Q) —
-/// inte i VO:t.
+/// occupation-name-substratet bevaras i job_ads (synonym-/recall-väg via Q).
 /// </para>
 ///
 /// <para>
@@ -86,6 +85,14 @@ public sealed record SearchCriteria
     public const int MaxConceptIds = 400;
 
     public IReadOnlyList<string> OccupationGroup { get; private init; } = [];
+
+    // #2199 PR 2 (ADR 0067 Amendment 2026-10-25) — the occupation-names (yrkesbenämningar) the user
+    // picked: the Yrke dimension at a finer grain, OR-ed with OccupationGroup by the search port and
+    // expanded there through the lineage artefact, so the stored pick is the id the user ticked and
+    // never its expansion. A concept-id list like the group, validated the same way. Placed right
+    // after OccupationGroup on all five identity surfaces (Create/Equals/GetHashCode/jsonb/FilterHash).
+    public IReadOnlyList<string> OccupationName { get; private init; } = [];
+
     public IReadOnlyList<string> Municipality { get; private init; } = [];
     public IReadOnlyList<string> Region { get; private init; } = [];
 
@@ -127,6 +134,7 @@ public sealed record SearchCriteria
 
     public static Result<SearchCriteria> Create(
         IEnumerable<string>? occupationGroup,
+        IEnumerable<string>? occupationName,
         IEnumerable<string>? municipality,
         IEnumerable<string>? region,
         IEnumerable<string>? employmentType,
@@ -141,6 +149,7 @@ public sealed record SearchCriteria
                 "SearchCriteria.InvalidSortBy", "Ogiltig sortering."));
 
         var normOccupationGroup = NormalizeList(occupationGroup);
+        var normOccupationName = NormalizeList(occupationName);
         var normMunicipality = NormalizeList(municipality);
         var normRegion = NormalizeList(region);
         var normEmploymentType = NormalizeList(employmentType);
@@ -154,14 +163,17 @@ public sealed record SearchCriteria
         // äkta filter-intention (WHERE remote, "visa distans-jobb"), inte default-browse. remote=false
         // ensamt förblir tomt (bool-semantik: false = inget filter). MÅSTE hållas i lockstep med
         // capture-guarden i RecentJobSearchCaptureBehavior (architect-bind — annars tyst no-capture).
-        if (normOccupationGroup.Length == 0 && normMunicipality.Length == 0
+        // #2199 PR 2: a name-only search (OccupationName:[x] alone) is a valid search, like a
+        // group-only one.
+        if (normOccupationGroup.Length == 0 && normOccupationName.Length == 0
+            && normMunicipality.Length == 0
             && normRegion.Length == 0 && normEmploymentType.Length == 0
             && normWorktimeExtent.Length == 0 && normEmployer.Length == 0 && normQ is null
             && !remote)
         {
             return Result.Failure<SearchCriteria>(DomainError.Validation(
                 "SearchCriteria.Empty",
-                "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning, arbetsgivare, distans eller fritext) krävs."));
+                "Minst ett sökkriterium (yrkesgrupp, yrkesbenämning, kommun, region, anställningsform, omfattning, arbetsgivare, distans eller fritext) krävs."));
         }
 
         // Cap + per-element-regex per dimension (invariant 2 + default-deny).
@@ -173,6 +185,12 @@ public sealed record SearchCriteria
                 $"Max {MaxConceptIds} yrkesgrupper per sökning.",
                 "SearchCriteria.InvalidOccupationGroup",
                 "Yrkesgrupp måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).")
+            ?? ValidateConceptList(
+                normOccupationName,
+                "SearchCriteria.TooManyOccupationName",
+                $"Max {MaxConceptIds} yrkesbenämningar per sökning.",
+                "SearchCriteria.InvalidOccupationName",
+                "Yrkesbenämning måste vara en giltig JobTech concept-id (1-32 tecken, alfanumeriskt + _-).")
             ?? ValidateConceptList(
                 normMunicipality,
                 "SearchCriteria.TooManyMunicipality",
@@ -219,6 +237,7 @@ public sealed record SearchCriteria
         return Result.Success(new SearchCriteria
         {
             OccupationGroup = normOccupationGroup,
+            OccupationName = normOccupationName,
             Municipality = normMunicipality,
             Region = normRegion,
             EmploymentType = normEmploymentType,
@@ -296,9 +315,9 @@ public sealed record SearchCriteria
     // default REFERENS-equality → SavedSearch jsonb-dedupe skulle aldrig hitta
     // dubbletter. Listorna är redan normaliserade (sorterad+distinct ordinal)
     // i Create → sekvensjämförelse är deterministisk. Kanonisk dimensions-
-    // ordning: OccupationGroup, Municipality, Region, EmploymentType,
+    // ordning: OccupationGroup, OccupationName, Municipality, Region, EmploymentType,
     // WorktimeExtent, Employer, Remote (architect F1; Klass 2 tillagt Fas B2, ADR
-    // 0067 Beslut 6; Employer #311 PR-2b C1; Remote #551 PR-D).
+    // 0067 Beslut 6; Employer #311 PR-2b C1; Remote #551 PR-D; OccupationName #2199 PR 2).
     public bool Equals(SearchCriteria? other)
     {
         if (other is null)
@@ -309,6 +328,7 @@ public sealed record SearchCriteria
         return SortBy == other.SortBy
             && string.Equals(Q, other.Q, StringComparison.Ordinal)
             && OccupationGroup.SequenceEqual(other.OccupationGroup, StringComparer.Ordinal)
+            && OccupationName.SequenceEqual(other.OccupationName, StringComparer.Ordinal)
             && Municipality.SequenceEqual(other.Municipality, StringComparer.Ordinal)
             && Region.SequenceEqual(other.Region, StringComparer.Ordinal)
             && EmploymentType.SequenceEqual(other.EmploymentType, StringComparer.Ordinal)
@@ -324,6 +344,8 @@ public sealed record SearchCriteria
         hash.Add(Q, StringComparer.Ordinal);
         foreach (var g in OccupationGroup)
             hash.Add(g, StringComparer.Ordinal);
+        foreach (var n in OccupationName)
+            hash.Add(n, StringComparer.Ordinal);
         foreach (var m in Municipality)
             hash.Add(m, StringComparer.Ordinal);
         foreach (var r in Region)

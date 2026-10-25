@@ -138,7 +138,7 @@ public sealed record OrganizationNumber
     /// <b>Why this exists.</b> A column whose write path normalises (<c>recent_job_searches.employer_list</c>)
     /// stores the 10-digit form, so normalising the REQUEST is enough to match it.
     /// A column validated on SHAPE ONLY stores whatever was typed — and the
-    /// five <c>recent_job_searches</c> concept-id axes admit every form below under
+    /// six <c>recent_job_searches</c> concept-id axes admit every form below under
     /// <c>^[A-Za-z0-9_-]{1,32}\z</c>. Against those, comparing a normalised request to an
     /// unnormalised store reaches only the one form that happens to coincide (#1425).
     /// <para>

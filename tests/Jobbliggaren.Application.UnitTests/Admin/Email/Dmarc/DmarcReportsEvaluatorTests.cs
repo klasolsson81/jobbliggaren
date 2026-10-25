@@ -283,7 +283,8 @@ public sealed class DmarcReportsEvaluatorTests
     [InlineData(DmarcRunOutcome.Protocol, true)]
     public void EveryOtherOutcome_SaysNothingAboutWhenSignInResumes(DmarcRunOutcome latest, bool succeededBefore)
     {
-        var dto = Evaluate(Read(State(latest, succeededBefore ? EarlierSuccess : null), SomeReports));
+        var success = succeededBefore ? EarlierSuccess : (DateTimeOffset?)null;
+        var dto = Evaluate(Read(State(latest, success, latest == DmarcRunOutcome.Succeeded ? success : null), SomeReports));
 
         dto.Ingestion.ShouldNotBeNull().SignInResumesAt.ShouldBeNull();
     }

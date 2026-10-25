@@ -248,7 +248,7 @@ public sealed record DmarcIngestionDto
         LastAttemptAt = lastAttemptAt;
         LastSuccessAt = lastSuccessAt;
         LatestFailure = latestFailure;
-        SignInResumesAt = latestFailure is { } backedOff ? DmarcOutcomes.SignInResumesAt(backedOff, lastAttemptAt) : null;
+        SignInResumesAt = latestFailure is { } latest ? DmarcOutcomes.SignInResumesAt(latest, lastAttemptAt) : null;
         Stale = stale;
     }
 

@@ -16,12 +16,13 @@ namespace Jobbliggaren.Application.JobAds.Publication;
 /// <item>the value no longer passes <see cref="ApplicationUrl.FromSource"/>, which runs again here so
 /// that a tightened write rule reaches every stored row at once;</item>
 /// <item>the host, after IDN mapping, is not plain LDH ASCII, so a host the vocabulary cannot be
-/// compared with is never admitted;</item>
+/// compared with is never admitted (an over-long label makes <see cref="Uri.IdnHost"/> return the host
+/// unmapped, where a browser still maps it);</item>
 /// <item>the host, or a host it is a subdomain of, is a profile, social or messaging host
 /// (<see cref="ContactHosts"/>) or a link shortener (<see cref="Shorteners"/>), whose target we cannot
 /// see;</item>
 /// <item>the host is one that also serves personal pages (<see cref="AllowedFirstSegments"/>) and the
-/// path is not one of its job or company paths, or has a dot segment;</item>
+/// path, as <see cref="Uri.AbsolutePath"/> resolves it, is not one of its job or company paths;</item>
 /// <item>Tier A's recogniser (<see cref="RecruiterContactRedactor"/>) finds a span in any of the
 /// value's <see cref="ApplicationUrl.Readings"/>.</item>
 /// </list>
@@ -115,9 +116,7 @@ internal static class PublicApplicationLink
         var segments = absolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries)
             .Select(Uri.UnescapeDataString)
             .ToArray();
-        return segments.Length > 0
-            && allowedFirstSegments.Contains(segments[0])
-            && !segments.Any(segment => segment is "." or "..");
+        return segments.Length > 0 && allowedFirstSegments.Contains(segments[0]);
     }
 
     private static bool IsLdhAscii(string host) =>

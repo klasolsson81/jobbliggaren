@@ -90,7 +90,9 @@ public class PublicApplicationLinkTests
     [InlineData("https://www.linkedin.com/posts/someone_jobb-activity-1")]
     [InlineData("https://www.linkedin.com/")]
     [InlineData("https://www.linkedin.com/comm/jobs/view/1")]
+    // A dot segment, plain or escaped, is resolved before the path is read, as a browser resolves it.
     [InlineData("https://www.linkedin.com/jobs/%2e%2e/in/someone")]
+    [InlineData("https://www.linkedin.com/jobs/.%2e/in/someone")]
     [InlineData("https://www.linkedin.com/jobs/../in/someone")]
     public void Admit_LinkedInPageThatIsNotAJobOrCompanyPage_IsNull(string raw) =>
         PublicApplicationLink.Admit(Stored(raw)).ShouldBeNull();
@@ -109,6 +111,16 @@ public class PublicApplicationLinkTests
     [InlineData("https://%66acebook.com/somepage")]
     public void Admit_HostThatIsNotPlainAsciiAfterMapping_NeverReachesThePublicRead(string raw) =>
         PublicApplicationLink.Admit(ApplicationUrl.FromSource(raw)).ShouldBeNull();
+
+    // An over-long label makes IdnHost give the host back unmapped, fullwidth letters and all, so the vocabulary
+    // cannot see facebook.com in it; a browser maps it all the same. The import stores it; the gate holds it back.
+    [Fact]
+    public void Admit_HostIdnCannotMap_IsNull()
+    {
+        var raw = "https://" + new string('ä', 70) + ".ｆａｃｅｂｏｏｋ.com/somepage";
+
+        PublicApplicationLink.Admit(Stored(raw)).ShouldBeNull();
+    }
 
     [Theory]
     [InlineData("https://jobb.example.se/ansok/811218%2D9876")]

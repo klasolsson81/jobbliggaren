@@ -372,3 +372,19 @@ D1–D7 and the earlier amendments stand and nothing above is rewritten. This am
 **5. Not changed.** "There is no per-ad image" and the shared `/opengraph-image` stand; #2214's PR 2 amends them. D3 is unchanged, because this PR adds no read and no endpoint. D6 is unchanged: crawlers are kept from the page's login URLs by `rel="nofollow"` on the link, not by a `Disallow`.
 
 ADR 0165 remains **Accepted**.
+
+## Amendment 2026-10-25 (#2214, ADR 0183 Amendment 2026-10-25) — D4: the page names a square brand image and the summary card
+
+D1–D7 and the earlier amendments stand and nothing above is rewritten. This amendment records what PR [#2232](https://github.com/klasolsson81/jobbliggaren/pull/2232) changes in D4.
+
+**1. The image.** The page names `/delningsbild` in `openGraph.images`, with width, height and the alt "Jobbliggaren" (`metadata.applicationName`). It also names it in a `twitter` block of its own, with `card: "summary"` and the same title and description as OpenGraph.
+- **What it is:** a 400 × 400 PNG of the brand mark on white, the same for every ad, reading nothing.
+- **The root's large card stays for every other page.** A page's own `openGraph` and `twitter` replace the root's wholesale. Measured on the production build by `public-job-smoke.mjs`, 2026-10-25: one `og:image` and one `twitter:image`, both the square, and one `twitter:card`, `summary`.
+- **Why 400 px:** it is the widest image LinkedIn still shows as a thumbnail ("less than 401 pixels wide", linkedin.com/help/linkedin/answer/a521928). It is also under the 600 × 315 Facebook needs for its large card (developers.facebook.com/docs/sharing/webmasters/images). Both pages were read 2026-10-25.
+- **Not measured:** that Facebook shows the image as the compact card. Klas checks it from his own device.
+
+**2. "There is no per-ad image" stands, and no PR is now pending against it.** The amendment of 2026-10-24 (point 5) said #2214's PR 2 would amend it. Klas withdrew PR 2 on 2026-10-25 ("Ja, ersätter PR 2 (Rek.)"). The ADR 0166 D10 reading has one home, ADR 0183 Amendment 2026-10-25, and it is not repeated here.
+
+**3. D4's metadata rule is unchanged.** Title, description, OpenGraph and now the Twitter card are built from structured fields only.
+
+ADR 0165 remains **Accepted**.

@@ -504,3 +504,72 @@ byte-unchanged.
 `JobAdListedReadSurfaceTests`, the DTO-shape lock, the FE share-row tests). It adds no migration, no package,
 no CSS, no i18n key (the `publicjob.share.*` keys are reused), and no `deploy/` change.
 `hotspot:i18n`/`hotspot:css` are not claimed (Klas, 2026-10-24).
+
+---
+
+## Amendment 2026-10-25 — icons on the share row and no brand marks; PR 2 is replaced by a compact square preview
+
+**Measured against** the branch `feat/share-ikoner` in `C:/tmp/jbl-share-ikoner`, cut from `origin/main` `a0bce481f` (which contains PR 1 and PR 3),
+on 2026-10-25. PR [#2232](https://github.com/klasolsson81/jobbliggaren/pull/2232).
+
+**Klas, 2026-10-25.** His directives were "ikoner + polish" and "liten kvadratisk logga". His answers in the plan reading, by AskUserQuestion, quoted
+without edits:
+
+| # | Asked | His answer | What it decides |
+|---|---|---|---|
+| 1 | the icons, after the owners' rules were read | "Inga märken, Lucide (Rek.)" | D4's "Text only" becomes Lucide icons, with no brand mark |
+| 2 | whether the compact preview replaces PR 2 | "Ja, ersätter PR 2 (Rek.)" | PR 2 (the per-ad image) is withdrawn, and ADR 0165 D4's "There is no per-ad image" stands |
+| 3 | the new image's address | "Ny adress + Caddy-rad (Rek.)" | `/delningsbild` and one row in the edge's CORP map (ADR 0163, lapse trigger 5) |
+
+**Why there are no brand marks.** D4 left marks to "a bounded DESIGN.md §3 and §7 exception … with every owner's rules read". The rules were read on
+2026-10-25, and none admits a mark on a share link:
+- **LinkedIn** (brand.linkedin.com/in-logo) admits the [in] logo as a "Share" button only for "a third-party API developer with a client ID".
+  - Members' uses do not include sharing.
+  - The logo may not be combined "with any other symbol, logo, words".
+- **Facebook** (meta.com/brand/resources/facebook/logo, updated December 2024) names one use: "to drive to your presence on Facebook".
+  - "Do not connect any other words to the logo."
+  - Meta's trademarks "may only be used as provided in these guidelines or with Meta's permission".
+- **WhatsApp** (meta.com/brand/resources/whatsapp/whatsapp-brand) allows only the official resources, unmodified.
+  - They may not be combined "with … generic terms".
+  - Sharing is not addressed.
+
+DESIGN.md §3's condition ("där ägarens varumärkesregler medger") is therefore unmet for all three, as it is for LinkedIn on `/logga-in`. No exception is
+written.
+
+**D4, as amended** (`design-reviewer`'s plan read, report-only, local `docs/reviews/2026-10-25-share-ikoner-plan-design-reviewer.md`):
+- **Form**, replacing "the house stand-alone text link":
+  - Every item is `jp-btn jp-btn--secondary` at 44 px in every width. It is never `--sm`'s 36, because Klas's approved preview said 44 px.
+  - Each item fills its cell (`w-full`).
+  - The list is `flex flex-wrap gap-2`. From 640 px it is a grid of three `max-content` columns: the platforms stand on one line, and E-post, Kopiera
+    länken and Fler sätt att dela stand under them in columns of one width. `design-reviewer` measured 3 + 3 at 640, 768 and 1280, in sv and en.
+  - The share sheet's reserved cell ends the second line, so it leaves no empty band.
+  - The border carries the control's shape, so the underline goes (WCAG 1.4.1). `--jp-border-input` on `--jp-surface` is 3.50:1 in light, and 1.4.11's
+    floor is 3:1.
+- **Icons**, replacing "Text only, no icons": Lucide, 16 px, `currentColor`, `aria-hidden`.
+  - `ExternalLink` follows a platform's name. The name is the identity and ↗ the added fact, read in the same order as "(öppnas i ny flik)".
+  - `Mail`, `Link` and `Share2` precede E-post, Kopiera länken and Fler sätt att dela.
+  - `Link` becomes `Check` while the button reads "Kopierad". The icon sits outside the two-label cell, so the width holds.
+- **Unchanged:** the targets, the order, the hrefs, the parameters, the encoding, `rel`, the accessible names (visually hidden text, no `aria-label`),
+  D5's behaviour and D6's shape. A pending share sheet now shows `.jp-btn[aria-disabled]`'s 0.55 opacity.
+
+**D7, the single home of the ADR 0166 D10 reading for this amendment** (`security-auditor`'s plan read, report-only, local
+`docs/reviews/2026-10-25-share-ikoner-plan-security-auditor.md`):
+- **Trigger 5 is not fired.**
+  - The icons are inline SVG built by the installed `lucide-react`, with no href, src or fetch. D7's list names "an icon … fetched from a platform", and
+    nothing is fetched.
+  - The platforms' preview fetchers fetch `/delningsbild` from our origin. That is a pull, which is S4 (viii)'s criterion.
+- **Trigger 1 is not fired.** `/delningsbild` carries no ad value and reads nothing: no parameter, no header and no API. It is of the class of the
+  existing brand and manifest routes.
+  - The reading holds only while that does. An ad's value in the image or in its URL would be the withdrawn PR 2, and it needs a plan read of its own
+    (Art. 5(1)(c), 17(2)).
+- **The `twitter` block adds no copy and no recipient.** Next already emitted `twitter:title` and `twitter:description` equal to the OpenGraph strings
+  (`security-auditor` measured this live, 2026-10-25). The block pins those strings, with no `site`, `creator` or app id. An identifier of ours is
+  inside trigger 5 (D7).
+- **Triggers 6–12 and 15–17 are not touched.** The JSON-LD, the sitemap and `robots.ts` are unchanged.
+- Klas's answer #2 in D7 stands, and so do `security-auditor`'s signatures for S4, S5, S6b and the Search Console path.
+
+**Scope.** PR 2 is withdrawn (answer 2). The preview is compact: it carries the ad's own title and description with the square brand mark, and never a
+per-ad image. ADR 0165's amendment of the same date records the image. #2214 has PR 1b (Ansök) left.
+
+**What comes back** (replacing the line "Icons or brand marks"): a brand mark on the row comes back only when an owner's published rules admit sharing,
+or with the owner's written permission. The pages change, so they are read again before the mark is proposed.

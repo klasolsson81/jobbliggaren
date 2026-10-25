@@ -129,3 +129,10 @@ route with an id segment) that the `map` pattern does not match.
 installs under `/icons/` (`icon-192`, `icon-512`, `icon-maskable-512`). They are brand images of the same class as the five already `cross-origin`, so the
 `map` lists them by exact name (`icons/icon-(192|512|maskable-512)\.png`, no character class: every cross-origin path stays an explicit, pinned entry),
 and `edge-modes.test.sh` and `proxy.test.ts` carry a row for each. A new size or file name fires the trigger again.
+
+**Lapse trigger 5 fired, 2026-10-25 ([#2232](https://github.com/klasolsson81/jobbliggaren/pull/2232), #2214).** The public job page names a square
+brand image at `/delningsbild` as its link preview (ADR 0165 Amendment 2026-10-25). It is a static brand image of the same class and reads nothing, so
+the `map` lists it by exact name. `edge-modes.test.sh` carries it as `cross-origin`, with and without a query, and five look-alikes as `same-origin`
+(`/delningsbildx`, `/xdelningsbild`, `/delningsbild/`, `/delningsbild/x`, `/jobb/123/delningsbild`): 129/129 on an edge image built from this
+Caddyfile, 2026-10-25. `proxy.test.ts` and `security-headers.spec.ts` carry a row each. `security-auditor`'s plan read of the same day raised no
+objection to `cross-origin` on it.

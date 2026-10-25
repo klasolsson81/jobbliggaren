@@ -1,5 +1,5 @@
-// Shared design constants for the next/og image renderers (opengraph-image +
-// twitter-image). Satori renders OUTSIDE the DOM: globals.css custom
+// Shared design constants for the next/og image renderers. Satori renders
+// OUTSIDE the DOM: globals.css custom
 // properties cannot be referenced, so inline px/hex is structurally required
 // here (#549 WS3). This module is the single documented mirror of the token
 // values — if a mirrored token changes in globals.css, update it HERE too.

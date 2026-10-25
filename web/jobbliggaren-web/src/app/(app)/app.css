@@ -564,6 +564,11 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 .jp-popover .jp-popover__col {
   max-height: 60vh;
 }
+/* A row reached going up stops below its column's sticky head, not under it. */
+.jp-popover .jp-popover__col,
+.jp-popover .jp-occsearch .jp-matchdialog__cascade-col {
+  scroll-padding-top: 50px;
+}
 .jp-hero-chip__list {
   padding: 6px 0;
   max-height: 320px;

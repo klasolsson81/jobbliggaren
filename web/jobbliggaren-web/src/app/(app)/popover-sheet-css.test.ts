@@ -46,6 +46,14 @@ describe("the sheet is placed by its attribute alone (#2212)", () => {
   it("keeps the anchored browse columns' 60vh cap", () => {
     expect(declared(".jp-popover .jp-popover__col", "max-height")).toBe("60vh");
   });
+
+  it.each([".jp-popover .jp-popover__col", ".jp-popover .jp-occsearch .jp-matchdialog__cascade-col"])(
+    "keeps a focused row in %s clear of the column's sticky head",
+    (column) => {
+      // The head is 18px + one 20.15px caption line + 10px + a 1px rule (49.14px, measured 2026-10-25 in sv and en at 1280 and 768).
+      expect(declared(column, "scroll-padding-top")).toBe("50px");
+    },
+  );
 });
 
 describe("a sheet is its own one scroller (#2212)", () => {

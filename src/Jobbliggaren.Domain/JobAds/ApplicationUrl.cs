@@ -19,6 +19,9 @@ namespace Jobbliggaren.Domain.JobAds;
 /// address embedded in the path or query, all of which would put a recruiter's address on the
 /// row; <c>application_details</c> is kept out of <c>raw_payload</c> for the same reason.</item>
 /// <item>A validated personnummer in any of the address's <see cref="Readings"/> (CLAUDE.md §5).</item>
+/// <item>A control character anywhere inside it. A URL parser drops a tab or a line break before it reads
+/// an address, so the stored string would not be the address a page links to.</item>
+/// <item>A host <see cref="Uri.IdnHost"/> cannot map.</item>
 /// </list>
 /// The phone detector is deliberately not applied: a numeric applicant-tracking id is
 /// phone-shaped to it, and a false positive would hide a valid link. The public job page applies
@@ -39,7 +42,7 @@ public sealed record ApplicationUrl
             return null;
 
         var value = raw.Trim();
-        if (value.Length > MaxLength)
+        if (value.Length > MaxLength || value.Any(char.IsControl))
             return null;
 
         if (value.Contains('@', StringComparison.Ordinal)
@@ -48,7 +51,8 @@ public sealed record ApplicationUrl
 
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
             || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
-            || string.IsNullOrEmpty(uri.Host))
+            || string.IsNullOrEmpty(uri.Host)
+            || !HasMappableHost(uri))
             return null;
 
         foreach (var reading in Readings(value))
@@ -62,7 +66,7 @@ public sealed record ApplicationUrl
 
     /// <summary>
     /// The address as a reader of the link can read it: as stored, percent-decoded, and form-decoded
-    /// (<c>+</c> as a space, then percent-decoded), each once and without duplicates. A token behind
+    /// (<c>+</c> as a space, then percent-decoded), each with any tab or line break removed and each once. A token behind
     /// <c>%2D</c>, <c>%20</c> or <c>+</c> is still that token to whoever reads the <c>href</c>, so a rule
     /// that looks for one looks in every reading. The one home of these forms (ADR 0166 D10 trigger 19
     /// names them). <see cref="Uri.UnescapeDataString(string)"/> throws only on null.
@@ -71,8 +75,24 @@ public sealed record ApplicationUrl
     {
         ArgumentNullException.ThrowIfNull(value);
         return new[] { value, Uri.UnescapeDataString(value), Uri.UnescapeDataString(value.Replace('+', ' ')) }
+            .Select(WithoutTabOrLineBreak)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+    }
+
+    private static string WithoutTabOrLineBreak(string reading) =>
+        string.Concat(reading.Where(c => c is not ('\t' or '\n' or '\r')));
+
+    private static bool HasMappableHost(Uri uri)
+    {
+        try
+        {
+            return uri.IdnHost.Length > 0;
+        }
+        catch (UriFormatException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

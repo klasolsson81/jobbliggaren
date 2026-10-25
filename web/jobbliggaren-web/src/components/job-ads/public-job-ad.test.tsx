@@ -132,8 +132,9 @@ describe("PublicJobAd", () => {
     expect(container.querySelector("iframe, img[src^='http']")).toBeNull();
   });
 
-  // Declared unreachable: JobAd refuses an empty address on write and the import skips such a record, so this only
-  // pins that the read side degrades to no link out at all (no primary, no apply heading) if that ever breaks.
+  // Declared unreachable: the one writer of an empty address is JobAd.Erase, and an erased ad answers 410 before a page
+  // is built (GetPublicJobAdQueryHandlerTests.Handle_ErasedAd_ReturnsGone). This only pins that the read side degrades
+  // to no link out at all (no primary, no apply heading) if that ever breaks.
   it("renders no link out and no apply heading if an address ever arrives empty", () => {
     const { container } = render(<PublicJobAd jobAd={{ ...AD, url: "" }} />);
 
@@ -184,9 +185,13 @@ describe("PublicJobAd", () => {
     it("keeps the application page out of the JobPosting and out of every share link", () => {
       const { container } = render(<PublicJobAd jobAd={WITH_APPLY} />);
 
-      for (const script of jsonLdScripts(container)) expect(script.textContent).not.toContain("jobb.example.se");
+      const scripts = jsonLdScripts(container);
+      expect(scripts).toHaveLength(1);
+      for (const script of scripts) expect(script.textContent).not.toContain("jobb.example.se");
       const share = screen.getByRole("heading", { level: 2, name: "Dela annonsen" }).closest("section") as HTMLElement;
-      for (const a of share.querySelectorAll("a")) expect(a.getAttribute("href")).not.toContain("jobb.example.se");
+      const shareLinks = share.querySelectorAll("a");
+      expect(shareLinks).toHaveLength(4);
+      for (const a of shareLinks) expect(a.getAttribute("href")).not.toContain("jobb.example.se");
     });
 
     it("names the ad's own page plainly when it does not live at Arbetsförmedlingen", () => {
@@ -196,8 +201,8 @@ describe("PublicJobAd", () => {
       expect(screen.getByRole("link", { name: "Ansök" })).toHaveAttribute("href", APPLY);
     });
 
-    // Declared unreachable, as above: an empty ad address is refused on write. This only pins that Ansök stands
-    // alone, still the one primary, if that ever breaks.
+    // Declared unreachable for the same reason as above. This only pins that Ansök stands alone, still the one
+    // primary, if that ever breaks.
     it("keeps Ansök as the one primary with no text link if the ad's own address ever arrives empty", () => {
       const { container } = render(<PublicJobAd jobAd={{ ...WITH_APPLY, url: "" }} />);
 

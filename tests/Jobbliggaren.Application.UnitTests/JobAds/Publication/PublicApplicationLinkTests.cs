@@ -5,9 +5,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.JobAds.Publication;
 
 /// <summary>
-/// The public gate on the application link (#2214 PR 1b, ADR 0166 D10 trigger 19). Every premise is
-/// built through <see cref="ApplicationUrl.FromSource"/>, the only writer of the column, and asserted
-/// non-null first, so each case is a value an imported ad can carry.
+/// The public gate on the application link (#2214 PR 1b, ADR 0166 D10 trigger 19).
 /// </summary>
 public class PublicApplicationLinkTests
 {
@@ -18,6 +16,9 @@ public class PublicApplicationLinkTests
     [InlineData("https://jobb.example.se/ansok/123")]
     [InlineData("https://career.example.se/jobs/4567890-integration-developer?utm_source=platsbanken")]
     [InlineData("HTTPS://JOBB.EXAMPLE.SE/Ansok")]
+    [InlineData("https://karriär.example.se/ansok")]
+    [InlineData("https://jobb2.example.se/ansok")]
+    [InlineData("https://mitt-bolag.example.se/ansok")]
     public void Admit_EmployerApplicationPage_IsTheStoredValueUnchanged(string raw) =>
         PublicApplicationLink.Admit(Stored(raw)).ShouldBe(raw);
 
@@ -34,6 +35,7 @@ public class PublicApplicationLinkTests
     [InlineData("https://jobb.example.se/ansok?p=070%20123%2045%2067")]
     [InlineData("https://jobb.example.se/ansok?p=070+123+45+67")]
     [InlineData("https://jobb.example.se/ansok?p=+46%2070%20123%2045%2067")]
+    [InlineData("https://jobb.example.se/ansok?p=0%0A701234567")]
     public void Admit_PhoneNumberInAnyReading_IsNull(string raw) =>
         PublicApplicationLink.Admit(Stored(raw)).ShouldBeNull();
 
@@ -58,6 +60,7 @@ public class PublicApplicationLinkTests
     [InlineData("https://bit.ly/abc")]
     [InlineData("https://lnkd.in/abc")]
     [InlineData("https://t.co/abc")]
+    [InlineData("https://ｆａｃｅｂｏｏｋ.com/somepage")]
     public void Admit_ContactHostOrShortener_IsNull(string raw) =>
         PublicApplicationLink.Admit(Stored(raw)).ShouldBeNull();
 
@@ -93,6 +96,9 @@ public class PublicApplicationLinkTests
     // A dot segment, plain or escaped, is resolved before the path is read, as a browser resolves it.
     [InlineData("https://www.linkedin.com/jobs/%2e%2e/in/someone")]
     [InlineData("https://www.linkedin.com/jobs/.%2e/in/someone")]
+    [InlineData("https://www.linkedin.com/jobs/%2e./in/someone")]
+    [InlineData("https://www.linkedin.com/jobs/%2E%2E/in/someone")]
+    [InlineData("https://www.linkedin.com/jobs/%2e%2E/in/someone")]
     [InlineData("https://www.linkedin.com/jobs/../in/someone")]
     public void Admit_LinkedInPageThatIsNotAJobOrCompanyPage_IsNull(string raw) =>
         PublicApplicationLink.Admit(Stored(raw)).ShouldBeNull();
@@ -104,39 +110,32 @@ public class PublicApplicationLinkTests
     public void Admit_LinkedInJobOrCompanyPage_IsTheStoredValue(string raw) =>
         PublicApplicationLink.Admit(Stored(raw)).ShouldBe(raw);
 
-    // A host the vocabulary is not compared with in its own form never reaches the page: either the import
-    // refuses it, or the gate does.
     [Theory]
-    [InlineData("https://ｆａｃｅｂｏｏｋ.com/somepage")]
-    [InlineData("https://%66acebook.com/somepage")]
-    public void Admit_HostThatIsNotPlainAsciiAfterMapping_NeverReachesThePublicRead(string raw) =>
-        PublicApplicationLink.Admit(ApplicationUrl.FromSource(raw)).ShouldBeNull();
+    [InlineData("https://face_book.com/somepage")]
+    [InlineData("https://mitt_bolag.example.se/ansok")]
+    public void Admit_HostThatIsNotLdhAscii_IsNull(string raw) =>
+        PublicApplicationLink.Admit(Stored(raw)).ShouldBeNull();
 
-    // An over-long label makes IdnHost give the host back unmapped, fullwidth letters and all, so the vocabulary
-    // cannot see facebook.com in it; a browser maps it all the same. The import stores it; the gate holds it back.
     [Fact]
-    public void Admit_HostIdnCannotMap_IsNull()
+    public void Admit_HostWithALabelTooLongToMap_NeverReachesThePublicRead()
     {
         var raw = "https://" + new string('ä', 70) + ".ｆａｃｅｂｏｏｋ.com/somepage";
 
-        PublicApplicationLink.Admit(Stored(raw)).ShouldBeNull();
-    }
-
-    [Theory]
-    [InlineData("https://jobb.example.se/ansok/811218%2D9876")]
-    [InlineData("https://jobb.example.se/ansok?pnr=811218%209876")]
-    public void Admit_PersonnummerInADecodedReading_IsNullBecauseTheImportRefusesIt(string raw)
-    {
-        ApplicationUrl.FromSource(raw).ShouldBeNull();
         PublicApplicationLink.Admit(ApplicationUrl.FromSource(raw)).ShouldBeNull();
     }
 
-    // A row stored before the write rule tightened is materialised through FromTrusted (EF); the gate runs
-    // FromSource again, so the stricter rule reaches it on the read. The actor that produced the row is a
-    // write rule that has since changed, so the premise is that rule's old output.
-    [Fact]
-    public void Admit_RowStoredBeforeTheWriteRuleTightened_IsNull() =>
-        PublicApplicationLink.Admit(ApplicationUrl.FromTrusted("https://jobb.example.se/ansok/811218%2D9876")).ShouldBeNull();
+    // Rows stored before #2214 PR 1b were written by a FromSource that scanned the stored form alone, kept a tab or a
+    // line break and did not map the host; EF materialises them through FromTrusted. The current writer refuses each
+    // (ApplicationUrlTests: ApplicationUrl_FromSource_ValidPersonnummerOnlyInADecodedReading_ReturnsNull,
+    // ApplicationUrl_FromSource_ControlCharacter_ReturnsNull, ApplicationUrl_FromSource_HostIdnCannotMap_NeverThrowsAndReturnsNull),
+    // and the gate runs it again on the read.
+    [Theory]
+    [InlineData("https://jobb.example.se/ansok/811218%2D9876")]
+    [InlineData("https://jobb.example.se/ansok?pnr=8112\n189876")]
+    [InlineData("https://www.linkedin.com/jobs/.\t./in/someone")]
+    [InlineData("https://face\u200Dbook.com/x")]
+    public void Admit_RowStoredBeforeThisRuleTightened_NeverThrowsAndIsNull(string stored) =>
+        Should.NotThrow(() => PublicApplicationLink.Admit(ApplicationUrl.FromTrusted(stored))).ShouldBeNull();
 
     [Theory]
     [InlineData("https://jobb.example.se/a%")]

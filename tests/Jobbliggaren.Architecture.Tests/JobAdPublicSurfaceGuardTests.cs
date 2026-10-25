@@ -252,21 +252,24 @@ public class JobAdPublicSurfaceGuardTests
     }
 
     /// <summary>
-    /// #2214 PR 1b (ADR 0166 D10 trigger 19, a gate bypassed or copied): the anonymous read is built in
-    /// exactly one file, and that file takes the application link through the public gate.
+    /// #2214 PR 1b (ADR 0166 D10 trigger 19, a gate bypassed or copied): in src/ only the query, the record and the
+    /// handler name the anonymous read's DTO, the handler builds it once, and it takes the link through the gate.
     /// </summary>
     [Fact]
-    public void The_public_job_ad_dto_is_built_in_one_file_which_takes_the_link_through_the_gate()
+    public void The_public_job_ad_dto_is_named_by_its_own_three_files_and_built_once_through_the_gate()
     {
+        const string folder = "src/Jobbliggaren.Application/JobAds/Queries/GetPublicJobAd/";
         var root = RepoRoot();
-        var builders = Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
-            .Where(file => File.ReadAllText(file).Contains("new PublicJobAdDto(", StringComparison.Ordinal))
+        var naming = Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(file => Regex.IsMatch(File.ReadAllText(file), @"\bPublicJobAdDto\b"))
             .Select(file => Path.GetRelativePath(root, file).Replace('\\', '/'))
+            .Order(StringComparer.Ordinal)
             .ToList();
 
-        builders.ShouldBe(["src/Jobbliggaren.Application/JobAds/Queries/GetPublicJobAd/GetPublicJobAdQueryHandler.cs"]);
-        File.ReadAllText(Path.Combine(root, builders[0]))
-            .ShouldContain("ApplicationUrl: PublicApplicationLink.Admit(row.ApplicationUrl)", Case.Sensitive);
+        naming.ShouldBe([folder + "GetPublicJobAdQuery.cs", folder + "GetPublicJobAdQueryHandler.cs", folder + "PublicJobAdDto.cs"]);
+        var handler = File.ReadAllText(Path.Combine(root, folder + "GetPublicJobAdQueryHandler.cs"));
+        Regex.Count(handler, @"new PublicJobAdDto\(").ShouldBe(1);
+        handler.ShouldContain("ApplicationUrl: PublicApplicationLink.Admit(row.ApplicationUrl)", Case.Sensitive);
     }
 
     [Fact]

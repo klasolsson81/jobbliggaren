@@ -16,8 +16,7 @@ namespace Jobbliggaren.Application.JobAds.Publication;
 /// <item>the value no longer passes <see cref="ApplicationUrl.FromSource"/>, which runs again here so
 /// that a tightened write rule reaches every stored row at once;</item>
 /// <item>the host, after IDN mapping, is not plain LDH ASCII, so a host the vocabulary cannot be
-/// compared with is never admitted (an over-long label makes <see cref="Uri.IdnHost"/> return the host
-/// unmapped, where a browser still maps it);</item>
+/// compared with is never admitted;</item>
 /// <item>the host, or a host it is a subdomain of, is a profile, social or messaging host
 /// (<see cref="ContactHosts"/>) or a link shortener (<see cref="Shorteners"/>), whose target we cannot
 /// see;</item>

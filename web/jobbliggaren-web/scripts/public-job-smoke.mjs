@@ -250,7 +250,9 @@ try {
     assert.ok(!res.body.includes("Sök jobbet"), "no apply heading: Ansök says it");
     const head = res.body.slice(0, res.body.indexOf("</head>"));
     assert.ok(!head.includes("jobb.example.se"), "not in the title, a description, an OpenGraph or a Twitter tag");
-    for (const block of jsonLdBlocks(res.body)) assert.ok(!block.includes("jobb.example.se"), "not in the JobPosting");
+    const blocks = jsonLdBlocks(res.body);
+    assert.equal(blocks.length, 1, "one JobPosting");
+    for (const block of blocks) assert.ok(!block.includes("jobb.example.se"), "not in the JobPosting");
     const share = anchors.filter((tag) => /facebook\.com|linkedin\.com|wa\.me|mailto:/.test(tag));
     assert.equal(share.length, 4, "the share row's four links");
     for (const tag of share) assert.ok(!tag.includes("jobb.example.se"), "not in a share link");

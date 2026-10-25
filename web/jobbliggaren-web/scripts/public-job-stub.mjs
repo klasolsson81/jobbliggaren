@@ -50,6 +50,7 @@ export const AD = {
   occupationGroupName: "Grundutbildade sjuksköterskor",
   employmentTypeConceptId: "gro4_cWF_6D7", // Vikariat
   worktimeExtentConceptId: "6YE1_gAC_R2G", // Heltid
+  applicationUrl: null,
 };
 
 /** The application page `ID.listedApply` carries. */

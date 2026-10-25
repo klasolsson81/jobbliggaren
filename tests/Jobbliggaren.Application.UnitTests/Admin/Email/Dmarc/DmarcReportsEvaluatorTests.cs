@@ -25,16 +25,22 @@ public sealed class DmarcReportsEvaluatorTests
         Reporters: 2,
         SourceCount: 3,
         Messages: 1_200,
-        FailingMessages: 7,
+        FailingMessages: 1,
         ConflictingReports: 1,
         CoveredFrom: new DateTimeOffset(2026, 10, 16, 0, 0, 0, TimeSpan.Zero),
         CoveredTo: new DateTimeOffset(2026, 10, 24, 0, 0, 0, TimeSpan.Zero));
 
     private static readonly IReadOnlyList<DmarcSourceRow> SomeSources =
     [
-        new(Address("198.51.100.20"), "jobbliggaren.se", 7, 0, 2, 7),
+        new(Address("198.51.100.20"), "jobbliggaren.se", 100, 99, 0, 1),
         new(Address("::ffff:192.0.2.9"), "mail.jobbliggaren.se", 900, 900, 0, 0),
-        new(Address("2001:db8::25"), "jobbliggaren.se", 293, 290, 293, 0),
+        new(Address("2001:db8::25"), "jobbliggaren.se", 200, 197, 200, 0),
+    ];
+
+    private static readonly IReadOnlyList<DmarcSourceRow> CappedSources =
+    [
+        .. Enumerable.Range(1, DmarcReportsEvaluator.MaxSources)
+            .Select(n => new DmarcSourceRow(Address($"192.0.2.{n}"), "jobbliggaren.se", 10, 10, 10, 0)),
     ];
 
     private static ReportedSourceAddress Address(string address) => ReportedSourceAddress.FromStored(IPAddress.Parse(address));
@@ -58,7 +64,7 @@ public sealed class DmarcReportsEvaluatorTests
 
     public static TheoryData<DmarcRunOutcome?, bool, bool, EmailDmarcStatus> States => new()
     {
-        { null, false, true, EmailDmarcStatus.NotObservable },
+        { null, false, false, EmailDmarcStatus.NotObservable },
         { DmarcRunOutcome.NotConfigured, false, false, EmailDmarcStatus.NotConfigured },
         { DmarcRunOutcome.NotConfigured, true, true, EmailDmarcStatus.NotConfigured },
         { DmarcRunOutcome.Misconfigured, false, false, EmailDmarcStatus.Misconfigured },
@@ -107,7 +113,9 @@ public sealed class DmarcReportsEvaluatorTests
             _ => null,
         };
 
-        var dto = Evaluate(Read(state, SomeReports, counts: [new(DmarcMessageOutcome.SkippedForensic, 2)], retryPending: 3));
+        var dto = Evaluate(state is null
+            ? Read(null)
+            : Read(state, SomeReports, counts: [new(DmarcMessageOutcome.SkippedForensic, 2)], retryPending: 3));
 
         dto.ShouldBe(status switch
         {
@@ -156,7 +164,7 @@ public sealed class DmarcReportsEvaluatorTests
         dto.Reports.ShouldBe(3);
         dto.Reporters.ShouldBe(2);
         dto.Messages.ShouldBe(1_200);
-        dto.FailingMessages.ShouldBe(7);
+        dto.FailingMessages.ShouldBe(1);
         dto.SourceCount.ShouldBe(3);
         dto.Mailbox.ShouldBe(new DmarcMailboxCountsDto(0, 0, 0, 0, 2));
         var sources = dto.Sources.ShouldNotBeNull();
@@ -164,28 +172,23 @@ public sealed class DmarcReportsEvaluatorTests
         sources.Select(s => s.Flagged).ShouldBe([true, false, false]);
         sources[0].ShouldBe(new DmarcSourceDto(SomeSources[0]));
         sources[0].HeaderFrom.ShouldBe("jobbliggaren.se");
-        sources[0].Messages.ShouldBe(7);
-        sources[0].DkimAligned.ShouldBe(0);
-        sources[0].SpfAligned.ShouldBe(2);
-        sources[0].FailingDmarc.ShouldBe(7);
+        sources[0].Messages.ShouldBe(100);
+        sources[0].DkimAligned.ShouldBe(99);
+        sources[0].SpfAligned.ShouldBe(0);
+        sources[0].FailingDmarc.ShouldBe(1, "one failing message of a hundred flags the source");
     }
 
     [Fact]
     public void MoreSourcesThanTheCap_ShowTheCap_AndCountAndSumEverySource()
     {
-        IReadOnlyList<DmarcSourceRow> shown =
-        [
-            .. Enumerable.Range(1, DmarcReportsEvaluator.MaxSources)
-                .Select(n => new DmarcSourceRow(Address($"192.0.2.{n}"), "jobbliggaren.se", 10, 10, 10, 0)),
-        ];
-        var totals = SomeReports with { SourceCount = 30, Messages = 255, FailingMessages = 5 };
+        var totals = SomeReports with { SourceCount = 30, Messages = 255, FailingMessages = 0 };
 
-        var dto = Evaluate(Read(State(DmarcRunOutcome.Succeeded, LastAttempt), totals, shown));
+        var dto = Evaluate(Read(State(DmarcRunOutcome.Succeeded, LastAttempt), totals, CappedSources));
 
         dto.Sources.ShouldNotBeNull().Count.ShouldBe(DmarcReportsEvaluator.MaxSources);
         dto.SourceCount.ShouldBe(30, "the cap note's total is every source, not the rows shown");
         dto.Messages.ShouldBe(255, "the figures count every source, the five not shown included");
-        dto.FailingMessages.ShouldBe(5);
+        dto.FailingMessages.ShouldBe(0, "a source with a failing message sorts into the shown rows");
     }
 
     // The actor: one report at Accept's record and count caps, every record from one source, which a single UTC day's
@@ -268,6 +271,7 @@ public sealed class DmarcReportsEvaluatorTests
             new(DmarcMessageOutcome.SkippedForensic, 80),
             new(DmarcMessageOutcome.SkippedUnsupportedEncoding, 160),
             new(DmarcMessageOutcome.SkippedHeaderTooLarge, 320),
+            new(DmarcMessageOutcome.SkippedNotInMailbox, 640),
             new(DmarcMessageOutcome.RejectedMalformed, 1_000),
             new(DmarcMessageOutcome.RejectedPolicyDomain, 2_000),
             new(DmarcMessageOutcome.RejectedContent, 4_000),
@@ -278,7 +282,7 @@ public sealed class DmarcReportsEvaluatorTests
         var dto = Evaluate(Read(State(DmarcRunOutcome.Succeeded, LastAttempt), counts: counts, retryPending: 5));
 
         dto.Mailbox.ShouldBe(new DmarcMailboxCountsDto(
-            skipped: 630, rejected: 15_000, volumeCapped: 2, abandoned: 1, retryPending: 5));
+            skipped: 1_270, rejected: 15_000, volumeCapped: 2, abandoned: 1, retryPending: 5));
     }
 
     [Fact]
@@ -292,6 +296,16 @@ public sealed class DmarcReportsEvaluatorTests
     }
 
     // ---- input no source can produce ----
+
+    // SqlDmarcReportsSource.SourcesSql counts dkim and spf over the records that passed, and failing over the records
+    // that passed neither, so no failing message is an aligned one.
+    [Fact]
+    public void EverySourceRowHere_IsOneTheSqlSourceCanReturn()
+    {
+        IReadOnlyList<DmarcSourceRow> rows = [.. SomeSources, .. CappedSources];
+
+        rows.ShouldAllBe(row => row.FailingDmarc + Math.Max(row.DkimAligned, row.SpfAligned) <= row.Messages);
+    }
 
     [Fact]
     public void AReadNoSourceCanProduce_IsRefused()

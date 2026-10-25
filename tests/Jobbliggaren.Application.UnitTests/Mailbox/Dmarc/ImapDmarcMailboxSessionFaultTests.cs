@@ -27,6 +27,29 @@ public class ImapDmarcMailboxSessionFaultTests
         harness.Server.CredentialsReceived.ShouldBe(1);
     }
 
+    // CTO ruling 2026-10-25 §2: once AUTHENTICATE is sent the credential counts as sent, whatever the server does next.
+    [Theory]
+    [InlineData("hang")]
+    [InlineData("bye")]
+    [InlineData("reset")]
+    public async Task A_sign_in_that_gets_no_answer_after_the_credential_is_unconfirmed(string answer)
+    {
+        await using var harness = new MailboxHarness(ScriptedMailbox.Of(), commandTimeout: TimeSpan.FromMilliseconds(500));
+        harness.Server.AfterCredential = answer switch
+        {
+            "hang" => new Interception.Hang(),
+            "bye" => new Interception.Bye(),
+            _ => new Interception.Reset(),
+        };
+
+        var open = await harness.Mailbox.OpenAsync(TestContext.Current.CancellationToken);
+
+        open.ShouldBe(new DmarcMailboxOpen.Failed(DmarcSessionFault.AuthUnconfirmed));
+        harness.Server.Commands.Count(command => command.StartsWith("AUTHENTICATE", StringComparison.OrdinalIgnoreCase)
+            || command.StartsWith("LOGIN", StringComparison.OrdinalIgnoreCase)).ShouldBe(1);
+        harness.Server.CredentialsReceived.ShouldBe(1);
+    }
+
     [Theory]
     [InlineData("IMAP4rev1 AUTH=LOGIN")]
     [InlineData("IMAP4rev1 AUTH=CRAM-MD5 AUTH=SCRAM-SHA-256")]
@@ -84,6 +107,17 @@ public class ImapDmarcMailboxSessionFaultTests
     }
 
     [Fact]
+    public async Task A_fetch_the_server_never_answers_is_a_timeout()
+    {
+        await using var harness = new MailboxHarness(ScriptedMailbox.Of(Messages.YahooShaped(5, Messages.Bytes("zip"))), commandTimeout: TimeSpan.FromMilliseconds(500));
+        await using var session = await harness.OpenAsync();
+        harness.Server.Intercept = command => command.StartsWith("UID FETCH", StringComparison.Ordinal) ? new Interception.Hang() : null;
+
+        (await session.FetchReportAsync(new DmarcMailboxEntry(5, MailboxHarness.Received, 100), TestContext.Current.CancellationToken))
+            .ShouldBe(new DmarcMailboxFetch.Failed(DmarcSessionFault.Timeout));
+    }
+
+    [Fact]
     public async Task A_bye_in_the_middle_of_the_run_ends_the_session()
     {
         await using var harness = new MailboxHarness(ScriptedMailbox.WithUids([3, 6, 9]));
@@ -97,7 +131,7 @@ public class ImapDmarcMailboxSessionFaultTests
     [Fact]
     public async Task A_connection_dropped_during_a_fetch_ends_the_session()
     {
-        await using var harness = new MailboxHarness(ScriptedMailbox.Of(Messages.GoogleShaped(5, Messages.Bytes("zip"))));
+        await using var harness = new MailboxHarness(ScriptedMailbox.Of(Messages.YahooShaped(5, Messages.Bytes("zip"))));
         await using var session = await harness.OpenAsync();
         harness.Server.Intercept = command => command.Contains("[2.MIME]", StringComparison.Ordinal) ? new Interception.Drop() : null;
 

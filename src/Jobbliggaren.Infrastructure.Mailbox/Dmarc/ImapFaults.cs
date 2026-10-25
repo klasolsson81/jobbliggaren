@@ -10,11 +10,18 @@ namespace Jobbliggaren.Infrastructure.Mailbox.Dmarc;
 /// #1981 PR 4a (ADR 0184, CTO r2 §2a) — the exceptions a session can end in, each mapped to the fault the run records.
 /// The set is closed: an exception not named here is a defect and propagates, and so does the caller's own
 /// cancellation. A tagged NO reaches this only where the step has no per-message meaning (opening, listing); per
-/// message it is a refusal, decided by the caller before this is asked.
+/// message it is a refusal, decided by the caller before this is asked. Once the sign-in command has been sent, every
+/// fault but a refusal counts as a sign-in sent without an answer, so the back-off holds the credential back.
 /// </summary>
 internal static class ImapFaults
 {
     public static DmarcSessionFault? FaultOf(Exception exception, DmarcMailboxStep step, CancellationToken cancellationToken) =>
+        step == DmarcMailboxStep.Authenticate && Classify(exception, step, cancellationToken) is { } fault
+            && fault != DmarcSessionFault.AuthRefused
+            ? DmarcSessionFault.AuthUnconfirmed
+            : Classify(exception, step, cancellationToken);
+
+    private static DmarcSessionFault? Classify(Exception exception, DmarcMailboxStep step, CancellationToken cancellationToken) =>
         exception switch
         {
             OperationCanceledException when cancellationToken.IsCancellationRequested => null,

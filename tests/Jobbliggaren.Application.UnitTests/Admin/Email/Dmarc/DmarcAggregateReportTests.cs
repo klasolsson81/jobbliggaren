@@ -85,9 +85,42 @@ public sealed class DmarcAggregateReportTests
     [InlineData("google​com", DmarcRejection.ForbiddenCharacter)]
     [InlineData("google\ncom", DmarcRejection.ForbiddenCharacter)]
     [InlineData("   ", DmarcRejection.ForbiddenCharacter)]
+    [InlineData("google\u2028com", DmarcRejection.ForbiddenCharacter)]
+    [InlineData("google\u2029com", DmarcRejection.ForbiddenCharacter)]
+    [InlineData("google\uE000com", DmarcRejection.ForbiddenCharacter)]
+    [InlineData("google\u0378com", DmarcRejection.ForbiddenCharacter)]
     public void Accept_AReporterNameThatCanSpoofTheDisplay_IsRefused(string reporter, DmarcRejection expected)
     {
         Rejection(Candidate() with { Reporter = reporter }).ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("1234\u2028")]
+    [InlineData("1234\u2029")]
+    [InlineData("1234\uE000")]
+    [InlineData("1234\u0378")]
+    [InlineData("1234\u0007")]
+    public void Accept_AReportIdWithAForbiddenCharacter_IsRefused(string reportId)
+    {
+        Rejection(Candidate() with { ReportId = reportId }).ShouldBe(DmarcRejection.ForbiddenCharacter);
+    }
+
+    // A code literal rather than an attribute argument, so the lone surrogate reaches Accept as written.
+    [Fact]
+    public void Accept_ALoneSurrogateInTheReporterOrTheReportId_IsRefused()
+    {
+        const string loneSurrogate = "a\uD800b";
+        char.IsHighSurrogate(loneSurrogate[1]).ShouldBeTrue();
+        char.IsLowSurrogate(loneSurrogate[2]).ShouldBeFalse();
+
+        Rejection(Candidate() with { Reporter = loneSurrogate }).ShouldBe(DmarcRejection.ForbiddenCharacter);
+        Rejection(Candidate() with { ReportId = loneSurrogate }).ShouldBe(DmarcRejection.ForbiddenCharacter);
+    }
+
+    [Fact]
+    public void Accept_AReporterNameWithAnOrdinarySpace_IsAccepted()
+    {
+        Accepted(Candidate() with { Reporter = "Enterprise Outlook" }).Reporter.ShouldBe("Enterprise Outlook");
     }
 
     [Fact]
@@ -107,6 +140,7 @@ public sealed class DmarcAggregateReportTests
     [InlineData("a_b.jobbliggaren.se")]
     [InlineData("jöbbliggaren.se")]
     [InlineData("jobbliggaren.se‮")]
+    [InlineData("\u212Aontakt.jobbliggaren.se")]
     [InlineData("")]
     public void Accept_ARecordWhoseHeaderFromIsNotOurDomain_RefusesTheWholeReport(string headerFrom)
     {
@@ -157,11 +191,24 @@ public sealed class DmarcAggregateReportTests
     [InlineData(Begin, Begin)]
     [InlineData(Begin, Begin - 1)]
     [InlineData(-1, Begin)]
-    [InlineData(Begin, Begin + 7 * 86400 + 1)]
     [InlineData(Begin + 86400 * 2, Begin + 86400 * 3)]
+    [InlineData(1792713600, long.MaxValue)]
+    [InlineData(253402300700, 253402300799)]
+    [InlineData(253402297200, 253402300799)]
+    [InlineData(253402300800, 253402300801)]
     public void Accept_AnImplausiblePeriod_IsRefused(long begin, long end)
     {
         Rejection(Candidate(begin: begin, end: end)).ShouldBe(DmarcRejection.ImplausibleRange);
+    }
+
+    // Received when the period ends, so only the span bound can refuse it.
+    [Fact]
+    public void Accept_APeriodOneSecondLongerThanSevenDays_IsRefused()
+    {
+        const long end = Begin + 7 * 86400 + 1;
+
+        DmarcAggregateReport.Accept(Candidate(end: end), DateTimeOffset.FromUnixTimeSeconds(end))
+            .ShouldBeOfType<DmarcAcceptance.Rejected>().Reason.ShouldBe(DmarcRejection.ImplausibleRange);
     }
 
     [Fact]
@@ -180,7 +227,7 @@ public sealed class DmarcAggregateReportTests
         var atBound = Candidate(end: Begin + 3600 + 86400);
 
         DmarcAggregateReport.Accept(atBound, received).ShouldBeOfType<DmarcAcceptance.Accepted>();
-        DmarcAggregateReport.Accept(atBound with { EndUnixSeconds = Begin + 3600 + 86400 + 2 }, received)
+        DmarcAggregateReport.Accept(atBound with { EndUnixSeconds = Begin + 3600 + 86400 + 1 }, received)
             .ShouldBeOfType<DmarcAcceptance.Rejected>().Reason.ShouldBe(DmarcRejection.ImplausibleRange);
     }
 

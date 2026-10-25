@@ -89,11 +89,16 @@ public sealed class DmarcReportIngestionJobTests
 
     // ---- 0: the sign-in back-off ----
 
-    [Fact]
-    public async Task ARunWithinTheBackOffOfARefusedSignIn_OpensNothing_AndWritesNothing()
+    // The sign-in faults the adapter opens with: AuthRefused (ImapDmarcMailboxSessionFaultTests
+    // .A_refused_login_sends_exactly_one_authentication_command_B1) and AuthUnconfirmed
+    // (.A_sign_in_that_gets_no_answer_after_the_credential_is_unconfirmed).
+    [Theory]
+    [InlineData(DmarcSessionFault.AuthRefused)]
+    [InlineData(DmarcSessionFault.AuthUnconfirmed)]
+    public async Task ARunWithinTheBackOffOfASignIn_OpensNothing_AndWritesNothing(DmarcSessionFault fault)
     {
         var h = new Harness();
-        h.Mailbox.OpenOutcome = new DmarcMailboxOpen.Failed(DmarcSessionFault.AuthRefused);
+        h.Mailbox.OpenOutcome = new DmarcMailboxOpen.Failed(fault);
         await h.RunAtAsync(Now.AddHours(-23));
         h.Mailbox.OpenOutcome = null;
         var state = h.Store.State;
@@ -105,20 +110,27 @@ public sealed class DmarcReportIngestionJobTests
         h.Store.Writes.ShouldBe(writes, "a backed-off run writes nothing, or the window would slide for ever");
         h.Store.Calls[^1].ShouldBe("ReadState");
         h.Store.State.ShouldBe(state);
-        h.Logged(3121).Count().ShouldBe(1);
+        var line = h.Logged(3121).ShouldHaveSingleItem();
+        line.ShouldContain(DmarcOutcomes.RunOutcomeOf(fault).ToString(), Case.Sensitive);
+        if (fault == DmarcSessionFault.AuthUnconfirmed)
+        {
+            line.ShouldNotContain("refused", Case.Insensitive);
+        }
     }
 
     [Theory]
-    [InlineData(24 * 60, true)]
-    [InlineData(24 * 60 - 1, false)]
-    public async Task TheBackOff_LastsTwentyFourHoursFromTheRefusedSignIn(int minutesLater, bool opens)
+    [InlineData(DmarcSessionFault.AuthRefused, 0, true)]
+    [InlineData(DmarcSessionFault.AuthRefused, 1, false)]
+    [InlineData(DmarcSessionFault.AuthUnconfirmed, 0, true)]
+    [InlineData(DmarcSessionFault.AuthUnconfirmed, 1, false)]
+    public async Task TheBackOff_LastsTheSignInBackOffFromTheSignIn(DmarcSessionFault fault, long ticksEarly, bool opens)
     {
         var h = new Harness();
-        h.Mailbox.OpenOutcome = new DmarcMailboxOpen.Failed(DmarcSessionFault.AuthRefused);
+        h.Mailbox.OpenOutcome = new DmarcMailboxOpen.Failed(fault);
         await h.RunAtAsync(Now);
         h.Mailbox.OpenOutcome = null;
 
-        await h.RunAtAsync(Now.AddMinutes(minutesLater));
+        await h.RunAtAsync(Now + DmarcIngestionLimits.SignInBackoff - TimeSpan.FromTicks(ticksEarly));
 
         h.Mailbox.Opens.ShouldBe(opens ? 2 : 1);
     }
@@ -150,6 +162,7 @@ public sealed class DmarcReportIngestionJobTests
         { nameof(DmarcSessionFault.Unreachable), DmarcRunOutcome.Unreachable },
         { nameof(DmarcSessionFault.TlsFailed), DmarcRunOutcome.TlsFailed },
         { nameof(DmarcSessionFault.AuthRefused), DmarcRunOutcome.AuthRefused },
+        { nameof(DmarcSessionFault.AuthUnconfirmed), DmarcRunOutcome.AuthUnconfirmed },
         { nameof(DmarcSessionFault.Timeout), DmarcRunOutcome.Timeout },
         { nameof(DmarcSessionFault.Protocol), DmarcRunOutcome.Protocol },
     };
@@ -303,6 +316,24 @@ public sealed class DmarcReportIngestionJobTests
         h.Decoder.Decodes.ShouldBe(1);
     }
 
+    // The adapter answers so for a section the server answers OK with no data
+    // (ImapDmarcMailboxFetchTests.A_section_answered_ok_with_no_data_is_a_message_not_in_the_mailbox).
+    [Fact]
+    public async Task AMessageGoneFromTheMailbox_IsSkippedForGood_AndNeverRetried()
+    {
+        var h = new Harness();
+        h.Answering(1, new DmarcMailboxFetch.Skipped(DmarcSkipReason.NotInMailbox));
+        h.Report(2, 2);
+
+        await h.RunAsync();
+        await h.RunAtAsync(Now.AddHours(1));
+
+        h.OutcomeOf(1).ShouldBe(DmarcMessageOutcome.SkippedNotInMailbox);
+        h.OutcomeOf(2).ShouldBe(DmarcMessageOutcome.Stored);
+        h.Mailbox.Fetches.ShouldBe([1, 2]);
+        h.Logged(3120).First().ShouldContain("1 skipped");
+    }
+
     [Theory]
     [InlineData("an unreadable part", DmarcMessageOutcome.RejectedMalformed)]
     [InlineData("a report about another domain", DmarcMessageOutcome.RejectedPolicyDomain)]
@@ -381,10 +412,9 @@ public sealed class DmarcReportIngestionJobTests
         h.Logged(3120).Single().ShouldContain("1 handed back for a retry");
     }
 
+    // The faults a fetch ends in: Timeout (ImapDmarcMailboxSessionFaultTests.A_fetch_the_server_never_answers_is_a_timeout)
+    // and Protocol (ImapDmarcMailboxFetchTests.A_bad_to_the_header_part_one_or_the_part_ends_the_session).
     [Theory]
-    [InlineData(DmarcSessionFault.Unreachable)]
-    [InlineData(DmarcSessionFault.TlsFailed)]
-    [InlineData(DmarcSessionFault.AuthRefused)]
     [InlineData(DmarcSessionFault.Timeout)]
     [InlineData(DmarcSessionFault.Protocol)]
     public async Task ASessionFault_HandsTheMessageBack_LeavesTheRestUnclaimed_AndEndsTheRunWithTheFault(DmarcSessionFault fault)
@@ -401,7 +431,8 @@ public sealed class DmarcReportIngestionJobTests
         h.Store.Ledger.ContainsKey((h.Epoch, 3)).ShouldBeFalse();
         h.Store.State.ShouldBe(new DmarcRunState(Now, DmarcOutcomes.RunOutcomeOf(fault), null, new DmarcCursor(h.Epoch, 2)));
         h.Store.Calls.ShouldNotContain("ListRetries");
-        h.Store.Analyzes.ShouldBe(0);
+        h.Store.Analyzes.ShouldBe(1);
+        h.Store.Calls.TakeLast(2).ShouldBe(["RecordAttempt", "Analyze"]);
         h.Mailbox.Sessions.ShouldHaveSingleItem().Disposed.ShouldBeTrue();
         h.Logged(3122).ShouldBe([$"[DmarcReportIngestion] Run ended without a success: {DmarcOutcomes.RunOutcomeOf(fault)}"]);
     }
@@ -558,7 +589,7 @@ public sealed class DmarcReportIngestionJobTests
         h.Mailbox.Fetches.ShouldBe([1]);
         h.OutcomeOf(1).ShouldBe(DmarcMessageOutcome.RetryPending);
         h.Store.Reports.ShouldBeEmpty();
-        h.Logged(3120).Last().ShouldContain("1 past retention");
+        h.Logged(3120).Last().ShouldContain("0 retried");
     }
 
     // ---- the deadline and the host's shutdown ----
@@ -651,8 +682,8 @@ public sealed class DmarcReportIngestionJobTests
     [InlineData("a stored report", 1)]
     [InlineData("a skipped message", 1)]
     [InlineData("only mail past retention", 0)]
-    [InlineData("a session fault", 0)]
-    public async Task Analyze_FollowsACompletedRunThatClaimedAMessage_AndNoOtherRun(string mail, int analyzes)
+    [InlineData("a session fault", 1)]
+    public async Task Analyze_FollowsARunThatReachedItsEndHavingClaimedAMessage_FaultOrNot(string mail, int analyzes)
     {
         var h = new Harness();
         switch (mail)

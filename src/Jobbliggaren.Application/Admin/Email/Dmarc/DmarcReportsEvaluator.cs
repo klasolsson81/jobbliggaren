@@ -97,21 +97,20 @@ public static class DmarcReportsEvaluator
             }
 
             ArgumentOutOfRangeException.ThrowIfNegative(count.Count);
-            if (DmarcOutcomeClasses.IsSkipped(count.Outcome))
+            switch (DmarcOutcomeClasses.ClassOf(count.Outcome))
             {
-                skipped += count.Count;
-            }
-            else if (DmarcOutcomeClasses.IsRejected(count.Outcome))
-            {
-                rejected += count.Count;
-            }
-            else if (count.Outcome == DmarcMessageOutcome.VolumeCapped)
-            {
-                volumeCapped += count.Count;
-            }
-            else if (count.Outcome == DmarcMessageOutcome.Abandoned)
-            {
-                abandoned += count.Count;
+                case DmarcOutcomeClass.Skipped:
+                    skipped += count.Count;
+                    break;
+                case DmarcOutcomeClass.Rejected:
+                    rejected += count.Count;
+                    break;
+                case DmarcOutcomeClass.VolumeCapped:
+                    volumeCapped += count.Count;
+                    break;
+                case DmarcOutcomeClass.Abandoned:
+                    abandoned += count.Count;
+                    break;
             }
         }
 

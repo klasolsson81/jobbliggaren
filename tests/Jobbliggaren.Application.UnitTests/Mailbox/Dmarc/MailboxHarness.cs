@@ -74,8 +74,8 @@ internal static class Messages
 
     public static byte[] Bytes(string text) => Encoding.ASCII.GetBytes(text);
 
-    /// <summary>A Google-shaped message: a text part, then a zip attachment named for its report.</summary>
-    public static ScriptedMessage GoogleShaped(uint uid, byte[] zip) =>
+    /// <summary>A Yahoo-shaped message: multipart/mixed, a text part, then the report as an attachment named for it.</summary>
+    public static ScriptedMessage YahooShaped(uint uid, byte[] zip) =>
         ScriptedMessage.Multipart(
             uid,
             TopHeader("multipart/mixed; boundary=\"b1\""),
@@ -85,4 +85,17 @@ internal static class Messages
                 "base64",
                 $"attachment; filename=\"example.org!jobbliggaren.se!1760918400!1761004799-{Canary}.zip\""),
                 Bytes(Convert.ToBase64String(zip, Base64FormattingOptions.InsertLineBreaks) + "\r\n")));
+
+    /// <summary>
+    /// A Google-shaped message, as the IETF dmarc-report archive showed it on 2026-10-24: single-part application/zip,
+    /// base64, with no text body.
+    /// </summary>
+    public static ScriptedMessage GoogleShaped(uint uid, byte[] zip) =>
+        ScriptedMessage.SinglePart(
+            uid,
+            TopHeader(
+                "application/zip; name=\"example.org!jobbliggaren.se!1760918400!1761004799.zip\"",
+                "Content-Transfer-Encoding: base64\r\n"
+                + $"Content-Disposition: attachment; filename=\"example.org!jobbliggaren.se!1760918400!1761004799-{Canary}.zip\"\r\n"),
+            Bytes(Convert.ToBase64String(zip, Base64FormattingOptions.InsertLineBreaks) + "\r\n"));
 }

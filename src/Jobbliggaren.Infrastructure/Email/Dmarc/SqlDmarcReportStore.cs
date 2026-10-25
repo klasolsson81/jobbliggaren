@@ -161,7 +161,7 @@ internal sealed partial class SqlDmarcReportStore(AppDbContext db, ILogger<SqlDm
     }
 
     public async ValueTask<IReadOnlyList<DmarcPendingMessage>> ListRetriesAsync(
-        long epoch, int max, CancellationToken cancellationToken)
+        long epoch, DateTimeOffset receivedFrom, int max, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(max);
         if (max == 0)
@@ -174,13 +174,14 @@ internal sealed partial class SqlDmarcReportStore(AppDbContext db, ILogger<SqlDm
             """
             SELECT uid, received_at, retries
             FROM public.dmarc_mailbox_messages
-            WHERE uid_validity = @epoch AND outcome = @retry_pending
+            WHERE uid_validity = @epoch AND outcome = @retry_pending AND received_at >= @received_from
             ORDER BY uid
             LIMIT @max;
             """);
         command.Parameters.AddWithValue("epoch", NpgsqlDbType.Bigint, epoch);
         command.Parameters.AddWithValue("retry_pending", NpgsqlDbType.Smallint, Number(DmarcMessageOutcome.RetryPending));
         command.Parameters.AddWithValue("max", NpgsqlDbType.Integer, max);
+        command.Parameters.AddWithValue("received_from", NpgsqlDbType.TimestampTz, receivedFrom.ToUniversalTime());
 
         var pending = new List<DmarcPendingMessage>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -298,8 +299,10 @@ internal sealed partial class SqlDmarcReportStore(AppDbContext db, ILogger<SqlDm
     }
 
     /// <summary>
-    /// The day's caps, then the report and its records. The caps count what was received on the report's UTC day
-    /// between two instants, never by casting to a date, which would read the session's time zone.
+    /// The content key, then the day's caps, then the report and its records: a report already stored stores nothing, so
+    /// the caps have nothing to bound and the message is a duplicate on a capped day too. The caps count what was
+    /// received on the report's UTC day between two instants, never by casting to a date, which would read the session's
+    /// time zone. The unique index stays the authority behind the probe.
     /// </summary>
     private static async Task<DmarcMessageOutcome> StoreWithinCapsAsync(
         NpgsqlConnection connection, NpgsqlTransaction transaction, DmarcAggregateReport report,
@@ -307,6 +310,24 @@ internal sealed partial class SqlDmarcReportStore(AppDbContext db, ILogger<SqlDm
     {
         var received = report.ReceivedAt.ToUniversalTime();
         var dayStart = new DateTimeOffset(received.Year, received.Month, received.Day, 0, 0, 0, TimeSpan.Zero);
+        var digest = report.CopyContentSha256();
+
+        await using (var stored = Command(
+            connection,
+            transaction,
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM public.dmarc_reports
+                WHERE reporter = @reporter AND reporter_report_id = @reporter_report_id
+                  AND content_sha256 = @content_sha256);
+            """))
+        {
+            stored.Parameters.AddWithValue("reporter", NpgsqlDbType.Text, report.Reporter);
+            stored.Parameters.AddWithValue("reporter_report_id", NpgsqlDbType.Text, report.ReportId);
+            stored.Parameters.AddWithValue("content_sha256", NpgsqlDbType.Bytea, digest);
+            if (await stored.ExecuteScalarAsync(cancellationToken) is true)
+                return DmarcMessageOutcome.Duplicate;
+        }
 
         await using (var caps = Command(
             connection,
@@ -332,7 +353,6 @@ internal sealed partial class SqlDmarcReportStore(AppDbContext db, ILogger<SqlDm
         }
 
         var reportId = Guid.NewGuid();
-        var digest = report.CopyContentSha256();
         await using (var insert = Command(
             connection,
             transaction,
@@ -455,17 +475,11 @@ internal sealed partial class SqlDmarcReportStore(AppDbContext db, ILogger<SqlDm
             throw new InvalidOperationException("Only a claimed message's turn can end.");
     }
 
-    private static bool EndsATurnWithoutStoring(DmarcMessageOutcome outcome) => outcome is
-        DmarcMessageOutcome.RetryPending
-        or DmarcMessageOutcome.SkippedTooLarge
-        or DmarcMessageOutcome.SkippedNoReportPart
-        or DmarcMessageOutcome.SkippedMultipleReportParts
-        or DmarcMessageOutcome.SkippedForensic
-        or DmarcMessageOutcome.SkippedUnsupportedEncoding
-        or DmarcMessageOutcome.SkippedHeaderTooLarge
-        or DmarcMessageOutcome.RejectedMalformed
-        or DmarcMessageOutcome.RejectedPolicyDomain
-        or DmarcMessageOutcome.RejectedContent;
+    // RejectedByStore is the store's own outcome, recorded by StoreAsync, never handed in.
+    private static bool EndsATurnWithoutStoring(DmarcMessageOutcome outcome) =>
+        outcome != DmarcMessageOutcome.RejectedByStore
+        && DmarcOutcomeClasses.ClassOf(outcome)
+            is DmarcOutcomeClass.RetryPending or DmarcOutcomeClass.Skipped or DmarcOutcomeClass.Rejected;
 
     private static short Number(DmarcMessageOutcome outcome) => (short)outcome;
 

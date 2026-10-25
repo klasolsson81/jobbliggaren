@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Admin.Email.Dmarc;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
 using Jobbliggaren.Worker.IntegrationTests.Email.Dmarc;
@@ -178,35 +179,35 @@ public sealed class AddDmarcAggregateReportsMigrationTests : IAsyncLifetime
     private async Task AssertUpAsync()
     {
         (await ColumnsAsync()).ShouldBe([
-            "dmarc_mailbox_messages.attempts|smallint||NO",
-            "dmarc_mailbox_messages.outcome|smallint||NO",
-            "dmarc_mailbox_messages.received_at|timestamp with time zone||NO",
-            "dmarc_mailbox_messages.retries|smallint||NO",
-            "dmarc_mailbox_messages.uid|bigint||NO",
-            "dmarc_mailbox_messages.uid_validity|bigint||NO",
-            "dmarc_mailbox_state.id|integer||NO",
-            "dmarc_mailbox_state.last_attempt_at|timestamp with time zone||NO",
-            "dmarc_mailbox_state.last_outcome|smallint||NO",
-            "dmarc_mailbox_state.last_success_at|timestamp with time zone||YES",
-            "dmarc_mailbox_state.last_uid|bigint||YES",
-            "dmarc_mailbox_state.uid_validity|bigint||YES",
-            "dmarc_report_rows.dkim_aligned|smallint||NO",
-            "dmarc_report_rows.header_from|character varying|253|NO",
-            "dmarc_report_rows.message_count|integer||NO",
-            "dmarc_report_rows.ordinal|integer||NO",
-            "dmarc_report_rows.report_id|uuid||NO",
-            "dmarc_report_rows.source_ip|inet||NO",
-            "dmarc_report_rows.spf_aligned|smallint||NO",
-            "dmarc_reports.begins_at|timestamp with time zone||NO",
-            "dmarc_reports.content_sha256|bytea||NO",
-            "dmarc_reports.ends_at|timestamp with time zone||NO",
-            "dmarc_reports.id|uuid||NO",
-            "dmarc_reports.received_at|timestamp with time zone||NO",
-            "dmarc_reports.reporter|character varying|255|NO",
-            "dmarc_reports.reporter_report_id|character varying|255|NO",
+            "dmarc_mailbox_messages.attempts|smallint||NO|NO|",
+            "dmarc_mailbox_messages.outcome|smallint||NO|NO|",
+            "dmarc_mailbox_messages.received_at|timestamp with time zone||NO|NO|",
+            "dmarc_mailbox_messages.retries|smallint||NO|NO|",
+            "dmarc_mailbox_messages.uid|bigint||NO|NO|",
+            "dmarc_mailbox_messages.uid_validity|bigint||NO|NO|",
+            "dmarc_mailbox_state.id|integer||NO|NO|",
+            "dmarc_mailbox_state.last_attempt_at|timestamp with time zone||NO|NO|",
+            "dmarc_mailbox_state.last_outcome|smallint||NO|NO|",
+            "dmarc_mailbox_state.last_success_at|timestamp with time zone||YES|NO|",
+            "dmarc_mailbox_state.last_uid|bigint||YES|NO|",
+            "dmarc_mailbox_state.uid_validity|bigint||YES|NO|",
+            "dmarc_report_rows.dkim_aligned|smallint||NO|NO|",
+            $"dmarc_report_rows.header_from|character varying|{DmarcIngestionLimits.MaxHeaderFromLength}|NO|NO|",
+            "dmarc_report_rows.message_count|integer||NO|NO|",
+            "dmarc_report_rows.ordinal|integer||NO|NO|",
+            "dmarc_report_rows.report_id|uuid||NO|NO|",
+            "dmarc_report_rows.source_ip|inet||NO|NO|",
+            "dmarc_report_rows.spf_aligned|smallint||NO|NO|",
+            "dmarc_reports.begins_at|timestamp with time zone||NO|NO|",
+            "dmarc_reports.content_sha256|bytea||NO|NO|",
+            "dmarc_reports.ends_at|timestamp with time zone||NO|NO|",
+            "dmarc_reports.id|uuid||NO|NO|",
+            "dmarc_reports.received_at|timestamp with time zone||NO|NO|",
+            $"dmarc_reports.reporter|character varying|{DmarcIngestionLimits.MaxFieldLength}|NO|NO|",
+            $"dmarc_reports.reporter_report_id|character varying|{DmarcIngestionLimits.MaxFieldLength}|NO|NO|",
         ]);
         (await ConstraintsAsync()).ShouldBe([
-            "ck_dmarc_mailbox_messages_positive|CHECK (((uid_validity > 0) AND (uid > 0) AND (outcome > 0) AND ((attempts >= 1) AND (attempts <= 2)) AND (retries >= 0)))",
+            $"ck_dmarc_mailbox_messages_positive|CHECK (((uid_validity > 0) AND (uid > 0) AND (outcome > 0) AND ((attempts >= 1) AND (attempts <= {DmarcIngestionLimits.MaxCrashAttempts})) AND (retries >= 0)))",
             "ck_dmarc_mailbox_state_positive|CHECK (((last_outcome > 0) AND ((uid_validity IS NULL) OR (uid_validity > 0)) AND ((last_uid IS NULL) OR (last_uid >= 0)) AND ((uid_validity IS NULL) = (last_uid IS NULL))))",
             "ck_dmarc_mailbox_state_singleton|CHECK ((id = 1))",
             "ck_dmarc_report_rows_positive|CHECK (((ordinal >= 0) AND (message_count > 0) AND (dkim_aligned > 0) AND (spf_aligned > 0)))",
@@ -282,7 +283,8 @@ public sealed class AddDmarcAggregateReportsMigrationTests : IAsyncLifetime
     private Task<List<string>> ColumnsAsync() => Strings(
         $"""
         SELECT table_name || '.' || column_name || '|' || data_type || '|'
-            || coalesce(character_maximum_length::text, '') || '|' || is_nullable
+            || coalesce(character_maximum_length::text, '') || '|' || is_nullable || '|' || is_identity || '|'
+            || coalesce(column_default, '')
         FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name IN ({NewTablesList})
         ORDER BY table_name COLLATE "C", column_name COLLATE "C"

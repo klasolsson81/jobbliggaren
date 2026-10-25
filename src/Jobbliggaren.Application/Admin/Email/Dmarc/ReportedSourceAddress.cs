@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 
@@ -9,8 +10,9 @@ namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 /// <para>
 /// <see cref="IPAddress.TryParse(string?, out IPAddress?)"/> alone accepts the legacy inet_addr forms ("65536",
 /// "20.2") and scoped IPv6, which would store a source the reporter never named. An IPv4 address is therefore exactly
-/// four dotted decimal octets without leading zeros (RFC 3986 IPv4address, which RFC 9990 names); an IPv6 address has
-/// no scope; and an IPv4-mapped IPv6 address becomes the IPv4 address, so one server is one source.
+/// four dotted decimal octets without leading zeros (RFC 3986 IPv4address, which RFC 9990 names), also as the tail of
+/// an IPv6 address; an IPv6 address is hex groups, colons and that tail only, with no scope, brackets or port; and an
+/// IPv4-mapped IPv6 address becomes the IPv4 address, so one server is one source.
 /// </para>
 /// </summary>
 public sealed record ReportedSourceAddress
@@ -19,7 +21,7 @@ public sealed record ReportedSourceAddress
 
     public IPAddress Value { get; }
 
-    public static bool TryParse(string? text, out ReportedSourceAddress? address)
+    public static bool TryParse(string? text, [NotNullWhen(true)] out ReportedSourceAddress? address)
     {
         address = null;
         if (string.IsNullOrEmpty(text))
@@ -27,7 +29,7 @@ public sealed record ReportedSourceAddress
 
         if (text.Contains(':', StringComparison.Ordinal))
         {
-            if (text.Contains('%', StringComparison.Ordinal)
+            if (!IsIPv6Text(text)
                 || !IPAddress.TryParse(text, out var v6)
                 || v6.AddressFamily != AddressFamily.InterNetworkV6
                 || v6.ScopeId != 0)
@@ -54,6 +56,18 @@ public sealed record ReportedSourceAddress
     }
 
     public override string ToString() => Value.ToString();
+
+    private static bool IsIPv6Text(string text)
+    {
+        foreach (var c in text)
+        {
+            if (!char.IsAsciiHexDigit(c) && c is not (':' or '.'))
+                return false;
+        }
+
+        var lastColon = text.LastIndexOf(':');
+        return !text.Contains('.', StringComparison.Ordinal) || IsDottedQuad(text[(lastColon + 1)..]);
+    }
 
     private static bool IsDottedQuad(string text)
     {

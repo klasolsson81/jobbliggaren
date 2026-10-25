@@ -39,8 +39,12 @@ public interface IDmarcReportStore
     /// <summary>Advances the cursor past a message that gets no ledger row (received before the retention cutoff).</summary>
     ValueTask AdvanceCursorAsync(long epoch, long position, CancellationToken cancellationToken);
 
-    /// <summary>The epoch's messages waiting for a retry, oldest position first, at most <paramref name="max"/>.</summary>
-    ValueTask<IReadOnlyList<DmarcPendingMessage>> ListRetriesAsync(long epoch, int max, CancellationToken cancellationToken);
+    /// <summary>
+    /// The epoch's messages waiting for a retry and received at or after <paramref name="receivedFrom"/> (the retention
+    /// cutoff), oldest position first, at most <paramref name="max"/>.
+    /// </summary>
+    ValueTask<IReadOnlyList<DmarcPendingMessage>> ListRetriesAsync(
+        long epoch, DateTimeOffset receivedFrom, int max, CancellationToken cancellationToken);
 
     /// <summary>
     /// Claims a waiting message for one more try. At <see cref="DmarcIngestionLimits.RetryLimit"/> retries it becomes

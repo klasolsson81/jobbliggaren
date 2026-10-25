@@ -244,7 +244,7 @@ internal sealed class RecordingDmarcReportStore : IDmarcReportStore
         }
 
         State = state with { Cursor = new DmarcCursor(epoch, 0) };
-        return ValueTask.FromResult(state.Cursor is not null);
+        return ValueTask.FromResult(true);
     }
 
     public ValueTask ClaimAsync(long epoch, long position, DateTimeOffset receivedAt, CancellationToken cancellationToken)
@@ -266,13 +266,18 @@ internal sealed class RecordingDmarcReportStore : IDmarcReportStore
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask<IReadOnlyList<DmarcPendingMessage>> ListRetriesAsync(long epoch, int max, CancellationToken cancellationToken)
+    public ValueTask<IReadOnlyList<DmarcPendingMessage>> ListRetriesAsync(
+        long epoch, DateTimeOffset receivedFrom, int max, CancellationToken cancellationToken)
     {
         Enter("ListRetries", null, cancellationToken);
         ArgumentOutOfRangeException.ThrowIfLessThan(max, 1);
         RetryListings.Add(max);
+        // SqlDmarcReportStore's received_at filter
+        // (SqlDmarcReportStoreIntegrationTests.ListRetries_LeavesOutAWaitingMessageReceivedBeforeTheCutoff).
         IReadOnlyList<DmarcPendingMessage> pending = [.. Ledger
-            .Where(pair => pair.Key.Epoch == epoch && pair.Value.Outcome == DmarcMessageOutcome.RetryPending)
+            .Where(pair => pair.Key.Epoch == epoch
+                && pair.Value.Outcome == DmarcMessageOutcome.RetryPending
+                && pair.Value.ReceivedAt >= receivedFrom)
             .OrderBy(pair => pair.Key.Position)
             .Take(max)
             .Select(pair => new DmarcPendingMessage(pair.Key.Position, pair.Value.ReceivedAt, pair.Value.Retries))];

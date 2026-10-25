@@ -43,10 +43,11 @@ public sealed partial class DmarcReportIngestionJob(
     {
         var runStart = clock.UtcNow;
         var state = await store.ReadStateAsync(cancellationToken);
-        if (state is { LastOutcome: DmarcRunOutcome.AuthRefused }
-            && state.LastAttemptAt > runStart - DmarcIngestionLimits.AuthRefusedBackoff)
+        if (state is not null
+            && DmarcOutcomes.BacksOffSignIn(state.LastOutcome)
+            && state.LastAttemptAt > runStart - DmarcIngestionLimits.SignInBackoff)
         {
-            LogBackedOff();
+            LogBackedOff(state.LastOutcome);
             return;
         }
 
@@ -116,7 +117,6 @@ public sealed partial class DmarcReportIngestionJob(
         if (fault is not null)
         {
             LogRunEnded(LogLevel.Warning, runOutcome);
-            return;
         }
 
         if (run.Claimed > 0 && run.InHand is null)
@@ -185,16 +185,10 @@ public sealed partial class DmarcReportIngestionJob(
         }
 
         var cutoff = DmarcRetention.CutoffOf(runStart);
-        foreach (var pending in await store.ListRetriesAsync(run.Epoch, room, cancellationToken))
+        foreach (var pending in await store.ListRetriesAsync(run.Epoch, cutoff, room, cancellationToken))
         {
             if (run.Tried(pending.Position))
             {
-                continue;
-            }
-
-            if (pending.ReceivedAt < cutoff)
-            {
-                run.Expired++;
                 continue;
             }
 
@@ -314,8 +308,8 @@ public sealed partial class DmarcReportIngestionJob(
         int abandoned);
 
     [LoggerMessage(3121, LogLevel.Information,
-        "[DmarcReportIngestion] The latest sign-in was refused within the back-off, so the mailbox is not opened")]
-    private partial void LogBackedOff();
+        "[DmarcReportIngestion] The latest sign-in ended {Outcome} within the back-off, so the mailbox is not opened")]
+    private partial void LogBackedOff(DmarcRunOutcome outcome);
 
     [LoggerMessage(EventId = 3122, Message = "[DmarcReportIngestion] Run ended without a success: {Outcome}")]
     private partial void LogRunEnded(LogLevel level, DmarcRunOutcome outcome);

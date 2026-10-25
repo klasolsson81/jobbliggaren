@@ -46,6 +46,9 @@ internal sealed partial class ScriptedImapServer : IAsyncDisposable
     /// <summary>Called with each command, tag stripped, before the default answer; a non-null result replaces it.</summary>
     public Func<string, Interception?> Intercept { get; set; } = _ => null;
 
+    /// <summary>What the server does once an AUTHENTICATE credential has arrived: a hang, a BYE, a drop or a reset.</summary>
+    public Interception? AfterCredential { get; set; }
+
     public IReadOnlyList<string> Commands
     {
         get
@@ -142,6 +145,9 @@ internal sealed partial class ScriptedImapServer : IAsyncDisposable
                 return false;
             case Interception.Drop:
                 return false;
+            case Interception.Reset:
+                Reset(stream);
+                return false;
             case Interception.Hang:
                 await Task.Delay(Timeout.Infinite, _stopping.Token);
                 return false;
@@ -213,6 +219,21 @@ internal sealed partial class ScriptedImapServer : IAsyncDisposable
         }
 
         Interlocked.Increment(ref _credentialsReceived);
+        switch (AfterCredential)
+        {
+            case Interception.Hang:
+                await Task.Delay(Timeout.Infinite, _stopping.Token);
+                return false;
+            case Interception.Bye:
+                await WriteAsync(stream, "* BYE Scripted shutdown\r\n");
+                return false;
+            case Interception.Drop:
+                return false;
+            case Interception.Reset:
+                Reset(stream);
+                return false;
+        }
+
         var parts = Encoding.UTF8.GetString(Convert.FromBase64String(response)).Split('\0');
         var accepted = parts is [_, "dmarc@jobbliggaren.se", var password] && password == Password;
         await WriteAsync(
@@ -302,6 +323,9 @@ internal sealed partial class ScriptedImapServer : IAsyncDisposable
         long Bound(string text) => text == "*" ? Mailbox.Messages.Count : long.Parse(text, CultureInfo.InvariantCulture);
     }
 
+    /// <summary>A zero linger, so closing the socket sends a TCP reset rather than a FIN.</summary>
+    private static void Reset(NetworkStream stream) => stream.Socket.LingerState = new LingerOption(enable: true, seconds: 0);
+
     private Task WriteAsync(NetworkStream stream, string text) =>
         stream.WriteAsync(Encoding.ASCII.GetBytes(text), _stopping.Token).AsTask();
 
@@ -352,6 +376,9 @@ internal abstract record Interception
 
     /// <summary>The connection closes without a word.</summary>
     public sealed record Drop : Interception;
+
+    /// <summary>The connection is reset (a TCP RST), not closed.</summary>
+    public sealed record Reset : Interception;
 
     /// <summary>No answer at all, for as long as the test runs.</summary>
     public sealed record Hang : Interception;

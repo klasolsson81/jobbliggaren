@@ -248,7 +248,7 @@ public sealed partial class RecurringJobRegistrar(
             job => job.RunAsync(CancellationToken.None),
             "40 4 * * *");
 
-        // #1981 PR 4a (ADR 0184) — the DMARC report mailbox, hourly at :23, a minute no other cron here takes. Reports
+        // #1981 PR 4a (ADR 0184) — the DMARC report mailbox, hourly at :23. Reports
         // arrive once a day per reporter, so an hour is fresh enough; without a password a run only records that.
         manager.AddOrUpdate<DmarcReportIngestionWorker>(
             RecurringJobIds.DmarcReportIngestion,

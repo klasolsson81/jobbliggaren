@@ -97,7 +97,7 @@ public sealed class DmarcAggregateReport
                 return new DmarcAcceptance.Rejected(DmarcRejection.HeaderFromOutsideDomain);
 
             records.Add(new DmarcReportRecord(
-                source!, (int)record.Count, headerFrom, AlignmentOf(record.Dkim), AlignmentOf(record.Spf)));
+                source, (int)record.Count, headerFrom, AlignmentOf(record.Dkim), AlignmentOf(record.Spf)));
         }
 
         return new DmarcAcceptance.Accepted(new DmarcAggregateReport(
@@ -145,17 +145,15 @@ public sealed class DmarcAggregateReport
         if (text.Length > DmarcIngestionLimits.MaxFieldLength)
             return DmarcRejection.FieldTooLong;
 
+        // A lone surrogate enumerates as the replacement character, so that one check covers both.
         foreach (var rune in text.EnumerateRunes())
         {
-            var category = Rune.GetUnicodeCategory(rune);
-            if (category is UnicodeCategory.Control or UnicodeCategory.Format
-                or UnicodeCategory.Surrogate or UnicodeCategory.PrivateUse or UnicodeCategory.OtherNotAssigned
-                or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator)
+            if (rune == Rune.ReplacementChar
+                || Rune.GetUnicodeCategory(rune) is UnicodeCategory.Control or UnicodeCategory.Format
+                    or UnicodeCategory.PrivateUse or UnicodeCategory.OtherNotAssigned
+                    or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator)
                 return DmarcRejection.ForbiddenCharacter;
         }
-
-        if (text.Contains('�', StringComparison.Ordinal))
-            return DmarcRejection.ForbiddenCharacter;
 
         return null;
     }
@@ -166,7 +164,8 @@ public sealed class DmarcAggregateReport
     /// </summary>
     private static string? HeaderFromOf(string? text)
     {
-        if (string.IsNullOrEmpty(text))
+        // ASCII first: lower-casing would turn some non-ASCII letters (U+212A KELVIN SIGN) into LDH ones.
+        if (string.IsNullOrEmpty(text) || !Ascii.IsValid(text))
             return null;
 
         var domain = text.TrimEnd('.').ToLowerInvariant();

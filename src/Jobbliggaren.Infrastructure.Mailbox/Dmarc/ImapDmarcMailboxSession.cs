@@ -73,8 +73,6 @@ internal sealed class ImapDmarcMailboxSession : IDmarcMailboxSession
         ArgumentOutOfRangeException.ThrowIfGreaterThan(entry.Position, uint.MaxValue);
         if (_fault is { } earlier)
             return new DmarcMailboxFetch.Failed(earlier);
-        if (entry.Size > DmarcIngestionLimits.MaxMessageBytes)
-            return new DmarcMailboxFetch.Skipped(DmarcSkipReason.TooLarge);
 
         _step = DmarcMailboxStep.FetchHeader;
         try
@@ -234,7 +232,7 @@ internal sealed class ImapDmarcMailboxSession : IDmarcMailboxSession
             var read = await ReadSectionAsync(uid, $"{part}.MIME", DmarcIngestionLimits.PartHeaderFetchBytes, cancellationToken);
             if (read is not SectionRead.Bytes { Content: { Length: > 0 } partHeader })
             {
-                if (part == 1 && read is SectionRead.No or SectionRead.Bad)
+                if (part == 1 && read is SectionRead.No or SectionRead.Bad or SectionRead.Absent)
                     return Unread(read);
                 break;
             }
@@ -316,9 +314,14 @@ internal sealed class ImapDmarcMailboxSession : IDmarcMailboxSession
     private static DmarcMailboxFetch.Skipped Skip(MimeHeaderRead block) =>
         new(block is MimeHeaderRead.Ambiguous ? DmarcSkipReason.NoReportPart : DmarcSkipReason.HeaderTooLarge);
 
-    /// <summary>A section that arrived as anything but bytes, where the part is known to exist.</summary>
+    /// <summary>
+    /// A section that arrived as anything but bytes, where the part is known to exist. An OK with no data for the UID
+    /// means the message is gone, and a UID is never reused (RFC 3501 §2.3.1.1, §6.4.8), so that one is terminal.
+    /// </summary>
     private DmarcMailboxFetch Unread(SectionRead read)
     {
+        if (read is SectionRead.Absent)
+            return new DmarcMailboxFetch.Skipped(DmarcSkipReason.NotInMailbox);
         if (read is SectionRead.Bad)
             return new DmarcMailboxFetch.Failed(End(DmarcSessionFault.Protocol, _step));
 

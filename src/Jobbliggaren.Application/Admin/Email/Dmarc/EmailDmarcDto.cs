@@ -280,7 +280,7 @@ public sealed record DmarcMailboxCountsDto
         RetryPending = retryPending;
     }
 
-    /// <summary>Held no part the decoder may read: too large, no report part, several, forensic, an encoding not read.</summary>
+    /// <summary>Held no part the decoder may read.</summary>
     public long Skipped { get; }
 
     /// <summary>The report part was read and the report refused, whole.</summary>

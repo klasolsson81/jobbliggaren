@@ -10,9 +10,11 @@ public sealed class DmarcVocabularyTests
     public void TheStoredNumbers_AreThePinnedOnes()
     {
         Enum.GetValues<DmarcAlignment>().Select(v => (int)v).ShouldBe([1, 2, 3]);
-        Enum.GetValues<DmarcRunOutcome>().Select(v => (int)v).ShouldBe([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        Enum.GetValues<DmarcRunOutcome>().Select(v => (int)v).ShouldBe([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         Enum.GetValues<DmarcMessageOutcome>().Select(v => (int)v)
-            .ShouldBe([1, 2, 3, 10, 11, 12, 13, 20, 21, 22, 23, 24, 25, 30, 31, 32, 33]);
+            .ShouldBe([1, 2, 3, 10, 11, 12, 13, 20, 21, 22, 23, 24, 25, 26, 30, 31, 32, 33]);
+        Enum.GetValues<DmarcSkipReason>().Select(v => (int)v).ShouldBe([1, 2, 3, 4, 5, 6, 7]);
+        Enum.GetValues<DmarcSessionFault>().Select(v => (int)v).ShouldBe([1, 2, 3, 4, 5, 6]);
     }
 
     [Fact]
@@ -52,11 +54,68 @@ public sealed class DmarcVocabularyTests
         outcomes.ShouldNotContain(DmarcRunOutcome.Succeeded);
     }
 
+    private static readonly Dictionary<DmarcMessageOutcome, DmarcOutcomeClass> ExpectedClass = new()
+    {
+        [DmarcMessageOutcome.InProgress] = DmarcOutcomeClass.InProgress,
+        [DmarcMessageOutcome.RetryPending] = DmarcOutcomeClass.RetryPending,
+        [DmarcMessageOutcome.Abandoned] = DmarcOutcomeClass.Abandoned,
+        [DmarcMessageOutcome.Stored] = DmarcOutcomeClass.Stored,
+        [DmarcMessageOutcome.Duplicate] = DmarcOutcomeClass.Stored,
+        [DmarcMessageOutcome.StoredConflicting] = DmarcOutcomeClass.Stored,
+        [DmarcMessageOutcome.VolumeCapped] = DmarcOutcomeClass.VolumeCapped,
+        [DmarcMessageOutcome.SkippedTooLarge] = DmarcOutcomeClass.Skipped,
+        [DmarcMessageOutcome.SkippedNoReportPart] = DmarcOutcomeClass.Skipped,
+        [DmarcMessageOutcome.SkippedMultipleReportParts] = DmarcOutcomeClass.Skipped,
+        [DmarcMessageOutcome.SkippedForensic] = DmarcOutcomeClass.Skipped,
+        [DmarcMessageOutcome.SkippedUnsupportedEncoding] = DmarcOutcomeClass.Skipped,
+        [DmarcMessageOutcome.SkippedHeaderTooLarge] = DmarcOutcomeClass.Skipped,
+        [DmarcMessageOutcome.SkippedNotInMailbox] = DmarcOutcomeClass.Skipped,
+        [DmarcMessageOutcome.RejectedMalformed] = DmarcOutcomeClass.Rejected,
+        [DmarcMessageOutcome.RejectedPolicyDomain] = DmarcOutcomeClass.Rejected,
+        [DmarcMessageOutcome.RejectedContent] = DmarcOutcomeClass.Rejected,
+        [DmarcMessageOutcome.RejectedByStore] = DmarcOutcomeClass.Rejected,
+    };
+
+    public static TheoryData<DmarcMessageOutcome, DmarcOutcomeClass> OutcomeClasses()
+    {
+        var rows = new TheoryData<DmarcMessageOutcome, DmarcOutcomeClass>();
+        foreach (var (outcome, outcomeClass) in ExpectedClass)
+            rows.Add(outcome, outcomeClass);
+        return rows;
+    }
+
+    [Theory]
+    [MemberData(nameof(OutcomeClasses))]
+    public void EveryMessageOutcome_IsInExactlyOneClass(DmarcMessageOutcome outcome, DmarcOutcomeClass expected)
+    {
+        DmarcOutcomeClasses.ClassOf(outcome).ShouldBe(expected);
+        DmarcOutcomeClasses.IsSkipped(outcome).ShouldBe(expected == DmarcOutcomeClass.Skipped);
+        DmarcOutcomeClasses.IsRejected(outcome).ShouldBe(expected == DmarcOutcomeClass.Rejected);
+    }
+
+    [Fact]
+    public void TheClassTable_NamesEveryMessageOutcomeOnce()
+    {
+        ExpectedClass.Keys.ShouldBe(Enum.GetValues<DmarcMessageOutcome>(), ignoreOrder: true);
+    }
+
+    [Fact]
+    public void ExactlyARefusedAndAnUnansweredSignIn_BackOff()
+    {
+        foreach (var outcome in Enum.GetValues<DmarcRunOutcome>())
+        {
+            DmarcOutcomes.BacksOffSignIn(outcome).ShouldBe(
+                outcome is DmarcRunOutcome.AuthRefused or DmarcRunOutcome.AuthUnconfirmed, outcome.ToString());
+        }
+    }
+
     [Fact]
     public void AnUnknownMember_IsRefusedRatherThanMapped()
     {
         Should.Throw<ArgumentOutOfRangeException>(() => DmarcOutcomes.OutcomeOf((DmarcSkipReason)99));
         Should.Throw<ArgumentOutOfRangeException>(() => DmarcOutcomes.OutcomeOf((DmarcRejection)99));
         Should.Throw<ArgumentOutOfRangeException>(() => DmarcOutcomes.RunOutcomeOf((DmarcSessionFault)99));
+        Should.Throw<ArgumentOutOfRangeException>(() => DmarcOutcomes.BacksOffSignIn((DmarcRunOutcome)99));
+        Should.Throw<ArgumentOutOfRangeException>(() => DmarcOutcomeClasses.ClassOf((DmarcMessageOutcome)99));
     }
 }

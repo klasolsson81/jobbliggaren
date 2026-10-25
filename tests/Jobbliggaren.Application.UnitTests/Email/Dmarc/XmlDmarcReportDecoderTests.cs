@@ -170,6 +170,23 @@ public sealed class XmlDmarcReportDecoderTests
             .SourceIp.ShouldBe("198.51.100.77");
     }
 
+    // The stray record is complete and in no namespace, so only reading records at their fixed path leaves it out.
+    [Theory]
+    [InlineData("  </record>\n")]
+    [InlineData("</feedback>")]
+    public void Decode_ARecordInANamespacelessExtension_IsNotCounted(string before)
+    {
+        const string stray =
+            "<extension><record><row><source_ip>192.0.2.99</source_ip><count>5</count>"
+            + "<policy_evaluated><dkim>fail</dkim><spf>fail</spf></policy_evaluated></row>"
+            + "<identifiers><header_from>jobbliggaren.se</header_from></identifiers></record></extension>";
+        var xml = SyntheticReport.YahooShaped().ToXml().ReplaceOnce(before, stray + before);
+
+        var record = Decoded(Encoding.UTF8.GetBytes(xml), DmarcReportPartKind.Xml).Records.ShouldHaveSingleItem();
+        record.SourceIp.ShouldBe("198.51.100.77");
+        record.Count.ShouldBe(4);
+    }
+
     [Fact]
     public void Decode_ARecordInsideAnExtension_IsNotCounted()
     {

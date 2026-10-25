@@ -112,7 +112,9 @@ internal sealed class SqlDmarcReportsSource(AppDbContext db) : IDmarcReportsSour
         {
             pending.Parameters.AddWithValue(
                 "retry_pending", NpgsqlDbType.Smallint, (short)DmarcMessageOutcome.RetryPending);
-            retryPending = (long)(await pending.ExecuteScalarAsync(cancellationToken))!;
+            retryPending = await pending.ExecuteScalarAsync(cancellationToken) is long count
+                ? count
+                : throw new InvalidOperationException("count(*) answered something other than a bigint.");
         }
 
         await snapshot.CommitAsync(cancellationToken);

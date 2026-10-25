@@ -152,13 +152,32 @@ public sealed class SqlDmarcReportStoreIntegrationTests(WorkerTestFixture fixtur
             positions.Add(position);
         }
 
-        (await _store.ListRetriesAsync(Epoch, 2, Ct)).ShouldBe([
+        (await _store.ListRetriesAsync(Epoch, DateTimeOffset.MinValue, 2, Ct)).ShouldBe([
             new DmarcPendingMessage(positions[0], Day, 0),
             new DmarcPendingMessage(positions[1], Day.AddMinutes(1), 0),
         ]);
-        (await _store.ListRetriesAsync(Epoch, 10, Ct)).Select(m => m.Position).ShouldBe([positions[0], positions[1], positions[3]]);
-        (await _store.ListRetriesAsync(Epoch, 0, Ct)).ShouldBeEmpty();
-        (await _store.ListRetriesAsync(Epoch + 1, 10, Ct)).ShouldBeEmpty();
+        (await _store.ListRetriesAsync(Epoch, DateTimeOffset.MinValue, 10, Ct)).Select(m => m.Position).ShouldBe([positions[0], positions[1], positions[3]]);
+        (await _store.ListRetriesAsync(Epoch, DateTimeOffset.MinValue, 0, Ct)).ShouldBeEmpty();
+        (await _store.ListRetriesAsync(Epoch + 1, DateTimeOffset.MinValue, 10, Ct)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ListRetries_LeavesOutAWaitingMessageReceivedBeforeTheCutoff()
+    {
+        var driver = new DmarcIngestionDriver(_store);
+        await driver.StartAsync(Day);
+        var positions = new List<long>();
+        for (var i = 0; i < 3; i++)
+        {
+            var position = await driver.ClaimAsync(Day.AddMinutes(i));
+            await _store.SetOutcomeAsync(Epoch, position, DmarcMessageOutcome.RetryPending, Ct);
+            positions.Add(position);
+        }
+
+        (await _store.ListRetriesAsync(Epoch, Day.AddMinutes(1), 10, Ct)).Select(m => m.Position)
+            .ShouldBe([positions[1], positions[2]], "received at the cutoff is kept");
+        (await _store.ListRetriesAsync(Epoch, Day.AddMinutes(1).AddMicroseconds(1), 10, Ct)).Select(m => m.Position)
+            .ShouldBe([positions[2]]);
     }
 
     /// <summary>The 168 retries are made the way a run makes them: claim the retry, then hand it back.</summary>
@@ -263,11 +282,37 @@ public sealed class SqlDmarcReportStoreIntegrationTests(WorkerTestFixture fixtur
         (await driver.StoreAsync(Accepted("cap-over", Day.AddHours(12), [Record("192.0.2.30", 1)])))
             .ShouldBe(DmarcMessageOutcome.VolumeCapped);
         (await driver.StoreAsync(Accepted("cap-0", Day.AddHours(13), [Record("192.0.2.30", 1)])))
-            .ShouldBe(DmarcMessageOutcome.VolumeCapped, "the caps come first, a duplicate included");
+            .ShouldBe(DmarcMessageOutcome.Duplicate, "the same report is already stored, on a capped day too");
+        (await driver.StoreAsync(Accepted("cap-0", Day.AddHours(14), [Record("192.0.2.30", 1)], content: "other content")))
+            .ShouldBe(DmarcMessageOutcome.VolumeCapped, "the same key with other content would be stored");
         (await driver.StoreAsync(Accepted("cap-next", Day.AddDays(1), [Record("192.0.2.30", 1)])))
             .ShouldBe(DmarcMessageOutcome.Stored, "the next UTC day begins at midnight UTC, half-open");
 
         (await Count("dmarc_reports")).ShouldBe(DmarcIngestionLimits.MaxStoredReportsPerUtcDay + 1);
+    }
+
+    // The largest report Accept lets through: every text field at its length bound and a record at its count bound.
+    [Fact]
+    public async Task Store_TheLargestAcceptedReport_IsStored()
+    {
+        var driver = new DmarcIngestionDriver(_store);
+        await driver.StartAsync(Day);
+        const string policy = DmarcIngestionLimits.PolicyDomain;
+        var label = new string('a', 63) + ".";
+        var filler = new string('b', DmarcIngestionLimits.MaxHeaderFromLength - (3 * label.Length) - policy.Length - 1);
+        var headerFrom = label + label + label + filler + "." + policy;
+        headerFrom.Length.ShouldBe(DmarcIngestionLimits.MaxHeaderFromLength);
+        var report = Accepted(
+            new string('i', DmarcIngestionLimits.MaxFieldLength),
+            Day.AddHours(1),
+            [Record("192.0.2.70", DmarcIngestionLimits.MaxRecordMessageCount, headerFrom: headerFrom)],
+            reporter: new string('r', DmarcIngestionLimits.MaxFieldLength));
+
+        (await driver.StoreAsync(report)).ShouldBe(DmarcMessageOutcome.Stored);
+        (await Strings("SELECT length(reporter) || '|' || length(reporter_report_id) FROM dmarc_reports"))
+            .ShouldBe([$"{DmarcIngestionLimits.MaxFieldLength}|{DmarcIngestionLimits.MaxFieldLength}"]);
+        (await Strings("SELECT length(header_from) || '|' || message_count FROM dmarc_report_rows"))
+            .ShouldBe([$"{DmarcIngestionLimits.MaxHeaderFromLength}|{DmarcIngestionLimits.MaxRecordMessageCount}"]);
     }
 
     [Fact]

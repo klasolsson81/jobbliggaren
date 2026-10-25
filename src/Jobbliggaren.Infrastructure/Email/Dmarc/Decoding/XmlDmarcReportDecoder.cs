@@ -35,10 +35,10 @@ internal sealed class XmlDmarcReportDecoder : IDmarcReportDecoder
                 DmarcReportPartKind.Zip => Unzip(content),
                 _ => new ArraySegment<byte>(content),
             };
-            if (xml.Array is null)
+            if (xml.Array is not { } buffer)
                 return Malformed;
 
-            var candidate = ReportReader.Read(xml, SHA256.HashData(xml.AsSpan()));
+            var candidate = ReportReader.Read(buffer, xml.Offset, xml.Count, SHA256.HashData(xml.AsSpan()));
             return candidate is null ? Malformed : new DmarcDecoding.Decoded(candidate);
         }
         catch (InvalidDataException)
@@ -117,10 +117,10 @@ internal sealed class XmlDmarcReportDecoder : IDmarcReportDecoder
             Malformed,
         }
 
-        public static DmarcReportCandidate? Read(ArraySegment<byte> xml, byte[] digest)
+        public static DmarcReportCandidate? Read(byte[] buffer, int offset, int count, byte[] digest)
         {
             using var reader = XmlReader.Create(
-                new MemoryStream(xml.Array!, xml.Offset, xml.Count, writable: false),
+                new MemoryStream(buffer, offset, count, writable: false),
                 HardenedXmlReaderSettings.Create(maxCharactersInDocument: null));
 
             if (reader.MoveToContent() != XmlNodeType.Element || !IsReportElement(reader, "feedback"))

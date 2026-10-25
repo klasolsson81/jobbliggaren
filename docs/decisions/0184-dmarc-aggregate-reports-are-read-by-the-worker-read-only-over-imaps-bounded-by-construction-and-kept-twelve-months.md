@@ -90,7 +90,7 @@ name, at most 32 levels deep and at most 5 000 records. The content digest is SH
 
 `DmarcAggregateReport.Accept` is the one place a report's bounds are decided. Any bound broken by any record refuses the whole
 report, because a partly accepted report would show a subset as if the reporter had said it: another policy domain; a
-reporter name or report id that is blank, longer than 255 characters or carries a control, format, separator or unassigned
+reporter name or report id that is blank, longer than 255 characters or carries a control, format or unassigned
 character (bidi controls included); a source that is not exactly one IPv4 address in dotted-quad form or one unscoped IPv6
 address (IPv4-mapped addresses become IPv4); a header-from that is not LDH labels equal to or under `jobbliggaren.se`; a count
 outside 1..10 000 000; no records or more than 5 000; a period that is not `0 < end − begin ≤ 7 days` with
@@ -99,7 +99,7 @@ outside 1..10 000 000; no records or more than 5 000; a period that is not `0 < 
 ### D5 — Claim before content, and every retry is bounded
 
 Each new message is claimed before any of its content is fetched: one transaction writes its ledger row `InProgress` and moves
-the cursor. Four failure classes decide what happens to it:
+the cursor. Failure classes decide what happens to it:
 - **A session fault** (connect, TLS, authentication, socket, timeout, BYE, an unusable connection, a tagged BAD) hands the
   message in hand back as `RetryPending` and ends the run with that fault in the state row.
 - **A refusal** of one message (a tagged NO on a usable connection) makes it `RetryPending` and the run continues.
@@ -133,8 +133,7 @@ Per UTC day of receipt at most 100 reports and 5 000 records are stored; past ei
 counted. With the 12-month retention the total is bounded by those caps times (366 days + the days to the next retention run),
 plus at most 100 × 24 ledger rows a day. The numbers are revisited against the first 30 days live (8 reports in 5 days so far).
 A database refusal of an accepted report is a typed catch that records `RejectedByStore`; `Accept` checks every bound the
-database enforces first, so that outcome is declared unreachable. A run that claimed a message refreshes the planner statistics
-of the three tables it wrote (AGENTS.md §3.6).
+database enforces first, so that outcome is declared unreachable.
 
 ### D7 — Two versions of one report are counted, never summed
 
@@ -148,8 +147,10 @@ Klas decided on 2026-09-04 that DMARC reports are kept twelve months from receip
 never a sender-written header, and never later than the clock that reads it. `DmarcRetention.CutoffOf` is the one rule:
 ingestion skips a message received before the cutoff (it advances the cursor and writes no ledger row), and the daily
 `dmarc-report-retention` job (04:20 UTC) deletes every report (with its records) and ledger row received before it. A row
-therefore lives at most twelve months plus the time to the next successful run. The state row holds no personal data and is
-never deleted. Backups follow the processing register's backup entry. A schedule change goes back to `security-auditor`.
+therefore lives at most twelve months plus the time to the next successful run, except while a rollback across
+`AddDmarcAggregateReports` lasts: the older code neither ingests nor deletes, so rows past the bound stay until the roll
+forward, `migrate` refuses to start until `MIGRATE_ALLOW_SCHEMA_AHEAD` names the migration, and Down would drop the reports, the
+ledger and the cursor (lapse trigger 3). The state row holds no personal data and is never deleted. Backups follow the processing register's backup entry. A schedule change goes back to `security-auditor`.
 
 ### D9 — The read, and what the page may claim
 
@@ -232,7 +233,7 @@ Each goes back to the reviewer named.
 1. Mozilla removes "T-TeleSec GlobalRoot Class 2" from website trust on **2027-04-15**; once a Worker image carries a
    ca-certificates bundle without it, the state reads `TlsFailed`. Never fixed by relaxing validation. (`security-auditor`)
 2. The A records of `imap.strato.de` change (the state reads `Unreachable`). (Klas, egress rule)
-3. A rollback across `AddDmarcAggregateReports`. (`db-migration-writer`)
+3. A rollback across `AddDmarcAggregateReports`: retention stops until the roll forward (D8). (`db-migration-writer`)
 4. A new stored field, raw authentication results included; `ruf=`; a retention or schedule change; a second holder of the
    password; a third-party receiver; any automated action on a report (alert, attention item, notification, blocklist,
    export); display outside `/admin`. (`security-auditor`)

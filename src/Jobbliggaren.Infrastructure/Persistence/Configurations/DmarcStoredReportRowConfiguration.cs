@@ -5,9 +5,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Jobbliggaren.Infrastructure.Persistence.Configurations;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0184) — EF Core configuration for <c>dmarc_report_rows</c>. The key's prefix is the report, so
-/// the cascade from a deleted report and the read's join both use it and no other index is needed. The two results
-/// are stored by number, as PR 3's counts are.
+/// #1981 PR 4a (ADR 0184) — EF Core configuration for <c>dmarc_report_rows</c>. The key's prefix is the report. The two
+/// results are stored by number, as PR 3's counts are.
 /// </summary>
 internal sealed class DmarcStoredReportRowConfiguration : IEntityTypeConfiguration<DmarcStoredReportRow>
 {

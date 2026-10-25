@@ -130,7 +130,9 @@ chat, one step per message):
    the reconcile unit, which also creates `/run/jobbliggaren/worker-secrets` and lets `migrate` apply `AddDmarcAggregateReports`.
    Read `--status`.
 2. Klas adds `jbl-egress` rule 6 in Netcup's console: resolve `imap.strato.de` (A records only), one rule per address, TCP,
-   destination port 993, destination `/32`, ACCEPT; read the policy back (`vps-base-hardening.md` §6.3 and §6.5).
+   destination port 993, destination `/32`, ACCEPT; read the policy back (`vps-base-hardening.md` §6.3 and §6.5). Then, from
+   the box and with no login, a TLS handshake to `imap.strato.de:993` must complete and a connection to another host on 993
+   must time out; the outcome goes into the GO record.
 3. Klas sets a new random password for `dmarc@` only in STRATO's customer login, and writes down with the date whether the
    mailbox can be barred from sending or webmail and whether it has two-factor sign-in.
 4. Klas runs `sudo JBL_INJECT_DMARC_MAILBOX=1 /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh` in his own
@@ -150,6 +152,22 @@ mailbox's webmail login, so it changes there too.
 **Removing it:** clear `DMARC_MAILBOX_PASSWORD_FILE` in `.env`, remove the file, recreate the worker. The next run records
 `NotConfigured`. The stored reports stay until the retention job deletes them twelve months after receipt.
 
+**An Art. 17 erasure by address** (ADR 0184 D11) is Klas's, by hand, with his GO. It deletes every report whose records hold the
+address, and every version of those reports' ids; the records go with their reports by cascade, and the ledger holds no
+address. The address is typed only into his own `psql` session as a variable, never into chat or a file, and the erasure is
+recorded as a date and a count:
+
+```sql
+\prompt 'Address: ' addr
+DELETE FROM dmarc_reports r
+ USING (SELECT DISTINCT s.reporter, s.reporter_report_id
+          FROM dmarc_reports s JOIN dmarc_report_rows w ON w.report_id = s.id
+         WHERE w.source_ip = :'addr'::inet) hit
+ WHERE r.reporter = hit.reporter AND r.reporter_report_id = hit.reporter_report_id;
+```
+
+He also deletes the messages that carry those reports from the mailbox in webmail.
+
 **When the state reports a failure:**
 
 | `last_outcome` | What to do |
@@ -159,6 +177,7 @@ mailbox's webmail login, so it changes there too.
 | `Unreachable` | The egress rule is missing, or STRATO has renumbered `imap.strato.de`: re-resolve and edit rule 6 with Klas's GO. Never a port-only rule. |
 | `TlsFailed` | The certificate chain fails. Expected once a worker image lacks "T-TeleSec GlobalRoot Class 2" (ADR 0184 lapse trigger 1). Never fixed by relaxing validation. |
 | `AuthRefused` | The password was refused. No run connects again for 24 hours, so a fixed password is picked up after that. Rotate it (above). |
+| `AuthUnconfirmed` | The password was sent and no answer came: a timeout, a BYE or a reset. No run connects again for 24 hours. It does not say the password is wrong; if it recurs, read STRATO's status before rotating. |
 | `Timeout` | Transient. A lasting one: STRATO's status. |
 | `Protocol` | The server answered outside the protocol, or refused a command as malformed. Count the 3135–3139 events; a code change. |
 | `Incomplete` | The first run did not finish. Count the 3120–3123 events in the worker log. |

@@ -44,6 +44,49 @@ public class ImapDmarcMailboxTlsTests
         commandsSeen.ShouldBe(0);
     }
 
+    /// <summary>
+    /// The control: the same certificate and server complete the handshake with a client that pins that certificate, so
+    /// the refusal above is the adapter's validation and not a server that cannot serve TLS.
+    /// </summary>
+    [Fact]
+    public async Task The_same_server_and_certificate_complete_a_handshake_with_a_client_that_pins_it()
+    {
+        using var certificate = SelfSignedFor(ImapDmarcMailbox.Host);
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var commandsSeen = 0;
+        var serving = ServeAsync(listener, certificate, () => Interlocked.Increment(ref commandsSeen));
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        await socket.ConnectAsync(new IPEndPoint(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port), TestContext.Current.CancellationToken);
+        await using var client = new SslStream(new NetworkStream(socket, ownsSocket: false));
+
+        await client.AuthenticateAsClientAsync(
+            new SslClientAuthenticationOptions
+            {
+                TargetHost = ImapDmarcMailbox.Host,
+                RemoteCertificateValidationCallback = (_, presented, _, _) =>
+                    presented?.GetCertHashString() == certificate.GetCertHashString(),
+            },
+            TestContext.Current.CancellationToken);
+        var greeting = await ReadLineAsync(client);
+        await client.WriteAsync("a1 NOOP\r\n"u8.ToArray(), TestContext.Current.CancellationToken);
+        await serving.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        client.IsAuthenticated.ShouldBeTrue();
+        client.RemoteCertificate.ShouldNotBeNull().GetCertHashString().ShouldBe(certificate.GetCertHashString());
+        greeting.ShouldStartWith("* OK");
+        commandsSeen.ShouldBe(1);
+    }
+
+    private static async Task<string> ReadLineAsync(Stream stream)
+    {
+        var line = new List<byte>();
+        var buffer = new byte[1];
+        while (await stream.ReadAsync(buffer, TestContext.Current.CancellationToken) > 0 && buffer[0] != (byte)'\n')
+            line.Add(buffer[0]);
+        return System.Text.Encoding.ASCII.GetString([.. line]);
+    }
+
     private static async Task ServeAsync(TcpListener listener, X509Certificate2 certificate, Action onCommand)
     {
         using var socket = await listener.AcceptSocketAsync();

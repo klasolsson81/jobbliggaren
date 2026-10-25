@@ -22,12 +22,12 @@ public partial class ImapDmarcMailboxCommandAllowlistTests
     public async Task A_run_over_every_message_shape_sends_only_allowlisted_commands()
     {
         var report = Encoding.ASCII.GetBytes("<feedback/>");
-        var refused = Messages.GoogleShaped(9, report);
+        var refused = Messages.YahooShaped(9, report);
         refused.Sections["2"] = new SectionAnswer.No();
         var messages = new[]
         {
             ScriptedMessage.SinglePart(3, Messages.TopHeader("application/gzip"), report),
-            Messages.GoogleShaped(4, report),
+            Messages.YahooShaped(4, report),
             ScriptedMessage.Multipart(5, Messages.TopHeader("multipart/report; report-type=feedback-report; boundary=b")),
             ScriptedMessage.SinglePart(6, Messages.TopHeader("text/plain"), report),
             ScriptedMessage.Multipart(

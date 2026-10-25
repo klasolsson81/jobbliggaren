@@ -3,8 +3,7 @@ namespace Jobbliggaren.Application.Admin.Email.Dmarc;
 /// <summary>
 /// #1981 PR 4a (ADR 0184) — every bound on DMARC report ingestion, named once. Anyone can mail the report address, so
 /// each number bounds what one sender can make the Worker read, hold or store. The storage caps are sized against the
-/// measured volume (8 reports in 5 days, 2026-10-24) and revisited against the first 30 days live. They live in code,
-/// not in CHECK constraints, so retuning one is a commit, not a migration.
+/// measured volume (8 reports in 5 days, 2026-10-24) and revisited against the first 30 days live.
 /// </summary>
 public static class DmarcIngestionLimits
 {
@@ -81,6 +80,9 @@ public static class DmarcIngestionLimits
     /// <summary>The best-effort write that hands a claim back when the host shuts down.</summary>
     public static readonly TimeSpan ShutdownWriteTimeout = TimeSpan.FromSeconds(5);
 
-    /// <summary>After a refused login, no run connects again until this has passed since that attempt.</summary>
-    public static readonly TimeSpan AuthRefusedBackoff = TimeSpan.FromHours(24);
+    /// <summary>
+    /// After a sign-in that was refused, or sent without an answer, no run connects again until this has passed since that
+    /// attempt.
+    /// </summary>
+    public static readonly TimeSpan SignInBackoff = TimeSpan.FromHours(24);
 }

@@ -78,10 +78,23 @@ public class ImapDmarcMailboxFetchTests
     }
 
     [Fact]
-    public async Task A_google_shaped_message_yields_its_zip_part_base64_decoded()
+    public async Task A_google_shaped_message_yields_its_zip_body_base64_decoded()
     {
         var zip = Enumerable.Range(0, 3000).Select(value => (byte)value).ToArray();
         await using var harness = new MailboxHarness(ScriptedMailbox.Of(Messages.GoogleShaped(5, zip)));
+
+        var fetched = (await harness.FetchOnlyAsync(5)).ShouldBeOfType<DmarcMailboxFetch.Fetched>();
+
+        fetched.Kind.ShouldBe(DmarcReportPartKind.Zip);
+        fetched.Content.ShouldBe(zip);
+        harness.CommandsAfterExamine().ShouldBe(["UID FETCH 5 (BODY.PEEK[HEADER]<0.8192>)", "UID FETCH 5 (BODY.PEEK[1]<0.1048577>)"]);
+    }
+
+    [Fact]
+    public async Task A_yahoo_shaped_message_yields_its_zip_attachment_base64_decoded()
+    {
+        var zip = Enumerable.Range(0, 3000).Select(value => (byte)value).ToArray();
+        await using var harness = new MailboxHarness(ScriptedMailbox.Of(Messages.YahooShaped(5, zip)));
 
         var fetched = (await harness.FetchOnlyAsync(5)).ShouldBeOfType<DmarcMailboxFetch.Fetched>();
 
@@ -192,16 +205,6 @@ public class ImapDmarcMailboxFetchTests
     }
 
     [Fact]
-    public async Task A_message_whose_size_is_over_the_cap_is_skipped_without_any_fetch()
-    {
-        await using var harness = new MailboxHarness(ScriptedMailbox.Of(ScriptedMessage.SinglePart(5, Messages.TopHeader("application/gzip"), Report)));
-
-        (await harness.FetchOnlyAsync(5, size: DmarcIngestionLimits.MaxMessageBytes + 1))
-            .ShouldBe(new DmarcMailboxFetch.Skipped(DmarcSkipReason.TooLarge));
-        harness.CommandsAfterExamine().ShouldBeEmpty();
-    }
-
-    [Fact]
     public async Task Two_candidate_parts_read_neither()
     {
         var message = ScriptedMessage.Multipart(
@@ -301,7 +304,7 @@ public class ImapDmarcMailboxFetchTests
     [InlineData("2")]
     public async Task A_no_to_part_one_or_to_the_part_itself_is_a_refusal(string section)
     {
-        var message = Messages.GoogleShaped(5, Report);
+        var message = Messages.YahooShaped(5, Report);
         message.Sections[section] = new SectionAnswer.No();
         await using var harness = new MailboxHarness(ScriptedMailbox.Of(message));
 
@@ -314,7 +317,7 @@ public class ImapDmarcMailboxFetchTests
     [InlineData("2")]
     public async Task A_bad_to_the_header_part_one_or_the_part_ends_the_session(string section)
     {
-        var message = Messages.GoogleShaped(5, Report);
+        var message = Messages.YahooShaped(5, Report);
         message.Sections[section] = new SectionAnswer.Bad();
         await using var harness = new MailboxHarness(ScriptedMailbox.Of(message));
         await using var session = await harness.OpenAsync();
@@ -329,11 +332,34 @@ public class ImapDmarcMailboxFetchTests
     }
 
     [Fact]
-    public async Task A_message_gone_from_the_mailbox_is_a_refusal()
+    public async Task A_message_gone_from_the_mailbox_is_skipped_as_not_in_the_mailbox()
     {
         await using var harness = new MailboxHarness(ScriptedMailbox.Of(ScriptedMessage.SinglePart(5, Messages.TopHeader("application/gzip"), Report)));
 
-        (await harness.FetchOnlyAsync(99)).ShouldBe(new DmarcMailboxFetch.Refused());
+        (await harness.FetchOnlyAsync(99)).ShouldBe(new DmarcMailboxFetch.Skipped(DmarcSkipReason.NotInMailbox));
+        harness.CommandsAfterExamine().ShouldBe(["UID FETCH 99 (BODY.PEEK[HEADER]<0.8192>)"]);
+    }
+
+    // RFC 3501 §6.4.8: a UID FETCH of a UID the mailbox no longer holds is answered OK with no untagged FETCH.
+    [Theory]
+    [InlineData("HEADER")]
+    [InlineData("1.MIME")]
+    [InlineData("2")]
+    public async Task A_section_answered_ok_with_no_data_is_a_message_not_in_the_mailbox(string section)
+    {
+        await using var harness = new MailboxHarness(ScriptedMailbox.Of(Messages.YahooShaped(5, Report)));
+        await using var session = await harness.OpenAsync();
+        harness.Server.Intercept = command => command.Contains($"BODY.PEEK[{section}]<", StringComparison.Ordinal)
+            ? new Interception.Raw(tag => $"{tag} OK FETCH completed\r\n")
+            : null;
+
+        var fetch = await session.FetchReportAsync(Entry(5), TestContext.Current.CancellationToken);
+        var listing = await session.ListAfterAsync(0, 10, TestContext.Current.CancellationToken);
+
+        fetch.ShouldBe(new DmarcMailboxFetch.Skipped(DmarcSkipReason.NotInMailbox));
+        listing.ShouldBeOfType<DmarcMailboxListing.Listed>("the session is still usable");
+        harness.CommandsAfterExamine().Last(command => command.StartsWith("UID FETCH", StringComparison.Ordinal))
+            .ShouldContain($"BODY.PEEK[{section}]<", Case.Sensitive, "nothing more of the message is fetched");
     }
 
     [Fact]
@@ -351,11 +377,11 @@ public class ImapDmarcMailboxFetchTests
     [Fact]
     public async Task No_log_line_carries_the_password_a_header_value_or_a_file_name()
     {
-        var refused = Messages.GoogleShaped(6, Report);
+        var refused = Messages.YahooShaped(6, Report);
         refused.Sections["2"] = new SectionAnswer.No();
-        var broken = Messages.GoogleShaped(7, Report);
+        var broken = Messages.YahooShaped(7, Report);
         broken.Sections["2"] = new SectionAnswer.Bad();
-        await using var harness = new MailboxHarness(ScriptedMailbox.Of(Messages.GoogleShaped(5, Report), refused, broken));
+        await using var harness = new MailboxHarness(ScriptedMailbox.Of(Messages.YahooShaped(5, Report), refused, broken));
         await using (var session = await harness.OpenAsync())
         {
             foreach (var uid in new uint[] { 5, 6, 7 })

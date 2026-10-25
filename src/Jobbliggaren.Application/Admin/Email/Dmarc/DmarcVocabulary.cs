@@ -46,6 +46,9 @@ public enum DmarcSkipReason
 
     /// <summary>A header block did not end inside its fetch cap, so it is never parsed truncated.</summary>
     HeaderTooLarge = 6,
+
+    /// <summary>The mailbox answered a fetch for the message with no data: the message is gone (RFC 3501 §6.4.8).</summary>
+    NotInMailbox = 7,
 }
 
 /// <summary>
@@ -60,6 +63,9 @@ public enum DmarcSessionFault
 
     /// <summary>The server's answer broke the protocol, a tagged BAD included, or the connection became unusable.</summary>
     Protocol = 5,
+
+    /// <summary>The sign-in was sent and no answer to it came: a timeout, a BYE, a reset or a protocol fault.</summary>
+    AuthUnconfirmed = 6,
 }
 
 /// <summary>
@@ -95,6 +101,7 @@ public enum DmarcMessageOutcome
     SkippedForensic = 23,
     SkippedUnsupportedEncoding = 24,
     SkippedHeaderTooLarge = 25,
+    SkippedNotInMailbox = 26,
 
     /// <summary>The part could not be read as a bounded report: archive, compression, XML or a decoder cap.</summary>
     RejectedMalformed = 30,
@@ -129,6 +136,9 @@ public enum DmarcRunOutcome
 
     /// <summary>A first run started and has not finished. Written only when no earlier run left a state row.</summary>
     Incomplete = 9,
+
+    /// <summary>The sign-in was sent and no answer to it came.</summary>
+    AuthUnconfirmed = 10,
 }
 
 /// <summary>Why <see cref="DmarcAggregateReport.Accept"/> refused a candidate. Every reason refuses the whole report.</summary>
@@ -156,6 +166,7 @@ public static class DmarcOutcomes
         DmarcSkipReason.Forensic => DmarcMessageOutcome.SkippedForensic,
         DmarcSkipReason.UnsupportedEncoding => DmarcMessageOutcome.SkippedUnsupportedEncoding,
         DmarcSkipReason.HeaderTooLarge => DmarcMessageOutcome.SkippedHeaderTooLarge,
+        DmarcSkipReason.NotInMailbox => DmarcMessageOutcome.SkippedNotInMailbox,
         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "A skip reason this release does not know."),
     };
 
@@ -175,6 +186,20 @@ public static class DmarcOutcomes
         DmarcSessionFault.AuthRefused => DmarcRunOutcome.AuthRefused,
         DmarcSessionFault.Timeout => DmarcRunOutcome.Timeout,
         DmarcSessionFault.Protocol => DmarcRunOutcome.Protocol,
+        DmarcSessionFault.AuthUnconfirmed => DmarcRunOutcome.AuthUnconfirmed,
         _ => throw new ArgumentOutOfRangeException(nameof(fault), fault, "A session fault this release does not know."),
+    };
+
+    /// <summary>
+    /// Whether a run that ended so keeps the next runs from signing in for <see cref="DmarcIngestionLimits.SignInBackoff"/>:
+    /// the password was refused, or it was sent and no answer came. Total over the closed set.
+    /// </summary>
+    public static bool BacksOffSignIn(DmarcRunOutcome outcome) => outcome switch
+    {
+        DmarcRunOutcome.AuthRefused or DmarcRunOutcome.AuthUnconfirmed => true,
+        DmarcRunOutcome.Succeeded or DmarcRunOutcome.NotConfigured or DmarcRunOutcome.Misconfigured
+            or DmarcRunOutcome.Unreachable or DmarcRunOutcome.TlsFailed or DmarcRunOutcome.Timeout
+            or DmarcRunOutcome.Protocol or DmarcRunOutcome.Incomplete => false,
+        _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "A run outcome this release does not know."),
     };
 }

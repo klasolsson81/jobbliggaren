@@ -37,6 +37,10 @@ public sealed class ReportedSourceAddressTests
     [InlineData("2001:db8::1%2")]
     [InlineData("not-an-address")]
     [InlineData("192.0.2.1/24")]
+    [InlineData("[2001:db8::1]")]
+    [InlineData("[2001:db8::1]:25")]
+    [InlineData("::ffff:192.0.2.010")]
+    [InlineData("::ffff:192.0.2.01")]
     public void TryParse_AFormThatIsNotOneAddress_IsRefused(string? text)
     {
         ReportedSourceAddress.TryParse(text, out var address).ShouldBeFalse();

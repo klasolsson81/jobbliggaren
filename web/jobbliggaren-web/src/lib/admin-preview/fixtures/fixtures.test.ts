@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ADMIN_PREVIEW_SENTINEL } from "../../../../scripts/assert-admin-preview-build.mjs";
-import { emailKindsSchema } from "@/lib/dto/admin-email";
+import { DMARC_LATEST_FAILURES, emailDmarcSchema, emailKindsSchema } from "@/lib/dto/admin-email";
 import * as fixtures from "./index";
 
 /**
@@ -33,7 +33,8 @@ const allStrings = strings(exported.map(([, value]) => value));
 
 // RFC 5737 (IPv4) and RFC 3849 (IPv6) documentation ranges.
 const DOCUMENTATION_IP = /^(192\.0\.2|198\.51\.100|203\.0\.113)\.\d{1,3}$|^2001:db8:/i;
-const LOOKS_LIKE_IP = /^\d{1,3}(\.\d{1,3}){3}$|^[0-9a-f]{0,4}(:[0-9a-f]{0,4}){2,7}$/i;
+// An IPv6 address with a dotted IPv4 tail (#1981 PR 4b) looks like one too, so the range rule sees it.
+const LOOKS_LIKE_IP = /^\d{1,3}(\.\d{1,3}){3}$|^[0-9a-f]{0,4}(:[0-9a-f]{0,4}){2,7}$|^[0-9a-f:]*:[0-9a-f:]*\d{1,3}(\.\d{1,3}){3}$/i;
 
 describe("the admin preview's fixtures (ADR 0150 D5)", () => {
   it("exports rows to check", () => {
@@ -95,5 +96,35 @@ describe("the e-post preview's count per mail kind (#1981 PR 3, ADR 0150 D5)", (
     expect(new Set(parsed.flatMap((answer) => answer.status === "Observed" ? [answer.coverage] : []))).toEqual(new Set(["Complete", "Partial"]));
     const classes = parsed.flatMap((answer) => answer.kinds ?? []).flatMap((row) => row.latestFailure?.outcomes ?? []);
     expect(new Set(classes)).toEqual(new Set(["Refused", "RateLimited", "Unreachable", "ProviderError", "Timeout", "Other"]));
+  });
+});
+
+describe("the e-post preview's DMARC reports (#1981 PR 4b, ADR 0150 D5)", () => {
+  const answers = Object.entries(fixtures.PREVIEW_EMAIL_DMARC).filter(([scenario]) => scenario !== "fixture");
+
+  it.each(answers)("answers %s in a form the API's contract admits", (_name, answer) => {
+    expect(emailDmarcSchema.safeParse(unmarked(answer)).error).toBeUndefined();
+  });
+
+  it("covers every state, every failure class before a success and after one, the cap, and every line", () => {
+    const parsed = answers.map(([, answer]) => emailDmarcSchema.parse(unmarked(answer)));
+    expect(new Set(parsed.map((answer) => answer.status))).toEqual(
+      new Set(["Observed", "NoReports", "Failed", "NotObservable", "NotConfigured", "Misconfigured"]),
+    );
+    const failed = parsed.flatMap((answer) => (answer.status === "Failed" ? [answer.ingestion.latestFailure] : []));
+    expect(new Set(failed)).toEqual(new Set(DMARC_LATEST_FAILURES));
+    const observed = parsed.flatMap((answer) => (answer.status === "Observed" ? [answer] : []));
+    expect(observed.some((answer) => answer.ingestion.latestFailure !== null && answer.ingestion.signInResumesAt !== null)).toBe(true);
+    expect(observed.some((answer) => answer.ingestion.stale && answer.ingestion.latestFailure === null)).toBe(true);
+    expect(observed.some((answer) => answer.sourceCount > answer.sources.length)).toBe(true);
+    expect(observed.some((answer) => answer.conflictingReports > 0)).toBe(true);
+    for (const count of ["skipped", "rejected", "volumeCapped", "abandoned", "retryPending"] as const) {
+      expect(observed.some((answer) => answer.mailbox[count] > 0), count).toBe(true);
+    }
+    const sources = observed.flatMap((answer) => answer.sources);
+    expect(new Set(sources.map((source) => source.flagged))).toEqual(new Set([true, false]));
+    expect(sources.every((source) => source.headerFrom === "jobbliggaren.se" || source.headerFrom.endsWith(".jobbliggaren.se"))).toBe(true);
+    expect(new Set(sources.map((source) => source.headerFrom === "jobbliggaren.se"))).toEqual(new Set([true, false]));
+    expect(sources.some((source) => source.address.includes(":") && source.address.includes("."))).toBe(true);
   });
 });

@@ -66,7 +66,7 @@ public sealed record ApplicationUrl
 
     /// <summary>
     /// The address as a reader of the link can read it: as stored, percent-decoded, and form-decoded
-    /// (<c>+</c> as a space, then percent-decoded), each with any tab or line break removed and each once. A token behind
+    /// (<c>+</c> as a space, then percent-decoded), each as it is and with any tab or line break removed, and each once. A token behind
     /// <c>%2D</c>, <c>%20</c> or <c>+</c> is still that token to whoever reads the <c>href</c>, so a rule
     /// that looks for one looks in every reading. The one home of these forms (ADR 0166 D10 trigger 19
     /// names them). <see cref="Uri.UnescapeDataString(string)"/> throws only on null.
@@ -74,8 +74,8 @@ public sealed record ApplicationUrl
     public static IReadOnlyList<string> Readings(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        return new[] { value, Uri.UnescapeDataString(value), Uri.UnescapeDataString(value.Replace('+', ' ')) }
-            .Select(WithoutTabOrLineBreak)
+        string[] forms = [value, Uri.UnescapeDataString(value), Uri.UnescapeDataString(value.Replace('+', ' '))];
+        return forms.Concat(forms.Select(WithoutTabOrLineBreak))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
     }
@@ -87,7 +87,8 @@ public sealed record ApplicationUrl
     {
         try
         {
-            return uri.IdnHost.Length > 0;
+            var host = uri.IdnHost;
+            return host.Length > 0 && host.All(char.IsAscii);
         }
         catch (UriFormatException)
         {

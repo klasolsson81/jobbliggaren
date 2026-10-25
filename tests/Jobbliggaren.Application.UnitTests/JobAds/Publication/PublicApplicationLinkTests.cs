@@ -36,6 +36,12 @@ public class PublicApplicationLinkTests
     [InlineData("https://jobb.example.se/ansok?p=070+123+45+67")]
     [InlineData("https://jobb.example.se/ansok?p=+46%2070%20123%2045%2067")]
     [InlineData("https://jobb.example.se/ansok?p=0%0A701234567")]
+    [InlineData("https://jobb.example.se/ansok?p=070%20123%2045%2067%0A12")]
+    [InlineData("https://jobb.example.se/ansok?p=070+123+45+67%0A12")]
+    [InlineData("https://jobb.example.se/ansok?p=%2B46%2070%20123%2045%2067%0A12")]
+    [InlineData("https://jobb.example.se/ansok?p=1%0A070%20123%2045%2067")]
+    [InlineData("https://jobb.example.se/kontakt/x%09+46701234567")]
+    [InlineData("https://jobb.example.se/ansok/ref%0A0701234567")]
     public void Admit_PhoneNumberInAnyReading_IsNull(string raw) =>
         PublicApplicationLink.Admit(Stored(raw)).ShouldBeNull();
 

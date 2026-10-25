@@ -72,6 +72,10 @@ public class ApplicationUrlTests
     [InlineData("https://example.se/ansok?pnr=811218%209876")]
     [InlineData("https://example.se/ansok?pnr=811218%5F9876")]
     [InlineData("https://example.se/ansok?pnr=811218+-+9876")]
+    [InlineData("https://example.se/ansok/811218%2D9876%0A1")]
+    [InlineData("https://example.se/ansok?pnr=811218%209876%0A1")]
+    [InlineData("https://example.se/ansok?pnr=811218%2D9876%09%31")]
+    [InlineData("https://example.se/ansok?pnr=1%0A811218%2D9876")]
     public void ApplicationUrl_FromSource_ValidPersonnummerOnlyInADecodedReading_ReturnsNull(string raw) =>
         ApplicationUrl.FromSource(raw).ShouldBeNull();
 
@@ -102,6 +106,10 @@ public class ApplicationUrlTests
         Should.NotThrow(() => ApplicationUrl.FromSource(raw)).ShouldBeNull();
 
     [Fact]
+    public void ApplicationUrl_FromSource_HostWithALabelTooLongToMap_ReturnsNull() =>
+        ApplicationUrl.FromSource("https://" + new string('ä', 70) + ".ｆａｃｅｂｏｏｋ.com/somepage").ShouldBeNull();
+
+    [Fact]
     public void ApplicationUrl_FromSource_LuhnInvalidNumberBehindAnEscape_ReturnsValue() =>
         ApplicationUrl.FromSource("https://example.se/ansok/811218%2D9877").ShouldNotBeNull();
 
@@ -113,9 +121,9 @@ public class ApplicationUrlTests
     }
 
     [Fact]
-    public void ApplicationUrl_Readings_DecodedFormsDropAnEscapedTabOrLineBreak() =>
+    public void ApplicationUrl_Readings_AddTheDecodedFormsWithAnEscapedTabOrLineBreakDropped() =>
         ApplicationUrl.Readings("https://example.se/a%0Ab%09c").ShouldBe(
-            ["https://example.se/a%0Ab%09c", "https://example.se/abc"]);
+            ["https://example.se/a%0Ab%09c", "https://example.se/a\nb\tc", "https://example.se/abc"]);
 
     [Fact]
     public void ApplicationUrl_Readings_OfAnAddressWithNothingToDecode_IsTheAddressOnce() =>

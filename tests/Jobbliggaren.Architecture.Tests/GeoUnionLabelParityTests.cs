@@ -34,18 +34,22 @@ public class GeoUnionLabelParityTests
         "Municipality", "Region", "Remote",
     };
 
-    // Axes AND-ed against the geo predicate. They narrow rather than widen, so a label that
+    // Terms the Yrke predicate ORs together (#2199). Each must be readable by the Yrke label.
+    private static readonly HashSet<string> YrkeUnion = new(StringComparer.Ordinal)
+    {
+        "OccupationGroup", "OccupationName",
+    };
+
+    // Axes AND-ed against both unions. They narrow rather than widen, so a label that
     // omits them still describes a superset of what the click returns — never a subset.
     // #1418 owns whether a row carrying only one of them deserves a label of its own.
-    // OccupationName (#2199) is OR-ed with OccupationGroup inside Yrke, never with the geo terms; a
-    // recent search cannot carry it until #2199 PR 2, which owns the Yrke label's own parity.
     private static readonly HashSet<string> Orthogonal = new(StringComparer.Ordinal)
     {
-        "OccupationGroup", "OccupationName", "EmploymentType", "WorktimeExtent", "Employer", "Q",
+        "EmploymentType", "WorktimeExtent", "Employer", "Q",
     };
 
     [Fact]
-    public void EveryFilterCriteriaMember_IsClassifiedAsGeoUnionOrOrthogonal()
+    public void EveryFilterCriteriaMember_IsClassifiedExactlyOnce()
     {
         var members = typeof(JobAdFilterCriteria)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -59,16 +63,18 @@ public class GeoUnionLabelParityTests
         members.ShouldNotBeEmpty(
             "the guard measures nothing if JobAdFilterCriteria exposes no members");
 
-        var unclassified = members
-            .Where(name => !GeoUnion.Contains(name) && !Orthogonal.Contains(name))
+        var misclassified = members
+            .Where(name => (GeoUnion.Contains(name) ? 1 : 0) + (YrkeUnion.Contains(name) ? 1 : 0)
+                + (Orthogonal.Contains(name) ? 1 : 0) != 1)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        unclassified.ShouldBeEmpty(
-            "every JobAdFilterCriteria member must be classified as a geo-union term or an "
-            + $"orthogonal axis. Unclassified: {string.Join(", ", unclassified)}. A geo-union "
-            + "term that never reaches DeriveOrtLabel makes the recent-search label describe a "
-            + "strict subset of what the click returns (#1413).");
+        misclassified.ShouldBeEmpty(
+            "every JobAdFilterCriteria member must be classified as exactly one of a geo-union "
+            + "term, a Yrke-union term or an orthogonal axis. Misclassified: "
+            + $"{string.Join(", ", misclassified)}. A union term that never reaches its label "
+            + "makes the recent-search label describe a strict subset of what the click returns "
+            + "(#1413).");
     }
 
     [Fact]
@@ -121,7 +127,7 @@ public class GeoUnionLabelParityTests
                 : n)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var leaked = Orthogonal
+        var leaked = Orthogonal.Concat(YrkeUnion)
             .Where(axis => covered.Contains(axis))
             .OrderBy(axis => axis, StringComparer.Ordinal)
             .ToArray();
@@ -130,6 +136,69 @@ public class GeoUnionLabelParityTests
             "an axis classified as orthogonal must not reach the ort label. Leaked: "
             + $"{string.Join(", ", leaked)}. Either the classification is wrong or the axis "
             + "genuinely joined the geo union, and then it belongs in GeoUnion with the "
+            + "predicate changed to match.");
+    }
+
+    // #2199 PR 2 — the same defect class on the Yrke axis. The search port ORs OccupationName with
+    // OccupationGroup (JobAdSearchComposition.ApplyFilter), so a name pick widens a group
+    // selection; a Yrke label that never reads the names would name a strict subset of what the
+    // click returns. Both terms must reach DeriveYrkeLabel, the Yrke label's only producer.
+    [Fact]
+    public void EveryYrkeUnionTerm_IsReadableByTheYrkeLabel()
+    {
+        var yrkeLabel = typeof(ListRecentSearchesQueryHandler)
+            .GetMethod("DeriveYrkeLabel", BindingFlags.NonPublic | BindingFlags.Static);
+
+        yrkeLabel.ShouldNotBeNull(
+            "DeriveYrkeLabel is the Yrke label's only producer; if it was renamed or inlined this "
+            + "guard stops measuring anything and must be re-pointed, not deleted.");
+
+        var covered = yrkeLabel!
+            .GetParameters()
+            .Select(p => p.Name!)
+            .Select(n => n.EndsWith("Labels", StringComparison.Ordinal)
+                ? n[..^"Labels".Length]
+                : n)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var unreachable = YrkeUnion
+            .Where(term => !covered.Contains(term))
+            .OrderBy(term => term, StringComparer.Ordinal)
+            .ToArray();
+
+        unreachable.ShouldBeEmpty(
+            "every Yrke-union term must be a parameter of DeriveYrkeLabel, else the label cannot "
+            + $"name it. Unreachable: {string.Join(", ", unreachable)}. The predicate would still "
+            + "OR the term, so the label would silently name a strict subset (#1413, #2199).");
+    }
+
+    [Fact]
+    public void NonYrkeAxes_AreNotReadableByTheYrkeLabel()
+    {
+        var yrkeLabel = typeof(ListRecentSearchesQueryHandler)
+            .GetMethod("DeriveYrkeLabel", BindingFlags.NonPublic | BindingFlags.Static);
+
+        yrkeLabel.ShouldNotBeNull(
+            "DeriveYrkeLabel is the Yrke label's only producer; if it was renamed or inlined this "
+            + "guard stops measuring anything and must be re-pointed, not deleted.");
+
+        var covered = yrkeLabel!
+            .GetParameters()
+            .Select(p => p.Name!)
+            .Select(n => n.EndsWith("Labels", StringComparison.Ordinal)
+                ? n[..^"Labels".Length]
+                : n)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var leaked = GeoUnion.Concat(Orthogonal)
+            .Where(axis => covered.Contains(axis))
+            .OrderBy(axis => axis, StringComparer.Ordinal)
+            .ToArray();
+
+        leaked.ShouldBeEmpty(
+            "an axis classified outside the Yrke union must not reach the Yrke label. Leaked: "
+            + $"{string.Join(", ", leaked)}. Either the classification is wrong or the axis "
+            + "genuinely joined the Yrke union, and then it belongs in YrkeUnion with the "
             + "predicate changed to match.");
     }
 }

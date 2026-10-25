@@ -938,7 +938,7 @@ public class MatchPreferencesTests
     }
 
     // Cap invariant (ADR 0079-amendment, ValidateOccupationExperience) — the overlay reuses
-    // the same IN(...)-DoS floor (SearchCriteria.MaxConceptIds) as the five concept-id lists.
+    // the same IN(...)-DoS floor (SearchCriteria.MaxConceptIds) as the concept-id lists.
     // The TooManyOccupationExperience error code had no coverage before; this pins the floor
     // (references the reused constant, never the literal, so it follows a future cap change).
     // Isolate the overlay cap from the group-list cap: groups stay exactly at MaxConceptIds

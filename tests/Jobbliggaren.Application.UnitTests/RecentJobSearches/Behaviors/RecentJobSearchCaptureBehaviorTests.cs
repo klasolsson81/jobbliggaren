@@ -45,7 +45,7 @@ public class RecentJobSearchCaptureBehaviorTests
         bool Remote = false,
         JobAdSortBy SortBy = JobAdSortBy.PublishedAtDesc,
         bool Commit = true,
-        // #2199 — the occupation-name picks, which the behaviour skips until PR 2 persists them.
+        // #2199 — the occupation-name picks, persisted since #2199 PR 2.
         IReadOnlyList<string>? OccupationName = null)
         : IQuery<FakeCaptureResponse>, ICapturesRecentSearch;
 
@@ -174,20 +174,43 @@ public class RecentJobSearchCaptureBehaviorTests
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
-    // #2199 — a recent search has no occupation-name column until PR 2, so a search carrying a pick
-    // runs and is not captured, alone or beside other filters.
+    // #2199 PR 2 — a search carrying an occupation-name pick is captured WITH it, alone or beside
+    // other filters: the row stores the search that ran, never a wider one.
     [Theory]
     [InlineData(null)]
     [InlineData("DJh5_yyF_hEM")]
-    public async Task Handle_OccupationName_RunsTheSearchButCapturesNothing(string? group)
+    public async Task Handle_OccupationName_CapturesTheSearchWithTheNames(string? group)
     {
-        var response = await HandleAsync(new FakeSearchQuery(
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7, Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
             Q: "projekt", OccupationGroup: group is null ? null : [group], Municipality: null, Region: null,
             OccupationName: ["z5AM_ayf_WcL"]));
 
-        response.TotalCount.ShouldBe(7, "the search itself still runs");
-        await _capturer.DidNotReceive().CaptureAsync(
-            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        captured.ShouldNotBeNull();
+        captured!.OccupationName.ShouldBe(["z5AM_ayf_WcL"]);
+        captured.OccupationGroup.ShouldBe(group is null ? [] : [group]);
+    }
+
+    [Fact]
+    public async Task Handle_OccupationNameOnly_IsNoDefaultBrowse_AndCaptures()
+    {
+        // The default-browse guard counts the axis in lockstep with SearchCriteria.Create's empty
+        // invariant: without it a name-only search would pass Create and be dropped by the guard.
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7, Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: null, Municipality: null, Region: null,
+            OccupationName: ["z5AM_ayf_WcL"]));
+
+        captured.ShouldNotBeNull("a name-only search is a real filter and must reach the capturer");
+        captured!.OccupationName.ShouldBe(["z5AM_ayf_WcL"]);
     }
 
     [Fact]
@@ -393,18 +416,19 @@ public class RecentJobSearchCaptureBehaviorTests
             _userId, Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
-    // ---- #1419: the five taxonomy axes stop persisting a personnummer ----
+    // ---- #1419: the six taxonomy axes stop persisting a personnummer ----
     //
     // Klas bound #1411 parity on 2026-08-20. These axes are validated on SHAPE ONLY, so a
     // hand-edited /jobb?occupationGroup=8112189876&commit=true reached the sink past every
     // other guard, and the read side renders an unresolved id back verbatim in the row label.
     //
-    // Every dimension gets its own row rather than one representative: the guard is five
+    // Every dimension gets its own row rather than one representative: the guard is six
     // separate list reads, and a single missed list is exactly the defect that would survive a
-    // one-vector test.
+    // one-vector test. occupationName joined in #2199 PR 2, when the axis began to persist.
 
     [Theory]
     [InlineData("occupationGroup")]
+    [InlineData("occupationName")]
     [InlineData("municipality")]
     [InlineData("region")]
     [InlineData("employmentType")]
@@ -418,7 +442,8 @@ public class RecentJobSearchCaptureBehaviorTests
             Municipality: axis == "municipality" ? [pnr] : null,
             Region: axis == "region" ? [pnr] : null,
             EmploymentType: axis == "employmentType" ? [pnr] : null,
-            WorktimeExtent: axis == "worktimeExtent" ? [pnr] : null));
+            WorktimeExtent: axis == "worktimeExtent" ? [pnr] : null,
+            OccupationName: axis == "occupationName" ? [pnr] : null));
 
         await _capturer.DidNotReceive().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
@@ -945,9 +970,8 @@ public class RecentJobSearchCaptureBehaviorTests
     // would be closing an instance and leaving the mechanism.
     //
     // Every string-bearing member must be read by a personnummer guard before capture: Q and
-    // Employer by their own, the five taxonomy axes by BearsPersonnummer. OccupationName never
-    // reaches the sink: a search carrying it is skipped (#2199). Remote, SortBy and Commit are
-    // bool/enum and carry no text.
+    // Employer by their own, the six taxonomy axes by BearsPersonnummer (OccupationName joined them
+    // in #2199 PR 2). Remote, SortBy and Commit are bool/enum and carry no text.
     [Fact]
     public void ICapturesRecentSearch_HasExactlyTheseMembers_SoANewDimensionCannotArriveUnguarded()
     {

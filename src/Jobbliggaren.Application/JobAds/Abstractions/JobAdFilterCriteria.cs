@@ -13,15 +13,16 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// occupation-names (yrkesbenämningar) the user picked. It is the same Yrke dimension as
 /// <see cref="OccupationGroup"/> at a finer grain: the two are OR-ed, and the search port expands
 /// each pick through <see cref="OccupationNameLineage"/> so an ad coded with a deprecated name
-/// still answers the name that replaced it. Only the /jobb list and its facet counts carry it; every
-/// stored or derived criteria passes it empty until searches persist it (#2199 PR 2).
+/// still answers the name that replaced it. The /jobb list and its facet counts carry it, and since
+/// #2199 PR 2 so do the persisted paths: a recent search's replay and a saved search's run read it
+/// from the stored criteria. Matchning's criteria and the remote count pass it empty.
 /// </para>
 /// <para>
 /// Alla listor är aldrig null — en tom lista betyder "inget filter" (handlern
 /// normaliserar <c>null → []</c>, ADR 0042 Beslut B). <see cref="Q"/> är användarens
 /// råa söktext, minus-ord inräknade; sökporten parsar den (#2143), och null/whitespace =
 /// ingen fritextsökning. <b>Named arguments obligatoriskt</b>
-/// vid konstruktion (sex listor i rad = tyst-fel-fälla vid positionell mappning).
+/// vid konstruktion (listor i rad = tyst-fel-fälla vid positionell mappning).
 /// </para>
 /// <para>
 /// <b>ADR 0067 Beslut 6 (Fas B2, 2026-06-12):</b> <see cref="EmploymentType"/>

@@ -27,6 +27,9 @@ public class RecentJobSearchDtoContractTests
             .PropertyType.ShouldBe(typeof(string));
         t.GetProperty(nameof(RecentJobSearchDto.OccupationGroupList))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
+        // #2199 PR 2 — the picked occupation-names, beside the groups.
+        t.GetProperty(nameof(RecentJobSearchDto.OccupationNameList))!
+            .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
         t.GetProperty(nameof(RecentJobSearchDto.MunicipalityList))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
         t.GetProperty(nameof(RecentJobSearchDto.RegionList))!
@@ -43,6 +46,8 @@ public class RecentJobSearchDtoContractTests
         t.GetProperty(nameof(RecentJobSearchDto.Remote))!
             .PropertyType.ShouldBe(typeof(bool));
         t.GetProperty(nameof(RecentJobSearchDto.OccupationGroupLabels))!
+            .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
+        t.GetProperty(nameof(RecentJobSearchDto.OccupationNameLabels))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
         t.GetProperty(nameof(RecentJobSearchDto.MunicipalityLabels))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
@@ -86,9 +91,9 @@ public class RecentJobSearchDtoContractTests
     private static readonly string[] SurfacedProperties =
     [
         "Id", "Q",
-        "OccupationGroupList", "MunicipalityList", "RegionList",
+        "OccupationGroupList", "OccupationNameList", "MunicipalityList", "RegionList",
         "EmploymentTypeList", "WorktimeExtentList", "EmployerList", "Remote",
-        "OccupationGroupLabels", "MunicipalityLabels", "RegionLabels",
+        "OccupationGroupLabels", "OccupationNameLabels", "MunicipalityLabels", "RegionLabels",
         "SortBy", "Label", "CurrentCount", "NewCount", "LastViewedAt",
     ];
 
@@ -128,6 +133,8 @@ public class RecentJobSearchDtoContractTests
         // RELATIVT de råa dimensionslistorna i JobAdFilterCriteria (där Q ligger
         // sist och här på index 1; de två ordningarna divergerade före #1407).
         // #1471: EmployerList före Remote, av samma skäl — JobAdFilterCriteria:s ordning.
+        // #2199 PR 2: OccupationNameList directly after OccupationGroupList, as in
+        // JobAdFilterCriteria, and its labels directly after the group labels.
         names.ShouldBe(SurfacedProperties);
     }
 }

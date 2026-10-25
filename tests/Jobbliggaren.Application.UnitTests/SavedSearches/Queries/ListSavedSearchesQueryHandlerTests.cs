@@ -59,6 +59,7 @@ public class ListSavedSearchesQueryHandlerTests
             seekerId, name,
             SearchCriteria.Create(
                 occupationGroup: occupationGroup ?? ["grp_12345"],
+                occupationName: [],
                 municipality: municipality,
                 region: region,
                 employmentType: null,
@@ -201,7 +202,7 @@ public class ListSavedSearchesQueryHandlerTests
         db.SavedSearches.Add(SavedSearch.Create(
             seeker.Id, "Bara q",
             SearchCriteria.Create(
-                occupationGroup: null, municipality: null, region: null,
+                occupationGroup: null, occupationName: [], municipality: null, region: null,
                 employmentType: null, worktimeExtent: null, employer: null, remote: false,
                 q: "remote", sortBy: JobAdSortBy.PublishedAtDesc).Value,
             false, FakeDateTimeProvider.Default).Value);
@@ -229,7 +230,7 @@ public class ListSavedSearchesQueryHandlerTests
             // prodkod). "xy" = giltigt, behåller testintentionen "endast q,
             // inga concept-id".
             SearchCriteria.Create(
-                occupationGroup: null, municipality: null, region: null,
+                occupationGroup: null, occupationName: [], municipality: null, region: null,
                 employmentType: null, worktimeExtent: null, employer: null, remote: false,
                 q: "xy", sortBy: JobAdSortBy.PublishedAtDesc).Value,
             false, FakeDateTimeProvider.Default).Value);

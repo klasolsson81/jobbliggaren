@@ -69,6 +69,18 @@ public sealed class RecentJobSearchConfiguration : IEntityTypeConfiguration<Rece
             .IsRequired();
         occupationGroup.Metadata.SetValueComparer(stringListComparer);
 
+        // #2199 PR 2 (ADR 0067 Amendment 2026-10-25): occupation_name_list, the picked
+        // occupation-names. Additive migration on a live cache table: NOT NULL default '{}', so
+        // existing rows get an empty list, and FilterHash leaves an empty list out, so their hash
+        // is unchanged. Same shadow-backing-field pattern as the lists around it.
+        var occupationName = builder.Property<List<string>>("_occupationName")
+            .HasField("_occupationName")
+            .UsePropertyAccessMode(PropertyAccessMode.Field)
+            .HasColumnName("occupation_name_list")
+            .HasColumnType("text[]")
+            .IsRequired();
+        occupationName.Metadata.SetValueComparer(stringListComparer);
+
         var municipality = builder.Property<List<string>>("_municipality")
             .HasField("_municipality")
             .UsePropertyAccessMode(PropertyAccessMode.Field)
@@ -130,6 +142,7 @@ public sealed class RecentJobSearchConfiguration : IEntityTypeConfiguration<Rece
         // Public IReadOnlyList<string>-getters är beräknade wrappers — EF
         // ska inte försöka mappa dem (skulle duplicera shadow-kolumnerna).
         builder.Ignore(r => r.OccupationGroup);
+        builder.Ignore(r => r.OccupationName);
         builder.Ignore(r => r.Municipality);
         builder.Ignore(r => r.Region);
         builder.Ignore(r => r.EmploymentType);

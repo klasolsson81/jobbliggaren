@@ -561,6 +561,53 @@ amendment is the operative text, for the /jobb list and its facet counts only.
    page parsing, the pick and checked state per host, variant counts through `FacetDimension.OccupationName`, chips, the saved and recent DTOs, i18n, the edge-log
    inventory, and every non-resting state rendered. Until then every host still selects a group.
 
+## Amendment 2026-10-25 — the occupation-name axis is persisted: recent searches capture it, `SearchCriteria` carries it as its own jsonb key, FilterHash writes it only when non-empty so every existing row keeps its hash, and the personnummer guard and the recruiter erasure cover six axes (#2199 PR 2)
+
+**Status:** Accepted 2026-10-25. **Source:** `senior-cto-advisor`'s ruling for #2199, B (local, ADR 0072, so every operative point is restated here);
+Klas, 2026-10-25, AskUserQuestion: "Ja, med automerge (Rek.)" for exactly the migration `AddRecentJobSearchOccupationNameList`, and "I PR 3 (Rek.)" for
+the privacy-policy list line. Additive: the Amendment 2026-10-24 is untouched in its text, and its point 6's last bullet and point 8's PR 2 sentence are
+delivered here. On the points below this amendment is the operative text.
+
+1. **What is persisted, and where.**
+   - `SearchCriteria.OccupationName`, a concept-id list validated like `OccupationGroup` (cap `MaxConceptIds`, the concept-id pattern), part of the empty
+     invariant, and placed right after `OccupationGroup` in `Create`, `Equals` and `GetHashCode`. Its jsonb key is `"OccupationName"`, written right after
+     `"OccupationGroup"` in array form; a row saved before the key reads it as an empty list. It is never `"Ssyk"`: that key held occupation-names the C2
+     migration converted to their groups, and it stays fail-loud.
+   - `recent_job_searches.occupation_name_list`, `text[]` NOT NULL DEFAULT `'{}'`, by the additive migration `AddRecentJobSearchOccupationNameList`. No row is
+     deleted or rewritten.
+   - What is stored is the id the user picked. Its extension through the lineage artefact is computed at query time (Amendment 2026-10-24, point 3).
+
+2. **Every existing hash is kept.** `FilterHashCalculator` writes `"occupationName"` right after `"occupationGroup"`, and **only when the list is
+   non-empty**. It is the one conditional key: Klass 2, employer and remote each wrote their key for every row and accepted a hash bump, and this one must
+   not, because no row captured before it carries a name. `FilterHashCalculatorTests.Compute_CanonicalJson_MatchesDocumentedContract` passes
+   `occupationName: []` against its unchanged literal, which is the proof.
+
+3. **Capture, replay, count and label.**
+   - `RecentJobSearchCaptureBehavior` no longer skips a search that carries the axis. The default-browse guard counts it, so a name-only search is
+     captured, and the personnummer chain reads it as the sixth taxonomy axis (#1419).
+   - `ListRecentSearchesQueryHandler` replays the stored names, counts with them, and projects `OccupationNameList` and `OccupationNameLabels`. The labels
+     come from the read model's kind-agnostic reverse lookup.
+   - **The Yrke label names each granularity that is set**: the groups, then the names, one "+N" part each, joined as a disjunction when both are set.
+     That is the shape the Ort label has for its union, because the search port OR-s the two, and a label naming only the groups would name a strict
+     subset of what the click returns (#1413's defect, on the Yrke axis). With no name the label is what it was, the whole-field collapse included. No label kind is added, because the frontend's set of kinds is closed.
+     `GeoUnionLabelParityTests.EveryYrkeUnionTerm_IsReadableByTheYrkeLabel` pins that both terms reach the label.
+   - `SearchCriteriaMapping` carries the axis, so a saved search's run and its new-results count read it.
+
+4. **Erasure covers six axes.** `occupation_name_list` is the sixth concept-id axis of the RecentJobSearches channel (`ErasureCascadeRegistry`, `Erased`)
+   and is searched by both arms of `FindRecentJobSearchesAsync`. `saved_searches.criteria` is walked by value and needed no change.
+
+5. **Not threaded, by decision.**
+   - The SavedSearch write path (the create and update commands) carries no occupation-name, the same posture as employer and remote: no frontend calls
+     it, and /jobb's "Spara sökningen" commits a recent search. A CV-derived saved search selects groups (ADR 0040 Beslut 4).
+   - Matchning's count preview, the match count and the match profile still pass the axis empty (ADR 0040).
+
+6. **What PR 3 owes.**
+   - **The privacy-policy list line.** The policy's list of what each recent search stores names "yrkesgrupp, kommun, län, anställningsform, omfattning,
+     arbetsgivare och om du filtrerade på distansarbete", not the occupation-name. It changes in PR 3 (Klas: "I PR 3 (Rek.)"), the pull request that makes
+     the processing reachable: measured 2026-10-25, `buildQuery` in `web/jobbliggaren-web/src/lib/api/job-ads.ts` builds the API query from a fixed set of
+     keys and sends no `occupationName`, and the API is reachable only through Next, so no user can store a name before PR 3. PR 3 asks Klas for the text.
+   - The replay of `occupationNameList` in the recent-search link, the chips, and the fields in the recent-search zod schema.
+
 ---
 
 *ADR-index underhålls av docs-keeper. ADR 0067 fastställer Platsbanken-sök-paritets-initiativets design: yrke-filter-nivåskifte till ssyk-level-4 (occupation-name-substrat bevarat), nya STORED-dimensioner (kommun/yrkesgrupp/anställningsform/omfattning) i Klass 1/Klass 2-sekvens, distans-defer, facet-counts via port-metod, typeahead-chip-sök med residual-FTS, VO-expansion, och fas-uppdelning A–E. Kompletteras av ADR 0043-amendment 2026-06-08 (kommun-dimension + yrkesgrupp-nivå).*

@@ -24,6 +24,7 @@ public class SearchCriteriaTests
     // femte list-dimensionerna i kanonisk dimensionsordning EFTER region, FÖRE q.
     private static Result<SearchCriteria> Create(
         IEnumerable<string>? occupationGroup = null,
+        IEnumerable<string>? occupationName = null,
         IEnumerable<string>? municipality = null,
         IEnumerable<string>? region = null,
         IEnumerable<string>? employmentType = null,
@@ -34,6 +35,7 @@ public class SearchCriteriaTests
         JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc) =>
         SearchCriteria.Create(
             occupationGroup: occupationGroup,
+            occupationName: occupationName,
             municipality: municipality,
             region: region,
             employmentType: employmentType,
@@ -406,7 +408,7 @@ public class SearchCriteriaTests
         // nämner anställningsform + omfattning; #311 PR-2b C1: arbetsgivare;
         // #551 PR-D: distans (de nya dimensionerna, i kanonisk ordning).
         result.Error.Message.ShouldBe(
-            "Minst ett sökkriterium (yrkesgrupp, kommun, region, anställningsform, omfattning, arbetsgivare, distans eller fritext) krävs.");
+            "Minst ett sökkriterium (yrkesgrupp, yrkesbenämning, kommun, region, anställningsform, omfattning, arbetsgivare, distans eller fritext) krävs.");
     }
 
     [Fact]
@@ -1044,5 +1046,99 @@ public class SearchCriteriaTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("SearchCriteria.Empty");
+    }
+
+    // ===============================================================
+    // #2199 PR 2 (ADR 0067 Amendment 2026-10-25) — OccupationName, the picked
+    // occupation-names. A concept-id list like OccupationGroup: normalised, capped,
+    // pattern-validated, part of the empty invariant and of Equals/GetHashCode.
+    // ===============================================================
+
+    [Fact]
+    public void Create_WithOccupationNameOnly_ReturnsSuccess()
+    {
+        // A name-only search is a real filter intention (/jobb's variant tick), not default-browse.
+        var result = Create(occupationName: ["z5AM_ayf_WcL"]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.OccupationName.ShouldBe(["z5AM_ayf_WcL"]);
+        result.Value.OccupationGroup.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Create_NormalizesOccupationName_SortedDistinctOrdinal()
+    {
+        var result = Create(occupationName: ["b", "a", "b", " c ", "  "]);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.OccupationName.ShouldBe(["a", "b", "c"]);
+    }
+
+    [Fact]
+    public void Create_WithExactlyMaxOccupationName_ReturnsSuccess()
+    {
+        var max = Enumerable.Range(0, SearchCriteria.MaxConceptIds).Select(i => $"name{i}").ToList();
+
+        var result = Create(occupationName: max);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.OccupationName.Count.ShouldBe(SearchCriteria.MaxConceptIds);
+    }
+
+    [Fact]
+    public void Create_WithMoreThanMaxOccupationName_ReturnsTooManyOccupationName()
+    {
+        var tooMany = Enumerable.Range(0, SearchCriteria.MaxConceptIds + 1).Select(i => $"name{i}").ToList();
+
+        var result = Create(occupationName: tooMany);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("SearchCriteria.TooManyOccupationName");
+    }
+
+    [Theory]
+    [InlineData("has space")]
+    [InlineData("åäö")]
+    [InlineData("a;DROP")]
+    [InlineData("123456789012345678901234567890123")]
+    public void Create_WithInvalidOccupationName_ReturnsInvalidOccupationName(string id)
+    {
+        var result = Create(occupationName: [id]);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("SearchCriteria.InvalidOccupationName");
+    }
+
+    [Fact]
+    public void TwoCriteria_DifferentOccupationName_AreNotValueEqual_AndDifferentHash()
+    {
+        // If Equals dropped the OccupationName conjunct the first gate falls; if GetHashCode
+        // dropped its loop the last one does.
+        var a = Create(occupationGroup: ["grp1"], occupationName: ["name1"]).Value;
+        var b = Create(occupationGroup: ["grp1"]).Value;
+
+        a.Equals(b).ShouldBeFalse();
+        a.ShouldNotBe(b);
+        a.GetHashCode().ShouldNotBe(b.GetHashCode());
+    }
+
+    [Fact]
+    public void TwoCriteria_SameValueAsGroupOrAsName_AreNotValueEqual()
+    {
+        // The two Yrke granularities are distinct identity axes even when they share an element.
+        var asGroup = Create(occupationGroup: ["x1"]).Value;
+        var asName = Create(occupationName: ["x1"]).Value;
+
+        asGroup.ShouldNotBe(asName);
+    }
+
+    [Fact]
+    public void TwoCriteria_SameOccupationNamesDifferentOrder_AreValueEqualAndSameHash()
+    {
+        var a = Create(occupationName: ["name2", "name1"]).Value;
+        var b = Create(occupationName: ["name1", "name2"]).Value;
+
+        a.ShouldBe(b);
+        a.GetHashCode().ShouldBe(b.GetHashCode());
     }
 }

@@ -31,7 +31,7 @@ public sealed class TaxonomyAxisProfileIsInertTests
     // IS the route).
     private static bool GrammarAdmits(string conceptId) =>
         new ListJobAdsQueryValidator()
-            .Validate(new ListJobAdsQuery(OccupationGroup: [conceptId]))
+            .Validate(new ListJobAdsQuery(OccupationGroup: [conceptId], OccupationName: [conceptId]))
             .IsValid;
 
     [Theory]

@@ -37,6 +37,9 @@ public sealed class ConfirmDerivedSearchCommandHandler(
 
         var criteriaResult = SearchCriteria.Create(
             occupationGroup: command.OccupationGroup,
+            // #2199 PR 2: a CV-derived saved search selects groups (ADR 0040 Beslut 4: the user
+            // confirms the derived group), never an occupation-name. Empty by nature.
+            occupationName: [],
             municipality: command.Municipality,
             region: command.Region,
             employmentType: command.EmploymentType,

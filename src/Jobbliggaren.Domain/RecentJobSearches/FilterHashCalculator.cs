@@ -38,6 +38,14 @@ namespace Jobbliggaren.Domain.RecentJobSearches;
 /// format-bump-mönster: ovillkorlig serialisering bumpar hashen för alla rader →
 /// benign dubblett, cap-20-eviction självläker, ingen versionering/backfill.
 /// </para>
+/// <para>
+/// <b>#2199 PR 2 (ADR 0067 Amendment 2026-10-25):</b> occupationName (the picked
+/// occupation-names) sits right after occupationGroup, and it is the ONE key written only when
+/// its list is non-empty. The earlier axes accepted a hash bump for every row; this one must not,
+/// because every row captured before it carries no name, and leaving the key out keeps each of
+/// those rows' hash exactly what it was. A search with no name therefore hashes byte-identically to
+/// the format above, and one with names hashes differently from every name-free search.
+/// </para>
 /// </para>
 /// </summary>
 public static class FilterHashCalculator
@@ -46,7 +54,7 @@ public static class FilterHashCalculator
     {
         ArgumentNullException.ThrowIfNull(criteria);
         return Compute(
-            criteria.Q, criteria.OccupationGroup, criteria.Municipality,
+            criteria.Q, criteria.OccupationGroup, criteria.OccupationName, criteria.Municipality,
             criteria.Region, criteria.EmploymentType, criteria.WorktimeExtent,
             criteria.Employer, criteria.Remote, criteria.SortBy);
     }
@@ -54,6 +62,7 @@ public static class FilterHashCalculator
     public static string Compute(
         string? q,
         IReadOnlyList<string> occupationGroup,
+        IReadOnlyList<string> occupationName,
         IReadOnlyList<string> municipality,
         IReadOnlyList<string> region,
         IReadOnlyList<string> employmentType,
@@ -63,6 +72,7 @@ public static class FilterHashCalculator
         JobAdSortBy sortBy)
     {
         ArgumentNullException.ThrowIfNull(occupationGroup);
+        ArgumentNullException.ThrowIfNull(occupationName);
         ArgumentNullException.ThrowIfNull(municipality);
         ArgumentNullException.ThrowIfNull(region);
         ArgumentNullException.ThrowIfNull(employmentType);
@@ -83,6 +93,16 @@ public static class FilterHashCalculator
             foreach (var g in occupationGroup)
                 writer.WriteStringValue(g);
             writer.WriteEndArray();
+
+            // #2199 PR 2 — written only when non-empty, so a name-free search keeps the hash it
+            // had before this axis existed (see the class doc).
+            if (occupationName.Count > 0)
+            {
+                writer.WriteStartArray("occupationName");
+                foreach (var n in occupationName)
+                    writer.WriteStringValue(n);
+                writer.WriteEndArray();
+            }
 
             writer.WriteStartArray("municipality");
             foreach (var m in municipality)

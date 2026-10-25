@@ -56,6 +56,7 @@ public class ListRecentSearchesCountReplayParityTests
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["OccupationGroup"] = "OccupationGroupList",
+            ["OccupationName"] = "OccupationNameList",
             ["Municipality"] = "MunicipalityList",
             ["Region"] = "RegionList",
             ["EmploymentType"] = "EmploymentTypeList",
@@ -66,13 +67,10 @@ public class ListRecentSearchesCountReplayParityTests
         };
 
     // Axes a recent search cannot store yet, so the count must run them empty: a replay that
-    // reproduces nothing and a count that filters on something would disagree. #2199's
-    // occupation-name gets its column in PR 2. Each entry leaves this set when it gains a
-    // ReplayProjection row.
-    private static readonly HashSet<string> NotYetPersisted = new(StringComparer.Ordinal)
-    {
-        "OccupationName",
-    };
+    // reproduces nothing and a count that filters on something would disagree. Each entry leaves
+    // this set when it gains a ReplayProjection row; #2199's occupation-name left it in PR 2, and
+    // the set is kept, empty, so the next axis has somewhere to be declared rather than defaulted.
+    private static readonly HashSet<string> NotYetPersisted = new(StringComparer.Ordinal);
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly ITaxonomyReadModel _taxonomy = Substitute.For<ITaxonomyReadModel>();
@@ -157,6 +155,7 @@ public class ListRecentSearchesCountReplayParityTests
     private static SearchCriteria EveryAxisSet(IReadOnlyList<string> employer) =>
         SearchCriteria.Create(
             occupationGroup: ["grp_12345"],
+            occupationName: ["name_12345"],
             municipality: ["sthlm_kn"],
             region: ["stockholm"],
             employmentType: ["tillsvidare"],

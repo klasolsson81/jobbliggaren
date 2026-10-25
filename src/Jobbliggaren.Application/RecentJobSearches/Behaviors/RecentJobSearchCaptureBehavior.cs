@@ -70,6 +70,9 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // ingår — en commit:ad sökning med ENBART t.ex. anställningsform ska
         // fångas (annars tyst gap analogt C1).
         var occupationGroupCount = capt.OccupationGroup?.Count ?? 0;
+        // #2199 PR 2: a committed search with ONLY occupation-names (/jobb's variant tick) is a real
+        // filter and is captured, in lockstep with SearchCriteria.Create's empty invariant.
+        var occupationNameCount = capt.OccupationName?.Count ?? 0;
         var municipalityCount = capt.Municipality?.Count ?? 0;
         var regionCount = capt.Region?.Count ?? 0;
         var employmentTypeCount = capt.EmploymentType?.Count ?? 0;
@@ -134,7 +137,7 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
             : capt.SortBy;
 
         if (string.IsNullOrWhiteSpace(effectiveQ) && occupationGroupCount == 0
-            && municipalityCount == 0 && regionCount == 0
+            && occupationNameCount == 0 && municipalityCount == 0 && regionCount == 0
             && employmentTypeCount == 0 && worktimeExtentCount == 0
             && employerCount == 0 && !capt.Remote)
         {
@@ -166,13 +169,6 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         if ((capt.Employer ?? []).Any(EmployerAxisGate.IsWithheld))
             return response;
 
-        // #2199 — a recent search cannot store an occupation-name until #2199 PR 2. Capturing the
-        // search without it would store a wider search than the one that ran, and for the same
-        // FilterHash reason as the employer guard above it would Bump() a real search on the same
-        // other dimensions. Skip until it is persisted; the SEARCH still runs.
-        if (capt.OccupationName is { Count: > 0 })
-            return response;
-
         // Same sink and the same skip-reason as the employer guard above, so that block governs
         // here too - with one widening. There the bearer is NECESSARILY a third party, since the
         // value is by construction someone else's org.nr. A free-text box can carry the user's own
@@ -196,8 +192,9 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
             return response;
 
         // Klas-beslut 2026-08-20 (#1419). Same sink, same skip-reason and same bearer analysis
-        // as the two guards above - these five dimensions are validated on shape only and never
-        // against the taxonomy, so a hand-edited URL reached the sink past both of them.
+        // as the two guards above - these six dimensions are validated on shape only and never
+        // against the taxonomy, so a hand-edited URL reached the sink past both of them. The sixth,
+        // OccupationName, joined the chain when #2199 PR 2 began persisting it.
         //
         // Runs SingleLineUserInput because that is what the value IS - a single line out of a
         // hand-editable URL. The choice is behaviourally inert while the conceptId grammar admits
@@ -212,15 +209,16 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // residual is not personal data - a Luhn-invalid number is no personnummer, and a legal
         // person's org.nr is not personal data, while a sole trader's IS a valid personnummer and
         // is caught.
-        if (BearsPersonnummer(capt.OccupationGroup) || BearsPersonnummer(capt.Municipality)
-            || BearsPersonnummer(capt.Region) || BearsPersonnummer(capt.EmploymentType)
-            || BearsPersonnummer(capt.WorktimeExtent))
+        if (BearsPersonnummer(capt.OccupationGroup) || BearsPersonnummer(capt.OccupationName)
+            || BearsPersonnummer(capt.Municipality) || BearsPersonnummer(capt.Region)
+            || BearsPersonnummer(capt.EmploymentType) || BearsPersonnummer(capt.WorktimeExtent))
             return response;
 
         try
         {
             var criteriaResult = SearchCriteria.Create(
                 occupationGroup: capt.OccupationGroup ?? [],
+                occupationName: capt.OccupationName ?? [],
                 municipality: capt.Municipality ?? [],
                 region: capt.Region ?? [],
                 employmentType: capt.EmploymentType ?? [],

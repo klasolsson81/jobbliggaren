@@ -31,6 +31,7 @@ public class VolatileRedisIsolationTests
         typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
         typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
         typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
+        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
     ];
 
     /// <summary>The routes to the DURABLE instance: the registered multiplexer and the cache built on it.</summary>

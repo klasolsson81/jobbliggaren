@@ -141,6 +141,14 @@ readonly -a OAUTH_CLIENT_SECRETS=(
 readonly API_SECRETS_DIR=/run/jobbliggaren/api-secrets
 readonly SCALEWAY_READ_SECRET_KEY="Email__ScalewayRead__SecretKey"
 
+# THE DMARC MAILBOX PASSWORD IS THE worker's ALONE, AND SO IS ITS DIRECTORY (#1981 PR 4). It logs in to the
+# mailbox the worker's DMARC ingestion reads and api never does, so it enters neither SECRETS_DIR nor
+# API_SECRETS_DIR: WORKER_SECRETS_DIR is bind-mounted into the worker and no other service, and its owner is
+# measured from the WORKER image. Conditional for the reason the rows above are, and without an expiry line:
+# the password has no expiry date to watch. The condition's one home is dmarc_mailbox_password_required below.
+readonly WORKER_SECRETS_DIR=/run/jobbliggaren/worker-secrets
+readonly DMARC_MAILBOX_PASSWORD="Dmarc__Mailbox__Password"
+
 # THE EXPIRY LEAD TIME, AND WHY AN EXPIRY CHECK EXISTS AT ALL (#183 E4, security-auditor Major 3).
 # Scaleway caps an API key's life at one year and there is no instance-role equivalent, so the
 # SecretKey above is long-lived by construction and dies on a DATE. Nothing on this box would
@@ -336,6 +344,12 @@ scaleway_read_key_required() {
   [[ -n "$(env_value EMAIL_SCALEWAY_READ_SECRET_KEY_FILE)" ]]
 }
 
+# One condition: the pointer is set, and EnvFileSecretsConfiguration throws on a path it cannot read. A
+# blank pointer leaves the password absent, which the worker records as not configured and starts on.
+dmarc_mailbox_password_required() {
+  [[ -n "$(env_value DMARC_MAILBOX_PASSWORD_FILE)" ]]
+}
+
 # THE ABSENCE DETECTORS, AND THERE ARE TWO OF THEM — ONE PER SET, ONE PER OWNER (#1329).
 #
 # `--check` answers for everything api and worker read: the crypto secrets, their directory, and
@@ -382,6 +396,12 @@ if [[ "${1:-}" == "--check" ]]; then
   # A FOURTH FLAG, for the same reason as the second: a provider that cannot deliver stops api ALONE
   # (#1735). The `missing` summary names api AND worker, and the worker has no delivery rule.
   api_refuses=0
+
+  # TWO MORE FLAGS, for the worker's DMARC mailbox password (#1981 PR 4) and for api_refuses's reason: no
+  # summary above is true of them. A wrong directory or an absent file stops the worker ALONE, and a blank
+  # file stops nothing: the worker starts and reads no mailbox.
+  worker_refuses=0
+  worker_unread=0
 
   # A THIRD FLAG, AND THE THIRD SUMMARY BELOW IS WHY IT IS NOT `missing` (#1319, #1320). A posture
   # fault means every secret is present and readable, the stack is serving, and mail is fine —
@@ -704,6 +724,48 @@ if [[ "${1:-}" == "--check" ]]; then
     fi
   fi
 
+  # The DMARC mailbox password, in the worker's own directory. The directory's mode and an absent file each stop
+  # the worker; a blank file does not, because the reader stores it as "" and the worker starts misconfigured.
+  # The owner is posture, held to the same constant. What is read of the file is whether it exists and whether
+  # it is blank, never its value, its length or anything derived from it. Nothing here touches the network:
+  # a login from root would use the credential outside its one holder.
+  if dmarc_mailbox_password_required; then
+    if [[ ! -d "$WORKER_SECRETS_DIR" ]]; then
+      log "MISSING: $WORKER_SECRETS_DIR (directory does not exist) — required because ${ENV_FILE} has"
+      log "         DMARC_MAILBOX_PASSWORD_FILE set. worker refuses to START. Re-run this script without"
+      log "         arguments to create it and inject the mailbox password."
+      worker_refuses=1
+    else
+      worker_dir_mode=$(stat -c '%a' "$WORKER_SECRETS_DIR" 2>/dev/null || echo "?")
+      if [[ "$worker_dir_mode" != "${DIR_MODE#0}" ]]; then
+        log "WRONG MODE: $WORKER_SECRETS_DIR is $worker_dir_mode, expected ${DIR_MODE#0} — the worker's group"
+        log "            cannot traverse it, so worker refuses to START on the mailbox password's pointer."
+        worker_refuses=1
+      fi
+      if ! worker_dir_uid=$(stat -c '%u' "$WORKER_SECRETS_DIR" 2>/dev/null); then
+        log "CANNOT ANSWER: $WORKER_SECRETS_DIR exists but its owner could not be read, so whether root"
+        log "               still owns the directory holding the mailbox password is unknown."
+        posture=1
+      elif [[ "$worker_dir_uid" != "$SECRETS_DIR_OWNER" ]]; then
+        log "WRONG OWNER: $WORKER_SECRETS_DIR is owned by uid $worker_dir_uid, expected $SECRETS_DIR_OWNER (root)."
+        log "             worker still reads the password; the wrong owner can SUBSTITUTE it. Repair the directory only:"
+        log "               sudo chown ${SECRETS_DIR_OWNER}:$(stat -c '%g' "$WORKER_SECRETS_DIR") $WORKER_SECRETS_DIR"
+        posture=1
+      fi
+      if [[ ! -f "${WORKER_SECRETS_DIR}/${DMARC_MAILBOX_PASSWORD}" ]]; then
+        log "MISSING: ${WORKER_SECRETS_DIR}/${DMARC_MAILBOX_PASSWORD} — required because ${ENV_FILE} has"
+        log "         DMARC_MAILBOX_PASSWORD_FILE set. worker refuses to START. Re-run this script"
+        log "         without arguments to inject it."
+        worker_refuses=1
+      elif ! has_usable_content "${WORKER_SECRETS_DIR}/${DMARC_MAILBOX_PASSWORD}"; then
+        log "BLANK: ${WORKER_SECRETS_DIR}/${DMARC_MAILBOX_PASSWORD} holds nothing the reader keeps. worker"
+        log "       STARTS, records its DMARC runs as misconfigured and reads no mailbox. Re-run this script"
+        log "       without arguments, which prompts for the password again."
+        worker_unread=1
+      fi
+    fi
+  fi
+
   # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
   # the mail branch above gained lines injection cannot fix — an INVALID provider value and an
   # unset EMAIL_SCALEWAY_* variable are edits to deploy/.env, not missing files. Telling an operator
@@ -723,8 +785,19 @@ if [[ "${1:-}" == "--check" ]]; then
     log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
   fi
 
-  if [[ $api_refuses -ne 0 && $missing -eq 0 ]]; then
+  if [[ $api_refuses -ne 0 && $missing -eq 0 && $worker_refuses -eq 0 ]]; then
     log "The provider line above stops api alone: api will crash-loop by design while worker serves."
+  fi
+
+  if [[ $worker_refuses -ne 0 && $missing -eq 0 ]]; then
+    log "The mailbox password line above stops worker: it will crash-loop by design, and every job it runs"
+    log "stops with it. api never reads the password."
+  fi
+
+  if [[ $worker_unread -ne 0 ]]; then
+    log "The BLANK line above is NOT a crash-loop: worker starts and runs every job, and its DMARC run"
+    log "reads no mailbox. It exits non-zero because the pointer says the mailbox is to be read, and"
+    log "systemctl --failed is this box's only fault surface."
   fi
 
   # ITS OWN SENTENCE, AND THE DISTINCTION IS THE POINT: in this state the stack is HEALTHY. An
@@ -759,7 +832,8 @@ if [[ "${1:-}" == "--check" ]]; then
     log "prevent. It exits non-zero because systemctl --failed is this box's only fault surface."
   fi
 
-  if [[ $missing -ne 0 || $api_refuses -ne 0 || $expiring -ne 0 || $posture -ne 0 ]]; then
+  if [[ $missing -ne 0 || $api_refuses -ne 0 || $worker_refuses -ne 0 || $worker_unread -ne 0 \
+    || $expiring -ne 0 || $posture -ne 0 ]]; then
     exit 1
   fi
   if grep -q 'ConnectionStrings__Redis_FILE:' "$COMPOSE_FILE"; then
@@ -830,17 +904,26 @@ puts it in argv and in shell history, which is exactly what this script exists t
 # container's ONLY way into a 0710 directory, so deriving gid from uid would reintroduce the
 # same class one level down: an image where gid != uid makes the mount unreadable, and the app
 # then fails with "master key missing" rather than "permission denied".
+#
+# ONE ARGUMENT, THE IMAGE WHOSE CONTAINER READS THE FILES: jobbliggaren-api for the directories api mounts,
+# jobbliggaren-worker for the one only the worker mounts (#1981 PR 4). The two are measured apart, never
+# assumed equal; the names are a closed set, so a typo cannot select some other image's ids.
 resolve_runtime_ids() (
+  local name="$1"
+  case "$name" in
+  jobbliggaren-api | jobbliggaren-worker) ;;
+  *) die "no runtime ids are measured from '${name}'" ;;
+  esac
   exec 8>/run/jobbliggaren-reconcile.lock
   flock -n 8 || die 'reconciliation is in progress; runtime ids were not measured'
   local image
-  image=$(docker compose -f "$COMPOSE_FILE" config --images 2>&1 | grep -m1 -F 'jobbliggaren-api') \
-    || die "could not resolve the api image from ${COMPOSE_FILE} (compose interpolates .env —
+  image=$(docker compose -f "$COMPOSE_FILE" config --images 2>&1 | grep -m1 -F "$name") \
+    || die "could not resolve the ${name} image from ${COMPOSE_FILE} (compose interpolates .env —
 a missing required variable fails here)"
-  [[ -n "$image" ]] || die "no api image found in ${COMPOSE_FILE}"
+  [[ -n "$image" ]] || die "no ${name} image found in ${COMPOSE_FILE}"
   # stderr is in that pipe, so a compose error line containing the substring would otherwise be
   # handed to `docker run` as an image name and fail for the wrong stated reason.
-  [[ "$image" =~ ^[a-z0-9./_-]+:[A-Za-z0-9._-]+$ ]]     || die "resolved api image is not an image reference: '${image}' (compose likely errored)"
+  [[ "$image" =~ ^[a-z0-9./_-]+:[A-Za-z0-9._-]+$ ]]     || die "resolved ${name} image is not an image reference: '${image}' (compose likely errored)"
   # THE RESOLUTION STAYS HERE, THE MEASUREMENT DOES NOT. What the two callers resolve genuinely
   # differs — this one resolves a TAG out of the compose file with a human driving (`:applied`,
   # which only a verified reconcile or `--stage` moves, #1238), while reconcile passes the digest
@@ -852,7 +935,7 @@ a missing required variable fails here)"
 # COMMAND substitution, not process substitution, and the `|| die` is not decoration: a `die`
 # inside resolve_runtime_ids runs in the SUBSHELL and cannot stop this script. `< <(…)` would
 # have swallowed the failure and left the pair empty.
-ids_out=$(resolve_runtime_ids) || die "the container runtime ids could not be measured — nothing
+ids_out=$(resolve_runtime_ids jobbliggaren-api) || die "the container runtime ids could not be measured — nothing
 has been written, and the injection is aborted rather than guessing an owner"
 mapfile -t runtime_ids <<<"$ids_out"
 uid="${runtime_ids[0]:-}"
@@ -870,7 +953,10 @@ install -d -m "$DIR_MODE" -o "$SECRETS_DIR_OWNER" -g "$gid" "$SECRETS_DIR"
 # readers (a container process vs a host root process) and therefore different owners, and a
 # single function that knew only one of them would have needed a second copy of the same careful
 # install/printf sequence.
-write_secret() {
+#
+# A password's length is part of the secret, so the mailbox password's caller passes `unmeasured` and its
+# line carries no length (#1981 PR 4).
+write_secret() {  # write_secret <dir> <uid> <gid> <name> <value> [unmeasured]
   local dir="$1" owner_uid="$2" owner_gid="$3" name="$4" value="$5" path="$1/$4"
   # Created 0400 from the outset. A plain redirect would create the file under root's umask
   # (typically 0644) and only narrow it afterwards; the parent's 0710 closes that window in
@@ -879,7 +965,11 @@ write_secret() {
   # printf '%s' — no trailing newline is written at all. The reader trims as a backstop, but
   # writing exactly the bytes intended is the control; relying on the backstop is not.
   printf '%s' "$value" > "$path"
-  log "wrote ${name} (${#value} chars, mode 0400, owner ${owner_uid}:${owner_gid})"
+  if [[ "${6:-}" == unmeasured ]]; then
+    log "wrote ${name} (mode 0400, owner ${owner_uid}:${owner_gid})"
+  else
+    log "wrote ${name} (${#value} chars, mode 0400, owner ${owner_uid}:${owner_gid})"
+  fi
 }
 
 # THE KEY IDENTITY IS WRITTEN FIRST, AND IT IS BOUND TO THE MASTER KEY'S PRESENCE.
@@ -1043,6 +1133,47 @@ complete one"
   unset value
 }
 inject_scaleway_read_key "$uid" "$gid"
+
+# The DMARC mailbox password, with the same discipline, into the worker's own directory, owned by the ids
+# measured from the WORKER image: the worker is the file's one reader. JBL_INJECT_DMARC_MAILBOX places it
+# before the .env edit that would otherwise refuse the next worker start; the order is in deploy/.env.example.
+# The pointer alone also prompts, which is what lists it after a reboot. Every run makes the directory exist,
+# empty and closed when nothing is placed, because the worker's mount of it carries create_host_path: false.
+# An existing directory is left as it is unless the password is placed.
+inject_dmarc_mailbox_password() {
+  local value ids_out
+  local -a worker_ids
+  if ! dmarc_mailbox_password_required && [[ "${JBL_INJECT_DMARC_MAILBOX:-}" != "1" ]]; then
+    [[ -d "$WORKER_SECRETS_DIR" ]] || install -d -m 0700 "$WORKER_SECRETS_DIR"
+    log "No DMARC_MAILBOX_PASSWORD_FILE is set in ${ENV_FILE} — the mailbox password is not prompted for."
+    log "To place it BEFORE setting that pointer, which is the order that avoids a refused worker start,"
+    log "re-run with JBL_INJECT_DMARC_MAILBOX=1."
+    return 0
+  fi
+  ids_out=$(resolve_runtime_ids jobbliggaren-worker) || die "the worker image's runtime ids could not be
+measured — the mailbox password is not written, and its directory is left as it was"
+  mapfile -t worker_ids <<<"$ids_out"
+  [[ "${worker_ids[0]:-}" =~ ^[0-9]+$ && "${worker_ids[1]:-}" =~ ^[0-9]+$ ]] \
+    || die "the ids measured from the worker image are not numeric: '${worker_ids[*]}'"
+  log "container runtime ids measured from the worker image: uid=${worker_ids[0]} gid=${worker_ids[1]}"
+
+  install -d -m "$DIR_MODE" -o "$SECRETS_DIR_OWNER" -g "${worker_ids[1]}" "$WORKER_SECRETS_DIR"
+  if has_usable_content "${WORKER_SECRETS_DIR}/${DMARC_MAILBOX_PASSWORD}"; then
+    log "${DMARC_MAILBOX_PASSWORD} already present — skipping (remove the file first to replace it)"
+    return 0
+  fi
+
+  printf 'Value for %s (worker only): ' "$DMARC_MAILBOX_PASSWORD" >&2
+  read -rs value
+  printf '\n' >&2
+  [[ -n "${value//[[:space:]]/}" ]] || die "${DMARC_MAILBOX_PASSWORD} was empty or whitespace-only — nothing
+written, and the run is aborted so a partially injected directory is never mistaken for a
+complete one"
+
+  write_secret "$WORKER_SECRETS_DIR" "${worker_ids[0]}" "${worker_ids[1]}" "$DMARC_MAILBOX_PASSWORD" "$value" unmeasured
+  unset value
+}
+inject_dmarc_mailbox_password
 
 # ---------------------------------------------------------------------------------------------
 # The host-only secrets (#197). Same prompt discipline, different destination and a root owner:

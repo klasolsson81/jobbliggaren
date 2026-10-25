@@ -24,6 +24,7 @@ public sealed class UserJobAdMatchClaimerTests
         typeof(Jobbliggaren.Infrastructure.Persistence.AppDbContext).Assembly.Location,
         typeof(Jobbliggaren.Api.Endpoints.AuthProblem).Assembly.Location,
         typeof(BackgroundMatchingWorker).Assembly.Location,
+        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly.Location,
         typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly.Location,
     ];
 

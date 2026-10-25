@@ -34,7 +34,8 @@ TMPROOT=$(mktemp -d)
 readonly TMPROOT
 trap 'rm -rf "$TMPROOT"' EXIT
 readonly BIN="$TMPROOT/bin" REG="$TMPROOT/registry" TOOLS="$TMPROOT/tools" CHECKOUT="$TMPROOT/checkout"
-readonly SECRETS="$TMPROOT/secrets" API_SECRETS="$TMPROOT/api-secrets" VAR="$TMPROOT/var" ETC="$TMPROOT/etc"
+readonly SECRETS="$TMPROOT/secrets" API_SECRETS="$TMPROOT/api-secrets" WORKER_SECRETS="$TMPROOT/worker-secrets"
+readonly VAR="$TMPROOT/var" ETC="$TMPROOT/etc"
 mkdir -p "$BIN" "$REG" "$TOOLS" "$CHECKOUT/deploy/redis" "$VAR" "$ETC"
 
 pass=0
@@ -74,12 +75,13 @@ sed -e "s#^readonly CHECKOUT=.*#readonly CHECKOUT=$CHECKOUT#" \
   -e "s#^readonly REDIS_POLICY=.*#readonly REDIS_POLICY=$TOOLS/redis-policy.py#" \
   -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
   -e "s#^readonly API_SECRETS_DIR=.*#readonly API_SECRETS_DIR=$API_SECRETS#" \
+  -e "s#^readonly WORKER_SECRETS_DIR=.*#readonly WORKER_SECRETS_DIR=$WORKER_SECRETS#" \
   -e "s#^readonly RUNTIME_IDS=.*#readonly RUNTIME_IDS=$FIXTURE_IDS#" \
   -e "s#^readonly PYTHON=.*#readonly PYTHON=$TOOLS/python3#" \
   -e "s#/usr/bin/docker#docker#g" \
   "$SUT" >"$FIXTURE_SUT"
 for want in "readonly SECRETS_DIR=$SECRETS" "readonly API_SECRETS_DIR=$API_SECRETS" \
-  "readonly RUNTIME_IDS=$FIXTURE_IDS" "readonly RECEIPT=$RECEIPT" \
+  "readonly WORKER_SECRETS_DIR=$WORKER_SECRETS" "readonly RUNTIME_IDS=$FIXTURE_IDS" "readonly RECEIPT=$RECEIPT" \
   "readonly PIN_FILE=$PIN" "readonly CHECKOUT=$CHECKOUT" "readonly RECORD_TOOL=$TOOLS/jobbliggaren-release-record.sh" \
   "readonly PYTHON=$TOOLS/python3" "readonly PREPARATION=$VAR/identity-preparation.env" \
   "readonly PREPARATION_UID=$FIXTURE_UID" "readonly MIGRATE_OVERRIDE_PATTERN=$VAR/migrate.XXXXXX.json" \
@@ -262,6 +264,8 @@ if [ "$1" = compose ]; then
     printf '%s\n' "$*" >"$REG/up-args"
     # api's bind source as `up` met it: create_host_path is false, so an absent one refuses api's start.
     if [ -d "__API_SECRETS__" ] && [ ! -L "__API_SECRETS__" ]; then echo present; else echo absent; fi >"$REG/up-saw-api-secrets"
+    # The worker's, for the same reason (#1981 PR 4).
+    if [ -d "__WORKER_SECRETS__" ] && [ ! -L "__WORKER_SECRETS__" ]; then echo present; else echo absent; fi >"$REG/up-saw-worker-secrets"
     [ -f "$REG/up-fails" ] && exit 1
     if [ -f "$REG/healthy-after" ] && [[ " $* " == *" --wait "* ]]; then
       wait_timeout=0
@@ -379,14 +383,21 @@ exec)
   cat "$REG/identity-history"; echo; exit 0 ;;
 run)
   echo "$*" >"$REG/idmeasured"
+  echo "$*" >>"$REG/idmeasured-all"
+  # The worker image answers with its own ids when a case gives it some (#1981 PR 4), and with the api's otherwise.
+  if [[ $* == *jobbliggaren-worker@* ]] && [ -f "$REG/ids-out-worker" ]; then cat "$REG/ids-out-worker"; exit "$(cat "$REG/ids-exit")"; fi
   cat "$REG/ids-out"; exit "$(cat "$REG/ids-exit")" ;;
 esac
 echo "unexpected docker invocation: $*" >&2
 exit 99
 EOF
-sed -i -e "s#__REG__#$REG#" -e "s#__API_SECRETS__#$API_SECRETS#g" "$BIN/docker"
+sed -i -e "s#__REG__#$REG#" -e "s#__API_SECRETS__#$API_SECRETS#g" -e "s#__WORKER_SECRETS__#$WORKER_SECRETS#g" "$BIN/docker"
 grep -qF "[ -d \"$API_SECRETS\" ]" "$BIN/docker" || {
   echo "FIXTURE BROKEN: the docker stub does not look for the api-only directory — the up-ordering cases would be vacuous" >&2
+  exit 1
+}
+grep -qF "[ -d \"$WORKER_SECRETS\" ]" "$BIN/docker" || {
+  echo "FIXTURE BROKEN: the docker stub does not look for the worker-only directory — the up-ordering cases would be vacuous" >&2
   exit 1
 }
 chmod +x "$BIN/docker"
@@ -489,8 +500,8 @@ reset() {
   printf candidate >"$REG/policy-active"
   default_compose
   printf 'POSTGRES_APP_PASSWORD=x\n#IMAGE_TAG=sha-0000000\n' >"$ENVF"
-  rm -rf "$SECRETS" "$API_SECRETS"
-  rm -f "$REG"/up-saw-api-secrets
+  rm -rf "$SECRETS" "$API_SECRETS" "$WORKER_SECRETS"
+  rm -f "$REG"/up-saw-api-secrets "$REG"/up-saw-worker-secrets "$REG"/ids-out-worker "$REG"/idmeasured-all
   printf '%s\n%s\n' "$(id -u)" "$(id -g)" >"$REG/ids-out"
   printf '0' >"$REG/ids-exit"
 }
@@ -1280,7 +1291,7 @@ reset
 REC=$(release "$SHA1" 10)
 channel "$REC"
 expect_exit 0 "the stage mode applies nothing" --stage
-check '[ ! -e "$API_SECRETS" ]' "and creates nothing"
+check '[ ! -e "$API_SECRETS" ] && [ ! -e "$WORKER_SECRETS" ]' "and creates nothing"
 
 # The injection's grant must survive every apply: an existing directory is never adjusted.
 fresh
@@ -1326,6 +1337,87 @@ check 'said "cannot TRAVERSE $API_SECRETS" && said "chown root:$(($(id -g) + 1))
 read_key_only
 expect_exit 0 "ids agree with the read key alone → the apply proceeds"
 check '[ -f "$REG/idmeasured" ]' "and the image WAS measured for it"
+
+echo "-- the worker-only directory exists before any up, and is judged by the worker image's ids (#1981 PR 4)"
+# The worker's bind of it carries create_host_path: false, as api's of its own does. reset() leaves the box the
+# mailbox password never reached.
+fresh
+expect_exit 0 "a box the mailbox-password injection never reached is applied"
+check '[ "$(cat "$REG/up-saw-worker-secrets")" = present ]' "and up met the worker's bind source already there"
+check '[ -d "$WORKER_SECRETS" ] && [ -z "$(ls -A "$WORKER_SECRETS")" ] && said "created $WORKER_SECRETS"' \
+  "the directory is created empty, on the journal"
+if modes_honoured; then
+  check '[ "$(stat -c "%a" "$WORKER_SECRETS")" = 700 ]' "and closed: 0700, as the tmpfiles line creates it"
+else
+  skipped=$((skipped + 1))
+  echo "  SKIP the created directory's mode: this filesystem does not honour chmod (CI: JBL_REQUIRE_MODE_CASES)."
+  [ "${JBL_REQUIRE_MODE_CASES:-0}" != "1" ] || { fail=$((fail + 1)); echo "  FAIL JBL_REQUIRE_MODE_CASES=1 but chmod is not honoured" >&2; }
+fi
+
+fresh
+printf '%s' not-a-directory >"$WORKER_SECRETS"
+expect_exit 1 "a file where the worker-only directory belongs refuses"
+check 'said "$WORKER_SECRETS is not a plain directory" && nothing_tagged && ! applied' "naming it, with nothing tagged or applied"
+rm -f "$WORKER_SECRETS"
+
+fresh
+mkdir -p "$TMPROOT/elsewhere"
+if ln -s "$TMPROOT/elsewhere" "$WORKER_SECRETS" 2>/dev/null && [ -L "$WORKER_SECRETS" ]; then
+  expect_exit 1 "a link where the worker-only directory belongs refuses: the mount would follow it"
+  check 'said "$WORKER_SECRETS is not a plain directory" && nothing_tagged && ! applied' "with nothing tagged or applied"
+else
+  skipped=$((skipped + 2))
+  echo "  SKIP the linked-directory case: this filesystem does not create symlinks (CI runs it)."
+  [ "${JBL_REQUIRE_MODE_CASES:-0}" != "1" ] || { fail=$((fail + 1)); echo "  FAIL JBL_REQUIRE_MODE_CASES=1 but no symlink" >&2; }
+fi
+rm -rf "$WORKER_SECRETS" "$TMPROOT/elsewhere"
+
+# The ownership gate reads the worker-only directory once it holds a file, against the WORKER image. The crypto
+# directory is left empty, so the worker-only one is the only reason any refusal below can fire.
+mailbox_only() { fresh; rm -rf "$SECRETS"; mkdir -p "$WORKER_SECRETS"; printf '%s' seeded >"$WORKER_SECRETS/Dmarc__Mailbox__Password"; }
+stub_worker_ids() { printf '%s\n%s\n' "$1" "$2" >"$REG/ids-out-worker"; }
+measured_worker_only() { grep -qF -- "jobbliggaren-worker@sha256:" "$REG/idmeasured-all" && ! grep -qF -- "jobbliggaren-api@" "$REG/idmeasured-all"; }
+
+mailbox_only
+before=$(stat -c '%a %u %g' "$WORKER_SECRETS")
+expect_exit 0 "ids agree with the mailbox password alone → the apply proceeds"
+check 'measured_worker_only' "and the WORKER image was measured for it, by digest, and the api image not at all"
+check '[ "$(stat -c "%a %u %g" "$WORKER_SECRETS")" = "$before" ] && ! said "created $WORKER_SECRETS"' \
+  "and the directory is left exactly as the injection set it"
+
+mailbox_only
+stub_worker_ids "$(($(id -u) + 1))" "$(id -g)"
+expect_exit 1 "uid drift in the worker image → refuses"
+check 'said "the incoming worker image cannot READ the injected secrets" && grep -qF -- "sudo find $WORKER_SECRETS -mindepth 1 -maxdepth 1 -exec chown" "$TMPROOT/out"' \
+  "naming the worker image and the worker-only directory in its bounded re-own"
+check 'nothing_tagged && ! applied' "and nothing is tagged or applied"
+
+mailbox_only
+stub_worker_ids "$(id -u)" "$(($(id -g) + 1))"
+expect_exit 1 "gid drift in the worker image on the worker-only directory → refuses"
+check 'said "the incoming worker image cannot TRAVERSE $WORKER_SECRETS" && said "chown root:$(($(id -g) + 1)) $WORKER_SECRETS"' \
+  "naming that directory and keeping root as its owner"
+
+# THE TWO IMAGES ARE NEVER ASSUMED TO AGREE. The api image's ids drifting must not refuse a directory only the worker
+# reads, and the worker image's drifting must not refuse the ones api reads: each directory answers to its reader.
+mailbox_only
+stub_ids "$(($(id -u) + 1))" "$(($(id -g) + 1))"
+stub_worker_ids "$(id -u)" "$(id -g)"
+expect_exit 0 "an api image whose ids differ does not judge the worker-only directory"
+
+fresh
+stub_worker_ids "$(($(id -u) + 1))" "$(($(id -g) + 1))"
+expect_exit 0 "a worker image whose ids differ does not judge the directories api reads"
+check '! grep -qF -- "jobbliggaren-worker@" "$REG/idmeasured-all"' "and with no mailbox password the worker image is not run at all"
+
+# Both readers at once: the api gate passes, then the worker's refuses — neither answer hides the other.
+fresh
+mkdir -p "$WORKER_SECRETS"
+printf '%s' seeded >"$WORKER_SECRETS/Dmarc__Mailbox__Password"
+stub_worker_ids "$(($(id -u) + 1))" "$(id -g)"
+expect_exit 1 "secrets in both, the worker image drifted → refuses"
+check 'said "readable by the incoming api image" && said "the incoming worker image cannot READ"' \
+  "after the api image's directories passed on their own ids"
 
 echo
 echo "passed: $pass   failed: $fail   skipped: $skipped"

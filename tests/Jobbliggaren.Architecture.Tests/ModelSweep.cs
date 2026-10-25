@@ -58,6 +58,18 @@ internal static class ModelSweep
         ColumnsByTable(AllEntities(), p => IsTextBearingStoreType(p.GetColumnType()));
 
     /// <summary>
+    /// Both models' text-bearing AND network-address columns — what a restore exposes in readable form.
+    /// </summary>
+    /// <remarks>
+    /// #1981 PR 4a (ADR 0185). An address is not text, so <see cref="IsTextBearingStoreType"/> does not call it one,
+    /// but a restore hands it over readable all the same, and an IP address is personal data when the host is a
+    /// person's own (C-582/14 <i>Breyer</i>). The plaintext-exposure registry sweeps this. The Art. 17 cascade keeps
+    /// the text sweep: its question is where a recruiter's free text can land, and an address column cannot hold any.
+    /// </remarks>
+    internal static Dictionary<string, List<string>> AllModelsTextOrAddressColumnsByTable() =>
+        ColumnsByTable(AllEntities(), p => IsTextBearingStoreType(p.GetColumnType()) || IsAddressStoreType(p.GetColumnType()));
+
+    /// <summary>
     /// The union, with the key form's precondition asserted. <b>Every union sweep goes through
     /// here</b> — the guard belongs to the KEY FORM, not to one call path, and it was reachable
     /// from only one of the two before (dotnet-architect NTH 1 / code-reviewer Minor 7).
@@ -172,6 +184,19 @@ internal static class ModelSweep
             or "character varying" or "varchar" or "character" or "char"
             or "bytea"      // a document IS text at rest — resume_files.content taught us that
             or "tsvector";  // derived text is still text — job_ads.search_vector is FTS-searched
+    }
+
+    /// <summary>
+    /// True when a Postgres store type holds a network address (<c>inet</c>, <c>cidr</c>), arrays included. Read off
+    /// the store type for the reason <see cref="IsTextBearingStoreType"/> gives.
+    /// </summary>
+    internal static bool IsAddressStoreType(string storeType)
+    {
+        var t = storeType.Trim().ToLowerInvariant();
+        while (t.EndsWith("[]", StringComparison.Ordinal))
+            t = t[..^2];
+
+        return t is "inet" or "cidr";
     }
 
     /// <summary>

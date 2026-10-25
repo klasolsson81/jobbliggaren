@@ -30,6 +30,7 @@ trap 'rm -rf "$TMPROOT"' EXIT
 readonly SECRETS="$TMPROOT/run/jobbliggaren/secrets"
 readonly HOST_SECRETS="$TMPROOT/run/jobbliggaren/host-secrets"
 readonly API_SECRETS="$TMPROOT/run/jobbliggaren/api-secrets"
+readonly WORKER_SECRETS="$TMPROOT/run/jobbliggaren/worker-secrets"
 readonly ENV_FIXTURE="$TMPROOT/deploy.env"
 
 # THE PRODUCTION VALUES THEMSELVES, PINNED AGAINST THE ORIGINAL AND NEVER THE COPY. The seam below
@@ -183,6 +184,7 @@ make_sut_copy() {
     -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
     -e "s#^readonly HOST_SECRETS_DIR=.*#readonly HOST_SECRETS_DIR=$HOST_SECRETS#" \
     -e "s#^readonly API_SECRETS_DIR=.*#readonly API_SECRETS_DIR=$API_SECRETS#" \
+    -e "s#^readonly WORKER_SECRETS_DIR=.*#readonly WORKER_SECRETS_DIR=$WORKER_SECRETS#" \
     -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$ENV_FIXTURE#" \
     -e "s#^readonly SECRETS_DIR_OWNER=.*#readonly SECRETS_DIR_OWNER=$SUT_SECRETS_DIR_OWNER#" \
     -e "s#^readonly ENV_FILE_OWNER=.*#readonly ENV_FILE_OWNER=$SUT_ENV_FILE_OWNER#" \
@@ -207,6 +209,10 @@ make_sut_copy() {
   }
   grep -qxF "readonly API_SECRETS_DIR=$API_SECRETS" "$sut_copy" || {
     echo "FIXTURE BROKEN: API_SECRETS_DIR redirect did not apply — the suite would measure the host" >&2
+    exit 1
+  }
+  grep -qxF "readonly WORKER_SECRETS_DIR=$WORKER_SECRETS" "$sut_copy" || {
+    echo "FIXTURE BROKEN: WORKER_SECRETS_DIR redirect did not apply — the suite would measure the host" >&2
     exit 1
   }
   # THE TWO OWNER REDIRECTS, PROVEN FOR A REASON THE OTHERS DO NOT CARRY. An unapplied redirect
@@ -1453,6 +1459,287 @@ else
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
+echo "-- the DMARC mailbox password is conditional on its pointer, and lives in the worker's own directory (#1981 PR 4)"
+# Bound to the password's own lines, never to the exit code alone, for the reason the read key's block gives. Each
+# case starts from the delivering box and from NO worker-only directory: the box the password never reached.
+readonly PASSWORD_FILE="Dmarc__Mailbox__Password"
+readonly MAILBOX_POINTER="DMARC_MAILBOX_PASSWORD_FILE=/run/worker-secrets/$PASSWORD_FILE"
+readonly WORKER_REFUSES="worker refuses to START"
+readonly WORKER_SUMMARY="line above stops worker"
+readonly UNREAD_SUMMARY="The BLANK line above is NOT a crash-loop"
+# --check reads whether the file exists and whether it is blank. No line it prints may carry the value.
+readonly SEEDED_PASSWORD="seeded-value-for-$PASSWORD_FILE"
+seed_mailbox_box() {   # seed_mailbox_box <none|dir|password|blank|spaces>: the pointer set, and that much placed
+  seed_delivering_box
+  printf '%s\n' "$MAILBOX_POINTER" >> "$ENV_FIXTURE"
+  [ "$1" = none ] && return 0
+  mkdir -p "$WORKER_SECRETS"
+  chmod 0710 "$WORKER_SECRETS" 2>/dev/null || true
+  case "$1" in
+  password) printf '%s' "$SEEDED_PASSWORD" > "$WORKER_SECRETS/$PASSWORD_FILE" ;;
+  blank) : > "$WORKER_SECRETS/$PASSWORD_FILE" ;;
+  spaces) printf ' \n\t \n' > "$WORKER_SECRETS/$PASSWORD_FILE" ;;
+  esac
+  return 0
+}
+assert_stops_worker_alone() {
+  if grep -qF "$WORKER_SUMMARY" "$TMPROOT/out" && ! grep -qF "api and worker will crash-loop" "$TMPROOT/out" \
+    && ! grep -qF "stops api alone" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   $1"
+  else
+    fail=$((fail + 1)); echo "  FAIL $1 — not summarised as stopping the worker alone" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+}
+
+seed_delivering_box
+run_check || true
+if ! grep -qE "worker-secrets|DMARC_MAILBOX|Dmarc__" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   no pointer demands nothing for the mailbox password, neither its file nor its directory"
+else
+  fail=$((fail + 1)); echo "  FAIL a box without the mailbox password's pointer was asked for it" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+# A blank pointer is the not-configured state, and --check raises no alarm over it whatever the directory holds.
+seed_delivering_box
+printf '%s\n' "DMARC_MAILBOX_PASSWORD_FILE=" >> "$ENV_FIXTURE"
+mkdir -p "$WORKER_SECRETS"
+chmod 0700 "$WORKER_SECRETS" 2>/dev/null || true
+: > "$WORKER_SECRETS/$PASSWORD_FILE"
+run_check || true
+assert_output_lacks "worker-secrets" "a blank pointer is not configured: no line about a closed directory or a blank file"
+if [ "$MODE_ENFORCED" = "yes" ]; then
+  expect_check 0 "and that box is a pass"
+  seed_delivering_box
+  expect_check 0 "and so is a box with no pointer and no worker-only directory at all"
+else
+  skipped=$((skipped + 2))
+  echo "  SKIP the two gate-off passes for the mailbox password: this filesystem does not honour chmod."
+fi
+
+seed_mailbox_box dir
+run_check || true
+assert_output_has "MISSING: $WORKER_SECRETS/$PASSWORD_FILE" "the pointer alone demands $PASSWORD_FILE in the worker-only directory"
+assert_output_has "$WORKER_REFUSES" "and names the consequence: the worker refuses to START"
+if [ "$MODE_ENFORCED" = "yes" ]; then
+  assert_stops_worker_alone "and it stops the worker alone, never api and never both"
+  expect_check 1 "and it is a failure on the fault surface"
+else
+  skipped=$((skipped + 2))
+  echo "  SKIP the worker-alone summary for the mailbox password: this filesystem does not honour chmod."
+fi
+
+seed_mailbox_box none
+run_check || true
+assert_output_has "MISSING: $WORKER_SECRETS (directory does not exist)" "the pointer with no worker-only directory names the directory"
+assert_output_has "$WORKER_REFUSES" "and that the worker refuses to START"
+
+# THE DIRECTORIES ARE NOT INTERCHANGEABLE: the password in a directory api mounts is the state this arrangement
+# exists to prevent, and it must never read as present.
+seed_mailbox_box dir
+printf '%s' "$SEEDED_PASSWORD" > "$SECRETS/$PASSWORD_FILE"
+mkdir -p "$API_SECRETS"
+printf '%s' "$SEEDED_PASSWORD" > "$API_SECRETS/$PASSWORD_FILE"
+run_check || true
+assert_output_has "MISSING: $WORKER_SECRETS/$PASSWORD_FILE" "the password in the shared or the api-only directory does not satisfy the check"
+
+# A BLANK FILE STARTS THE WORKER: the reader stores "" and the ingestion reads nothing. Reported, never as a refused
+# start, and through a line that says only that the file is blank.
+for shape in blank spaces; do
+  seed_mailbox_box "$shape"
+  run_check || true
+  assert_output_has "BLANK: $WORKER_SECRETS/$PASSWORD_FILE" "a $shape password file is reported as blank"
+  assert_output_has "$UNREAD_SUMMARY" "and summarised as a worker that starts and reads no mailbox"
+  # Where chmod is ignored the directory's mode arm fires beside it, so the absences are measured only where the
+  # fixture holds the production 0710.
+  if [ "$MODE_ENFORCED" = "yes" ]; then
+    assert_output_lacks "$WORKER_REFUSES" "and never as a refused worker start"
+    assert_output_lacks "$WORKER_SUMMARY" "and never with the worker-stops summary"
+    expect_check 1 "and a $shape file is a failure on the fault surface"
+  else
+    skipped=$((skipped + 3))
+    echo "  SKIP the $shape file's absences and exit: this filesystem does not honour chmod."
+  fi
+done
+
+if [ "$MODE_ENFORCED" = "yes" ]; then
+  seed_mailbox_box password
+  expect_check 0 "the pointer with its password in a 0710 worker-only directory is a pass"
+  assert_output_lacks "$SEEDED_PASSWORD" "and no line carries the value"
+
+  seed_mailbox_box password
+  chmod 0700 "$WORKER_SECRETS"
+  expect_check 1 "a 0700 worker-only directory (the worker cannot traverse it) is detected"
+  assert_output_has "WRONG MODE: $WORKER_SECRETS" "and the failure names the worker-only directory's mode"
+  assert_output_has "$WORKER_REFUSES" "and that the worker refuses to START on it"
+  assert_stops_worker_alone "and that mode stops the worker alone"
+
+  # Held to SECRETS_DIR_OWNER, so the seam moves every directory's expectation at once; this case asserts the
+  # worker-only directory's own line and that no refusal fires. The posture flag is not attributable to it:
+  # the shared directory's owner line sets the same flag in this case, and no fixture can chown one apart.
+  seed_mailbox_box password
+  SUT_SECRETS_DIR_OWNER="$NOT_FIXTURE_OWNER"
+  expect_check 1 "a worker-only directory owned by anyone but root refuses"
+  assert_output_has "WRONG OWNER: $WORKER_SECRETS" "and the line names the worker-only directory"
+  assert_posture_summary "the worker-only directory's owner fault"
+  assert_output_lacks "$WORKER_SUMMARY" "and it is not reported as stopping the worker"
+  reset_owner_expectations
+else
+  skipped=$((skipped + 10))
+  echo "  SKIP the worker-only directory's mode, owner and pass cases: this filesystem does not honour chmod."
+fi
+
+# NO NETWORK ACTION, the rule's other half: --check holds the pointer to a credential, and a login or a lookup made
+# from root's context would use it outside its one holder. Every tool that could reach out is poisoned on PATH,
+# and the case crosses the password's arm (the MISSING line proves it ran). A bash socket needs no tool, so the
+# script is held to never naming one.
+seed_mailbox_box dir
+mkdir -p "$TMPROOT/netbin"
+for tool in docker curl wget openssl nc ncat socat getent dig nslookup host ssh; do
+  printf '#!/usr/bin/env bash\necho "NETWORK TOOL INVOKED: %s" >&2\nexit 97\n' "$tool" > "$TMPROOT/netbin/$tool"
+  chmod +x "$TMPROOT/netbin/$tool"
+done
+PATH="$TMPROOT/netbin:/usr/bin:/bin" bash "$(make_sut_copy)" --check >"$TMPROOT/out" 2>&1 || true
+assert_output_has "MISSING: $WORKER_SECRETS/$PASSWORD_FILE" "the poisoned-PATH run crossed the mailbox password's arm"
+assert_output_lacks "NETWORK TOOL INVOKED" "and invoked no network tool"
+if grep -qE '/dev/(tcp|udp)' "$SUT"; then
+  fail=$((fail + 1)); echo "  FAIL the script names a bash network socket" >&2
+else
+  pass=$((pass + 1)); echo "  ok   and the script names no bash network socket"
+fi
+
+echo "-- the mailbox password's injection: under its pointer or its switch, owned by the WORKER image's ids (#1981 PR 4)"
+# The read key's cut, with one difference: write_secret is the SUT's own here, so the bytes written and the line
+# printed are the production ones. Replaced: `install`, which needs root and here records what it was asked and
+# makes a directory it is asked for, and resolve_runtime_ids, which needs docker and the reconcile lock and here
+# answers 5151:5252 for the worker image — deliberately unlike the api's 4242:4343 above.
+mailbox_lib() {
+  local sut_copy lib="$TMPROOT/mailbox-lib.sh" name
+  local -a names=(log die has_usable_content env_value dmarc_mailbox_password_required write_secret inject_dmarc_mailbox_password)
+  sut_copy=$(make_sut_copy)
+  {
+    grep -E '^readonly (ENV_FILE|WORKER_SECRETS_DIR|DMARC_MAILBOX_PASSWORD|DIR_MODE|SECRETS_DIR_OWNER)=' "$sut_copy"
+    for name in "${names[@]}"; do
+      fn_source "$sut_copy" "$name"
+    done
+    printf '%s\n' \
+      'install() { printf "INSTALL %s\n" "$*" >&2; if [[ $1 == -d ]]; then mkdir -p "${@: -1}"; fi; }' \
+      'resolve_runtime_ids() { printf "RESOLVE %s\n" "$*" >&2; [[ -z "${JBL_TEST_RESOLVE_FAILS:-}" ]] || return 1; printf "5151\n5252\n"; }'
+  } > "$lib"
+  for name in "${names[@]}"; do
+    grep -q "^$name() {" "$lib" || { echo "FIXTURE BROKEN: $name() was not found in the SUT" >&2; exit 1; }
+  done
+  [ "$(grep -c '^readonly ' "$lib")" -eq 5 ] || { echo "FIXTURE BROKEN: a constant was not found in the SUT" >&2; exit 1; }
+  printf '%s' "$lib"
+}
+run_mailbox_injection() {   # run_mailbox_injection <stdin> [VAR=value...]
+  local input="$1" lib got=0
+  shift
+  lib=$(mailbox_lib)
+  printf '%s\n' "$input" | env -u JBL_INJECT_DMARC_MAILBOX -u JBL_TEST_RESOLVE_FAILS "$@" PATH="/usr/bin:/bin" \
+    bash -c 'set -euo pipefail; source "$1"; inject_dmarc_mailbox_password' _ "$lib" >"$TMPROOT/out" 2>&1 || got=$?
+  printf '%s' "$got"
+}
+readonly MAILBOX_PROMPT="Value for $PASSWORD_FILE"
+readonly INJECTED_PASSWORD="fixture-mailbox-password"
+written_is() { [ -f "$WORKER_SECRETS/$PASSWORD_FILE" ] && cmp -s <(printf '%s' "$1") "$WORKER_SECRETS/$PASSWORD_FILE"; }
+
+seed_delivering_box
+got=$(run_mailbox_injection "never-read")
+if [ "$got" -eq 0 ] && ! grep -qF "$MAILBOX_PROMPT" "$TMPROOT/out" && ! grep -qF "RESOLVE" "$TMPROOT/out" \
+  && [ ! -e "$WORKER_SECRETS/$PASSWORD_FILE" ]; then
+  pass=$((pass + 1)); echo "  ok   no pointer and no switch: no prompt, no measurement, nothing written"
+else
+  fail=$((fail + 1)); echo "  FAIL the mailbox password was prompted for, measured or written with its gate off (exit $got)" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+assert_output_has "INSTALL -d -m 0700 $WORKER_SECRETS" "and the worker-only directory is made to exist, closed"
+assert_output_has "JBL_INJECT_DMARC_MAILBOX=1" "and the switch that places it ahead of the pointer is named"
+
+seed_delivering_box
+mkdir -p "$WORKER_SECRETS"
+run_mailbox_injection "never-read" >/dev/null
+assert_output_lacks "INSTALL" "an existing worker-only directory is left as it is while the gate is off"
+
+seed_delivering_box
+got=$(run_mailbox_injection "$INJECTED_PASSWORD" JBL_INJECT_DMARC_MAILBOX=1)
+assert_output_has "$MAILBOX_PROMPT" "the switch prompts for the mailbox password"
+assert_output_has "RESOLVE jobbliggaren-worker" "and measures the ids from the worker image"
+assert_output_lacks "RESOLVE jobbliggaren-api" "and never from the api image"
+assert_output_has "INSTALL -d -m 0710 -o $SUT_SECRETS_DIR_OWNER -g 5252 $WORKER_SECRETS" \
+  "and grants the worker image's group traversal of the worker-only directory alone"
+assert_output_has "INSTALL -m 0400 -o 5151 -g 5252 /dev/null $WORKER_SECRETS/$PASSWORD_FILE" \
+  "and creates the file 0400 for the worker image's uid"
+if [ "$got" -eq 0 ] && written_is "$INJECTED_PASSWORD"; then
+  pass=$((pass + 1)); echo "  ok   and the file holds exactly the bytes typed, with no newline"
+else
+  fail=$((fail + 1)); echo "  FAIL the mailbox password was not written as typed (exit $got)" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+assert_output_has "wrote $PASSWORD_FILE (mode 0400, owner 5151:5252)" "and the line it prints carries no length"
+assert_output_lacks "$INJECTED_PASSWORD" "and no line carries the value"
+assert_output_lacks "chars" "and no line counts its characters"
+if [ ! -e "$SECRETS/$PASSWORD_FILE" ] && [ ! -e "$API_SECRETS/$PASSWORD_FILE" ]; then
+  pass=$((pass + 1)); echo "  ok   and nothing lands in a directory api mounts"
+else
+  fail=$((fail + 1)); echo "  FAIL the mailbox password reached a directory api mounts" >&2
+fi
+
+# The pointer alone prompts, which is what lists the password in the re-injection after a reboot.
+seed_mailbox_box none
+run_mailbox_injection "$INJECTED_PASSWORD" >/dev/null
+assert_output_has "$MAILBOX_PROMPT" "the pointer alone prompts for the mailbox password"
+
+seed_mailbox_box password
+run_mailbox_injection "never-read" >/dev/null
+assert_output_lacks "$MAILBOX_PROMPT" "a password already in place is not prompted for again"
+assert_output_has "$PASSWORD_FILE already present — skipping (remove the file first to replace it)" "and the run says how to replace it"
+if written_is "$SEEDED_PASSWORD"; then
+  pass=$((pass + 1)); echo "  ok   and the file is left as it was"
+else
+  fail=$((fail + 1)); echo "  FAIL a present mailbox password was overwritten" >&2
+fi
+
+# The remedy --check's BLANK line names: a blank file is not a present one, so the next run prompts over it.
+seed_mailbox_box blank
+run_mailbox_injection "$INJECTED_PASSWORD" >/dev/null
+assert_output_has "$MAILBOX_PROMPT" "a blank file is prompted for again"
+if written_is "$INJECTED_PASSWORD"; then
+  pass=$((pass + 1)); echo "  ok   and the typed password replaces it"
+else
+  fail=$((fail + 1)); echo "  FAIL a blank mailbox password file was not replaced" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+seed_delivering_box
+got=$(run_mailbox_injection "   " JBL_INJECT_DMARC_MAILBOX=1)
+if [ "$got" -eq 1 ] && grep -qF "REFUSING: $PASSWORD_FILE was empty or whitespace-only" "$TMPROOT/out" \
+  && [ ! -e "$WORKER_SECRETS/$PASSWORD_FILE" ]; then
+  pass=$((pass + 1)); echo "  ok   a whitespace-only mailbox password is refused at the prompt, and nothing is written"
+else
+  fail=$((fail + 1)); echo "  FAIL a whitespace-only mailbox password was not refused (exit $got)" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+seed_delivering_box
+got=$(run_mailbox_injection "$INJECTED_PASSWORD" JBL_INJECT_DMARC_MAILBOX=1 JBL_TEST_RESOLVE_FAILS=1)
+if [ "$got" -eq 1 ] && grep -qF "REFUSING: the worker image's runtime ids could not be" "$TMPROOT/out" \
+  && ! grep -qF "INSTALL" "$TMPROOT/out" && ! grep -qF "$MAILBOX_PROMPT" "$TMPROOT/out" \
+  && [ ! -e "$WORKER_SECRETS" ]; then
+  pass=$((pass + 1)); echo "  ok   an unmeasured worker image aborts before any directory, prompt or file"
+else
+  fail=$((fail + 1)); echo "  FAIL the injection went on without the worker image's ids (exit $got)" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+# `-s` keeps the typed password off the terminal, which no fixture without a terminal can observe; held at the source.
+if fn_source "$SUT" inject_dmarc_mailbox_password | grep -qxF '  read -rs value'; then
+  pass=$((pass + 1)); echo "  ok   the mailbox password is read with read -rs"
+else
+  fail=$((fail + 1)); echo "  FAIL the mailbox password is not read with read -rs" >&2
+fi
+
 python3 -I - "$script_dir" "$TMPROOT" <<'PYLOCK'
 import fcntl
 from pathlib import Path
@@ -1469,8 +1756,12 @@ calls = root / "calls"
 docker = root / "docker"
 docker.write_text('''#!/usr/bin/env bash
 printf '%s\n' "$1" >> "${BASH_SOURCE[0]%/*}/calls"
-if [[ $1 == compose ]]; then printf 'ghcr.io/klasolsson81/jobbliggaren-api:applied\n'; exit 0; fi
+if [[ $1 == compose ]]; then
+  printf 'ghcr.io/klasolsson81/jobbliggaren-%s:applied\n' caddy web worker api migrate
+  exit 0
+fi
 [[ $1 == run ]] || exit 1
+printf '%s\n' "$*" >> "${BASH_SOURCE[0]%/*}/run-args"
 if [[ -e ${BASH_SOURCE[0]%/*}/pause ]]; then
   touch "${BASH_SOURCE[0]%/*}/running"
   while [[ ! -e ${BASH_SOURCE[0]%/*}/continue ]]; do sleep 0.01; done
@@ -1489,7 +1780,7 @@ function = function.replace('/run/jobbliggaren-reconcile.lock', str(lock))
 script = root / "resolve"
 script.write_text('set -euo pipefail\nPATH=' + str(root) + ':$PATH\nCOMPOSE_FILE=' + str(root / 'compose') +
                   '\nRUNTIME_IDS=' + str(ids) + '\ndie() { echo "$1" >&2; exit 1; }\n' +
-                  function + 'resolve_runtime_ids\n')
+                  function + 'resolve_runtime_ids "$@"\n')
 retention = root / 'retention'
 retention.write_text((source / 'jobbliggaren-image-retention.sh').read_text().replace(
     'readonly LOCK=/run/jobbliggaren-reconcile.lock', 'readonly LOCK=' + str(lock)))
@@ -1498,7 +1789,7 @@ class MeasurementLock(unittest.TestCase):
     def test_conflict_refuses_before_compose_or_container_creation(self):
         with lock.open('w+') as owner:
             fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            result = subprocess.run(['bash', str(script)], capture_output=True, text=True, timeout=3)
+            result = subprocess.run(['bash', str(script), 'jobbliggaren-api'], capture_output=True, text=True, timeout=3)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('reconciliation is in progress', result.stderr)
             self.assertEqual(result.stdout, '')
@@ -1506,7 +1797,7 @@ class MeasurementLock(unittest.TestCase):
 
     def test_measurement_excludes_retention_and_releases_before_secret_input(self):
         (root / 'pause').touch()
-        process = subprocess.Popen(['bash', str(script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        process = subprocess.Popen(['bash', str(script), 'jobbliggaren-api'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
             deadline = time.monotonic() + 5
             while not (root / 'running').exists() and time.monotonic() < deadline:
@@ -1522,6 +1813,7 @@ class MeasurementLock(unittest.TestCase):
             self.assertEqual(process.returncode, 0, error)
             self.assertEqual(output, '1654\n1655\n')
             self.assertEqual(calls.read_text().splitlines(), ['compose', 'run'])
+            self.assertIn('ghcr.io/klasolsson81/jobbliggaren-api:applied', (root / 'run-args').read_text())
             with lock.open('r+') as competitor:
                 fcntl.flock(competitor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         finally:
@@ -1529,6 +1821,26 @@ class MeasurementLock(unittest.TestCase):
             if process.poll() is None:
                 process.kill()
                 process.communicate(timeout=3)
+
+    # #1981 PR 4: the worker-only directory is owned by the worker image's ids, read out of that image, which the
+    # compose listing above names before the api's. The names are a closed set, refused before anything runs.
+    def test_unknown_name_is_refused_before_compose_or_container_creation(self):
+        calls.unlink(missing_ok=True)
+        result = subprocess.run(['bash', str(script), 'jobbliggaren-web'], capture_output=True, text=True, timeout=3)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no runtime ids are measured from 'jobbliggaren-web'", result.stderr)
+        self.assertEqual(result.stdout, '')
+        self.assertFalse(calls.exists())
+
+    def test_worker_name_measures_the_worker_image_and_never_the_api(self):
+        calls.unlink(missing_ok=True)
+        (root / 'run-args').unlink(missing_ok=True)
+        result = subprocess.run(['bash', str(script), 'jobbliggaren-worker'], capture_output=True, text=True, timeout=3)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '1654\n1655\n')
+        measured = (root / 'run-args').read_text()
+        self.assertIn('ghcr.io/klasolsson81/jobbliggaren-worker:applied', measured)
+        self.assertNotIn('jobbliggaren-api', measured)
 
 unittest.main(argv=['injection-measurement-lock'], verbosity=2)
 PYLOCK

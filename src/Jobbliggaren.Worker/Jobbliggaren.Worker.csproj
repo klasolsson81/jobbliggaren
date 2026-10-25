@@ -19,6 +19,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Jobbliggaren.Application\Jobbliggaren.Application.csproj" />
     <ProjectReference Include="..\Jobbliggaren.Infrastructure\Jobbliggaren.Infrastructure.csproj" />
+    <!-- #1981 PR 4a (ADR 0185) — the DMARC mailbox adapter. The Worker is the only project that references it. -->
+    <ProjectReference Include="..\Jobbliggaren.Infrastructure.Mailbox\Jobbliggaren.Infrastructure.Mailbox.csproj" />
     <ProjectReference Include="..\Jobbliggaren.Domain\Jobbliggaren.Domain.csproj" />
   </ItemGroup>
 

@@ -1,10 +1,11 @@
-# Runbook — `/admin/e-post`: the allowance, Leverans and our own counts per mail kind
+# Runbook — `/admin/e-post`: the allowance, Leverans, our own counts per mail kind, and the DMARC reports
 
-The page answers three questions. First, how this month's sent mail stands against the provider's free monthly allowance,
+The page answers four questions. First, how this month's sent mail stands against the provider's free monthly allowance,
 and what the mail beyond it costs (ADR 0178). Second, Leverans: how many mails the provider sent and failed per period, and
 which sends failed recently (ADR 0179). Third, under Leverans, how many attempts of each mail kind we handed over to
-Scaleway and how many failed (ADR 0181). This runbook is the one home for what the figures mean and how they are kept
-true.
+Scaleway and how many failed (ADR 0181). Fourth, from the DMARC aggregate reports the receiving mail services send us, which
+servers sent mail as `jobbliggaren.se` and whether it authenticated (ADR 0185). This runbook is the one home for what the
+figures mean and how they are kept true.
 
 ## What the figures are
 
@@ -91,6 +92,111 @@ They are the same while the organisation has one project sending through Transac
   fetched, never that a period counts up to that moment.
 
 The page names the month only where UTC and Stockholm agree on it; otherwise it reads "Utskick denna månad".
+
+## DMARC aggregate reports (ADR 0185)
+
+**What they are.** Receiving mail services (only Google so far) send a daily aggregate report to `dmarc@jobbliggaren.se`, a
+STRATO mailbox. The Worker reads that mailbox every hour at :23, read-only, and stores the accepted reports;
+`GET /api/v1/admin/email/dmarc` serves them over a fixed seven-day window, and PR 4b shows them on `/admin/e-post`. The figures
+are the reporters' own statements, never verified by us, and they are a third source: never Scaleway's figures and never our
+own handover count. A source is flagged when any of its messages failed DMARC, meaning neither DKIM nor SPF passed aligned.
+
+**The states** come from the one state row the ingestion writes: no row (never attempted), `NotConfigured` (no password),
+`Misconfigured` (pointer set, password blank), `Failed` (no run has succeeded yet; the latest outcome says why), and, once a run
+has succeeded, `Observed` or `NoReports`, with the latest failure and `stale` (the latest run failed, or the latest success is
+more than three hours old) beside them.
+
+**Reading on the box (CLAUDE.md §9.2).** Every row of the four tables is personal data or points at it (§9.2 (b)). Only these
+are (a):
+- the migrate tool's output;
+- that each of `dmarc_reports`, `dmarc_report_rows`, `dmarc_mailbox_messages` and `dmarc_mailbox_state` exists, as a boolean;
+- from `dmarc_mailbox_state`: `last_attempt_at`, `last_success_at`, `last_outcome`, and `last_uid IS NOT NULL` as a boolean;
+- `count(*)` of `dmarc_mailbox_messages` grouped by `outcome`;
+- whole-table `count(*)` of `dmarc_reports` and `dmarc_report_rows`, and one whole-table `sum(message_count)`;
+- `max(received_at) > now() - interval '48 hours'` and `min(received_at) >= now() - interval '12 months' - interval '2 days'`
+  on `dmarc_reports`, each as a boolean;
+- counts of the job's log event ids (3120–3124 ingestion and retention, 3130 store, 3135–3139 mailbox) in the worker's log;
+- the inject script's `--check` output, and `stat -c '%a %U %G' /run/jobbliggaren/worker-secrets`.
+
+Never read: a row of any of the four tables; `source_ip` in any form (no `DISTINCT`, min/max, grouping, filter or probe for one
+address); a reporter, report id, header-from or an individual report's period; any grouping by reporter or day; the ledger's
+UIDs or the cursor's values; the password file in any form, `cat`, `wc` or a hash included; the mailbox; Seq beyond a count.
+
+**Placing the password the first time** (after the release that carries #1981 PR 4a is on the box; every step with Klas's GO in
+chat, one step per message):
+1. CC advances the box to the release (`vps-deploy-stack.md` §3b): `merge --ff-only`, then installs the changed tmpfiles and
+   units (`sudo install -m 0644 /opt/jobbliggaren/deploy/systemd/jobbliggaren-tmpfiles.conf /etc/tmpfiles.d/jobbliggaren.conf`,
+   `sudo systemd-tmpfiles --create`, the observe unit with the install block's `cp`, `chmod` and `daemon-reload`), then starts
+   the reconcile unit, which also creates `/run/jobbliggaren/worker-secrets` and lets `migrate` apply `AddDmarcAggregateReports`.
+   Read `--status`.
+2. Klas adds `jbl-egress` rule 6 in Netcup's console: resolve `imap.strato.de` (A records only), one rule per address, TCP,
+   destination port 993, destination `/32`, ACCEPT; read the policy back (`vps-base-hardening.md` §6.3 and §6.5). Then, from
+   the box and with no login, a TLS handshake to `imap.strato.de:993` must complete and a connection to another host on 993
+   must time out; the outcome goes into the GO record.
+3. Klas sets a new random password for `dmarc@` only in STRATO's customer login, and writes down with the date whether the
+   mailbox can be barred from sending or webmail and whether it has two-factor sign-in.
+4. Klas runs `sudo JBL_INJECT_DMARC_MAILBOX=1 /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh` in his own
+   terminal and pastes the password at the prompt. It never enters chat.
+5. In `/opt/jobbliggaren/deploy/.env`, set `DMARC_MAILBOX_PASSWORD_FILE=/run/worker-secrets/Dmarc__Mailbox__Password`.
+6. Run the script's `--check`; it must pass.
+7. Recreate the worker under the reconcile lock in the form `deploy/.env.example` gives (`--status`, then
+   `up -d --pull never worker`). Never `docker restart`: a restart does not re-read `.env`.
+8. Wait for the next :23 run, or Klas triggers `dmarc-report-ingestion` from `/admin`. CC cannot sign in (§9.2 (d)).
+9. CC takes the (a) readings above. Klas checks in webmail that no message was marked read or moved.
+
+**Rotating it** on any trigger in `master-key-ops.md` (R1–R3): set a new password in STRATO, remove the old file
+(`sudo rm /run/jobbliggaren/worker-secrets/Dmarc__Mailbox__Password`, because the script skips a file that is present), inject
+the new one as in step 4, recreate the worker as in step 7, and read the next run's `last_success_at`. The same password is the
+mailbox's webmail login, so it changes there too.
+
+**Removing it:** clear `DMARC_MAILBOX_PASSWORD_FILE` in `.env`, remove the file, recreate the worker. The next run records
+`NotConfigured`. The stored reports stay until the retention job deletes them twelve months after receipt.
+
+**An Art. 17 erasure by address** (ADR 0185 D11) is Klas's, by hand, with his GO. It deletes every report whose records hold the
+address, and every version of those reports' ids; the records go with their reports by cascade, and the ledger holds no
+address. The address is typed only into his own `psql` session as a variable, never into chat or a file, and the erasure is
+recorded as a date and a count:
+
+```sql
+\prompt 'Address: ' addr
+SELECT pg_input_is_valid($1, 'inet') AS addr_ok \bind :addr \gset
+\if :addr_ok
+DELETE FROM dmarc_reports r
+ USING (SELECT DISTINCT s.reporter, s.reporter_report_id
+          FROM dmarc_reports s JOIN dmarc_report_rows w ON w.report_id = s.id
+         WHERE w.source_ip = $1::inet) hit
+ WHERE r.reporter = hit.reporter AND r.reporter_report_id = hit.reporter_report_id
+\bind :addr \g
+\else
+\echo 'Not an address'
+\endif
+```
+
+He also deletes the messages that carry those reports from the mailbox in webmail.
+
+**When the state reports a failure:**
+
+| `last_outcome` | What to do |
+|---|---|
+| `NotConfigured` | Expected in dev, CI and the harness. On the box: place the password (above). |
+| `Misconfigured` | The pointer is set but the password file is blank: remove the file and inject again. |
+| `Unreachable` | The egress rule is missing, or STRATO has renumbered `imap.strato.de`: re-resolve and edit rule 6 with Klas's GO. Never a port-only rule. |
+| `TlsFailed` | The certificate chain fails. Expected once a worker image lacks "T-TeleSec GlobalRoot Class 2" (ADR 0185 lapse trigger 1). Never fixed by relaxing validation. |
+| `AuthRefused` | The password was refused. No run connects again for 24 hours, so a fixed password is picked up after that. Rotate it (above). |
+| `AuthUnconfirmed` | The password was sent and no answer came: a timeout, a BYE or a reset. No run connects again for 24 hours. It does not say the password is wrong; if it recurs, read STRATO's status before rotating. |
+| `Timeout` | Transient. A lasting one: STRATO's status. |
+| `Protocol` | The server answered outside the protocol, or refused a command as malformed. Count the 3135–3139 events; a code change. |
+| `Incomplete` | The first run did not finish. Count the 3120–3123 events in the worker log. |
+
+**Not known, and never claimed:**
+- whether a mail reached the inbox or the spam folder. The reports show authentication only; the feedback notice of 2026-10-15
+  passed DKIM, SPF and DMARC and still landed in a Gmail spam folder;
+- whether a report is genuine: anyone can mail `dmarc@`, so the figures are the reporters' statements;
+- who operates a source address;
+- whether every receiving service sends reports (only Google has so far).
+
+After signing in, MailKit itself sends `NAMESPACE` and two `LIST` commands that read folder names only; they are on the adapter's
+tested command list.
 
 ## Re-reading the price list
 

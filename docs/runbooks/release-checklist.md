@@ -1253,7 +1253,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >
 >    ✅ **LÄSAREN ÄR UTPEKAD SEDAN 2026-08-28, OCH DET HÄR ÄR HANS HEM (#183 led 6).**
 >    **Läsare: Klas Olsson, personuppgiftsansvarig.** CC ska aldrig ha brevlådeåtkomst — ingen
->    credentialförvaring, och en sådan åtkomst vidgar en behandling registret nyss villkorade.
+>    credentialförvaring, ingen inloggning och ingen läsning av någon brevlåda — och en sådan
+>    åtkomst vidgar en behandling registret nyss villkorade. Det gäller agenterna; Workerns
+>    läsbehörighet till `dmarc@`, och ingen annan brevlåda, är ADR 0185:s och registrets
+>    DMARC-posts (Klas 2026-10-24, "Ja, avgränsa (Rek.)").
 >    ⚠ **Detta är en operativ kontroll, inte en riskaccept.** §9.6 (3):s väg är **otillgänglig**
 >    här och behövs inte: föremålet är inkommande rättighetskorrespondens, alltså tredje parts
 >    uppgifter **per konstruktion**, och en accept vidgad med en enda icke-ansvarig registrerad är

@@ -98,6 +98,7 @@ public class IncludeErrorDetailGuardTests
     [Theory]
     [InlineData(typeof(Jobbliggaren.Api.Configuration.HstsOptions))]
     [InlineData(typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser))]
+    [InlineData(typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions))]
     [InlineData(typeof(Jobbliggaren.Infrastructure.Persistence.AppDbContext))]
     [InlineData(typeof(Jobbliggaren.Migrate.ConnectionStringFactory))]
     public void Assembly_should_not_build_a_connection_string_enabling_Include_Error_Detail(

@@ -58,6 +58,9 @@
          csproj says why that matters: Migrate "is a composition root (CLAUDE.md §2.1) rather than a
          library to reference". The edge existed; only the declaration was missing. -->
     <ProjectReference Include="..\..\src\Jobbliggaren.Migrate.Provisioning\Jobbliggaren.Migrate.Provisioning.csproj" />
+    <!-- #1981 PR 4a — the DMARC mailbox boundary tests read this assembly and the MailKit and MimeKit copies beside
+         it. The Worker carries it here transitively; the declaration makes the edge visible. -->
+    <ProjectReference Include="..\..\src\Jobbliggaren.Infrastructure.Mailbox\Jobbliggaren.Infrastructure.Mailbox.csproj" />
   </ItemGroup>
 
 </Project>

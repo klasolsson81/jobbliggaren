@@ -27,6 +27,7 @@ public class ConnectionStringLeakageTests
     [Theory]
     [InlineData(typeof(Jobbliggaren.Api.Configuration.HstsOptions))]
     [InlineData(typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser))]
+    [InlineData(typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions))]
     [InlineData(typeof(Jobbliggaren.Infrastructure.Persistence.AppDbContext))]
     [InlineData(typeof(Jobbliggaren.Migrate.ConnectionStringFactory))]
     public void Assembly_should_not_contain_Trust_Server_Certificate_true_in_IL(Type assemblyMarker)

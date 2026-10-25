@@ -45,6 +45,7 @@ public sealed class LoginProofChainTests
         typeof(IdentityInboxProofRecorder).Assembly,
         typeof(Jobbliggaren.Api.Endpoints.AuthEndpoints).Assembly,
         typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
+        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
         typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
     ];
 

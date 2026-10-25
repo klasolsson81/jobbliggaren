@@ -69,11 +69,11 @@ public class OrgNrRecordLoggingGuardTests
 
     /// <summary>
     /// The product assemblies whose records can reach a logger. Domain + Application + Infrastructure
-    /// + Api + Worker. <c>Jobbliggaren.Migrate</c> is excluded on purpose — it holds only EF-generated
+    /// + Api + Worker + Infrastructure.Mailbox. <c>Jobbliggaren.Migrate</c> is excluded on purpose — it holds only EF-generated
     /// <c>Migration</c> subclasses, never a domain record, so scanning it adds false-positive surface
     /// for zero coverage. This list is load-bearing (dropping an entry silently narrows coverage), so
-    /// <see cref="The_scan_covers_all_five_owned_assemblies_including_the_snake_case_spelling"/> pins
-    /// all five by name.
+    /// <see cref="The_scan_covers_all_six_owned_assemblies_including_the_snake_case_spelling"/> pins
+    /// all six by name.
     /// </summary>
     private static readonly Assembly[] OwnedAssemblies =
     [
@@ -84,6 +84,8 @@ public class OrgNrRecordLoggingGuardTests
         // Worker has no org.nr-bearing record to anchor a type-reach assertion on; it is scanned
         // fail-closed so a future one is caught, and the by-name pin keeps it in the list.
         typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly, // Jobbliggaren.Worker
+        // The DMARC mailbox adapter (#1981, ADR 0185) is scanned fail-closed for the same reason.
+        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly, // Jobbliggaren.Infrastructure.Mailbox
     ];
 
     private static readonly Type BatchRowType = ResolveNestedType(
@@ -159,19 +161,19 @@ public class OrgNrRecordLoggingGuardTests
     }
 
     [Fact]
-    public void The_scan_covers_all_five_owned_assemblies_including_the_snake_case_spelling()
+    public void The_scan_covers_all_six_owned_assemblies_including_the_snake_case_spelling()
     {
         // Non-vacuity + coverage pin. OwnedAssemblies is load-bearing — dropping an entry silently
         // narrows coverage with a green suite, the exact failure mode #883 exists to fight. Pin all
-        // five by name, then pin that the scan actually REACHES a record in the layers that have one:
+        // six by name, then pin that the scan actually REACHES a record in the layers that have one:
         //   - Domain, PascalCase          -> JobAdFacets
         //   - Application, PascalCase      -> ScbCompanyRecord
         //   - Api                          -> CompaniesEndpoints.CompanyLookupRequest
         //   - Infrastructure, snake_case   -> BatchRow (organization_number, load-bearing for
         //     jsonb_to_recordset — it cannot be renamed, so the shared detector must recognise the
         //     spelling; this proves it does and that Infra is scanned at all).
-        // Worker is pinned by name only: it has no org.nr record to anchor on today, and the fail-closed
-        // scan catches a future one.
+        // Worker and Infrastructure.Mailbox are pinned by name only: neither has an org.nr record to
+        // anchor on today, and the fail-closed scan catches a future one.
         OwnedAssemblies.Select(a => a.GetName().Name).OrderBy(n => n, StringComparer.Ordinal).ToList()
             .ShouldBe(
             [
@@ -179,8 +181,9 @@ public class OrgNrRecordLoggingGuardTests
                 "Jobbliggaren.Application",
                 "Jobbliggaren.Domain",
                 "Jobbliggaren.Infrastructure",
+                "Jobbliggaren.Infrastructure.Mailbox",
                 "Jobbliggaren.Worker",
-            ], "OwnedAssemblies must scan exactly the five product assemblies (Migrate excluded)");
+            ], "OwnedAssemblies must scan exactly the six product assemblies (Migrate excluded)");
 
         var scanned = OrgNrBearingRecords().ToHashSet();
 

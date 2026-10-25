@@ -71,6 +71,11 @@
          Tidigare transitiv via FluentValidation.DependencyInjectionExtensions;
          explicit ref = versionshygien (senior-cto-advisor + dotnet-architect 2026-05-16). -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <!-- #1981 PR 4a (ADR 0185) — IConfiguration for Jobbliggaren.Infrastructure.Mailbox's AddDmarcMailbox, which
+         reads the one password key. Already in every host's graph through Microsoft.Extensions.Hosting 10.0.12; the
+         Mailbox project references Application only, which does not carry it, so it is declared rather than reached
+         through Infrastructure. -->
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
     <!-- Auth + JWT -->
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
@@ -283,5 +288,22 @@
          ett AWSSDK-paket "bara för att"; kryptering är fortsatt Local-only (#802) och
          SecretsManager/KeyManagementService/S3/Bedrock/AWS.Logger.* var bannade redan innan. -->
     <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.2" />
+    <!-- #1981 PR 4a (ADR 0185, Klas GO K2 2026-10-24) — the Worker reads the DMARC aggregate reports sent to
+         dmarc@jobbliggaren.se over IMAPS, read-only. The BCL has no IMAP client and no MIME body parser, and
+         Microsoft's own SmtpClient page points to MailKit. The PackageReference lives ONLY in
+         Jobbliggaren.Infrastructure.Mailbox, which only the Worker references, so none of this reaches the Api
+         image; architecture tests pin the declaration, the assembly dependency and the project references.
+         Licence MIT (.NET Foundation project), non-copyleft assessed against the server-side, non-distributed
+         model ADR 0050 locks. Verified 2026-10-24 on nuget.org: 4.18.2 = latest stable (2026-10-23), native
+         net10.0 asset. It brings MimeKit 4.18.2, BouncyCastle.Cryptography 2.7.0,
+         System.Security.Cryptography.Pkcs and System.Formats.Asn1 transitively. Our call path reaches no S/MIME,
+         PGP or MIME parser: the report part is chosen from bounded partial header fetches, and MimeKit is used only
+         for ContentType/ContentDisposition.TryParse over one unfolded field value each.
+         THE STANDING COST: an advisory in any of those five packages fails restore REPO-WIDE under
+         TreatWarningsAsErrors until it is pinned or bumped. GHSA-9j88-vvj5-vhgr (STARTTLS response injection),
+         graded high by GitHub, affected MailKit <= 4.15.1 and is fixed in 4.16.0; the adapter connects with
+         SslOnConnect only, so the STARTTLS path is never exercised either way. MailKit 5.0 (unreleased) drops
+         BouncyCastle. -->
+    <PackageVersion Include="MailKit" Version="4.18.2" />
   </ItemGroup>
 </Project>

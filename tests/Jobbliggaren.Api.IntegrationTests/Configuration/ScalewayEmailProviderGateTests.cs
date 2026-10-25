@@ -219,8 +219,8 @@ public class ScalewayEmailProviderGateTests
 
     /// <summary>
     /// The <c>FromAddress</c> gate. Not cosmetic: <c>_dmarc.jobbliggaren.se</c> publishes
-    /// <c>p=reject</c> with no <c>rua=</c> (measured 2026-08-08, ADR 0124), so a sender address
-    /// outside the DKIM-verified identity is not an error — it is total, silent, unreported delivery
+    /// <c>p=reject</c> (measured 2026-08-08, ADR 0124), so a sender address
+    /// outside the DKIM-verified identity is not an error — it is total, silent delivery
     /// loss. The domain is Verified at Scaleway; the DMARC posture is unchanged by the provider swap.
     /// <para>
     /// The empty and whitespace rows matter beyond "blank is rejected": the DI arm reads the key

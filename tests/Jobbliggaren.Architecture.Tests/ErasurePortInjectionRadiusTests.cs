@@ -40,6 +40,7 @@ public class ErasurePortInjectionRadiusTests
         typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
         typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
         typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
+        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
     ];
 
     [Fact]

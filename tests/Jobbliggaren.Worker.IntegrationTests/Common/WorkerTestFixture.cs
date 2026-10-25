@@ -197,6 +197,10 @@ public sealed class WorkerTestFixture : IAsyncLifetime
         services.AddScoped<Jobbliggaren.Application.Admin.Email.Jobs.EmailSendCountRetention.EmailSendCountRetentionJob>();
         services.AddScoped<Jobbliggaren.Worker.Hosting.EmailSendCountRetentionWorker>();
 
+        // #1981 PR 4a (ADR 0185) — NOT a mirror: the same registration Worker/Program.cs makes. No mailbox password is
+        // configured here, so the mailbox is the not-configured one.
+        Jobbliggaren.Worker.Hosting.DmarcReportIngestionRegistration.AddDmarcReportIngestion(services, configuration);
+
         // #664: same — the one-off source_file_name mask backfill (admin-enqueued, no recurring worker)
         // is registered in AddJobSources (which this fixture does not call), so mirror it here for its
         // integration test to resolve it (parity #544's job, minus a worker wrapper).

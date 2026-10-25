@@ -541,11 +541,27 @@ services:
       # unmeasured half is the wake-and-page chain), and a NEW grant covers the state WITH real
       # data. Point 3.5 carries the ruling and its grounds.
       JobTech__IngestEnabled: ${JOBTECH_INGEST_ENABLED:-false}
+      # The DMARC mailbox password (#1981 PR 4): the login to the mailbox the DMARC report ingestion reads, so the
+      # worker's alone. Inline and never in an anchor, which api would merge too, and its file lies in the
+      # worker-only mount below, never in the shared secrets directory: api never reads the mailbox. Empty by
+      # default and never `:?`: a blank pointer leaves the ingestion not configured, never a refused start. Pinned
+      # by DeployComposeDmarcMailboxTests; the inject-first order is in deploy/.env.example.
+      Dmarc__Mailbox__Password_FILE: ${DMARC_MAILBOX_PASSWORD_FILE:-}
     volumes:
       - *app-secrets-entry
       - type: bind
         source: /run/jobbliggaren/redis/worker-persistent
         target: /run/redis-persistent
+        read_only: true
+        bind:
+          create_host_path: false
+      # #1981 PR 4 — the DMARC mailbox password's directory, mounted into the worker and no other service, and never
+      # a parent or child of another bind source; DeployComposeDmarcMailboxTests pins both. `create_host_path: false`
+      # for the reason api's read-key mount gives. Its absence still never stops the worker: jobbliggaren-reconcile.sh
+      # creates it empty before every apply, the tmpfiles line at every boot, and the injection on every run.
+      - type: bind
+        source: /run/jobbliggaren/worker-secrets
+        target: /run/worker-secrets
         read_only: true
         bind:
           create_host_path: false

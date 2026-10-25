@@ -65,7 +65,7 @@ internal static class MappedPlaintextExposureRegistry
 {
     /// <summary>
     /// <b>STEP 1 — THE ROW TEST (Art. 4(1)).</b> Tables whose row can be attributed to an
-    /// identifiable natural person. <b>Every DEK-free text-bearing column on such a table is
+    /// identifiable natural person. <b>Every DEK-free text-bearing or address column on such a table is
     /// <see cref="PlaintextExposure.PlaintextPersonalData"/>, derived, with no per-column entry and
     /// no way to opt one out.</b>
     /// </summary>
@@ -246,6 +246,16 @@ internal static class MappedPlaintextExposureRegistry
                 + "subset ground as job_ads: the row is created only for an ad we hold, so "
                 + "external_id joins to an organization_number that IS a personnummer for a "
                 + "sole trader (#841) — in the same dump.",
+
+            // ── #1981 PR 4a (ADR 0185): DMARC aggregate reports, which anyone can mail us. ────────
+            ["dmarc_report_rows"] = "One row per record of a reporter's aggregate report. source_ip is the address of "
+                + "a server that sent mail as our domain, and an IP address is personal data when the server is a "
+                + "person's own (C-582/14 Breyer); header_from sits on the same row, and a column cannot be "
+                + "classified per row.",
+            ["dmarc_reports"] = "One row per stored aggregate report, joined by id to records whose source_ip is "
+                + "personal data (Breyer), so the row is about the people behind those servers. reporter and "
+                + "reporter_report_id are free text a sender writes, and content_sha256 is a digest of the very XML "
+                + "that names the addresses.",
         };
 
     /// <summary>
@@ -297,7 +307,7 @@ internal static class MappedPlaintextExposureRegistry
     /// </remarks>
     internal static IReadOnlyList<string> PlaintextPersonalDataColumns { get; } =
     [
-        .. ModelSweep.AllModelsTextColumnsByTable()
+        .. ModelSweep.AllModelsTextOrAddressColumnsByTable()
             .Where(kv => PersonGrainedTables.ContainsKey(kv.Key))
             .SelectMany(kv => kv.Value)
             .Except(ModelSweep.AllModelsEncryptedColumns())

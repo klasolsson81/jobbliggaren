@@ -224,6 +224,26 @@ public class MappedPlaintextExposureRegistryTests
     }
 
     /// <summary>
+    /// #1981 PR 4a (ADR 0185) — anti-vacuity for the ADDRESS form. An address is not text, so the text predicate never
+    /// sees one; narrow <see cref="ModelSweep.IsAddressStoreType"/> and the stored IP address leaves the enumeration
+    /// while every completeness fact above stays green.
+    /// </summary>
+    [Fact]
+    public void The_sweep_SEES_the_address_column_and_the_enumeration_exposes_it()
+    {
+        ModelSweep.IsAddressStoreType("inet").ShouldBeTrue();
+        ModelSweep.IsAddressStoreType("cidr[]").ShouldBeTrue();
+        ModelSweep.IsTextBearingStoreType("inet").ShouldBeFalse("an address is swept as an address, not as text");
+
+        ModelSweep.AllModelsTextOrAddressColumnsByTable().SelectMany(kv => kv.Value)
+            .ShouldContain("dmarc_report_rows.source_ip");
+        MappedPlaintextExposureRegistry.PlaintextPersonalDataColumns.ShouldContain(
+            "dmarc_report_rows.source_ip",
+            "a reporter's source address is personal data when the server is a person's own (C-582/14 Breyer), and a "
+            + "restore hands it over readable.");
+    }
+
+    /// <summary>
     /// A DEK-encrypted column is never in the enumeration: it is not plaintext in a restore, and
     /// listing it would OVERSTATE the exposure Klas accepts against.
     /// </summary>
@@ -295,12 +315,12 @@ public class MappedPlaintextExposureRegistryTests
     private static string TableOf(string columnKey) => columnKey[..columnKey.IndexOf('.')];
 
     /// <summary>
-    /// Every DEK-free text-bearing column in either model — what a restore hands a reader with no
-    /// key at all, within the models' reach.
+    /// Every DEK-free text-bearing or address column in either model — what a restore hands a reader
+    /// with no key at all, within the models' reach.
     /// </summary>
     private static HashSet<string> PlaintextColumns()
     {
-        var all = ModelSweep.AllModelsTextColumnsByTable()
+        var all = ModelSweep.AllModelsTextOrAddressColumnsByTable()
             .SelectMany(kv => kv.Value)
             .ToHashSet(StringComparer.Ordinal);
 

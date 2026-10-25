@@ -35,6 +35,7 @@ using Jobbliggaren.Infrastructure.CompanyRegister.Scb;
 using Jobbliggaren.Infrastructure.Configuration;
 using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Infrastructure.Email.Counting;
+using Jobbliggaren.Infrastructure.Email.Dmarc;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.JobSources;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
@@ -82,6 +83,7 @@ public static class DependencyInjection
         services.AddServiceObservationSources();
         services.AddEmailUsageSource(configuration);
         services.AddEmailSendCountsSource(configuration);
+        services.AddDmarcReportsSource();
         services.AddDevOnlyTestingSupport(environment);
         return services;
     }
@@ -913,8 +915,8 @@ public static class DependencyInjection
             }
 
             // The sender address is checked here, not left to the EmailOptions default. The
-            // domain's DMARC policy rejects mail outside the verified identity without sending
-            // reports (ADR 0124), so a wrong address would lose every email silently.
+            // domain's DMARC policy rejects mail outside the verified identity (ADR 0124), so a
+            // wrong address would lose every email silently.
             var fromAddress = configuration[$"{EmailOptions.SectionName}:{nameof(EmailOptions.FromAddress)}"]
                 ?? new EmailOptions().FromAddress;
             if (string.IsNullOrWhiteSpace(fromAddress) || !fromAddress.Contains('@', StringComparison.Ordinal))
@@ -922,7 +924,7 @@ public static class DependencyInjection
                 throw new InvalidOperationException(
                     $"Email:Provider='Scaleway' kräver en avsändaradress; Email:FromAddress='{fromAddress}' "
                     + "är inte en adress. Den måste dessutom ligga under den hos Scaleway verifierade "
-                    + "domän-identiteten — domänens DMARC står på p=reject utan rua=, så ett fel här "
+                    + "domän-identiteten — domänens DMARC står på p=reject, så ett fel här "
                     + "syns inte som ett fel utan som tystnad.");
             }
 

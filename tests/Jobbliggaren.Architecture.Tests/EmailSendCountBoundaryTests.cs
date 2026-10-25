@@ -108,6 +108,7 @@ public class EmailSendCountBoundaryTests
             typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
             typeof(Jobbliggaren.Api.Endpoints.AdminEmailEndpoints).Assembly,
             typeof(WorkerSystemUser).Assembly,
+            typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
             typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
         ];
 
@@ -120,7 +121,7 @@ public class EmailSendCountBoundaryTests
             .ToList();
     }
 
-    private static SortedSet<string> SitesNaming(string table)
+    internal static SortedSet<string> SitesNaming(string table)
     {
         var sites = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var type in ProductionTypeSweep.Types().Where(type => !IsMigrationOrSnapshot(type)))

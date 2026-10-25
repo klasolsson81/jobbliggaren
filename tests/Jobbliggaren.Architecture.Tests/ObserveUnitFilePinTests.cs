@@ -104,6 +104,7 @@ public class ObserveUnitFilePinTests
         inaccessible.ShouldContain("-/run/jobbliggaren/host-secrets", "the backup upload credential is never the sampler's to read");
         inaccessible.ShouldContain("-/run/jobbliggaren/secrets");
         inaccessible.ShouldContain("-/run/jobbliggaren/api-secrets", "the admin e-post read key is the api's alone (ADR 0179 D7)");
+        inaccessible.ShouldContain("-/run/jobbliggaren/worker-secrets", "the DMARC mailbox password is the worker's alone (#1981 PR 4)");
         inaccessible.ShouldContain("-/etc/jobbliggaren");
     }
 
@@ -148,7 +149,7 @@ public class ObserveUnitFilePinTests
     {
         // A tripwire for the transport's content rule (ADR 0157): metadata fit for any admin to read.
         // A collector that needs one of these is a new contract version, and security-auditor reviews it.
-        string[] forbidden = ["host-secrets", "docker", "rclone", "Backup__", "age.recipient", ".env", "/run/jobbliggaren/secrets", "api-secrets"];
+        string[] forbidden = ["host-secrets", "docker", "rclone", "Backup__", "age.recipient", ".env", "/run/jobbliggaren/secrets", "api-secrets", "worker-secrets"];
 
         foreach (var file in new[] { "jobbliggaren-observe-backup.sh", "jobbliggaren-observe-lib.sh" })
         {
@@ -284,6 +285,7 @@ public class ObserveUnitFilePinTests
             typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
             typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
             typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
+            typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
             typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
         ];
 

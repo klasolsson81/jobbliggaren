@@ -22,7 +22,7 @@ namespace Jobbliggaren.Architecture.Tests;
 ///     under <c>src/</c>, <c>tests/</c> or <c>perf/</c>, plus the repo-root build files — which is
 ///     every place a declaration can reach a project.</item>
 ///   <item><b>No import</b>, in any C# form, in any <c>.cs</c> file under those same roots.</item>
-///   <item><b>No IL dependency</b> in the six PRODUCTION assemblies. Test assemblies are out of
+///   <item><b>No IL dependency</b> in the seven PRODUCTION assemblies. Test assemblies are out of
 ///     reach here and covered by (1) and (2) instead — see
 ///     <see cref="NoProductionAssemblyDependsOnAnAmazonType"/> for why, rather than a claim that
 ///     they are covered.</item>
@@ -252,7 +252,7 @@ public class NoAmazonReferenceTests
     /// </para>
     /// <para>
     /// <b>PRODUCTION assemblies only, and that is a limit rather than an oversight.</b> This project
-    /// references the six <c>src/</c> projects and no test project, so no test assembly is reachable
+    /// references the <c>src/</c> projects and no test project, so no test assembly is reachable
     /// here — and referencing sibling test projects to reach them would invert the dependency
     /// direction between suites for a fact the text scans already cover: since 2026-08-15 those scan
     /// <c>tests/</c> (and <c>perf/</c>) for both package declarations and imports, in every import
@@ -323,6 +323,7 @@ public class NoAmazonReferenceTests
             { "Jobbliggaren.Infrastructure", typeof(EmailOptions).Assembly },
             { "Jobbliggaren.Api", typeof(AdminRoleRequirement).Assembly },
             { "Jobbliggaren.Worker", typeof(WorkerSystemUser).Assembly },
+            { "Jobbliggaren.Infrastructure.Mailbox", typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly },
             // ConnectionStringFactory is Migrate's only public type — every other one is internal,
             // so it is the assembly handle, not a choice about what to test.
             { "Jobbliggaren.Migrate", typeof(ConnectionStringFactory).Assembly },

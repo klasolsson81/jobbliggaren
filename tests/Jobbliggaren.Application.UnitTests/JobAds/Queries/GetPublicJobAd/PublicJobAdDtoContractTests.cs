@@ -13,7 +13,7 @@ public class PublicJobAdDtoContractTests
 {
     private static readonly string[] SurfacedProperties =
     [
-        "Id", "Title", "CompanyName", "Description", "Url", "PublishedAt", "ExpiresAt",
+        "Id", "Title", "CompanyName", "Description", "Url", "ApplicationUrl", "PublishedAt", "ExpiresAt",
         "MunicipalityConceptId", "MunicipalityName", "RegionConceptId", "RegionName",
         "OccupationGroupConceptId", "OccupationGroupName", "EmploymentTypeConceptId", "WorktimeExtentConceptId",
     ];

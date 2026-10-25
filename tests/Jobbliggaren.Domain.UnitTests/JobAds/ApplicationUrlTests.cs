@@ -62,6 +62,42 @@ public class ApplicationUrlTests
         ApplicationUrl.FromSource("https://example.se/ansok?pnr=811218-9876").ShouldBeNull();
     }
 
+    // #2214 PR 1b: a token behind an escape or a form-encoded '+' is the same token to whoever reads the href.
+    [Theory]
+    [InlineData("https://example.se/ansok/811218%2D9876")]
+    [InlineData("https://example.se/ansok/811218%2d9876")]
+    [InlineData("https://example.se/ansok?pnr=811218%209876")]
+    [InlineData("https://example.se/ansok?pnr=811218%5F9876")]
+    [InlineData("https://example.se/ansok?pnr=811218+-+9876")]
+    public void ApplicationUrl_FromSource_ValidPersonnummerOnlyInADecodedReading_ReturnsNull(string raw) =>
+        ApplicationUrl.FromSource(raw).ShouldBeNull();
+
+    [Fact]
+    public void ApplicationUrl_FromSource_LuhnInvalidNumberBehindAnEscape_ReturnsValue() =>
+        ApplicationUrl.FromSource("https://example.se/ansok/811218%2D9877").ShouldNotBeNull();
+
+    [Fact]
+    public void ApplicationUrl_Readings_AreTheStoredThePercentDecodedAndTheFormDecodedForms()
+    {
+        ApplicationUrl.Readings("https://example.se/a?q=b+c%20d").ShouldBe(
+            ["https://example.se/a?q=b+c%20d", "https://example.se/a?q=b+c d", "https://example.se/a?q=b c d"]);
+    }
+
+    [Fact]
+    public void ApplicationUrl_Readings_OfAnAddressWithNothingToDecode_IsTheAddressOnce() =>
+        ApplicationUrl.Readings("https://example.se/apply").ShouldBe(["https://example.se/apply"]);
+
+    [Theory]
+    [InlineData("https://example.se/a%")]
+    [InlineData("https://example.se/a%G0")]
+    [InlineData("https://example.se/a%E2%82")]
+    public void ApplicationUrl_FromSource_InvalidEscape_NeverThrowsAndKeepsTheAddress(string raw)
+    {
+        var url = Should.NotThrow(() => ApplicationUrl.FromSource(raw));
+
+        url.ShouldNotBeNull().Value.ShouldBe(raw);
+    }
+
     [Fact]
     public void ApplicationUrl_FromSource_LongNumericIdThatIsNoPersonnummer_ReturnsValue()
     {

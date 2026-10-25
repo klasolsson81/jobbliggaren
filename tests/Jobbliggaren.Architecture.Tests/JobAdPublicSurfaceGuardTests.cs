@@ -63,8 +63,9 @@ public class JobAdPublicSurfaceGuardTests
                              "application page. NOT derived from raw_payload — the sanitizer keeps " +
                              "application_details out of the payload; the ACL maps the url alone through " +
                              "ApplicationUrl.FromSource. Written only while Active, cleared by Archive(), " +
-                             "both bulk archival writers and Erase(). On the DETAIL DTO only — never on the " +
-                             "list DTO or the public DTO. Erased, and searched, in ErasureCascadeRegistry.",
+                             "both bulk archival writers and Erase(). On the DETAIL DTO, and on the public " +
+                             "DTO only as PublicApplicationLink admits it (#2214 PR 1b) — never on the list " +
+                             "DTO. Erased, and searched, in ErasureCascadeRegistry.",
         ["Source"] = "provenance",
         ["Status"] = "THE lifecycle axis (#821 retired the dead DeletedAt axis; Status is the only one)",
         ["PublishedAt"] = "ad content; the purge's cutoff is measured from it",
@@ -248,6 +249,24 @@ public class JobAdPublicSurfaceGuardTests
             "plus raw_payload and the recruiter free-text in description (#842).\n\n" +
             "Log the id, or named non-PII fields: `{JobAdId}`, `{Title}`. Never `{@object}`. " +
             "Offenders: " + string.Join(", ", offenders));
+    }
+
+    /// <summary>
+    /// #2214 PR 1b (ADR 0166 D10 trigger 19, a gate bypassed or copied): the anonymous read is built in
+    /// exactly one file, and that file takes the application link through the public gate.
+    /// </summary>
+    [Fact]
+    public void The_public_job_ad_dto_is_built_in_one_file_which_takes_the_link_through_the_gate()
+    {
+        var root = RepoRoot();
+        var builders = Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(file => File.ReadAllText(file).Contains("new PublicJobAdDto(", StringComparison.Ordinal))
+            .Select(file => Path.GetRelativePath(root, file).Replace('\\', '/'))
+            .ToList();
+
+        builders.ShouldBe(["src/Jobbliggaren.Application/JobAds/Queries/GetPublicJobAd/GetPublicJobAdQueryHandler.cs"]);
+        File.ReadAllText(Path.Combine(root, builders[0]))
+            .ShouldContain("ApplicationUrl: PublicApplicationLink.Admit(row.ApplicationUrl)", Case.Sensitive);
     }
 
     [Fact]

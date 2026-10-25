@@ -216,9 +216,9 @@ The table is a pure function, `src/lib/popover/focus-on-open.ts`, and the shell'
 
 - **Scope.** Every row kind, Distans and Välj alla, the chip rows (`globals.css:7176-7190`), Rensa, Tillbaka and the X, the foot link and the footer button.
 - **How.** Only the hit area grows. Rows and links grow; Rensa, Tillbaka and Matchning's switch get an invisible `::before` (`ToggleRow`'s idiom, and `.jp-criterionrow`'s pattern,
-  `globals.css:1873-1880`). The rule lives in `app.css`, under `@media (max-width: 768px)` and scoped to `.jp-popover`, with no top-level `:focus-visible` duplicate
+  `globals.css:1873-1880`). The rule lives in `app.css`, scoped to `.jp-popover`, with no top-level `:focus-visible` duplicate
   (`occupation-search-css.test.ts`).
-- **A touch rule and not a placement rule.** It is keyed on the width alone, so it also reaches an anchored panel between 641 and 768 px (DA). D1's ban on `@media` is on deciding placement, and this
+- **A touch rule and not a placement rule.** It also reaches an anchored panel between 641 and 768 px (DA). D1's ban on `@media` is on deciding placement, and this
   rule decides none.
 - Pinned by `src/app/(app)/popover-touch-floor.test.ts`.
 
@@ -304,7 +304,7 @@ only; no package, no backend change, no new message key and no change to the URL
 ## Consequences
 
 ### Positive
-- The position has one home and the placement one decider. A host spreads `style` and never branches on a position; a future `.jp-popover` host composes `PopoverShell` and inherits placement, focus,
+- The position has one home and the placement one decider. A future `.jp-popover` host composes `PopoverShell` and inherits placement, focus,
   focus-out and the sheet without copying any of it (OCP, Martin 2017, ch. 8).
 - No measured panel crosses the viewport, and the header stays on top of an anchored panel.
 - A phone gets the bell's known form, a close control that does not depend on a key the device lacks, a floor of 44 px and a drill-down that matches Platsbanken's interaction.

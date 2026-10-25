@@ -228,7 +228,7 @@
 	encode zstd gzip
 
 	# Gate M-5a. This is the load-bearing half: Caddy's own responses — the 401 below, the
-	# ACME 404, a 503 while web is down, the alias sites' 308/302 — never reach Next, so a
+	# ACME 404, a 503 while web is down, the alias sites' 308 — never reach Next, so a
 	# header set only by buildSecurityHeaders would be absent from them.
 	import hsts
 	import isolation
@@ -359,21 +359,23 @@
 }
 
 # ALIAS SEAM (#1768, ADR 0154 §2). `none` serves SITE_HOST alone. `apex` adds the two names the
-# domain move redirects to it, keeping path and query; `dev.` is a 302 on purpose, so a future dev
-# box can take the name back. Set `apex` only once DNS points both names at this box: each name gets
-# its own certificate, and a failed validation spends Let's Encrypt's failed-validation limit.
+# domain move redirects to it, keeping path and query. Both answer a permanent 308: a future dev box
+# takes a new name, never `dev.` again (ADR 0154 Amendment 2026-10-25). The `http://` site is what
+# makes each name one hop: it replaces Caddy's automatic HTTP-to-HTTPS redirect for these names,
+# which would otherwise send `http://www.` to `https://www.` first. It sends no HSTS, as RFC 6797
+# §7.2 requires over plain HTTP. Set `apex` only once DNS points both names at this box: each name
+# gets its own certificate, and a failed validation spends Let's Encrypt's failed-validation limit.
 (hosts-none) {
 }
 
 (hosts-apex) {
-	www.{$SITE_HOST} {
+	www.{$SITE_HOST}, dev.{$SITE_HOST} {
 		import hsts
 		redir https://{$SITE_HOST}{uri} 308
 	}
 
-	dev.{$SITE_HOST} {
-		import hsts
-		redir https://{$SITE_HOST}{uri} 302
+	http://www.{$SITE_HOST}, http://dev.{$SITE_HOST} {
+		redir https://{$SITE_HOST}{uri} 308
 	}
 }
 

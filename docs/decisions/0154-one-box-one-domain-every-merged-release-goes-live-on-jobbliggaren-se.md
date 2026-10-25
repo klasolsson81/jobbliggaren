@@ -2,7 +2,8 @@
 
 **Date:** 2026-10-05
 **Status:** Accepted
-**Amended:** 2026-10-05 (#1960, the read rule) — see the Amendment at the end.
+**Amended:** 2026-10-05 (#1960, the read rule); 2026-10-25 (#2090, the alias redirects) — see the
+Amendments at the end.
 **Deciders:** Klas Olsson (decisions (1)–(4) below, 2026-10-05, in #1961's planning session) ·
 `senior-cto-advisor` (the routing: PR order, the scope of the override, the reading of A2;
 `docs/reviews/2026-10-05-1961-plan-cto.md`, local) · `dotnet-architect`
@@ -54,8 +55,8 @@ The one box (Netcup RS 1000 G12) is the production environment. #1768 moves it t
 | Name | Behaviour |
 |---|---|
 | `jobbliggaren.se` | Serves the app. ADR 0050 Option B is unchanged: Caddy → `web:3000`. |
-| `www.jobbliggaren.se` | 308 to the apex. |
-| `dev.jobbliggaren.se` | 302 to the apex, with the path and query kept. It is temporary on purpose, so that a future dev box can take the name back. |
+| `www.jobbliggaren.se` | 308 to the apex, with the path and query kept, in one hop from `http://` as well (Amendment 2026-10-25). |
+| `dev.jobbliggaren.se` | 308 to the apex, the same as `www`. The name is never reused (Amendment 2026-10-25). |
 
 - **IPv4 only.** There is no AAAA record until the edge keeps IPv6 client addresses: the Docker networks have IPv6 disabled (measured 2026-10-05).
 - **Everything moves with the box:** the database, the Data Protection keyring, the master key and the accounts.
@@ -186,3 +187,29 @@ processing of user data by an agent would first need is that rule's leg (f).
 personuppgiftsansvarig enligt Art. 24(1), utanför §9.6:s tre vägar, med ADR 0154 §5 som enda hem?"
 Klas answered on 2026-10-05: "Ja, mitt beslut enligt Art. 24(1)"
 ([#1960](https://github.com/klasolsson81/jobbliggaren/issues/1960#issuecomment-5994169157)).
+
+## Amendment 2026-10-25 — the alias redirects (#2090)
+
+**Decider:** `senior-cto-advisor`, on the three variants #2090's "Side item" named
+(`docs/reviews/2026-10-25-caddy-redirects-senior-cto-advisor.md`, local).
+
+**Measured before the change** (anonymous `curl -sI`, status and `location` only, 2026-10-25):
+`https://www.` answered `308` to the apex and `https://dev.` answered `302`. `http://www.` and
+`http://dev.` each took two hops, because Caddy's automatic HTTP-to-HTTPS redirect sent them to
+`https://<alias>` first.
+
+**Decision.**
+1. `dev.jobbliggaren.se` answers a permanent `308` to the apex with no `Cache-Control`, the same
+   as `www`. §2's "a future dev box can take the name back" is withdrawn.
+2. **A future dev or staging server takes a new host name (for example `staging.`), never `dev.`.**
+   The `dev.` URIs were this application's pages, and those pages now live at the apex. A new
+   environment at the old name would send old bookmarks, mailed links and stored return paths to
+   a non-production box where a person could sign up.
+3. Both `http://` aliases answer in one hop: an explicit `http://` site in the Caddyfile's
+   `hosts-apex` snippet sends `308` straight to `https://jobbliggaren.se{uri}`, with no HSTS
+   (RFC 6797 §7.2). `deploy/caddy/edge-modes.test.sh` pins both schemes for both names.
+4. **Rollback R2 in `vps-deploy-stack.md` §3f is retired.** It moved production back to
+   `SITE_HOST=dev.jobbliggaren.se`, which browsers that cached the `308` would now leave. It was
+   already spent: admission opened and registration went public at the apex.
+
+**Accepted.** A cached `308` cannot be withdrawn from a browser. That is the intent.

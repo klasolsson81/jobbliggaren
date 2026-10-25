@@ -260,7 +260,7 @@ services:
       # challenge so issuance can be proven per path. Never a running value (#196).
       ACME_CHALLENGE_MODE: ${ACME_CHALLENGE_MODE:-both}
       # The domain move (#1768, ADR 0154, runbook vps-deploy-stack.md §3f). Unset, both give the
-      # gated edge with no aliases. `apex` adds the `www` 308 and `dev.` 302 sites; only the exact value `open`
+      # gated edge with no aliases. `apex` adds the `www` and `dev.` 308 sites; only the exact value `open`
       # lifts the basic-auth gate. DeployComposeEdgeAdmissionTests pins both defaults.
       SITE_ALIASES: ${SITE_ALIASES:-none}
       SITE_ADMISSION: ${SITE_ADMISSION:-basic_auth}

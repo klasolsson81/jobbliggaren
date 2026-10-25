@@ -44,6 +44,8 @@ afterEach(() => {
 const renderRow = (extra: Record<string, unknown> = {}) =>
   render(<ShareJobAd jobAd={{ ...JOB_AD, ...extra }} labels={LABELS} headingId="share-title" />);
 const moreItem = () => screen.getByRole("button", { name: "Fler sätt att dela" }).closest("li") as HTMLElement;
+/** An icon's class tokens, so `lucide-link` is never matched by `lucide-link-2`. */
+const iconClasses = (icon: Element | null) => (icon?.getAttribute("class") ?? "").split(" ");
 
 describe("ShareJobAd", () => {
   it("is a nosnippet section named by its heading, with the four links, then copy, then the share sheet", () => {
@@ -95,6 +97,48 @@ describe("ShareJobAd", () => {
     expect(email.getAttribute("href")).toMatch(/^mailto:\?subject=/);
   });
 
+  // ADR 0183 Amendment 2026-10-25: Lucide icons, no brand marks. An icon is decoration beside the name, so it adds no
+  // text and nothing that loads: no title, no reference to another document, no image.
+  it("gives every item one hidden Lucide icon: after a platform's name, before the name on the other three", () => {
+    stubNavigator({ share: vi.fn() });
+    renderRow();
+
+    const section = screen.getByRole("region", { name: "Dela annonsen" });
+    expect(section.querySelectorAll("img, image, use, title")).toHaveLength(0);
+    const controls = within(section)
+      .getAllByRole("listitem")
+      .map((li) => li.querySelector("a, button") as HTMLElement);
+    const icons = controls.map((control) => {
+      // The house's secondary button at its full 44 px, never `--sm`'s 36 (design-reviewer, Klas's preview).
+      expect(control).toHaveClass("jp-btn", "jp-btn--secondary");
+      expect(control).not.toHaveClass("jp-btn--sm");
+      const svgs = control.querySelectorAll("svg");
+      expect(svgs).toHaveLength(1);
+      expect(svgs[0]).toHaveAttribute("aria-hidden", "true");
+      return svgs[0] as SVGElement;
+    });
+    expect(icons.map((icon) => iconClasses(icon))).toEqual([
+      expect.arrayContaining(["lucide-external-link"]),
+      expect.arrayContaining(["lucide-external-link"]),
+      expect.arrayContaining(["lucide-external-link"]),
+      expect.arrayContaining(["lucide-mail"]),
+      expect.arrayContaining(["lucide-link"]),
+      expect.arrayContaining(["lucide-share-2"]),
+    ]);
+
+    const follows = (icon: SVGElement, text: string) => {
+      const html = (icon.parentElement as HTMLElement).innerHTML;
+      expect(html).toContain(text);
+      return html.indexOf("<svg") > html.indexOf(text);
+    };
+    expect(["Facebook", "LinkedIn", "WhatsApp"].map((name, i) => follows(icons[i] as SVGElement, name))).toEqual([true, true, true]);
+    expect(["E-post", "Kopiera länken", "Fler sätt att dela"].map((name, i) => follows(icons[i + 3] as SVGElement, name))).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
   it("hides the two buttons without scripting, and holds the share sheet's place invisibly where the browser has none", () => {
     renderRow();
 
@@ -109,9 +153,11 @@ describe("ShareJobAd", () => {
     renderRow();
 
     expect(moreItem()).not.toHaveClass("invisible");
-    fireEvent.click(screen.getByRole("button", { name: "Fler sätt att dela" }));
+    const button = screen.getByRole("button", { name: "Fler sätt att dela" });
+    fireEvent.click(button);
 
     await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
     expect(share.mock.calls[0]?.[0]).toStrictEqual({ title: TITLE, url: URL_ });
     expect(writeText).not.toHaveBeenCalled();
     expect(screen.queryByRole("textbox")).toBeNull();
@@ -122,9 +168,11 @@ describe("ShareJobAd", () => {
     stubNavigator({ share });
     renderRow();
 
-    fireEvent.click(screen.getByRole("button", { name: "Fler sätt att dela" }));
+    const button = screen.getByRole("button", { name: "Fler sätt att dela" });
+    fireEvent.click(button);
 
     await waitFor(() => expect(share).toHaveBeenCalled());
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
@@ -154,6 +202,9 @@ describe("ShareJobAd", () => {
     const field = await screen.findByRole("textbox", { name: "Länk till annonsen" });
     expect(field).toHaveValue(URL_);
     expect(field).toHaveAccessibleDescription(LABELS.shareFailed);
+    await waitFor(() => expect(field).toHaveFocus());
+    const input = field as HTMLInputElement;
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, URL_.length]);
     expect(writeText).not.toHaveBeenCalled();
   });
 
@@ -172,6 +223,8 @@ describe("ShareJobAd", () => {
     expect(idle).toHaveClass("invisible");
     expect(done).not.toHaveClass("invisible");
     expect(screen.getByRole("status")).toHaveTextContent("Kopierad");
+    expect(button.querySelectorAll("svg")).toHaveLength(1);
+    expect(iconClasses(button.querySelector("svg"))).toContain("lucide-check");
 
     await act(async () => vi.advanceTimersByTime(2000));
     await act(async () => {
@@ -183,6 +236,7 @@ describe("ShareJobAd", () => {
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
     expect(screen.getByRole("button", { name: "Kopiera länken" })).toBe(button);
     expect(idle).not.toHaveClass("invisible");
+    expect(iconClasses(button.querySelector("svg"))).toContain("lucide-link");
   });
 
   it("shows the link in a labelled read-only field, focused and selected, when the copy fails", async () => {
@@ -196,7 +250,7 @@ describe("ShareJobAd", () => {
     expect(field).toHaveAttribute("readonly");
     expect(field).toHaveAccessibleDescription(LABELS.copyFailed);
     expect(field).not.toHaveAttribute("aria-invalid");
-    expect(field).toHaveFocus();
+    await waitFor(() => expect(field).toHaveFocus());
     const input = field as HTMLInputElement;
     expect([input.selectionStart, input.selectionEnd]).toEqual([0, URL_.length]);
     expect(screen.queryByRole("alert")).toBeNull();
@@ -210,7 +264,7 @@ describe("ShareJobAd", () => {
 
     fireEvent.click(copy);
     const field = await screen.findByRole("textbox", { name: "Länk till annonsen" });
-    expect(field).toHaveFocus();
+    await waitFor(() => expect(field).toHaveFocus());
 
     copy.focus();
     expect(copy).toHaveFocus();

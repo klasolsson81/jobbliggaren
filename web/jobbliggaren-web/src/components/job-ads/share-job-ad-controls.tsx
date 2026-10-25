@@ -1,8 +1,9 @@
 "use client";
 
+import { Check, LinkIcon, Share2 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { type JobAdShareData, copyLink, hasNativeShare, shareNatively } from "@/lib/job-ads/share-job-ad";
-import { SHARE_BUTTON } from "./share-job-ad-styles";
+import { SHARE_ICON_SIZE, SHARE_ITEM, SHARE_LIST } from "./share-job-ad-styles";
 
 export interface ShareJobAdButtonLabels {
   readonly copy: string;
@@ -85,10 +86,15 @@ export function ShareJobAdControls({
 
   return (
     <>
-      <ul className="flex flex-wrap gap-x-5">
+      <ul className={SHARE_LIST}>
         {children}
         <li className="noscript:hidden">
-          <button type="button" className={SHARE_BUTTON} onClick={handleCopy}>
+          <button type="button" className={SHARE_ITEM} onClick={handleCopy}>
+            {copied ? (
+              <Check size={SHARE_ICON_SIZE} aria-hidden="true" />
+            ) : (
+              <LinkIcon size={SHARE_ICON_SIZE} aria-hidden="true" />
+            )}
             <span className="grid text-start">
               <span className={`[grid-area:1/1] ${copied ? "invisible" : ""}`} aria-hidden={copied || undefined}>
                 {labels.copy}
@@ -100,7 +106,8 @@ export function ShareJobAdControls({
           </button>
         </li>
         <li className={`noscript:hidden ${nativeShare ? "" : "invisible"}`}>
-          <button type="button" className={SHARE_BUTTON} aria-disabled={pending || undefined} onClick={handleShare}>
+          <button type="button" className={SHARE_ITEM} aria-disabled={pending || undefined} onClick={handleShare}>
+            <Share2 size={SHARE_ICON_SIZE} aria-hidden="true" />
             {labels.more}
           </button>
         </li>

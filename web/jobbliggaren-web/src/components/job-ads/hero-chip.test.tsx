@@ -94,6 +94,14 @@ describe("HeroChip", () => {
     expect(footer.getAttribute("href")).toBe("/sokningar");
   });
 
+  it("takes its stacking order from .jp-popover, under the sticky header (#2212)", async () => {
+    const user = userEvent.setup();
+    renderChip();
+    await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
+
+    expect(screen.getByRole("dialog").style.zIndex).toBe("");
+  });
+
   it("closes the dropdown on Escape (jobbliggaren-design-a11y / ADR 0047)", async () => {
     const user = userEvent.setup();
     renderChip();

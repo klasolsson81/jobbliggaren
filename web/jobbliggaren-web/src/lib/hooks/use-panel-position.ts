@@ -1,44 +1,95 @@
 "use client";
 
+// "use client": reads the trigger's rect and the viewport in an effect, and listens to `resize`.
+
 import { useEffect, useState } from "react";
+import { FOCUSABLE_SELECTOR } from "@/lib/popover/focusable";
+import { PANEL_GAP, placePanel, type PanelPlacement } from "@/lib/popover/placement";
 
 /**
- * Delad position-mätning för enkelkolumns-popovers/paneler (DRY — CLAUDE.md
- * §9.1). Extraherad verbatim ur `JobbKlass2Panel.usePanelPosition` så att de
- * nya toolbar-popovrarna (Matchning/Status, #408) mäter sin position på exakt
- * samma sätt: under triggern, 8px luft, vänster-justerad mot triggern.
+ * The inline position of a `.jp-popover` panel anchored to its trigger: one home for every filter
+ * popover shell (#2212). It measures in an effect, because refs are not read during render, and
+ * hands `placePanel` the trigger's rect and the document element's client size, so the panel stays
+ * inside the viewport.
  *
- * Position härleds ur triggerns ref INNE I en effect (refs får inte läsas under
- * render). Mäts om vid resize/scroll så panelen följer triggern. `null` innan
- * mätningen (panelen positioneras off-screen tills `pos` finns).
+ * Precondition: the panel's containing block is the initial containing block and no scroll
+ * container sits between the trigger and the document; as a fixed box, a sheet's containing block
+ * is the viewport only while no ancestor establishes a containing block for fixed-position
+ * descendants (CSS Positioned Layout 3). Under it a page scroll moves the trigger and
+ * the page offset by the same amount, so only a `resize` re-measures.
+ *
+ * Once per opening, before the first anchored placement: when the panel's first focusable element
+ * would end below the viewport, the page scrolls the trigger to the top of the scroll padding, so
+ * the pill stays in view as the panel's anchor. A sheet carries no inline position: CSS places it
+ * from `data-placement`. Until the panel is placed, `style` holds it off screen, `placement` is
+ * null and `ready` is false.
  */
 export function usePanelPosition(
   open: boolean,
-  triggerRef: React.RefObject<HTMLButtonElement | null>,
-) {
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  triggerRef: React.RefObject<HTMLElement | null>,
+  panelRef: React.RefObject<HTMLElement | null>,
+  preferredWidth: number,
+): {
+  style: React.CSSProperties;
+  placement: PanelPlacement["placement"] | null;
+  ready: boolean;
+} {
+  const [placement, setPlacement] = useState<PanelPlacement | null>(null);
 
   useEffect(() => {
     const trigger = triggerRef.current;
     if (!open || !trigger) {
-      setPos(null);
+      setPlacement(null);
       return;
     }
-    const measure = () => {
+    const place = () => {
       const r = trigger.getBoundingClientRect();
-      setPos({
-        top: r.bottom + 8 + window.scrollY,
-        left: r.left + window.scrollX,
-      });
+      const root = document.documentElement;
+      return placePanel(
+        { left: r.left, bottom: r.bottom },
+        {
+          clientWidth: root.clientWidth,
+          clientHeight: root.clientHeight,
+          scrollX: window.scrollX,
+          scrollY: window.scrollY,
+        },
+        preferredWidth,
+      );
     };
+    const measure = () => {
+      const next = place();
+      setPlacement((prev) => (prev !== null && samePlacement(prev, next) ? prev : next));
+    };
+    if (place().placement === "anchored" && firstStopOpensBelowFold(panelRef.current, trigger)) {
+      trigger.scrollIntoView?.({ block: "start" });
+    }
     measure();
     window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-    };
-  }, [open, triggerRef]);
+    return () => window.removeEventListener("resize", measure);
+  }, [open, triggerRef, panelRef, preferredWidth]);
 
-  return pos;
+  const style: React.CSSProperties =
+    placement === null
+      ? { top: -9999, left: -9999, width: preferredWidth }
+      : placement.placement === "anchored"
+        ? { top: placement.top, left: placement.left, width: placement.width }
+        : {};
+  return { style, placement: placement?.placement ?? null, ready: placement !== null };
+}
+
+function samePlacement(a: PanelPlacement, b: PanelPlacement): boolean {
+  if (a.placement === "sheet" || b.placement === "sheet") return a.placement === b.placement;
+  return a.top === b.top && a.left === b.left && a.width === b.width;
+}
+
+/**
+ * Read while the panel still sits off screen: its first stop's distance below the panel's top is
+ * the same wherever the panel goes, so the placed bottom edge is the trigger's plus the gap plus it.
+ */
+function firstStopOpensBelowFold(panel: HTMLElement | null, trigger: HTMLElement): boolean {
+  const first = panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+  const clientHeight = document.documentElement.clientHeight;
+  if (!panel || !first || clientHeight <= 0) return false;
+  const depth = first.getBoundingClientRect().bottom - panel.getBoundingClientRect().top;
+  return trigger.getBoundingClientRect().bottom + PANEL_GAP + depth > clientHeight;
 }

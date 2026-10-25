@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Publication;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
@@ -26,7 +27,7 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetJobAd;
 /// search wire. See <see cref="JobAdDetailDto"/>.
 /// </para>
 /// </remarks>
-public sealed class GetJobAdQueryHandler(IAppDbContext db)
+public sealed class GetJobAdQueryHandler(IAppDbContext db, IDateTimeProvider clock)
     : IQueryHandler<GetJobAdQuery, Result<JobAdDetailDto>>
 {
     public async ValueTask<Result<JobAdDetailDto>> Handle(
@@ -42,7 +43,8 @@ public sealed class GetJobAdQueryHandler(IAppDbContext db)
             .Where(j => j.Id == new JobAdId(query.Id))
             .Select(j => new
             {
-                Status = j.Status.Value,
+                j.Status,
+                ImportedFrom = j.External != null ? j.External.Source : null,
                 j.Title,
                 CompanyName = j.Company.Name,
                 j.Description,
@@ -59,8 +61,15 @@ public sealed class GetJobAdQueryHandler(IAppDbContext db)
         if (row is null)
             return Result.Failure<JobAdDetailDto>(JobAdErrors.NotFound);
 
-        if (row.Status == JobAdStatus.Erased.Value)
+        if (row.Status == JobAdStatus.Erased)
             return Result.Failure<JobAdDetailDto>(JobAdErrors.Gone);
+
+        // Listedness is the one JobAdPublication predicate (ADR 0160), computed from the import
+        // provenance (External?.Source) — never the user-settable JobAd.Source — so the signed-in
+        // share row (ADR 0183 D6) shows only for an ad the public surface actually lists, and the
+        // client never re-derives it. Erased already answered 410 above, so Classify sees a live row.
+        var isListed = JobAdPublication.Classify(row.Status, row.ExpiresAt, row.ImportedFrom, clock.UtcNow)
+            == JobAdPublicationState.Listed;
 
         return Result.Success(new JobAdDetailDto(
             query.Id,
@@ -70,10 +79,11 @@ public sealed class GetJobAdQueryHandler(IAppDbContext db)
             row.Url,
             row.ApplicationUrl?.Value,
             row.Source,
-            row.Status,
+            row.Status.Value,
             row.PublishedAt,
             row.ExpiresAt,
             row.CreatedAt,
-            JobAdContactDto.ListFrom(row.Contacts)));
+            JobAdContactDto.ListFrom(row.Contacts),
+            isListed));
     }
 }

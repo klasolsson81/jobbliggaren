@@ -86,9 +86,8 @@ export function BranschPopover({
       title={t("branschTrigger")}
       triggerRef={triggerRef}
       onClose={onClose}
-      // Wide enough for three indent levels of Swedish SNI names, and never wider than the viewport
-      // (WCAG 1.4.10 — verified rendered at 320px, not assumed).
-      width="min(560px, calc(100vw - 32px))"
+      // Wide enough for three indent levels of Swedish SNI names.
+      width={560}
       headerRight={
         <span className="flex items-center gap-3">
           {/* Polite, and rendered UNCONDITIONALLY — emptied rather than unmounted. The count changes

@@ -225,6 +225,8 @@ export function JobbHeroFilters({
   // an optimistic update made outside a transition. Filter changes navigate without
   // the commit flag, so they are never saved as recent searches; only a deliberate
   // search and toolbar actions are. The whole state is carried into the URL.
+  // `scroll: false`, as on /foretag/sok: a pick narrows the list the user is already reading, and
+  // the popover stays open over it.
   function commit(next: FilterSelection) {
     startTransition(() => {
       setOptimisticSelection(next);
@@ -246,6 +248,7 @@ export function JobbHeroFilters({
           sortBy,
           pageSize,
         }),
+        { scroll: false },
       );
     });
   }

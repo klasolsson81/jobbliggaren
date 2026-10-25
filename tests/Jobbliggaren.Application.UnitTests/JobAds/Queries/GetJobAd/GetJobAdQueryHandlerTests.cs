@@ -10,13 +10,13 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetJobAd;
 
 public class GetJobAdQueryHandlerTests
 {
-    private static JobAd CreateJobAd(string title = "Backend Developer") =>
+    private static JobAd CreateJobAd(string title = "Backend Developer", JobSource? source = null) =>
         JobAd.Create(
             title,
             Company.Create("Klarna").Value,
             "Vi söker en backend-utvecklare.",
             "https://jobs.klarna.com/job/1",
-            JobSource.Manual,
+            source ?? JobSource.Manual,
             FakeDateTimeProvider.Default.UtcNow,
             null,
             FakeDateTimeProvider.Default).Value;
@@ -29,7 +29,7 @@ public class GetJobAdQueryHandlerTests
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetJobAdQueryHandler(db);
+        var handler = new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default);
         var result = await handler.Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
@@ -42,7 +42,7 @@ public class GetJobAdQueryHandlerTests
     public async Task Handle_WhenJobAdNotFound_ReturnsNotFound()
     {
         await using var db = TestAppDbContextFactory.Create();
-        var handler = new GetJobAdQueryHandler(db);
+        var handler = new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default);
 
         var result = await handler.Handle(new GetJobAdQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -67,7 +67,7 @@ public class GetJobAdQueryHandlerTests
         jobAd.Erase(FakeDateTimeProvider.Default).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetJobAdQueryHandler(db);
+        var handler = new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default);
         var result = await handler.Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
@@ -94,7 +94,7 @@ public class GetJobAdQueryHandlerTests
     /// </summary>
     private static async Task<JobAd> ImportJobAdWithDeclaredContactAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct,
-        ApplicationUrl? applicationUrl = null)
+        ApplicationUrl? applicationUrl = null, DateTimeOffset? expiresAt = null)
     {
         var externalId = TestIds.ExternalId();
         var payload = $"{{\"id\":\"{externalId}\"}}";
@@ -112,7 +112,7 @@ public class GetJobAdQueryHandlerTests
             facets: TestFacets.FromPayload(payload),
             declaredContacts: [declared],
             publishedAt: FakeDateTimeProvider.Default.UtcNow,
-            expiresAt: null,
+            expiresAt: expiresAt,
             clock: FakeDateTimeProvider.Default, applicationUrl: applicationUrl, extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
@@ -132,7 +132,7 @@ public class GetJobAdQueryHandlerTests
         var jobAd = await ImportJobAdWithDeclaredContactAsync(
             db, CancellationToken.None, ApplicationUrl.FromSource(EmployerPage));
 
-        var result = await new GetJobAdQueryHandler(db)
+        var result = await new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default)
             .Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
 
         result.Value.ApplicationUrl.ShouldBe(EmployerPage,
@@ -150,7 +150,7 @@ public class GetJobAdQueryHandlerTests
         tracked.Archive(FakeDateTimeProvider.Default).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var result = await new GetJobAdQueryHandler(db)
+        var result = await new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default)
             .Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
 
         result.Value.ApplicationUrl.ShouldBeNull("an archived ad no longer accepts applications.");
@@ -164,7 +164,7 @@ public class GetJobAdQueryHandlerTests
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var result = await new GetJobAdQueryHandler(db)
+        var result = await new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default)
             .Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
 
         result.Value.ApplicationUrl.ShouldBeNull();
@@ -176,7 +176,7 @@ public class GetJobAdQueryHandlerTests
         await using var db = TestAppDbContextFactory.Create();
         var jobAd = await ImportJobAdWithDeclaredContactAsync(db, CancellationToken.None);
 
-        var handler = new GetJobAdQueryHandler(db);
+        var handler = new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default);
         var result = await handler.Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
@@ -198,11 +198,97 @@ public class GetJobAdQueryHandlerTests
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetJobAdQueryHandler(db);
+        var handler = new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default);
         var result = await handler.Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Contacts.ShouldNotBeNull("Contacts is never null on the wire — ListFrom yields [].");
         result.Value.Contacts.ShouldBeEmpty();
+    }
+
+    // ── #2214 PR 3 — IsListed on the detail projection (ADR 0183 D6) ─────────────────────────────
+    // IsListed is JobAdPublication.Classify(..) == Listed, computed from the IMPORT provenance
+    // (External?.Source), NEVER the user-settable JobAd.Source. The signed-in "Dela annonsen" row
+    // renders only when true. Each state below is produced by a real src path (JobAd.Import /
+    // JobAd.Create / Archive / the handler's clock), never a hand-seeded column (AGENTS.md §5 Tests).
+    // The Classify ≡ IsListed-SQL agreement is pinned separately (JobAdPublicationIsListedAgreementTests);
+    // these pin that the DTO carries Classify's verdict for the state the handler read.
+
+    [Fact]
+    public async Task Handle_WhenImportedPlatsbankenAdIsActiveAndNotExpired_IsListedTrue()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var jobAd = await ImportJobAdWithDeclaredContactAsync(db, CancellationToken.None);
+
+        var result = await new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default)
+            .Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
+
+        result.Value.IsListed.ShouldBeTrue(
+            "an imported Platsbanken ad that is Active and not expired is what the public surface lists.");
+    }
+
+    [Fact]
+    public async Task Handle_WhenImportedAdWasArchived_IsListedFalse()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var jobAd = await ImportJobAdWithDeclaredContactAsync(db, CancellationToken.None);
+        var tracked = await db.JobAds.FirstAsync(j => j.Id == jobAd.Id, CancellationToken.None);
+        tracked.Archive(FakeDateTimeProvider.Default).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var result = await new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default)
+            .Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
+
+        result.Value.IsListed.ShouldBeFalse("an archived ad is Ended — the public surface 410s it.");
+    }
+
+    [Fact]
+    public async Task Handle_WhenImportedAdIsActiveButPastItsDeadline_IsListedFalse()
+    {
+        // The archiver (ExpireJobAdsJob) has not run, so the row is still Active in the DB; the
+        // deadline boundary is the handler's clock. Import with a deadline, then read past it.
+        await using var db = TestAppDbContextFactory.Create();
+        var published = FakeDateTimeProvider.Default.UtcNow;
+        var jobAd = await ImportJobAdWithDeclaredContactAsync(
+            db, CancellationToken.None, expiresAt: published.AddDays(30));
+        var afterDeadline = new FakeDateTimeProvider(published.AddDays(31));
+
+        var result = await new GetJobAdQueryHandler(db, afterDeadline)
+            .Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
+
+        result.Value.IsListed.ShouldBeFalse(
+            "past its deadline the ad is Ended even while still Active in the row (Classify reads the clock).");
+    }
+
+    [Fact]
+    public async Task Handle_WhenAdHasSourcePlatsbankenButNoExternal_IsListedFalse()
+    {
+        // POST /api/v1/job-ads accepts Source="Platsbanken" and stores an ownerless row with NO
+        // External (JobAd.Create sets Source, never External). Listedness reads External?.Source, so
+        // such an ad is NotPublic — the user-settable Source can never make it listed (SA-2 M-2).
+        await using var db = TestAppDbContextFactory.Create();
+        var jobAd = CreateJobAd(source: JobSource.Platsbanken);
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var result = await new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default)
+            .Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
+
+        result.Value.IsListed.ShouldBeFalse(
+            "Source is user-settable; without an import (External) the ad was never public (NotPublic).");
+    }
+
+    [Fact]
+    public async Task Handle_WhenManualAd_IsListedFalse()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var jobAd = CreateJobAd();
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var result = await new GetJobAdQueryHandler(db, FakeDateTimeProvider.Default)
+            .Handle(new GetJobAdQuery(jobAd.Id.Value), CancellationToken.None);
+
+        result.Value.IsListed.ShouldBeFalse("a manual ad is never on the public surface.");
     }
 }

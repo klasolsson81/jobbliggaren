@@ -589,8 +589,7 @@ delivered here. On the points below this amendment is the operative text.
      come from the read model's kind-agnostic reverse lookup.
    - **The Yrke label names each granularity that is set**: the groups, then the names, one "+N" part each, joined as a disjunction when both are set.
      That is the shape the Ort label has for its union, because the search port OR-s the two, and a label naming only the groups would name a strict
-     subset of what the click returns (#1413's defect, on the Yrke axis). With no name the label is what it was, the whole-field collapse included; the
-     collapse does not apply beside a name, since a field's name does not say it. No label kind is added, because the frontend's set of kinds is closed.
+     subset of what the click returns (#1413's defect, on the Yrke axis). With no name the label is what it was, the whole-field collapse included. No label kind is added, because the frontend's set of kinds is closed.
      `GeoUnionLabelParityTests.EveryYrkeUnionTerm_IsReadableByTheYrkeLabel` pins that both terms reach the label.
    - `SearchCriteriaMapping` carries the axis, so a saved search's run and its new-results count read it.
 

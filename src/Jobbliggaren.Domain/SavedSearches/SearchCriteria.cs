@@ -17,8 +17,7 @@ namespace Jobbliggaren.Domain.SavedSearches;
 /// + <see cref="Municipality"/> (kommun) ersätter occupation-name-dimensionen
 /// (Ssyk UTGICK — sparade rader reverse-lookup-migrerades occupation-name →
 /// parent ssyk-level-4; senior-cto-advisor-dom (a)/(f) 2026-06-09).
-/// occupation-name-substratet bevaras i job_ads (synonym-/recall-väg via Q) —
-/// inte i VO:t.
+/// occupation-name-substratet bevaras i job_ads (synonym-/recall-väg via Q).
 /// </para>
 ///
 /// <para>

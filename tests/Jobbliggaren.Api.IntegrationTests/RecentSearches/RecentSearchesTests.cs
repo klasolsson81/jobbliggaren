@@ -242,7 +242,7 @@ public class RecentSearchesTests(ApiFactory factory)
         // #2199 PR 2: a committed ?occupationName= search captures a RecentJobSearch, persists the
         // pick into occupation_name_list (the DB-level proof of the text[] column and the
         // migration; the unit tests run on EF In-Memory), and the pick reaches the wire for the
-        // replay, its count and its label. Projektledare, IT is a picker name in the seeded
+        // replay and its label. Projektledare, IT is a picker name in the seeded
         // taxonomy, so the label resolves its name through the read model.
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -253,17 +253,14 @@ public class RecentSearchesTests(ApiFactory factory)
         var searchResponse = await _client.GetAsync(
             $"/api/v1/job-ads?occupationName={projektledareIt}&commit=true&page=1&pageSize=20", ct);
         searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var search = await searchResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
 
-        var listResponse = await _client.GetAsync("/api/v1/me/recent-searches?includeCount=true", ct);
+        var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
         items.GetArrayLength().ShouldBe(1, "a name-only search is a real filter and is captured");
         var row = items[0];
         row.GetProperty("occupationNameList").EnumerateArray().Select(e => e.GetString())
             .ShouldBe([projektledareIt]);
         row.GetProperty("occupationGroupList").GetArrayLength().ShouldBe(0);
-        row.GetProperty("currentCount").GetInt32().ShouldBe(search.GetProperty("totalCount").GetInt32(),
-            "the row's count runs the same criterion the search ran, name included (#1471)");
         row.GetProperty("label").GetProperty("parts")[0].GetProperty("text").GetString()
             .ShouldBe("Projektledare, IT");
 

@@ -1,4 +1,4 @@
-﻿﻿using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -21,7 +21,7 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     ///
     /// <para><b>GDPR:</b> the column holds JobTech concept ids, validated on shape only
     /// (<c>^[A-Za-z0-9_-]{1,32}\z</c>) like the other concept-id lists. A user-owned cache row over
-    /// the user's own search: the capture guard refuses a personnummer-shaped value on this axis as
+    /// the user's own search: the capture guard refuses a personnummer on this axis as
     /// on the other five, and the recruiter-erasure match searches it as the sixth concept-id
     /// axis.</para>
     ///
@@ -35,9 +35,13 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// </summary>
     public partial class AddRecentJobSearchOccupationNameList : Migration
     {
+        private const string BoundTheLockWait = "SET LOCAL lock_timeout = '3s';";
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql(BoundTheLockWait);
+
             migrationBuilder.AddColumn<List<string>>(
                 name: "occupation_name_list",
                 table: "recent_job_searches",
@@ -49,6 +53,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql(BoundTheLockWait);
+
             migrationBuilder.DropColumn(
                 name: "occupation_name_list",
                 table: "recent_job_searches");

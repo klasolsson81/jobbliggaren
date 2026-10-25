@@ -64,7 +64,7 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
 
     // ADR 0067 Beslut 6 (Fas B2, 2026-06-12) — Klass 2-dimensioner. Persisteras
     // som text[]-kolumner (employment_type_list/worktime_extent_list) i samma
-    // shadow-backing-field-mönster som de tre ovan; ingår i FilterHash → en
+    // shadow-backing-field-mönster som ovan; ingår i FilterHash → en
     // recent-rad reproducerar exakt sökningen inkl. Klass 2.
     private readonly List<string> _employmentType = [];
     public IReadOnlyList<string> EmploymentType => _employmentType.AsReadOnly();

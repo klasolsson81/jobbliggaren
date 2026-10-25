@@ -9,9 +9,8 @@ namespace Jobbliggaren.Application.RecentJobSearches.Common;
 /// markören (paritet med <c>IRequiresFieldEncryptionKey</c>-mönstret).
 ///
 /// <para>Interface exponerar de fält som tillsammans definierar filter-identitet
-/// (Q, OccupationGroup, Municipality, Region, EmploymentType, WorktimeExtent,
-/// Employer, Remote, SortBy — Fas C2/ADR 0067: occupation-name-dimensionen Ssyk
-/// utgick med VO-expansionen; Fas B2 2026-06-12: Klass 2 anställningsform/omfattning
+/// (Q, OccupationGroup, OccupationName, Municipality, Region, EmploymentType, WorktimeExtent,
+/// Employer, Remote, SortBy — Fas B2 2026-06-12: Klass 2 anställningsform/omfattning
 /// tillkom; #311 PR-2b C1: Employer (org.nr); #551 PR-D: Remote (distans)).
 /// Record-typer (t.ex. <c>ListJobAdsQuery</c>) matchar shape automatiskt via
 /// primary-ctor-properties.</para>

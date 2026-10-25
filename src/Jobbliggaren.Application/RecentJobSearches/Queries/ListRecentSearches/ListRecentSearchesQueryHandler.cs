@@ -202,31 +202,34 @@ public sealed class ListRecentSearchesQueryHandler(
     // canonical order (group, then name), because a merged list breaks "+N"'s unit.
     //
     // With no name the output is exactly what it was before #2199 PR 2: the whole-field collapse
-    // (E2g) or the groups. The collapse applies only then, since a field's name says nothing
-    // about a picked occupation-name. Called only when at least one granularity is set — the
-    // same call-site invariant as WithMoreCount.
+    // (E2g) or the groups. Called only when at least one granularity is set — the same call-site
+    // invariant as WithMoreCount.
     private static RecentSearchLabelDto DeriveYrkeLabel(
         IReadOnlyList<string> occupationGroup,
         IReadOnlyList<TaxonomyLabelDto> occupationGroupLabels,
         IReadOnlyList<TaxonomyLabelDto> occupationNameLabels,
         IReadOnlyList<TaxonomyOccupationFieldDto>? occupationFields)
     {
+        TaxonomyOccupationFieldDto? wholeField = null;
+        if (occupationGroup.Count > 1 && occupationFields is not null)
+        {
+            var selected = occupationGroup.ToHashSet(StringComparer.Ordinal);
+            wholeField = occupationFields.FirstOrDefault(f =>
+                f.OccupationGroups.Count == selected.Count
+                && f.OccupationGroups.All(g => selected.Contains(g.ConceptId)));
+        }
+
         if (occupationNameLabels.Count == 0)
         {
-            if (occupationGroup.Count > 1 && occupationFields is not null)
-            {
-                var selected = occupationGroup.ToHashSet(StringComparer.Ordinal);
-                var wholeField = occupationFields.FirstOrDefault(f =>
-                    f.OccupationGroups.Count == selected.Count
-                    && f.OccupationGroups.All(g => selected.Contains(g.ConceptId)));
-                if (wholeField is not null)
-                    return Single(RecentSearchLabelKind.OccupationField, Named(wholeField.Label));
-            }
-            return Single(RecentSearchLabelKind.Dimensions, WithMoreCount(occupationGroupLabels));
+            return wholeField is not null
+                ? Single(RecentSearchLabelKind.OccupationField, Named(wholeField.Label))
+                : Single(RecentSearchLabelKind.Dimensions, WithMoreCount(occupationGroupLabels));
         }
 
         var parts = new List<RecentSearchLabelPartDto>(2);
-        if (occupationGroupLabels.Count > 0)
+        if (wholeField is not null)
+            parts.Add(Named(wholeField.Label));
+        else if (occupationGroupLabels.Count > 0)
             parts.Add(WithMoreCount(occupationGroupLabels));
         parts.Add(WithMoreCount(occupationNameLabels));
 

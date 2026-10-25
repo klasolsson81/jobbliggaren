@@ -22,7 +22,7 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// normaliserar <c>null → []</c>, ADR 0042 Beslut B). <see cref="Q"/> är användarens
 /// råa söktext, minus-ord inräknade; sökporten parsar den (#2143), och null/whitespace =
 /// ingen fritextsökning. <b>Named arguments obligatoriskt</b>
-/// vid konstruktion (sex listor i rad = tyst-fel-fälla vid positionell mappning).
+/// vid konstruktion (listor i rad = tyst-fel-fälla vid positionell mappning).
 /// </para>
 /// <para>
 /// <b>ADR 0067 Beslut 6 (Fas B2, 2026-06-12):</b> <see cref="EmploymentType"/>

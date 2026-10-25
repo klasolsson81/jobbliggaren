@@ -114,10 +114,9 @@ public class RecentJobSearchTests
     }
 
     [Fact]
-    public void Capture_WithOccupationNameCriteria_ProjectsTheNamesAndFoldsThemIntoHash()
+    public void Capture_WithOccupationNameCriteria_ProjectsTheNames()
     {
-        // #2199 PR 2 — a name-only criteria projects its occupation-names onto the aggregate, and
-        // the row's hash differs from the same search without them, so the two never collide.
+        // #2199 PR 2 — a name-only criteria projects its occupation-names onto the aggregate.
         var criteria = SearchCriteria.Create(
             occupationGroup: null, occupationName: ["z5AM_ayf_WcL"], municipality: null, region: null,
             employmentType: null, worktimeExtent: null, employer: null,

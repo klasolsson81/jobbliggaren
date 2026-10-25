@@ -2110,7 +2110,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
     /// <summary>
     /// <b>A saved search's <c>criteria</c> is shape-only validated, so it stores what was typed.</b>
-    /// The five concept axes admit <c>^[A-Za-z0-9_-]{1,32}\z</c> — hyphen included — and the one
+    /// The concept axes admit <c>^[A-Za-z0-9_-]{1,32}\z</c> — hyphen included — and the one
     /// axis that WOULD normalise (<c>Employer</c>, through <c>OrganizationNumber.Create</c>) is
     /// hard-coded empty on all three write paths, so no org.nr in this column is ever normalised.
     /// The row holds the ten-digit form; the request carries the hyphenated one.

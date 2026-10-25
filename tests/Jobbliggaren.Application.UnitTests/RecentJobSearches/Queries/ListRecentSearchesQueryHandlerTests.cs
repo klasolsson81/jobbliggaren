@@ -884,91 +884,113 @@ public class ListRecentSearchesQueryHandlerTests
         Shape(result.ShouldHaveSingleItem().Label).ShouldBe("OccupationField/None:Data/IT");
     }
 
-    // ---------------------------------------------------------------
-    // #2199 PR 2 — Yrke is one dimension in two granularities, OR-ed by the search port. The
-    // label names each set granularity (group, then name), joined as a disjunction, like Ort.
-    // ---------------------------------------------------------------
-
-    private static RecentJobSearch YrkeRow(
-        JobSeekerId seekerId, IReadOnlyList<string> groups, IReadOnlyList<string> names)
-    {
-        var criteria = SearchCriteria.Create(
-            occupationGroup: groups,
-            occupationName: names,
-            municipality: null,
-            region: null,
-            employmentType: null,
-            worktimeExtent: null, employer: null, remote: false,
-            q: null,
-            sortBy: JobAdSortBy.PublishedAtDesc).Value;
-        return RecentJobSearch.Capture(
-            seekerId, criteria, 0, FakeDateTimeProvider.Default.UtcNow);
-    }
-
-    [Fact]
-    public async Task Handle_YrkeLabel_NamesTheGroupAndTheName_AsADisjunction()
-    {
-        // A label naming only the group would describe a strict subset of what the click runs,
-        // since the name pick widens the group selection (#1413's defect on the Yrke axis).
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db);
-        db.RecentJobSearches.Add(YrkeRow(seeker.Id, ["grp_a"], ["name_a"]));
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
-        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
-
-        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/Disjunction:Label-grp_a|Label-name_a");
-    }
-
-    [Fact]
-    public async Task Handle_YrkeLabel_CountsTheNamesInTheirOwnPart_WhenOnlyNamesArePicked()
-    {
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db);
-        db.RecentJobSearches.Add(YrkeRow(seeker.Id, [], ["name_b", "name_a"]));
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
-        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
-
-        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-name_a+1");
-    }
-
-    [Fact]
-    public async Task Handle_YrkeLabel_DoesNotCollapseToTheField_WhenANameIsPickedBesideIt()
-    {
-        // The whole-field collapse names the field; a picked occupation-name is not in that name,
-        // so with one present the groups are counted instead.
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db);
-        StubTree(Field("falt_datait", "Data/IT", "grp_a", "grp_b", "grp_c"));
-        db.RecentJobSearches.Add(YrkeRow(seeker.Id, ["grp_a", "grp_b", "grp_c"], ["name_x"]));
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
-        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
-
-        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/Disjunction:Label-grp_a+2|Label-name_x");
-    }
-
-    [Fact]
-    public async Task Handle_ProjectsTheOccupationNamesAndTheirLabels()
-    {
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db);
-        db.RecentJobSearches.Add(YrkeRow(seeker.Id, [], ["name_a"]));
-        await db.SaveChangesAsync(CancellationToken.None);
-
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
-        var dto = (await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None))
-            .ShouldHaveSingleItem();
-
-        dto.OccupationNameList.ShouldBe(["name_a"]);
-        dto.OccupationNameLabels.ShouldBe([new TaxonomyLabelDto("name_a", "Label-name_a")]);
-        dto.OccupationGroupList.ShouldBeEmpty();
-    }
-
+    // ---------------------------------------------------------------
+    // #2199 PR 2 — Yrke is one dimension in two granularities, OR-ed by the search port. The
+    // label names each set granularity (group, then name), joined as a disjunction, like Ort.
+    // ---------------------------------------------------------------
+
+    private static RecentJobSearch YrkeRow(
+        JobSeekerId seekerId, IReadOnlyList<string> groups, IReadOnlyList<string> names)
+    {
+        var criteria = SearchCriteria.Create(
+            occupationGroup: groups,
+            occupationName: names,
+            municipality: null,
+            region: null,
+            employmentType: null,
+            worktimeExtent: null, employer: null, remote: false,
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        return RecentJobSearch.Capture(
+            seekerId, criteria, 0, FakeDateTimeProvider.Default.UtcNow);
+    }
+
+    [Fact]
+    public async Task Handle_YrkeLabel_NamesTheGroupAndTheName_AsADisjunction()
+    {
+        // A label naming only the group would describe a strict subset of what the click runs,
+        // since the name pick widens the group selection (#1413's defect on the Yrke axis).
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        db.RecentJobSearches.Add(YrkeRow(seeker.Id, ["grp_a"], ["name_a"]));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/Disjunction:Label-grp_a|Label-name_a");
+    }
+
+    [Fact]
+    public async Task Handle_YrkeLabel_CountsTheNamesInTheirOwnPart_WhenOnlyNamesArePicked()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        db.RecentJobSearches.Add(YrkeRow(seeker.Id, [], ["name_b", "name_a"]));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-name_a+1");
+    }
+
+    [Fact]
+    public async Task Handle_YrkeLabel_NamesTheRow_WhenAnOccupationNameSitsBesideOrt()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        var criteria = SearchCriteria.Create(
+            occupationGroup: null,
+            occupationName: ["name_a"],
+            municipality: ["gbg_kn"],
+            region: null,
+            employmentType: null,
+            worktimeExtent: null, employer: null, remote: false,
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-name_a");
+    }
+
+    [Fact]
+    public async Task Handle_YrkeLabel_CollapsesTheGroupPartToTheField_BesideAName()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        StubTree(Field("falt_datait", "Data/IT", "grp_a", "grp_b", "grp_c"));
+        db.RecentJobSearches.Add(YrkeRow(seeker.Id, ["grp_a", "grp_b", "grp_c"], ["name_x"]));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/Disjunction:Data/IT|Label-name_x");
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsTheOccupationNamesAndTheirLabels()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        db.RecentJobSearches.Add(YrkeRow(seeker.Id, [], ["name_a"]));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var dto = (await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None))
+            .ShouldHaveSingleItem();
+
+        dto.OccupationNameList.ShouldBe(["name_a"]);
+        dto.OccupationNameLabels.ShouldBe([new TaxonomyLabelDto("name_a", "Label-name_a")]);
+        dto.OccupationGroupList.ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task Handle_DerivesPlusNLabel_WhenMultipleGroupsNotWholeField()
     {

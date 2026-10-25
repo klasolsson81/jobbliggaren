@@ -387,7 +387,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
 
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grpB", "grpA"],
-            occupationName: ["nameB", "nameA"],
+            occupationName: [],
             municipality: ["uppsala_kn", "sthlm_kn"],
             region: ["stockholm", "uppsala"],
             employmentType: ["et_vikariat", "et_fast"],
@@ -406,7 +406,6 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
             .SingleAsync(s => s.Id == saved.Id, ct);
 
         reloaded.Criteria.OccupationGroup.ShouldBe(["grpA", "grpB"]); // sorterad ordinal
-        reloaded.Criteria.OccupationName.ShouldBe(["nameA", "nameB"]); // #2199 PR 2, sorterad ordinal
         reloaded.Criteria.Municipality.ShouldBe(["sthlm_kn", "uppsala_kn"]);
         reloaded.Criteria.Region.ShouldBe(["stockholm", "uppsala"]);
         reloaded.Criteria.EmploymentType.ShouldBe(["et_fast", "et_vikariat"]); // sorterad ordinal

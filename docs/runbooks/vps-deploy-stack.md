@@ -989,7 +989,7 @@ different one.
    box's git and the merge commit; it is expected to be unchanged.
 4. **The LinkedIn app.** The box uses the local development client, by Klas's m-4 acceptance applied
    by analogy (ADR 0142 Amendment (20)). Its authorized redirect URLs include exactly
-   `https://${SITE_HOST}/api/auth/oauth/linkedin/callback`; LinkedIn matches them exactly; read it on the day at `www.linkedin.com`, with controls on a host this box serves, never on a foreign one.
+   `https://${SITE_HOST}/api/auth/oauth/linkedin/callback`; LinkedIn matches them exactly, at `www.linkedin.com` and at `api.linkedin.com` (ADR 0142 Amendment (23)); read both on the day, with controls on a host this box serves, never on a foreign one.
    The app carries the product "Sign In with LinkedIn using OpenID Connect".
 5. **A new client id means new subject ids** (`dotnet-architect` N4). Before the client id changes,
    including a move to an app of the box's own, delete the `linkedin` rows:
@@ -1041,7 +1041,7 @@ the defect, as for Google.
 **A repeat login asks nothing.** A member with a grant is sent on without any LinkedIn page (documented, and
 measured on the box on 2026-10-02). LinkedIn documents no parameter that asks again, and honoured none of
 `prompt=login`, `prompt=consent` and `prompt=select_account` when probed on 2026-10-03 (ADR 0142 Amendment (22)).
-Its undocumented api host asked, but made every login a fresh LinkedIn sign-in that LinkedIn alerted on, so the
+Its undocumented api host asked, but made every login a fresh LinkedIn sign-in, so the
 request left it (ADR 0142 Amendment (24), Klas's decision). Someone at a shared computer who wants another LinkedIn
 account signs out of LinkedIn first. The web start and the api name the host together, so both images run the same
 tag; one on each side of a host change refuses every LinkedIn start with the notice.

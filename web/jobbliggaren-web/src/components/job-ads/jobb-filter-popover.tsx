@@ -313,8 +313,8 @@ export function JobbFilterPopover({
     focusAfterCommit(() => (left === null ? null : leftRows.current.get(left)));
   };
 
-  const renderColumns = (sheet: boolean) => (
-    <div className="jp-popover__body">
+  const renderColumns = (sheet: boolean, footed: boolean) => (
+    <div className={footed ? "jp-popover__body jp-popover__body--footed" : "jp-popover__body"}>
       {/* Vänsterkolumnen NAVIGERAR aktiv grupp (avslöjar dess val till
           höger) — den väljer inget värde (det gör höger-kolumnens
           checkbox-rader). Därför en knapp-grupp (role="group" + <button>),
@@ -519,7 +519,8 @@ export function JobbFilterPopover({
         // Distans and the search field choose among the groups, so in a sheet they belong to the
         // level where the groups show.
         const levelOne = !sheet || activeGroup === null;
-        const columns = renderColumns(sheet);
+        const footed = sheet && Boolean(footer);
+        const columns = renderColumns(sheet, footed && !search);
         return (
           <>
             {/* Utanför __body: distans har ingen län→kommun-hierarki att navigera.
@@ -550,7 +551,7 @@ export function JobbFilterPopover({
               </div>
             )}
             {search ? (
-              <div className="jp-popover__frame">
+              <div className={footed ? "jp-popover__frame jp-popover__frame--footed" : "jp-popover__frame"}>
                 {levelOne && (
                   <div ref={searchSlotRef} className="jp-popover__search">
                     {search.field}

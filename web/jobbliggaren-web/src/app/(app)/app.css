@@ -614,8 +614,8 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 /* A cascade asks for the whole sheet, so it keeps one height at both levels. */
 .jp-popover[data-placement="sheet"] > .jp-popover__body,
 .jp-popover[data-placement="sheet"] > .jp-popover__frame {
-  min-height: calc(100vh - var(--jp-header-h) - 16px - var(--sheet-bar-h));
-  min-height: calc(100dvh - var(--jp-header-h) - 16px - var(--sheet-bar-h));
+  min-height: calc(100vh - var(--jp-header-h) - 16px - 2px - var(--sheet-bar-h));
+  min-height: calc(100dvh - var(--jp-header-h) - 16px - 2px - var(--sheet-bar-h));
 }
 .jp-popover[data-placement="sheet"] .jp-popover__body {
   grid-template-columns: 1fr;
@@ -662,6 +662,11 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
     bottom: 0;
     z-index: 2;
     min-height: var(--sheet-bar-h);
+  }
+  .jp-popover[data-placement="sheet"] > .jp-popover__body--footed,
+  .jp-popover[data-placement="sheet"] > .jp-popover__frame--footed {
+    min-height: calc(100vh - var(--jp-header-h) - 16px - 2px - 2 * var(--sheet-bar-h));
+    min-height: calc(100dvh - var(--jp-header-h) - 16px - 2px - 2 * var(--sheet-bar-h));
   }
 }
 /* Level two of a sheet's cascade: the picked group, named under the band. */

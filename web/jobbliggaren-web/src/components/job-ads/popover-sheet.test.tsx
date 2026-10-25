@@ -259,6 +259,33 @@ describe("a sheet's cascade shows one column at a time (#2212)", () => {
     expect(within(dialog).getByText("Västra Götalands län", { selector: ".jp-popover__grouphead" })).toHaveFocus();
   });
 
+  it("marks a cascade that carries a footer, only in a sheet", async () => {
+    const user = userEvent.setup();
+    stubViewport(375, 812);
+    renderJobb();
+    await user.click(screen.getByRole("button", { name: /^Ort/ }));
+    expect(screen.getByRole("dialog", { name: "Ort" }).querySelector(":scope > .jp-popover__body--footed")).not.toBeNull();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /^Yrke/ }));
+    expect(screen.getByRole("dialog", { name: "Yrke" }).querySelector(":scope > .jp-popover__frame--footed")).not.toBeNull();
+    await user.keyboard("{Escape}");
+
+    vi.restoreAllMocks();
+    stubViewport(1280, 720);
+    await user.click(screen.getByRole("button", { name: /^Ort/ }));
+    expect(screen.getByRole("dialog", { name: "Ort" }).querySelector(".jp-popover__body--footed")).toBeNull();
+  });
+
+  it("does not mark a cascade without a footer", async () => {
+    stubViewport(375, 812);
+    render(<ForetagSokSearchbar reference={reference} referenceOk namn="" sni={[]} kommun={[]} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Välj ort eller län" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Ort eller län" });
+    expectSheet(dialog);
+    expect(dialog.querySelector(".jp-popover__body--footed")).toBeNull();
+  });
+
   it("keeps Yrke's search field at level one, and a word there shows its answer", async () => {
     stubViewport(375, 812);
     const user = userEvent.setup();
@@ -338,17 +365,19 @@ describe("a sheet closes from its band and returns focus to the pill (#2212)", (
     expect(pill).toHaveFocus();
   });
 
-  it("a press on the pill closes the sheet once, without opening it again", async () => {
-    stubViewport(375, 812);
+  it("a press on a pill shown beside the sheet closes it once, without opening it again", async () => {
+    // /foretag/sok Bransch at 640x900: rendered 2026-10-25, its pill is the one trigger left
+    // uncovered by its own open sheet.
+    stubViewport(640, 900);
     const user = userEvent.setup();
-    renderChip();
-    const pill = screen.getByRole("button", { name: /Senaste sökningar/ });
+    render(<ForetagSokSearchbar reference={reference} referenceOk namn="" sni={[]} kommun={[]} />);
+    const pill = screen.getByRole("button", { name: /Välj bransch/ });
     await user.click(pill);
-    expect(screen.getByRole("dialog", { name: "Senaste sökningar" })).toBeInTheDocument();
+    expectSheet(screen.getByRole("dialog", { name: "Välj bransch" }));
 
     await user.click(pill);
 
-    expect(screen.queryByRole("dialog", { name: "Senaste sökningar" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Välj bransch" })).toBeNull();
   });
 
   it("has no close button when anchored", async () => {

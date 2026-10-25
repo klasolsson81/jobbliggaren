@@ -47,6 +47,11 @@ describe("the sheet is placed by its attribute alone (#2212)", () => {
     expect(declared(".jp-popover .jp-popover__col", "max-height")).toBe("60vh");
   });
 
+  it("keeps the anchored hero chip list's 320px cap", () => {
+    expect(declared(".jp-hero-chip__list", "max-height")).toBe("320px");
+    expect(declared(".jp-hero-chip__list", "overflow")).toBe("auto");
+  });
+
   it.each([".jp-popover .jp-popover__col", ".jp-popover .jp-occsearch .jp-matchdialog__cascade-col"])(
     "keeps a focused row in %s clear of the column's sticky head",
     (column) => {
@@ -88,4 +93,21 @@ describe("a sheet is its own one scroller (#2212)", () => {
     expect(declared(`${SHEET} > .jp-popover__foot`, "position", TALL)).toBe("sticky");
     expect(declared(`${SHEET} > .jp-popover__foot`, "bottom", TALL)).toBe("0");
   });
+
+  it.each([`${SHEET} > .jp-popover__body`, `${SHEET} > .jp-popover__frame`])(
+    "holds a cascade at the sheet's height less the band and the sheet's border: %s",
+    (cascade) => {
+      expect(declared(cascade, "min-height")).toBe("calc(100dvh - var(--jp-header-h) - 16px - 2px - var(--sheet-bar-h))");
+    },
+  );
+
+  it.each([`${SHEET} > .jp-popover__body--footed`, `${SHEET} > .jp-popover__frame--footed`])(
+    "takes a pinned footer off a cascade's height too: %s",
+    (cascade) => {
+      expect(declared(cascade, "min-height")).toBeUndefined();
+      expect(declared(cascade, "min-height", TALL)).toBe(
+        "calc(100dvh - var(--jp-header-h) - 16px - 2px - 2 * var(--sheet-bar-h))",
+      );
+    },
+  );
 });

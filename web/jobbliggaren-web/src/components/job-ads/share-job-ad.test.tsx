@@ -196,7 +196,7 @@ describe("ShareJobAd", () => {
     expect(field).toHaveAttribute("readonly");
     expect(field).toHaveAccessibleDescription(LABELS.copyFailed);
     expect(field).not.toHaveAttribute("aria-invalid");
-    expect(field).toHaveFocus();
+    await waitFor(() => expect(field).toHaveFocus());
     const input = field as HTMLInputElement;
     expect([input.selectionStart, input.selectionEnd]).toEqual([0, URL_.length]);
     expect(screen.queryByRole("alert")).toBeNull();
@@ -210,7 +210,7 @@ describe("ShareJobAd", () => {
 
     fireEvent.click(copy);
     const field = await screen.findByRole("textbox", { name: "Länk till annonsen" });
-    expect(field).toHaveFocus();
+    await waitFor(() => expect(field).toHaveFocus());
 
     copy.focus();
     expect(copy).toHaveFocus();

@@ -1,9 +1,10 @@
+import { ExternalLink, Mail } from "lucide-react";
 import type { PublicJobAdDto } from "@/lib/dto/public-job-ad";
 import { publicJobAdTitle } from "@/lib/job-ads/public-job-ad-title";
 import { publicJobAdUrl } from "@/lib/job-ads/public-job-ad-url";
 import { type ShareTarget, shareTargetLinks } from "@/lib/job-ads/share-job-ad-links";
 import { type ShareJobAdButtonLabels, ShareJobAdControls } from "./share-job-ad-controls";
-import { SHARE_ITEM } from "./share-job-ad-styles";
+import { SHARE_ICON_SIZE, SHARE_ITEM } from "./share-job-ad-styles";
 
 export interface ShareJobAdLabels extends ShareJobAdButtonLabels {
   readonly heading: string;
@@ -54,11 +55,13 @@ export function ShareJobAd({
           <li key={target}>
             {target === "email" ? (
               <a href={href} className={SHARE_ITEM}>
+                <Mail size={SHARE_ICON_SIZE} aria-hidden="true" />
                 <span className="sr-only">{labels.via}</span> {labels.targets[target]}
               </a>
             ) : (
               <a href={href} target="_blank" rel="nofollow noopener noreferrer" className={SHARE_ITEM}>
                 <span className="sr-only">{labels.via}</span> {labels.targets[target]}{" "}
+                <ExternalLink size={SHARE_ICON_SIZE} aria-hidden="true" />
                 <span className="sr-only">{labels.newTab}</span>
               </a>
             )}

@@ -95,6 +95,47 @@ describe("ShareJobAd", () => {
     expect(email.getAttribute("href")).toMatch(/^mailto:\?subject=/);
   });
 
+  // ADR 0183 Amendment 2026-10-25: Lucide icons, no brand marks. An icon is decoration beside the name, so it adds no
+  // text and nothing that loads: no title, no reference to another document, no image.
+  it("gives every item one hidden Lucide icon: after a platform's name, before the name on the other three", () => {
+    stubNavigator({ share: vi.fn() });
+    renderRow();
+
+    const section = screen.getByRole("region", { name: "Dela annonsen" });
+    expect(section.querySelectorAll("img, image, use, title")).toHaveLength(0);
+    const controls = within(section)
+      .getAllByRole("listitem")
+      .map((li) => li.querySelector("a, button") as HTMLElement);
+    const icons = controls.map((control) => {
+      // The house's secondary button at its full 44 px, never `--sm`'s 36 (design-reviewer, Klas's preview).
+      expect(control).toHaveClass("jp-btn", "jp-btn--secondary");
+      expect(control).not.toHaveClass("jp-btn--sm");
+      const svgs = control.querySelectorAll("svg");
+      expect(svgs).toHaveLength(1);
+      expect(svgs[0]).toHaveAttribute("aria-hidden", "true");
+      return svgs[0] as SVGElement;
+    });
+    expect(icons.map((icon) => icon.getAttribute("class"))).toEqual([
+      expect.stringContaining("lucide-external-link"),
+      expect.stringContaining("lucide-external-link"),
+      expect.stringContaining("lucide-external-link"),
+      expect.stringContaining("lucide-mail"),
+      expect.stringContaining("lucide-link"),
+      expect.stringContaining("lucide-share-2"),
+    ]);
+
+    const follows = (icon: SVGElement, text: string) => {
+      const html = (icon.parentElement as HTMLElement).innerHTML;
+      return html.indexOf("<svg") > html.indexOf(text);
+    };
+    expect(["Facebook", "LinkedIn", "WhatsApp"].map((name, i) => follows(icons[i] as SVGElement, name))).toEqual([true, true, true]);
+    expect(["E-post", "Kopiera länken", "Fler sätt att dela"].map((name, i) => follows(icons[i + 3] as SVGElement, name))).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
   it("hides the two buttons without scripting, and holds the share sheet's place invisibly where the browser has none", () => {
     renderRow();
 
@@ -172,6 +213,8 @@ describe("ShareJobAd", () => {
     expect(idle).toHaveClass("invisible");
     expect(done).not.toHaveClass("invisible");
     expect(screen.getByRole("status")).toHaveTextContent("Kopierad");
+    expect(button.querySelectorAll("svg")).toHaveLength(1);
+    expect(button.querySelector("svg")?.getAttribute("class")).toContain("lucide-check");
 
     await act(async () => vi.advanceTimersByTime(2000));
     await act(async () => {
@@ -183,6 +226,7 @@ describe("ShareJobAd", () => {
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
     expect(screen.getByRole("button", { name: "Kopiera länken" })).toBe(button);
     expect(idle).not.toHaveClass("invisible");
+    expect(button.querySelector("svg")?.getAttribute("class")).toContain("lucide-link");
   });
 
   it("shows the link in a labelled read-only field, focused and selected, when the copy fails", async () => {

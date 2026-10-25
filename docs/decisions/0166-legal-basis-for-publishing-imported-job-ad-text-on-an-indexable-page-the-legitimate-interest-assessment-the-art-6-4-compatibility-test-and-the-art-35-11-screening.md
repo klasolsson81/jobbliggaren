@@ -987,10 +987,11 @@ D1–D11 and the earlier amendments stand and nothing above is rewritten. D10's 
 
 **D4, the balancing, for the link.** R-842-1 still holds "after Tier A": the gate applies Tier A's recogniser to the link in all three readings. A name in the link's address belongs to R-842-3's class and cannot be measured, as a name in the running text cannot. R-842-4 stands as the residual. The residuals, written as residuals and not closed here:
 - (r1) a name in the link's address;
-- (r2) a number glued to a hyphen (`/kontakt-0701234567`), which Tier A's lookbehind reads as an identifier by design; it read 0 on 2026-10-25;
+- (r2) a number glued to a letter, a digit or a hyphen (`/ref0701234567`, `/kontakt-0701234567`), which Tier A's lookbehind reads as an identifier by design;
 - (r3) a contact channel on a host outside the lists, and a redirect on the employer's own host;
 - (r4) a target page that changes after the import, or is harmful;
-- (r5) Tier A's recall on URLs is not measured.
+- (r5) Tier A's recall on URLs is not measured;
+- (r6) any other difference between how .NET and a browser read the same address. The write rule refuses a tab, a line break or another control character and a host `IdnHost` cannot map, and the tests pin dot segments, IDN hosts and a backslash in the host.
 
 A false positive, such as a phone-shaped applicant-tracking id, is accepted on the public page only, where the visitor keeps the link to the ad itself. W4 holds: the link is kept out of the title, meta, OpenGraph, Twitter tags and JSON-LD; cache and archive copies of the page carry it as they carry the text, out of reach, an unchanged residual. A preview fetcher does not follow it.
 
@@ -1018,6 +1019,8 @@ The readings recorded with them:
 **D11: the merge-day reading (W3).** S2-P3 counts the application link as a fifth field, for **every** listed ad and not only the links the gate admits: trigger 2 reads "a measured personnummer in a listed ad", the signed-in modal shows the link, a 0 over the superset is a 0 over the subset, and a gate in SQL would be trigger 19's second copy. It counts the link twice, as stored and percent-decoded (`%20`, `%2D`, `%2B`, `%2E`, `%2F`, `%5F`, `%09`, `%C2%A0`, either case). The query is the new blob of `docs/runbooks/public-job-page-publication-count.sql`, dry-run against a fixture (the runbook records it). The reading is taken on the merge's UTC day, before `agents-done`; the validated count must be 0 in both readings of the link and in every other field. A count above 0 fires trigger 2, and 1b stops. It is recorded here and in the runbook's record table.
 
 **A pre-reading, not the merge-day reading** (counts only). 2026-10-25 at 20:07:52 UTC, the new blob, on release sequence 1670 (source `9b8260fb2`), `--status` consistent before and after: listed 43 428; shaped 825 in all, 660 in the link as stored, 660 in it decoded, 213 in the description; validated 0 in every field.
+
+**The merge-day reading** (counts only). 2026-10-25 at 21:27:20 UTC, the new blob (`ea21c16`), on release sequence 1671 (source `10ff4274b`), `--status` consistent before and after (21:27:39 UTC): listed 43 436; shaped 825 in all, 660 in the link as stored, 660 in it decoded, 213 in the description; **validated 0** in every field and in both readings of the link. The same minute, `security-auditor`'s count (her review of the PR): 36 069 listed links, 0 with a raw tab, LF or CR, 0 hosts with a ZWNJ or ZWJ, 7 hosts with non-ASCII letters, all LDH or Latin letters, none with a label over 30 characters. If the merge slips past this UTC day, the reading is taken again.
 
 **The gate's size** (counts only, read-only, each query dry-run first against a fixture with one row per class; `security-auditor`'s C-18):
 - 2026-10-24 at 06:51 UTC, the vocabulary Klas's question carried: 39 of 36 288 listed links.

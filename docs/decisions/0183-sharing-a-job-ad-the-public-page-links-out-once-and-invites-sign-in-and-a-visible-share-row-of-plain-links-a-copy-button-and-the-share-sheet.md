@@ -593,7 +593,7 @@ PR 1b of #2214 delivers the head D1 ruled in advance ("PR 1b changes this head")
 - **The arm is chosen by one value.** `applicationLinkHref(jobAd.applicationUrl)` is the application page after `new URL()` and an http(s) check, the same check `adSourceLink` gives the link out. When it is null (no link, a link the gate held back, or one that is not http(s)), the head is PR 1's, unchanged.
 - **With it, the head** is h1, company, dates, facts, then `JobAdSourceLink` (the signed-in card's own element, `jobads.ui.detail.sourceAdPlatsbanken` or `sourceAd`), and last "Ansök" in a `div.mt-4`:
   - the signed-in Ansök's inner form, `jp-btn jp-btn--primary`, `ExternalLink` at 14 px and `jobads.ui.detail.apply`;
-  - `target="_blank" rel="nofollow noopener noreferrer"`. `noreferrer` is what ADR 0166 trigger 18 requires, and `nofollow` keeps the page's invariant that every link out that is not Arbetsförmedlingen's carries it;
+  - `target="_blank" rel="nofollow noopener noreferrer"`. `noreferrer` is what ADR 0166 trigger 18 requires;
   - its name is "Ansök", with no visually hidden "(öppnas i ny flik)": the same function and name as on the signed-in page (WCAG 3.2.4);
   - "Sök jobbet" is not rendered.
 - **One `--primary` in either arm.** The test counts it in both.

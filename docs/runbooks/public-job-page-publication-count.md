@@ -93,6 +93,7 @@ validated; the null link and the three unlisted ads were not counted.
 | 2026-10-18 01:27 | Release 1636 (`d7b242b12`), `--status` consistent (01:27:54Z); the S4 merge day (ADR 0166 Amendment 2026-10-18 (ix)); same query blob `8c02e37` | 42 223 | 231 | **0** | shaped 231 in the description; validated: no row printed (0) | not counted (before #2214 PR 1b) | 0 | Claude Code |
 | 2026-10-18 17:12 | Release 1641 (`c14ac57a1`), `--status` consistent before (17:12:17Z) and after (17:12:44Z); the S5 merge day (ADR 0166, the amendment for S5, D11); same query blob `8c02e37` | 42 295 | 231 | **0** | shaped 231 in the description; validated: no row printed (0) | not counted (before #2214 PR 1b) | 0 | Claude Code |
 | 2026-10-24 03:18 | Release sequence 1657 (source `515b7424b`), `--status` consistent before (03:17:58Z) and after (03:18:18Z); the S6b merge day (ADR 0166, the amendment for S6b, D11); same query blob `8c02e37` | 43 602 | 215 | **0** | shaped 215 in the description; validated: no row printed (0) | not counted (before #2214 PR 1b) | 0 | Claude Code |
+| 2026-10-25 21:27 | Release sequence 1671 (source `10ff4274b`), `--status` consistent before (21:27:20Z) and after (21:27:39Z); the #2214 PR 1b merge day (ADR 0166, the amendment for 1b, D11); query blob `ea21c16` | 43 436 | 825 | **0** | shaped 213 in the description; validated: no row printed (0) | shaped 660 / 660; validated: no row printed (0) | 0 | Claude Code |
 
 The record is also posted on [#2090](https://github.com/klasolsson81/jobbliggaren/issues/2090) with the same date.
 

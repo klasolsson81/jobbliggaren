@@ -436,7 +436,7 @@ D1–D9 and the earlier amendments stand and nothing above is rewritten. The leg
 
 **1. D4's member set grows from 15 to 16.** `PublicJobAdDto` gains `ApplicationUrl`, nullable, after `Url`. `PublicJobAdDtoContractTests` and the wire pin in `PublicJobAdEndpointTests` are updated to the 16-member set, and the wire test reads an admitted link on the wire and a gated one as present and null. D4's "never carried" and "left out on purpose" lists are unchanged.
 
-**2. Only through the gate.** `GetPublicJobAdQueryHandler` projects the link in the content read alone and sets the member from `PublicApplicationLink.Admit`, after the second `Classify` has returned Listed. `Admit` is internal to Application, and an architecture test pins that the DTO is built in that one file and that the file passes the link through it (ADR 0166 D10 trigger 19).
+**2. Only through the gate.** `GetPublicJobAdQueryHandler` projects the link in the content read alone and sets the member from `PublicApplicationLink.Admit`, after the second `Classify` has returned Listed. `Admit` is internal to Application (ADR 0166 D10 trigger 19).
 
 **3. Why the gate is not the public-only redaction D4 refuses.** D4 says a public-only redaction at read time would be a second normaliser on one read path. The gate is not one:
 - it never rewrites the value: it gives the stored string whole, or null;

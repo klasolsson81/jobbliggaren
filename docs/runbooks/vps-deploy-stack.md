@@ -1210,7 +1210,7 @@ one on every HTTPS response, including Next-served and Caddy-owned responses (RF
 | # | Who | Action | Expected | On failure |
 |---|---|---|---|---|
 | 7 | Session | `setkey SITE_HOST jobbliggaren.se; setkey SITE_ALIASES apex; sudo grep -qx 'SITE_ALIASES=apex' "$E" && preflight && apply` | The three keys print as set; `reconcile complete`; `verdict: consistent` | A refused key stays in `.env`, and the hourly reconcile applies it without a preflight: run R2's three `setkey` and `preflight` at once |
-| 8 | Session, operator's machine | `heads https://jobbliggaren.se/`; `echo \| openssl s_client -connect jobbliggaren.se:443 -servername jobbliggaren.se`, and the same for `www`; `heads 'https://www.jobbliggaren.se/p?q=1'` and `heads 'https://dev.jobbliggaren.se/p?q=1'`; `heads http://jobbliggaren.se/`; a name the edge does not serve, against the box's address (`--resolve unknown.invalid:443:<IPv4>`) | Apex `401` with one HSTS line, `max-age=31536000` and nothing after it; `Verify return code: 0 (ok)` for both names (issuance can take a minute); `www` `308` and `dev.` `302`, each with `location: https://jobbliggaren.se/p?q=1` and one HSTS line of that value; `http://` redirects to `https://` **without** HSTS, as RFC 6797 §7.2 requires — do not "fix" it; the unknown name gets no certificate | R2 |
+| 8 | Session, operator's machine | `heads https://jobbliggaren.se/`; `echo \| openssl s_client -connect jobbliggaren.se:443 -servername jobbliggaren.se`, and the same for `www`; `heads 'https://www.jobbliggaren.se/p?q=1'` and `heads 'https://dev.jobbliggaren.se/p?q=1'`, then the same two with `http://`; `heads http://jobbliggaren.se/`; a name the edge does not serve, against the box's address (`--resolve unknown.invalid:443:<IPv4>`) | Apex `401` with one HSTS line, `max-age=31536000` and nothing after it; `Verify return code: 0 (ok)` for both names (issuance can take a minute); `www` and `dev.` each `308` with `location: https://jobbliggaren.se/p?q=1` and one HSTS line of that value; their `http://` forms `308` straight to that same apex location in one hop, with no HSTS (ADR 0154 Amendment 2026-10-25); `http://` redirects to `https://` **without** HSTS, as RFC 6797 §7.2 requires — do not "fix" it; the unknown name gets no certificate | R2 |
 
 **Before Switch 2 — what the public moment rests on**
 
@@ -1226,7 +1226,7 @@ one on every HTTPS response, including Next-served and Caddy-owned responses (RF
 |---|---|---|---|---|
 | 11 | Session | `setkey SITE_ADMISSION open; sudo grep -qx 'SITE_ADMISSION=open' "$E" && preflight && apply` | `reconcile complete`; `verdict: consistent` on step 10's `source` | R1, then step 10 again: a release that landed in between opened on copy step 10 never read |
 | 12 | Session, operator's machine | `curl -s -o /dev/null -w '%{http_code}\n'` on `https://jobbliggaren.se/` and `/kontaktperson-i-annons`, no credentials | `200` on both — M1's anonymous 200. **Only a 200 proves the switch:** a mistyped value keeps the gate, and its 401 is indistinguishable from never having switched | R1 if anything else |
-| 13 | Session, operator's machine | Gate M-5a with admission open, on Caddy's own responses (C6): `heads` on the apex `/`, on `/.well-known/acme-challenge/probe`, on step 8's two redirects, and on a protected deep link (`/oversikt`) | `200` with one HSTS line; the ACME `404` with one HSTS line and `server: Caddy` (no Next headers); `308` and `302` with path and query kept and one HSTS line; the deep link `3xx` to `/logga-in`. Every HSTS line reads `max-age=31536000` and nothing after it. A `503` while `web` is down is not induced live: `deploy/caddy/edge-modes.test.sh` proves it on the image, for this source and caddy v2.11.4 | R1 |
+| 13 | Session, operator's machine | Gate M-5a with admission open, on Caddy's own responses (C6): `heads` on the apex `/`, on `/.well-known/acme-challenge/probe`, on step 8's two redirects, and on a protected deep link (`/oversikt`) | `200` with one HSTS line; the ACME `404` with one HSTS line and `server: Caddy` (no Next headers); both `308` with path and query kept and one HSTS line; the deep link `3xx` to `/logga-in`. Every HSTS line reads `max-age=31536000` and nothing after it. A `503` while `web` is down is not induced live: `deploy/caddy/edge-modes.test.sh` proves it on the image, for this source and caddy v2.11.4 | R1 |
 | 14 | Session, operator's machine | For `google`, `github` and `linkedin`: `curl -s -D - -o /dev/null https://jobbliggaren.se/api/auth/oauth/<p>/start \| grep -i '^location' \| grep -o 'redirect_uri=[^&]*'` — the parameter alone | `redirect_uri=https%3A%2F%2Fjobbliggaren.se%2Fapi%2Fauth%2Foauth%2F<p>%2Fcallback` (`SITE_HOST` → `Email__BaseUrl` → every `redirect_uri`) | R1, then step 5's console |
 | 15 | Session | `registration-gate.md`'s refused-registration probe with its baseline counts; the same account count before and after Klas's step 17 | `HTTP 503`, `Auth.RegistrationsClosed`; counts identical | R1 and STOPP: the closed registration this move relies on is not closed |
 | 16 | Session + `security-auditor` | Re-grade gate M-5b on the set below (column *after*) and N-1 arm (2) on its instrument below | No open Blocker. ADR 0050 §8's second review is not closed until this re-grade is recorded | A Blocker: R1 and STOPP to Klas, since it has no §9.6 route. A new Major: R1, and Klas decides |
@@ -1267,7 +1267,10 @@ gate's hash. Never read `/config/apps`, and never pipe `caddy adapt` to a filter
 
 - **R1 — admission only** (an open-mode finding): `setkey SITE_ADMISSION basic_auth && preflight && apply`;
   expect the apex `401` with one HSTS line; STOPP to Klas. It does not un-fire trigger (c).
-- **R2 — the whole move** (TLS, DNS or redirect): `setkey SITE_ADMISSION basic_auth; setkey SITE_ALIASES none;
+- **R2 — RETIRED 2026-10-25** (ADR 0154 Amendment 2026-10-25): `dev.` now answers a permanent `308`
+  that browsers cache, so a box moved back to `dev.` would be left at once, and the move was spent
+  when the apex opened to real users. Never run it; kept as the record of the move.
+  **R2 — the whole move** (TLS, DNS or redirect): `setkey SITE_ADMISSION basic_auth; setkey SITE_ALIASES none;
   setkey SITE_HOST dev.jobbliggaren.se && preflight && apply`; expect step 1's `401` on `dev.`; then Klas
   restores the apex `A` and `AAAA` from step 2's baseline. The `dev.` callbacks were kept for this.
 
@@ -1280,7 +1283,7 @@ gate's hash. Never read `/config/apps`, and never pipe `caddy adapt` to a filter
   names the apex.
 - The next PR syncs what the move made stale: this runbook's rows 6c, 8 and 9, `registration-gate.md`'s
   `dev.` host and K2 lines, and `.env.example`'s `SITE_HOST` value.
-- Klas removes the `dev.` callbacks at the providers once R2 is no longer needed, and before `dev.` points anywhere else.
+- Klas removes the `dev.` callbacks at the providers now that R2 is retired. `dev.` never points anywhere else (ADR 0154 Amendment 2026-10-25).
 - #1768 closes with a dated, sanitised summary.
 - Unchanged by the move, before the first user who is not Klas: #734, #197, `release-checklist.md` §2.7,
   #734 row 10, and ADR 0132/0133 triggers (a) and (b).

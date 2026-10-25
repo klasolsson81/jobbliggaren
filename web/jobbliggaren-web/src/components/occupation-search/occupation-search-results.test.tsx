@@ -545,6 +545,12 @@ describe("OccupationSearchResults — occupation-names on /jobb (#2199)", () => 
     expect(container.querySelectorAll(".rounded-full")).toHaveLength(1);
   });
 
+  it("marks a Word row with the dot when one of its variants is picked by its own id", () => {
+    renderNames(answer([projektledareRow]), { names: [nameId("Projektledare, el")] });
+
+    expect(screen.getByRole("button", { name: "Projektledare" }).querySelector(".rounded-full")).not.toBeNull();
+  });
+
   it("keeps a label-only Group row a bare checkbox, and an answer with nothing to open one column", () => {
     const { container } = renderNames(answer([groupRow(UX_GROUP, [], { labelHit: true })]));
 

@@ -17,19 +17,21 @@ import dumped from "./occupation-search-answers.json";
 // #2199 PR 3 — every name the rows below carry, with its real occupation-name id from the same
 // sources (and `src/Jobbliggaren.Infrastructure/Taxonomy/occupation-name-lineage.json`). A label
 // not in this table throws, so a fixture can never carry an id production does not emit.
-const NAME_ID: Readonly<Record<string, string>> = {
-  "Projektledare, IT": "z5AM_ayf_WcL",
-  "Projektledare, el": "1jm3_XFQ_TdJ",
-  "Projektledare, telekom": "T55e_efV_Eqh",
-  "Projektledare, bygg och anläggning": "pTTz_5DC_itW",
-  "Backend-utvecklare": "7wdX_4rv_33z",
-  "UX-designer": "iwJU_gW4_SxT",
+const NAME_ID: Readonly<Record<string, { readonly id: string; readonly groupId: string }>> = {
+  "Projektledare, IT": { id: "z5AM_ayf_WcL", groupId: "DJh5_yyF_hEM" },
+  "Projektledare, el": { id: "1jm3_XFQ_TdJ", groupId: "nDaB_vdy_eAy" },
+  "Projektledare, telekom": { id: "T55e_efV_Eqh", groupId: "nDaB_vdy_eAy" },
+  "Projektledare, bygg och anläggning": { id: "pTTz_5DC_itW", groupId: "thZP_oR7_WrY" },
+  "Backend-utvecklare": { id: "7wdX_4rv_33z", groupId: "DJh5_yyF_hEM" },
+  "UX-designer": { id: "iwJU_gW4_SxT", groupId: "UxT1_tPF_Kbg" },
 };
 
-export function nameId(nameLabel: string): string {
-  const id = NAME_ID[nameLabel];
-  if (id === undefined) throw new Error(`No real occupation-name id for "${nameLabel}" in the fixture table`);
-  return id;
+export function nameId(nameLabel: string, groupId?: string): string {
+  const entry = NAME_ID[nameLabel];
+  if (entry === undefined) throw new Error(`No real occupation-name id for "${nameLabel}" in the fixture table`);
+  if (groupId !== undefined && entry.groupId !== groupId)
+    throw new Error(`"${nameLabel}" is in group ${entry.groupId}, not ${groupId}`);
+  return entry.id;
 }
 
 export const IT_GROUP = { id: "DJh5_yyF_hEM", label: "Mjukvaru- och systemutvecklare m.fl." } as const;
@@ -50,7 +52,7 @@ export function groupRow(
     kind: "Group",
     groupConceptId: group.id,
     groupLabel: group.label,
-    matchedNames: matchedNames.map((nameLabel) => ({ occupationNameConceptId: nameId(nameLabel), nameLabel })),
+    matchedNames: matchedNames.map((nameLabel) => ({ occupationNameConceptId: nameId(nameLabel, group.id), nameLabel })),
     labelHit: options.labelHit ?? false,
     headWord: null,
     variants: [],
@@ -70,7 +72,7 @@ export function wordRow(
     labelHit: false,
     headWord,
     variants: variants.map(([nameLabel, group]) => ({
-      occupationNameConceptId: nameId(nameLabel),
+      occupationNameConceptId: nameId(nameLabel, group.id),
       nameLabel,
       groupConceptId: group.id,
       groupLabel: group.label,
@@ -87,7 +89,7 @@ export const projektledareRow = wordRow("Projektledare", [
   ["Projektledare, bygg och anläggning", BYGG_GROUP],
 ]);
 
-// OccupationSearchRule's answers over v30, verbatim (dumped 2026-10-23).
+// OccupationSearchRule's answers over v30, verbatim.
 export const ruleAnswer = {
   chef: occupationSearchResultSchema.parse(dumped.chef),
   elingenjor: occupationSearchResultSchema.parse(dumped["elingenjör"]),
@@ -96,6 +98,7 @@ export const ruleAnswer = {
   sjukskoterska: occupationSearchResultSchema.parse(dumped["sjuksköterska"]),
   underskoterska: occupationSearchResultSchema.parse(dumped["undersköterska"]),
   ux: occupationSearchResultSchema.parse(dumped.ux),
+  vuxenutbildning: occupationSearchResultSchema.parse(dumped.vuxenutbildning),
 } as const;
 
 export function answer(

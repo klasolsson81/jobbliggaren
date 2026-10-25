@@ -112,5 +112,11 @@
       {"kind": "Group", "groupConceptId": "UxT1_tPF_Kbg", "groupLabel": "Övriga IT-specialister", "matchedNames": [{"occupationNameConceptId": "iwJU_gW4_SxT", "nameLabel": "UX-designer"}], "labelHit": false, "headWord": null, "variants": [], "exactMatch": false}
     ],
     "totalRows": 1
+  },
+  "vuxenutbildning": {
+    "rows": [
+      {"kind": "Group", "groupConceptId": "z8di_AqX_GBr", "groupLabel": "Chefer inom grund- och gymnasieskola samt vuxenutbildning", "matchedNames": [], "labelHit": true, "headWord": null, "variants": [], "exactMatch": false}
+    ],
+    "totalRows": 1
   }
 }

@@ -18,6 +18,7 @@ const wireBase = {
   occupationGroupLabels: [
     { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
   ],
+  occupationNameLabels: [],
   municipalityLabels: [{ conceptId: "zHxw_uJZ_NNh", label: "Solna" }],
   regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
   sortBy: 0,
@@ -176,15 +177,10 @@ describe("recentJobSearchDtoSchema", () => {
     ]);
   });
 
-  it("defaults missing occupationNameLabels to an empty array, like the other labels", () => {
-    expect(recentJobSearchDtoSchema.parse(wireBase).occupationNameLabels).toEqual([]);
-  });
-
-  it("rejects a payload with no occupationNameList field rather than defaulting it to empty", () => {
-    // Same actor and reason as the employerList and remote cases: the deploy-skew window
-    // (#1238), where a replay that silently drops the axis would widen the search.
-    const { occupationNameList: _omitted, ...withoutNames } = wireBase;
-    expect(() => recentJobSearchDtoSchema.parse(withoutNames)).toThrow();
+  it("requires occupationNameList and defaults occupationNameLabels, by the schema's shape", () => {
+    const { occupationNameList, occupationNameLabels } = recentJobSearchDtoSchema.shape;
+    expect(occupationNameList.safeParse(undefined).success).toBe(false);
+    expect(occupationNameLabels.parse(undefined)).toEqual([]);
   });
 
   it("parses an Employer part, which carries neither text nor code (#1471)", () => {

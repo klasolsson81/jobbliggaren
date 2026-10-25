@@ -511,7 +511,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
 }
 /* #2199 — a yrke whose group is selected is included, not separately selected: a tonal box, so it
    reads apart from the solid accent-800 checked box, no hover surface, the default cursor, and the
-   label never dimmed (DESIGN.md §4). The class doubles the specificity of the global checked and
+   label never dimmed (DESIGN.md §4). The class raises the specificity of the global checked and
    hover rules so chunk order cannot decide. */
 .jp-checkitem.jp-checkitem--included[aria-checked="true"] .jp-checkitem__box {
   background: var(--jp-accent-50);
@@ -535,6 +535,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   flex: 1 1 auto;
   min-width: 0;
   padding-right: 8px;
+  overflow-wrap: anywhere;
 }
 .jp-occsearch__opener {
   position: relative;

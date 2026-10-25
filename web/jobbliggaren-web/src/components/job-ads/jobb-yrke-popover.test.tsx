@@ -472,6 +472,9 @@ describe("/jobb Yrke: an occupation-name tick (#2199)", () => {
 
     const opener = await screen.findByRole("button", { name: `1 yrke i ${UX_GROUP.label}` });
     expect(opener).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("group", { name: UX_GROUP.label })).toHaveAccessibleDescription(
+      "Kryssar du i ett yrke visas annonser där arbetsgivaren angett just det yrket.",
+    );
     await user.click(screen.getByRole("checkbox", { name: "UX-designer" }));
 
     expect(pushMock).toHaveBeenCalledTimes(1);
@@ -527,7 +530,16 @@ describe("/jobb Yrke: an occupation-name tick (#2199)", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(nameRequests()).toBe(0);
 
+    resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.vuxenutbildning });
+    await user.type(field(), "vuxenutbildning");
+    await screen.findByRole("checkbox", {
+      name: (name) => name.startsWith("Chefer inom grund- och gymnasieskola samt vuxenutbildning"),
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(nameRequests()).toBe(0);
+
     resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.ux });
+    await user.clear(field());
     await user.type(field(), "ux");
     await screen.findByRole("checkbox", { name: "UX-designer" });
     await waitFor(() => expect(nameRequests()).toBe(1));
@@ -542,21 +554,21 @@ describe("/jobb Yrke: an occupation-name tick (#2199)", () => {
 
   it("shows no number beside a name when the name counts fail", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) =>
-        String(input).includes("dimension=OccupationName")
-          ? new Response(JSON.stringify({}), { status: 502 })
-          : new Response(JSON.stringify({}), { status: 200 }),
-      ),
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).includes("dimension=OccupationName")
+        ? new Response(JSON.stringify({}), { status: 502 })
+        : new Response(JSON.stringify({}), { status: 200 }),
     );
+    vi.stubGlobal("fetch", fetchMock);
     resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.ux });
     setup();
     await openYrke(user);
     await user.type(field(), "ux");
 
     expect(await screen.findByRole("checkbox", { name: "UX-designer" })).toBeInTheDocument();
-    await new Promise((r) => setTimeout(r, 400));
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes("dimension=OccupationName"))).toBe(true),
+    );
     expect(screen.getByRole("checkbox", { name: "UX-designer" })).toBeInTheDocument();
   });
 

@@ -67,8 +67,7 @@ export interface OccupationNameSelection {
 export interface OccupationSearchResultsProps {
   /** The answer to show, or `null` while the current word is pending. */
   readonly result: OccupationSearchResult | null;
-  /** Selected group ids. Every row's checked state is read from here, so two rows that select the
-   *  same group cannot disagree. */
+  /** Selected group ids. */
   readonly selected: ReadonlyArray<string>;
   /** Toggles one group id: the same call a group row in the browse view makes. */
   readonly onToggle: (groupConceptId: string) => void;

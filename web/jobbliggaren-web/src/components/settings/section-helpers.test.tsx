@@ -66,7 +66,7 @@ describe("CheckItem — the included state (#2199)", () => {
       <CheckItem
         label="Projektledare, IT"
         secondary="Ingår i vald yrkesgrupp: Mjukvaru- och systemutvecklare m.fl."
-        checked={false}
+        checked
         included
         onToggle={vi.fn()}
       />,

@@ -11,9 +11,8 @@ import { z } from "zod";
  * ordering authority for rows, `matchedNames` and `variants`; nothing here sorts.
  *
  * A Group row's names are objects since #2199 PR 3. The previous release's API answers with plain
- * strings, which this schema refuses: during a rollback's recreate, and in a tab opened before the
- * release that still runs the older client, the search reads as unavailable until the containers
- * agree or the tab navigates (ADR 0180, D5's degraded state).
+ * strings, which this schema refuses: during a rollback's recreate the search reads as unavailable
+ * until the containers agree (ADR 0180, D5's degraded state).
  */
 
 // The taxonomy DTO's concept-id shape (1–32 characters, [A-Za-z0-9_-]).

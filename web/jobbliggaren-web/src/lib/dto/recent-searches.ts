@@ -137,7 +137,7 @@ export const recentJobSearchDtoSchema = z.object({
   employerList: z.array(z.string()),
   // #1407 (#551 punkt 4) — distans-axeln. OBLIGATORISK, inte `.default(false)`, av
   // två skäl som båda är husets egna: varje RÅTT dimensionsfält här är required (bara
-  // de tre `*Labels` defaultar), och högljutt-före-tyst-fel är ratificerat (ADR 0067
+  // `*Labels` defaultar), och högljutt-före-tyst-fel är ratificerat (ADR 0067
   // rad 41; CTO 2026-06-13 "hellre ingen siffra än falsk (0)"). En default hade gjort
   // ett saknat wire-fält oskiljbart från ett falskt — det här felet, ett lager ut.
   //

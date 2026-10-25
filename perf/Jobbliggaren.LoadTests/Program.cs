@@ -108,10 +108,10 @@ if (scenarioSelector is "landing-stats" or "all")
 // Fas E2c (ADR 0067 Beslut 4) — facet-counts-endpointen är rest; D1-parkerade
 // scenariot aktiveras. Kräver LOADTEST_BEARER_TOKEN (auth-gated) — utan den
 // blir requests 401 → fail-count → BudgetReporter-warning (avsiktligt synligt).
-// #2199 — yrkesbenämnings-facetten (heavy + med fem picks) körs i samma gren. Alla
-// fyra scenarier delar FacetCountsPolicy-bucketen (30/10s per user); rate-aritmetiken
-// (25 req/10s) står i FacetCountsScenarios.cs-huvudet och gäller bara när de fyra
-// registreras tillsammans, så de läggs aldrig i separata selektorer.
+// #2199 — the occupation-name facet (heavy + with five picks) runs in the same branch.
+// All four scenarios share the FacetCountsPolicy bucket (30/10s per user); the rate
+// arithmetic (25 req/10s) is in the FacetCountsScenarios.cs header and holds only when
+// the four are registered together, so they are never put in separate selectors.
 if (scenarioSelector is "facet-counts" or "all")
 {
     var facetHeavy = FacetCountsScenarios.OccupationGroupHeavy(httpClient, baseUrl);

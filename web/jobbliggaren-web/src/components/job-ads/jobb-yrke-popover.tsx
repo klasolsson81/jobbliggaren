@@ -45,8 +45,7 @@ interface JobbYrkePopoverProps {
  * browse pick; an occupation-name pick goes out through `onNamesChange` by its own id (#2199).
  *
  * The occupation-name counts are fetched only once an answer in this opening holds a name a tick
- * could select, and then stay for the opening: the answer is about 1,500 keys and does not depend
- * on the typed word.
+ * could select.
  */
 export function JobbYrkePopover({
   open,
@@ -70,7 +69,11 @@ export function JobbYrkePopover({
 
   const [sawNames, setSawNames] = useState(false);
   if (!sawNames && box.kind === "rows" && answerHoldsNames(box.result)) setSawNames(true);
-  const nameCounts = useFacetCounts("OccupationName", facetFilter, open && sawNames);
+  const nameCounts = useFacetCounts(
+    "OccupationName",
+    { ...facetFilter, occupationGroup: [], occupationName: [] },
+    open && sawNames,
+  );
 
   return (
     <JobbFilterPopover

@@ -37,9 +37,11 @@ public class GeoUnionLabelParityTests
     // Axes AND-ed against the geo predicate. They narrow rather than widen, so a label that
     // omits them still describes a superset of what the click returns — never a subset.
     // #1418 owns whether a row carrying only one of them deserves a label of its own.
+    // OccupationName (#2199) is OR-ed with OccupationGroup inside Yrke, never with the geo terms; a
+    // recent search cannot carry it until #2199 PR 2, which owns the Yrke label's own parity.
     private static readonly HashSet<string> Orthogonal = new(StringComparer.Ordinal)
     {
-        "OccupationGroup", "EmploymentType", "WorktimeExtent", "Employer", "Q",
+        "OccupationGroup", "OccupationName", "EmploymentType", "WorktimeExtent", "Employer", "Q",
     };
 
     [Fact]

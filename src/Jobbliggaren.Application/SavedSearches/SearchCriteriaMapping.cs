@@ -18,6 +18,8 @@ internal static class SearchCriteriaMapping
     public static JobAdFilterCriteria ToFilterCriteria(SearchCriteria criteria) =>
         new(
             OccupationGroup: criteria.OccupationGroup,
+            // SearchCriteria stores no occupation-name until #2199 PR 2.
+            OccupationName: [],
             Municipality: criteria.Municipality,
             Region: criteria.Region,
             EmploymentType: criteria.EmploymentType,

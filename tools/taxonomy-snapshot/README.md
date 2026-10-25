@@ -57,6 +57,32 @@ Krav: Node 18+ (inbyggd `fetch`). Ingen npm-dependency.
 | 29 | 2026-05-17 | Initial — Län (region) + Yrkesområde→Yrke (occupation-name). |
 | 30 | 2026-06-08 | + Kommun (municipality, ~290) + Yrkesgrupp (ssyk-level-4, ~400). ADR 0043-amendment / ADR 0067 Fas B1. |
 
+## Occupation-name lineage (`generate-occupation-name-lineage.mjs`)
+
+Writes `src/Jobbliggaren.Infrastructure/Taxonomy/occupation-name-lineage.json`: every JobTech
+occupation-name, deprecated ones included, with its `replaced_by` edges and its occupation group
+(`broader` ssyk-level-4). The /jobb occupation-name filter and its per-variant counts read it at host
+start (#2199). About a quarter of active ads carry a deprecated occupation-name, and JobTech's own
+filter folds such an ad into the name that replaced it, so ours must know the edges.
+
+```bash
+node tools/taxonomy-snapshot/generate-occupation-name-lineage.mjs
+```
+
+- **Versions:** it fetches each version in `VERSIONS` with `include_deprecated: true` and keeps the
+  union of their edges. v31 dropped some of v30's edges and added others, so neither version alone
+  carries them all. `currentIn` records the versions in which a name is not deprecated.
+- **Fail-loud:** a GraphQL error, too few concepts, a current name without exactly one group, a group
+  that changed between versions, an edge to an unknown or non-name concept, a self-edge, a cycle, or
+  a multi-replacement terminal without a group or not current in the latest version.
+- **Format:** one entry per line, sorted by `conceptId` (Ordinal), so a refresh diffs as one line per
+  changed name.
+- **Never** the frozen v30 crosswalk or the picker snapshot.
+
+To refresh it, add the new version to `VERSIONS`, bump `FETCHED_AT`, run the script, review the
+diagnostics it prints, and run the lineage tests (`OccupationNameLineage*` in
+`tests/Jobbliggaren.Application.UnitTests`).
+
 ## Paritets-audit (`audit-parity.mjs`)
 
 Granskningsbart bevis för **TD-100 item 3** ("Validering mot Platsbanken"): att

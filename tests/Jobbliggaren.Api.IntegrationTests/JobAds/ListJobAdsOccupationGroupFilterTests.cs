@@ -15,7 +15,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 // C1 (ADR 0067 Platsbanken sök-paritet) — Variant C nivåbyte. yrke-filtret
 // targetar OccupationGroupConceptId (ssyk-level-4, occupation_group_concept_id)
-// i stället för SsykConceptId (occupation-name). Plus ny Municipality-dimension
+// i stället för OccupationNameConceptId (occupation-name). Plus ny Municipality-dimension
 // (municipality_concept_id). Verifierar handler-vägen mot riktig
 // Testcontainers-Postgres (ALDRIG EF-InMemory — Npgsql Contains-mot-shadow-prop-
 // generated-column-translation maskeras där, feedback_ef_strongly_typed_vo).

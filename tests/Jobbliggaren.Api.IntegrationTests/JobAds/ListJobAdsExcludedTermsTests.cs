@@ -105,6 +105,7 @@ public class ListJobAdsExcludedTermsTests(ApiFactory factory)
     private static JobAdFilterCriteria Filter(string q, IReadOnlyList<string>? occupationGroup = null) =>
         new(
             OccupationGroup: occupationGroup ?? [],
+            OccupationName: [],
             Municipality: [],
             Region: [],
             EmploymentType: [],

@@ -104,6 +104,9 @@ public static class JobAdsEndpoints
             // EJ i filter-identiteten/recent-search. Default false. ASP.NET bool-binding tar
             // "true" (ej "1"). FE mappar den svenska sentinel-paramen ?baraMatchade=on hit.
             bool onlyMatched = false,
+            // #2199 — yrkesbenämningar picked in Yrke, OR-ed with ?occupationGroup= (see
+            // ListJobAdsQuery.OccupationName). Repeated query-string binds to string[].
+            string[]? occupationName = null,
             CancellationToken ct = default) =>
         {
             var result = await mediator.Send(
@@ -123,7 +126,8 @@ public static class JobAdsEndpoints
                     SavedOnly: savedOnly,
                     AppliedOnly: appliedOnly,
                     HideApplied: hideApplied,
-                    OnlyMatched: onlyMatched), ct);
+                    OnlyMatched: onlyMatched,
+                    OccupationName: occupationName), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);
@@ -171,6 +175,8 @@ public static class JobAdsEndpoints
             // för en ANNAN dimension räknar mot samma WHERE som listan (residual-konsistens).
             bool remote = false,
             string? q = null,
+            // #2199 — yrkesbenämningar as Yrke filter context, OR-ed with ?occupationGroup=.
+            string[]? occupationName = null,
             CancellationToken ct = default) =>
         {
             http.Response.Headers.CacheControl = "private, no-store";
@@ -183,7 +189,8 @@ public static class JobAdsEndpoints
                     EmploymentType: employmentType,
                     WorktimeExtent: worktimeExtent,
                     Remote: remote,
-                    Q: q), ct);
+                    Q: q,
+                    OccupationName: occupationName), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.FacetCountsPolicy);

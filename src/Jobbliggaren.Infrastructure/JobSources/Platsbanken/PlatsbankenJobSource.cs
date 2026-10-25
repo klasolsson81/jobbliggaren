@@ -360,8 +360,8 @@ internal sealed partial class PlatsbankenJobSource(
     //
     // Two traps live here, both previously encoded in the SQL and both load-bearing:
     //   * occupation_group / employment_type / working_hours_type are TOP-LEVEL in the payload, while
-    //     occupation (ssyk) and employer (org.nr) are NESTED. Reading ssyk from the top level yields a
-    //     permanently NULL column with no compile error.
+    //     occupation (the occupation-name) and employer (org.nr) are NESTED. Reading the occupation-name
+    //     from the top level yields a permanently NULL column with no compile error.
     //   * NAME GAP: the column/taxonomy type is worktime-extent (ADR 0067 Beslut 2) but the wire key is
     //     working_hours_type. Mapping WorktimeExtentConceptId from anything else yields silent always-NULL.
     // JobAdFacets normalises blank -> null, so a "" from the wire cannot enter the partial IS NOT NULL
@@ -373,7 +373,7 @@ internal sealed partial class PlatsbankenJobSource(
     // verdict this run" (stream/refetch, or a failed snapshot harvest) → JobAdFacets.Remote = null =
     // PRESERVE the aggregate's current value (never clobber). A non-null set = explicit membership.
     private static JobAdFacets MapFacets(JobTechHit hit, IReadOnlySet<string>? remoteIds) =>
-        new(ssykConceptId: hit.Occupation?.ConceptId,
+        new(occupationNameConceptId: hit.Occupation?.ConceptId,
             occupationGroupConceptId: hit.OccupationGroup?.ConceptId,
             municipalityConceptId: hit.WorkplaceAddress?.MunicipalityConceptId,
             regionConceptId: hit.WorkplaceAddress?.RegionConceptId,

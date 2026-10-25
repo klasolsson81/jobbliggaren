@@ -166,4 +166,33 @@ public class GetFacetCountsQueryValidatorTests
         _validator.Validate(
             new GetFacetCountsQuery(FacetDimension.WorktimeExtent)).IsValid.ShouldBeTrue();
     }
+
+    // #2199 — the occupation-name dimension and filter context.
+    [Fact]
+    public void Validate_OccupationNameDimension_Passes() =>
+        new GetFacetCountsQueryValidator()
+            .Validate(new GetFacetCountsQuery(FacetDimension.OccupationName, OccupationName: ["z5AM_ayf_WcL"]))
+            .IsValid.ShouldBeTrue();
+
+    [Fact]
+    public void Validate_AnOccupationNameOutsideTheGrammar_FailsOnThatProperty() =>
+        new GetFacetCountsQueryValidator()
+            .Validate(new GetFacetCountsQuery(FacetDimension.OccupationName, OccupationName: ["dot.notation"]))
+            .Errors.ShouldContain(e => e.PropertyName.StartsWith("OccupationName", StringComparison.Ordinal));
+
+    [Fact]
+    public void Validate_ExactlyTheCapOfOccupationNames_Passes() =>
+        new GetFacetCountsQueryValidator()
+            .Validate(new GetFacetCountsQuery(
+                FacetDimension.OccupationName,
+                OccupationName: [.. Enumerable.Range(0, SearchCriteria.MaxConceptIds).Select(i => $"n{i}")]))
+            .IsValid.ShouldBeTrue();
+
+    [Fact]
+    public void Validate_OneOccupationNameOverTheCap_Fails() =>
+        new GetFacetCountsQueryValidator()
+            .Validate(new GetFacetCountsQuery(
+                FacetDimension.OccupationGroup,
+                OccupationName: [.. Enumerable.Range(0, SearchCriteria.MaxConceptIds + 1).Select(i => $"n{i}")]))
+            .IsValid.ShouldBeFalse();
 }

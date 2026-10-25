@@ -26,6 +26,8 @@ public sealed class GetRemoteAdCountQueryHandler(IJobAdSearchQuery search)
     {
         var filter = new JobAdFilterCriteria(
             OccupationGroup: query.OccupationGroup ?? [],
+            // No /jobb surface reads this count with an occupation-name pick (#2199).
+            OccupationName: [],
             // Location dimension EXCLUDED (D7 — remote ads are location-less; counting
             // remote ∧ muni would return ≈0 and lie about how many distansjobb exist).
             Municipality: [],

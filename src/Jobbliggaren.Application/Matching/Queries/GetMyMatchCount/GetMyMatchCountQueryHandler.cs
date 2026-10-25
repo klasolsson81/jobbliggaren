@@ -52,6 +52,8 @@ public sealed class GetMyMatchCountQueryHandler(
         // matchningen exponerar inte de dimensionerna.
         var filter = new JobAdFilterCriteria(
             OccupationGroup: profile.Fast.SsykGroupConceptIds,
+            // The match profile selects whole groups (ADR 0040); the name axis is /jobb's alone.
+            OccupationName: [],
             Municipality: profile.Fast.PreferredMunicipalityConceptIds,
             Region: profile.Fast.PreferredRegionConceptIds,
             EmploymentType: profile.Fast.PreferredEmploymentTypeConceptIds,

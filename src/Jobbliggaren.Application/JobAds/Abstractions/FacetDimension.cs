@@ -3,8 +3,8 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// <summary>
 /// Facetterbar sök-dimension för <see cref="IJobAdSearchQuery.FacetCountsAsync"/>
 /// (ADR 0067 Beslut 4 — Platsbanken sök-paritet Fas D1). Varje medlem mappar
-/// 1:1 mot en filtrerbar facett-kolumn i <c>JobAdSearchQuery</c> och mot
-/// en lista i <see cref="JobAdFilterCriteria"/>.
+/// mot en lista i <see cref="JobAdFilterCriteria"/>, och alla utom
+/// <see cref="OccupationName"/> 1:1 mot en filtrerbar facett-kolumn i <c>JobAdSearchQuery</c>.
 /// <para>
 /// <b>ADR 0067 Beslut 6 (Fas B2, 2026-06-12):</b> Anställningsform/omfattning
 /// (Klass 2-dims) tillkom (non-breaking enum-append) i samma PR som re-ingestad
@@ -30,4 +30,11 @@ public enum FacetDimension
 
     /// <summary>Omfattning/arbetstid (<c>WorktimeExtentConceptId</c>) — ADR 0067 Beslut 6.</summary>
     WorktimeExtent,
+
+    /// <summary>
+    /// #2199 — yrkesbenämning. Its count is not one column's: an ad coded with a replaced name counts
+    /// for the name that replaced it, so the counts are folded from (name, group) pairs through the
+    /// occupation-name lineage.
+    /// </summary>
+    OccupationName,
 }

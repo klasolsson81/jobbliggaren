@@ -1038,6 +1038,11 @@ public static class DependencyInjection
         // #2143 — the search port resolves the raw search text (minus-words and their exact
         // taxonomy labels) once per call, for every consumer of the shared filter.
         services.AddScoped<JobAds.JobAdSearchTextResolver>();
+        // #2199 — the occupation-name lineage the resolver expands /jobb's occupation-name picks and
+        // folds their counts with. A constructed instance, so a malformed embedded artefact stops the
+        // host at startup rather than failing a search.
+        services.AddSingleton<Jobbliggaren.Application.JobAds.Abstractions.IOccupationNameLineageProvider>(
+            new Taxonomy.OccupationNameLineageProvider(Taxonomy.OccupationNameLineageLoader.Load()));
         AddTaxonomyReadModel(services);
 
         // The matching behind the Art. 17 recruiter erasure (ADR 0106 Tier B; the channels are

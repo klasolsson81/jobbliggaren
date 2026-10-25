@@ -7,8 +7,8 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
 /// #2143 — the resolver the two search ports take, for tests that construct a port by hand: the real
-/// parser and the host's real <see cref="ITaxonomyLabelMatcher"/>, with the synonym expander the test
-/// controls.
+/// parser, the host's real <see cref="ITaxonomyLabelMatcher"/> and occupation-name lineage, with the
+/// synonym expander the test controls.
 /// </summary>
 internal static class SearchTextResolvers
 {
@@ -16,5 +16,6 @@ internal static class SearchTextResolvers
         new(
             new SearchQueryParser(),
             expander,
-            scope.ServiceProvider.GetRequiredService<ITaxonomyLabelMatcher>());
+            scope.ServiceProvider.GetRequiredService<ITaxonomyLabelMatcher>(),
+            scope.ServiceProvider.GetRequiredService<IOccupationNameLineageProvider>());
 }

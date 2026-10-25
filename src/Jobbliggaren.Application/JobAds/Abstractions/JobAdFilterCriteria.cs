@@ -9,13 +9,12 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// <see cref="IJobAdSearchQuery.CountAsync"/>) — de kan aldrig divergera i
 /// filter-logik.
 /// <para>
-/// <b>ADR 0067 Beslut 1 (Fas C2, CTO-dom (e) 2026-06-09):</b> <c>Ssyk</c>-
-/// fältet (occupation-name) är BORTTAGET — dess equality-gren togs redan i C1,
-/// och C2-reverse-lookup-migrationen + VO-/entity-expansionen upplöste de två
-/// persistens-bundna konsumenter som motiverade fältets överlevnad.
-/// occupation-name lever vidare som synonym-/recall-substrat på q-FTS-vägen
-/// (<c>SsykConceptId</c>-kolumnen + <c>IOccupationSynonymExpander</c> i
-/// <c>JobAdSearchQuery</c> — orörda; ingen recall förloras).
+/// <b>#2199 (ADR 0067 Amendment 2026-10-24):</b> <see cref="OccupationName"/> holds the
+/// occupation-names (yrkesbenämningar) the user picked. It is the same Yrke dimension as
+/// <see cref="OccupationGroup"/> at a finer grain: the two are OR-ed, and the search port expands
+/// each pick through <see cref="OccupationNameLineage"/> so an ad coded with a deprecated name
+/// still answers the name that replaced it. Only the /jobb list and its facet counts carry it; every
+/// stored or derived criteria passes it empty until searches persist it (#2199 PR 2).
 /// </para>
 /// <para>
 /// Alla listor är aldrig null — en tom lista betyder "inget filter" (handlern
@@ -57,6 +56,7 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// </summary>
 public sealed record JobAdFilterCriteria(
     IReadOnlyList<string> OccupationGroup,
+    IReadOnlyList<string> OccupationName,
     IReadOnlyList<string> Municipality,
     IReadOnlyList<string> Region,
     IReadOnlyList<string> EmploymentType,

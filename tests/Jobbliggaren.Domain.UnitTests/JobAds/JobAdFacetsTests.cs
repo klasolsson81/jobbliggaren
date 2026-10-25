@@ -30,7 +30,7 @@ public class JobAdFacetsTests
     public void Blank_facet_is_normalised_to_null(string blank)
     {
         var facets = new JobAdFacets(
-            ssykConceptId: blank,
+            occupationNameConceptId: blank,
             occupationGroupConceptId: blank,
             municipalityConceptId: blank,
             regionConceptId: blank,
@@ -38,7 +38,7 @@ public class JobAdFacetsTests
             worktimeExtentConceptId: blank,
             organizationNumber: blank);
 
-        facets.SsykConceptId.ShouldBeNull(
+        facets.OccupationNameConceptId.ShouldBeNull(
             "an empty string is NOT NULL in Postgres: it would enter the partial WHERE ... IS NOT NULL " +
             "index and then match nothing, forever, silently. Blank must become null.");
         facets.OccupationGroupConceptId.ShouldBeNull();
@@ -54,7 +54,7 @@ public class JobAdFacetsTests
     public void Surrounding_whitespace_is_trimmed_but_the_value_is_kept()
     {
         var facets = new JobAdFacets(
-            ssykConceptId: "  Ssyk_uwa_111  ",
+            occupationNameConceptId: "  Ssyk_uwa_111  ",
             occupationGroupConceptId: null,
             municipalityConceptId: null,
             regionConceptId: null,
@@ -64,7 +64,7 @@ public class JobAdFacetsTests
 
         // A concept id with stray whitespace would not equal the taxonomy id in an IN (...) list —
         // the index would be used and the row would still never match.
-        facets.SsykConceptId.ShouldBe("Ssyk_uwa_111");
+        facets.OccupationNameConceptId.ShouldBe("Ssyk_uwa_111");
         facets.OrganizationNumber.ShouldBe("5592804784");
         facets.IsEmpty.ShouldBeFalse();
     }
@@ -73,7 +73,7 @@ public class JobAdFacetsTests
     public void None_is_the_named_absence()
     {
         JobAdFacets.None.IsEmpty.ShouldBeTrue();
-        JobAdFacets.None.SsykConceptId.ShouldBeNull();
+        JobAdFacets.None.OccupationNameConceptId.ShouldBeNull();
         JobAdFacets.None.OrganizationNumber.ShouldBeNull();
     }
 
@@ -90,7 +90,7 @@ public class JobAdFacetsTests
             external: ExternalReference.Create(JobSource.Platsbanken, "ext-1").Value,
             rawPayload: "{\"id\":\"ext-1\"}",
             facets: new JobAdFacets(
-                ssykConceptId: "Ssyk_uwa_111",
+                occupationNameConceptId: "Ssyk_uwa_111",
                 occupationGroupConceptId: "DJh5_yyF_hEM",
                 municipalityConceptId: "AvNB_uwa_6n6",
                 regionConceptId: "CaRE_1nn_hRb",
@@ -104,7 +104,7 @@ public class JobAdFacetsTests
         var jobAd = result.Value;
 
         jobAd.RawPayload.ShouldBe("{\"id\":\"ext-1\"}");
-        jobAd.SsykConceptId.ShouldBe("Ssyk_uwa_111");
+        jobAd.OccupationNameConceptId.ShouldBe("Ssyk_uwa_111");
         jobAd.OccupationGroupConceptId.ShouldBe("DJh5_yyF_hEM");
         jobAd.MunicipalityConceptId.ShouldBe("AvNB_uwa_6n6");
         jobAd.RegionConceptId.ShouldBe("CaRE_1nn_hRb");
@@ -143,7 +143,7 @@ public class JobAdFacetsTests
 
         result.IsSuccess.ShouldBeTrue();
         jobAd.RawPayload.ShouldBe("{\"v\":2}");
-        jobAd.SsykConceptId.ShouldBe("Ssyk_new");
+        jobAd.OccupationNameConceptId.ShouldBe("Ssyk_new");
         jobAd.OccupationGroupConceptId.ShouldBe("Grp_new");
         jobAd.MunicipalityConceptId.ShouldBe("Kommun_new");
         jobAd.RegionConceptId.ShouldBe("Lan_new");
@@ -179,7 +179,7 @@ public class JobAdFacetsTests
             publishedAt: Now.AddDays(-1),
             expiresAt: null, declaredContacts: [], applicationUrl: null, extractTerms: TestKeywordExtraction.None).IsSuccess.ShouldBeTrue();
 
-        jobAd.SsykConceptId.ShouldBeNull("the source stopped sending it — the column must follow");
+        jobAd.OccupationNameConceptId.ShouldBeNull("the source stopped sending it — the column must follow");
         jobAd.MunicipalityConceptId.ShouldBeNull();
         jobAd.OrganizationNumber.ShouldBeNull();
     }
@@ -218,7 +218,7 @@ public class JobAdFacetsTests
             clock: Clock).Value;
 
         jobAd.RawPayload.ShouldBeNull();
-        jobAd.SsykConceptId.ShouldBeNull();
+        jobAd.OccupationNameConceptId.ShouldBeNull();
         jobAd.OccupationGroupConceptId.ShouldBeNull();
         jobAd.MunicipalityConceptId.ShouldBeNull();
         jobAd.RegionConceptId.ShouldBeNull();

@@ -108,9 +108,27 @@ internal sealed class JobAdSearchQuery(
         // filter-vägen (ingen ApplyCriteriaExcept-duplikat, ADR 0039 Beslut 1 /
         // ADR 0067 Beslut 4).
         var faceted = await textResolver.ResolveAsync(ExcludeDimension(criteria, dimension), cancellationToken);
-        var column = ShadowColumn(dimension);
-
         var baseQuery = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), faceted);
+
+        // #2199 — an occupation-name's count is not one column's: an ad coded with a replaced name
+        // counts for the name that replaced it, sometimes only within the ad's group. So the ads are
+        // counted per (name, group) and the resolver folds the pairs with the lineage the filter
+        // expands picks with.
+        if (dimension == FacetDimension.OccupationName)
+        {
+            var pairQuery = baseQuery
+                .Where(j => j.OccupationNameConceptId != null)
+                .GroupBy(j => new { j.OccupationNameConceptId, j.OccupationGroupConceptId })
+                .Select(g => new { Name = g.Key.OccupationNameConceptId!, Group = g.Key.OccupationGroupConceptId, Count = g.Count() });
+            var pairs = await BitmapPlanCount.CountWithBitmapPlanAsync(
+                db, faceted.Text,
+                ct => pairQuery.ToListAsync(ct), cancellationToken);
+
+            return textResolver.CountOccupationNames(
+                pairs.Select(p => new OccupationNamePairCount(p.Name, p.Group, p.Count)));
+        }
+
+        var column = ShadowColumn(dimension);
 
         // GROUP BY shadow-column → concept-id-count. GROUP BY-translation ligger i
         // Npgsql-assemblyn ⊂ Infrastructure (ADR 0062 Beslut 4 provider-assembly-
@@ -143,6 +161,8 @@ internal sealed class JobAdSearchQuery(
         // ADR 0067 Beslut 6 (Fas B2) — Klass 2 STORED-kolumner.
         FacetDimension.EmploymentType => "EmploymentTypeConceptId",
         FacetDimension.WorktimeExtent => "WorktimeExtentConceptId",
+        FacetDimension.OccupationName => throw new ArgumentOutOfRangeException(
+            nameof(dimension), dimension, "OccupationName counts are folded from (name, group) pairs, never one column."),
         _ => throw new ArgumentOutOfRangeException(
             nameof(dimension), dimension, "Unknown FacetDimension — enum out of sync with ApplyCriteria."),
     };
@@ -160,7 +180,10 @@ internal sealed class JobAdSearchQuery(
     private static JobAdFilterCriteria ExcludeDimension(
         JobAdFilterCriteria criteria, FacetDimension dimension) => dimension switch
         {
-            FacetDimension.OccupationGroup => criteria with { OccupationGroup = [] },
+            // #2199 — Yrke is one dimension in two granularities (group and occupation-name, OR-ed in
+            // ApplyFilter), so its facet clears both, as Ort's does.
+            FacetDimension.OccupationGroup or FacetDimension.OccupationName =>
+                criteria with { OccupationGroup = [], OccupationName = [] },
             // #551 PR-B D7 — remote är location-dimensionens BOOLESKA sub-axel (unionas
             // med kommun/län i ApplyFilter). Ort-facetten exkluderar därför HELA
             // location-dimensionen INKLUSIVE remote: annars, med Distans aktivt (remote=true),

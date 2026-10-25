@@ -80,6 +80,11 @@ public interface IJobAdSearchQuery
     /// Ny omätt hot-path mot ~44k rader → NBomber-gate mot ADR 0045 (300 ms p95)
     /// FÖRE live-aktivering.
     /// </para>
+    /// <para>
+    /// <b>#2199:</b> Yrke is one dimension in two granularities, so the OccupationGroup and
+    /// OccupationName facets each exclude both lists. The OccupationName counts fold an ad coded with a
+    /// replaced name into the name that replaced it, with the same rule the filter expands a pick with.
+    /// </para>
     /// </summary>
     ValueTask<IReadOnlyDictionary<string, int>> FacetCountsAsync(
         JobAdFilterCriteria criteria, FacetDimension dimension,

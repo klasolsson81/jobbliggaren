@@ -59,11 +59,8 @@ export function AdminEmailDmarc({ read }: { readonly read: AdminEmailRead<Dmarc>
       case "mailbox":
         return plain(t(`mailbox.${line.which}`, { count: line.count }));
       case "failure": {
-        // dmarcView gives an unfinished first run its start; no other failure has one.
         const reason =
-          line.failure === "Incomplete"
-            ? timed("failure.Incomplete", line.startedAt ?? "")
-            : plain(t(`failure.${line.failure}`));
+          line.failure === "Incomplete" ? timed("failure.Incomplete", line.startedAt) : plain(t(`failure.${line.failure}`));
         const parts = [reason, ...(line.resumesAt === null ? [] : [timed("signInResumes", line.resumesAt)]), plain(t("runbook"))];
         return {
           rich: parts.map((part, index) => (

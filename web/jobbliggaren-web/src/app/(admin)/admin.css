@@ -1243,6 +1243,7 @@
    half the region, so the figures never slide under it; a part that cannot break still wraps rather than overflowing. */
 .jp-admindmarc__addr {
   display: inline-block;
+  min-inline-size: min(calc(50cqi - 24px), 39ch);
   max-inline-size: calc(50cqi - 24px);
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;

@@ -18,9 +18,9 @@ const median = (values: ReadonlyArray<number>) => [...values].sort((a, b) => a -
 test("overview, registration directory and e-post page meet local Lighthouse budgets", async () => {
   test.setTimeout(300_000);
   const harness = await startHarness();
-  // The DMARC region at its largest (#1981 PR 4b, test-writer F13): 25 rows at IPv6 length and every line, so the
-  // document is measured at the size it can reach, never against an empty or failed region.
+  // The DMARC region (#1981 PR 4b, test-writer F13): 25 rows and every line, never an empty or failed region.
   harness.emailDmarc = "capped";
+  harness.dmarcFailure = "AuthUnconfirmed";
   let browser: Browser | undefined;
   const summaries: unknown[] = [];
   const observations: unknown[] = [];
@@ -57,7 +57,7 @@ test("overview, registration directory and e-post page meet local Lighthouse bud
         await expect(control.getByRole("table", { name: /^Misslyckade utskick/ }).locator("tbody tr")).toHaveCount(5);
         await expect(control.getByRole("region", { name: "Utskick per mejltyp", exact: true }).getByRole("rowheader")).toHaveCount(7);
         await expect(control.getByRole("table", { name: /^DMARC-resultat per IP-adress för tiden/ }).locator("tbody tr")).toHaveCount(25);
-        await expect(control.getByText("Visar 25 av 31 rader.", { exact: true })).toBeVisible();
+        await expect(control.getByRole("region", { name: "DMARC-rapporter", exact: true }).getByText("Visar 25 av 31 rader.", { exact: true })).toBeVisible();
       } else {
         await expect(control.getByRole("table", { name: "Konton" })).toContainText("konto.b@example.test");
         await expect(control.getByRole("button", { name: "Rensa period" })).toBeVisible();

@@ -16,6 +16,7 @@ import {
   dmarcFailure,
   dmarcIngestion,
   dmarcSource,
+  dmarcStaleIngestion,
   failedDmarc,
   noReportsDmarc,
   observedDmarc,
@@ -295,7 +296,7 @@ describe("emailDmarcSchema (#1981 PR 4b, ADR 0185 D9)", () => {
     ["a failure after an earlier success, figures kept", observedDmarc({ ingestion: dmarcFailure("Protocol") })],
     ["a refused sign-in after a success, with when it resumes", observedDmarc({ ingestion: dmarcFailure("AuthRefused") })],
     ["a sign-in with no answer after a success", observedDmarc({ ingestion: dmarcFailure("AuthUnconfirmed") })],
-    ["a success older than the threshold", observedDmarc({ ingestion: dmarcIngestion({ stale: true }) })],
+    ["a success older than the threshold", observedDmarc({ ingestion: dmarcStaleIngestion() })],
     ["a covered span that begins before the window", observedDmarc({ coveredFrom: "2026-10-17T00:00:00+00:00" })],
     ["conflicting reports and every mailbox count", observedDmarc({
       conflictingReports: 2, mailbox: { skipped: 1, rejected: 2, volumeCapped: 3, abandoned: 4, retryPending: 5 },
@@ -303,8 +304,8 @@ describe("emailDmarcSchema (#1981 PR 4b, ADR 0185 D9)", () => {
     ["an ISATAP address with its dotted tail", observedDmarc({
       sources: [dmarcSource("2001:db8::5efe:192.0.2.1", "jobbliggaren.se", 51, 48, 48, 3)], sourceCount: 1,
     })],
-    ["an address at the 45 characters the alphabet allows", observedDmarc({
-      sources: [dmarcSource("2001:db8:ffff:ffff:ffff:ffff:255.255.255.255", "jobbliggaren.se", 51, 48, 48, 3)], sourceCount: 1,
+    ["the longest canonical form of a documentation-range address, 41 characters", observedDmarc({
+      sources: [dmarcSource("2001:db8:ffff:ffff:0:5efe:255.255.255.255", "jobbliggaren.se", 51, 48, 48, 3)], sourceCount: 1,
     })],
     ["a header-from domain at its 253 characters", observedDmarc({
       sources: [dmarcSource("192.0.2.10", longestDomain, 51, 48, 48, 3)], sourceCount: 1,
@@ -312,7 +313,7 @@ describe("emailDmarcSchema (#1981 PR 4b, ADR 0185 D9)", () => {
     ["the window's end with the clock's seven decimals", observedDmarc({ to: DMARC_TO, from: DMARC_FROM })],
     ["no report in the window", noReportsDmarc()],
     ["no report, with conflicting reports kept out", noReportsDmarc({ conflictingReports: 1 })],
-    ["no report and a stale read", noReportsDmarc({ ingestion: dmarcIngestion({ stale: true }) })],
+    ["no report and a stale read", noReportsDmarc({ ingestion: dmarcStaleIngestion() })],
     ...DMARC_LATEST_FAILURES.map((failure) => [`never read: ${failure}`, failedDmarc(failure)] as const),
     ["no run yet", unreadDmarc("NotObservable")],
     ["no password in this deployment", unreadDmarc("NotConfigured")],

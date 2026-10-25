@@ -871,7 +871,7 @@ const DMARC_SUBDOMAIN = "utskick.jobbliggaren.se";
 
 function dmarcIngestion(failure: DmarcLatestFailure | null, succeeded: string | null, stale = failure !== null): DmarcIngestion {
   const backsOff = failure === "AuthRefused" || failure === "AuthUnconfirmed";
-  return marked({ lastAttemptAt: DMARC_RUN, lastSuccessAt: succeeded, latestFailure: failure, signInResumesAt: backsOff ? DMARC_RESUMES : null, stale });
+  return marked({ lastAttemptAt: failure === null && succeeded !== null ? succeeded : DMARC_RUN, lastSuccessAt: succeeded, latestFailure: failure, signInResumesAt: backsOff ? DMARC_RESUMES : null, stale });
 }
 
 function dmarcRow(address: string, headerFrom: string, messages: number, dkimAligned: number, spfAligned: number, failingDmarc: number): DmarcSource {

@@ -8,6 +8,7 @@ import type { DmarcIngestion, DmarcLatestFailure, DmarcSource, EmailDmarcDto } f
 export const DMARC_TO = "2026-10-25T09:00:00.1234567+00:00";
 export const DMARC_FROM = "2026-10-18T09:00:00.1234567+00:00";
 export const DMARC_LAST_RUN = "2026-10-25T08:23:09.123456+00:00";
+export const DMARC_STALE_RUN = "2026-10-25T05:23:09.123456+00:00";
 
 /** The longest canonical form a documentation-range address has without a dotted tail: 38 characters. */
 export const LONG_IPV6 = "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff";
@@ -21,6 +22,10 @@ export function dmarcIngestion(overrides: Partial<DmarcIngestion> = {}): DmarcIn
     stale: false,
     ...overrides,
   };
+}
+
+export function dmarcStaleIngestion(): DmarcIngestion {
+  return dmarcIngestion({ lastAttemptAt: DMARC_STALE_RUN, lastSuccessAt: DMARC_STALE_RUN, stale: true });
 }
 
 /** A latest run that failed after an earlier success, or before any when `succeeded` is null. */

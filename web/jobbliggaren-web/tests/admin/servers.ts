@@ -322,7 +322,7 @@ function kindsAnswer(scenario: KindsScenario, period: EmailPeriod): unknown {
  * clock's instants with seven decimals and the database's with six. Addresses are from the documentation ranges only.
  * - `observed`: a failing IPv4 source, one passing on DKIM only under a subdomain, one on SPF only at IPv6 length.
  * - `capped`: 25 of 31 sources, every address at IPv6 length but one ISATAP form with its dotted tail, one domain near
- *   200 characters, a conflict and every mailbox count: the region at its largest, for the document budget.
+ *   200 characters, a conflict and every mailbox count.
  * - `sharedAddress`: one address under two domains. `noneFailing`: figures with no failing message.
  * - `dst`: a fixed read whose covered span crosses the change to winter time on 2026-10-25.
  * - `observedStale`, `noReports`, `noReportsConflicting`, `noReportsStale`, and the three states with no read.
@@ -357,8 +357,9 @@ function dmarcAnswer(scenario: DmarcScenario, failure: DmarcFailure | null): unk
   if (scenario === "misconfigured") return { status: "Misconfigured", ...none };
 
   const now = scenario === "dst" ? Date.parse("2026-10-26T09:00:00Z") : Date.now();
-  const attempt = now - 37 * 60_000;
-  const succeeded = scenario === "failed" ? null : failure === null ? (scenario.endsWith("Stale") ? now - 4 * 3_600_000 : attempt) : attempt - 2 * 3_600_000;
+  const lastRun = now - 37 * 60_000;
+  const succeeded = scenario === "failed" ? null : failure === null ? (scenario.endsWith("Stale") ? now - 4 * 3_600_000 : lastRun) : lastRun - 2 * 3_600_000;
+  const attempt = failure === null && succeeded !== null ? succeeded : lastRun;
   if (scenario === "failed" && failure === null) throw new Error("A failed read needs dmarcFailure.");
   if (failure === "Incomplete" && succeeded !== null) throw new Error("Incomplete comes only before any success.");
   const ingestion = {

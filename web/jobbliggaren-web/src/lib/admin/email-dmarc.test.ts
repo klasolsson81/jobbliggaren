@@ -4,8 +4,8 @@ import {
   LONG_IPV6,
   cappedDmarc,
   dmarcFailure,
-  dmarcIngestion,
   dmarcSource,
+  dmarcStaleIngestion,
   failedDmarc,
   noReportsDmarc,
   observedDmarc,
@@ -69,7 +69,7 @@ describe("dmarcView: states with no figure (#1981 PR 4b)", () => {
     }
   });
 
-  it("names the next sign-in exactly when the API gives one, never from the outcome", () => {
+  it("names the next sign-in exactly when the API gives one", () => {
     for (const failure of DMARC_LATEST_FAILURES) {
       const line = loaded(failedDmarc(failure)).lines[0];
       const expected = failure === "AuthRefused" || failure === "AuthUnconfirmed" ? "2026-10-26T08:23:09.123Z" : null;
@@ -94,8 +94,8 @@ describe("dmarcView: no report in the window", () => {
   });
 
   it("stale: the stale line alerts in place of the no-report line", () => {
-    const view = loaded(noReportsDmarc({ ingestion: dmarcIngestion({ stale: true }) }));
-    expect(view.lines).toEqual([{ kind: "stale", since: "2026-10-25T08:23:09.123Z", announce: "alert" }]);
+    const view = loaded(noReportsDmarc({ ingestion: dmarcStaleIngestion() }));
+    expect(view.lines).toEqual([{ kind: "stale", since: "2026-10-25T05:23:09.123Z", announce: "alert" }]);
     expect(view.announced).toEqual(view.lines[0]);
   });
 
@@ -121,7 +121,7 @@ describe("dmarcView: figures", () => {
   });
 
   it("stale without a failure: the stale line alerts, and the note drops its fetched sentence", () => {
-    const view = loaded(observedDmarc({ ingestion: dmarcIngestion({ stale: true }) }));
+    const view = loaded(observedDmarc({ ingestion: dmarcStaleIngestion() }));
     expect(kinds(view.lines)).toEqual(["stale"]);
     expect(view.note?.fetchedAt).toBeNull();
     expect(view.figures).not.toBeNull();

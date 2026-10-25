@@ -61,6 +61,12 @@ describe("the admin preview's fixtures (ADR 0150 D5)", () => {
     expect(ips.filter((value) => !DOCUMENTATION_IP.test(value))).toEqual([]);
   });
 
+  it("sees an address with a dotted IPv4 tail, and holds it to the documentation ranges", () => {
+    expect(allStrings.filter((value) => LOOKS_LIKE_IP.test(value))).toContain("2001:db8::5efe:192.0.2.1");
+    expect(LOOKS_LIKE_IP.test("::ffff:10.1.2.3")).toBe(true);
+    expect(DOCUMENTATION_IP.test("::ffff:10.1.2.3")).toBe(false);
+  });
+
   it("has no name field, because an account stores none (ADR 0150 D3)", () => {
     expect(keys(exported.map(([, value]) => value)).filter((key) => /name/i.test(key))).toEqual([]);
   });

@@ -652,6 +652,9 @@ const dmarc = (page: Page) => page.getByRole("region", { name: "DMARC-rapporter"
 const dmarcTable = (page: Page) => page.getByRole("table", { name: /^DMARC-resultat per IP-adress/ });
 const dmarcLines = (page: Page) => dmarc(page).locator(":scope > div > p.jp-adminsoon");
 const RUNBOOK = "Se runbooken för admin-e-post.";
+/** WCAG 1.4.12's spacing, as its bookmarklets apply it. */
+const TEXT_SPACING =
+  "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
 const MINUTE = String.raw`\d{4}-\d\d-\d\d \d\d:\d\d`;
 const DMARC_FIXED =
   "Rapporterna, som vi inte har kontrollerat, visar autentisering, inte om meddelandena hamnade i inkorgen eller bland skräpposten.";
@@ -787,9 +790,10 @@ test.describe("DMARC-rapporter (#1981 PR 4b)", () => {
     await expect(dmarcTable(page)).toHaveAccessibleName("DMARC-resultat per IP-adress för tiden 2026-10-24 02:00 till 2026-10-26 01:00");
   });
 
-  test("keeps a long IPv6 address whole, wrapped at its colons, in a frozen column of at most half the region at 375 px", async ({ page }) => {
+  for (const spaced of [false, true]) test(`keeps a long IPv6 address whole, wrapped at its colons, in a frozen column of at most half the region at 375 px${spaced ? " with 1.4.12 spacing" : ""}`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto(PAGE);
+    if (spaced) await page.addStyleTag({ content: TEXT_SPACING });
     const region = page.getByRole("region", { name: /^DMARC-resultat per IP-adress för tiden/ });
     await region.scrollIntoViewIfNeeded();
     for (const theme of ["light", "dark"] as const) {
@@ -823,7 +827,7 @@ test.describe("DMARC-rapporter (#1981 PR 4b)", () => {
       const directory = screenshotDirectory();
       if (directory !== null) {
         mkdirSync(directory, { recursive: true });
-        await region.screenshot({ path: join(directory, `epost-dmarc-sticky-${theme}-375.png`), animations: "disabled" });
+        await region.screenshot({ path: join(directory, `epost-dmarc-sticky-${theme}${spaced ? "-spaced" : ""}-375.png`), animations: "disabled" });
       }
     }
   });

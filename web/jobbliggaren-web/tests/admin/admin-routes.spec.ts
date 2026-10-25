@@ -720,6 +720,19 @@ for (const width of [320, 375]) {
   }
 
   for (const spaced of [false, true]) {
+    test(`the DMARC table's state line sits inside its scroll region at ${width}px${spaced ? " with 1.4.12 spacing" : ""} (#1981 PR 4b)`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      for (const scenario of ["notConfigured", "noReports"] as const) {
+        harness.emailDmarc = scenario;
+        await page.goto("/admin/e-post");
+        if (spaced) await page.addStyleTag({ content: TEXT_SPACING });
+        await expect(page.locator("td.jp-admintable__soon")).toHaveCount(1);
+        expectInside(await regionLineParts(page), `the DMARC ${scenario} line at ${width}px`);
+      }
+    });
+  }
+
+  for (const spaced of [false, true]) {
     test(`Användare's region lines and their actions sit inside the scroll region at ${width}px${spaced ? " with 1.4.12 spacing" : ""}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       for (const line of ACCOUNT_LINES) {

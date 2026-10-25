@@ -15,10 +15,17 @@ export type DmarcLine =
   | { readonly kind: "misconfigured"; readonly announce: "alert" }
   | {
       readonly kind: "failure";
-      readonly failure: DmarcLatestFailure;
-      /** When the unfinished first run began; only for `Incomplete`. */
-      readonly startedAt: string | null;
+      readonly failure: Exclude<DmarcLatestFailure, "Incomplete">;
+      readonly startedAt: null;
       /** The earliest next sign-in, exactly as the API gives it. */
+      readonly resumesAt: string | null;
+      readonly announce: "alert";
+    }
+  | {
+      readonly kind: "failure";
+      readonly failure: "Incomplete";
+      /** When the unfinished first run began. */
+      readonly startedAt: string;
       readonly resumesAt: string | null;
       readonly announce: "alert";
     }
@@ -131,13 +138,10 @@ function quiet(line: DmarcLine): DmarcView {
 /** The read's own cause: the latest run's failure first, then a success older than the backend's threshold. */
 function causeOf(ingestion: Extract<EmailDmarcDto, { status: "Failed" }>["ingestion"]): DmarcLine | null {
   if (ingestion.latestFailure !== null) {
-    return {
-      kind: "failure",
-      failure: ingestion.latestFailure,
-      startedAt: ingestion.latestFailure === "Incomplete" ? instant(ingestion.lastAttemptAt) : null,
-      resumesAt: ingestion.signInResumesAt === null ? null : instant(ingestion.signInResumesAt),
-      announce: "alert",
-    };
+    const resumesAt = ingestion.signInResumesAt === null ? null : instant(ingestion.signInResumesAt);
+    return ingestion.latestFailure === "Incomplete"
+      ? { kind: "failure", failure: "Incomplete", startedAt: instant(ingestion.lastAttemptAt), resumesAt, announce: "alert" }
+      : { kind: "failure", failure: ingestion.latestFailure, startedAt: null, resumesAt, announce: "alert" };
   }
   if (ingestion.stale && ingestion.lastSuccessAt !== null) {
     return { kind: "stale", since: instant(ingestion.lastSuccessAt), announce: "alert" };

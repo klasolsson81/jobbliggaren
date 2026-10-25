@@ -10,13 +10,14 @@ import {
   LONG_IPV6,
   cappedDmarc,
   dmarcFailure,
-  dmarcIngestion,
   dmarcSource,
+  dmarcStaleIngestion,
   failedDmarc,
   noReportsDmarc,
   observedDmarc,
   unreadDmarc,
 } from "@/test/fixtures/admin-email-dmarc";
+import enAdmin from "../../../messages/en/admin.json";
 import { AdminEmailDmarc } from "./admin-email-dmarc";
 
 /** What a screen reader reads for an unknown value: the dash is hidden from it, and its words are not. */
@@ -178,8 +179,8 @@ describe("AdminEmailDmarc: every state without figures is one line, never a zero
   });
 
   it("no report while stale: the stale line, announced, in place of the no-report line", () => {
-    const section = loaded(noReportsDmarc({ ingestion: dmarcIngestion({ stale: true }) }));
-    const stale = `Brevlådan har inte lästs sedan 2026-10-25 09:23. ${RUNBOOK}`;
+    const section = loaded(noReportsDmarc({ ingestion: dmarcStaleIngestion() }));
+    const stale = `Brevlådan har inte lästs sedan 2026-10-25 06:23. ${RUNBOOK}`;
     expect(lines(section)).toEqual([stale]);
     expect(announcements(section)).toEqual([`DMARC-rapporter: ${stale}`]);
   });
@@ -194,8 +195,8 @@ describe("AdminEmailDmarc: the read's cause and the mailbox's counts with figure
   });
 
   it("says when a stale read was last fetched in its line, and not again in the note", () => {
-    const section = loaded(observedDmarc({ ingestion: dmarcIngestion({ stale: true }) }));
-    expect(lines(section)).toEqual([`Brevlådan har inte lästs sedan 2026-10-25 09:23. ${RUNBOOK}`]);
+    const section = loaded(observedDmarc({ ingestion: dmarcStaleIngestion() }));
+    expect(lines(section)).toEqual([`Brevlådan har inte lästs sedan 2026-10-25 06:23. ${RUNBOOK}`]);
     expect(section.querySelector(".jp-adminmailsum__note")).not.toHaveTextContent("Hämtat");
     expect(section.querySelector(".jp-adminmailsum__note")).toHaveTextContent(FIXED);
   });
@@ -265,6 +266,12 @@ describe("AdminEmailDmarc: what the section never says or carries", () => {
     const copy = [...section.querySelectorAll("h2, p, caption, dt, thead th")].map((node) => node.textContent).join(" ");
     expect(copy).not.toMatch(/scaleway|jobbliggaren|strato|smtp|@|%/i);
     expect(copy).not.toMatch(/Skickade|Överlämnade/);
+  });
+
+  it("says in English too that the reports are not checked by us", () => {
+    expect(enAdmin.email.dmarc.fixed).toBe(
+      "The reports, which we have not checked, show authentication, not whether the messages reached the inbox or the spam folder.",
+    );
   });
 
   it("is a server component that never sets inner HTML", () => {

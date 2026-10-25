@@ -6,8 +6,8 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 
 /**
  * The page while its reads are pending: the same page, with the allowance, the summary, the failures, the count per
- * mail kind and the DMARC reports loading. No period is marked: this state cannot read the URL, and a deep link to `?period=h24` must not
- * show 7 dygn as chosen.
+ * mail kind and the DMARC reports loading. No period is marked: this state cannot read the URL, and a deep link to
+ * `?period=h24` must not show 7 dygn as chosen.
  */
 export default function AdminEmailLoading() {
   const t = useTranslations("admin");

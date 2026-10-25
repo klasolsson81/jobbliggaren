@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import {
   AD,
+  APPLICATION_PAGE,
   ID,
   catalogue,
   catalogueRow,
@@ -231,6 +232,40 @@ try {
     assert.ok(inHead(res.body, /<title>/), "the page's metadata sits in the head, so the head is where to look");
     const head = res.body.slice(0, res.body.indexOf("</head>"));
     assert.ok(!head.includes(AD.occupationGroupName), "the group is not in the title, a description or an OpenGraph tag");
+  });
+
+  // #2214 PR 1b, ADR 0166 D10 trigger 18: the application page is the head's one link to it and nowhere else. Next writes
+  // the anchor once more into the RSC payload; that is the same anchor, so the count is of <a> tags.
+  await check("an ad with the employer's application page ends the head with Ansök, its one primary, and carries the page nowhere else", async () => {
+    const res = await get(origin, `/jobb/${ID.listedApply}`);
+    assert.equal(res.status, 200);
+    const anchors = [...res.body.matchAll(/<a\s[^>]*>/g)].map(([tag]) => tag);
+    const apply = anchors.filter((tag) => tag.includes(`href="${APPLICATION_PAGE}"`));
+    assert.equal(apply.length, 1, "one anchor to the application page");
+    assert.match(apply[0], /class="jp-btn jp-btn--primary"/);
+    assert.match(apply[0], /target="_blank"/);
+    assert.deepEqual(/rel="([^"]*)"/.exec(apply[0])?.[1].split(" ").sort(), ["nofollow", "noopener", "noreferrer"]);
+    assert.equal(anchors.filter((tag) => /class="[^"]*jp-btn--primary/.test(tag)).length, 1, "one primary action");
+    assert.ok(res.body.includes(`href="${AD.url}"`), "the ad's own page is still linked, as the text link");
+    assert.ok(!res.body.includes("Sök jobbet"), "no apply heading: Ansök says it");
+    const head = res.body.slice(0, res.body.indexOf("</head>"));
+    assert.ok(!head.includes("jobb.example.se"), "not in the title, a description, an OpenGraph or a Twitter tag");
+    const blocks = jsonLdBlocks(res.body);
+    assert.equal(blocks.length, 1, "one JobPosting");
+    for (const block of blocks) assert.ok(!block.includes("jobb.example.se"), "not in the JobPosting");
+    const share = anchors.filter((tag) => /facebook\.com|linkedin\.com|wa\.me|mailto:/.test(tag));
+    assert.equal(share.length, 4, "the share row's four links");
+    for (const tag of share) assert.ok(!tag.includes("jobb.example.se"), "not in a share link");
+  });
+
+  await check("a listed ad without an application page keeps the apply heading and the link out as its one primary", async () => {
+    const res = await get(origin, `/jobb/${ID.listed}`);
+    const anchors = [...res.body.matchAll(/<a\s[^>]*>/g)].map(([tag]) => tag);
+    const primary = anchors.filter((tag) => /class="[^"]*jp-btn--primary/.test(tag));
+    assert.equal(primary.length, 1, "one primary action");
+    assert.ok(primary[0].includes(`href="${AD.url}"`), "the primary is the link out");
+    assert.ok(res.body.includes("Sök jobbet"), "the apply heading");
+    assert.ok(!res.body.includes(APPLICATION_PAGE), "no application page");
   });
 
   await check("a listed ad without a resolved kommun has no JobPosting and stays indexable", async () => {

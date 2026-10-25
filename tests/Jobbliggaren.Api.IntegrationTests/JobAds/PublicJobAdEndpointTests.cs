@@ -26,7 +26,7 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
 
     private static readonly string[] WireMembers =
     [
-        "companyName", "description", "employmentTypeConceptId", "expiresAt", "id",
+        "applicationUrl", "companyName", "description", "employmentTypeConceptId", "expiresAt", "id",
         "municipalityConceptId", "municipalityName", "occupationGroupConceptId", "occupationGroupName",
         "publishedAt", "regionConceptId", "regionName", "title", "url", "worktimeExtentConceptId",
     ];
@@ -37,7 +37,8 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
 
     private async Task<Guid> ImportAsync(
         int publishedDaysAgo, int? expiresInDays, Func<JobAd, IDateTimeProvider, Result>? then = null,
-        string municipality = "mun_public", string region = "reg_public", string occupationGroup = "grp_public")
+        string municipality = "mun_public", string region = "reg_public", string occupationGroup = "grp_public",
+        string? applicationUrl = null)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -59,7 +60,8 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
             publishedAt: clock.UtcNow.AddDays(-publishedDaysAgo),
             expiresAt: expiresInDays is { } days ? clock.UtcNow.AddDays(days) : null,
             clock: clock,
-            applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
+            applicationUrl: applicationUrl is null ? null : ApplicationUrl.FromSource(applicationUrl).ShouldNotBeNull(),
+            extractTerms: TestKeywordExtraction.None).Value;
 
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(Ct);
@@ -113,6 +115,8 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
         body.GetProperty("municipalityConceptId").GetString().ShouldBe("mun_public");
         body.GetProperty("employmentTypeConceptId").GetString().ShouldBe("et_public");
         // Ids the snapshot does not know: the name members are present and null, never dropped (ADR 0171).
+        // The same holds for an ad with no application page (#2214 PR 1b).
+        body.GetProperty("applicationUrl").ValueKind.ShouldBe(JsonValueKind.Null);
         body.GetProperty("municipalityName").ValueKind.ShouldBe(JsonValueKind.Null);
         body.GetProperty("regionName").ValueKind.ShouldBe(JsonValueKind.Null);
         body.GetProperty("occupationGroupName").ValueKind.ShouldBe(JsonValueKind.Null);
@@ -134,6 +138,42 @@ public sealed class PublicJobAdEndpointTests(ApiFactory factory)
         body.GetProperty("regionName").GetString().ShouldBe("Stockholms län");
         body.GetProperty("occupationGroupName").GetString().ShouldBe("Mjukvaru- och systemutvecklare m.fl.");
         body.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ToArray().ShouldBe(WireMembers);
+    }
+
+    [Fact]
+    public async Task A_listed_ad_carries_the_employer_application_page_the_public_gate_admits()
+    {
+        const string employerPage = "https://career.example.se/jobs/4567890-integration-developer";
+        var id = await ImportAsync(publishedDaysAgo: 1, expiresInDays: 30, applicationUrl: employerPage);
+
+        var response = await GetAsync(id);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        body.GetProperty("applicationUrl").GetString().ShouldBe(employerPage);
+        body.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ToArray().ShouldBe(WireMembers);
+    }
+
+    [Fact]
+    public async Task A_contact_channel_is_null_on_the_public_wire_and_still_on_the_signed_in_detail()
+    {
+        const string phoneShaped = "https://career.example.se/ansok?tel=0701234567";
+        var id = await ImportAsync(publishedDaysAgo: 1, expiresInDays: 30, applicationUrl: phoneShaped);
+
+        var publicResponse = await GetAsync(id);
+
+        publicResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var publicBody = await publicResponse.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        publicBody.GetProperty("applicationUrl").ValueKind.ShouldBe(JsonValueKind.Null,
+            "the key is present and null, never dropped, and the link never reaches the anonymous read.");
+        (await publicResponse.Content.ReadAsStringAsync(Ct)).ShouldNotContain("0701234567");
+
+        using var signedIn = factory.CreateClient();
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: Ct);
+        signedIn.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+        var detail = await signedIn.GetFromJsonAsync<JsonElement>($"/api/v1/job-ads/{id}", Ct);
+        detail.GetProperty("applicationUrl").GetString().ShouldBe(phoneShaped,
+            "the signed-in detail shows the contact block (ADR 0106), and the gate is the public read's alone.");
     }
 
     [Fact]

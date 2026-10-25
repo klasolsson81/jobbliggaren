@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adSourceLink } from "./ad-source-link";
+import { adSourceLink, applicationLinkHref } from "./ad-source-link";
 
 describe("adSourceLink", () => {
   it.each([
@@ -31,4 +31,21 @@ describe("adSourceLink", () => {
   it("returns the normalised href, which is what reaches the page", () => {
     expect(adSourceLink("https://example.com")?.href).toBe("https://example.com/");
   });
+});
+
+describe("applicationLinkHref", () => {
+  it.each([
+    ["https://jobb.example.se/ansok/1", "https://jobb.example.se/ansok/1"],
+    ["HTTP://JOBB.EXAMPLE.SE/Ansok", "http://jobb.example.se/Ansok"],
+    ["https://example.com", "https://example.com/"],
+  ])("gives %s its normalised href", (url, href) => {
+    expect(applicationLinkHref(url)).toBe(href);
+  });
+
+  it.each([null, undefined, "", "javascript:alert(1)", "data:text/html,x", "ftp://jobb.example.se/x", "mailto:a@example.test", "//example.com", "not a url"])(
+    "gives %s no link at all",
+    (url) => {
+      expect(applicationLinkHref(url)).toBeNull();
+    }
+  );
 });

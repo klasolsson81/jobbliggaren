@@ -573,3 +573,41 @@ per-ad image. ADR 0165's amendment of the same date records the image. #2214 has
 
 **What comes back** (replacing the line "Icons or brand marks"): a brand mark on the row comes back only when an owner's published rules admit sharing,
 or with the owner's written permission. The pages change, so they are read again before the mark is proposed.
+
+---
+
+## Amendment 2026-10-25 — PR 1b: "Ansök" on the public page, behind the contact-channel gate
+
+PR 1b of #2214 delivers the head D1 ruled in advance ("PR 1b changes this head"). It closes #2214. PR [#2239](https://github.com/klasolsson81/jobbliggaren/pull/2239).
+
+**Measured against** the branch `feat/share-ansok` in `C:/tmp/jbl-share-ansok`, cut from `origin/main` `9b8260fb2` (which contains PR 1, PR 3 and #2232), on 2026-10-25.
+
+**Klas's answers.** The trigger-1 re-take for the application link "Ja, med grinden (Rek.)" and no fifth DPIA §8-B addendum "Ja, inget tillägg (Rek.)" (2026-10-24, Context). On 2026-10-25, by AskUserQuestion, whether "Ansök" needs a key of its own in `publicjob.json`: "Ingen nyckel (Rek.)".
+
+**Plan reads before code** (report-only, local `docs/reviews/2026-10-25-share-ansok-plan-*.md`):
+- `design-reviewer`: Approved 0/0/0. D1's 1b head confirmed against the head after #2232. The wrapper, the accessible name, the order and the render matrix are settled below.
+- `dotnet-architect`: 0 Kritiskt, 5 Viktigt, 4 Nice-to-have, then a follow-up on `security-auditor`'s M-1 and Minors 2–3. The gate is an internal static rule in Application. The personnummer test moves into `ApplicationUrl.FromSource` over the address's three readings. The stored value is returned, never `AbsoluteUri`.
+- `security-auditor`: the plan approved on conditions. B-1 closes with Tier A in three readings (K1) and LinkedIn admitted only on its job and company paths (K2), plus her M-1, M-2 and C-11–C-20. The legal outcome, the triggers and the signatures are ADR 0166's amendment of the same date, which is their single home.
+
+**D1, as delivered.**
+- **The arm is chosen by one value.** `applicationLinkHref(jobAd.applicationUrl)` is the application page after `new URL()` and an http(s) check, the same check `adSourceLink` gives the link out. When it is null (no link, a link the gate held back, or one that is not http(s)), the head is PR 1's, unchanged.
+- **With it, the head** is h1, company, dates, facts, then `JobAdSourceLink` (the signed-in card's own element, `jobads.ui.detail.sourceAdPlatsbanken` or `sourceAd`), and last "Ansök" in a `div.mt-4`:
+  - the signed-in Ansök's inner form, `jp-btn jp-btn--primary`, `ExternalLink` at 14 px and `jobads.ui.detail.apply`;
+  - `target="_blank" rel="nofollow noopener noreferrer"`. `noreferrer` is what ADR 0166 trigger 18 requires;
+  - its name is "Ansök", with no visually hidden "(öppnas i ny flik)": the same function and name as on the signed-in page (WCAG 3.2.4);
+  - "Sök jobbet" is not rendered.
+- **One `--primary` in either arm.** The test counts it in both.
+- **No i18n key, no CSS.** The keys are the signed-in page's, read on the server, so the `(public-job)` client payload is unchanged (ADR 0045 Beslut 6). The ≤560 px head rule makes "Ansök" full width at 44 px.
+
+**D7's condition on the links out, as amended.** The test now reads them as exactly the ad's `url`, the admitted application page, and one per share target from the builder. The application page is in no share link and not in the share payload.
+
+**This amendment's place in the legal reading.** ADR 0166's amendment for 1b is the single home. The amendment of 2026-10-25 above says that `security-auditor`'s signatures for S4, S5, S6b and the Search Console path stand. That sentence is read with ADR 0166's amendment for 1b, under which those signatures lapse with trigger 1 and are renewed at 1b's final head.
+
+**Verification, rendered** (2026-10-25; Playwright against `next dev` and the stub's `ID.listedApply`; light theme, plus one render with `data-theme="dark"` forced). Both heads were rendered at 375 and 1280 px.
+- axe (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`) reported 0 violations, and no page error occurred.
+- At 375 px "Ansök" is 44 px high and as wide as the head's content, and the text link is 44 px high.
+- Tab order: the text link, then "Ansök", then the notice link. Focus on "Ansök" is `:focus-visible` with its outline.
+- The render tool never clicked a link out.
+- The evidence is local: `C:/tmp/jobbliggaren-visual/2214-pr1b/`.
+
+**This PR adds** one DTO member, the gate and its tests, the decoded readings in `ApplicationUrl.FromSource`, the head's second arm, a stub id and its smoke checks. It adds no migration, no package, no CSS, no i18n key and no `deploy/` change.

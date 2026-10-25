@@ -42,6 +42,7 @@ const AD = {
 };
 
 const params = (id = ID) => ({ params: Promise.resolve({ id }) });
+const APPLICATION_PAGE = "https://jobb.example.se/ansok/1";
 
 const RELATED_SENTINEL = "Relaterad Sentinelsson Enskild Firma";
 const RELATED_ROW = {
@@ -76,6 +77,14 @@ describe("the public job page", () => {
     const heading = screen.getByRole("heading", { level: 2, name: "Relaterade sidor" });
     expect(heading.closest("article")).toBeNull();
     expect(heading.closest("main")).not.toBeNull();
+  });
+
+  it("keeps one primary action when the ad carries the employer's application page, which is then Ansök (#2214 PR 1b)", async () => {
+    getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: { ...AD, applicationUrl: APPLICATION_PAGE } });
+    const { container } = render(await PublicJobPage(params()));
+
+    expect(container.querySelectorAll(".jp-btn--primary")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Ansök" })).toHaveAttribute("href", APPLICATION_PAGE);
   });
 
   it("answers a 404 or 410 read (the ad ended after the edge's probe) with notFound(), a real 404", async () => {
@@ -207,6 +216,13 @@ describe("the public job page's metadata", () => {
 
     expect(JSON.stringify(metadata)).not.toContain(SENTINEL_NAME);
     expect(JSON.stringify(metadata)).not.toContain("Vi söker dig");
+  });
+
+  it("never carries the application page: it is the page's own link only, in no title, description, OpenGraph or Twitter tag (#2214 PR 1b)", async () => {
+    getPublicJobAd.mockResolvedValue({ kind: "ok", jobAd: { ...AD, applicationUrl: APPLICATION_PAGE } });
+    const metadata = await generateMetadata(params());
+
+    expect(JSON.stringify(metadata)).not.toContain("jobb.example.se");
   });
 
   it("never names the occupation group: it is in the facts row only, in no title, description or OpenGraph tag (#2203)", async () => {

@@ -17,13 +17,14 @@ const WIRE = {
   occupationGroupName: "Gruppen",
   employmentTypeConceptId: "e1",
   worktimeExtentConceptId: "w1",
+  applicationUrl: "https://jobb.example.se/ansok/1",
 };
 
 describe("publicJobAdDtoSchema", () => {
-  it("reads the twelve members the page uses and strips the rest of the wire (the three unread concept ids among them)", () => {
+  it("reads the thirteen members the page uses and strips the rest of the wire (the three unread concept ids among them)", () => {
     const parsed = publicJobAdDtoSchema.parse(WIRE);
 
-    expect(Object.keys(WIRE)).toHaveLength(15);
+    expect(Object.keys(WIRE)).toHaveLength(16);
     expect(Object.keys(parsed).sort()).toEqual(
       [
         "companyName",
@@ -33,6 +34,7 @@ describe("publicJobAdDtoSchema", () => {
         "publishedAt",
         "title",
         "url",
+        "applicationUrl",
         "municipalityName",
         "regionName",
         "occupationGroupName",
@@ -92,6 +94,20 @@ describe("publicJobAdDtoSchema", () => {
     "refuses the url %s, which would end up in an href",
     (url) => {
       expect(publicJobAdDtoSchema.safeParse({ ...WIRE, url }).success).toBe(false);
+    }
+  );
+
+  it("reads the application link as the wire sends it, a null as null, and a wire without it as undefined", () => {
+    expect(publicJobAdDtoSchema.parse(WIRE).applicationUrl).toBe("https://jobb.example.se/ansok/1");
+    expect(publicJobAdDtoSchema.parse({ ...WIRE, applicationUrl: null }).applicationUrl).toBeNull();
+    const { applicationUrl: _omitted, ...withoutApplicationUrl } = WIRE;
+    expect(publicJobAdDtoSchema.parse(withoutApplicationUrl).applicationUrl).toBeUndefined();
+  });
+
+  it.each(["", "javascript:alert(1)", "data:text/html,x", "//evil.test", "ftp://x.test", "mailto:a@example.test"])(
+    "refuses the application link %s, which would end up in an href",
+    (applicationUrl) => {
+      expect(publicJobAdDtoSchema.safeParse({ ...WIRE, applicationUrl }).success).toBe(false);
     }
   );
 

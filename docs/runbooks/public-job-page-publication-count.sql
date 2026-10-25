@@ -1,6 +1,10 @@
--- S2-P3 (#2090, ADR 0160 D9.1): personnummer-shaped tokens in the title, the description, the company name and the
--- link of LISTED job ads: the four values the public page prints. Prints counts only: no id, no text, no token.
--- Run read-only.
+-- S2-P3 (#2090, ADR 0160 D9.1): personnummer-shaped tokens in the title, the description, the company name, the
+-- link and the application link of LISTED job ads: the five values the public page prints (the application link since
+-- #2214 PR 1b). Prints counts only: no id, no text, no token. Run read-only.
+--
+-- The application link is counted for EVERY listed ad, not only the links the public gate admits: a 0 over the
+-- superset is a 0 over the subset, and a gate in SQL would be a second copy of it (ADR 0166 D10 trigger 19). It is
+-- counted twice, as stored and percent-decoded: a token behind %2D or %20 is a token to whoever reads the href.
 --
 -- A listed ad is the publication predicate's (JobAdPublication.Classify): imported from the published source,
 -- Active, and not past its deadline (ExpiresAt >= now).
@@ -18,7 +22,7 @@
 SET statement_timeout = '180s';
 
 WITH listed AS (
-    SELECT id, title, description, company_name, url
+    SELECT id, title, description, company_name, url, coalesce(application_url, '') AS application_url
     FROM job_ads
     WHERE status = 'Active'
       AND external_source = 'Platsbanken'
@@ -32,6 +36,17 @@ fields AS (
     SELECT id, 'company_name', translate(company_name, '０１２３４５６７８９', '0123456789') FROM listed
     UNION ALL
     SELECT id, 'url', translate(url, '０１２３４５６７８９', '0123456789') FROM listed
+    UNION ALL
+    SELECT id, 'application_url', translate(application_url, '０１２３４５６７８９', '0123456789') FROM listed
+    UNION ALL
+    -- The escapes a token's digits and separators can hide behind, upper or lower case: NBSP first (two bytes), then
+    -- space, tab, '-', '+', '.', '/', '_'.
+    SELECT id, 'application_url_decoded', translate(
+        regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(
+        regexp_replace(application_url, '%C2%A0', chr(160), 'gi'),
+        '%20', ' ', 'g'), '%09', chr(9), 'g'), '%2D', '-', 'gi'), '%2B', '+', 'gi'), '%2E', '.', 'gi'), '%2F', '/', 'gi'),
+        '%5F', '_', 'gi'),
+        '０１２３４５６７８９', '0123456789') FROM listed
 ),
 -- Each shape is its own scan, so a match of one cannot hide a match of another.
 --   gap  = up to three of: space, tab, NBSP, the Unicode spaces U+2000-200A, U+202F, U+205F, U+3000, the zero-width

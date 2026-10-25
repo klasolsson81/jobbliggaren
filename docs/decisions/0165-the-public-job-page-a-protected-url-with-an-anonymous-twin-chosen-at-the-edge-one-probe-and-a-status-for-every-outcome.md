@@ -388,3 +388,13 @@ D1–D7 and the earlier amendments stand and nothing above is rewritten. This am
 **3. D4's metadata rule is unchanged.** Title, description, OpenGraph and now the Twitter card are built from structured fields only.
 
 ADR 0165 remains **Accepted**.
+
+## Amendment 2026-10-25 (#2214 PR 1b, ADR 0183) — D4: with the employer's application page, the head ends with "Ansök" and the link out becomes a text link
+
+D1–D7 and the earlier amendments stand and nothing above is rewritten. This amendment records what PR [#2239](https://github.com/klasolsson81/jobbliggaren/pull/2239) changes in D4; the reasoning is in ADR 0183's amendment of the same date, and the legal outcome in ADR 0166's.
+
+**1. Two heads.** When the public read carries the employer's application page (ADR 0160, as amended the same date), the head ends with "Ansök" as the page's one `--primary`, in a new tab with `rel="nofollow noopener noreferrer"`. The ad's own page is then a text link on its own line under the facts row: "Visa annonsen på Platsbanken" for an `arbetsformedlingen.se` host or subdomain, "Visa originalannonsen" otherwise. There is no "Sök jobbet" heading. Without the application page, or with one that is not `http` or `https`, the head is the amendment of 2026-10-24's: the link out once, as the one primary, under "Sök jobbet".
+
+**2. Not changed.** D4's metadata rule: the application page is in no title, description, OpenGraph or Twitter tag and in no JSON-LD. The link out's target and its label rule. The footer's invitation, the share row and the notice row. D3, because the read is the same request with one more member, and D6.
+
+ADR 0165 remains **Accepted**.

@@ -5,7 +5,7 @@ import { JobbHeroFilters } from "./jobb-hero-filters";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import type { OccupationSearchResolver } from "@/lib/occupation-search/resolve-occupation-search";
 import { buildJobbHref } from "@/lib/job-ads/search-params";
-import { EL_GROUP, IT_GROUP, USK_VARD_GROUP, ruleAnswer } from "@/test/fixtures/occupation-search";
+import { EL_GROUP, IT_GROUP, USK_VARD_GROUP, UX_GROUP, ruleAnswer } from "@/test/fixtures/occupation-search";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
 const pushMock = vi.fn<AppRouterInstance["push"]>();
@@ -107,10 +107,23 @@ function setup(q = "") {
 
 /** The href the host builds when only the occupation-group axis changes. */
 function hrefWithGroups(occupationGroup: string[], q = "") {
+  return hrefWith({ groups: occupationGroup, q });
+}
+
+/** The href the host builds when only the Yrke axes change. */
+function hrefWith({
+  groups = [],
+  names = [],
+  q = "",
+}: {
+  readonly groups?: string[];
+  readonly names?: string[];
+  readonly q?: string;
+}) {
   return buildJobbHref({
     q,
-    occupationGroup,
-    occupationName: [],
+    occupationGroup: groups,
+    occupationName: names,
     region: [],
     municipality: [],
     remote: false,
@@ -124,6 +137,20 @@ function hrefWithGroups(occupationGroup: string[], q = "") {
     employer: [],
     sortBy: "PublishedAtDesc",
   });
+}
+
+// #2199 — an occupation-name id, read from the rule's own v30 answers, never typed by hand.
+function variantId(nameLabel: string): string {
+  for (const result of Object.values(ruleAnswer)) {
+    for (const row of result.rows) {
+      const hit =
+        row.kind === "Word"
+          ? row.variants.find((v) => v.nameLabel === nameLabel)
+          : row.matchedNames.find((n) => n.nameLabel === nameLabel);
+      if (hit !== undefined) return hit.occupationNameConceptId;
+    }
+  }
+  throw new Error(`"${nameLabel}" is in no rule answer`);
 }
 
 const yrkePill = () => screen.getByRole("button", { name: /^Yrke/ });
@@ -173,7 +200,7 @@ describe("/jobb Yrke and Ort open (#2198 PR 2)", () => {
 });
 
 describe("/jobb Yrke: the typed word stays in the popover (#2198 PR 2, ADR 0180 D1)", () => {
-  it("a Group-row pick and a variant pick each push the href with only the group axis changed", async () => {
+  it("a Group-row pick pushes the group axis; a variant pick pushes its own occupation-name (#2199)", async () => {
     const user = userEvent.setup();
     const { navigate } = setup("backend");
     await openYrke(user);
@@ -190,12 +217,15 @@ describe("/jobb Yrke: the typed word stays in the popover (#2198 PR 2, ADR 0180 
     await user.click(await screen.findByRole("button", { name: "Undersköterska" }));
     await user.click(screen.getByRole("checkbox", { name: "Undersköterska, hemtjänst, äldreboende och habilitering" }));
     expect(pushMock).toHaveBeenCalledTimes(2);
-    expect(pushMock).toHaveBeenLastCalledWith(hrefWithGroups([IT_GROUP.id, USK_HEMTJANST_GROUP.id], "backend"), { scroll: false });
+    expect(pushMock).toHaveBeenLastCalledWith(
+      hrefWith({ groups: [IT_GROUP.id], names: [variantId("Undersköterska, hemtjänst, äldreboende och habilitering")], q: "backend" }),
+      { scroll: false },
+    );
   });
 
   it("no push, no other fetch, no URL, storage or cookie ever carries the word", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }));
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) => new Response(JSON.stringify({}), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     window.localStorage.clear();
     window.sessionStorage.clear();
@@ -398,12 +428,18 @@ describe("/jobb Yrke: what search mode shows (#2198 PR 2)", () => {
     expect(within(yrkeDialog()).getAllByRole("button", { name: "Rensa" }).length).toBeGreaterThan(0);
   });
 
-  it("counts Group rows from the popover's own facet counts, and never a Word row or a variant", async () => {
+  it("counts Group rows from the group facet and each variant from the occupation-name facet, never a Word row (#2199)", async () => {
     const user = userEvent.setup();
+    const vard = variantId("Undersköterska, vård- och specialavdelning och mottagning");
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
-        const body = String(input).includes("dimension=OccupationGroup") ? { [USK_VARD_GROUP.id]: 42 } : {};
+        const url = String(input);
+        const body = url.includes("dimension=OccupationGroup")
+          ? { [USK_VARD_GROUP.id]: 42 }
+          : url.includes("dimension=OccupationName")
+            ? { [vard]: 7 }
+            : {};
         return new Response(JSON.stringify(body), { status: 200 });
       }),
     );
@@ -414,7 +450,132 @@ describe("/jobb Yrke: what search mode shows (#2198 PR 2)", () => {
 
     expect(await screen.findByRole("checkbox", { name: `${USK_VARD_GROUP.label} (42)` })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Undersköterska" }));
-    expect(screen.getAllByText("(42)")).toHaveLength(1);
-    expect(screen.getByRole("checkbox", { name: "Undersköterska, vård- och specialavdelning och mottagning" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("checkbox", { name: /^Undersköterska, vård- och specialavdelning och mottagning\s?\(7\)$/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: /^Undersköterska, hemtjänst, äldreboende och habilitering\s?\(0\)$/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Undersköterska" })).not.toHaveTextContent(/\(\d+\)/);
+  });
+});
+
+describe("/jobb Yrke: an occupation-name tick (#2199)", () => {
+  const UX_DESIGNER = () => variantId("UX-designer");
+
+  it("a Group row's names open beside it, and a name pick pushes only the name, never commit", async () => {
+    const user = userEvent.setup();
+    resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.ux });
+    setup();
+    await openYrke(user);
+    await user.type(field(), "ux");
+
+    const opener = await screen.findByRole("button", { name: `1 yrke i ${UX_GROUP.label}` });
+    expect(opener).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("checkbox", { name: "UX-designer" }));
+
+    expect(pushMock).toHaveBeenCalledTimes(1);
+    expect(pushMock).toHaveBeenLastCalledWith(hrefWith({ names: [UX_DESIGNER()] }), { scroll: false });
+    expect(String(pushMock.mock.calls[0]?.[0])).not.toContain("commit");
+  });
+
+  it("a name whose group is selected is included and pushes nothing", async () => {
+    const user = userEvent.setup();
+    resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.ux });
+    render(hero("", [UX_GROUP.id]));
+    await openYrke(user);
+    await user.type(field(), "ux");
+
+    const included = await screen.findByRole("checkbox", { name: "UX-designer" });
+    expect(included).toHaveAttribute("aria-disabled", "true");
+    expect(included).toHaveAttribute("aria-checked", "true");
+    await user.click(included);
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("the pill counts groups and names; browsing says the names are among the filters, and Rensa clears both at once", async () => {
+    const user = userEvent.setup();
+    render(hero("", [IT_GROUP.id], [UX_DESIGNER()]));
+
+    expect(yrkePill()).toHaveTextContent("2");
+    await openYrke(user);
+    expect(within(yrkeDialog()).getByRole("status")).toHaveTextContent(
+      "1 valt yrke visas bland de aktiva filtren, inte här.",
+    );
+    await user.click(within(yrkeDialog()).getAllByRole("button", { name: "Rensa" })[0]!);
+
+    expect(pushMock).toHaveBeenCalledTimes(1);
+    expect(pushMock).toHaveBeenLastCalledWith("/jobb", { scroll: false });
+  });
+
+  it("shows Rensa for names alone, though no browse row is ticked", async () => {
+    const user = userEvent.setup();
+    render(hero("", [], [UX_DESIGNER()]));
+    await openYrke(user);
+
+    expect(within(yrkeDialog()).getAllByRole("button", { name: "Rensa" }).length).toBeGreaterThan(0);
+  });
+
+  it("requests the name counts only once an answer holds a name, and once per opening", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) => new Response(JSON.stringify({}), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const nameRequests = () =>
+      fetchMock.mock.calls.filter(([url]) => String(url).includes("dimension=OccupationName")).length;
+    setup();
+    await openYrke(user);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(nameRequests()).toBe(0);
+
+    resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.ux });
+    await user.type(field(), "ux");
+    await screen.findByRole("checkbox", { name: "UX-designer" });
+    await waitFor(() => expect(nameRequests()).toBe(1));
+
+    resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.it });
+    await user.clear(field());
+    await user.type(field(), "it");
+    await itRow();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(nameRequests()).toBe(1);
+  });
+
+  it("shows no number beside a name when the name counts fail", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input).includes("dimension=OccupationName")
+          ? new Response(JSON.stringify({}), { status: 502 })
+          : new Response(JSON.stringify({}), { status: 200 }),
+      ),
+    );
+    resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.ux });
+    setup();
+    await openYrke(user);
+    await user.type(field(), "ux");
+
+    expect(await screen.findByRole("checkbox", { name: "UX-designer" })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(screen.getByRole("checkbox", { name: "UX-designer" })).toBeInTheDocument();
+  });
+
+  it("the place counts are taken under the picked names", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) => new Response(JSON.stringify({}), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(hero("", [], [UX_DESIGNER()]));
+
+    await user.click(screen.getByRole("button", { name: /^Ort/ }));
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url]) =>
+            String(url).includes("dimension=Municipality") &&
+            new URL(String(url), "http://localhost").searchParams.getAll("occupationName").includes(UX_DESIGNER()),
+        ),
+      ).toBe(true),
+    );
   });
 });

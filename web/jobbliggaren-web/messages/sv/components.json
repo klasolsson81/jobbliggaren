@@ -35,6 +35,11 @@
     "groupEvidence": "träff på {names}",
     "groupEvidenceMore": "träff på {names} och {more} till",
     "wordGroups": "{count, plural, one {# yrkesgrupp} other {# yrkesgrupper}}",
-    "variantGroup": "Yrkesgrupp: {group}"
+    "variantGroup": "Yrkesgrupp: {group}",
+    "variantIncluded": "Ingår i vald yrkesgrupp: {group}",
+    "namesHeading": "Yrken",
+    "namesIdle": "Öppna en träff för att se dess yrken.",
+    "groupNames": "{count, plural, one {# yrke} other {# yrken}}",
+    "groupNamesLabel": "{count, plural, one {# yrke} other {# yrken}} i {group}"
   }
 }

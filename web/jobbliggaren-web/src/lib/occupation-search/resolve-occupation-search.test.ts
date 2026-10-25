@@ -7,7 +7,7 @@ const BODY = {
       kind: "Group",
       groupConceptId: "UxT1_tPF_Kbg",
       groupLabel: "Övriga IT-specialister",
-      matchedNames: ["UX-designer"],
+      matchedNames: [{ occupationNameConceptId: "iwJU_gW4_SxT", nameLabel: "UX-designer" }],
       labelHit: false,
       headWord: null,
       variants: [],

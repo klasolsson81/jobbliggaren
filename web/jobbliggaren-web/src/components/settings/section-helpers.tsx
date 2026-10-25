@@ -29,6 +29,10 @@ import type { Option } from "./match-preferences-shared";
  *
  * `count` (#2198 PR 2) is a facet count, "(n)", shown on the first line and part of the row's name in
  * both forms, as the /jobb popover's own rows show it. Without it the row renders exactly as before.
+ *
+ * `included` (#2199) marks a row that is already part of a wider choice: checked, `aria-disabled`,
+ * still focusable, and inert to click, Space and Enter. The type admits it only beside `secondary`,
+ * because the second line is where the row says why. Without it the row renders exactly as before.
  */
 export function CheckItem(props: CheckItemProps) {
   if (props.secondary !== undefined) {
@@ -60,21 +64,26 @@ export function CheckItem(props: CheckItemProps) {
   );
 }
 
-interface CheckItemProps {
+interface CheckItemBaseProps {
   readonly label: string;
   readonly checked: boolean;
   readonly onToggle: () => void;
   readonly isAll?: boolean;
   readonly indeterminate?: boolean;
   readonly describedBy?: string;
-  readonly secondary?: string;
   readonly count?: number;
 }
 
-function toggleOnSpaceOrEnter(e: KeyboardEvent<HTMLElement>, onToggle: () => void) {
+type CheckItemProps = CheckItemBaseProps &
+  (
+    | { readonly secondary?: undefined; readonly included?: never }
+    | { readonly secondary: string; readonly included?: boolean }
+  );
+
+function toggleOnSpaceOrEnter(e: KeyboardEvent<HTMLElement>, onToggle?: () => void) {
   if (e.key === " " || e.key === "Enter") {
     e.preventDefault();
-    onToggle();
+    onToggle?.();
   }
 }
 
@@ -99,24 +108,32 @@ function TwoLineCheckItem({
   describedBy,
   secondary,
   count,
-}: CheckItemProps & { readonly secondary: string }) {
+  included,
+}: CheckItemBaseProps & { readonly secondary: string; readonly included?: boolean }) {
   const id = useId();
   const nameId = `${id}-name`;
   const secondaryId = `${id}-secondary`;
   const countId = `${id}-count`;
+  const toggle = included ? undefined : onToggle;
+  const className = included
+    ? "jp-checkitem jp-checkitem--included"
+    : isAll
+      ? "jp-checkitem jp-checkitem--all"
+      : "jp-checkitem";
   return (
     <div
-      className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
+      className={className}
       role="checkbox"
-      aria-checked={indeterminate ? "mixed" : checked}
+      aria-checked={included ? true : indeterminate ? "mixed" : checked}
+      aria-disabled={included || undefined}
       aria-labelledby={count === undefined ? nameId : `${nameId} ${countId}`}
       aria-describedby={describedBy === undefined ? secondaryId : `${secondaryId} ${describedBy}`}
       tabIndex={0}
-      onClick={onToggle}
-      onKeyDown={(e) => toggleOnSpaceOrEnter(e, onToggle)}
+      onClick={toggle}
+      onKeyDown={(e) => toggleOnSpaceOrEnter(e, toggle)}
     >
       <span className="jp-checkitem__box">
-        {checked && <Check size={14} aria-hidden="true" />}
+        {(checked || included) && <Check size={14} aria-hidden="true" />}
       </span>
       <span className={count === undefined ? "flex min-w-0 flex-col" : "flex min-w-0 flex-1 flex-col"}>
         {count === undefined ? (

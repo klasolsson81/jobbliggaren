@@ -364,6 +364,9 @@
       "yrkeSelectAll": "Välj alla yrkesgrupper",
       "yrkeEmpty": "Yrkesområden kunde inte laddas just nu. Du kan söka på sökord ändå.",
       "yrkeRightEmpty": "Välj ett yrkesområde till vänster.",
+      "yrkeNameHint": "Kryssar du i ett yrke visas annonser där arbetsgivaren angett just det yrket. Sök på yrkesgruppen för fler.",
+      "yrkeGroupNameHint": "Kryssar du i ett yrke visas annonser där arbetsgivaren angett just det yrket.",
+      "yrkeNamesSelected": "{count, plural, one {# valt yrke visas bland de aktiva filtren, inte här.} other {# valda yrken visas bland de aktiva filtren, inte här.}}",
       "klass2Empty": "Filter kunde inte laddas just nu. Du kan söka på sökord ändå."
     },
     "typeahead": {

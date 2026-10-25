@@ -509,10 +509,71 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   outline: 2px solid var(--jp-focus);
   outline-offset: -2px;
 }
+/* #2199 — a yrke whose group is selected is included, not separately selected: a tonal box, so it
+   reads apart from the solid accent-800 checked box, no hover surface, the default cursor, and the
+   label never dimmed (DESIGN.md §4). The class doubles the specificity of the global checked and
+   hover rules so chunk order cannot decide. */
+.jp-checkitem.jp-checkitem--included[aria-checked="true"] .jp-checkitem__box {
+  background: var(--jp-accent-50);
+  border-color: var(--jp-accent-700);
+  color: var(--jp-accent-700);
+}
+.jp-checkitem.jp-checkitem--included,
+.jp-checkitem.jp-checkitem--included:hover {
+  background: transparent;
+  cursor: default;
+}
+/* #2199 — /jobb: a Group row whose hit names yrken is its checkbox and, beside it, a button that
+   opens those names in the right column. Two siblings, no control inside another; the divider marks
+   the two hit zones. Pressed, the button carries the Word row's leading bar, so its state never
+   rests on the fill alone (WCAG 1.4.1). */
+.jp-occsearch__grouprow {
+  display: flex;
+  align-items: stretch;
+}
+.jp-occsearch__grouprow > .jp-checkitem {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 8px;
+}
+.jp-occsearch__opener {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 0 10px;
+  white-space: nowrap;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--jp-border-soft);
+  cursor: pointer;
+}
+.jp-occsearch__opener:hover { background: var(--jp-surface-3); }
+.jp-occsearch__opener[aria-pressed="true"] {
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
+}
+.jp-occsearch__opener[aria-pressed="true"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  background: var(--jp-accent-700);
+}
+.jp-occsearch__opener[aria-pressed="true"] .jp-popover-row__chev {
+  color: var(--jp-accent-700);
+}
 /* The /jobb filter popovers' rows sit edge to edge in scrolling columns too, the browse rows and
    the composed search's alike, so they take the same inset ring (#2198 PR 2). */
 .jp-popover .jp-checkitem:focus-visible,
 .jp-popover .jp-popover-row:focus-visible,
+.jp-popover .jp-occsearch__opener:focus-visible,
 .jp-popover .jp-popover__grouphead:focus-visible {
   outline: 2px solid var(--jp-focus);
   outline-offset: -2px;
@@ -536,7 +597,8 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
     align-items: center;
     min-height: 44px;
   }
-  .jp-popover [data-slot="dialog-trigger"] {
+  .jp-popover [data-slot="dialog-trigger"],
+  .jp-popover .jp-occsearch__opener {
     min-height: 44px;
     min-width: 44px;
   }

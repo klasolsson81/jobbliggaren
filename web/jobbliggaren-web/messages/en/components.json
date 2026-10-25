@@ -35,6 +35,11 @@
     "groupEvidence": "matches {names}",
     "groupEvidenceMore": "matches {names} and {more} more",
     "wordGroups": "{count, plural, one {# occupational group} other {# occupational groups}}",
-    "variantGroup": "Occupational group: {group}"
+    "variantGroup": "Occupational group: {group}",
+    "variantIncluded": "Included in the selected occupational group: {group}",
+    "namesHeading": "Occupations",
+    "namesIdle": "Open a match to see its occupations.",
+    "groupNames": "{count, plural, one {# occupation} other {# occupations}}",
+    "groupNamesLabel": "{count, plural, one {# occupation} other {# occupations}} in {group}"
   }
 }

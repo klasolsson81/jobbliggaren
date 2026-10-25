@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { OccupationSearchResults, occupationSearchBox } from "./occupation-search-results";
+import {
+  OccupationSearchResults,
+  answerHoldsNames,
+  occupationSearchBox,
+  type OccupationNameSelection,
+} from "./occupation-search-results";
 import type { OccupationSearchResult } from "@/lib/dto/occupation-search";
 import {
   BYGG_GROUP,
@@ -13,6 +18,7 @@ import {
   answer,
   groupRow,
   projektledareRow,
+  nameId,
   ruleAnswer,
 } from "@/test/fixtures/occupation-search";
 
@@ -402,5 +408,155 @@ describe("OccupationSearchResults — facet counts (#2198 PR 2)", () => {
     );
 
     expect(container.querySelector(".jp-checkitem__count")).toBeNull();
+  });
+});
+
+// #2199 — the /jobb mapping. Every answer below is a fixture of real v30 ids; a name is ticked by
+// its own occupation-name id, and Matchning's default (no `nameSelection`) is pinned above.
+function renderNames(
+  result: OccupationSearchResult,
+  options: {
+    readonly groups?: ReadonlyArray<string>;
+    readonly names?: ReadonlyArray<string>;
+    readonly counts?: Readonly<Record<string, number>> | null;
+  } = {},
+) {
+  const onToggle = vi.fn<(id: string) => void>();
+  const onToggleName = vi.fn<(id: string) => void>();
+  const nameSelection: OccupationNameSelection = {
+    selected: options.names ?? [],
+    onToggle: onToggleName,
+    counts: options.counts ?? null,
+    wordHint: "WORD-HINT",
+    groupHint: "GROUP-HINT",
+  };
+  const view = render(
+    <OccupationSearchResults
+      result={result}
+      selected={options.groups ?? []}
+      onToggle={onToggle}
+      nameSelection={nameSelection}
+    />,
+  );
+  return { onToggle, onToggleName, ...view };
+}
+
+const UX_DESIGNER = nameId("UX-designer");
+const PROJEKTLEDARE_IT = nameId("Projektledare, IT");
+
+describe("OccupationSearchResults — occupation-names on /jobb (#2199)", () => {
+  it("gives a Group row whose hit names yrken a sibling opener, and two columns even with no Word row", () => {
+    renderNames(ruleAnswer.it);
+
+    const opener = within(hits()).getByRole("button", { name: `1 yrke i ${IT_GROUP.label}` });
+    expect(opener).toHaveTextContent("1 yrke");
+    const groupRowElement = opener.closest(".jp-occsearch__grouprow");
+    expect(groupRowElement).not.toBeNull();
+    expect(within(groupRowElement as HTMLElement).getAllByRole("checkbox")).toHaveLength(1);
+    const right = screen.getByRole("group", { name: "Yrken" });
+    expect(right).toHaveTextContent("Öppna en träff för att se dess yrken.");
+  });
+
+  it("opens a Group row's names by default when it is the only row, with the group named under the band", () => {
+    const { onToggle, onToggleName } = renderNames(ruleAnswer.ux);
+
+    const column = screen.getByRole("group", { name: UX_GROUP.label });
+    expect(column).toHaveAccessibleDescription("GROUP-HINT");
+    expect(within(column).getByText("Yrken")).toBeInTheDocument();
+    expect(within(column).getByRole("checkbox", { name: "UX-designer" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("button", { name: `1 yrke i ${UX_GROUP.label}` })).toHaveAttribute("aria-pressed", "true");
+    expect(onToggle).not.toHaveBeenCalled();
+    expect(onToggleName).not.toHaveBeenCalled();
+  });
+
+  it("ticks a name by its own id, never its group's", async () => {
+    const user = userEvent.setup();
+    const { onToggle, onToggleName } = renderNames(ruleAnswer.ux);
+
+    await user.click(screen.getByRole("checkbox", { name: "UX-designer" }));
+
+    expect(onToggleName).toHaveBeenCalledWith(UX_DESIGNER);
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  it("opening a Group row's names moves focus to the heading under the band", async () => {
+    const user = userEvent.setup();
+    renderNames(ruleAnswer.it);
+
+    const opener = screen.getByRole("button", { name: `1 yrke i ${IT_GROUP.label}` });
+    await user.click(opener);
+
+    expect(opener).toHaveAttribute("aria-pressed", "true");
+    const heading = screen.getByText(IT_GROUP.label, { selector: ".jp-popover__grouphead" });
+    expect(heading).toHaveFocus();
+    expect(screen.getByRole("group", { name: IT_GROUP.label })).toHaveAccessibleDescription("GROUP-HINT");
+  });
+
+  it("names an open Word row under the band, with the Word hint, its variants on one line", () => {
+    renderNames(answer([projektledareRow]));
+
+    const column = screen.getByRole("group", { name: "Projektledare" });
+    expect(column).toHaveAccessibleDescription("WORD-HINT");
+    const variant = within(column).getByRole("checkbox", { name: "Projektledare, IT" });
+    expect(variant).not.toHaveAccessibleDescription();
+  });
+
+  it("checks two variants of one group apart, by their own ids", () => {
+    renderNames(answer([projektledareRow]), { names: [nameId("Projektledare, el")] });
+
+    expect(screen.getByRole("checkbox", { name: "Projektledare, el" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("checkbox", { name: "Projektledare, telekom" })).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("shows a name whose group is selected as included: checked, aria-disabled, inert, the reason as its description", async () => {
+    const user = userEvent.setup();
+    const { onToggle, onToggleName } = renderNames(answer([projektledareRow]), { groups: [IT_GROUP.id] });
+
+    const included = screen.getByRole("checkbox", { name: "Projektledare, IT" });
+    expect(included).toHaveAttribute("aria-checked", "true");
+    expect(included).toHaveAttribute("aria-disabled", "true");
+    expect(included).toHaveAccessibleDescription(`Ingår i vald yrkesgrupp: ${IT_GROUP.label}`);
+    await user.click(included);
+    expect(onToggleName).not.toHaveBeenCalled();
+    expect(onToggle).not.toHaveBeenCalled();
+    expect(screen.getByRole("checkbox", { name: "Projektledare, el" })).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("shows each name's own count, (0) for a known zero, and none when the counts failed", () => {
+    const { unmount } = renderNames(answer([projektledareRow]), { counts: { [PROJEKTLEDARE_IT]: 136 } });
+    expect(screen.getByRole("checkbox", { name: /^Projektledare, IT\s?\(136\)$/ })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /^Projektledare, el\s?\(0\)$/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\(\d+\)/ })).toBeNull();
+    unmount();
+
+    renderNames(answer([projektledareRow]), { counts: null });
+    expect(screen.getByRole("checkbox", { name: "Projektledare, IT" })).toBeInTheDocument();
+  });
+
+  it("marks an opener with the dot only when one of its names is picked by its own id", () => {
+    const { container } = renderNames(answer([groupRow(UX_GROUP, ["UX-designer"]), projektledareRow]), {
+      names: [UX_DESIGNER],
+    });
+
+    const opener = screen.getByRole("button", { name: `1 yrke i ${UX_GROUP.label}` });
+    expect(opener.querySelector(".rounded-full")).not.toBeNull();
+    const word = screen.getByRole("button", { name: "Projektledare" });
+    expect(word.querySelector(".rounded-full")).toBeNull();
+    expect(container.querySelectorAll(".rounded-full")).toHaveLength(1);
+  });
+
+  it("keeps a label-only Group row a bare checkbox, and an answer with nothing to open one column", () => {
+    const { container } = renderNames(answer([groupRow(UX_GROUP, [], { labelHit: true })]));
+
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(container.querySelector(".jp-occsearch__box--single")).not.toBeNull();
+  });
+});
+
+describe("answerHoldsNames (#2199)", () => {
+  it("is true for a Word row or a Group row with names, false for label-only Group rows", () => {
+    expect(answerHoldsNames(ruleAnswer.ux)).toBe(true);
+    expect(answerHoldsNames(answer([projektledareRow]))).toBe(true);
+    expect(answerHoldsNames(answer([groupRow(UX_GROUP, [], { labelHit: true })]))).toBe(false);
   });
 });

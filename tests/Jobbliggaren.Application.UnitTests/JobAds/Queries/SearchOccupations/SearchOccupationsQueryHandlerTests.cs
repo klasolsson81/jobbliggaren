@@ -14,7 +14,12 @@ public class SearchOccupationsQueryHandlerTests
     {
         var ct = TestContext.Current.CancellationToken;
         var answer = new OccupationSearchResult(
-            [OccupationSearchRow.ForGroup("DJh5_yyF_hEM", "Mjukvaru- och systemutvecklare m.fl.", ["Backend-utvecklare"], false, false)],
+            [OccupationSearchRow.ForGroup(
+                "DJh5_yyF_hEM",
+                "Mjukvaru- och systemutvecklare m.fl.",
+                [new OccupationSearchMatchedName("7wdX_4rv_33z", "Backend-utvecklare")],
+                false,
+                false)],
             TotalRows: 1);
         var searcher = new FakeSearcher(answer);
         var sut = new SearchOccupationsQueryHandler(searcher);

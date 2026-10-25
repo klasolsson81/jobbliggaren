@@ -429,3 +429,20 @@ two tokens of the page's bucket and one of this one, so the page's binds first.
 `PublicJobAdDto` and its 15 members are unchanged, and the related rows are `PublicJobAdSummaryDto` (the S5 amendment's item 2).
 
 ADR 0160 remains **Accepted**.
+
+## Amendment 2026-10-25 (#2214 PR 1b, ADR 0183) — D4's member set grows from 15 to 16: the employer's application page, through one gate
+
+D1–D9 and the earlier amendments stand and nothing above is rewritten. The legal outcome has one home, ADR 0166's amendment of the same date; this records what the PR settles in D4.
+
+**1. D4's member set grows from 15 to 16.** `PublicJobAdDto` gains `ApplicationUrl`, nullable, after `Url`. `PublicJobAdDtoContractTests` and the wire pin in `PublicJobAdEndpointTests` are updated to the 16-member set, and the wire test reads an admitted link on the wire and a gated one as present and null. D4's "never carried" and "left out on purpose" lists are unchanged.
+
+**2. Only through the gate.** `GetPublicJobAdQueryHandler` projects the link in the content read alone and sets the member from `PublicApplicationLink.Admit`, after the second `Classify` has returned Listed. `Admit` is internal to Application, and an architecture test pins that the DTO is built in that one file and that the file passes the link through it (ADR 0166 D10 trigger 19).
+
+**3. Why the gate is not the public-only redaction D4 refuses.** D4 says a public-only redaction at read time would be a second normaliser on one read path. The gate is not one:
+- it never rewrites the value: it gives the stored string whole, or null;
+- it reuses the one recogniser, Tier A's (`RecruiterContactRedactor`), and the write rule (`ApplicationUrl.FromSource`, run again), so no second rule exists;
+- the aggregate cannot be its home, because the signed-in detail shows the contact block (ADR 0106) and keeps every link `FromSource` stores, so a scrub in the aggregate would take the link from signed-in users too. `ApplicationUrl` declines the phone detector at import for the same reason.
+
+No log line carries the link.
+
+ADR 0160 remains **Accepted**.

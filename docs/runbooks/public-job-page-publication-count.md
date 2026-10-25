@@ -1,7 +1,7 @@
 # The count before a job ad is published — S2-P3 (#2090, ADR 0160 D9.1)
 
-**What it is.** A count of personnummer-shaped tokens in the four values the public job page prints for a **listed** job ad (the
-title, the description, the company name and the link), taken on the production box before the page goes live. **Counts only**
+**What it is.** A count of personnummer-shaped tokens in the five values the public job page prints for a **listed** job ad (the
+title, the description, the company name, the link and, since #2214 PR 1b, the application link), taken on the production box before the page goes live. **Counts only**
 (CLAUDE.md §9.2 (a)): no id, no text and no token is ever printed, and nothing is written down but the numbers and the date.
 
 **The gate.** `validated_ads` / `any` must read **0**. A personnummer on a public, indexed page is Blocker-class (ADR 0160 D9.1,
@@ -9,7 +9,9 @@ dataskyddslagen 3 kap. 10 §), and a sole trader's organisation number is their 
 go live: wait for the next nightly snapshot (`sync-platsbanken-snapshot`, 02:00 UTC) and count again. The snapshot upserts every record and
 `JobAd.ApplyContactRedaction` masks a personnummer in title and description each time, so no backfill is needed for a listed ad (Klas,
 2026-10-11, waived S2-P2). A count that stays above 0 after a nightly run is a defect in the scrub, and its PR merges first. **The link is never masked at import**, so a token there stays until the ad leaves the listed set; if one is counted, that is a finding of its own,
-not a reason to wait for the next run.
+not a reason to wait for the next run. The application link is refused at import when a validated personnummer shows in any of its
+readings (`ApplicationUrl.FromSource`, since #2214 PR 1b). A link stored before that can hold one in a decoded reading until its ad is next
+updated, and the public read runs the rule again (`PublicApplicationLink`).
 
 **The gate measures the stock, not the flow.** It reads what is in the table on the day. An ad imported after go-live with a token in a
 form #2123 describes (a space around the hyphen, `.`, `/`, `_`) is published unmasked and nothing here sees it. `security-auditor` therefore
@@ -29,7 +31,7 @@ ssh jp-vps 'sudo docker exec -i jobbliggaren-postgres psql -U postgres -d jobbli
   < docs/runbooks/public-job-page-publication-count.sql 2>/dev/null
 ```
 
-The statement is read-only, takes a `statement_timeout` of 180 s, and reads each listed ad's four fields once per shape.
+The statement is read-only, takes a `statement_timeout` of 180 s, and reads each listed ad's five fields once per shape, the application link twice.
 
 ## What it counts
 
@@ -42,6 +44,10 @@ The statement is read-only, takes a `statement_timeout` of 180 s, and reads each
 - **validated_ads**: the same, and the token passes the Domain's own test, `Personnummer.TryParse`: month 01-12, day 01-31 or 61-91
   (samordningsnummer), Luhn over the 10 significant digits. **The gate.** It is computed with string comparison and `ascii()`
   arithmetic on digits alone, so no cast can fail on a data value.
+- **application_url** and **application_url_decoded**: the application link of every listed ad, as stored and with `%20`, `%2D`, `%2B`,
+  `%2E`, `%2F`, `%5F`, `%09` and `%C2%A0` decoded, in either case. Every listed link is counted, not only the ones the public gate admits:
+  a 0 over the superset is a 0 over the subset, and a gate in SQL would be a second copy of it (ADR 0166, the amendment for #2214 PR 1b,
+  D10 trigger 19 and D11).
 - **listed_ads_link_host_not_arbetsformedlingen**: informative. The importer picks an ad's address from three fields, so it is not always
   an Arbetsförmedlingen page; the page labels its link by host (`adSourceLink`) and says "hos Arbetsförmedlingen" only when it is one.
 
@@ -64,20 +70,29 @@ validated description tokens, 1 in a title, 1 in a company name and 2 in a link 
 `811218 - - 9876` (three separators, or three visible columns, which the mask does not bridge either) read 0 and 0 in both.
 Re-run it against such a fixture after any change to the query.
 
+**Dry run, 2026-10-25 (#2214 PR 1b, the fifth field, blob `ea21c16`).** The 26-row fixture of 2026-10-11 is not kept anywhere, so a 23-row
+fixture was rebuilt from the list above (plain, spaced, 12-digit, dot, slash, underscore, split groups, fullwidth with U+2212 in the
+description; one valid token each in a title, a company name and a link; a Luhn-invalid number, an organisation number and a 13-digit run)
+plus the application link: a valid token as stored, three only in a decoded reading (`%2D`, `%2d`, `%20`), a Luhn-invalid one, a null link,
+and an archived, an expired and a non-imported ad carrying a valid token. The query of blob `8c02e37` and the new one read the same for the
+four earlier fields: listed 20; shaped 10 in the description, 1 each in the title, the company name and the link; validated 8, 1, 1 and 1.
+The new one also read the application link: shaped 2 as stored and 5 decoded, validated 1 and 4. The Luhn-invalid link was shaped and not
+validated; the null link and the three unlisted ads were not counted.
+
 ## The query
 
 `docs/runbooks/public-job-page-publication-count.sql`
 
 ## Record
 
-| Date and time (UTC) | Release / sync run | listed | shaped (any) | validated (any) | title / description / company / url | link host not AF | Taken by |
-|---|---|---|---|---|---|---|---|
-| 2026-10-12 03:54-03:55 | Release 1627 (`e41eac850`, holds #2137) applied 01:49:35Z; the 02:00 snapshot ran on it, evidenced by `job_ads` autovacuum 02:05:51Z and the miss-tracking write 02:05:51Z (the worker was recreated 03:49Z by 1628, so its log is gone). Query `23cc0a4b9` (blob `297bfe6`) | 39 390 | 177 | **0** | shaped 0 / 177 / 0 / 0; validated 0 / 0 / 0 / 0 | 0 | Claude Code |
-| 2026-10-12 04:27 | Release 1628 (`9ca862013`, holds #2137), `--status` consistent before (04:27:09Z) and after (04:27:31Z); the 02:00 snapshot ran on 1627 (evidence above). Query blob `8c02e37` (comment-only change from `297bfe6`: the length claim on shaped_ads removed) | 39 409 | 177 | **0** | shaped 177 in the description, no row printed for the others; validated: no row printed (0) | 0 | Claude Code |
-| 2026-10-12 05:15 | Release 1628 (`9ca862013`), `--status` consistent before (05:14:58Z) and after (05:15:14Z), the merge day; same query blob `8c02e37` | 39 415 | 177 | **0** | shaped 177 in the description; validated: no row printed (0) | 0 | Claude Code |
-| 2026-10-18 01:27 | Release 1636 (`d7b242b12`), `--status` consistent (01:27:54Z); the S4 merge day (ADR 0166 Amendment 2026-10-18 (ix)); same query blob `8c02e37` | 42 223 | 231 | **0** | shaped 231 in the description; validated: no row printed (0) | 0 | Claude Code |
-| 2026-10-18 17:12 | Release 1641 (`c14ac57a1`), `--status` consistent before (17:12:17Z) and after (17:12:44Z); the S5 merge day (ADR 0166, the amendment for S5, D11); same query blob `8c02e37` | 42 295 | 231 | **0** | shaped 231 in the description; validated: no row printed (0) | 0 | Claude Code |
-| 2026-10-24 03:18 | Release sequence 1657 (source `515b7424b`), `--status` consistent before (03:17:58Z) and after (03:18:18Z); the S6b merge day (ADR 0166, the amendment for S6b, D11); same query blob `8c02e37` | 43 602 | 215 | **0** | shaped 215 in the description; validated: no row printed (0) | 0 | Claude Code |
+| Date and time (UTC) | Release / sync run | listed | shaped (any) | validated (any) | title / description / company / url | application link, stored / decoded | link host not AF | Taken by |
+|---|---|---|---|---|---|---|---|---|
+| 2026-10-12 03:54-03:55 | Release 1627 (`e41eac850`, holds #2137) applied 01:49:35Z; the 02:00 snapshot ran on it, evidenced by `job_ads` autovacuum 02:05:51Z and the miss-tracking write 02:05:51Z (the worker was recreated 03:49Z by 1628, so its log is gone). Query `23cc0a4b9` (blob `297bfe6`) | 39 390 | 177 | **0** | shaped 0 / 177 / 0 / 0; validated 0 / 0 / 0 / 0 | not counted (before #2214 PR 1b) | 0 | Claude Code |
+| 2026-10-12 04:27 | Release 1628 (`9ca862013`, holds #2137), `--status` consistent before (04:27:09Z) and after (04:27:31Z); the 02:00 snapshot ran on 1627 (evidence above). Query blob `8c02e37` (comment-only change from `297bfe6`: the length claim on shaped_ads removed) | 39 409 | 177 | **0** | shaped 177 in the description, no row printed for the others; validated: no row printed (0) | not counted (before #2214 PR 1b) | 0 | Claude Code |
+| 2026-10-12 05:15 | Release 1628 (`9ca862013`), `--status` consistent before (05:14:58Z) and after (05:15:14Z), the merge day; same query blob `8c02e37` | 39 415 | 177 | **0** | shaped 177 in the description; validated: no row printed (0) | not counted (before #2214 PR 1b) | 0 | Claude Code |
+| 2026-10-18 01:27 | Release 1636 (`d7b242b12`), `--status` consistent (01:27:54Z); the S4 merge day (ADR 0166 Amendment 2026-10-18 (ix)); same query blob `8c02e37` | 42 223 | 231 | **0** | shaped 231 in the description; validated: no row printed (0) | not counted (before #2214 PR 1b) | 0 | Claude Code |
+| 2026-10-18 17:12 | Release 1641 (`c14ac57a1`), `--status` consistent before (17:12:17Z) and after (17:12:44Z); the S5 merge day (ADR 0166, the amendment for S5, D11); same query blob `8c02e37` | 42 295 | 231 | **0** | shaped 231 in the description; validated: no row printed (0) | not counted (before #2214 PR 1b) | 0 | Claude Code |
+| 2026-10-24 03:18 | Release sequence 1657 (source `515b7424b`), `--status` consistent before (03:17:58Z) and after (03:18:18Z); the S6b merge day (ADR 0166, the amendment for S6b, D11); same query blob `8c02e37` | 43 602 | 215 | **0** | shaped 215 in the description; validated: no row printed (0) | not counted (before #2214 PR 1b) | 0 | Claude Code |
 
 The record is also posted on [#2090](https://github.com/klasolsson81/jobbliggaren/issues/2090) with the same date.
 

@@ -963,3 +963,108 @@ ADR 0166 remains **Accepted** for D1–D11 for the page, and for the sitemap and
 - Klas's answers of 2026-10-24 to the reading stand in ADR 0183 D7.
 
 **Signature:** signed by `security-auditor` 2026-10-24, at her scoped re-check of PR #2216.
+
+## Amendment 2026-10-25 (#2214 PR 1b, ADR 0183) — the D10 re-take for the application link on a job page; approved by Klas 2026-10-24, signature pending
+
+D1–D11 and the earlier amendments stand and nothing above is rewritten. D10's trigger 1 fires for the application link on its head clause, "any widening of the public surface": the anonymous read carries a value it never carried before, the employer's own application page, and the page prints it as a link on an indexable page. The conclusion is withdrawn **for the link only**: the `applicationUrl` member of `GET /api/v1/public/job-ads/{id}` and the link on `/jobb/<uuid>`. The page, the sitemap, the catalogue, the related section and the Search Console read path keep their conclusions. Klas took the conclusion again for the link on 2026-10-24 (sign-off below). This amendment is the single home of the legal outcome for the link: ADR 0183's amendment for PR 1b points here and does not restate it. It follows `security-auditor`'s plan read of 2026-10-24 (B-1, M-2, M-3, Minor 1, C-4) and of 2026-10-25 (K1, K2, M-1, M-2, Minors 1–3, C-11–C-20), both local: `docs/reviews/2026-10-24-share-plan-security-auditor.md` and `docs/reviews/2026-10-25-share-ansok-plan-security-auditor.md`. The merge waits for her signature.
+
+**D1: unchanged,** and applied to the link. A visitor who has found an ad can apply for the job directly, without an account.
+
+**D2, necessity: re-taken.**
+- *Why the link is needed.* Without it, a visitor reaches the employer's application page only through the ad at Platsbanken, one page further, which Klas read as "Ingen ansök knapp" (ADR 0183 Context).
+- *Its own minimisation:*
+  - the stored value or null, never a rewritten string;
+  - one gate, `PublicApplicationLink.Admit`, run in the content read after the publication predicate has returned Listed, which nulls a link that is a contact channel (trigger 19 below names its classes);
+  - one anchor on the listed page's 200, `rel="nofollow noopener noreferrer"`, a plain `<a>` with no prefetch;
+  - nothing of the link in the page's title, meta, OpenGraph or Twitter tags, in any JSON-LD, in the share row or its payload, in `PublicJobAdSummaryDto`, the catalogue, the sitemap or a related row, or in a log line;
+  - the signed-in detail is unchanged: it shows the contact block (ADR 0106), so the gate is the public read's alone.
+- *Alternatives:*
+  - no link: the status quo, which costs the visitor the direct route;
+  - the link without a gate: a phone number, a person's profile or a messaging channel in the link is a contact detail of a third party on an indexed page (`security-auditor`'s B-1, Blocker);
+  - a redirect through our own origin: a request we would receive and could record at the click, which ADR 0183 D7 keeps out of the page.
+
+**D3: unchanged.**
+
+**D4, the balancing, for the link.** R-842-1 still holds "after Tier A": the gate applies Tier A's recogniser to the link in all three readings. A name in the link's address belongs to R-842-3's class and cannot be measured, as a name in the running text cannot. R-842-4 stands as the residual. The residuals, written as residuals and not closed here:
+- (r1) a name in the link's address;
+- (r2) a number glued to a hyphen (`/kontakt-0701234567`), which Tier A's lookbehind reads as an identifier by design; it read 0 on 2026-10-25;
+- (r3) a contact channel on a host outside the lists, and a redirect on the employer's own host;
+- (r4) a target page that changes after the import, or is harmful;
+- (r5) Tier A's recall on URLs is not measured.
+
+A false positive, such as a phone-shaped applicant-tracking id, is accepted on the public page only, where the visitor keeps the link to the ad itself. W4 holds: the link is kept out of the title, meta, OpenGraph, Twitter tags and JSON-LD; cache and archive copies of the page carry it as they carry the text, out of reach, an unchanged residual. A preview fetcher does not follow it.
+
+**D5–D7: unchanged.** The notice and the privacy policy stay true as they stand, with the same categories and recipients; the policy's sentence that the page never shows the contact details stays true because of the gate. (r1) is written here and not in the notice (Klas's answer to question 2 below).
+
+**D8: unchanged, and no fifth addendum.** Klas answered question 3: no fifth addendum to DPIA #456 §8-B. With the gate no rating in §8-B changes premise. The addendum of 2026-10-12 lists what the page shows (title, company name, dates and full description) and does not name the link; no sentence in §8-B or its four addenda says the link is not public (`security-auditor`'s C-20, grepped in the main copy on 2026-10-25).
+
+**D9: unchanged.**
+
+**D10.** Trigger 1 fired for the link, and Klas took the conclusion again for it on 2026-10-24. This withdraws no finding and none of D4's residuals. Two triggers are added, continuing the numbering after the amendments for S3 (5–7), S4 (8–9), S5 (10–12), the Search Console read (13–14) and S6b (15–17). Their wording is `security-auditor`'s (her plan read of 2026-10-25):
+
+18. The application link anywhere other than as the listed `/jobb/<uuid>` page's own application link on that page's 200: in the page's title, meta, OpenGraph or Twitter tags; in `JobPosting` or any other JSON-LD; in a preview image; in the share row's links or the share payload; in `PublicJobAdSummaryDto`, the catalogue, the sitemap or a related row; in a log line or an audit event. Also: the link rendered without `noreferrer`, through `next/link`, or with any `prefetch`, `preconnect`, `dns-prefetch`, `prerender` or Speculation Rules for its origin. The framework's own serialisation of that one anchor in the same response is the anchor, not a copy.
+19. An application link on the anonymous read that has not passed the public gate: `ApplicationUrl.FromSource` when it is written, then `PublicApplicationLink.Admit` when it is read, after the publication predicate has returned Listed. `Admit` gives null when Tier A's recogniser (`RecruiterContactRedactor`) finds a span, or `PersonnummerScanner` a token, in the stored value or in its percent-decoded or form-decoded form; when the host, or a host it is a subdomain of, is in the fixed vocabulary of profile, social and messaging hosts, or the host is LinkedIn's and the path is not one of its job or company paths; or when the host, or a host it is a subdomain of, is in the fixed shortener list. Also: the gate weakened (a class, a host, a path rule or a decoding form removed, or a match loosened), bypassed (a read path that carries the link without `Admit`, or `Admit` before the predicate), or copied (a second implementation anywhere, the web included; the web schema's and the page's http(s) check is a form check and not a copy). Adding a host or a form to the gate narrows the surface and is not a trigger.
+
+For LinkedIn the direction is the reverse of the two lists: a path added to its job and company paths admits more, which is trigger 19's "a match loosened"; one removed narrows. `PublicApplicationLinkTests` pins all three lists whole.
+
+The readings recorded with them:
+- **Trigger 2:** the merge-day reading in D11.
+- **Triggers 3 and 4:** no event.
+- **Trigger 5:** not fired. The link is a plain anchor the visitor clicks; nothing is pushed to anyone.
+- **Triggers 6 and 7:** not fired. `job-posting-json-ld.ts` and its test are byte-unchanged; `url` and `directApply` stay never emitted (ADR 0171 D4; 28 links carried an Arbetsförmedlingen id on 2026-10-24).
+- **Triggers 8–17:** not touched. The sitemap, the catalogue, the Search Console path and the related section are unchanged.
+- **The Amendment 2026-10-11 (Art. 9):** that decision says the page shows every listed ad as published. The link is a field of the ad as published, on the ad's own page, and a slug mostly repeats the title; that is the decision's own wording, not a conclusion about a new surface, unlike S6b, which put other ads' values on the page. None of its triggers fires. `security-auditor`'s Blocker keeps its grade and stays unsigned.
+
+**D11: the merge-day reading (W3).** S2-P3 counts the application link as a fifth field, for **every** listed ad and not only the links the gate admits: trigger 2 reads "a measured personnummer in a listed ad", the signed-in modal shows the link, a 0 over the superset is a 0 over the subset, and a gate in SQL would be trigger 19's second copy. It counts the link twice, as stored and percent-decoded (`%20`, `%2D`, `%2B`, `%2E`, `%2F`, `%5F`, `%09`, `%C2%A0`, either case). The query is the new blob of `docs/runbooks/public-job-page-publication-count.sql`, dry-run against a fixture (the runbook records it). The reading is taken on the merge's UTC day, before `agents-done`; the validated count must be 0 in both readings of the link and in every other field. A count above 0 fires trigger 2, and 1b stops. It is recorded here and in the runbook's record table.
+
+**A pre-reading, not the merge-day reading** (counts only). 2026-10-25 at 20:07:52 UTC, the new blob, on release sequence 1670 (source `9b8260fb2`), `--status` consistent before and after: listed 43 428; shaped 825 in all, 660 in the link as stored, 660 in it decoded, 213 in the description; validated 0 in every field.
+
+**The gate's size** (counts only, read-only, each query dry-run first against a fixture with one row per class; `security-auditor`'s C-18):
+- 2026-10-24 at 06:51 UTC, the vocabulary Klas's question carried: 39 of 36 288 listed links.
+- 2026-10-25 at 16:19 UTC, the same vocabulary, release 1670: 38 of 36 054.
+- 2026-10-25 at 20:48 UTC, the vocabulary as delivered (the 22 contact hosts, the 15 shorteners, LinkedIn outside `/jobs/` and `/company/`, Tier A in three readings), release 1670, `--status` consistent before and after: **39 of 36 065**. Tier A 30, none of them only in a decoded reading; contact hosts 3; shorteners 4; LinkedIn outside its job and company paths 2. The query is a SQL approximation of `Admit`: it does not map IDN hosts, and the 7 hosts it reads as not LDH all hold non-ASCII letters, which the gate maps to ASCII and then classifies.
+
+**Her signatures, and their renewal.** Each of these lapses by its own words now, because trigger 1 fires after it:
+- S6b, 2026-10-24 (#2210, `9595d44b6`), and with it the renewals it carried:
+  - S5, 2026-10-18 (#2180);
+  - through S5: S4, 2026-10-18 (#2168), and the page's signatures of 2026-10-12 (D1–D11 and signature 3) and 2026-10-17 (S3, #2160);
+  - Search Console, 2026-10-19 (#2189).
+
+Read with D10's scope rule, none of the lapses withdraws anything. The pointer amendment of 2026-10-24 (#2216) names no lapse ground and does not lapse; neither do ADR 0183 D7's readings or its amendment of 2026-10-25, which the link does not touch. The Amendment 2026-10-11 is, as always, not covered. She renews the lapsed signatures at 1b's final head on these conditions:
+- **R1 (S6b):** the related read path, `PublicJobAdSummaryDto`, `PublicJobAdList` and their tests are byte-unchanged against `9b8260fb2`, the related section's markup in `public-job-ad.tsx` is untouched, and S6b's properties are verified again.
+- **R2 (S5 and S4):** the catalogue's and the sitemap's code and tests are byte-unchanged, and `publicJobAdUrl` gives the same output.
+- **R3 (the page and S3):** `content-legal.json` (sv and en), `content-legal-signed-copy.test.ts`, `job-posting-json-ld.ts` and its test are byte-unchanged, and `buildJobPosting` never reads `applicationUrl`.
+- **R4 (Search Console):** the workflow, its script, suite and samples and the `auth` pin are byte-unchanged.
+- **R5 (the pointer and ADR 0183 D7):** the share family, `/delningsbild`, `generateMetadata` and `deploy/` are byte-unchanged, and the test of the links out changes only by adding the admitted link.
+
+In every suite, `git diff -U0` shows no removed `expect` or assertion line beyond the declared ones.
+
+**Sign-off**
+
+**Controller approval:** Klas Olsson, 2026-10-24, in the session's chat, to `security-auditor`'s escalation (`docs/reviews/2026-10-24-share-plan-security-auditor.md`, relayed verbatim through AskUserQuestion). The questions are quoted as asked, and his answers without edits:
+1. To her question 2, on the re-take:
+
+   > 2. **PR 1b (Ansök): godkänner du omprövningen för länken till arbetsgivarens ansökningssida?** Trigger 1 utlöses ("varje utvidgning av den publika ytan"), eftersom den anonyma läsningen och sidan då bär ett värde de aldrig har burit. Trigger 7 utlöses inte så länge JobPosting-blocket är oförändrat. Omprövningen gäller bara länken; sidan, kartan, katalogen, sektionen med liknande annonser och Search Console-läsningen behåller sina slutsatser. Tillägget säger:
+   >    - Syftet är oförändrat: den som hittar annonsen kan söka jobbet direkt, utan konto.
+   >    - Mätt 2026-10-24 kl. 06:51 UTC, bara antal: 36 288 av 43 635 listade annonser har en ansökningslänk. Alla är http(s), ingen innehåller @, ingen har ett giltigt personnummer och ingen är en mailto-länk. De går till 2 714 olika webbplatser, nästan aldrig till Arbetsförmedlingen.
+   >    - Det som tillkommer: telefonnummer tas inte bort ur ansökningslänkar vid import, och en länk kan peka på en persons profil. Mätt: 31 länkar med ett nummer i telefonform (en av dem i mobilformat), 1 till en personlig LinkedIn-profil, 3 till sociala medier och 4 förkortade länkar. Den publika sidan visar därför ingen ansökningslänk som innehåller ett nummer i telefonform, pekar på en persons profil, sociala medier eller en meddelandetjänst, eller är förkortad. 39 annonser förlorar länken på den publika sidan och behåller "Öppna annonsen". Inloggade ser länken som i dag.
+   >    - Länken öppnas utan att adressen till vår sida skickas med, och vi skickar inget till någon.
+   >    - Länken finns aldrig i sidans titel, beskrivning eller förhandsvisning, i JobPosting-blocket, i katalogen, i kartan eller i sektionen med liknande annonser.
+   >    - Ett namn i en länkadress går inte att mäta, på samma sätt som ett namn i annonstexten. Radering av hela annonsen når länken också.
+   >    - Personnummerräkningen (S2-P3) tar med länken som femte värde och görs om samma dag som PR 1b mergas, bara som antal, och måste visa 0. I dag visar den 0.
+   >    - Notisen och integritetspolicyn stämmer som de står och ändras inte.
+   >    - Två nya triggers (18 och 19). Den första gäller länken någon annanstans än som sidans egen länk, i sidans titel, beskrivning, förhandsvisning eller JobPosting-block, eller utan att adressen till vår sida hålls borta. Den andra gäller en länk som når den publika läsningen utan att ha passerat grinden, eller en grind som görs smalare.
+   >    - Mina signaturer från 2026-10-24 (sektionen med liknande annonser) och de den förnyade förfaller enligt sina egna ord när trigger 1 utlöses. Det drar inte tillbaka något, och jag förnyar dem när jag signerar.
+   >
+   >    (Rek.: Ja. Svarar du nej byggs inte PR 1b, och sidan behåller "Öppna annonsen".)
+
+   "Ja, med grinden (Rek.)": the re-take of this ADR's conclusion for the application link, with the gate, and triggers 18 and 19.
+2. To her question 3, on the DPIA:
+
+   > 3. **Godkänner du att inget femte tillägg till DPIA:ns §8-B skrivs för PR 1b?** Med grinden ovan bär länken varken e-post, telefonnummer, personnummer eller en persons profil, så ingen bedömning i §8-B ändrar förutsättning: R-842-1 gäller fortfarande efter borttagningen, ett namn i en länkadress hör till R-842-3, och R-842-4 står kvar som residual. Fjärde tilläggets bedömning att inget förhandssamråd med IMY behövs står. (Rek.: Ja. Vill du inte ha grinden behövs ett tillägg för R-842-1, och då signerar jag inte.)
+
+   "Ja, inget tillägg (Rek.)": no fifth addendum to DPIA #456 §8-B. It holds only with the gate.
+
+Her plan read of 2026-10-25 made the gate stricter than the one his answer named: Tier A in three readings (K1), LinkedIn admitted only on its job and company paths (K2), a personnummer refused in a decoded reading (M-1), and more hosts and shorteners (her Minor 1). That narrows the surface within his answer, and she escalated nothing.
+
+**Signature:** pending: `security-auditor` signs at her scoped re-check of PR [#2239](https://github.com/klasolsson81/jobbliggaren/pull/2239)'s final head.

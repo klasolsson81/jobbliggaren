@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Mono.Cecil;
@@ -107,24 +108,27 @@ public class ProductionAssembliesTests
     {
         var sites = HandBuiltSets();
 
-        sites.Where(site => site.StartsWith(Fixture + ".", StringComparison.Ordinal)).ShouldBe(
-            [
-                $"{Fixture}.{nameof(AnAssemblyArray)}: Assembly[]",
-                $"{Fixture}.{nameof(AnAssemblyList)}: List<Assembly>",
-                $"{Fixture}.{nameof(AHandleArray)}: ProductionAssembly[]",
-                $"{Fixture}.{nameof(AHandleList)}: List<ProductionAssembly>",
-                $"{Fixture}.{nameof(ADefinitionList)}: List<AssemblyDefinition>",
-                $"{Fixture}.{nameof(AFilteredSet)}: Where<ProductionAssembly>",
-            ],
-            ignoreOrder: true,
-            "the scan must see each shape it forbids, here and nowhere else in this class");
+        string[] shapes =
+        [
+            $"{Fixture}.{nameof(AnAssemblyArray)}: Assembly[]",
+            $"{Fixture}.{nameof(AnAssemblyList)}: List<Assembly>",
+            $"{Fixture}.{nameof(AHandleArray)}: ProductionAssembly[]",
+            $"{Fixture}.{nameof(AHandleList)}: List<ProductionAssembly>",
+            $"{Fixture}.{nameof(ADefinitionList)}: List<AssemblyDefinition>",
+            $"{Fixture}.{nameof(AFilteredSet)}: Where<ProductionAssembly>",
+            $"{Fixture}.{nameof(AFactorySet)}: Create<ProductionAssembly>",
+            $"{Fixture}.{nameof(AHandleSpan)}: InlineArray2<ProductionAssembly>",
+        ];
+        foreach (var shape in shapes)
+            sites.ShouldContain(shape, "the scan must see each shape it forbids");
+        sites.Where(site => site.StartsWith(Fixture + ".", StringComparison.Ordinal))
+            .Select(site => site[..site.IndexOf(": ", StringComparison.Ordinal)])
+            .Distinct()
+            .ShouldBe(shapes.Select(shape => shape[..shape.IndexOf(": ", StringComparison.Ordinal)]), ignoreOrder: true, Bound);
         sites.Where(site => !site.StartsWith(Fixture + ".", StringComparison.Ordinal)).ShouldBeEmpty(Bound);
     }
 
     private static readonly string Fixture = typeof(ProductionAssembliesTests).FullName!;
-
-    private static readonly string[] FilteringMethods =
-        ["Where", "Except", "ExceptBy", "Skip", "SkipWhile", "SkipLast", "Take", "TakeWhile", "TakeLast"];
 
     private static Assembly[] AnAssemblyArray() => [ProductionAssemblies.Domain.Assembly];
 
@@ -138,6 +142,14 @@ public class ProductionAssembliesTests
 
     private static IEnumerable<ProductionAssembly> AFilteredSet() =>
         ProductionAssemblies.All.Where(assembly => assembly != ProductionAssemblies.Api);
+
+    private static ImmutableArray<ProductionAssembly> AFactorySet() => ImmutableArray.Create(ProductionAssemblies.Domain);
+
+    private static int AHandleSpan()
+    {
+        ReadOnlySpan<ProductionAssembly> handles = [ProductionAssemblies.Domain, ProductionAssemblies.Api];
+        return handles.Length;
+    }
 
     private static List<string> HandBuiltSets()
     {
@@ -162,15 +174,63 @@ public class ProductionAssembliesTests
                          && constructor.Parameters is not [_, { ParameterType.FullName: "System.IntPtr" }]
                          && generic.GenericArguments.FirstOrDefault(argument => handles.Contains(argument.FullName)) is { } wrapped)
                     sites.Add($"{owner}: {generic.ElementType.Name.Split('`')[0]}<{wrapped.Name}>");
+                else if (instruction.OpCode == OpCodes.Initobj && instruction.Operand is GenericInstanceType inline
+                         && inline.GenericArguments.FirstOrDefault(argument => handles.Contains(argument.FullName)) is { } held)
+                    sites.Add($"{owner}: {inline.ElementType.Name.Split('`')[0]}<{held.Name}>");
                 else if ((instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt)
-                         && instruction.Operand is GenericInstanceMethod { DeclaringType.FullName: "System.Linq.Enumerable" } filter
-                         && FilteringMethods.Contains(filter.Name)
-                         && handles.Contains(filter.GenericArguments[0].FullName))
-                    sites.Add($"{owner}: {filter.Name}<{filter.GenericArguments[0].Name}>");
+                         && instruction.Operand is GenericInstanceMethod call && YieldsHandles(call, handles))
+                    sites.Add($"{owner}: {call.Name}<{call.GenericArguments.First(argument => handles.Contains(argument.FullName)).Name}>");
             }
         }
 
         return sites;
+    }
+
+    /// <summary>A generic method bound to a handle whose result carries the handles: <c>Where</c>, <c>Create</c>, <c>ToArray</c>.</summary>
+    private static bool YieldsHandles(GenericInstanceMethod call, string[] handles)
+    {
+        var bound = Enumerable.Range(0, call.GenericArguments.Count)
+            .Where(position => handles.Contains(call.GenericArguments[position].FullName))
+            .ToHashSet();
+        return bound.Count > 0 && Carries(call.ElementMethod.ReturnType, bound);
+    }
+
+    private static bool Carries(TypeReference type, HashSet<int> bound) => type switch
+    {
+        GenericInstanceType generic => generic.GenericArguments.Any(argument => IsBound(argument, bound) || Carries(argument, bound)),
+        ArrayType array => IsBound(array.ElementType, bound) || Carries(array.ElementType, bound),
+        _ => false,
+    };
+
+    private static bool IsBound(TypeReference type, HashSet<int> bound) =>
+        type is GenericParameter { Type: GenericParameterType.Method } parameter && bound.Contains(parameter.Position);
+
+    [Fact]
+    public void A_rule_reads_only_the_exclusions_it_declares()
+    {
+        var readers = ExclusionReaders();
+
+        readers.ShouldAllBe(reader => reader.Split(" -> ", StringSplitOptions.None).Distinct().Count() == 1, Bound);
+        readers.ShouldBe([$"{typeof(NoPasswordSymbolTests).FullName} -> {typeof(NoPasswordSymbolTests).FullName}"], Bound);
+    }
+
+    private static List<string> ExclusionReaders()
+    {
+        using var tests = AssemblyDefinition.ReadAssembly(typeof(ProductionAssembliesTests).Assembly.Location);
+        var readers = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var method in tests.MainModule.GetTypes().SelectMany(type => type.Methods).Where(method => method.HasBody))
+        {
+            foreach (var instruction in method.Body.Instructions)
+            {
+                if ((instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt)
+                    && instruction.Operand is GenericInstanceMethod read
+                    && read.DeclaringType.FullName == typeof(ProductionAssemblies).FullName
+                    && read.Name is nameof(ProductionAssemblies.NamesExcept) or nameof(ProductionAssemblies.ExcludedBy))
+                    readers.Add($"{ProductionTypeSweep.OwnerOf(method.DeclaringType).FullName} -> {read.GenericArguments[0].FullName}");
+            }
+        }
+
+        return [.. readers];
     }
 
     private static string RepoRoot([CallerFilePath] string thisFile = "") =>

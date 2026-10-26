@@ -57,7 +57,7 @@ public class OccupationSearchLayerTests
     {
         const string loader = $"{TaxonomyNamespace}.OccupationGroupMappingLoader";
 
-        var dependents = OutermostTypesDependingOn(Infrastructure, loader)
+        var dependents = OutermostTypesDependingOn(Types.InAssembly(Infrastructure), loader)
             .Where(t => t.FullName != loader);
 
         dependents.ShouldBe([typeof(OccupationNameIndex)]);
@@ -75,7 +75,7 @@ public class OccupationSearchLayerTests
         ];
 
         var offenders = ProductionAssemblies.All
-            .SelectMany(production => OutermostTypesDependingOn(production.Assembly, forbiddenNamespace))
+            .SelectMany(production => OutermostTypesDependingOn(production.ArchTypes(), forbiddenNamespace))
             .Where(searchPath.Contains)
             .Select(t => t.FullName)
             .ToList();
@@ -87,8 +87,8 @@ public class OccupationSearchLayerTests
 
     // The distinct outermost declaring types of every type in the assembly that depends on the given
     // type or namespace — nested and compiler-generated types fold into the class that declares them.
-    private static List<Type> OutermostTypesDependingOn(System.Reflection.Assembly assembly, string dependency) =>
-        Types.InAssembly(assembly)
+    private static List<Type> OutermostTypesDependingOn(Types types, string dependency) =>
+        types
             .That()
             .HaveDependencyOn(dependency)
             .GetTypes()

@@ -51,36 +51,30 @@ public class NoPasswordSymbolTests
     {
         ["Jobbliggaren.Migrate"] =
         [
-            "Attribute: Password",
-            "Declaration: password",
-            "Literal:  LOGIN PASSWORD '",
-            "Literal:  WITH LOGIN PASSWORD '",
-            "Literal: MIGRATE_APP_PASSWORD",
-            "Literal: MIGRATE_MASTER_PASSWORD",
-            "Literal: MIGRATE_MIGRATIONS_PASSWORD",
-            "Literal: MIGRATE_WORKER_PASSWORD",
-            "Reference: System.Void Npgsql.NpgsqlConnectionStringBuilder::set_Password(System.String)",
+            "Attribute: Password x4",
+            "Declaration: password x3",
+            "Literal:  LOGIN PASSWORD ' x1",
+            "Literal:  WITH LOGIN PASSWORD ' x1",
+            "Literal: MIGRATE_APP_PASSWORD x1",
+            "Literal: MIGRATE_MASTER_PASSWORD x1",
+            "Literal: MIGRATE_MIGRATIONS_PASSWORD x1",
+            "Literal: MIGRATE_WORKER_PASSWORD x1",
+            "Reference: System.Void Npgsql.NpgsqlConnectionStringBuilder::set_Password(System.String) x1",
         ],
         ["Jobbliggaren.Infrastructure.Mailbox"] =
         [
-            "Constant: Dmarc:Mailbox:Password",
-            "Declaration: PasswordKey",
-            "Declaration: _password",
-            "Declaration: password",
-            "Literal: Dmarc:Mailbox:Password",
-            "Literal: password",
+            "Constant: Dmarc:Mailbox:Password x1",
+            "Declaration: PasswordKey x1",
+            "Declaration: _password x1",
+            "Declaration: password x3",
+            "Literal: Dmarc:Mailbox:Password x1",
+            "Literal: password x1",
         ],
     };
 
     public static TheoryData<string> AuthSurfaceAssemblies() => ProductionAssemblies.NamesExcept<NoPasswordSymbolTests>();
 
-    public static TheoryData<string> ExcludedAssemblies()
-    {
-        var rows = new TheoryData<string>();
-        foreach (var exclusion in ProductionAssemblies.DeclaredOn(typeof(NoPasswordSymbolTests)))
-            rows.Add(exclusion.Assembly.Name);
-        return rows;
-    }
+    public static TheoryData<string> ExcludedAssemblies() => ProductionAssemblies.ExcludedBy<NoPasswordSymbolTests>();
 
     [Theory]
     [MemberData(nameof(AuthSurfaceAssemblies))]
@@ -103,7 +97,7 @@ public class NoPasswordSymbolTests
     [Theory]
     [MemberData(nameof(ExcludedAssemblies))]
     public void Each_assembly_outside_the_auth_surface_reaches_exactly_the_symbols_it_is_left_out_for(string name) =>
-        Offenders(ScanAssembly(ProductionAssemblies.Named(name))).ShouldBe(
+        Occurrences(ScanAssembly(ProductionAssemblies.Named(name))).ShouldBe(
             LeftOutFor[name],
             ignoreOrder: true,
             $"{name}'s password symbols changed: a new one is decided before it joins {nameof(LeftOutFor)}, and none "
@@ -236,6 +230,16 @@ public class NoPasswordSymbolTests
                 : NameNamesAPassword(s.Text))
             .Select(s => $"{s.Arm}: {s.Text}")
             .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+    private static List<string> Occurrences(Scan scan) =>
+        scan.Symbols
+            .Where(s => s.Arm is Arm.Constant or Arm.Literal or Arm.Attribute
+                ? ConstantNamesAPassword(s.Text)
+                : NameNamesAPassword(s.Text))
+            .GroupBy(s => $"{s.Arm}: {s.Text}", StringComparer.Ordinal)
+            .Select(group => $"{group.Key} x{group.Count()}")
             .Order(StringComparer.Ordinal)
             .ToList();
 

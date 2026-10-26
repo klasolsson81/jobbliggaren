@@ -62,7 +62,21 @@ internal static class ProductionAssemblies
     internal static TheoryData<string> Names() => Rows([]);
 
     /// <summary>Every production assembly but the exclusions <typeparamref name="TRule"/> declares as static fields.</summary>
-    internal static TheoryData<string> NamesExcept<TRule>() => Rows(DeclaredOn(typeof(TRule)));
+    internal static TheoryData<string> NamesExcept<TRule>() => Rows(DeclaredOn(RuleOf<TRule>()));
+
+    /// <summary>The assemblies <typeparamref name="TRule"/> excludes.</summary>
+    internal static TheoryData<string> ExcludedBy<TRule>()
+    {
+        var rows = new TheoryData<string>();
+        foreach (var exclusion in DeclaredOn(RuleOf<TRule>()))
+            rows.Add(exclusion.Assembly.Name);
+        return rows;
+    }
+
+    private static Type RuleOf<TRule>() =>
+        typeof(TRule).IsGenericType
+            ? throw new ArgumentException($"{typeof(TRule)} is generic; a rule's exclusions are declared on the rule itself.")
+            : typeof(TRule);
 
     /// <summary>The static <see cref="Exclusion"/> and <see cref="Exclusion"/>[] fields <paramref name="rule"/> declares.</summary>
     internal static IReadOnlyList<Exclusion> DeclaredOn(Type rule)

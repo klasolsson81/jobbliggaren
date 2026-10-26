@@ -51,7 +51,7 @@ public class NoPasswordSymbolTests
     {
         ["Jobbliggaren.Migrate"] =
         [
-            "Attribute: Password x4",
+            "Attribute: Password x1",
             "Declaration: password x3",
             "Literal:  LOGIN PASSWORD ' x1",
             "Literal:  WITH LOGIN PASSWORD ' x1",
@@ -233,13 +233,14 @@ public class NoPasswordSymbolTests
             .Order(StringComparer.Ordinal)
             .ToList();
 
+    // An attribute string repeats once per field the compiler hoists, and Debug and Release hoist differently.
     private static List<string> Occurrences(Scan scan) =>
         scan.Symbols
             .Where(s => s.Arm is Arm.Constant or Arm.Literal or Arm.Attribute
                 ? ConstantNamesAPassword(s.Text)
                 : NameNamesAPassword(s.Text))
-            .GroupBy(s => $"{s.Arm}: {s.Text}", StringComparer.Ordinal)
-            .Select(group => $"{group.Key} x{group.Count()}")
+            .GroupBy(s => (s.Arm, s.Text))
+            .Select(group => $"{group.Key.Arm}: {group.Key.Text} x{(group.Key.Arm == Arm.Attribute ? 1 : group.Count())}")
             .Order(StringComparer.Ordinal)
             .ToList();
 

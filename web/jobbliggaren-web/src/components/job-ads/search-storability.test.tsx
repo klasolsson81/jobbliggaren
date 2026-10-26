@@ -102,7 +102,7 @@ describe("search storability", () => {
 
 /**
  * The receipt's half: "Sökningen är sparad" waits for the answer to the request that carried the commit
- * flag, the one that stored or refused the search.
+ * flag.
  */
 function SavedProbe({ shown }: { shown: JobbUrlState }) {
   return <span data-testid="saved">{String(useIsSearchSaved(shown))}</span>;

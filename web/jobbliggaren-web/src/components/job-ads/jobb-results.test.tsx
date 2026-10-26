@@ -343,13 +343,13 @@ describe("JobbResults — the save verdict reaches the hero's context", () => {
   });
 
   // The commit flag rides on the verdict: only the committed answer confirms a save.
-  it("marks the answer to a committed request as the one that stored", async () => {
+  it("marks the answer to a committed request", async () => {
     getJobAds.mockResolvedValue(page(true));
     await renderWithProbe("backend", "backend", false, true);
     expect(document.querySelector('[data-testid="saved"]')).toHaveTextContent("true");
   });
 
-  it("does not mark a preview's answer as stored", async () => {
+  it("does not mark a preview's answer", async () => {
     getJobAds.mockResolvedValue(page(true));
     await renderWithProbe("backend", "backend");
     expect(document.querySelector('[data-testid="saved"]')).toHaveTextContent("false");

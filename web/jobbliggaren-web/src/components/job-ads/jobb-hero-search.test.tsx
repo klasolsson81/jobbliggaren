@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
 // every save test below runs against an admitted search, and `isStorableMock.mock.calls` shows which
 // search the hero asked about.
 const isStorableMock = vi.fn<(search: unknown) => boolean>(() => true);
-// The receipt's half: whether the committed answer for the search said it was stored. Yes unless a
+// The receipt's half. Yes unless a
 // test says otherwise, so the receipt tests below see an answer that arrived.
 const isSavedMock = vi.fn<(search: unknown) => boolean>(() => true);
 vi.mock("./search-storability", () => ({
@@ -742,7 +742,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
 
   // design-reviewer, round 1 on #2243: the receipt claims the search was stored, so it waits for the
   // committed answer; a rate limit or an error answers no and stores nothing.
-  it("confirms nothing, visibly or aloud, until the committed answer says the search was stored", async () => {
+  it("confirms nothing, visibly or aloud, until the committed answer says yes", async () => {
     const user = userEvent.setup();
     isSavedMock.mockImplementation(() => false);
     const { rerender } = setup({ q: "utvecklare", initialCommitted: false });

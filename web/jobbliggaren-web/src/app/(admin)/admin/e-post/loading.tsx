@@ -1,12 +1,13 @@
 import { useTranslations } from "next-intl";
 import { AdminEmailAllowance } from "@/components/admin/admin-email-allowance";
 import { AdminEmailDelivery } from "@/components/admin/admin-email-delivery";
+import { AdminEmailDmarc } from "@/components/admin/admin-email-dmarc";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 
 /**
- * The page while its reads are pending: the same page, with the allowance, the summary, the failures and the count per
- * mail kind loading. No period is marked: this state cannot read the URL, and a deep link to `?period=h24` must not
- * show 7 dygn as chosen.
+ * The page while its reads are pending: the same page, with the allowance, the summary, the failures, the count per
+ * mail kind and the DMARC reports loading. No period is marked: this state cannot read the URL, and a deep link to
+ * `?period=h24` must not show 7 dygn as chosen.
  */
 export default function AdminEmailLoading() {
   const t = useTranslations("admin");
@@ -21,6 +22,7 @@ export default function AdminEmailLoading() {
         failures={{ kind: "loading" }}
         kinds={{ kind: "loading" }}
       />
+      <AdminEmailDmarc read={{ kind: "loading" }} />
     </div>
   );
 }

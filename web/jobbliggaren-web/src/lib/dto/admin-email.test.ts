@@ -1,11 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
+  DMARC_LATEST_FAILURES,
   EMAIL_KINDS,
   emailAllowanceSchema,
   emailDeliverySchema,
+  emailDmarcSchema,
   emailFailuresSchema,
   emailKindsSchema,
 } from "./admin-email";
+import {
+  DMARC_FROM,
+  DMARC_TO,
+  LONG_IPV6,
+  cappedDmarc,
+  dmarcFailure,
+  dmarcIngestion,
+  dmarcSource,
+  dmarcStaleIngestion,
+  failedDmarc,
+  noReportsDmarc,
+  observedDmarc,
+  unreadDmarc,
+} from "@/test/fixtures/admin-email-dmarc";
 
 /** The body the API sends (#1981 PR 1), with the wire form of System.Text.Json for a DateTimeOffset in UTC. */
 const EXAMPLE = {
@@ -264,5 +280,107 @@ describe("emailKindsSchema (#1981 PR 3)", () => {
     ["a period outside the three", { ...KINDS, period: "d30" }],
   ])("rejects %s", (_name, body) => {
     expect(counts(body)).toBe(false);
+  });
+});
+
+describe("emailDmarcSchema (#1981 PR 4b, ADR 0185 D9)", () => {
+  const reads = (body: unknown) => emailDmarcSchema.safeParse(body).success;
+  const observed = observedDmarc();
+  const withSource = (index: number, change: Record<string, unknown>) =>
+    observedDmarc({ sources: observed.sources.map((source, at) => (at === index ? { ...source, ...change } : source)) });
+  const longestDomain = `${"a".repeat(63)}.${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(45)}.jobbliggaren.se`;
+
+  it.each<readonly [string, unknown]>([
+    ["figures with a failing, a DKIM-only and an SPF-only source", observed],
+    ["the cap: 25 of 31 sources at IPv6 length", cappedDmarc()],
+    ["a failure after an earlier success, figures kept", observedDmarc({ ingestion: dmarcFailure("Protocol") })],
+    ["a refused sign-in after a success, with when it resumes", observedDmarc({ ingestion: dmarcFailure("AuthRefused") })],
+    ["a sign-in with no answer after a success", observedDmarc({ ingestion: dmarcFailure("AuthUnconfirmed") })],
+    ["a success older than the threshold", observedDmarc({ ingestion: dmarcStaleIngestion() })],
+    ["a covered span that begins before the window", observedDmarc({ coveredFrom: "2026-10-17T00:00:00+00:00" })],
+    ["conflicting reports and every mailbox count", observedDmarc({
+      conflictingReports: 2, mailbox: { skipped: 1, rejected: 2, volumeCapped: 3, abandoned: 4, retryPending: 5 },
+    })],
+    ["an ISATAP address with its dotted tail", observedDmarc({
+      sources: [dmarcSource("2001:db8::5efe:192.0.2.1", "jobbliggaren.se", 51, 48, 48, 3)], sourceCount: 1,
+    })],
+    ["the longest canonical form of a documentation-range address, 41 characters", observedDmarc({
+      sources: [dmarcSource("2001:db8:ffff:ffff:0:5efe:255.255.255.255", "jobbliggaren.se", 51, 48, 48, 3)], sourceCount: 1,
+    })],
+    ["a header-from domain at its 253 characters", observedDmarc({
+      sources: [dmarcSource("192.0.2.10", longestDomain, 51, 48, 48, 3)], sourceCount: 1,
+    })],
+    ["the window's end with the clock's seven decimals", observedDmarc({ to: DMARC_TO, from: DMARC_FROM })],
+    ["no report in the window", noReportsDmarc()],
+    ["no report, with conflicting reports kept out", noReportsDmarc({ conflictingReports: 1 })],
+    ["no report and a stale read", noReportsDmarc({ ingestion: dmarcStaleIngestion() })],
+    ...DMARC_LATEST_FAILURES.map((failure) => [`never read: ${failure}`, failedDmarc(failure)] as const),
+    ["no run yet", unreadDmarc("NotObservable")],
+    ["no password in this deployment", unreadDmarc("NotConfigured")],
+    ["a blank password", unreadDmarc("Misconfigured")],
+  ])("accepts %s", (_name, body) => {
+    expect(emailDmarcSchema.safeParse(body).error).toBeUndefined();
+  });
+
+  it.each<readonly [string, unknown]>([
+    ["a key outside the contract", { ...observed, reporterNames: [] }],
+    ["a missing key", Object.fromEntries(Object.entries(observed).filter(([key]) => key !== "sourceCount"))],
+    ["a reporter's name on a source", withSource(0, { reporter: "reporter.example" })],
+    ["a status outside the six", { ...observed, status: "Partial" }],
+    ["figures without a report", { ...noReportsDmarc(), messages: 3 }],
+    ["a window on a mailbox never read", { ...failedDmarc("Timeout"), from: DMARC_FROM }],
+    ["a figure where the mailbox is not read here", { ...unreadDmarc("NotConfigured"), reports: 0 }],
+    ["Succeeded as the latest failure", observedDmarc({ ingestion: { ...dmarcIngestion({ stale: true }), latestFailure: "Succeeded" as never } })],
+    ["NotConfigured as the latest failure", observedDmarc({ ingestion: { ...dmarcIngestion({ stale: true }), latestFailure: "NotConfigured" as never } })],
+    ["Incomplete after a success", observedDmarc({ ingestion: dmarcFailure("Incomplete") })],
+    ["a failed latest run that is not stale", observedDmarc({ ingestion: { ...dmarcFailure("Timeout"), stale: false } })],
+    ["a resume without a failure", observedDmarc({ ingestion: dmarcIngestion({ signInResumesAt: "2026-10-26T08:23:09+00:00" }) })],
+    ["a resume before the attempt", observedDmarc({
+      ingestion: { ...dmarcFailure("AuthRefused"), signInResumesAt: "2026-10-24T08:23:09+00:00" },
+    })],
+    ["a failed state after a success", { ...failedDmarc("Timeout"), ingestion: dmarcFailure("Timeout") }],
+    ["a window without a success", noReportsDmarc({ ingestion: dmarcFailure("Timeout", null) })],
+    ["a window of another length", observedDmarc({ from: "2026-10-24T09:00:00.1234567+00:00" })],
+    ["a covered span after the window", observedDmarc({ coveredFrom: "2026-10-26T00:00:00+00:00", coveredTo: "2026-10-27T00:00:00+00:00" })],
+    ["a covered span that ends before it begins", observedDmarc({ coveredFrom: "2026-10-24T00:00:00+00:00", coveredTo: "2026-10-23T00:00:00+00:00" })],
+    ["more reporters than reports", observedDmarc({ reporters: 3 })],
+    ["more failing than counted", observedDmarc({ failingMessages: 52 })],
+    ["fewer sources than shown though all are", observedDmarc({ sourceCount: 4 })],
+    ["more than the cap", observedDmarc({
+      sources: Array.from({ length: 26 }, (_, i) => dmarcSource(`192.0.2.${i}`, "jobbliggaren.se", 1, 1, 1, 0)),
+      sourceCount: 26, messages: 26, failingMessages: 0,
+    })],
+    ["totals that are not the sums when all are shown", observedDmarc({ messages: 52 })],
+    ["the sources out of their order", observedDmarc({ sources: [...observed.sources].reverse() })],
+    ["a source and domain twice", observedDmarc({
+      sources: [observed.sources[0], observed.sources[0], observed.sources[1]].filter((s) => s !== undefined),
+      messages: 46, failingMessages: 6,
+    })],
+    ["a flag that disagrees with the failing count", withSource(1, { flagged: true })],
+    ["a figure larger than its source's messages", withSource(1, { dkimAligned: 41 })],
+    ["a source without a message", withSource(2, { messages: 0, spfAligned: 0 })],
+    ["an address with markup", withSource(0, { address: "<b>198.51.100.7</b>" })],
+    ["an address in upper case", withSource(2, { address: LONG_IPV6.toUpperCase() })],
+    ["an address with a zone", withSource(2, { address: "2001:db8::1%eth0" })],
+    ["an address longer than the alphabet allows", withSource(2, { address: `${LONG_IPV6}:ffff:ff` })],
+    ["a domain outside the policy domain", withSource(0, { headerFrom: "example.com" })],
+    ["a look-alike of the policy domain", withSource(0, { headerFrom: "notjobbliggaren.se" })],
+    ["a domain in upper case", withSource(0, { headerFrom: "Jobbliggaren.se" })],
+    ["a domain with a bidi control", withSource(0, { headerFrom: "mail‮.jobbliggaren.se" })],
+    ["a domain with a space", withSource(0, { headerFrom: "mail .jobbliggaren.se" })],
+    ["a domain longer than 253 characters", withSource(0, { headerFrom: `x${longestDomain}` })],
+    ["a negative count", observedDmarc({ conflictingReports: -1 })],
+    ["a fractional count", observedDmarc({ mailbox: { ...observed.mailbox, skipped: 0.5 } })],
+    ["an instant without an offset", observedDmarc({ to: "2026-10-25T09:00:00" })],
+  ])("rejects %s", (_name, body) => {
+    expect(reads(body)).toBe(false);
+  });
+
+  it("names no value it refuses in its message, so a logged miss carries no address or domain", () => {
+    const result = emailDmarcSchema.safeParse(withSource(0, { address: "198.51.100.77x", headerFrom: "evil.example" }));
+    expect(result.success).toBe(false);
+    const messages = JSON.stringify(result.error?.issues.map((issue) => issue.message));
+    expect(messages).not.toContain("198.51.100.77x");
+    expect(messages).not.toContain("evil.example");
   });
 });

@@ -7,7 +7,10 @@ import {
   PROVIDER_EMAIL_ID,
   SESSION_COOKIE,
   SESSION_ID,
+  TEXT_SPACING,
   startHarness,
+  DMARC_LONG_DOMAIN,
+  DMARC_LONG_IPV6,
   type DeliveryScenario,
   type FailuresScenario,
   type Harness,
@@ -16,7 +19,8 @@ import {
 /**
  * Leverans on `/admin/e-post` and the overview's failed-sends line, in a real browser (#1981 PR 2 and PR 3): the period
  * links (each its own URL, focus kept, the allowance untouched by a change, a deep link), every state the provider's
- * two reads and our own count per mail kind can be in, the section's announcement, and the document's `no-store`.
+ * two reads and our own count per mail kind can be in, the section's announcement, and the document's `no-store`; and
+ * the DMARC reports' own section, which the period links never drive (#1981 PR 4b).
  * With ADMIN_OVERVIEW_SCREENSHOT_DIR set, each state is rendered at 1280 and 375 px in both themes into that directory.
  */
 
@@ -151,6 +155,7 @@ test.describe("the period links", () => {
       await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
       await page.goto(PAGE);
       await expect(allowance(page).getByRole("definition")).toHaveText(["142", "300", /^0,00\skr$/]);
+      const dmarcText = await dmarc(page).innerText();
       // A slow provider, so the change is seen mid-flight: the page keeps its last answer until the new one arrives.
       harness.emailDelay = 1_200;
       await expect(page.locator("main")).not.toContainText("Hämtar uppgifter…");
@@ -176,6 +181,8 @@ test.describe("the period links", () => {
         await expect(leverans(page).getByRole("definition")).toHaveText([...values]);
         await expect(link).toBeFocused();
         expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+        // The DMARC reports keep their own window: a period change leaves the section as it was.
+        expect(await dmarc(page).innerText()).toBe(dmarcText);
         await verify(page, `period-${period}`);
       }
 
@@ -187,6 +194,7 @@ test.describe("the period links", () => {
         loading: false, allowanceLost: false,
       });
       await expect(alerts(page)).toHaveCount(0);
+      expect(harness.dmarcQueries.every((query) => query === "/api/v1/admin/email/dmarc")).toBe(true);
     });
   }
 });
@@ -367,7 +375,7 @@ test.describe("rendered states (#1981 PR 2, DESIGN.md §12)", () => {
       await expect(kindsSection(page).getByRole("heading", { level: 3, name: "Utskick per mejltyp" })).toBeVisible();
       await expect(kindsRows(page)).toHaveText(["Hämtar uppgifter…"]);
       await expect(page.getByRole("status").filter({ hasText: /\S/ })).toHaveText([
-        "Utskick mot gratiskvoten: Hämtar uppgifter…", "Leverans: Hämtar uppgifter…",
+        "Utskick mot gratiskvoten: Hämtar uppgifter…", "Leverans: Hämtar uppgifter…", "DMARC-rapporter: Hämtar uppgifter…",
       ]);
       await expect(page.locator("main")).not.toContainText("Kommer snart");
       await verify(page, "loading");
@@ -492,7 +500,7 @@ test.describe("Utskick per mejltyp (#1981 PR 3)", () => {
 
     await expect(leverans(page).getByRole("heading", { level: 3 })).toHaveText(["Senaste misslyckade utskick", "Utskick per mejltyp"]);
     await expect(kindsTable(page).getByRole("columnheader")).toHaveText(["Mejltyp", "Överlämnade", "Fel", "Senaste fel"]);
-    await expect(page.getByRole("rowheader")).toHaveCount(7);
+    await expect(kindsTable(page).getByRole("rowheader")).toHaveCount(7);
     await expect(kindsTable(page).getByRole("rowheader")).toHaveText(KIND_LABELS);
     await expect(kindsRows(page)).toHaveCount(7);
     await expect(kindsTable(page)).not.toContainText(/totalt|summa|–/i);
@@ -587,7 +595,11 @@ test.describe("Utskick per mejltyp (#1981 PR 3)", () => {
     { state: "both-failed", set: (h) => { h.overviewReads.delivery = h.overviewReads.failures = h.overviewReads.kinds = "error"; },
       alerts: [`Leverans: ${OUR_READ_FAILED} Utskick per mejltyp: ${OUR_READ_FAILED}`] },
     { state: "all-refused", set: (h) => { h.mode = "forbidden"; },
-      alerts: [`Utskick mot gratiskvoten: ${REFUSED}`, `Leverans: ${REFUSED}`] },
+      alerts: [`Utskick mot gratiskvoten: ${REFUSED}`, `Leverans: ${REFUSED}`, `DMARC-rapporter: ${REFUSED}`] },
+    { state: "only-dmarc-failed", set: (h) => { h.overviewReads.dmarc = "error"; },
+      alerts: [`DMARC-rapporter: ${OUR_READ_FAILED}`] },
+    { state: "dmarc-and-leverans-failed", set: (h) => { h.overviewReads.delivery = h.overviewReads.failures = h.overviewReads.dmarc = "error"; },
+      alerts: [`Leverans: ${OUR_READ_FAILED}`, `DMARC-rapporter: ${OUR_READ_FAILED}`] },
   ];
 
   for (const expected of ANNOUNCEMENTS) {
@@ -634,3 +646,200 @@ test.describe("Utskick per mejltyp (#1981 PR 3)", () => {
     }
   });
 });
+
+// ── DMARC-rapporter (#1981 PR 4b) ───────────────────────────────────────────────────────────
+
+const dmarc = (page: Page) => page.getByRole("region", { name: "DMARC-rapporter", exact: true });
+const dmarcTable = (page: Page) => page.getByRole("table", { name: /^DMARC-resultat per IP-adress/ });
+const dmarcLines = (page: Page) => dmarc(page).locator(":scope > div > p.jp-adminsoon");
+const RUNBOOK = "Se runbooken för admin-e-post.";
+const MINUTE = String.raw`\d{4}-\d\d-\d\d \d\d:\d\d`;
+const DMARC_FIXED =
+  "Rapporterna, som vi inte har kontrollerat, visar autentisering, inte om meddelandena hamnade i inkorgen eller bland skräpposten.";
+const dmarcStale = new RegExp(`^Brevlådan har inte lästs sedan ${MINUTE}\\. ${RUNBOOK}$`);
+const resumes = (reason: string) => new RegExp(`^${reason} Nästa inloggningsförsök görs tidigast ${MINUTE}\\. ${RUNBOOK}$`);
+
+const DMARC_STATES: ReadonlyArray<{
+  readonly state: string;
+  readonly set: (h: Harness) => void;
+  readonly values: ReadonlyArray<string | RegExp>;
+  readonly lines: ReadonlyArray<string | RegExp>;
+  readonly announced: boolean;
+}> = [
+  { state: "observed", set: () => {}, values: ["51", "3"], lines: [], announced: false },
+  { state: "capped", set: (h) => { h.emailDmarc = "capped"; }, values: [/^2\s206$/, "6"], lines: [
+    `En rapport finns i flera versioner med olika innehåll, och ingen av versionerna räknas. ${RUNBOOK}`,
+    `2 mejl till brevlådan de senaste 7 dygnen kunde inte läsas som rapport. ${RUNBOOK}`,
+    `2 mejl till brevlådan de senaste 7 dygnen kunde inte sparas, eftersom gränsen för sparade rapporter per dygn var nådd. ${RUNBOOK}`,
+    `Ett mejl till brevlådan de senaste 7 dygnen gick inte att läsa efter upprepade försök. ${RUNBOOK}`,
+    "3 mejl till brevlådan väntar på ett nytt försök.",
+  ], announced: false },
+  { state: "none-failing", set: (h) => { h.emailDmarc = "noneFailing"; }, values: ["51", "0"], lines: [], announced: false },
+  { state: "observed-stale", set: (h) => { h.emailDmarc = "observedStale"; }, values: ["51", "3"], lines: [dmarcStale], announced: true },
+  { state: "observed-protocol", set: (h) => { h.dmarcFailure = "Protocol"; }, values: ["51", "3"],
+    lines: [`Brevlådans svar kunde inte läsas. ${RUNBOOK}`], announced: true },
+  { state: "observed-unanswered", set: (h) => { h.dmarcFailure = "AuthUnconfirmed"; }, values: ["51", "3"],
+    lines: [resumes("Lösenordet skickades, men brevlådan gav inget svar\\.")], announced: true },
+  { state: "no-reports", set: (h) => { h.emailDmarc = "noReports"; }, values: [UNKNOWN, UNKNOWN],
+    lines: ["Ingen rapport täcker de senaste 7 dygnen."], announced: false },
+  { state: "no-reports-conflicting", set: (h) => { h.emailDmarc = "noReportsConflicting"; }, values: [UNKNOWN, UNKNOWN],
+    lines: [`En rapport finns i flera versioner med olika innehåll, och ingen av versionerna räknas. ${RUNBOOK}`], announced: false },
+  { state: "no-reports-stale", set: (h) => { h.emailDmarc = "noReportsStale"; }, values: [UNKNOWN, UNKNOWN],
+    lines: [dmarcStale], announced: true },
+  { state: "no-reports-timeout", set: (h) => { h.emailDmarc = "noReports"; h.dmarcFailure = "Timeout"; }, values: [UNKNOWN, UNKNOWN],
+    lines: [`Brevlådan svarade inte i tid. ${RUNBOOK}`], announced: true },
+  { state: "no-reports-refused", set: (h) => { h.emailDmarc = "noReports"; h.dmarcFailure = "AuthRefused"; }, values: [UNKNOWN, UNKNOWN],
+    lines: [resumes("Brevlådan nekade inloggningen\\.")], announced: true },
+  { state: "not-observable", set: (h) => { h.emailDmarc = "notObservable"; }, values: [UNKNOWN, UNKNOWN],
+    lines: ["Brevlådan har inte lästs än."], announced: false },
+  { state: "not-configured", set: (h) => { h.emailDmarc = "notConfigured"; }, values: [UNKNOWN, UNKNOWN],
+    lines: ["Läses inte i den här miljön."], announced: false },
+  { state: "misconfigured", set: (h) => { h.emailDmarc = "misconfigured"; }, values: [UNKNOWN, UNKNOWN],
+    lines: [`Lösenordet till brevlådan är tomt. ${RUNBOOK}`], announced: true },
+  ...([
+    ["unreachable", "Unreachable", `Brevlådan gick inte att nå. ${RUNBOOK}`],
+    ["timeout", "Timeout", `Brevlådan svarade inte i tid. ${RUNBOOK}`],
+    ["tls-failed", "TlsFailed", `Brevlådans certifikat kunde inte verifieras. ${RUNBOOK}`],
+    ["protocol", "Protocol", `Brevlådans svar kunde inte läsas. ${RUNBOOK}`],
+    ["auth-refused", "AuthRefused", resumes("Brevlådan nekade inloggningen\\.")],
+    ["auth-unconfirmed", "AuthUnconfirmed", resumes("Lösenordet skickades, men brevlådan gav inget svar\\.")],
+    ["incomplete", "Incomplete", new RegExp(`^Den första inläsningen av brevlådan började ${MINUTE} och har inte avslutats\\. ${RUNBOOK}$`)],
+  ] as const).map(([state, failure, line]) => ({
+    state: `failed-${state}`,
+    set: (h: Harness) => { h.emailDmarc = "failed"; h.dmarcFailure = failure; },
+    values: [UNKNOWN, UNKNOWN],
+    lines: [line],
+    announced: true,
+  })),
+  { state: "our-read-failed", set: (h) => { h.overviewReads.dmarc = "error"; }, values: [UNKNOWN, UNKNOWN],
+    lines: [OUR_READ_FAILED], announced: true },
+  { state: "refused", set: (h) => { h.overviewReads.dmarc = "forbidden"; }, values: [UNKNOWN, UNKNOWN],
+    lines: [REFUSED], announced: true },
+];
+
+test.describe("DMARC-rapporter (#1981 PR 4b)", () => {
+  test("is a section of its own after Leverans, with the summary, six columns and the address as each row's header", async ({ page }) => {
+    await page.goto(PAGE);
+
+    await expect(page.locator("main").getByRole("heading", { level: 2 })).toHaveText([/^Utskick (i |denna)/, "Leverans", "DMARC-rapporter"]);
+    await expect(leverans(page).getByRole("region", { name: "DMARC-rapporter" })).toHaveCount(0);
+    await expect(dmarc(page).getByRole("term")).toHaveText(["Meddelanden", "DMARC-underkända"]);
+    await expect(dmarc(page).getByRole("definition")).toHaveText(["51", "3"]);
+    await expect(dmarcTable(page).getByRole("columnheader")).toHaveText([
+      "IP-adress", "Avsändardomän", "Meddelanden", "DKIM-godkända", "SPF-godkända", "DMARC-underkända",
+    ]);
+    await expect(dmarcTable(page).getByRole("rowheader")).toHaveText(["198.51.100.7", "192.0.2.10", DMARC_LONG_IPV6]);
+    await expect(dmarcTable(page).locator("tbody tr")).toHaveCount(3);
+    await expect(dmarc(page).locator(".jp-admin-danger")).toHaveText(["3", "3"]);
+    await expect(dmarc(page).locator("a, [href]")).toHaveCount(0);
+    await expect(dmarc(page)).not.toContainText(/Skickade|Överlämnade|Kommer snart/);
+    await expect(dmarc(page).locator(".jp-adminmailsum__note p").nth(1)).toHaveText(DMARC_FIXED);
+    expect(harness.dmarcQueries).toEqual(["/api/v1/admin/email/dmarc"]);
+    record("epost-dmarc-aria.txt", await dmarc(page).ariaSnapshot());
+  });
+
+  for (const expected of DMARC_STATES) {
+    test(`renders the ${expected.state} state at 1280 and 375 px in both themes, never a zero it did not observe`, async ({ page }) => {
+      expected.set(harness);
+      await verifyEverywhere(page, PAGE, `dmarc-${expected.state}`, async (current) => {
+        await expect(dmarc(current).getByRole("definition")).toHaveText([...expected.values]);
+        await expect(dmarcLines(current)).toHaveText([...expected.lines]);
+        const own = alerts(current).filter({ hasText: /^DMARC-rapporter: / });
+        await expect(own).toHaveCount(expected.announced ? 1 : 0);
+        if (expected.announced) await expect(own).toHaveText(new RegExp(`^DMARC-rapporter: ${escape(expected.lines[0])}`));
+        // The column heads always stay; without figures the table holds one line and no note.
+        await expect(dmarcTable(current).getByRole("columnheader")).toHaveCount(6);
+        if (expected.values[0] === UNKNOWN) {
+          await expect(dmarcTable(current).locator("tbody tr")).toHaveText(["Uppgift saknas"]);
+          await expect(dmarc(current).locator(".jp-adminmailsum__note")).toHaveCount(0);
+          await expect(dmarcTable(current)).toHaveAccessibleName("DMARC-resultat per IP-adress");
+        } else {
+          await expect(dmarc(current).locator(".jp-adminmailsum__note p").nth(1)).toHaveText(DMARC_FIXED);
+        }
+        // Leverans is untouched by the DMARC region's state, and the reverse.
+        await expect(leverans(current).getByRole("definition")).toHaveText(["384", "5"]);
+      });
+    });
+  }
+
+  test("says how many rows it shows of how many at the cap", async ({ page }) => {
+    harness.emailDmarc = "capped";
+    await page.goto(PAGE);
+    await expect(dmarcTable(page).locator("tbody tr")).toHaveCount(25);
+    await expect(dmarc(page).getByText("Visar 25 av 31 rader.", { exact: true })).toBeVisible();
+    await expect(dmarcTable(page).getByRole("row").filter({ hasText: DMARC_LONG_DOMAIN })).toHaveCount(1);
+  });
+
+  test("gives two rows that share an address distinct names", async ({ page }) => {
+    harness.emailDmarc = "sharedAddress";
+    await page.goto(PAGE);
+    const heads = dmarcTable(page).getByRole("rowheader");
+    // The address sits in an inline-block, so Chromium's name puts a space before the hidden ", domain"; the names
+    // differ, which is the rule (test-writer F10).
+    await expect(heads.nth(0)).toHaveAccessibleName(/^198\.51\.100\.7 ?, jobbliggaren\.se$/);
+    await expect(heads.nth(1)).toHaveAccessibleName(/^198\.51\.100\.7 ?, mail\.jobbliggaren\.se$/);
+    await expect(heads.nth(2)).toHaveAccessibleName("192.0.2.10");
+  });
+
+  test("shows a span across the change to winter time in each instant's own offset", async ({ page }) => {
+    harness.emailDmarc = "dst";
+    await page.goto(PAGE);
+    await expect(dmarc(page).locator(".jp-adminmailsum__note p").first()).toContainText("för tiden 2026-10-24 02:00 till 2026-10-26 01:00.");
+    await expect(dmarcTable(page)).toHaveAccessibleName("DMARC-resultat per IP-adress för tiden 2026-10-24 02:00 till 2026-10-26 01:00");
+  });
+
+  for (const spaced of [false, true]) test(`keeps a long IPv6 address whole, wrapped at its colons, in a frozen column of at most half the region at 375 px${spaced ? " with 1.4.12 spacing" : ""}`, async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(PAGE);
+    if (spaced) await page.addStyleTag({ content: TEXT_SPACING });
+    const region = page.getByRole("region", { name: /^DMARC-resultat per IP-adress för tiden/ });
+    await region.scrollIntoViewIfNeeded();
+    for (const theme of ["light", "dark"] as const) {
+      if (theme === "dark") await darken(page);
+      await region.evaluate((element) => { element.scrollLeft = 0; });
+      const header = dmarcTable(page).getByRole("rowheader").nth(2);
+      await expect(header).toHaveAccessibleName(DMARC_LONG_IPV6);
+      const shape = await header.evaluate((cell) => {
+        const span = cell.querySelector(".jp-admindmarc__addr");
+        const range = document.createRange();
+        if (span !== null) range.selectNodeContents(span);
+        const scroller = cell.closest(".jp-admintable-scroll");
+        return {
+          width: cell.getBoundingClientRect().width,
+          region: scroller?.getBoundingClientRect().width ?? 0,
+          lines: new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size,
+          text: span?.textContent ?? "",
+        };
+      });
+      expect(shape.text).toBe(DMARC_LONG_IPV6);
+      expect(shape.lines, "the address wraps at its colons").toBeGreaterThan(1);
+      expect(shape.width, "the frozen column stays at most half the region").toBeLessThanOrEqual(shape.region / 2 + 1);
+      const atRest = await header.boundingBox();
+      await region.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+      await expect.poll(async () => region.evaluate((element) => element.scrollLeft)).toBeGreaterThan(50);
+      const regionBox = await region.boundingBox();
+      const scrolled = await header.boundingBox();
+      expect(scrolled?.x, "the address column stays at the region's start").toBeCloseTo(regionBox?.x ?? -1, 0);
+      expect(scrolled?.x).toBeCloseTo(atRest?.x ?? -1, 0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      const directory = screenshotDirectory();
+      if (directory !== null) {
+        mkdirSync(directory, { recursive: true });
+        await region.screenshot({ path: join(directory, `epost-dmarc-sticky-${theme}${spaced ? "-spaced" : ""}-375.png`), animations: "disabled" });
+      }
+    }
+  });
+
+  test("is never read by the overview", async ({ page }) => {
+    await page.goto("/admin");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    expect(harness.dmarcQueries).toEqual([]);
+  });
+});
+
+/** A line as a pattern: a string matched literally, a pattern by its own source. */
+function escape(line: string | RegExp | undefined): string {
+  if (line === undefined) return "";
+  if (line instanceof RegExp) return line.source.replace(/^\^/, "").replace(/\$$/, "");
+  return line.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}

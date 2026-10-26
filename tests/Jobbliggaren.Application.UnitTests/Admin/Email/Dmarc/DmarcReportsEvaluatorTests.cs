@@ -254,6 +254,41 @@ public sealed class DmarcReportsEvaluatorTests
         dto.Ingestion.LatestFailure.ShouldBeNull();
     }
 
+    [Theory]
+    [InlineData(DmarcRunOutcome.AuthRefused, false)]
+    [InlineData(DmarcRunOutcome.AuthRefused, true)]
+    [InlineData(DmarcRunOutcome.AuthUnconfirmed, false)]
+    [InlineData(DmarcRunOutcome.AuthUnconfirmed, true)]
+    public void ASignInThatBacksOff_SaysWhenSignInResumes_FailedAndAfterASuccess(DmarcRunOutcome latest, bool succeededBefore)
+    {
+        var dto = Evaluate(Read(State(latest, succeededBefore ? EarlierSuccess : null), SomeReports));
+
+        dto.Status.ShouldBe(succeededBefore ? EmailDmarcStatus.Observed : EmailDmarcStatus.Failed);
+        dto.Ingestion.ShouldNotBeNull().SignInResumesAt.ShouldBe(LastAttempt + DmarcIngestionLimits.SignInBackoff);
+        Serialised(dto).GetProperty("ingestion").GetProperty("signInResumesAt").GetDateTimeOffset()
+            .ShouldBe(LastAttempt + DmarcIngestionLimits.SignInBackoff);
+    }
+
+    // Only the pairs the job writes: Incomplete before any success, Succeeded only as one.
+    [Theory]
+    [InlineData(DmarcRunOutcome.Succeeded, true)]
+    [InlineData(DmarcRunOutcome.Incomplete, false)]
+    [InlineData(DmarcRunOutcome.Unreachable, false)]
+    [InlineData(DmarcRunOutcome.Unreachable, true)]
+    [InlineData(DmarcRunOutcome.TlsFailed, false)]
+    [InlineData(DmarcRunOutcome.TlsFailed, true)]
+    [InlineData(DmarcRunOutcome.Timeout, false)]
+    [InlineData(DmarcRunOutcome.Timeout, true)]
+    [InlineData(DmarcRunOutcome.Protocol, false)]
+    [InlineData(DmarcRunOutcome.Protocol, true)]
+    public void EveryOtherOutcome_SaysNothingAboutWhenSignInResumes(DmarcRunOutcome latest, bool succeededBefore)
+    {
+        var success = succeededBefore ? EarlierSuccess : (DateTimeOffset?)null;
+        var dto = Evaluate(Read(State(latest, success, latest == DmarcRunOutcome.Succeeded ? success : null), SomeReports));
+
+        dto.Ingestion.ShouldNotBeNull().SignInResumesAt.ShouldBeNull();
+    }
+
     [Fact]
     public void TheMailboxCounts_GroupEveryClassThatStoredNothing_AndLeaveTheRestOut()
     {
@@ -366,7 +401,9 @@ public sealed class DmarcReportsEvaluatorTests
 
         Keys(observed).ShouldBe(keys);
         Keys(notConfigured).ShouldBe(keys);
-        Keys(observed.GetProperty("ingestion")).ShouldBe(["lastAttemptAt", "lastSuccessAt", "latestFailure", "stale"]);
+        Keys(observed.GetProperty("ingestion"))
+            .ShouldBe(["lastAttemptAt", "lastSuccessAt", "latestFailure", "signInResumesAt", "stale"]);
+        observed.GetProperty("ingestion").GetProperty("signInResumesAt").ValueKind.ShouldBe(JsonValueKind.Null);
         Keys(observed.GetProperty("mailbox")).ShouldBe(["abandoned", "rejected", "retryPending", "skipped", "volumeCapped"]);
         Keys(observed.GetProperty("sources")[0])
             .ShouldBe(["address", "dkimAligned", "failingDmarc", "flagged", "headerFrom", "messages", "spfAligned"]);

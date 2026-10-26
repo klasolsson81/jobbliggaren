@@ -3,20 +3,29 @@ import { render, screen, within } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svAdmin from "../../../../../messages/sv/admin.json";
 import { emailAllowanceFixture } from "@/test/fixtures/admin-overview";
-import type { EmailAllowanceRead, EmailDeliveryRead, EmailFailuresRead, EmailKindsRead } from "@/lib/api/admin-email";
+import { observedDmarc } from "@/test/fixtures/admin-email-dmarc";
+import type {
+  EmailAllowanceRead,
+  EmailDeliveryRead,
+  EmailDmarcRead,
+  EmailFailuresRead,
+  EmailKindsRead,
+} from "@/lib/api/admin-email";
 import { EMAIL_KINDS, type EmailDeliveryPeriod } from "@/lib/dto/admin-email";
 
-const { allowance, delivery, failures, kinds } = vi.hoisted(() => ({
+const { allowance, delivery, failures, kinds, dmarc } = vi.hoisted(() => ({
   allowance: vi.fn<() => Promise<EmailAllowanceRead>>(),
   delivery: vi.fn<(period: EmailDeliveryPeriod) => Promise<EmailDeliveryRead>>(),
   failures: vi.fn<(period: EmailDeliveryPeriod) => Promise<EmailFailuresRead>>(),
   kinds: vi.fn<(period: EmailDeliveryPeriod) => Promise<EmailKindsRead>>(),
+  dmarc: vi.fn<() => Promise<EmailDmarcRead>>(),
 }));
 vi.mock("@/lib/api/admin-email", () => ({
   loadEmailAllowance: allowance,
   loadEmailDelivery: delivery,
   loadEmailFailures: failures,
   loadEmailKinds: kinds,
+  loadEmailDmarc: dmarc,
 }));
 vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace: string) =>
@@ -39,12 +48,16 @@ const allowanceRegion = () => screen.getByRole("region", { name: /^Utskick (i |d
 const deliveryRegion = () => screen.getByRole("region", { name: "Leverans" });
 const deliveryValues = () => within(deliveryRegion()).getAllByRole("definition").map((value) => value.textContent);
 const kindsRegion = () => screen.getByRole("region", { name: "Utskick per mejltyp" });
+const dmarcRegion = () => screen.getByRole("region", { name: "DMARC-rapporter" });
+const dmarcValues = () => within(dmarcRegion()).getAllByRole("definition").map((value) => value.textContent);
 
 beforeEach(() => {
   allowance.mockReset();
   delivery.mockReset();
   failures.mockReset();
   kinds.mockReset();
+  dmarc.mockReset();
+  dmarc.mockResolvedValue({ kind: "ok", data: observedDmarc() });
   allowance.mockResolvedValue({ kind: "ok", data: emailAllowanceFixture() });
   delivery.mockImplementation(async (period) => ({
     kind: "ok", data: { period, status: "Observed", reason: null, observedAt: ASKED_AT, sent: 163, failed: 3 },
@@ -68,21 +81,25 @@ beforeEach(() => {
   }));
 });
 
-describe("/admin/e-post — the month against the free allowance first, Leverans after (#1981)", () => {
-  it("is headed E-postleverans with its lede and no aside, then the allowance, then Leverans", async () => {
+describe("/admin/e-post — the month against the free allowance first, Leverans after, the DMARC reports last (#1981)", () => {
+  it("is headed E-postleverans with its lede and no aside, then the allowance, Leverans and the DMARC reports", async () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "E-postleverans" })).toBeInTheDocument();
-    expect(screen.getByText("Utskick mot gratiskvoten, leverans, misslyckade utskick och antal per mejltyp.")).toBeInTheDocument();
+    expect(screen.getByText("Utskick mot gratiskvoten, leverans, misslyckade utskick, antal per mejltyp och DMARC-rapporter.")).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent)).toEqual([
       "Utskick i oktober 2026",
       "Leverans",
+      "DMARC-rapporter",
     ]);
     expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
       "Senaste misslyckade utskick",
       "Utskick per mejltyp",
     ]);
     expect(deliveryRegion()).toContainElement(kindsRegion());
+    // A third source, after Leverans and outside it: never read as the provider's or our own count.
+    expect(deliveryRegion()).not.toContainElement(dmarcRegion());
+    expect(within(dmarcRegion()).queryByRole("navigation")).toBeNull();
     // The h1's row carries nothing beside it: the period links are Leverans's.
     expect(document.querySelector(".jp-adminhead__aside")).toBeNull();
     expect(within(deliveryRegion()).getByRole("navigation", { name: "Period" })).toBeInTheDocument();
@@ -110,6 +127,7 @@ describe("/admin/e-post's period (#1981 PR 2)", () => {
     expect(delivery).toHaveBeenCalledWith("d7");
     expect(failures).toHaveBeenCalledWith("d7");
     expect(kinds).toHaveBeenCalledWith("d7");
+    expect(dmarc.mock.calls).toEqual([[]]);
     expect(screen.getByRole("link", { name: "7 dygn" })).toHaveAttribute("aria-current", "true");
   });
 
@@ -119,6 +137,8 @@ describe("/admin/e-post's period (#1981 PR 2)", () => {
     expect(delivery.mock.calls).toEqual([[period]]);
     expect(failures.mock.calls).toEqual([[period]]);
     expect(kinds.mock.calls).toEqual([[period]]);
+    // The DMARC reports keep their own fixed window: the period is never sent to them.
+    expect(dmarc.mock.calls).toEqual([[]]);
     const current = screen.getByRole("navigation", { name: "Period" }).querySelectorAll("[aria-current='true']");
     expect([...current].map((link) => link.getAttribute("href"))).toEqual([`/admin/e-post?period=${period}`]);
   });
@@ -192,16 +212,19 @@ describe("/admin/e-post's regions fail on their own (ADR 0150 D2)", () => {
     delivery.mockResolvedValue({ kind });
     failures.mockResolvedValue({ kind });
     kinds.mockResolvedValue({ kind });
+    dmarc.mockResolvedValue({ kind });
     await renderPage();
 
     expect(within(allowanceRegion()).getByText(line)).toBeInTheDocument();
     // The list's cause is the summary's, which says it once; our own count says it under its own heading.
     expect(within(deliveryRegion()).getAllByText(line)).toHaveLength(2);
     expect(within(kindsRegion()).getByText(line)).toBeInTheDocument();
-    // A cause every Leverans region shares is read once.
+    expect(within(dmarcRegion()).getByText(line)).toBeInTheDocument();
+    // A cause every Leverans region shares is read once; each h2 section announces its own.
     expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual([
       `Utskick mot gratiskvoten: ${line}`,
       `Leverans: ${line}`,
+      `DMARC-rapporter: ${line}`,
     ]);
   });
 
@@ -225,6 +248,24 @@ describe("/admin/e-post's regions fail on their own (ADR 0150 D2)", () => {
     expect(document.body.textContent).not.toContain("Räknas inte i den här miljön.");
   });
 
+  it("keeps a failed DMARC read in its own region, and leaves Leverans its figures", async () => {
+    dmarc.mockResolvedValue({ kind: "error" });
+    await renderPage();
+
+    expect(dmarcValues()).toEqual([UNKNOWN, UNKNOWN]);
+    expect(deliveryValues()).toEqual(["163", "3"]);
+    expect(screen.getByRole("alert")).toHaveTextContent("DMARC-rapporter: Uppgifterna kunde inte hämtas. Försök igen om en stund.");
+  });
+
+  it("keeps the DMARC figures when Leverans fails", async () => {
+    delivery.mockResolvedValue({ kind: "error" });
+    failures.mockResolvedValue({ kind: "error" });
+    await renderPage();
+
+    expect(dmarcValues()).toEqual(["51", "3"]);
+    expect(deliveryValues()).toEqual([UNKNOWN, UNKNOWN]);
+  });
+
   it("names the provider only where an outcome from it is shown, and never SMTP", async () => {
     await renderPage();
     expect(document.body.textContent ?? "").not.toMatch(/smtp|strato/i);
@@ -244,6 +285,8 @@ describe("/admin/e-post while its reads are pending", () => {
     expect(screen.getAllByRole("status").map((status) => status.textContent)).toEqual([
       "Utskick mot gratiskvoten: Hämtar uppgifter…",
       "Leverans: Hämtar uppgifter…",
+      "DMARC-rapporter: Hämtar uppgifter…",
     ]);
+    expect(dmarcValues()).toEqual([UNKNOWN, UNKNOWN]);
   });
 });

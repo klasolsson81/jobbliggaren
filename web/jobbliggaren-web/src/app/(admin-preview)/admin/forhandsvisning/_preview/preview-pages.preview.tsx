@@ -5,6 +5,7 @@ import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import type {
   AdminEmailAllowance,
+  AdminEmailDmarc,
   AdminEmailKinds,
   AdminEmailPeriod,
   AdminEmailRead,
@@ -30,12 +31,14 @@ import { AdminOverview } from "@/components/admin/admin-overview";
 import { AdminFeedbackView } from "@/components/admin/admin-feedback-view";
 import { AdminEmailAllowance as AllowanceRegion, type AdminEmailAllowanceRegion } from "@/components/admin/admin-email-allowance";
 import { AdminEmailDelivery } from "@/components/admin/admin-email-delivery";
+import { AdminEmailDmarc as DmarcRegion } from "@/components/admin/admin-email-dmarc";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminLogsView, type AdminLogView } from "@/components/admin/admin-logs-view";
 import type {
   PreviewAllowanceScenario,
   PreviewDelivery,
   PreviewDeliveryScenario,
+  PreviewDmarcScenario,
   PreviewKindsScenario,
   PreviewOverviewData,
 } from "@/lib/admin-preview/fixtures";
@@ -323,6 +326,10 @@ function isKindsScenario(value: string): value is PreviewKindsScenario {
   return KINDS_SCENARIOS.some((scenario) => scenario === value);
 }
 
+function isDmarcScenario(value: string): value is PreviewDmarcScenario {
+  return DMARC_SCENARIOS.some((scenario) => scenario === value);
+}
+
 /** The allowance scenarios, in the order the preview's choice lists them. */
 const SCENARIOS: ReadonlyArray<PreviewAllowanceScenario> = [
   "withinQuota",
@@ -372,21 +379,49 @@ const KINDS_SCENARIOS: ReadonlyArray<PreviewKindsScenario> = [
   "notObservable",
 ];
 
+/** The DMARC scenarios (#1981 PR 4b), in the order the preview's fourth choice lists them. */
+const DMARC_SCENARIOS: ReadonlyArray<PreviewDmarcScenario> = [
+  "observed",
+  "capped",
+  "sharedAddress",
+  "noneFailing",
+  "mailbox",
+  "conflicting",
+  "observedStale",
+  "failedAfter",
+  "signInUnanswered",
+  "noReports",
+  "noReportsConflicting",
+  "noReportsStale",
+  "notObservable",
+  "notConfigured",
+  "misconfigured",
+  "failedUnreachable",
+  "failedTimeout",
+  "failedTls",
+  "failedAuthRefused",
+  "failedAuthUnconfirmed",
+  "failedProtocol",
+  "failedIncomplete",
+];
+
 /**
- * The e-post page over fictional reads. The allowance, the provider's Leverans reads and the per-kind count each take a
- * scenario of their own, and Leverans's period is the URL's, as on the live page: its links navigate, and the chosen
- * scenarios stay.
+ * The e-post page over fictional reads. The allowance, the provider's Leverans reads, the per-kind count and the DMARC
+ * reports each take a scenario of their own, and Leverans's period is the URL's, as on the live page: its links navigate,
+ * and the chosen scenarios stay. The DMARC reports keep their own window, so the period never changes them.
  */
 export function PreviewEmail({
   allowances,
   deliveries,
   kinds,
+  dmarcs,
   period,
   pagePath,
 }: {
   readonly allowances: Readonly<Record<PreviewAllowanceScenario, AdminEmailAllowance>>;
   readonly deliveries: Readonly<Record<PreviewDeliveryScenario, Readonly<Record<AdminEmailPeriod, PreviewDelivery>>>>;
   readonly kinds: Readonly<Record<PreviewKindsScenario, Readonly<Record<AdminEmailPeriod, AdminEmailKinds>>>>;
+  readonly dmarcs: Readonly<Record<PreviewDmarcScenario, AdminEmailDmarc>>;
   readonly period: AdminEmailPeriod;
   readonly pagePath: string;
 }) {
@@ -396,9 +431,11 @@ export function PreviewEmail({
   const selectId = useId();
   const deliverySelectId = useId();
   const kindsSelectId = useId();
+  const dmarcSelectId = useId();
   const [scenario, setScenario] = useState<PreviewAllowanceScenario>("withinQuota");
   const [deliveryScenario, setDeliveryScenario] = useState<PreviewDeliveryScenario>("observed");
   const [kindsScenario, setKindsScenario] = useState<PreviewKindsScenario>("observed");
+  const [dmarcScenario, setDmarcScenario] = useState<PreviewDmarcScenario>("observed");
   const delivery = deliveries[deliveryScenario][period];
   return (
     <div className="flex flex-col gap-8">
@@ -462,6 +499,24 @@ export function PreviewEmail({
         failures={deliveryRead(kind, delivery.failures)}
         kinds={deliveryRead(kind, kinds[kindsScenario][period])}
       />
+      <div className="jp-adminpreview-scenario">
+        <label htmlFor={dmarcSelectId}>{preview("dmarcLabel")}</label>
+        <select
+          id={dmarcSelectId}
+          value={dmarcScenario}
+          onChange={(event) => {
+            const chosen = event.target.value;
+            if (isDmarcScenario(chosen)) setDmarcScenario(chosen);
+          }}
+        >
+          {DMARC_SCENARIOS.map((option) => (
+            <option key={option} value={option}>
+              {preview(`dmarcScenarios.${option}`)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <DmarcRegion read={deliveryRead(kind, dmarcs[dmarcScenario])} />
     </div>
   );
 }

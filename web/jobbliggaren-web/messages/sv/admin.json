@@ -638,7 +638,7 @@
       "title": "E-postleverans"
     },
     "heading": "E-postleverans",
-    "lede": "Utskick mot gratiskvoten, leverans, misslyckade utskick och antal per mejltyp.",
+    "lede": "Utskick mot gratiskvoten, leverans, misslyckade utskick, antal per mejltyp och DMARC-rapporter.",
     "allowance": {
       "heading": "Utskick i {month}",
       "headingThisMonth": "Utskick denna månad",
@@ -731,6 +731,45 @@
         "ProviderError": "fel hos Scaleway",
         "Timeout": "inget svar i tid",
         "Other": "annat fel"
+      }
+    },
+    "dmarc": {
+      "heading": "DMARC-rapporter",
+      "messages": "Meddelanden",
+      "failing": "DMARC-underkända",
+      "note": "Enligt {reports, plural, one {en rapport} other {# rapporter}} till domänens rapportadress, för tiden <start>{from}</start> till <end>{to}</end>.",
+      "fetched": "Hämtat från brevlådan <time>{at}</time>.",
+      "fixed": "Rapporterna, som vi inte har kontrollerat, visar autentisering, inte om meddelandena hamnade i inkorgen eller bland skräpposten.",
+      "caption": "DMARC-resultat per IP-adress för tiden {from} till {to}",
+      "captionUnobserved": "DMARC-resultat per IP-adress",
+      "address": "IP-adress",
+      "headerFrom": "Avsändardomän",
+      "dkim": "DKIM-godkända",
+      "spf": "SPF-godkända",
+      "rowDomain": ", {domain}",
+      "capped": "Visar {shown} av {total} rader.",
+      "noReports": "Ingen rapport täcker de senaste 7 dygnen.",
+      "notConfigured": "Läses inte i den här miljön.",
+      "notObservable": "Brevlådan har inte lästs än.",
+      "misconfigured": "Lösenordet till brevlådan är tomt. Se runbooken för admin-e-post.",
+      "stale": "Brevlådan har inte lästs sedan <time>{at}</time>. Se runbooken för admin-e-post.",
+      "failure": {
+        "Unreachable": "Brevlådan gick inte att nå.",
+        "TlsFailed": "Brevlådans certifikat kunde inte verifieras.",
+        "AuthRefused": "Brevlådan nekade inloggningen.",
+        "Timeout": "Brevlådan svarade inte i tid.",
+        "Protocol": "Brevlådans svar kunde inte läsas.",
+        "AuthUnconfirmed": "Lösenordet skickades, men brevlådan gav inget svar.",
+        "Incomplete": "Den första inläsningen av brevlådan började <time>{at}</time> och har inte avslutats."
+      },
+      "signInResumes": "Nästa inloggningsförsök görs tidigast <time>{at}</time>.",
+      "runbook": "Se runbooken för admin-e-post.",
+      "conflicting": "{count, plural, one {En rapport} other {# rapporter}} finns i flera versioner med olika innehåll, och ingen av versionerna räknas. Se runbooken för admin-e-post.",
+      "mailbox": {
+        "unread": "{count, plural, one {Ett mejl} other {# mejl}} till brevlådan de senaste 7 dygnen kunde inte läsas som rapport. Se runbooken för admin-e-post.",
+        "volumeCapped": "{count, plural, one {Ett mejl} other {# mejl}} till brevlådan de senaste 7 dygnen kunde inte sparas, eftersom gränsen för sparade rapporter per dygn var nådd. Se runbooken för admin-e-post.",
+        "abandoned": "{count, plural, one {Ett mejl} other {# mejl}} till brevlådan de senaste 7 dygnen gick inte att läsa efter upprepade försök. Se runbooken för admin-e-post.",
+        "retryPending": "{count, plural, one {Ett mejl} other {# mejl}} till brevlådan väntar på ett nytt försök."
       }
     }
   },

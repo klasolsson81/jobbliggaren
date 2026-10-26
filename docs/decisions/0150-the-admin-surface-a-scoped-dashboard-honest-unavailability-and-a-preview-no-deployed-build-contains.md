@@ -455,3 +455,48 @@ This Amendment owns only the surface contract. What is counted, the table, the g
   | Senaste fel as the provider's reply text, 14 px ink-2 | The latest day with an error and every error class that day, from a closed list, in the table's ink | Only the class is stored (ADR 0181); DESIGN.md §4 |
   | A dash for no error | "Inget" | An en-dash means unknown (D2) |
   | One period for every figure | Every whole Swedish day the period touches, the first date shown | Our counts are per day; a superset never hides an error the provider's period shows |
+
+## Amendment 2026-10-25 (4) — DMARC reports, a third source (#1981 PR 4b, ADR 0185)
+
+This Amendment owns only the surface contract. The read, the window, the ingestion and what a figure means are ADR 0185's
+(D9) and `docs/runbooks/admin-email.md`'s.
+
+- **D4.** #1981's row is real in full: `/admin/e-post` shows the DMARC aggregate reports receiving mail services send
+  about mail sent as the domain.
+- **The section.**
+  - Its own h2, "DMARC-rapporter", after the Leverans section and outside it.
+  - It reads its own fixed seven-day window, so Leverans's period links never drive it, and it has no period choice
+    of its own.
+  - Its figures are never shown next to, added to or reconciled with Skickade or Överlämnade. It is a third source,
+    beside the provider's figures (ADR 0178 D1) and our own handover count (ADR 0181 D6).
+  - No line names a host, the transport or the mailbox address.
+- **The note**, shown only with figures:
+  - it names the reports to the domain's report address as the figures' source, and the span they cover, to the
+    minute in Swedish time, the two instants joined by "till" and the end shown exclusive as the API gives it;
+  - it says when the mailbox was last read, unless the stale line already says so;
+  - its fixed sentence says that the reports are not checked by us and show authentication, never whether a mail reached
+    the inbox or the spam folder (security-auditor's OQ9 condition 1; senior-cto-advisor's conflict 21 of 2026-10-24).
+- **The table.**
+  - One row per sending address and header-from domain, the address its row header, the domain and four counts beside it.
+  - Failing sources first, at most 25 rows, and a line naming how many of how many when more were counted.
+  - Where one address heads two rows, each row's name also carries its domain, so no two row headers read alike.
+  - A long IPv6 address wraps at its colons in a frozen column of at most half the region, its text unchanged.
+  - Nothing a reporter wrote reaches the page beyond the address and the domain acceptance kept, and the section holds
+    no link.
+- **D2, the states.**
+  - Never read; not read in this environment; a blank password.
+  - Never read successfully, one line per latest outcome.
+  - No report in the window, said only where no other line explains the absence.
+  - Stale.
+  - A latest failure after an earlier success, which keeps the figures.
+  - Our own read failed or refused; loading.
+  - Each is one line under the summary, with an en-dash for both values wherever there are no figures, never a zero.
+  - A refused sign-in, and a sign-in sent with no answer, each name the earliest next sign-in the API gives
+    (`signInResumesAt`); the browser never works it out, and no line says the password is wrong.
+  - A conflict between two versions of one report, and each count of mail the ingestion stored nothing for, has a quiet
+    line of its own.
+  - A fault of the read, or of our own read of it, is announced once in this section under its own name. Report
+    content never is.
+- **The overview** reads none of it: no DMARC figure and no attention item (ADR 0185 lapse trigger 4).
+- **D8.** No new row: the handoff had no DMARC region. Its "via SMTP (Strato)" row still holds, since this region names
+  no host or transport.

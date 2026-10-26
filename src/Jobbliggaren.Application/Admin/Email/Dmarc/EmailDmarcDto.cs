@@ -248,6 +248,7 @@ public sealed record DmarcIngestionDto
         LastAttemptAt = lastAttemptAt;
         LastSuccessAt = lastSuccessAt;
         LatestFailure = latestFailure;
+        SignInResumesAt = latestFailure is { } latest ? DmarcOutcomes.SignInResumesAt(latest, lastAttemptAt) : null;
         Stale = stale;
     }
 
@@ -256,6 +257,13 @@ public sealed record DmarcIngestionDto
     public DateTimeOffset? LastSuccessAt { get; }
 
     public DmarcRunOutcome? LatestFailure { get; }
+
+    /// <summary>
+    /// After a latest run whose sign-in backs off, the first instant a run may sign in again; otherwise null. The earliest
+    /// moment, not a scheduled one: the run that signs in is the first one at or after it, so it may already have passed
+    /// when it is read.
+    /// </summary>
+    public DateTimeOffset? SignInResumesAt { get; }
 
     public bool Stale { get; }
 }

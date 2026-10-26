@@ -638,7 +638,7 @@
       "title": "Email delivery"
     },
     "heading": "Email delivery",
-    "lede": "Sends against the free allowance, delivery, failed sends and counts per email type.",
+    "lede": "Sends against the free allowance, delivery, failed sends, counts per email type and DMARC reports.",
     "allowance": {
       "heading": "Sends in {month}",
       "headingThisMonth": "Sends this month",
@@ -731,6 +731,45 @@
         "ProviderError": "error at Scaleway",
         "Timeout": "no answer in time",
         "Other": "other error"
+      }
+    },
+    "dmarc": {
+      "heading": "DMARC reports",
+      "messages": "Messages",
+      "failing": "DMARC failed",
+      "note": "According to {reports, plural, one {one report} other {# reports}} to the domain's report address, covering <start>{from}</start> to <end>{to}</end>.",
+      "fetched": "Fetched from the mailbox <time>{at}</time>.",
+      "fixed": "The reports, which we have not checked, show authentication, not whether the messages reached the inbox or the spam folder.",
+      "caption": "DMARC results per IP address, {from} to {to}",
+      "captionUnobserved": "DMARC results per IP address",
+      "address": "IP address",
+      "headerFrom": "From domain",
+      "dkim": "DKIM passed",
+      "spf": "SPF passed",
+      "rowDomain": ", {domain}",
+      "capped": "Showing {shown} of {total} rows.",
+      "noReports": "No report covers the last 7 days.",
+      "notConfigured": "Not read in this environment.",
+      "notObservable": "The mailbox has not been read yet.",
+      "misconfigured": "The mailbox password is empty. See the admin email runbook.",
+      "stale": "The mailbox has not been read since <time>{at}</time>. See the admin email runbook.",
+      "failure": {
+        "Unreachable": "The mailbox could not be reached.",
+        "TlsFailed": "The mailbox's certificate could not be verified.",
+        "AuthRefused": "The mailbox refused the sign-in.",
+        "Timeout": "The mailbox did not answer in time.",
+        "Protocol": "The mailbox's answer could not be read.",
+        "AuthUnconfirmed": "The password was sent, but the mailbox gave no answer.",
+        "Incomplete": "The first read of the mailbox began at <time>{at}</time> and has not finished."
+      },
+      "signInResumes": "The next sign-in is attempted no earlier than <time>{at}</time>.",
+      "runbook": "See the admin email runbook.",
+      "conflicting": "{count, plural, one {One report exists} other {# reports exist}} in several versions with different content, and no version is counted. See the admin email runbook.",
+      "mailbox": {
+        "unread": "{count, plural, one {One email} other {# emails}} to the mailbox in the last 7 days could not be read as a report. See the admin email runbook.",
+        "volumeCapped": "{count, plural, one {One email} other {# emails}} to the mailbox in the last 7 days could not be stored, because the daily limit on stored reports had been reached. See the admin email runbook.",
+        "abandoned": "{count, plural, one {One email} other {# emails}} to the mailbox in the last 7 days could not be read after repeated attempts. See the admin email runbook.",
+        "retryPending": "{count, plural, one {One email to the mailbox is} other {# emails to the mailbox are}} waiting for another attempt."
       }
     }
   },

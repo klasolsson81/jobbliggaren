@@ -43,6 +43,10 @@ export type HarnessPorts = { readonly proxy: number; readonly next: number; read
 
 const portBase = Number(process.env.ADMIN_HARNESS_PORT_BASE ?? "3120");
 if (!Number.isInteger(portBase) || portBase < 1024 || portBase > 65533) throw new Error("Invalid ADMIN_HARNESS_PORT_BASE");
+/** WCAG 1.4.12's spacing, as its bookmarklets apply it. */
+export const TEXT_SPACING =
+  "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
+
 export const HARNESS_PORTS: HarnessPorts = { proxy: portBase, next: portBase + 1, backend: portBase + 2 };
 
 export const APP_ORIGIN = `https://localhost:${HARNESS_PORTS.proxy}`;
@@ -317,6 +321,115 @@ function kindsAnswer(scenario: KindsScenario, period: EmailPeriod): unknown {
     : { period, status: "Observed", from, coverage: "Complete", coveredFrom: null, kinds };
 }
 
+/**
+ * What the DMARC read answers (#1981 PR 4b, ADR 0185 D9), as the API writes it: every key present, nulls written, the
+ * clock's instants with seven decimals and the database's with six. Addresses are from the documentation ranges only.
+ * - `observed`: a failing IPv4 source, one passing on DKIM only under a subdomain, one on SPF only at IPv6 length.
+ * - `capped`: 25 of 31 sources, every address at IPv6 length but one ISATAP form with its dotted tail, one domain near
+ *   200 characters, a conflict and every mailbox count.
+ * - `sharedAddress`: one address under two domains. `noneFailing`: figures with no failing message.
+ * - `dst`: a fixed read whose covered span crosses the change to winter time on 2026-10-25.
+ * - `observedStale`, `noReports`, `noReportsConflicting`, `noReportsStale`, and the three states with no read.
+ * - `failed`: never read successfully, with `dmarcFailure` as the latest outcome.
+ * `dmarcFailure` set on `observed` or `noReports` is a latest run that failed after an earlier success.
+ */
+export type DmarcScenario =
+  | "observed" | "capped" | "sharedAddress" | "noneFailing" | "dst" | "observedStale" | "noReports"
+  | "noReportsConflicting" | "noReportsStale" | "notObservable" | "notConfigured" | "misconfigured" | "failed";
+export type DmarcFailure =
+  | "Unreachable" | "TlsFailed" | "AuthRefused" | "Timeout" | "Protocol" | "AuthUnconfirmed" | "Incomplete";
+
+/** The longest canonical form a documentation-range address has without a dotted tail. */
+export const DMARC_LONG_IPV6 = "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff";
+export const DMARC_LONG_DOMAIN = `${"x".repeat(60)}.${"y".repeat(60)}.${"z".repeat(60)}.jobbliggaren.se`;
+
+const clockInstant = (ms: number) => new Date(ms).toISOString().replace(/Z$/, "4567+00:00");
+const storedInstant = (ms: number) => new Date(ms).toISOString().replace(/Z$/, "456+00:00");
+const DAY_MS = 86_400_000;
+
+function dmarcRow(address: string, headerFrom: string, messages: number, dkimAligned: number, spfAligned: number, failingDmarc: number) {
+  return { address, headerFrom, messages, dkimAligned, spfAligned, failingDmarc, flagged: failingDmarc > 0 };
+}
+
+function dmarcAnswer(scenario: DmarcScenario, failure: DmarcFailure | null): unknown {
+  const none = {
+    ingestion: null, from: null, to: null, coveredFrom: null, coveredTo: null, conflictingReports: null, mailbox: null,
+    reports: null, reporters: null, messages: null, failingMessages: null, sourceCount: null, sources: null,
+  };
+  if (scenario === "notObservable") return { status: "NotObservable", ...none };
+  if (scenario === "notConfigured") return { status: "NotConfigured", ...none };
+  if (scenario === "misconfigured") return { status: "Misconfigured", ...none };
+
+  const now = scenario === "dst" ? Date.parse("2026-10-26T09:00:00Z") : Date.now();
+  const lastRun = now - 37 * 60_000;
+  const succeeded = scenario === "failed" ? null : failure === null ? (scenario.endsWith("Stale") ? now - 4 * 3_600_000 : lastRun) : lastRun - 2 * 3_600_000;
+  const attempt = failure === null && succeeded !== null ? succeeded : lastRun;
+  if (scenario === "failed" && failure === null) throw new Error("A failed read needs dmarcFailure.");
+  if (failure === "Incomplete" && succeeded !== null) throw new Error("Incomplete comes only before any success.");
+  const ingestion = {
+    lastAttemptAt: storedInstant(attempt),
+    lastSuccessAt: succeeded === null ? null : storedInstant(succeeded),
+    latestFailure: failure,
+    signInResumesAt: failure === "AuthRefused" || failure === "AuthUnconfirmed" ? storedInstant(attempt + DAY_MS) : null,
+    stale: failure !== null || scenario.endsWith("Stale"),
+  };
+  if (scenario === "failed") return { status: "Failed", ...none, ingestion };
+
+  const window = { from: clockInstant(now - 7 * DAY_MS), to: clockInstant(now) };
+  const quiet = { skipped: 0, rejected: 0, volumeCapped: 0, abandoned: 0, retryPending: 0 };
+  if (scenario.startsWith("noReports")) {
+    return {
+      ...none, status: "NoReports", ingestion, ...window, conflictingReports: scenario === "noReportsConflicting" ? 1 : 0,
+      mailbox: quiet,
+    };
+  }
+
+  const yesterday = Math.floor(now / DAY_MS) * DAY_MS - DAY_MS;
+  const covered = scenario === "dst"
+    ? { coveredFrom: "2026-10-24T00:00:00+00:00", coveredTo: "2026-10-26T00:00:00+00:00" }
+    : { coveredFrom: storedInstant(yesterday), coveredTo: storedInstant(yesterday + DAY_MS) };
+  let sources: ReturnType<typeof dmarcRow>[];
+  let hidden = 0;
+  if (scenario === "capped") {
+    sources = Array.from({ length: 25 }, (_, index) => {
+      const failing = index < 3 ? 3 - index : 0;
+      const address = index === 5 ? "2001:db8::5efe:192.0.2.1" : `2001:db8:ffff:ffff:ffff:ffff:ffff:ff${index + 10}`;
+      return dmarcRow(address, index === 6 ? DMARC_LONG_DOMAIN : "jobbliggaren.se", 100 - index, 100 - index - failing, 0, failing);
+    });
+    hidden = 6;
+  } else if (scenario === "sharedAddress") {
+    sources = [
+      dmarcRow("198.51.100.7", "jobbliggaren.se", 3, 0, 0, 3),
+      dmarcRow("198.51.100.7", "mail.jobbliggaren.se", 2, 0, 0, 2),
+      dmarcRow("192.0.2.10", "jobbliggaren.se", 46, 46, 46, 0),
+    ];
+  } else if (scenario === "noneFailing") {
+    sources = [dmarcRow("192.0.2.10", "jobbliggaren.se", 51, 51, 51, 0)];
+  } else {
+    sources = [
+      dmarcRow("198.51.100.7", "jobbliggaren.se", 3, 0, 0, 3),
+      dmarcRow("192.0.2.10", "mail.jobbliggaren.se", 40, 40, 0, 0),
+      dmarcRow(DMARC_LONG_IPV6, "jobbliggaren.se", 8, 0, 8, 0),
+    ];
+  }
+  const messages = sources.reduce((sum, row) => sum + row.messages, 0) + hidden;
+  const failing = sources.reduce((sum, row) => sum + row.failingDmarc, 0);
+  return {
+    status: "Observed",
+    ingestion,
+    ...window,
+    ...covered,
+    conflictingReports: scenario === "capped" ? 1 : 0,
+    mailbox: scenario === "capped" ? { skipped: 1, rejected: 1, volumeCapped: 2, abandoned: 1, retryPending: 3 } : quiet,
+    reports: scenario === "capped" ? 9 : 2,
+    reporters: scenario === "capped" ? 3 : 1,
+    messages,
+    failingMessages: failing,
+    sourceCount: sources.length + hidden,
+    sources,
+  };
+}
+
 /** The four reads the feedback page makes side by side (#1979). */
 export type FeedbackRead = "list" | "detail" | "summary" | "availability";
 export type FeedbackScreenshotRead = "ok" | "notFound" | "error" | "loading";
@@ -329,7 +442,7 @@ export type Harness = {
   who: "admin" | "member" | "stale";
   mode: AdminMode;
   readonly overviewReads: Record<
-    "accounts" | "audit" | "jobs" | "backup" | "host" | "services" | "email" | "delivery" | "failures" | "kinds",
+    "accounts" | "audit" | "jobs" | "backup" | "host" | "services" | "email" | "delivery" | "failures" | "kinds" | "dmarc",
     AdminMode
   >;
   overviewBackup: BackupScenario;
@@ -352,6 +465,12 @@ export type Harness = {
   readonly emailQueries: string[];
   /** Every body the failures read answered, so a test can look for what must never reach the page. */
   readonly failuresAnswers: unknown[];
+  /** What the DMARC read answers (#1981 PR 4b); its own fixed window, so it never follows the period. */
+  emailDmarc: DmarcScenario;
+  /** The latest run's failure: before any success with `failed`, after one with `observed` or `noReports`. */
+  dmarcFailure: DmarcFailure | null;
+  /** Every DMARC read's path and query string, as the backend received them. */
+  readonly dmarcQueries: string[];
   overviewHost: HostScenario;
   overviewServices: ServicesScenario;
   overviewSampledAt: string | null;
@@ -448,6 +567,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
   const feedbackQueries: string[] = [];
   const emailQueries: string[] = [];
   const failuresAnswers: unknown[] = [];
+  const dmarcQueries: string[] = [];
   const feedbackCommands: Harness["feedbackCommands"] = [];
   const pendingCodeRequests: (() => void)[] = [];
   const pendingAccessWrites: (() => void)[] = [];
@@ -460,7 +580,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     mode: "ok",
     overviewReads: {
       accounts: "ok", audit: "ok", jobs: "ok", backup: "ok", host: "ok", services: "ok", email: "ok", delivery: "ok", failures: "ok",
-      kinds: "ok",
+      kinds: "ok", dmarc: "ok",
     },
     overviewBackup: "observed",
     overviewEmail: "observed",
@@ -471,6 +591,9 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
     kindsDelay: 0,
     emailQueries,
     failuresAnswers,
+    emailDmarc: "observed",
+    dmarcFailure: null,
+    dmarcQueries,
     overviewHost: "measured",
     overviewServices: "observed",
     overviewSampledAt: new Date().toISOString(),
@@ -542,6 +665,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.overviewReads.accounts = harness.overviewReads.audit = harness.overviewReads.jobs = harness.overviewReads.backup = "ok";
       harness.overviewReads.host = harness.overviewReads.services = harness.overviewReads.email = "ok";
       harness.overviewReads.delivery = harness.overviewReads.failures = harness.overviewReads.kinds = "ok";
+      harness.overviewReads.dmarc = "ok";
       harness.overviewBackup = "observed";
       harness.overviewEmail = "observed";
       harness.emailDelivery = null;
@@ -551,6 +675,9 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       harness.kindsDelay = 0;
       emailQueries.length = 0;
       failuresAnswers.length = 0;
+      harness.emailDmarc = "observed";
+      harness.dmarcFailure = null;
+      dmarcQueries.length = 0;
       harness.overviewHost = "measured";
       harness.overviewServices = "observed";
       harness.overviewSampledAt = new Date().toISOString();
@@ -610,6 +737,14 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       return json(400, { title: "One or more validation errors occurred.", status: 400, errors: { period: ["Okänd period."] } },
         { "Cache-Control": "private, no-store" });
     }
+    // #1981 PR 4b: the DMARC read takes no period. The API would ignore one; refusing any query here makes a page
+    // that sends one fail loudly instead.
+    if (route === "GET /api/v1/admin/email/dmarc") {
+      dmarcQueries.push(`${url.pathname}${url.search}`);
+      if (url.search !== "") {
+        return json(400, { title: "The DMARC read takes no query.", status: 400 }, { "Cache-Control": "private, no-store" });
+      }
+    }
 
     if (route === "GET /api/v1/me") {
       if (harness.who === "stale") return json(401, { title: "Unauthorized", status: 401 });
@@ -656,6 +791,7 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
         return body;
       },
       "GET /api/v1/admin/email/kinds": () => kindsAnswer(harness.emailKinds, emailPeriod ?? "d7"),
+      "GET /api/v1/admin/email/dmarc": () => dmarcAnswer(harness.emailDmarc, harness.dmarcFailure),
     };
     const refusal = (mode: AdminMode = harness.mode) => {
       switch (mode) {
@@ -967,7 +1103,8 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
         : route.endsWith("/email/allowance") ? "email"
         : route.endsWith("/email/delivery") ? "delivery"
         : route.endsWith("/email/failures") ? "failures"
-        : route.endsWith("/email/kinds") ? "kinds" : null;
+        : route.endsWith("/email/kinds") ? "kinds"
+        : route.endsWith("/email/dmarc") ? "dmarc" : null;
       const mode = harness.mode === "ok" && source !== null ? harness.overviewReads[source] : harness.mode;
       const respond = () => {
         if (mode !== "ok") return refusal(mode);

@@ -44,8 +44,8 @@ public sealed partial class DmarcReportIngestionJob(
         var runStart = clock.UtcNow;
         var state = await store.ReadStateAsync(cancellationToken);
         if (state is not null
-            && DmarcOutcomes.BacksOffSignIn(state.LastOutcome)
-            && state.LastAttemptAt > runStart - DmarcIngestionLimits.SignInBackoff)
+            && DmarcOutcomes.SignInResumesAt(state.LastOutcome, state.LastAttemptAt) is { } resumesAt
+            && runStart < resumesAt)
         {
             LogBackedOff(state.LastOutcome);
             return;

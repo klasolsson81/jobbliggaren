@@ -69,6 +69,31 @@
       "partial": "The count began within the period",
       "notConfigured": "Not counted in the environment",
       "notObservable": "The count shows no sends"
+    },
+    "dmarcLabel": "Show DMARC reports",
+    "dmarcScenarios": {
+      "observed": "Reports exist",
+      "capped": "More sources than the table shows",
+      "sharedAddress": "One address, two domains",
+      "noneFailing": "No DMARC failures",
+      "mailbox": "Emails that could not be read",
+      "conflicting": "A report in several versions",
+      "observedStale": "Not read for a while",
+      "failedAfter": "The latest read failed",
+      "signInUnanswered": "The sign-in was not answered",
+      "noReports": "No report in the period",
+      "noReportsConflicting": "No report that counts",
+      "noReportsStale": "No report, not read for a while",
+      "notObservable": "The mailbox not read yet",
+      "notConfigured": "Not read in the environment",
+      "misconfigured": "The password is empty",
+      "failedUnreachable": "The mailbox cannot be reached",
+      "failedTimeout": "The mailbox does not answer in time",
+      "failedTls": "The certificate cannot be verified",
+      "failedAuthRefused": "The sign-in is refused",
+      "failedAuthUnconfirmed": "The sign-in is not answered",
+      "failedProtocol": "Unreadable answer from the mailbox",
+      "failedIncomplete": "The first read has not finished"
     }
   }
 }

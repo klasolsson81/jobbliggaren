@@ -9,6 +9,7 @@ import type {
   AdminBackupStatus,
   AdminEmailAllowance,
   AdminEmailDelivery,
+  AdminEmailDmarc,
   AdminEmailFailures,
   AdminEmailKinds,
   AdminEmailPeriod,
@@ -33,6 +34,9 @@ import type { AuditLogEntryDto, FailedJobsResponse, RecurringJobStatusDto } from
 import {
   EMAIL_FAILURES_LIMIT,
   EMAIL_KINDS,
+  type DmarcIngestion,
+  type DmarcLatestFailure,
+  type DmarcSource,
   type EmailAllowanceFailure,
   type EmailFailureReason,
   type EmailKind,
@@ -841,3 +845,122 @@ export const PREVIEW_EMAIL_KINDS: Readonly<Record<PreviewKindsScenario, Readonly
     notConfigured: kindsByPeriod("notConfigured"),
     notObservable: kindsByPeriod("notObservable"),
   });
+
+// ── DMARC-rapporter (#1981 PR 4b) ───────────────────────────────────────────────────────────
+
+/**
+ * Every state the DMARC region has from an answer (ADR 0150 D5); failed and loading come from the band. The read's own
+ * window ends at the fixed clock. Sources are documentation-range addresses only, one at IPv6 length and one in the
+ * dotted ISATAP form; the header-from domains are the policy domain and one made-up subdomain.
+ */
+export type PreviewDmarcScenario =
+  | "observed" | "capped" | "sharedAddress" | "noneFailing" | "mailbox" | "conflicting" | "observedStale" | "failedAfter"
+  | "signInUnanswered" | "noReports" | "noReportsConflicting" | "noReportsStale" | "notObservable" | "notConfigured"
+  | "misconfigured" | "failedUnreachable" | "failedTimeout" | "failedTls" | "failedAuthRefused" | "failedAuthUnconfirmed"
+  | "failedProtocol" | "failedIncomplete";
+
+/** The window as the API writes it: the clock's instant with seven decimals, and seven days before it. */
+const DMARC_TO = "2026-10-04T08:00:00.0000000+00:00";
+const DMARC_FROM = "2026-09-27T08:00:00.0000000+00:00";
+/** The latest run, an earlier success, and when a backed-off sign-in may resume, as the database writes them. */
+const DMARC_RUN = "2026-10-04T07:23:09.123456+00:00";
+const DMARC_EARLIER = "2026-10-04T05:23:09.123456+00:00";
+const DMARC_STALE_SUCCESS = "2026-10-04T03:23:09.123456+00:00";
+const DMARC_RESUMES = "2026-10-05T07:23:09.123456+00:00";
+const DMARC_SUBDOMAIN = "utskick.jobbliggaren.se";
+
+function dmarcIngestion(failure: DmarcLatestFailure | null, succeeded: string | null, stale = failure !== null): DmarcIngestion {
+  const backsOff = failure === "AuthRefused" || failure === "AuthUnconfirmed";
+  return marked({ lastAttemptAt: failure === null && succeeded !== null ? succeeded : DMARC_RUN, lastSuccessAt: succeeded, latestFailure: failure, signInResumesAt: backsOff ? DMARC_RESUMES : null, stale });
+}
+
+function dmarcRow(address: string, headerFrom: string, messages: number, dkimAligned: number, spfAligned: number, failingDmarc: number): DmarcSource {
+  return marked({ address, headerFrom, messages, dkimAligned, spfAligned, failingDmarc, flagged: failingDmarc > 0 });
+}
+
+const DMARC_QUIET = { skipped: 0, rejected: 0, volumeCapped: 0, abandoned: 0, retryPending: 0 };
+const DMARC_EVERY_COUNT = { skipped: 1, rejected: 1, volumeCapped: 2, abandoned: 1, retryPending: 3 };
+
+const DMARC_NONE = {
+  ingestion: null, from: null, to: null, coveredFrom: null, coveredTo: null, conflictingReports: null, mailbox: null,
+  reports: null, reporters: null, messages: null, failingMessages: null, sourceCount: null, sources: null,
+} as const;
+
+function dmarcObserved(
+  ingestion: DmarcIngestion,
+  sources: DmarcSource[],
+  options: { hidden?: number; conflicting?: number; mailbox?: typeof DMARC_QUIET; reports?: number; reporters?: number } = {},
+): AdminEmailDmarc {
+  const hidden = options.hidden ?? 0;
+  return marked({
+    status: "Observed" as const,
+    ingestion,
+    from: DMARC_FROM,
+    to: DMARC_TO,
+    coveredFrom: "2026-10-02T00:00:00+00:00",
+    coveredTo: "2026-10-03T00:00:00+00:00",
+    conflictingReports: options.conflicting ?? 0,
+    mailbox: marked({ ...(options.mailbox ?? DMARC_QUIET) }),
+    reports: options.reports ?? 2,
+    reporters: options.reporters ?? 1,
+    messages: sources.reduce((sum, row) => sum + row.messages, 0) + hidden,
+    failingMessages: sources.reduce((sum, row) => sum + row.failingDmarc, 0),
+    sourceCount: sources.length + hidden,
+    sources,
+  });
+}
+
+function dmarcNoReports(ingestion: DmarcIngestion, conflicting = 0): AdminEmailDmarc {
+  return marked({
+    ...DMARC_NONE, status: "NoReports" as const, ingestion, from: DMARC_FROM, to: DMARC_TO, conflictingReports: conflicting,
+    mailbox: marked({ ...DMARC_QUIET }),
+  });
+}
+
+const dmarcThree = () => [
+  dmarcRow("198.51.100.7", "jobbliggaren.se", 3, 0, 0, 3),
+  dmarcRow("192.0.2.10", DMARC_SUBDOMAIN, 40, 40, 0, 0),
+  dmarcRow("2001:db8:ffff:ffff:ffff:ffff:ffff:ffff", "jobbliggaren.se", 8, 0, 8, 0),
+];
+
+/** 25 of 31 sources, the failing ones first: the region at its largest. */
+const dmarcCapped = () => Array.from({ length: 25 }, (_, index) => {
+  const failing = index < 3 ? 3 - index : 0;
+  const address = index === 5 ? "2001:db8::5efe:192.0.2.1" : `2001:db8:ffff:ffff:ffff:ffff:ffff:ff${index + 10}`;
+  return dmarcRow(address, "jobbliggaren.se", 100 - index, 100 - index - failing, 0, failing);
+});
+
+const dmarcFailed = (failure: DmarcLatestFailure): AdminEmailDmarc =>
+  marked({ ...DMARC_NONE, status: "Failed" as const, ingestion: dmarcIngestion(failure, null) });
+
+const fresh = () => dmarcIngestion(null, DMARC_RUN);
+
+/** Each DMARC scenario's answer; the region has its own window, so no period changes them. */
+export const PREVIEW_EMAIL_DMARC: Readonly<Record<PreviewDmarcScenario, AdminEmailDmarc>> = marked({
+  observed: dmarcObserved(fresh(), dmarcThree()),
+  capped: dmarcObserved(fresh(), dmarcCapped(), { hidden: 6, reports: 9, reporters: 3 }),
+  sharedAddress: dmarcObserved(fresh(), [
+    dmarcRow("198.51.100.7", "jobbliggaren.se", 3, 0, 0, 3),
+    dmarcRow("198.51.100.7", DMARC_SUBDOMAIN, 2, 0, 0, 2),
+    dmarcRow("192.0.2.10", "jobbliggaren.se", 46, 46, 46, 0),
+  ]),
+  noneFailing: dmarcObserved(fresh(), [dmarcRow("192.0.2.10", "jobbliggaren.se", 51, 51, 51, 0)], { reports: 1 }),
+  mailbox: dmarcObserved(fresh(), dmarcThree(), { mailbox: DMARC_EVERY_COUNT }),
+  conflicting: dmarcObserved(fresh(), dmarcThree(), { conflicting: 2 }),
+  observedStale: dmarcObserved(dmarcIngestion(null, DMARC_STALE_SUCCESS, true), dmarcThree()),
+  failedAfter: dmarcObserved(dmarcIngestion("Protocol", DMARC_EARLIER), dmarcThree()),
+  signInUnanswered: dmarcObserved(dmarcIngestion("AuthUnconfirmed", DMARC_EARLIER), dmarcThree()),
+  noReports: dmarcNoReports(fresh()),
+  noReportsConflicting: dmarcNoReports(fresh(), 1),
+  noReportsStale: dmarcNoReports(dmarcIngestion(null, DMARC_STALE_SUCCESS, true)),
+  notObservable: marked({ ...DMARC_NONE, status: "NotObservable" as const }),
+  notConfigured: marked({ ...DMARC_NONE, status: "NotConfigured" as const }),
+  misconfigured: marked({ ...DMARC_NONE, status: "Misconfigured" as const }),
+  failedUnreachable: dmarcFailed("Unreachable"),
+  failedTimeout: dmarcFailed("Timeout"),
+  failedTls: dmarcFailed("TlsFailed"),
+  failedAuthRefused: dmarcFailed("AuthRefused"),
+  failedAuthUnconfirmed: dmarcFailed("AuthUnconfirmed"),
+  failedProtocol: dmarcFailed("Protocol"),
+  failedIncomplete: dmarcFailed("Incomplete"),
+});

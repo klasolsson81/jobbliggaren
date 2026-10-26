@@ -7,11 +7,13 @@ import { responseToResult } from "@/lib/dto/_helpers";
 import {
   emailAllowanceSchema,
   emailDeliverySchema,
+  emailDmarcSchema,
   emailFailuresSchema,
   emailKindsSchema,
   type EmailAllowanceDto,
   type EmailDeliveryDto,
   type EmailDeliveryPeriod,
+  type EmailDmarcDto,
   type EmailFailuresDto,
   type EmailKindsDto,
 } from "@/lib/dto/admin-email";
@@ -22,6 +24,7 @@ export const EMAIL_ALLOWANCE_PATH = "/api/v1/admin/email/allowance";
 export const EMAIL_DELIVERY_PATH = "/api/v1/admin/email/delivery";
 export const EMAIL_FAILURES_PATH = "/api/v1/admin/email/failures";
 export const EMAIL_KINDS_PATH = "/api/v1/admin/email/kinds";
+export const EMAIL_DMARC_PATH = "/api/v1/admin/email/dmarc";
 
 /** One e-post read's outcome: the body as the contract states it, a refusal, or anything else as an error. */
 export type EmailRead<T> =
@@ -34,6 +37,7 @@ export type EmailAllowanceRead = EmailRead<EmailAllowanceDto>;
 export type EmailDeliveryRead = EmailRead<EmailDeliveryDto>;
 export type EmailFailuresRead = EmailRead<EmailFailuresDto>;
 export type EmailKindsRead = EmailRead<EmailKindsDto>;
+export type EmailDmarcRead = EmailRead<EmailDmarcDto>;
 
 /**
  * One of the e-post page's reads. It never throws: a refusal, a timeout, a status the contract does not name or a body
@@ -96,4 +100,12 @@ export async function loadEmailFailures(period: EmailDeliveryPeriod, signal?: Ab
  */
 export async function loadEmailKinds(period: EmailDeliveryPeriod, signal?: AbortSignal): Promise<EmailKindsRead> {
   return forPeriod(await readEmail(withEmailPeriod(EMAIL_KINDS_PATH, period), emailKindsSchema, signal), period);
+}
+
+/**
+ * The DMARC aggregate reports over the region's own fixed window (#1981 PR 4b, ADR 0185 D9). The page sends no period:
+ * Leverans's choice is not this region's, and the API decides the window.
+ */
+export function loadEmailDmarc(signal?: AbortSignal): Promise<EmailDmarcRead> {
+  return readEmail(EMAIL_DMARC_PATH, emailDmarcSchema, signal);
 }

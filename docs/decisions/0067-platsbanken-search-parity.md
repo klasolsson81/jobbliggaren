@@ -618,7 +618,7 @@ delivered here. On the points below this amendment is the operative text.
 
 3. **Recent searches.** The frontend schema requires `occupationNameList` (raw dimensions are required, never defaulted) and defaults `occupationNameLabels` to empty; the replay link carries the axis, so the row's count and the list its link produces rest on the same criterion.
 
-4. **The privacy-policy line.** The list of what each recent search stores reads "yrkesgrupp, yrkesbenämning, kommun, …" (en "occupational group, occupation name, …"), the text Klas approved; security-auditor judged it sufficient in both languages. The policy version moves to 2026-10-25 in both locales and in `TermsAcceptance.CurrentPrivacyPolicyVersion`. The line is in this PR because this PR first makes the axis storable from the UI.
+4. **The privacy-policy line.** The list of what each recent search stores reads "yrkesgrupp, yrkesbenämning, kommun, …" (en "occupational group, occupation name, …"), the text Klas approved; security-auditor judged it sufficient in both languages. The line is in this PR because this PR first makes the axis storable from the UI.
 
 5. **The capture guard is #2199 PR 2b, before this PR merges.** security-auditor found that a stored recent search on an occupation-name under the four clergy groups reveals a specific faith (Art. 9) with no Art. 9(2) ground; Klas chose a capture guard ("(a) Capture-vakt"), and senior-cto-advisor placed it in its own PR that merges before this one, covering the groups on the group axis in the same predicate. This PR's merge waits for it.
 

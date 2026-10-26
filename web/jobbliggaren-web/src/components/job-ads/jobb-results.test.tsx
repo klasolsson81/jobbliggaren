@@ -3,7 +3,14 @@ import { render } from "@testing-library/react";
 import { createTranslator, createFormatter } from "next-intl";
 import svJobads from "../../../messages/sv/jobads.json";
 import { Announcer } from "@/components/common/announcer";
+import {
+  ReportSearchStorability,
+  SearchStorability,
+  useIsSearchSaved,
+  useIsSearchStorable,
+} from "@/components/job-ads/search-storability";
 import type { JobAdDto } from "@/lib/dto/job-ads";
+import type { JobbUrlState } from "@/lib/job-ads/search-params";
 
 /**
  * #1505 — the END of the load, announced. Sibling of `/foretag/sok`'s block in
@@ -228,5 +235,129 @@ describe("JobbResults — the load's completion reaches the surface region", () 
 
     expect(announced()).toHaveTextContent("Kunde inte ladda jobbannonser");
     expect(announced()).toHaveTextContent("Försök ladda om sidan");
+  });
+});
+
+/**
+ * #2199 PR 2b — the save verdict. Every branch that ends a load reports one for the search it fetched,
+ * tagged with that search, so the hero's "Spara sökningen" answers the search on screen and nothing
+ * else. Rendered inside `SearchStorability`, which is how `page.tsx` composes them.
+ */
+describe("JobbResults — the save verdict reaches the hero's context", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getMyProfile.mockResolvedValue({ kind: "error" });
+    getJobsWatermark.mockResolvedValue({ kind: "error" });
+    resolveTaxonomyLabels.mockResolvedValue({ kind: "error" });
+    getJobAdStatusBatch.mockResolvedValue({ savedIds: [], appliedIds: [] });
+    getJobAdMatchTags.mockResolvedValue({ entries: {} });
+    getEmployerApplicationCounts.mockResolvedValue({ countsByJobAdId: {} });
+    getFollowedJobAdIds.mockResolvedValue([]);
+    getSessionId.mockResolvedValue(null);
+  });
+
+  const stateFor = (q: string): JobbUrlState => ({
+    q,
+    occupationGroup: [],
+    region: [],
+    municipality: [],
+    remote: false,
+    employmentType: [],
+    worktimeExtent: [],
+    matchGrades: [],
+    employer: [],
+    sortBy: "PublishedAtDesc",
+  });
+
+  function Probe({ search }: { search: JobbUrlState }) {
+    return <span data-testid="storable">{String(useIsSearchStorable(search))}</span>;
+  }
+  function SavedProbe({ search }: { search: JobbUrlState }) {
+    return <span data-testid="saved">{String(useIsSearchSaved(search))}</span>;
+  }
+
+  // `staleYes` seeds a yes for the shown search first, as the previous load of the same search would
+  // have; a branch that reports nothing would then leave it standing.
+  const renderWithProbe = async (fetched: string, shown: string, staleYes = false, commit = false) =>
+    render(
+      <SearchStorability>
+        {staleYes && <ReportSearchStorability search={stateFor(shown)} storable committed={commit} />}
+        <Announcer>
+          {await JobbResults({
+            page: 1,
+            pageSize: 20,
+            sortBy: "PublishedAtDesc",
+            occupationGroup: [],
+            region: [],
+            municipality: [],
+            remote: false,
+            employmentType: [],
+            worktimeExtent: [],
+            matchGrades: [],
+            matchningOff: false,
+            includeRelated: false,
+            hideApplied: false,
+            onlyMatched: false,
+            employer: [],
+            q: fetched,
+            commit,
+            rawParams: {},
+          })}
+        </Announcer>
+        <Probe search={stateFor(shown)} />
+        <SavedProbe search={stateFor(shown)} />
+      </SearchStorability>,
+    );
+
+  const page = (isStorableAsRecentSearch: boolean) => ({
+    kind: "ok",
+    data: { items: [sampleAd("a1")], page: 1, pageSize: 20, totalCount: 1, isStorableAsRecentSearch },
+  });
+  const storable = () => document.querySelector('[data-testid="storable"]');
+
+  it("passes the backend's yes for the search it fetched", async () => {
+    getJobAds.mockResolvedValue(page(true));
+    await renderWithProbe("backend", "backend");
+    expect(storable()).toHaveTextContent("true");
+  });
+
+  it("passes the backend's no", async () => {
+    getJobAds.mockResolvedValue(page(false));
+    await renderWithProbe("backend", "backend");
+    expect(storable()).toHaveTextContent("false");
+  });
+
+  it("never answers for a search other than the one it fetched", async () => {
+    getJobAds.mockResolvedValue(page(true));
+    await renderWithProbe("backend", "imam");
+    expect(storable()).toHaveTextContent("false");
+  });
+
+  it.each([
+    ["a rate limit", { kind: "rateLimited", retryAfterSeconds: 42 }],
+    ["a technical error", { kind: "error" }],
+  ])("reports no after %s, since nothing would be stored", async (_, result) => {
+    getJobAds.mockResolvedValue(result);
+    await renderWithProbe("backend", "backend", true);
+    expect(storable()).toHaveTextContent("false");
+  });
+
+  // The commit flag rides on the verdict: only the committed answer confirms a save.
+  it("marks the answer to a committed request", async () => {
+    getJobAds.mockResolvedValue(page(true));
+    await renderWithProbe("backend", "backend", false, true);
+    expect(document.querySelector('[data-testid="saved"]')).toHaveTextContent("true");
+  });
+
+  it("does not mark a preview's answer", async () => {
+    getJobAds.mockResolvedValue(page(true));
+    await renderWithProbe("backend", "backend");
+    expect(document.querySelector('[data-testid="saved"]')).toHaveTextContent("false");
+  });
+
+  it("reports the committed no after an error, so a stale committed yes cannot confirm a save", async () => {
+    getJobAds.mockResolvedValue({ kind: "error" });
+    await renderWithProbe("backend", "backend", true, true);
+    expect(document.querySelector('[data-testid="saved"]')).toHaveTextContent("false");
   });
 });

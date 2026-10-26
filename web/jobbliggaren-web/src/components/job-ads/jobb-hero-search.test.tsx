@@ -13,6 +13,25 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: replaceMock }),
 }));
 
+// #2199 PR 2b — the backend's save verdict reaches the hero through `search-storability`, which its own
+// test and `jobb-results.test.tsx` cover. Here it is a plain answer: yes unless a test says otherwise, so
+// every save test below runs against an admitted search, and `isStorableMock.mock.calls` shows which
+// search the hero asked about.
+const isStorableMock = vi.fn<(search: unknown) => boolean>(() => true);
+// The receipt's half. Yes unless a
+// test says otherwise, so the receipt tests below see an answer that arrived.
+const isSavedMock = vi.fn<(search: unknown) => boolean>(() => true);
+vi.mock("./search-storability", () => ({
+  useIsSearchStorable: (search: unknown) => isStorableMock(search),
+  useIsSearchSaved: (search: unknown) => isSavedMock(search),
+}));
+beforeEach(() => {
+  isStorableMock.mockReset();
+  isStorableMock.mockImplementation(() => true);
+  isSavedMock.mockReset();
+  isSavedMock.mockImplementation(() => true);
+});
+
 const taxonomy: TaxonomyTree = {
   // ADR 0043-amendment 2026-06-13 (Klass 2) — the real concept ids and source labels.
   employmentTypes: [{ conceptId: "gro4_cWF_6D7", label: "Vikariat" }],
@@ -688,6 +707,124 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
 // klick re-committar MED intent (?commit=true → backend auto-capturerar) + visar en
 // kort inline-bekräftelse; länken återkommer när söket redigeras igen.
 describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
+  // #2199 PR 2b — offered only when the backend admits the search; a refusal (a personnummer, a
+  // religious occupation) or a verdict that has not come back yet offers nothing, and changes no copy.
+  it("offers no save when the backend's verdict for the search is no", () => {
+    isStorableMock.mockImplementation(() => false);
+    setup({ q: "utvecklare", initialCommitted: false });
+    expect(screen.queryByRole("button", { name: "Spara sökningen" })).toBeNull();
+    expect(screen.queryByText("Sökningen är sparad i Senaste sökningar")).toBeNull();
+  });
+
+  it("asks about the search it shows", () => {
+    setup({ q: "utvecklare", initialCommitted: false });
+    expect(isStorableMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ q: "utvecklare" }),
+    );
+  });
+
+  // The search it shows is the last one it committed, not the one it was mounted with: during the
+  // transition the mounted props still name the previous search, whose yes would offer a save the
+  // backend then refuses.
+  it("asks about the search after a live edit, not the one it was mounted with", async () => {
+    const user = userEvent.setup();
+    isStorableMock.mockImplementation((s) => (s as { q?: string }).q === "utvecklare");
+    setup({ q: "utvecklare", initialCommitted: false });
+    expect(screen.getByRole("button", { name: "Spara sökningen" })).toBeInTheDocument();
+
+    await user.type(screen.getByRole("combobox"), " imam ");
+
+    expect(screen.queryByRole("button", { name: "Spara sökningen" })).toBeNull();
+    expect(isStorableMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ q: "utvecklare imam" }),
+    );
+  });
+
+  // design-reviewer, round 1 on #2243: the receipt claims the search was stored, so it waits for the
+  // committed answer; a rate limit or an error answers no and stores nothing.
+  it("confirms nothing, visibly or aloud, until the committed answer says yes", async () => {
+    const user = userEvent.setup();
+    isSavedMock.mockImplementation(() => false);
+    const { rerender } = setup({ q: "utvecklare", initialCommitted: false });
+
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+    expect(screen.queryByText("Sökningen är sparad i Senaste sökningar")).toBeNull();
+
+    isSavedMock.mockImplementation(() => true);
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q="utvecklare"
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        remote={false}
+        employmentType={[]}
+        worktimeExtent={[]}
+        matchGrades={[]}
+        employer={[]}
+        sortBy="PublishedAtDesc"
+        initialCommitted={false}
+      />,
+    );
+    expect(
+      screen.getAllByText("Sökningen är sparad i Senaste sökningar").length,
+    ).toBeGreaterThan(0);
+    // Heard as well as seen: the visible receipt is aria-hidden and has no role, so a status
+    // region carrying the text is the announcement.
+    expect(
+      screen.getAllByRole("status").some((region) =>
+        region.textContent?.includes("Sökningen är sparad i Senaste sökningar"),
+      ),
+    ).toBe(true);
+
+    // StripCommitParam re-runs the search without the flag, and that answer is a preview's: the
+    // receipt holds once shown.
+    isSavedMock.mockImplementation(() => false);
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q="utvecklare"
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        remote={false}
+        employmentType={[]}
+        worktimeExtent={[]}
+        matchGrades={[]}
+        employer={[]}
+        sortBy="PublishedAtDesc"
+        initialCommitted={false}
+      />,
+    );
+    expect(document.querySelector(".jp-hero__searchsaved")).not.toBeNull();
+  });
+
+  // The button unmounts on the click, so focus moves to the control before it rather than to <body>.
+  it("moves focus to the search button after the click", async () => {
+    const user = userEvent.setup();
+    setup({ q: "utvecklare", initialCommitted: false });
+
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /Sök/ }));
+  });
+
+  // design-reviewer, 2b plan read: the action waits for the verdict, so its line is held whether or
+  // not it is offered, and nothing below it moves when it arrives.
+  it("holds the save line for a savable search whether or not it is offered", () => {
+    isStorableMock.mockImplementation(() => false);
+    const { container } = setup({ q: "utvecklare", initialCommitted: false });
+    const slot = container.querySelector(".jp-hero__searchsaveslot");
+    expect(slot).not.toBeNull();
+    expect(slot).toBeEmptyDOMElement();
+  });
+
+  it("holds no save line when there is nothing to save", () => {
+    const { container } = setup({ initialCommitted: false });
+    expect(container.querySelector(".jp-hero__searchsaveslot")).toBeNull();
+  });
+
   it("visar länken när sökningen är osparad (initialCommitted=false + sparbart sök)", () => {
     setup({ q: "utvecklare", initialCommitted: false });
     expect(

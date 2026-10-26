@@ -70,9 +70,16 @@ vi.mock("@/lib/api/taxonomy", () => ({
 }));
 
 // Hero furniture: client islands with router/context needs, no heading of their own.
-vi.mock("@/components/job-ads/jobb-hero-search", () => ({
-  JobbHeroSearch: () => null,
-}));
+// #2199 PR 2b — the hero stand-in reads the save verdict the way the real hero does, so the provider pin
+// at the bottom of this file can see whether the page carries the results' verdict up to it.
+vi.mock("@/components/job-ads/jobb-hero-search", async () => {
+  const { useIsSearchStorable } = await import("@/components/job-ads/search-storability");
+  return {
+    JobbHeroSearch: () => (
+      <span data-testid="hero-storable">{String(useIsSearchStorable(probeSearch()))}</span>
+    ),
+  };
+});
 vi.mock("@/components/job-ads/jobb-hero-filters", () => ({
   JobbHeroFilters: () => null,
 }));
@@ -88,9 +95,33 @@ vi.mock("@/components/job-ads/strip-commit-param", () => ({
 
 // The async-RSC seam described above. `ads` is set per test.
 let ads: JobAdDto[] = [];
-vi.mock("@/components/job-ads/jobb-results", () => ({
-  JobbResults: () => <JobAdList jobAds={ads} />,
-}));
+vi.mock("@/components/job-ads/jobb-results", async () => {
+  const { ReportSearchStorability } = await import("@/components/job-ads/search-storability");
+  return {
+    JobbResults: () => (
+      <>
+        <ReportSearchStorability search={probeSearch()} storable committed={false} />
+        <JobAdList jobAds={ads} />
+      </>
+    ),
+  };
+});
+
+// A function, not a const: the mock factories above are hoisted and run before this module's body.
+function probeSearch() {
+  return {
+    q: "backend",
+    occupationGroup: [],
+    region: [],
+    municipality: [],
+    remote: false,
+    employmentType: [],
+    worktimeExtent: [],
+    matchGrades: [],
+    employer: [],
+    sortBy: "PublishedAtDesc" as const,
+  };
+}
 
 // The h3's accessible name is the title and nothing else, which is what `getByRole("heading",
 // { name })` below depends on: `JobAdList` is rendered with no `newIdSet`/`savedIdSet`/
@@ -259,5 +290,20 @@ describe("/jobb — the page mounts the live region itself", () => {
     // Empty at first paint is the half ARIA22 actually requires; a region that arrives holding
     // its sentence is the defect #1505 was filed for.
     expect(live).toHaveTextContent("");
+  });
+});
+
+/**
+ * #2199 PR 2b — the CALL SITE of the save-verdict provider, for the reason the block above pins the live
+ * region's: the hero renders outside the results' Suspense boundary, and without `<SearchStorability>`
+ * around both the verdict never reaches it, so "Spara sökningen" would never be offered with every
+ * other test green.
+ */
+describe("/jobb — the page carries the results' save verdict to the hero", () => {
+  it("lets the hero read the verdict the results report", async () => {
+    ads = [sampleAd("a1", "Backend-utvecklare")];
+    await renderPage();
+
+    expect(screen.getByTestId("hero-storable")).toHaveTextContent("true");
   });
 });

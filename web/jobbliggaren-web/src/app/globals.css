@@ -1400,9 +1400,17 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 /* #419 pt6 — "Spara sökningen"-länk (knapp stylad som text-länk) + spar-bekräftelse.
    Delar hjälptextens soft-ink-ton (befintliga hero-tokens, inga nya); understruken så
-   den läses som en handling. Ingen radie/skugga/gradient. */
-.jp-hero__searchsaveaction {
+   den läses som en handling. Ingen radie/skugga/gradient.
+   #2199 PR 2b — both sit in a slot one caption line high that is there whenever the search
+   is savable. The action now waits for the backend's verdict, and the slot keeps that wait
+   from moving the filters, the plate and the results (design-reviewer, 2b plan read). */
+.jp-hero__searchsaveslot {
   margin: 6px 0 0;
+  font-size: var(--text-caption);
+  min-height: 1lh;
+}
+.jp-hero__searchsaveaction {
+  margin: 0;
   padding: 0;
   background: none;
   border: none;
@@ -1417,7 +1425,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-hero-ink);
 }
 .jp-hero__searchsaved {
-  margin: 6px 0 0;
+  margin: 0;
   font-size: var(--text-caption);
   color: var(--jp-hero-ink-soft);
 }

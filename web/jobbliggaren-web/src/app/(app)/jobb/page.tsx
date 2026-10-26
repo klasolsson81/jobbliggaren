@@ -23,6 +23,7 @@ import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
 import { JobbResults } from "@/components/job-ads/jobb-results";
 import { JobAdListSkeleton } from "@/components/job-ads/job-ad-list-skeleton";
 import { StripCommitParam } from "@/components/job-ads/strip-commit-param";
+import { SearchStorability } from "@/components/job-ads/search-storability";
 import { RecentSearchesHeroChip } from "@/components/recent-searches/recent-searches-hero-chip";
 import { SavedJobAdsHeroChip } from "@/components/saved-job-ads/saved-job-ads-hero-chip";
 
@@ -183,7 +184,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const employerKey = employer.join(".");
 
   return (
-    <>
+    // #2199 PR 2b — carries the results' save verdict up to the hero, which renders outside the
+    // Suspense boundary; the hero offers "Spara sökningen" only when it answers the search on screen.
+    <SearchStorability>
       {/* Removes `?commit=true` after mount; renders nothing. */}
       <StripCommitParam active={commit} />
       {/* The hero banner (ADR 0068) renders outside the Suspense boundary and
@@ -305,7 +308,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
         </section>
       </div>
       <PageFeedback pageKey="jobs" />
-    </>
+    </SearchStorability>
   );
 }
 

@@ -1018,7 +1018,7 @@ public class SearchCriteriaTests
     [Fact]
     public void Create_WithRemoteOnly_ReturnsSuccess()
     {
-        // Tom-invarianten utökad (lockstep med RecentJobSearchCaptureBehavior-guarden): remote=true
+        // Tom-invarianten utökad (lockstep med RecentSearchCaptureGate-guarden): remote=true
         // ensamt (alla listor tomma, Q null) är en äkta filter-intention (WHERE remote, "visa
         // distans-jobb"), INTE default-browse → giltig sökning med Remote==true på VO:t.
         var result = Create(

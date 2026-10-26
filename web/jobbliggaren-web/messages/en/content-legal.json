@@ -74,7 +74,7 @@
         ],
         "list": [
           "The search term you typed, up to 100 characters.",
-          "Which filters you chose: occupational group, municipality, region, type of employment, extent, employer, and whether you filtered on remote work.",
+          "Which filters you chose: occupational group, occupation name, municipality, region, type of employment, extent, employer, and whether you filtered on remote work.",
           "Which sort order the search ran in.",
           "How many hits the search produced most recently, so that we can show whether it has produced new hits since then.",
           "When the search was first saved and when you last ran it."

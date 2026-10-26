@@ -1,6 +1,6 @@
 "use client";
 
-// "use client": which Word row is open is local state, and opening one moves focus.
+// "use client": which row is open is local state, and opening one moves focus.
 
 import { useId, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
@@ -42,17 +42,40 @@ export function occupationSearchBox(state: OccupationSearchState): OccupationSea
   }
 }
 
+/** Whether an answer holds an occupation-name a /jobb tick could select: a variant or a Group row's evidence. */
+export function answerHoldsNames(result: OccupationSearchResult): boolean {
+  return result.rows.some((row) => row.kind === "Word" || row.matchedNames.length > 0);
+}
+
+/**
+ * The /jobb mapping (#2199, ADR 0180's amendments): a name is ticked by its own occupation-name id,
+ * whichever row carries it. Matchning and the onboarding rail pass none, and their variants select
+ * their group (ADR 0040 Beslut 4).
+ */
+export interface OccupationNameSelection {
+  /** Selected occupation-name ids: the URL's `occupationName` axis. */
+  readonly selected: ReadonlyArray<string>;
+  readonly onToggle: (occupationNameConceptId: string) => void;
+  /** Counts by occupation-name id (`FacetDimension.OccupationName`); `null` shows no numbers. */
+  readonly counts: Readonly<Record<string, number>> | null;
+  /** The right column's hint under an open Word row. */
+  readonly wordHint: string;
+  /** The right column's hint under an open Group row. */
+  readonly groupHint: string;
+}
+
 export interface OccupationSearchResultsProps {
   /** The answer to show, or `null` while the current word is pending. */
   readonly result: OccupationSearchResult | null;
-  /** Selected group ids. Every row's checked state is read from here, so two rows that select the
-   *  same group cannot disagree. */
+  /** Selected group ids. */
   readonly selected: ReadonlyArray<string>;
   /** Toggles one group id: the same call a group row in the browse view makes. */
   readonly onToggle: (groupConceptId: string) => void;
   /** Facet counts by group id, shown as "(n)" on Group rows only; a missing key is 0. `null` or
    *  omitted shows no numbers. */
   readonly counts?: Readonly<Record<string, number>> | null;
+  /** The /jobb mapping. Omitted, every row renders exactly as it did before #2199. */
+  readonly nameSelection?: OccupationNameSelection;
 }
 
 // How many matched names a group row spells out before "och N till".
@@ -76,18 +99,45 @@ const EVIDENCE_NAME_SEPARATOR = "; ";
  * Row 1 opens by itself when it is a Word row that holds the exact word or is the only row; opening
  * selects nothing. Any other Word row waits to be chosen. There is no "Välj alla" here: it would make
  * a Word row checkable in practice. Labels render as text, with no match highlighting.
+ *
+ * With `nameSelection` (/jobb, #2199) a Group row whose hit names occupations also gets a sibling
+ * button after its checkbox that opens those names in the right column, as a Word row opens its
+ * variants; the right column's band reads "Yrken" and what is open is named under it. Every name is
+ * ticked by its own id, and one whose group is selected is included rather than separately selected.
  */
-export function OccupationSearchResults({ result, selected, onToggle, counts }: OccupationSearchResultsProps) {
+export function OccupationSearchResults({
+  result,
+  selected,
+  onToggle,
+  counts,
+  nameSelection,
+}: OccupationSearchResultsProps) {
   if (result === null) {
     // Pending: the box keeps its place and height, and shows nothing from an earlier word.
     return <div className="jp-matchdialog__cascade jp-occsearch__box jp-occsearch__box--single" />;
   }
-  return <Answer result={result} selected={selected} onToggle={onToggle} counts={counts} />;
+  return (
+    <Answer
+      result={result}
+      selected={selected}
+      onToggle={onToggle}
+      counts={counts}
+      names={nameSelection}
+    />
+  );
 }
 
 interface Opened {
   readonly result: OccupationSearchResult;
-  readonly headWord: string;
+  readonly key: string;
+}
+
+// One name in the right column, whichever row carried it.
+interface NameEntry {
+  readonly id: string;
+  readonly label: string;
+  readonly groupConceptId: string;
+  readonly groupLabel: string;
 }
 
 function Answer({
@@ -95,43 +145,47 @@ function Answer({
   selected,
   onToggle,
   counts,
+  names,
 }: {
   readonly result: OccupationSearchResult;
   readonly selected: ReadonlyArray<string>;
   readonly onToggle: (groupConceptId: string) => void;
   readonly counts: Readonly<Record<string, number>> | null | undefined;
+  readonly names: OccupationNameSelection | undefined;
 }) {
   const t = useTranslations("components.occupationSearch");
   const id = useId();
   const hitsHeadingId = `${id}-hits`;
   const rightId = `${id}-variants`;
   const rightHeadingId = `${id}-variants-heading`;
+  const rightHintId = `${id}-variants-hint`;
   const rightColumnRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLParagraphElement | null>(null);
   const focusAfterCommit = useFocusAfterCommit();
 
+  const rows = result.rows;
+  const canOpen = (row: OccupationSearchRow) =>
+    row.kind === "Word" || (names !== undefined && row.matchedNames.length > 0);
+
   // The open row belongs to the answer it was opened in: a new answer starts from its own default,
   // derived here rather than reset by an effect.
   const [opened, setOpened] = useState<Opened | null>(null);
-  const openHeadWord =
-    opened !== null && opened.result === result ? opened.headWord : defaultOpenHeadWord(result.rows);
+  const openKey =
+    opened !== null && opened.result === result ? opened.key : defaultOpenKey(rows, canOpen);
 
-  const rows = result.rows;
-  const hasWordRows = rows.some((row) => row.kind === "Word");
-  const openRow = rows.find(
-    (row): row is OccupationSearchWordRow => row.kind === "Word" && row.headWord === openHeadWord,
-  );
+  const twoColumns = rows.some(canOpen);
+  const openRow = rows.find((row) => canOpen(row) && rowKey(row) === openKey);
   const notShown = result.totalRows - rows.length;
 
-  function open(headWord: string) {
+  function open(row: OccupationSearchRow) {
     focusAfterCommit(() => revealColumn(rightColumnRef.current, headingRef.current));
-    setOpened({ result, headWord });
+    setOpened({ result, key: rowKey(row) });
   }
 
   return (
     <div
       className={
-        hasWordRows
+        twoColumns
           ? "jp-matchdialog__cascade jp-occsearch__box"
           : "jp-matchdialog__cascade jp-occsearch__box jp-occsearch__box--single"
       }
@@ -142,28 +196,50 @@ function Answer({
             {t("hitsHeading")}
           </span>
         </div>
-        {rows.map((row) =>
-          row.kind === "Group" ? (
+        {rows.map((row) => {
+          if (row.kind === "Word") {
+            return (
+              <WordRowButton
+                key={rowKey(row)}
+                row={row}
+                open={rowKey(row) === openKey}
+                controls={rightId}
+                hasSelection={row.variants.some((v) =>
+                  names === undefined
+                    ? selected.includes(v.groupConceptId)
+                    : selected.includes(v.groupConceptId) || names.selected.includes(v.occupationNameConceptId),
+                )}
+                groupsLabel={t("wordGroups", { count: distinctGroupCount(row.variants) })}
+                onOpen={() => open(row)}
+              />
+            );
+          }
+          const groupCheck = (
             <CheckItem
-              key={`group:${row.groupConceptId}`}
+              key={rowKey(row)}
               label={row.groupLabel}
               secondary={groupEvidence(t, row)}
               count={counts ? (counts[row.groupConceptId] ?? 0) : undefined}
               checked={selected.includes(row.groupConceptId)}
               onToggle={() => onToggle(row.groupConceptId)}
+              breakAfterSlash={names !== undefined}
             />
-          ) : (
-            <WordRowButton
-              key={`word:${row.headWord}`}
-              row={row}
-              open={row.headWord === openHeadWord}
-              controls={rightId}
-              hasSelection={row.variants.some((v) => selected.includes(v.groupConceptId))}
-              groupsLabel={t("wordGroups", { count: distinctGroupCount(row.variants) })}
-              onOpen={() => open(row.headWord)}
-            />
-          ),
-        )}
+          );
+          if (names === undefined || row.matchedNames.length === 0) return groupCheck;
+          return (
+            <div key={rowKey(row)} className="jp-occsearch__grouprow">
+              {groupCheck}
+              <GroupNamesOpener
+                count={row.matchedNames.length}
+                groupLabel={row.groupLabel}
+                open={rowKey(row) === openKey}
+                controls={rightId}
+                hasSelection={row.matchedNames.some((n) => names.selected.includes(n.occupationNameConceptId))}
+                onOpen={() => open(row)}
+              />
+            </div>
+          );
+        })}
         {notShown > 0 && (
           <p className="text-body-sm text-text-primary px-4 py-3">
             {t("notShown", { count: notShown })}
@@ -171,8 +247,19 @@ function Answer({
         )}
       </div>
 
-      {hasWordRows &&
-        (openRow === undefined ? (
+      {twoColumns &&
+        (names === undefined ? (
+          <GroupModeColumn
+            t={t}
+            openRow={openRow?.kind === "Word" ? openRow : undefined}
+            selected={selected}
+            onToggle={onToggle}
+            rightId={rightId}
+            rightHeadingId={rightHeadingId}
+            rightColumnRef={rightColumnRef}
+            headingRef={headingRef}
+          />
+        ) : openRow === undefined ? (
           <div
             id={rightId}
             className="jp-matchdialog__cascade-col"
@@ -181,41 +268,156 @@ function Answer({
           >
             <div className="jp-matchdialog__cascade-colhead">
               <span id={rightHeadingId} className="jp-popover__title">
-                {t("groupsHeading")}
+                {t("namesHeading")}
               </span>
             </div>
-            <p className="text-body-sm text-text-primary px-4 py-3">{t("chooseWord")}</p>
+            <p className="text-body-sm text-text-primary px-4 py-3">{t("namesIdle")}</p>
           </div>
         ) : (
           <div
             id={rightId}
             ref={rightColumnRef}
-            className="jp-matchdialog__cascade-col"
+            className="jp-matchdialog__cascade-col jp-occsearch__names"
             role="group"
             aria-labelledby={rightHeadingId}
+            aria-describedby={rightHintId}
           >
             <div className="jp-matchdialog__cascade-colhead">
-              <p
-                id={rightHeadingId}
-                ref={headingRef}
-                tabIndex={-1}
-                className="jp-popover__title jp-occsearch__heading"
-              >
-                {openRow.headWord}
-              </p>
+              <span className="jp-popover__title">{t("namesHeading")}</span>
             </div>
-            {openRow.variants.map((variant) => (
-              <CheckItem
-                key={variant.nameLabel}
-                label={variant.nameLabel}
-                secondary={t("variantGroup", { group: variant.groupLabel })}
-                checked={selected.includes(variant.groupConceptId)}
-                onToggle={() => onToggle(variant.groupConceptId)}
+            <p id={rightHeadingId} ref={headingRef} tabIndex={-1} className="jp-popover__grouphead">
+              {openRow.kind === "Word" ? openRow.headWord : openRow.groupLabel}
+            </p>
+            <p id={rightHintId} className="text-body-sm text-text-primary px-4 py-2">
+              {openRow.kind === "Word" ? names.wordHint : names.groupHint}
+            </p>
+            {namesOf(openRow).map((name) => (
+              <NameRow
+                key={name.id}
+                t={t}
+                name={name}
+                included={selected.includes(name.groupConceptId)}
+                namesGroup={openRow.kind === "Word"}
+                names={names}
               />
             ))}
           </div>
         ))}
     </div>
+  );
+}
+
+// The right column as Matchning and the onboarding rail have it: a Word row's variants, each
+// selecting its group.
+function GroupModeColumn({
+  t,
+  openRow,
+  selected,
+  onToggle,
+  rightId,
+  rightHeadingId,
+  rightColumnRef,
+  headingRef,
+}: {
+  readonly t: Translate;
+  readonly openRow: OccupationSearchWordRow | undefined;
+  readonly selected: ReadonlyArray<string>;
+  readonly onToggle: (groupConceptId: string) => void;
+  readonly rightId: string;
+  readonly rightHeadingId: string;
+  readonly rightColumnRef: React.RefObject<HTMLDivElement | null>;
+  readonly headingRef: React.RefObject<HTMLParagraphElement | null>;
+}) {
+  if (openRow === undefined) {
+    return (
+      <div
+        id={rightId}
+        className="jp-matchdialog__cascade-col"
+        role="group"
+        aria-labelledby={rightHeadingId}
+      >
+        <div className="jp-matchdialog__cascade-colhead">
+          <span id={rightHeadingId} className="jp-popover__title">
+            {t("groupsHeading")}
+          </span>
+        </div>
+        <p className="text-body-sm text-text-primary px-4 py-3">{t("chooseWord")}</p>
+      </div>
+    );
+  }
+  return (
+    <div
+      id={rightId}
+      ref={rightColumnRef}
+      className="jp-matchdialog__cascade-col"
+      role="group"
+      aria-labelledby={rightHeadingId}
+    >
+      <div className="jp-matchdialog__cascade-colhead">
+        <p
+          id={rightHeadingId}
+          ref={headingRef}
+          tabIndex={-1}
+          className="jp-popover__title jp-occsearch__heading"
+        >
+          {openRow.headWord}
+        </p>
+      </div>
+      {openRow.variants.map((variant) => (
+        <CheckItem
+          key={variant.nameLabel}
+          label={variant.nameLabel}
+          secondary={t("variantGroup", { group: variant.groupLabel })}
+          checked={selected.includes(variant.groupConceptId)}
+          onToggle={() => onToggle(variant.groupConceptId)}
+        />
+      ))}
+    </div>
+  );
+}
+
+// A name on /jobb: ticked by its own id, included (checked, inert, the reason as its second line)
+// when its group is selected, with its own exact count or none (ADR 0120).
+function NameRow({
+  t,
+  name,
+  included,
+  namesGroup,
+  names,
+}: {
+  readonly t: Translate;
+  readonly name: NameEntry;
+  readonly included: boolean;
+  readonly namesGroup: boolean;
+  readonly names: OccupationNameSelection;
+}) {
+  const count = names.counts ? (names.counts[name.id] ?? 0) : undefined;
+  const toggle = () => names.onToggle(name.id);
+  if (included) {
+    return (
+      <CheckItem
+        label={name.label}
+        secondary={t("variantIncluded", { group: name.groupLabel })}
+        included
+        checked
+        count={count}
+        onToggle={toggle}
+        breakAfterSlash
+      />
+    );
+  }
+  const checked = names.selected.includes(name.id);
+  return namesGroup ? (
+    <CheckItem
+      label={name.label}
+      secondary={t("variantGroup", { group: name.groupLabel })}
+      checked={checked}
+      count={count}
+      onToggle={toggle}
+      breakAfterSlash
+    />
+  ) : (
+    <CheckItem label={name.label} checked={checked} count={count} onToggle={toggle} breakAfterSlash />
   );
 }
 
@@ -248,12 +450,7 @@ function WordRowButton({
       onClick={onOpen}
     >
       <span className="flex min-w-0 items-center gap-2">
-        {hasSelection && (
-          <span
-            aria-hidden="true"
-            className="inline-block size-2 shrink-0 rounded-full bg-(--jp-accent-700)"
-          />
-        )}
+        {hasSelection && <SelectionDot />}
         <span className="flex min-w-0 flex-col">
           <span id={nameId}>{row.headWord}</span>
           <span id={secondaryId} className="text-body-sm text-text-secondary">
@@ -266,11 +463,77 @@ function WordRowButton({
   );
 }
 
-/** Row 1, when it is a Word row holding the exact word or standing alone; otherwise none. */
-function defaultOpenHeadWord(rows: ReadonlyArray<OccupationSearchRow>): string | null {
+// The sibling after a Group row's checkbox (/jobb only): no control inside another. Its name starts
+// with its visible text (WCAG 2.5.3).
+function GroupNamesOpener({
+  count,
+  groupLabel,
+  open,
+  controls,
+  hasSelection,
+  onOpen,
+}: {
+  readonly count: number;
+  readonly groupLabel: string;
+  readonly open: boolean;
+  readonly controls: string;
+  readonly hasSelection: boolean;
+  readonly onOpen: () => void;
+}) {
+  const t = useTranslations("components.occupationSearch");
+  return (
+    <button
+      type="button"
+      className="jp-occsearch__opener"
+      aria-pressed={open}
+      aria-controls={controls}
+      aria-label={t("groupNamesLabel", { count, group: groupLabel })}
+      onClick={onOpen}
+    >
+      {hasSelection && <SelectionDot />}
+      <span>{t("groupNames", { count })}</span>
+      <ChevronRight size={14} className="jp-popover-row__chev shrink-0" aria-hidden="true" />
+    </button>
+  );
+}
+
+function SelectionDot() {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-block size-2 shrink-0 rounded-full bg-(--jp-accent-700)"
+    />
+  );
+}
+
+function rowKey(row: OccupationSearchRow): string {
+  return row.kind === "Word" ? `word:${row.headWord}` : `group:${row.groupConceptId}`;
+}
+
+/** Row 1, when it can open and holds the exact word or stands alone; otherwise none. */
+function defaultOpenKey(
+  rows: ReadonlyArray<OccupationSearchRow>,
+  canOpen: (row: OccupationSearchRow) => boolean,
+): string | null {
   const first = rows[0];
-  if (first?.kind === "Word" && (first.exactMatch || rows.length === 1)) return first.headWord;
+  if (first !== undefined && canOpen(first) && (first.exactMatch || rows.length === 1)) return rowKey(first);
   return null;
+}
+
+function namesOf(row: OccupationSearchRow): ReadonlyArray<NameEntry> {
+  return row.kind === "Word"
+    ? row.variants.map((v) => ({
+        id: v.occupationNameConceptId,
+        label: v.nameLabel,
+        groupConceptId: v.groupConceptId,
+        groupLabel: v.groupLabel,
+      }))
+    : row.matchedNames.map((n) => ({
+        id: n.occupationNameConceptId,
+        label: n.nameLabel,
+        groupConceptId: row.groupConceptId,
+        groupLabel: row.groupLabel,
+      }));
 }
 
 function distinctGroupCount(variants: ReadonlyArray<OccupationSearchVariant>): number {
@@ -280,7 +543,10 @@ function distinctGroupCount(variants: ReadonlyArray<OccupationSearchVariant>): n
 /** "träff på A; B; C och 4 till", in the server's order; nothing for a label-only hit. */
 function groupEvidence(t: Translate, row: OccupationSearchGroupRow): string | undefined {
   if (row.matchedNames.length === 0) return undefined;
-  const names = row.matchedNames.slice(0, MAX_EVIDENCE_NAMES).join(EVIDENCE_NAME_SEPARATOR);
+  const names = row.matchedNames
+    .slice(0, MAX_EVIDENCE_NAMES)
+    .map((n) => n.nameLabel)
+    .join(EVIDENCE_NAME_SEPARATOR);
   const more = row.matchedNames.length - MAX_EVIDENCE_NAMES;
   return more > 0 ? t("groupEvidenceMore", { names, more }) : t("groupEvidence", { names });
 }

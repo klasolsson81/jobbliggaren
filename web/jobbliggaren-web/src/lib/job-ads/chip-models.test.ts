@@ -33,6 +33,7 @@ const taxonomy: TaxonomyTree = {
 const state: JobbUrlState = {
   q: "volvo lastbil",
   occupationGroup: ["MVqp_eS8_kDZ"],
+  occupationName: [],
   region: ["CifL_Rzy_Mku"],
   municipality: ["zHxw_uJZ_NNh"],
   remote: false,
@@ -211,5 +212,36 @@ describe("splitQWords", () => {
   it("whitespace-splittar och slänger tomma segment", () => {
     expect(splitQWords("  volvo   lastbil ")).toEqual(["volvo", "lastbil"]);
     expect(splitQWords("")).toEqual([]);
+  });
+});
+
+describe("the occupation-name axis (#2199)", () => {
+  const withName: JobbUrlState = { ...state, occupationName: ["z5AM_ayf_WcL"] };
+  const names = (_axis: string, id: string) =>
+    id === "z5AM_ayf_WcL" ? "Projektledare, IT" : resolve("region", id);
+
+  it("puts the name chip right after the group chips, in the same dimension", () => {
+    const chips = buildChipModels(withName, names);
+    expect(chips.map((c) => c.axis)).toEqual([
+      "region",
+      "municipality",
+      "occupationGroup",
+      "occupationName",
+      "employmentType",
+      "worktimeExtent",
+    ]);
+    expect(chips[3]).toEqual({
+      axis: "occupationName",
+      value: "z5AM_ayf_WcL",
+      label: "Projektledare, IT",
+    });
+  });
+
+  it("removing the name chip touches only the name axis", () => {
+    const chip = buildChipModels(withName, names).find(
+      (c) => c.axis === "occupationName",
+    );
+    expect(chip).toBeDefined();
+    expect(removeChipFromState(withName, chip!)).toEqual(state);
   });
 });

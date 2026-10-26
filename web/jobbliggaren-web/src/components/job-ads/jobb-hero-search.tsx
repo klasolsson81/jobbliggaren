@@ -57,9 +57,8 @@ import { JobAdTypeahead } from "./job-ad-typeahead";
  *
  * The field's text is the user's buffer and the URL is the source of truth. The
  * invariant is parse(text) ⊆ state: the state may hold more than the text, because
- * filters chosen in the popovers, and labels that cannot be written as text, appear
- * only in the filter row under the results. That row mirrors everything; the field
- * is best effort.
+ * labels that cannot be written as text appear only in the filter row under the
+ * results. That row mirrors everything; the field is best effort.
  *
  * - **Typing applies a delta at commit points** (a separator key, Enter or the
  *   search button, picking a suggestion): the difference between the previous and
@@ -69,8 +68,6 @@ import { JobAdTypeahead } from "./job-ad-typeahead";
  * - **Text is never removed by tagging.** Removing a chip in the filter row updates
  *   the text through the external-change sync: a surgical removal that keeps the
  *   order, otherwise a canonical re-serialisation.
- * - **Popover choices are not written into the text.** The field shows what was
- *   typed; the filter row shows everything.
  * - Navigation uses `router.replace` with `{ scroll: false }`; the toolbar pushes.
  * - Before hydration and without JavaScript the same field is named `q` and holds
  *   `q`. Once hydrated it has no name, since submitting the mirrored text as q would
@@ -83,13 +80,14 @@ interface JobbHeroSearchProps {
   occupationGroup: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   municipality: ReadonlyArray<string>;
+  employmentType: ReadonlyArray<string>;
+  worktimeExtent: ReadonlyArray<string>;
   // The filters below are never written as text in the field, but every commit and
   // the no-JS form must carry them. Otherwise a commit from the field (Enter, the
   // search button, a suggestion, clearing, or a live delta while typing) would build
   // a URL without them and silently drop an active filter.
+  occupationName: ReadonlyArray<string>;
   remote: boolean;
-  employmentType: ReadonlyArray<string>;
-  worktimeExtent: ReadonlyArray<string>;
   matchGrades: ReadonlyArray<string>;
   employer: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
@@ -119,6 +117,7 @@ export function JobbHeroSearch({
   taxonomy,
   q,
   occupationGroup,
+  occupationName,
   region,
   municipality,
   remote,
@@ -165,6 +164,7 @@ export function JobbHeroSearch({
     () => ({
       q,
       occupationGroup: [...occupationGroup],
+      occupationName: [...occupationName],
       region: [...region],
       municipality: [...municipality],
       remote,
@@ -178,6 +178,7 @@ export function JobbHeroSearch({
     [
       q,
       occupationGroup,
+      occupationName,
       region,
       municipality,
       remote,
@@ -538,6 +539,7 @@ export function JobbHeroSearch({
   const axisInputs: ReadonlyArray<readonly [string, string]> = (
     [
       ["occupationGroup", lastCommitted.occupationGroup],
+      ["occupationName", lastCommitted.occupationName],
       ["region", lastCommitted.region],
       ["municipality", lastCommitted.municipality],
       ["employmentType", lastCommitted.employmentType],
@@ -552,6 +554,7 @@ export function JobbHeroSearch({
   const hasSavableSearch =
     committedQ.length > 0 ||
     lastCommitted.occupationGroup.length > 0 ||
+    lastCommitted.occupationName.length > 0 ||
     lastCommitted.region.length > 0 ||
     lastCommitted.municipality.length > 0 ||
     lastCommitted.remote ||

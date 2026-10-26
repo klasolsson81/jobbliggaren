@@ -108,16 +108,26 @@ if (scenarioSelector is "landing-stats" or "all")
 // Fas E2c (ADR 0067 Beslut 4) — facet-counts-endpointen är rest; D1-parkerade
 // scenariot aktiveras. Kräver LOADTEST_BEARER_TOKEN (auth-gated) — utan den
 // blir requests 401 → fail-count → BudgetReporter-warning (avsiktligt synligt).
+// #2199 — the occupation-name facet (heavy + with five picks) runs in the same branch.
+// All four scenarios share the FacetCountsPolicy bucket (30/10s per user); the rate
+// arithmetic (25 req/10s) is in the FacetCountsScenarios.cs header and holds only when
+// the four are registered together, so they are never put in separate selectors.
 if (scenarioSelector is "facet-counts" or "all")
 {
     var facetHeavy = FacetCountsScenarios.OccupationGroupHeavy(httpClient, baseUrl);
     var facetReflected = FacetCountsScenarios.ReflectedWithActiveFilter(httpClient, baseUrl);
+    var facetNameHeavy = FacetCountsScenarios.OccupationNameHeavy(httpClient, baseUrl);
+    var facetNamePicks = FacetCountsScenarios.OccupationNameWithPicks(httpClient, baseUrl);
 
     scenarios.Add(facetHeavy);
     scenarios.Add(facetReflected);
+    scenarios.Add(facetNameHeavy);
+    scenarios.Add(facetNamePicks);
 
     scenarioBudgets[facetHeavy.ScenarioName] = FacetCountsScenarios.Class_A_P95_BudgetMs;
     scenarioBudgets[facetReflected.ScenarioName] = FacetCountsScenarios.Class_A_P95_BudgetMs;
+    scenarioBudgets[facetNameHeavy.ScenarioName] = FacetCountsScenarios.Class_A_P95_BudgetMs;
+    scenarioBudgets[facetNamePicks.ScenarioName] = FacetCountsScenarios.Class_A_P95_BudgetMs;
 }
 
 // TD-94 (perf-ratchet) — q-COUNT hot path. Vaktar mot regression av

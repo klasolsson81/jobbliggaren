@@ -74,7 +74,7 @@
         ],
         "list": [
           "Söktexten du skrev, upp till 100 tecken.",
-          "Vilka filter du valde: yrkesgrupp, kommun, län, anställningsform, omfattning, arbetsgivare och om du filtrerade på distansarbete.",
+          "Vilka filter du valde: yrkesgrupp, yrkesbenämning, kommun, län, anställningsform, omfattning, arbetsgivare och om du filtrerade på distansarbete.",
           "Vilken sortering sökningen kördes i.",
           "Hur många träffar sökningen gav senast, så att vi kan visa om den har gett nya träffar sedan dess.",
           "När sökningen sparades första gången och när du senast körde den."

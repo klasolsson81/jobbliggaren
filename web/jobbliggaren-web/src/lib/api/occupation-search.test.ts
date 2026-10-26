@@ -19,7 +19,7 @@ const body = {
       kind: "Group",
       groupConceptId: "DJh5_yyF_hEM",
       groupLabel: "Mjukvaru- och systemutvecklare m.fl.",
-      matchedNames: ["Backend-utvecklare"],
+      matchedNames: [{ occupationNameConceptId: "7wdX_4rv_33z", nameLabel: "Backend-utvecklare" }],
       labelHit: false,
       headWord: null,
       variants: [],

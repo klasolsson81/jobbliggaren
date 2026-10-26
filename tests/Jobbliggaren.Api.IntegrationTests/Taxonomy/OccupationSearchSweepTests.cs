@@ -84,9 +84,12 @@ public sealed class OccupationSearchSweepTests : IAsyncLifetime
             var selects = first?.Kind switch
             {
                 OccupationSearchRowKind.Group =>
-                    first.GroupConceptId == name.GroupConceptId && first.MatchedNames.Contains(name.NameLabel),
+                    first.GroupConceptId == name.GroupConceptId
+                    && first.MatchedNames.Contains(new OccupationSearchMatchedName(name.NameConceptId, name.NameLabel)),
                 OccupationSearchRowKind.Word =>
-                    first.Variants.Any(v => v.NameLabel == name.NameLabel && v.GroupConceptId == name.GroupConceptId),
+                    first.Variants.Any(v => v.NameLabel == name.NameLabel
+                        && v.OccupationNameConceptId == name.NameConceptId
+                        && v.GroupConceptId == name.GroupConceptId),
                 _ => false,
             };
             if (!selects)
@@ -127,7 +130,7 @@ public sealed class OccupationSearchSweepTests : IAsyncLifetime
         {
             var result = await _sut.SearchAsync(head.Key, Ct);
             var reached = result.Rows
-                .SelectMany(r => r.MatchedNames.Concat(r.Variants.Select(v => v.NameLabel)))
+                .SelectMany(r => r.MatchedNames.Select(m => m.NameLabel).Concat(r.Variants.Select(v => v.NameLabel)))
                 .ToHashSet(StringComparer.Ordinal);
             if (!head.All(n => reached.Contains(n.NameLabel)))
                 failures.Add(head.Key);
@@ -151,7 +154,8 @@ public sealed class OccupationSearchSweepTests : IAsyncLifetime
             var longest = Tokens(name.NameLabel).MaxBy(t => t.Length)!;
             var result = await _sut.SearchAsync(longest, Ct);
             result.Rows.ShouldContain(
-                r => r.MatchedNames.Contains(name.NameLabel) || r.Variants.Any(v => v.NameLabel == name.NameLabel),
+                r => r.MatchedNames.Any(m => m.NameLabel == name.NameLabel)
+                    || r.Variants.Any(v => v.NameLabel == name.NameLabel),
                 $"{name.NameLabel} should be reached by '{longest}'");
         }
     }
@@ -211,7 +215,7 @@ public sealed class OccupationSearchSweepTests : IAsyncLifetime
     {
         var result = await _sut.SearchAsync(word, Ct);
         var reached = result.Rows
-            .SelectMany(r => r.MatchedNames.Concat(r.Variants.Select(v => v.NameLabel)))
+            .SelectMany(r => r.MatchedNames.Select(m => m.NameLabel).Concat(r.Variants.Select(v => v.NameLabel)))
             .ToHashSet(StringComparer.Ordinal);
 
         var compounds = _expected.Names
@@ -239,7 +243,7 @@ public sealed class OccupationSearchSweepTests : IAsyncLifetime
 
         var result = await _sut.SearchAsync("kock", Ct);
 
-        result.Rows.SelectMany(r => r.MatchedNames).ShouldContain("Grillkock snabbmat");
+        result.Rows.SelectMany(r => r.MatchedNames).Select(m => m.NameLabel).ShouldContain("Grillkock snabbmat");
     }
 
     /// <summary>

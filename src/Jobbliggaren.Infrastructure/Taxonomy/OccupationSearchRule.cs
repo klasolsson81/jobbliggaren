@@ -141,7 +141,7 @@ internal static class OccupationSearchRule
             .OrderBy(n => n.Tier)
             .ThenBy(n => n.Name.Entry.NameLabel, Collation)
             .ThenBy(n => n.Name.Entry.NameLabel, StringComparer.Ordinal)
-            .Select(n => n.Name.Entry.NameLabel)
+            .Select(n => new OccupationSearchMatchedName(n.Name.Entry.ConceptId, n.Name.Entry.NameLabel))
             .ToList();
 
         var exact = tiers.Any(t => t is Tier.ExactName or Tier.ExactGroupLabel);

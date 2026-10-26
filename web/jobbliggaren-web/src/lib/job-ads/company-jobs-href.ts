@@ -71,6 +71,7 @@ export function buildCompanyJobsHref(
   return buildJobbHref({
     q: "",
     occupationGroup: [],
+    occupationName: [],
     region: [],
     municipality: [],
     employmentType: [],

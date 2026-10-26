@@ -364,6 +364,9 @@
       "yrkeSelectAll": "Select all occupational groups",
       "yrkeEmpty": "Occupational areas could not be loaded right now. You can search by search terms anyway.",
       "yrkeRightEmpty": "Select an occupational area on the left.",
+      "yrkeNameHint": "Ticking an occupation shows ads where the employer specified exactly that occupation. Search for the occupational group for more.",
+      "yrkeGroupNameHint": "Ticking an occupation shows ads where the employer specified exactly that occupation.",
+      "yrkeNamesSelected": "{count, plural, one {# selected occupation is shown among the active filters, not here.} other {# selected occupations are shown among the active filters, not here.}}",
       "klass2Empty": "Filters could not be loaded right now. You can search by search terms anyway."
     },
     "typeahead": {

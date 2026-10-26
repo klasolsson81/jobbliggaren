@@ -39,6 +39,7 @@ public class OccupationSearchLayerTests
         typeof(Jobbliggaren.Application.JobAds.Abstractions.OccupationSearchResult).Assembly.ShouldBe(Application);
         typeof(Jobbliggaren.Application.JobAds.Abstractions.OccupationSearchRow).Assembly.ShouldBe(Application);
         typeof(Jobbliggaren.Application.JobAds.Abstractions.OccupationSearchVariant).Assembly.ShouldBe(Application);
+        typeof(Jobbliggaren.Application.JobAds.Abstractions.OccupationSearchMatchedName).Assembly.ShouldBe(Application);
         typeof(Jobbliggaren.Application.JobAds.Abstractions.OccupationSearchRowKind).Assembly.ShouldBe(Application);
         typeof(Jobbliggaren.Application.JobAds.Abstractions.IOccupationSearcher).Assembly.ShouldNotBe(Infrastructure);
     }

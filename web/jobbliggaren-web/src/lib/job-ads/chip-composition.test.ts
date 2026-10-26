@@ -38,6 +38,7 @@ const taxonomy: TaxonomyTree = {
 const empty: JobbUrlState = {
   q: "",
   occupationGroup: [],
+  occupationName: [],
   region: [],
   municipality: [],
   remote: false,

@@ -28,17 +28,48 @@
 //   - Reflektion-väg: en facett kan beräknas med dimensionens egen filter-lista
 //     tömd men ETT ANNAT aktivt filter kvar (SPOT-mekanik, se IJobAdSearchQuery
 //     FacetCountsAsync-doc) → sekundärt scenario som mäter den vägen.
+//   - #2199 (the occupation-name axis): dimension=OccupationName is a THIRD
+//     GROUP BY form. Ads are counted per (occupation_name, occupation_group)
+//     pair — not a shadow column — and the pairs are folded through the
+//     occupation-name lineage in textResolver.CountOccupationNames
+//     (JobAdSearchQuery.FacetCountsAsync).
+//     ADR 0067 Beslut 4: the NBomber measurement against ADR 0045 is BLOCKING
+//     before per-option goes live; the Testcontainers reading in ADR 0067
+//     Amendment 2026-10-24 point 5 is a different measuring point (no HTTP
+//     pipeline, no rate limiter). Two scenarios:
+//       * OccupationNameHeavy — no filters, the widest pair set.
+//       * OccupationNameWithPicks — the same facet with five occupationName= on
+//         the wire. ExcludeDimension clears BOTH Yrke lists
+//         (occupationGroup and occupationName) for the OccupationName facet, so
+//         the picks do NOT narrow the WHERE: the difference from Heavy is the
+//         cost of the request shape (binding, validator, criteria, SPOT
+//         clearing), not a narrower GROUP BY.
 //
 // LAST-KALIBRERING (CTO-disciplin: kalibrera mot fakta, inte gissning):
-//   Fas E2c LÅST (CTO VAL 1 2026-06-11): endpointen kör dedikerad
-//   FacetCountsPolicy 30 req/10s per user (fixed window) — INTE ListReadPolicy.
-//   Aritmetik vid parallell-körning av båda scenarierna i samma user-bucket:
-//   scenario 1 (1 RPS = 10 req/10s-fönster) + scenario 2 (0,5 RPS = 5 req/10s)
-//   = 15 req/10s — strikt under 30/10s-taket, noll 429-förorening av p95
+//   The endpoint runs the dedicated FacetCountsPolicy (CTO VAL 1 2026-06-11) —
+//   NOT ListReadPolicy. Since the retune of 2026-06-24 it is a TokenBucket, not
+//   a fixed window: PermitLimit 30 / WindowSeconds 10 / SegmentsPerWindow 6 = 5
+//   tokens per 10/6 s, i.e. a sustained 30 req/10s (3 req/s) per user and a
+//   burst cap of 30. All scenarios share ONE user bucket (one Bearer token);
+//   /remote-count is on the same policy.
+//   Arithmetic when all four scenarios overlap (the first 120 s):
+//     facet_counts_occupation_group             1 RPS   = 10 req/10s
+//     facet_counts_occupation_group_reflected   0.5 RPS =  5 req/10s
+//     facet_counts_occupation_name              0.5 RPS =  5 req/10s
+//     facet_counts_occupation_name_picks        0.5 RPS =  5 req/10s
+//                                                         ───────────
+//                                                         25 req/10s
+//   = 5 below the 30/10s cap → zero 429 contamination of p95. The 5 req/10s
+//   left over are the margin for the bucket's other callers: run against a
+//   dedicated test account, not an account someone is using in the UI at the
+//   same time. After 120 s only the two OccupationName scenarios remain
+//   (10 req/10s).
 //   (D1-utkastets ListRead-antagande gav 90/min > 60/min = kalibrerings-fel;
 //   löst strukturellt av policy-domen, CTO VAL 1-konsekvens (c)).
-//   1 RPS i 120s = 120 lyckade samples, statistiskt stabil p95 (Tukey: n≥100
-//   räcker för observe-only trend-signal Fas 1).
+//   Samples: 1 RPS for 120s = 120 successful samples; 0.5 RPS for 240s = 120
+//   samples for each of the OccupationName scenarios (reflected: 0.5 RPS for
+//   120s = 60 samples, secondary signal). Statistically stable p95 (Tukey:
+//   n≥100 suffices for an observe-only trend signal in Fas 1).
 //
 // AUTH-HEADER (Fas E-aktiveringsdetalj, INTE ett scenario-designval):
 //   Facet-counts kräver Authorization: Bearer <JWT> (auth-gated). Hur en test-JWT
@@ -75,12 +106,29 @@ internal static class FacetCountsScenarios
     //       &occupationGroup=&municipality=&region=&q=
     // Endpointen rest i JobAdsEndpoints (FacetCountsPolicy 30/10s, private
     // no-store). D1-utkastets provisoriska form visade sig exakt.
+    // Extended in #2199: dimension=OccupationName and repeated &occupationName=
+    // <concept-id> (string[]? occupationName in JobAdsEndpoints).
     private const string FacetCountsPath = "/api/v1/job-ads/facet-counts";
 
     // Reellt region-concept-id för reflektion-scenariot (Stockholms län,
     // DB-verifierat 2026-06-11 mot taxonomy_concepts). Ersatte D1:s
     // PLACEHOLDER — ett reellt id ger en meningsfull reflektions-mängd.
     private const string ReflectedRegionConceptId = "CifL_Rzy_Mku";
+
+    // Five occupation names for OccupationNameWithPicks, from occupation-name-
+    // lineage.json (Infrastructure/Taxonomy). All have currentIn ⊇ ["31"] and an
+    // empty replacedByConceptIds (verified 2026-10-25): current names, none
+    // replaced that would expand via the lineage. Four Projektledare in three
+    // occupation groups (el and telekom share a group) + one nurse occupation
+    // name in a fourth.
+    private static readonly string[] PickedOccupationNameConceptIds =
+    [
+        "z5AM_ayf_WcL", // Projektledare, IT
+        "1jm3_XFQ_TdJ", // Projektledare, el
+        "T55e_efV_Eqh", // Projektledare, telekom
+        "pTTz_5DC_itW", // Projektledare, bygg och anläggning
+        "bXNH_MNX_dUR", // Sjuksköterska, grundutbildad
+    ];
 
     /// <summary>
     /// Läser en valfri Bearer-token ur miljön (Fas E-aktiveringsdetalj). Saknas
@@ -130,9 +178,10 @@ internal static class FacetCountsScenarios
             })
             .WithWarmUpDuration(TimeSpan.FromSeconds(5))
             .WithLoadSimulations(
-                // 1 RPS sustained i 120s = 120 samples, strikt under det förväntade
-                // per-user-taket (~60/min). p95 vid n=120 = sample 114; tillräcklig
-                // granularitet för observe-only trend.
+                // 1 RPS sustained for 120s = 120 samples = 10 req/10s of the
+                // FacetCountsPolicy cap of 30/10s (the sum over all scenarios:
+                // LAST-KALIBRERING in the file header). p95 at n=120 = sample 114;
+                // sufficient granularity for the observe-only trend.
                 Simulation.Inject(
                     rate: 1,
                     interval: TimeSpan.FromSeconds(1),
@@ -161,13 +210,82 @@ internal static class FacetCountsScenarios
             })
             .WithoutWarmUp()
             .WithLoadSimulations(
-                // 0,5 RPS = 5 req/10s-fönster; tillsammans med primär-scenariots
-                // 10 req/10s = 15 req/10s i den delade user-bucketen — strikt
-                // under FacetCountsPolicy 30/10s (CTO VAL 1, E2c-omkalibrering).
+                // 0.5 RPS = a 5 req/10s window in the shared user bucket. The sum
+                // over all four scenarios = 25 req/10s against FacetCountsPolicy
+                // 30/10s (CTO VAL 1; LAST-KALIBRERING in the file header).
                 Simulation.Inject(
                     rate: 1,
                     interval: TimeSpan.FromSeconds(2),
                     during: TimeSpan.FromSeconds(120)));
+
+        return scenario;
+    }
+
+    /// <summary>
+    /// #2199 — the occupation-name facet, no active filters. Not a shadow column's
+    /// GROUP BY like the other dimensions: ads are counted per (occupation_name,
+    /// occupation_group) pair and folded through the lineage in CountOccupationNames
+    /// (JobAdSearchQuery.FacetCountsAsync). It is the measurement ADR 0067 Beslut 4
+    /// requires before per-option goes live on /jobb.
+    /// </summary>
+    public static ScenarioProps OccupationNameHeavy(HttpClient httpClient, string baseUrl)
+    {
+        var scenario = Scenario.Create("facet_counts_occupation_name", async _ =>
+            {
+                // No active filter list — the widest pair set (all ads with an
+                // occupation name). 401/429 count as FAIL, as in the primary scenario.
+                var response = await SendFacetRequestAsync(
+                    httpClient, baseUrl, "dimension=OccupationName");
+                return response;
+            })
+            // Without warm-up, like reflected: warm-up would spend bucket tokens
+            // outside the LAST-KALIBRERING arithmetic. The first request may carry
+            // a cold start; at n=120 it sits in the tail above p95 (sample 114).
+            .WithoutWarmUp()
+            .WithLoadSimulations(
+                // 0.5 RPS = a 5 req/10s window in the shared user bucket (sum 25
+                // req/10s, LAST-KALIBRERING in the file header). 240s gives 120
+                // samples; p95 at n=120 = sample 114, the same granularity as the
+                // primary scenario.
+                Simulation.Inject(
+                    rate: 1,
+                    interval: TimeSpan.FromSeconds(2),
+                    during: TimeSpan.FromSeconds(240)));
+
+        return scenario;
+    }
+
+    /// <summary>
+    /// #2199 — the occupation-name facet with five picked occupation names (repeated
+    /// occupationName=). ExcludeDimension clears the picks out of the WHERE
+    /// (both Yrke lists), so the DB work is the same as <see cref="OccupationNameHeavy"/>;
+    /// the difference from that scenario is the cost of the request shape. Five ids
+    /// from the lineage artefact: current names (currentIn ⊇ "31"), see
+    /// PickedOccupationNameConceptIds.
+    /// </summary>
+    public static ScenarioProps OccupationNameWithPicks(HttpClient httpClient, string baseUrl)
+    {
+        // Built once, not per request. The same repeated form as the FE's
+        // getFacetCounts (params.append("occupationName", v) per value).
+        var query = "dimension=OccupationName&" + string.Join(
+            "&",
+            PickedOccupationNameConceptIds.Select(
+                id => $"occupationName={Uri.EscapeDataString(id)}"));
+
+        var scenario = Scenario.Create("facet_counts_occupation_name_picks", async _ =>
+            {
+                var response = await SendFacetRequestAsync(httpClient, baseUrl, query);
+                return response;
+            })
+            .WithoutWarmUp()
+            .WithLoadSimulations(
+                // 0.5 RPS for 240s = 5 req/10s and 120 samples, like OccupationNameHeavy
+                // (sum over all four scenarios = 25 req/10s, LAST-KALIBRERING in the
+                // file header).
+                Simulation.Inject(
+                    rate: 1,
+                    interval: TimeSpan.FromSeconds(2),
+                    during: TimeSpan.FromSeconds(240)));
 
         return scenario;
     }

@@ -214,7 +214,7 @@ public class NoPasswordSymbolTests
         Attribute,
     }
 
-    private sealed record Symbol(Arm Arm, string Text, bool InGeneratedType = false);
+    private sealed record Symbol(Arm Arm, string Text, bool OnGeneratedField = false);
 
     private sealed record Scan(
         string AssemblyName,
@@ -236,7 +236,7 @@ public class NoPasswordSymbolTests
     // The compiler copies an attribute onto every field it hoists, and Debug and Release hoist differently.
     private static List<string> Occurrences(Scan scan) =>
         scan.Symbols
-            .Where(s => !(s.Arm == Arm.Attribute && s.InGeneratedType))
+            .Where(s => !s.OnGeneratedField)
             .Where(s => s.Arm is Arm.Constant or Arm.Literal or Arm.Attribute
                 ? ConstantNamesAPassword(s.Text)
                 : NameNamesAPassword(s.Text))
@@ -297,7 +297,7 @@ public class NoPasswordSymbolTests
 
             // GetTypes() includes nested and compiler-generated types.
             foreach (var type in module.GetTypes().Where(t => InScope(t, reachers)))
-                symbols.AddRange(TypeSymbols(type).Select(symbol => symbol with { InGeneratedType = IsCompilerGenerated(type) }));
+                symbols.AddRange(TypeSymbols(type));
 
             // The reference tables carry every operand a method body takes from another module, so no
             // instruction walk is needed for them.
@@ -381,7 +381,7 @@ public class NoPasswordSymbolTests
         {
             yield return new Symbol(Arm.Declaration, field.Name);
             foreach (var literal in AttributeStrings(field))
-                yield return new Symbol(Arm.Attribute, literal);
+                yield return new Symbol(Arm.Attribute, literal, OnGeneratedField: IsCompilerGenerated(type));
             foreach (var signature in Unwrapped(field.FieldType))
                 yield return new Symbol(Arm.Signature, signature);
             if (field.HasConstant && field.Constant is string constant)

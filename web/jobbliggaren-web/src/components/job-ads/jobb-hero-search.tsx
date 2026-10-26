@@ -207,8 +207,7 @@ export function JobbHeroSearch({
   // commit (Enter, the search button, a suggestion, clearing) and false after a live
   // delta. commit() sets it, and an external change sets it to true, since navigating
   // to a recent search means it is already saved. `saveReceipt` is the short inline
-  // confirmation after the user clicks save: "awaiting" until the committed answer for
-  // this search says it was stored, then "shown"; the next edit clears it.
+  // confirmation after the user clicks save; the next edit clears it.
   const [savedByIntent, setSavedByIntent] = useState(initialCommitted);
   const [saveReceipt, setSaveReceipt] = useState<"none" | "awaiting" | "shown">("none");
   const searchButtonRef = useRef<HTMLButtonElement>(null);

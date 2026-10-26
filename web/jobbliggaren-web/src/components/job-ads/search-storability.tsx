@@ -40,7 +40,7 @@ export function SearchStorability({ children }: { children: ReactNode }) {
 
 /**
  * Renders nothing; reports the backend's verdict for `search` while it is mounted. `committed` says the
- * list was fetched with the commit flag, so the answer is the one that stored or refused the search.
+ * list was fetched with the commit flag.
  */
 export function ReportSearchStorability({
   search,

@@ -17,10 +17,6 @@ import { sameUrlState } from "@/lib/job-ads/tokenize";
  * reads). It is a pure function of the search, so a verdict is valid exactly when its tag matches; the
  * comparison is `sameUrlState`, the hero's own.
  *
- * The verdict also says whether it answers a COMMITTED request, the one that stores. The receipt "Sökningen
- * är sparad" waits for that answer: a click re-runs the search with the commit flag, and only its answer
- * says whether anything was stored (a rate limit or an error stores nothing).
- *
  * Shape after `components/common/announcer.tsx`: the provider sits outside the results' Suspense boundary,
  * and the results push into it from an effect.
  */
@@ -71,7 +67,6 @@ export function useIsSearchStorable(search: JobbUrlState): boolean {
   return verdict !== null && verdict.storable && sameUrlState(verdict.search, search);
 }
 
-/** True only when the latest verdict is the committed answer for `search` and says it was stored. */
 export function useIsSearchSaved(search: JobbUrlState): boolean {
   const verdict = useContext(VerdictContext);
   return (

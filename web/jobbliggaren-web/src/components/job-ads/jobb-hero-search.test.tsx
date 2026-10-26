@@ -770,6 +770,34 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
     expect(
       screen.getAllByText("Sökningen är sparad i Senaste sökningar").length,
     ).toBeGreaterThan(0);
+    // Heard as well as seen: the visible receipt is aria-hidden and has no role, so a status
+    // region carrying the text is the announcement.
+    expect(
+      screen.getAllByRole("status").some((region) =>
+        region.textContent?.includes("Sökningen är sparad i Senaste sökningar"),
+      ),
+    ).toBe(true);
+
+    // StripCommitParam re-runs the search without the flag, and that answer is a preview's: the
+    // receipt holds once shown.
+    isSavedMock.mockImplementation(() => false);
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q="utvecklare"
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        remote={false}
+        employmentType={[]}
+        worktimeExtent={[]}
+        matchGrades={[]}
+        employer={[]}
+        sortBy="PublishedAtDesc"
+        initialCommitted={false}
+      />,
+    );
+    expect(document.querySelector(".jp-hero__searchsaved")).not.toBeNull();
   });
 
   // The button unmounts on the click, so focus moves to the control before it rather than to <body>.

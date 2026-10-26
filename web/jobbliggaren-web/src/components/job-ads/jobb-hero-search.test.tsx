@@ -13,6 +13,19 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: replaceMock }),
 }));
 
+// #2199 PR 2b — the backend's save verdict reaches the hero through `search-storability`, which its own
+// test and `jobb-results.test.tsx` cover. Here it is a plain answer: yes unless a test says otherwise, so
+// every save test below runs against an admitted search, and `isStorableMock.mock.calls` shows which
+// search the hero asked about.
+const isStorableMock = vi.fn<(search: unknown) => boolean>(() => true);
+vi.mock("./search-storability", () => ({
+  useIsSearchStorable: (search: unknown) => isStorableMock(search),
+}));
+beforeEach(() => {
+  isStorableMock.mockReset();
+  isStorableMock.mockImplementation(() => true);
+});
+
 const taxonomy: TaxonomyTree = {
   // ADR 0043-amendment 2026-06-13 (Klass 2) — the real concept ids and source labels.
   employmentTypes: [{ conceptId: "gro4_cWF_6D7", label: "Vikariat" }],
@@ -688,6 +701,37 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
 // klick re-committar MED intent (?commit=true → backend auto-capturerar) + visar en
 // kort inline-bekräftelse; länken återkommer när söket redigeras igen.
 describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
+  // #2199 PR 2b — offered only when the backend admits the search; a refusal (a personnummer, a
+  // religious occupation) or a verdict that has not come back yet offers nothing, and changes no copy.
+  it("offers no save when the backend's verdict for the search is no", () => {
+    isStorableMock.mockImplementation(() => false);
+    setup({ q: "utvecklare", initialCommitted: false });
+    expect(screen.queryByRole("button", { name: "Spara sökningen" })).toBeNull();
+    expect(screen.queryByText("Sökningen är sparad i Senaste sökningar")).toBeNull();
+  });
+
+  it("asks about the search it shows", () => {
+    setup({ q: "utvecklare", initialCommitted: false });
+    expect(isStorableMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ q: "utvecklare" }),
+    );
+  });
+
+  // design-reviewer, 2b plan read: the action waits for the verdict, so its line is held whether or
+  // not it is offered, and nothing below it moves when it arrives.
+  it("holds the save line for a savable search whether or not it is offered", () => {
+    isStorableMock.mockImplementation(() => false);
+    const { container } = setup({ q: "utvecklare", initialCommitted: false });
+    const slot = container.querySelector(".jp-hero__searchsaveslot");
+    expect(slot).not.toBeNull();
+    expect(slot).toBeEmptyDOMElement();
+  });
+
+  it("holds no save line when there is nothing to save", () => {
+    const { container } = setup({ initialCommitted: false });
+    expect(container.querySelector(".jp-hero__searchsaveslot")).toBeNull();
+  });
+
   it("visar länken när sökningen är osparad (initialCommitted=false + sparbart sök)", () => {
     setup({ q: "utvecklare", initialCommitted: false });
     expect(

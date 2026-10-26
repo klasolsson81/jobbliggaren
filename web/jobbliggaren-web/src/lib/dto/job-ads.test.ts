@@ -198,6 +198,24 @@ describe("listJobAdsResultSchema", () => {
     expect(listJobAdsResultSchema.safeParse(result).success).toBe(true);
   });
 
+  // #2199 PR 2b — the capture gate's verdict. A wire without it (an API image older than the web
+  // image) parses, and reads as no, so the hero never offers to save on a missing verdict.
+  it("reads a missing isStorableAsRecentSearch as false", () => {
+    const parsed = listJobAdsResultSchema.parse({ items: [], totalCount: 0, page: 1, pageSize: 20 });
+    expect(parsed.isStorableAsRecentSearch).toBe(false);
+  });
+
+  it("passes the verdict through", () => {
+    const parsed = listJobAdsResultSchema.parse({
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 20,
+      isStorableAsRecentSearch: true,
+    });
+    expect(parsed.isStorableAsRecentSearch).toBe(true);
+  });
+
   it("#745 — a real description-less list row parses (production wire shape)", () => {
     // Post-#745 the backend omits description on the list wire. This asserts the ACTUAL
     // shape parses — and reds if someone re-adds a required `description: z.string()` to

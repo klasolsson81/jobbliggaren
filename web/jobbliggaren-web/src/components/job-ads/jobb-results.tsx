@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getTranslations, getFormatter } from "next-intl/server";
 import { formatNumber } from "@/lib/i18n/format";
 import { Announce } from "@/components/common/announcer";
+import { ReportSearchStorability } from "@/components/job-ads/search-storability";
 import { getSessionId } from "@/lib/auth/session";
 import { getJobAds } from "@/lib/api/job-ads";
 import { getJobAdStatusBatch } from "@/lib/api/job-ad-status";
@@ -19,6 +20,7 @@ import {
   buildJobbHref,
   buildPageHref,
   type JobbRawSearchParams,
+  type JobbUrlState,
 } from "@/lib/job-ads/search-params";
 import { maxCreatedAt } from "@/lib/job-ads/seen-window";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
@@ -152,7 +154,9 @@ export async function JobbResults({
   // the `@modal` slot, so closing the modal left the list unfiltered. The link
   // carries the raw URL state, not the effective values above, so the URL after
   // closing equals the URL before opening; `page` is added so deep pages survive.
-  const listHref = buildJobbHref({
+  // #2199 PR 2b: the same raw state tags the save verdict below, since it is the
+  // state the hero holds for this URL.
+  const listState: JobbUrlState = {
     q,
     occupationGroup,
     region,
@@ -168,7 +172,8 @@ export async function JobbResults({
     employer,
     sortBy,
     pageSize: rawParams.pageSize,
-  });
+  };
+  const listHref = buildJobbHref(listState);
   const listBaseQuery = listHref.includes("?")
     ? listHref.slice(listHref.indexOf("?") + 1)
     : "";
@@ -301,6 +306,12 @@ export async function JobbResults({
                 : `${formatNumber(format, result.data.totalCount)} ${t("toolbar.hits", { count: result.data.totalCount })}`
             }
           />
+          {/* #2199 PR 2b — whether a commit of this search would be stored, for the hero's
+              "Spara sökningen". The backend's capture gate decides; the frontend never does. */}
+          <ReportSearchStorability
+            search={listState}
+            storable={result.data.isStorableAsRecentSearch}
+          />
           {/* Hit count, active filter chips and sort on one row (ADR 0055). */}
           <JobbResultsToolbar
             totalCount={result.data.totalCount}
@@ -365,6 +376,9 @@ export async function JobbResults({
           <Announce
             message={`${t("results.rateLimitedTitle")} ${t("results.rateLimitedBody", { seconds: result.retryAfterSeconds })}`}
           />
+          {/* #2199 PR 2b — no verdict came back, and a save here would re-run a list that
+              does not answer, so nothing would be stored. */}
+          <ReportSearchStorability search={listState} storable={false} />
           <p className="text-body font-medium text-warning-700">
             {t("results.rateLimitedTitle")}
           </p>
@@ -388,6 +402,7 @@ export async function JobbResults({
           <Announce
             message={`${t("results.errorTitle")} ${t("results.errorBody")}`}
           />
+          <ReportSearchStorability search={listState} storable={false} />
           <p className="text-body font-medium">{t("results.errorTitle")}</p>
           <p className="mt-1 text-body-sm">{t("results.errorBody")}</p>
         </div>

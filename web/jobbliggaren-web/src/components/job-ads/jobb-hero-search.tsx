@@ -51,6 +51,7 @@ import {
   withoutDisplacedWorktimeWords,
 } from "@/lib/job-ads/tokenize";
 import { JobAdTypeahead } from "./job-ad-typeahead";
+import { useIsSearchStorable } from "./search-storability";
 
 /**
  * The hero search field, which mirrors the current search as text.
@@ -568,7 +569,12 @@ export function JobbHeroSearch({
     commit(lastCommitted, t("heroSearch.saved"), true);
     setSavedNotice(true);
   }
-  const showSaveAction = hydrated && hasSavableSearch && !savedByIntent;
+  // #2199 PR 2b — offered only when the backend says this very search would be stored: a
+  // personnummer or a religious occupation comes back `false`, and so does a search whose
+  // results have not answered yet. No verdict, no action, and no copy explaining it.
+  const isStorable = useIsSearchStorable(lastCommitted);
+  const showSaveAction =
+    hydrated && hasSavableSearch && !savedByIntent && isStorable;
 
   return (
     <form
@@ -635,21 +641,28 @@ export function JobbHeroSearch({
       )}
 
       {/* "Spara sökningen" is a button, not a link, since it does not navigate. After a
-          click a short inline confirmation stays until the search changes. */}
-      {showSaveAction && (
-        <button
-          type="button"
-          className="jp-hero__searchsaveaction"
-          onClick={onSaveSearch}
-        >
-          {t("heroSearch.save")}
-        </button>
-      )}
-      {savedNotice && (
-        // Visual only: the live region below announces it.
-        <p className="jp-hero__searchsaved" aria-hidden="true">
-          {t("heroSearch.saved")}
-        </p>
+          click a short inline confirmation stays until the search changes. #2199 PR 2b: both
+          sit in a slot of fixed height that exists whenever the search is savable, so the
+          action arriving with the results, or never arriving, moves nothing below it
+          (design-reviewer, 2b plan read). */}
+      {(hasSavableSearch || savedNotice) && (
+        <div className="jp-hero__searchsaveslot">
+          {showSaveAction && (
+            <button
+              type="button"
+              className="jp-hero__searchsaveaction"
+              onClick={onSaveSearch}
+            >
+              {t("heroSearch.save")}
+            </button>
+          )}
+          {savedNotice && (
+            // Visual only: the live region below announces it.
+            <p className="jp-hero__searchsaved" aria-hidden="true">
+              {t("heroSearch.saved")}
+            </p>
+          )}
+        </div>
       )}
 
       {/* Announces added and removed filters. The visible feedback is in the filter

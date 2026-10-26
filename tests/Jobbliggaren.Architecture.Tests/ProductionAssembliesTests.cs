@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Mono.Cecil;
+using Mono.Cecil.Cil;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -90,6 +92,64 @@ public class ProductionAssembliesTests
             ],
             ignoreOrder: true,
             Bound);
+    }
+
+    /// <summary>
+    /// No test outside <see cref="ProductionAssemblies"/> builds a set of assemblies of its own, which is how
+    /// TaxonomyAclLayerTests came to scan everything but the Mailbox. The IL of this project holds no
+    /// <see cref="Assembly"/> array and no generic type built over <see cref="Assembly"/> outside the source, and an
+    /// <see cref="Exclusion"/> is built only in a static initialiser, where the inventory above finds it. The scan does
+    /// not see a theory of marker types, or handles held in separate fields and joined later.
+    /// </summary>
+    [Fact]
+    public void No_test_builds_a_set_of_assemblies_of_its_own()
+    {
+        var sites = HandBuiltSets();
+
+        sites.ShouldContain($"{Fixture}.{nameof(AHandBuiltSet)}: Assembly[]", "the scan must see an Assembly array");
+        sites.ShouldContain($"{Fixture}.{nameof(AHandBuiltList)}: List<Assembly>", "the scan must see a generic set");
+        sites.ShouldContain($"{Fixture}.{nameof(AnExclusionOutsideAnInitialiser)}: Exclusion", "the scan must see an Exclusion");
+        sites.Where(site => !site.StartsWith(Fixture + ".", StringComparison.Ordinal)).ShouldBeEmpty(Bound);
+    }
+
+    private static readonly string Fixture = typeof(ProductionAssembliesTests).FullName!;
+
+    private static Assembly[] AHandBuiltSet() => [ProductionAssemblies.Domain.Assembly, ProductionAssemblies.Api.Assembly];
+
+    private static List<Assembly> AHandBuiltList() => [ProductionAssemblies.Domain.Assembly];
+
+    private static Exclusion AnExclusionOutsideAnInitialiser() => new(ProductionAssemblies.Domain, "a fixture for the scan");
+
+    private static List<string> HandBuiltSets()
+    {
+        using var tests = AssemblyDefinition.ReadAssembly(typeof(ProductionAssembliesTests).Assembly.Location);
+        var sites = new List<string>();
+        string[] source = [typeof(ProductionAssemblies).FullName!, typeof(ProductionAssembly).FullName!, typeof(Exclusion).FullName!];
+        foreach (var method in tests.MainModule.GetTypes()
+                     .Where(type => !source.Contains(ProductionTypeSweep.OwnerOf(type).FullName))
+                     .SelectMany(type => type.Methods)
+                     .Where(method => method.HasBody))
+        {
+            var owner = JobAdLifecycleReadRegistryTests.LogicalOwnerKey(method);
+            foreach (var instruction in method.Body.Instructions)
+            {
+                if (instruction.OpCode == OpCodes.Newarr
+                    && instruction.Operand is TypeReference { FullName: "System.Reflection.Assembly" })
+                    sites.Add($"{owner}: Assembly[]");
+                else if (instruction.OpCode == OpCodes.Newobj && instruction.Operand is MethodReference constructor)
+                {
+                    // A delegate's constructor takes (object, IntPtr); a lambda returning an Assembly is not a set.
+                    var delegateConstructor = constructor.Parameters is [_, { ParameterType.FullName: "System.IntPtr" }];
+                    if (constructor.DeclaringType is GenericInstanceType generic && !delegateConstructor
+                        && generic.GenericArguments.Any(argument => argument.FullName == typeof(Assembly).FullName))
+                        sites.Add($"{owner}: {generic.ElementType.Name.Split('`')[0]}<Assembly>");
+                    else if (constructor.DeclaringType.FullName == typeof(Exclusion).FullName && !(method.IsConstructor && method.IsStatic))
+                        sites.Add($"{owner}: Exclusion");
+                }
+            }
+        }
+
+        return sites;
     }
 
     private static IEnumerable<(string Rule, Exclusion Exclusion)> DeclaredExclusions()

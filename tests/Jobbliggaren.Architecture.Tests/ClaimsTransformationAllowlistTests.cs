@@ -1,5 +1,3 @@
-using Jobbliggaren.Api.Authorization;
-using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Shouldly;
 
@@ -33,10 +31,9 @@ public class ClaimsTransformationAllowlistTests
     {
         var allowed = System.Array.Empty<string>();
 
-        // Scan both Api and Infrastructure — an IClaimsTransformation in either layer must be reviewed and
+        // Scan every production assembly — an IClaimsTransformation in any layer must be reviewed and
         // allowlisted before it can add privilege claims.
-        var implementations = new[] { typeof(AdminRoleRequirement).Assembly, typeof(AppDbContext).Assembly }
-            .SelectMany(a => a.GetTypes())
+        var implementations = ProductionAssemblies.ReflectedTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false }
                         && typeof(IClaimsTransformation).IsAssignableFrom(t))
             .Select(t => t.Name)

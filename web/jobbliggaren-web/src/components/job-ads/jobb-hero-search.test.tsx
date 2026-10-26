@@ -18,12 +18,18 @@ vi.mock("next/navigation", () => ({
 // every save test below runs against an admitted search, and `isStorableMock.mock.calls` shows which
 // search the hero asked about.
 const isStorableMock = vi.fn<(search: unknown) => boolean>(() => true);
+// The receipt's half: whether the committed answer for the search said it was stored. Yes unless a
+// test says otherwise, so the receipt tests below see an answer that arrived.
+const isSavedMock = vi.fn<(search: unknown) => boolean>(() => true);
 vi.mock("./search-storability", () => ({
   useIsSearchStorable: (search: unknown) => isStorableMock(search),
+  useIsSearchSaved: (search: unknown) => isSavedMock(search),
 }));
 beforeEach(() => {
   isStorableMock.mockReset();
   isStorableMock.mockImplementation(() => true);
+  isSavedMock.mockReset();
+  isSavedMock.mockImplementation(() => true);
 });
 
 const taxonomy: TaxonomyTree = {
@@ -715,6 +721,65 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
     expect(isStorableMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ q: "utvecklare" }),
     );
+  });
+
+  // The search it shows is the last one it committed, not the one it was mounted with: during the
+  // transition the mounted props still name the previous search, whose yes would offer a save the
+  // backend then refuses.
+  it("asks about the search after a live edit, not the one it was mounted with", async () => {
+    const user = userEvent.setup();
+    isStorableMock.mockImplementation((s) => (s as { q?: string }).q === "utvecklare");
+    setup({ q: "utvecklare", initialCommitted: false });
+    expect(screen.getByRole("button", { name: "Spara sökningen" })).toBeInTheDocument();
+
+    await user.type(screen.getByRole("combobox"), " imam ");
+
+    expect(screen.queryByRole("button", { name: "Spara sökningen" })).toBeNull();
+    expect(isStorableMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ q: "utvecklare imam" }),
+    );
+  });
+
+  // design-reviewer, round 1 on #2243: the receipt claims the search was stored, so it waits for the
+  // committed answer; a rate limit or an error answers no and stores nothing.
+  it("confirms nothing, visibly or aloud, until the committed answer says the search was stored", async () => {
+    const user = userEvent.setup();
+    isSavedMock.mockImplementation(() => false);
+    const { rerender } = setup({ q: "utvecklare", initialCommitted: false });
+
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+    expect(screen.queryByText("Sökningen är sparad i Senaste sökningar")).toBeNull();
+
+    isSavedMock.mockImplementation(() => true);
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q="utvecklare"
+        occupationGroup={[]}
+        region={[]}
+        municipality={[]}
+        remote={false}
+        employmentType={[]}
+        worktimeExtent={[]}
+        matchGrades={[]}
+        employer={[]}
+        sortBy="PublishedAtDesc"
+        initialCommitted={false}
+      />,
+    );
+    expect(
+      screen.getAllByText("Sökningen är sparad i Senaste sökningar").length,
+    ).toBeGreaterThan(0);
+  });
+
+  // The button unmounts on the click, so focus moves to the control before it rather than to <body>.
+  it("moves focus to the search button after the click", async () => {
+    const user = userEvent.setup();
+    setup({ q: "utvecklare", initialCommitted: false });
+
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /Sök/ }));
   });
 
   // design-reviewer, 2b plan read: the action waits for the verdict, so its line is held whether or

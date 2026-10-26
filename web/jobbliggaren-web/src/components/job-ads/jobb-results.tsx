@@ -311,6 +311,7 @@ export async function JobbResults({
           <ReportSearchStorability
             search={listState}
             storable={result.data.isStorableAsRecentSearch}
+            committed={commit}
           />
           {/* Hit count, active filter chips and sort on one row (ADR 0055). */}
           <JobbResultsToolbar
@@ -378,7 +379,7 @@ export async function JobbResults({
           />
           {/* #2199 PR 2b — no verdict came back, and a save here would re-run a list that
               does not answer, so nothing would be stored. */}
-          <ReportSearchStorability search={listState} storable={false} />
+          <ReportSearchStorability search={listState} storable={false} committed={commit} />
           <p className="text-body font-medium text-warning-700">
             {t("results.rateLimitedTitle")}
           </p>
@@ -402,7 +403,7 @@ export async function JobbResults({
           <Announce
             message={`${t("results.errorTitle")} ${t("results.errorBody")}`}
           />
-          <ReportSearchStorability search={listState} storable={false} />
+          <ReportSearchStorability search={listState} storable={false} committed={commit} />
           <p className="text-body font-medium">{t("results.errorTitle")}</p>
           <p className="mt-1 text-body-sm">{t("results.errorBody")}</p>
         </div>

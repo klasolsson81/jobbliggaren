@@ -100,7 +100,7 @@ vi.mock("@/components/job-ads/jobb-results", async () => {
   return {
     JobbResults: () => (
       <>
-        <ReportSearchStorability search={probeSearch()} storable />
+        <ReportSearchStorability search={probeSearch()} storable committed={false} />
         <JobAdList jobAds={ads} />
       </>
     ),

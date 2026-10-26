@@ -17,12 +17,17 @@ import { sameUrlState } from "@/lib/job-ads/tokenize";
  * reads). It is a pure function of the search, so a verdict is valid exactly when its tag matches; the
  * comparison is `sameUrlState`, the hero's own.
  *
+ * The verdict also says whether it answers a COMMITTED request, the one that stores. The receipt "Sökningen
+ * är sparad" waits for that answer: a click re-runs the search with the commit flag, and only its answer
+ * says whether anything was stored (a rate limit or an error stores nothing).
+ *
  * Shape after `components/common/announcer.tsx`: the provider sits outside the results' Suspense boundary,
  * and the results push into it from an effect.
  */
 interface Verdict {
   search: JobbUrlState;
   storable: boolean;
+  committed: boolean;
 }
 
 const VerdictContext = createContext<Verdict | null>(null);
@@ -37,18 +42,23 @@ export function SearchStorability({ children }: { children: ReactNode }) {
   );
 }
 
-/** Renders nothing; reports the backend's verdict for `search` while it is mounted. */
+/**
+ * Renders nothing; reports the backend's verdict for `search` while it is mounted. `committed` says the
+ * list was fetched with the commit flag, so the answer is the one that stored or refused the search.
+ */
 export function ReportSearchStorability({
   search,
   storable,
+  committed,
 }: {
   search: JobbUrlState;
   storable: boolean;
+  committed: boolean;
 }) {
   const report = useContext(ReportContext);
   useEffect(() => {
-    report?.({ search, storable });
-  }, [report, search, storable]);
+    report?.({ search, storable, committed });
+  }, [report, search, storable, committed]);
   return null;
 }
 
@@ -59,4 +69,12 @@ export function ReportSearchStorability({
 export function useIsSearchStorable(search: JobbUrlState): boolean {
   const verdict = useContext(VerdictContext);
   return verdict !== null && verdict.storable && sameUrlState(verdict.search, search);
+}
+
+/** True only when the latest verdict is the committed answer for `search` and says it was stored. */
+export function useIsSearchSaved(search: JobbUrlState): boolean {
+  const verdict = useContext(VerdictContext);
+  return (
+    verdict !== null && verdict.committed && verdict.storable && sameUrlState(verdict.search, search)
+  );
 }

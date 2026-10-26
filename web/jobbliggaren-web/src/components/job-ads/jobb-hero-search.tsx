@@ -3,6 +3,7 @@
 import {
   useId,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   useTransition,
@@ -51,7 +52,7 @@ import {
   withoutDisplacedWorktimeWords,
 } from "@/lib/job-ads/tokenize";
 import { JobAdTypeahead } from "./job-ad-typeahead";
-import { useIsSearchStorable } from "./search-storability";
+import { useIsSearchSaved, useIsSearchStorable } from "./search-storability";
 
 /**
  * The hero search field, which mirrors the current search as text.
@@ -205,10 +206,12 @@ export function JobbHeroSearch({
   // Whether this search is saved in recent searches. It is true after a deliberate
   // commit (Enter, the search button, a suggestion, clearing) and false after a live
   // delta. commit() sets it, and an external change sets it to true, since navigating
-  // to a recent search means it is already saved. `savedNotice` is the short inline
-  // confirmation after the user clicks save; the next edit clears it.
+  // to a recent search means it is already saved. `saveReceipt` is the short inline
+  // confirmation after the user clicks save: "awaiting" until the committed answer for
+  // this search says it was stored, then "shown"; the next edit clears it.
   const [savedByIntent, setSavedByIntent] = useState(initialCommitted);
-  const [savedNotice, setSavedNotice] = useState(false);
+  const [saveReceipt, setSaveReceipt] = useState<"none" | "awaiting" | "shown">("none");
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
 
   // The text claims last applied: the base for the next delta. It starts from the
   // initial text, so the mirrored search is not committed again as new claims. It is
@@ -280,7 +283,7 @@ export function JobbHeroSearch({
       setRecentCommits([]);
       // State that came from the URL counts as saved: a recent search already is.
       setSavedByIntent(true);
-      setSavedNotice(false);
+      setSaveReceipt("none");
     }
     setPrevBase(base);
   }
@@ -400,7 +403,7 @@ export function JobbHeroSearch({
     setText(nextText);
     setCaret(caretIndex);
     // Any edit makes a "saved" confirmation stale, from the first keystroke.
-    if (savedNotice) setSavedNotice(false);
+    if (saveReceipt !== "none") setSaveReceipt("none");
     // The too-short notice describes the last attempted search, so any edit makes it
     // stale. A word in progress is not a commit point, so without this the notice could
     // stay while the field showed more characters, or while the field was empty and had
@@ -565,9 +568,12 @@ export function JobbHeroSearch({
   function onSaveSearch() {
     // The confirmation is announced through the persistent live region below. A live
     // region mounted together with its content is not reliably announced by every
-    // screen reader, so the visible confirmation is aria-hidden.
-    commit(lastCommitted, t("heroSearch.saved"), true);
-    setSavedNotice(true);
+    // screen reader, so the visible confirmation is aria-hidden. #2199 PR 2b: both wait
+    // for the committed answer (below), and focus moves to the search button, the
+    // control before this one, since this one unmounts.
+    commit(lastCommitted, "", true);
+    setSaveReceipt("awaiting");
+    searchButtonRef.current?.focus();
   }
   // #2199 PR 2b — offered only when the backend says this very search would be stored: a
   // personnummer or a religious occupation comes back `false`, and so does a search whose
@@ -575,6 +581,14 @@ export function JobbHeroSearch({
   const isStorable = useIsSearchStorable(lastCommitted);
   const showSaveAction =
     hydrated && hasSavableSearch && !savedByIntent && isStorable;
+  // #2199 PR 2b — the receipt claims the search was stored, so it waits for the answer to
+  // the commit the click sent: a rate limit or an error stores nothing and says so below.
+  // It holds once shown, after StripCommitParam's re-run answers without the commit flag.
+  const isSaved = useIsSearchSaved(lastCommitted);
+  if (saveReceipt === "awaiting" && isSaved) {
+    setSaveReceipt("shown");
+    setAnnouncement(t("heroSearch.saved"));
+  }
 
   return (
     <form
@@ -619,7 +633,7 @@ export function JobbHeroSearch({
             <X size={18} aria-hidden="true" />
           </button>
         )}
-        <button type="submit" className="jp-hero__searchbtn">
+        <button ref={searchButtonRef} type="submit" className="jp-hero__searchbtn">
           <Search size={18} aria-hidden="true" /> {t("heroSearch.submit")}
         </button>
       </div>
@@ -645,7 +659,7 @@ export function JobbHeroSearch({
           sit in a slot of fixed height that exists whenever the search is savable, so the
           action arriving with the results, or never arriving, moves nothing below it
           (design-reviewer, 2b plan read). */}
-      {(hasSavableSearch || savedNotice) && (
+      {(hasSavableSearch || saveReceipt !== "none") && (
         <div className="jp-hero__searchsaveslot">
           {showSaveAction && (
             <button
@@ -656,7 +670,7 @@ export function JobbHeroSearch({
               {t("heroSearch.save")}
             </button>
           )}
-          {savedNotice && (
+          {saveReceipt === "shown" && (
             // Visual only: the live region below announces it.
             <p className="jp-hero__searchsaved" aria-hidden="true">
               {t("heroSearch.saved")}

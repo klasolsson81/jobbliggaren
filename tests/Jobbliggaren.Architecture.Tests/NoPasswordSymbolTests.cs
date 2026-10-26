@@ -214,7 +214,7 @@ public class NoPasswordSymbolTests
         Attribute,
     }
 
-    private sealed record Symbol(Arm Arm, string Text);
+    private sealed record Symbol(Arm Arm, string Text, bool InGeneratedType = false);
 
     private sealed record Scan(
         string AssemblyName,
@@ -233,14 +233,15 @@ public class NoPasswordSymbolTests
             .Order(StringComparer.Ordinal)
             .ToList();
 
-    // An attribute string repeats once per field the compiler hoists, and Debug and Release hoist differently.
+    // The compiler copies an attribute onto every field it hoists, and Debug and Release hoist differently.
     private static List<string> Occurrences(Scan scan) =>
         scan.Symbols
+            .Where(s => !(s.Arm == Arm.Attribute && s.InGeneratedType))
             .Where(s => s.Arm is Arm.Constant or Arm.Literal or Arm.Attribute
                 ? ConstantNamesAPassword(s.Text)
                 : NameNamesAPassword(s.Text))
-            .GroupBy(s => (s.Arm, s.Text))
-            .Select(group => $"{group.Key.Arm}: {group.Key.Text} x{(group.Key.Arm == Arm.Attribute ? 1 : group.Count())}")
+            .GroupBy(s => $"{s.Arm}: {s.Text}", StringComparer.Ordinal)
+            .Select(group => $"{group.Key} x{group.Count()}")
             .Order(StringComparer.Ordinal)
             .ToList();
 
@@ -296,7 +297,7 @@ public class NoPasswordSymbolTests
 
             // GetTypes() includes nested and compiler-generated types.
             foreach (var type in module.GetTypes().Where(t => InScope(t, reachers)))
-                symbols.AddRange(TypeSymbols(type));
+                symbols.AddRange(TypeSymbols(type).Select(symbol => symbol with { InGeneratedType = IsCompilerGenerated(type) }));
 
             // The reference tables carry every operand a method body takes from another module, so no
             // instruction walk is needed for them.

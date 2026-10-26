@@ -212,25 +212,47 @@ public class ProductionAssembliesTests
 
         readers.ShouldAllBe(reader => reader.Split(" -> ", StringSplitOptions.None).Distinct().Count() == 1, Bound);
         readers.ShouldBe([$"{typeof(NoPasswordSymbolTests).FullName} -> {typeof(NoPasswordSymbolTests).FullName}"], Bound);
+        DeclaredOnCallers().ShouldBe([typeof(ProductionAssembliesTests).FullName!], Bound);
     }
 
     private static List<string> ExclusionReaders()
     {
-        using var tests = AssemblyDefinition.ReadAssembly(typeof(ProductionAssembliesTests).Assembly.Location);
         var readers = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var (owner, reference) in SourceReferences())
+        {
+            if (reference is GenericInstanceMethod read
+                && read.Name is nameof(ProductionAssemblies.NamesExcept) or nameof(ProductionAssemblies.ExcludedBy))
+                readers.Add($"{owner} -> {read.GenericArguments[0].FullName}");
+        }
+
+        return [.. readers];
+    }
+
+    private static List<string> DeclaredOnCallers() =>
+        [.. SourceReferences()
+            .Where(site => site.Reference.Name == nameof(ProductionAssemblies.DeclaredOn)
+                && site.Owner != typeof(ProductionAssemblies).FullName)
+            .Select(site => site.Owner)
+            .Distinct()];
+
+    /// <summary>Every call to, or address taken of, a method of <see cref="ProductionAssemblies"/>, by the type written.</summary>
+    private static List<(string Owner, MethodReference Reference)> SourceReferences()
+    {
+        using var tests = AssemblyDefinition.ReadAssembly(typeof(ProductionAssembliesTests).Assembly.Location);
+        var references = new List<(string Owner, MethodReference Reference)>();
         foreach (var method in tests.MainModule.GetTypes().SelectMany(type => type.Methods).Where(method => method.HasBody))
         {
             foreach (var instruction in method.Body.Instructions)
             {
-                if ((instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt)
-                    && instruction.Operand is GenericInstanceMethod read
-                    && read.DeclaringType.FullName == typeof(ProductionAssemblies).FullName
-                    && read.Name is nameof(ProductionAssemblies.NamesExcept) or nameof(ProductionAssemblies.ExcludedBy))
-                    readers.Add($"{ProductionTypeSweep.OwnerOf(method.DeclaringType).FullName} -> {read.GenericArguments[0].FullName}");
+                if ((instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt
+                        || instruction.OpCode == OpCodes.Ldftn || instruction.OpCode == OpCodes.Ldvirtftn)
+                    && instruction.Operand is MethodReference reference
+                    && reference.DeclaringType.FullName == typeof(ProductionAssemblies).FullName)
+                    references.Add((ProductionTypeSweep.OwnerOf(method.DeclaringType).FullName, reference));
             }
         }
 
-        return [.. readers];
+        return references;
     }
 
     private static string RepoRoot([CallerFilePath] string thisFile = "") =>

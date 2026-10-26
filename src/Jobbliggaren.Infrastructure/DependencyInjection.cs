@@ -1042,9 +1042,15 @@ public static class DependencyInjection
         services.AddScoped<JobAds.JobAdSearchTextResolver>();
         // #2199 — the occupation-name lineage the resolver expands /jobb's occupation-name picks and
         // folds their counts with. A constructed instance, so a malformed embedded artefact stops the
-        // host at startup rather than failing a search.
+        // host at startup rather than failing a search. #2199 PR 2b: loaded once, and the religious
+        // occupations the recent-search capture gate reads are built from the same instance and from the
+        // taxonomy snapshot the database is seeded from. Both live here in AddPersistence because the
+        // Worker, which never calls AddInfrastructure, resolves the capture behaviour too.
+        var occupationNameLineage = Taxonomy.OccupationNameLineageLoader.Load();
         services.AddSingleton<Jobbliggaren.Application.JobAds.Abstractions.IOccupationNameLineageProvider>(
-            new Taxonomy.OccupationNameLineageProvider(Taxonomy.OccupationNameLineageLoader.Load()));
+            new Taxonomy.OccupationNameLineageProvider(occupationNameLineage));
+        services.AddSingleton<Jobbliggaren.Application.RecentJobSearches.Abstractions.IReligiousOccupations>(
+            new Taxonomy.ReligiousOccupations(occupationNameLineage, Taxonomy.TaxonomySnapshotSeeder.LoadSnapshot()));
         AddTaxonomyReadModel(services);
 
         // The matching behind the Art. 17 recruiter erasure (ADR 0106 Tier B; the channels are

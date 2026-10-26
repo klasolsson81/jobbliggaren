@@ -1,6 +1,7 @@
 using System.Reflection;
 using Jobbliggaren.Application.Applications.Queries.GetApplications;
 using Jobbliggaren.Application.Common;
+using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Application.Resumes.Queries.GetResumes;
@@ -53,6 +54,14 @@ namespace Jobbliggaren.Architecture.Tests;
 /// to answer (503), which is availability and no <c>ErrorKind</c>. The page arm still carries
 /// <see cref="PagedResult{T}"/>, pinned by its own test below, so the exception is stated rather than missed.
 /// </para>
+///
+/// <para>
+/// <b>A fourth form, declared: a flat page plus one verdict</b> (#2199 PR 2b, senior-cto-advisor 2026-10-26).
+/// <c>ListJobAdsQuery</c> answers <see cref="JobAdListPage"/>: every member of <see cref="PagedResult{T}"/>,
+/// delegated to the page it wraps, and whether the search may be stored in recent searches. It is flat so the
+/// wire only gains a field, and it implements <c>IRecentSearchCaptureResponse</c> itself, which is the identity
+/// reason (1) above protects. The generic test exempts exactly this type, and its own test below pins all three.
+/// </para>
 /// </summary>
 public class PagedResultContractTests
 {
@@ -71,6 +80,7 @@ public class PagedResultContractTests
             "Sanity: minst en paginerad query måste finnas i Application-lagret.");
 
         var offenders = pagedQueryTypes
+            .Where(t => t != typeof(ListJobAdsQuery)) // the declared fourth form, pinned below
             .Where(t => !ReturnsPagedResult(t))
             .Select(t => t.FullName ?? t.Name)
             .ToList();
@@ -96,11 +106,24 @@ public class PagedResultContractTests
     }
 
     [Fact]
-    public void ListJobAdsQuery_returns_PagedResult()
+    public void ListJobAdsQuery_answers_the_declared_fourth_form()
     {
-        // F2-P7 (TD-56 stängd 2026-05-12). Tidigare opaginerad, nu paginerad.
-        ReturnsPagedResult(typeof(ListJobAdsQuery)).ShouldBeTrue(
-            "ListJobAdsQuery måste returnera PagedResult<JobAdDto>.");
+        // F2-P7 (TD-56 stängd 2026-05-12) made it paged; #2199 PR 2b wraps the page with one verdict.
+        ResponseTypeOf(typeof(ListJobAdsQuery)).ShouldBe(typeof(JobAdListPage));
+
+        static IEnumerable<(string, Type)> Members(Type type) =>
+            type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Select(p => (p.Name, p.PropertyType))
+                .OrderBy(m => m.Name, StringComparer.Ordinal);
+
+        Members(typeof(JobAdListPage)).ShouldBe(
+            Members(typeof(PagedResult<JobAdDto>))
+                .Append((nameof(JobAdListPage.IsStorableAsRecentSearch), typeof(bool)))
+                .OrderBy(m => m.Item1, StringComparer.Ordinal));
+
+        typeof(Jobbliggaren.Application.RecentJobSearches.Common.IRecentSearchCaptureResponse)
+            .IsAssignableFrom(typeof(JobAdListPage))
+            .ShouldBeTrue("without the marker the capture behaviour silently stores nothing");
     }
 
     [Fact]
@@ -128,6 +151,11 @@ public class PagedResultContractTests
         var hasPageSize = properties.Any(p => p.Name == "PageSize" && p.PropertyType == typeof(int));
         return hasPage && hasPageSize;
     }
+
+    private static Type? ResponseTypeOf(Type queryType) =>
+        queryType.GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IQuery<>))
+            ?.GetGenericArguments()[0];
 
     private static bool ReturnsPagedResult(Type queryType)
     {

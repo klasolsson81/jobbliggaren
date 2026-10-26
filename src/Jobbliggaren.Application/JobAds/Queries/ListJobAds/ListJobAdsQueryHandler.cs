@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
+using Jobbliggaren.Application.RecentJobSearches.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -36,10 +37,18 @@ public sealed class ListJobAdsQueryHandler(
     IPerUserJobAdSearchQuery perUserSearch,
     IMatchProfileBuilder profileBuilder,
     IAppDbContext db,
-    ICurrentUser currentUser)
-    : IQueryHandler<ListJobAdsQuery, PagedResult<JobAdDto>>
+    ICurrentUser currentUser,
+    RecentSearchCaptureGate captureGate)
+    : IQueryHandler<ListJobAdsQuery, JobAdListPage>
 {
-    public async ValueTask<PagedResult<JobAdDto>> Handle(
+    // #2199 PR 2b — the page and, beside it, whether the capture gate admits this search into recent
+    // searches. Answered on every request, commit or not: the /jobb hero reads it from the live preview
+    // before the user asks to save, and the capture behaviour reads the same gate, so the two agree.
+    public async ValueTask<JobAdListPage> Handle(
+        ListJobAdsQuery query, CancellationToken cancellationToken) =>
+        new(await PageAsync(query, cancellationToken), captureGate.Admit(query) is not null);
+
+    private async ValueTask<PagedResult<JobAdDto>> PageAsync(
         ListJobAdsQuery query, CancellationToken cancellationToken)
     {
         // null → tom lista: "inget filter" (ADR 0042 Beslut B).

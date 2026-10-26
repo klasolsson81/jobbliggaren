@@ -272,6 +272,49 @@ public class RecentSearchesTests(ApiFactory factory)
         recent.ShouldHaveSingleItem().OccupationName.ShouldBe([projektledareIt]);
     }
 
+    // #2199 PR 2b — a search that names a religious office reveals a faith (GDPR Art. 9), so a committed
+    // one runs and is never stored. The ids are JobTech's own, read through the real composition root:
+    // the four groups of the policy constant, and Imam, which the lineage artefact files under Präster.
+    [Theory]
+    [InlineData("occupationGroup", "2L2s_EU8_PzR")] // Präster
+    [InlineData("occupationGroup", "x5rn_vga_gRK")] // Pastorer m.fl.
+    [InlineData("occupationGroup", "wzeq_No2_LF1")] // Diakoner
+    [InlineData("occupationGroup", "x9mo_1VH_Rps")] // Chefer och ledare inom trossamfund
+    [InlineData("occupationName", "5avt_87C_rXE")] // Imam
+    public async Task Searching_jobs_on_a_religious_occupation_runs_the_search_and_stores_nothing(
+        string axis, string conceptId)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var searchResponse = await _client.GetAsync(
+            $"/api/v1/job-ads?{axis}={conceptId}&commit=true&page=1&pageSize=20", ct);
+        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var page = await searchResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        page.GetProperty("isStorableAsRecentSearch").GetBoolean().ShouldBeFalse();
+
+        var items = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me/recent-searches", ct);
+        items.GetArrayLength().ShouldBe(0);
+    }
+
+    // The verdict rides on every list answer, commit or not, because the hero reads it from the live
+    // preview before the user asks to save.
+    [Theory]
+    [InlineData("q=backend", true)]
+    [InlineData("occupationGroup=2L2s_EU8_PzR", false)]
+    [InlineData("q=19811218-9876", false)]
+    [InlineData("sortBy=PublishedAtDesc", false)]
+    public async Task The_job_ads_list_answers_whether_the_search_can_be_stored(string query, bool storable)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var page = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/v1/job-ads?{query}&page=1&pageSize=20", ct);
+
+        page.GetProperty("isStorableAsRecentSearch").GetBoolean().ShouldBe(storable);
+    }
+
     [Fact]
     public async Task Re_searching_same_filter_bumps_existing_row_no_duplicate()
     {

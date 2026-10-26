@@ -7,9 +7,9 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <summary>
 /// #1981 (senior-cto-advisor r2 §3, finding 11) — the one list of production assemblies the architecture rules read.
 /// It names every project under <c>src/</c>, and <see cref="ProductionAssembliesTests"/> pins it against the build
-/// files. A rule that reads more than one assembly reads all of it. A rule about who may hold or call a type finds
-/// nothing in an assembly that cannot reference that type, so reading it claims nothing; only a rule about what an
-/// assembly contains may leave one out, through an <see cref="Exclusion"/> declared beside that rule.
+/// files. A rule about who may hold or call a type finds nothing in an assembly that cannot reference that type, so
+/// reading it claims nothing; only a rule about what an assembly contains may leave one out, through an
+/// <see cref="Exclusion"/> declared beside that rule.
 /// </summary>
 internal static class ProductionAssemblies
 {
@@ -58,10 +58,29 @@ internal static class ProductionAssemblies
     /// <summary>Every production type, read by reflection.</summary>
     internal static IEnumerable<Type> ReflectedTypes() => All.SelectMany(assembly => assembly.ReflectedTypes());
 
-    /// <summary>
-    /// The theory rows of a rule about what an assembly contains: every production assembly but the excluded ones.
-    /// </summary>
-    internal static TheoryData<string> Names(params Exclusion[] except)
+    /// <summary>The theory rows of a rule about what an assembly contains: every production assembly.</summary>
+    internal static TheoryData<string> Names() => Rows([]);
+
+    /// <summary>Every production assembly but the exclusions <typeparamref name="TRule"/> declares as static fields.</summary>
+    internal static TheoryData<string> NamesExcept<TRule>() => Rows(DeclaredOn(typeof(TRule)));
+
+    /// <summary>The static <see cref="Exclusion"/> and <see cref="Exclusion"/>[] fields <paramref name="rule"/> declares.</summary>
+    internal static IReadOnlyList<Exclusion> DeclaredOn(Type rule)
+    {
+        const BindingFlags declared = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        var exclusions = new List<Exclusion>();
+        foreach (var field in rule.GetFields(declared))
+        {
+            if (field.FieldType == typeof(Exclusion))
+                exclusions.Add((Exclusion)field.GetValue(null)!);
+            else if (field.FieldType == typeof(Exclusion[]))
+                exclusions.AddRange((Exclusion[])field.GetValue(null)!);
+        }
+
+        return exclusions;
+    }
+
+    private static TheoryData<string> Rows(IReadOnlyList<Exclusion> except)
     {
         var rows = new TheoryData<string>();
         foreach (var assembly in All.Where(assembly => except.All(exclusion => exclusion.Assembly != assembly)))
@@ -118,7 +137,6 @@ internal sealed record ProductionAssembly(string Name, Type Anchor)
 
 /// <summary>
 /// A production assembly a content rule leaves out, and why. It is declared as a static field of the rule it argues
-/// for, so <see cref="ProductionAssembliesTests"/> finds every one, and the rule that declares it owes a check that
-/// it is still needed.
+/// for, and the rule that declares it owes a check that it is still needed.
 /// </summary>
 internal sealed record Exclusion(ProductionAssembly Assembly, string Reason);

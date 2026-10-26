@@ -74,8 +74,8 @@ public class OccupationSearchLayerTests
             typeof(OccupationCodeDeriver), typeof(SearchOccupationsQueryHandler),
         ];
 
-        var offenders = OutermostTypesDependingOn(Infrastructure, forbiddenNamespace)
-            .Concat(OutermostTypesDependingOn(Application, forbiddenNamespace))
+        var offenders = ProductionAssemblies.All
+            .SelectMany(production => OutermostTypesDependingOn(production.Assembly, forbiddenNamespace))
             .Where(searchPath.Contains)
             .Select(t => t.FullName)
             .ToList();

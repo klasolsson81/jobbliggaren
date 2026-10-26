@@ -117,21 +117,23 @@ public class DmarcMailboxDependencyTests
     [Fact]
     public void Only_the_mailbox_assembly_references_a_mail_assembly()
     {
-        var offenders = ProductionAssemblies.All
-            .Where(assembly => assembly != ProductionAssemblies.InfrastructureMailbox)
-            .SelectMany(assembly => AssemblyReferenceNames(assembly.Location)
+        var holders = ProductionAssemblies.All
+            .SelectMany(assembly => AssemblyReferenceNames(assembly)
                 .Where(MailAssemblyNames.Contains)
                 .Select(reference => $"{assembly.Name} -> {reference}"))
             .ToList();
 
-        offenders.ShouldBeEmpty("MailKit and MimeKit belong to Jobbliggaren.Infrastructure.Mailbox alone (Beslut D2)");
+        holders.ShouldBe(
+            ["Jobbliggaren.Infrastructure.Mailbox -> MailKit", "Jobbliggaren.Infrastructure.Mailbox -> MimeKit"],
+            ignoreOrder: true,
+            "MailKit and MimeKit belong to Jobbliggaren.Infrastructure.Mailbox alone (Beslut D2)");
     }
 
     /// <summary>The positive half: the scan above is asked about the right assembly, and it is the one holding MailKit.</summary>
     [Fact]
     public void The_mailbox_assembly_references_mailkit_and_mimekit_and_never_bouncy_castle()
     {
-        var references = AssemblyReferenceNames(MailboxAssemblyPath);
+        var references = AssemblyReferenceNames(ProductionAssemblies.InfrastructureMailbox);
 
         references.ShouldContain("MailKit");
         references.ShouldContain("MimeKit");
@@ -210,9 +212,9 @@ public class DmarcMailboxDependencyTests
     private static string ProjectName(Match match) =>
         Path.GetFileNameWithoutExtension(match.Groups["path"].Value.Replace('\\', Path.DirectorySeparatorChar));
 
-    private static List<string> AssemblyReferenceNames(string path)
+    private static List<string> AssemblyReferenceNames(ProductionAssembly production)
     {
-        using var assembly = AssemblyDefinition.ReadAssembly(path);
+        using var assembly = production.ReadDefinition();
         return [.. assembly.MainModule.AssemblyReferences.Select(reference => reference.Name)];
     }
 

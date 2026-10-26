@@ -47,12 +47,37 @@ public class NoPasswordSymbolTests
             + "user's (ADR 0185)"),
     ];
 
-    public static TheoryData<string> AuthSurfaceAssemblies() => ProductionAssemblies.Names(OutsideTheAuthSurface);
+    private static readonly Dictionary<string, string[]> LeftOutFor = new(StringComparer.Ordinal)
+    {
+        ["Jobbliggaren.Migrate"] =
+        [
+            "Attribute: Password",
+            "Declaration: password",
+            "Literal:  LOGIN PASSWORD '",
+            "Literal:  WITH LOGIN PASSWORD '",
+            "Literal: MIGRATE_APP_PASSWORD",
+            "Literal: MIGRATE_MASTER_PASSWORD",
+            "Literal: MIGRATE_MIGRATIONS_PASSWORD",
+            "Literal: MIGRATE_WORKER_PASSWORD",
+            "Reference: System.Void Npgsql.NpgsqlConnectionStringBuilder::set_Password(System.String)",
+        ],
+        ["Jobbliggaren.Infrastructure.Mailbox"] =
+        [
+            "Constant: Dmarc:Mailbox:Password",
+            "Declaration: PasswordKey",
+            "Declaration: _password",
+            "Declaration: password",
+            "Literal: Dmarc:Mailbox:Password",
+            "Literal: password",
+        ],
+    };
+
+    public static TheoryData<string> AuthSurfaceAssemblies() => ProductionAssemblies.NamesExcept<NoPasswordSymbolTests>();
 
     public static TheoryData<string> ExcludedAssemblies()
     {
         var rows = new TheoryData<string>();
-        foreach (var exclusion in OutsideTheAuthSurface)
+        foreach (var exclusion in ProductionAssemblies.DeclaredOn(typeof(NoPasswordSymbolTests)))
             rows.Add(exclusion.Assembly.Name);
         return rows;
     }
@@ -75,12 +100,14 @@ public class NoPasswordSymbolTests
         offenders.ShouldBeEmpty($"{name} still reaches a password symbol:\n  " + string.Join("\n  ", offenders));
     }
 
-    /// <summary>An exclusion whose assembly no longer reaches a password symbol is dead and comes out.</summary>
     [Theory]
     [MemberData(nameof(ExcludedAssemblies))]
-    public void Each_assembly_outside_the_auth_surface_still_holds_the_symbol_it_is_left_out_for(string name) =>
-        Offenders(ScanAssembly(ProductionAssemblies.Named(name))).ShouldNotBeEmpty(
-            $"{name} no longer reaches a password symbol, so remove it from {nameof(OutsideTheAuthSurface)}");
+    public void Each_assembly_outside_the_auth_surface_reaches_exactly_the_symbols_it_is_left_out_for(string name) =>
+        Offenders(ScanAssembly(ProductionAssemblies.Named(name))).ShouldBe(
+            LeftOutFor[name],
+            ignoreOrder: true,
+            $"{name}'s password symbols changed: a new one is decided before it joins {nameof(LeftOutFor)}, and none "
+            + $"at all takes {name} out of {nameof(OutsideTheAuthSurface)}");
 
     [Fact]
     public void Infrastructure_is_scanned_where_the_identity_adapter_lives_and_its_target_rule_removes_one_credential()

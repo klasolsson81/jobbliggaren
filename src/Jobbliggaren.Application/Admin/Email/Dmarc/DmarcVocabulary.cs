@@ -202,4 +202,12 @@ public static class DmarcOutcomes
             or DmarcRunOutcome.Protocol or DmarcRunOutcome.Incomplete => false,
         _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "A run outcome this release does not know."),
     };
+
+    /// <summary>
+    /// The first instant a run may sign in again after a run that ended so at <paramref name="attemptedAt"/>:
+    /// <see cref="DmarcIngestionLimits.SignInBackoff"/> later when the outcome backs off, otherwise null. The ingestion
+    /// job's gate and the read both take it from here.
+    /// </summary>
+    public static DateTimeOffset? SignInResumesAt(DmarcRunOutcome outcome, DateTimeOffset attemptedAt) =>
+        BacksOffSignIn(outcome) ? attemptedAt + DmarcIngestionLimits.SignInBackoff : null;
 }

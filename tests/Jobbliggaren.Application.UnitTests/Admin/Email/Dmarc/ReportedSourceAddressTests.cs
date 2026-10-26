@@ -14,6 +14,9 @@ public sealed class ReportedSourceAddressTests
     [InlineData("2001:db8::1", "2001:db8::1")]
     [InlineData("2001:DB8:0:0:0:0:0:1", "2001:db8::1")]
     [InlineData("::ffff:192.0.2.7", "192.0.2.7")]
+    // The canonical form of an ISATAP address keeps a dotted tail, so the browser's address check admits dots in an
+    // IPv6 address too (#1981 PR 4b).
+    [InlineData("2001:db8::5efe:c000:201", "2001:db8::5efe:192.0.2.1")]
     public void TryParse_AnAddressAReporterWrites_IsKeptInCanonicalForm(string text, string expected)
     {
         ReportedSourceAddress.TryParse(text, out var address).ShouldBeTrue();

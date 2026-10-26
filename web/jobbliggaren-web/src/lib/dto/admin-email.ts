@@ -291,3 +291,205 @@ export const emailKindsSchema = z
     });
   });
 export type EmailKindsDto = z.infer<typeof emailKindsSchema>;
+
+// ── DMARC-rapporter (#1981 PR 4b, ADR 0185) ─────────────────────────────────────────────────
+
+/** The most sources one read carries (`DmarcReportsEvaluator.MaxSources`); the rest are counted, not listed. */
+export const DMARC_MAX_SOURCES = 25;
+
+/** The region's own fixed window (`DmarcReportsEvaluator.Window`). The copy names it, so a read of another fails. */
+export const DMARC_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** How a latest run that tried to read the mailbox ended, when it did not succeed. */
+export const DMARC_LATEST_FAILURES = [
+  "Unreachable",
+  "TlsFailed",
+  "AuthRefused",
+  "Timeout",
+  "Protocol",
+  "Incomplete",
+  "AuthUnconfirmed",
+] as const;
+export const dmarcLatestFailureSchema = z.enum(DMARC_LATEST_FAILURES);
+export type DmarcLatestFailure = z.infer<typeof dmarcLatestFailureSchema>;
+
+/**
+ * The address as the backend canonicalises it. Only its alphabet is checked, never its grammar: an IPv6 address can carry
+ * a dotted IPv4 tail, and a check stricter than the backend's would let one sender's report blank the whole region.
+ */
+const dmarcAddress = z.string().regex(/^[0-9a-f:.]{1,45}$/, { message: "Not an address in canonical form." });
+
+/** The header-from domain as acceptance keeps it (`DmarcAggregateReport.HeaderFromOf`): lower-case LDH labels under the domain. */
+const dmarcHeaderFrom = z
+  .string()
+  .max(253)
+  .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*jobbliggaren\.se$/, { message: "Not a header-from domain acceptance keeps." });
+
+const dmarcIngestionSchema = z
+  .strictObject({
+    lastAttemptAt: instant,
+    lastSuccessAt: instant.nullable(),
+    latestFailure: dmarcLatestFailureSchema.nullable(),
+    signInResumesAt: instant.nullable(),
+    stale: z.boolean(),
+  })
+  .superRefine((ingestion, ctx) => {
+    if (ingestion.latestFailure === null && ingestion.lastSuccessAt === null) {
+      ctx.addIssue({ code: "custom", path: ["lastSuccessAt"], message: "A latest run that succeeded is the latest success." });
+    }
+    if (ingestion.latestFailure === "Incomplete" && ingestion.lastSuccessAt !== null) {
+      ctx.addIssue({ code: "custom", path: ["latestFailure"], message: "Incomplete comes only before any success." });
+    }
+    if (ingestion.latestFailure !== null && !ingestion.stale) {
+      ctx.addIssue({ code: "custom", path: ["stale"], message: "A mailbox whose latest run failed is stale." });
+    }
+    // Which outcomes back off is the backend's rule; the browser only checks that a resume follows a failed attempt.
+    if (
+      ingestion.signInResumesAt !== null &&
+      (ingestion.latestFailure === null || Date.parse(ingestion.signInResumesAt) <= Date.parse(ingestion.lastAttemptAt))
+    ) {
+      ctx.addIssue({ code: "custom", path: ["signInResumesAt"], message: "A resume follows a failed attempt." });
+    }
+  });
+export type DmarcIngestion = z.infer<typeof dmarcIngestionSchema>;
+
+const dmarcMailboxSchema = z.strictObject({
+  skipped: count,
+  rejected: count,
+  volumeCapped: count,
+  abandoned: count,
+  retryPending: count,
+});
+export type DmarcMailboxCounts = z.infer<typeof dmarcMailboxSchema>;
+
+const dmarcSourceSchema = z
+  .strictObject({
+    address: dmarcAddress,
+    headerFrom: dmarcHeaderFrom,
+    messages: count.positive(),
+    dkimAligned: count,
+    spfAligned: count,
+    failingDmarc: count,
+    flagged: z.boolean(),
+  })
+  .superRefine((source, ctx) => {
+    if (source.dkimAligned > source.messages || source.spfAligned > source.messages || source.failingDmarc > source.messages) {
+      ctx.addIssue({ code: "custom", message: "Each figure is a part of the source's messages." });
+    }
+    if (source.flagged !== source.failingDmarc > 0) {
+      ctx.addIssue({ code: "custom", path: ["flagged"], message: "A source is flagged exactly when a message failed." });
+    }
+  });
+export type DmarcSource = z.infer<typeof dmarcSourceSchema>;
+
+const noDmarcFigures = {
+  coveredFrom: z.null(),
+  coveredTo: z.null(),
+  reports: z.null(),
+  reporters: z.null(),
+  messages: z.null(),
+  failingMessages: z.null(),
+  sourceCount: z.null(),
+  sources: z.null(),
+};
+
+const noDmarcRead = {
+  ingestion: z.null(),
+  from: z.null(),
+  to: z.null(),
+  conflictingReports: z.null(),
+  mailbox: z.null(),
+  ...noDmarcFigures,
+};
+
+/**
+ * `GET /api/v1/admin/email/dmarc`, exactly as the API sends it (ADR 0185 D9): every key is always present, and a value a
+ * state has none of is null. The ingestion state once a run has read the mailbox; the window and the mailbox counts once
+ * one has succeeded; figures only when a report is in the window. The figures are the reporters' own statements.
+ */
+export const emailDmarcSchema = z
+  .discriminatedUnion("status", [
+    z.strictObject({
+      status: z.literal("Observed"),
+      ingestion: dmarcIngestionSchema,
+      from: instant,
+      to: instant,
+      coveredFrom: instant,
+      coveredTo: instant,
+      conflictingReports: count,
+      mailbox: dmarcMailboxSchema,
+      reports: count.positive(),
+      reporters: count.positive(),
+      messages: count.positive(),
+      failingMessages: count,
+      sourceCount: count.positive(),
+      sources: z.array(dmarcSourceSchema).max(DMARC_MAX_SOURCES),
+    }),
+    z.strictObject({
+      status: z.literal("NoReports"),
+      ingestion: dmarcIngestionSchema,
+      from: instant,
+      to: instant,
+      conflictingReports: count,
+      mailbox: dmarcMailboxSchema,
+      ...noDmarcFigures,
+    }),
+    z.strictObject({ status: z.literal("Failed"), ...noDmarcRead, ingestion: dmarcIngestionSchema }),
+    z.strictObject({ status: z.literal("NotObservable"), ...noDmarcRead }),
+    z.strictObject({ status: z.literal("NotConfigured"), ...noDmarcRead }),
+    z.strictObject({ status: z.literal("Misconfigured"), ...noDmarcRead }),
+  ])
+  .superRefine((read, ctx) => {
+    if (read.status === "Failed" && read.ingestion.lastSuccessAt !== null) {
+      ctx.addIssue({ code: "custom", path: ["ingestion", "lastSuccessAt"], message: "A mailbox read once is not failed." });
+    }
+    if (read.status !== "Observed" && read.status !== "NoReports") return;
+    if (read.ingestion.lastSuccessAt === null) {
+      ctx.addIssue({ code: "custom", path: ["ingestion", "lastSuccessAt"], message: "A window follows a successful run." });
+    }
+    if (Date.parse(read.to) - Date.parse(read.from) !== DMARC_WINDOW_MS) {
+      ctx.addIssue({ code: "custom", path: ["from"], message: "Not the region's seven-day window." });
+    }
+    if (read.status !== "Observed") return;
+    if (read.reporters > read.reports || read.failingMessages > read.messages) {
+      ctx.addIssue({ code: "custom", message: "No more reporters than reports, and no more failing than counted." });
+    }
+    const from = Date.parse(read.from);
+    const to = Date.parse(read.to);
+    const coveredFrom = Date.parse(read.coveredFrom);
+    const coveredTo = Date.parse(read.coveredTo);
+    if (coveredFrom >= coveredTo || coveredFrom >= to || coveredTo <= from) {
+      ctx.addIssue({ code: "custom", path: ["coveredFrom"], message: "The covered period overlaps the window." });
+    }
+    if (read.sources.length !== Math.min(read.sourceCount, DMARC_MAX_SOURCES)) {
+      ctx.addIssue({ code: "custom", path: ["sources"], message: "The sources shown are every source, up to the cap." });
+    }
+    const shownMessages = read.sources.reduce((sum, source) => sum + source.messages, 0);
+    const shownFailing = read.sources.reduce((sum, source) => sum + source.failingDmarc, 0);
+    const allShown = read.sources.length === read.sourceCount;
+    if (
+      shownMessages > read.messages ||
+      shownFailing > read.failingMessages ||
+      (allShown && (shownMessages !== read.messages || shownFailing !== read.failingMessages))
+    ) {
+      ctx.addIssue({ code: "custom", path: ["sources"], message: "The totals are the sums over every source." });
+    }
+    const pairs = new Set<string>();
+    read.sources.forEach((source, index) => {
+      const pair = `${source.address} ${source.headerFrom}`;
+      if (pairs.has(pair)) {
+        ctx.addIssue({ code: "custom", path: ["sources", index], message: "A source and domain appear once." });
+      }
+      pairs.add(pair);
+      // Flagged first, then by failing and by messages: the order the page says it shows.
+      const before = read.sources[index - 1];
+      if (before !== undefined && compareDmarcSources(before, source) > 0) {
+        ctx.addIssue({ code: "custom", path: ["sources", index], message: "The sources are not in their order." });
+      }
+    });
+  });
+export type EmailDmarcDto = z.infer<typeof emailDmarcSchema>;
+
+function compareDmarcSources(a: DmarcSource, b: DmarcSource): number {
+  return Number(b.flagged) - Number(a.flagged) || b.failingDmarc - a.failingDmarc || b.messages - a.messages;
+}

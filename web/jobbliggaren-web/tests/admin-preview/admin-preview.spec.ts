@@ -578,6 +578,99 @@ test("renders every state of the count per mail kind at 1280 and 375 px in both 
   }
 });
 
+/** The DMARC scenarios' labels (#1981 PR 4b), each with the first line it shows or none, as the live page says it. */
+const DMARC_PREVIEW: ReadonlyArray<readonly [string, string, string | null]> = [
+  ["observed", "Rapporter finns", null],
+  ["capped", "Fler källor än tabellen visar", null],
+  ["shared-address", "Samma adress, två domäner", null],
+  ["none-failing", "Inga DMARC-underkända", null],
+  ["mailbox", "Mejl som inte kunde läsas", "2 mejl till brevlådan de senaste 7 dygnen kunde inte läsas som rapport."],
+  ["conflicting", "Rapport i flera versioner", "2 rapporter finns i flera versioner med olika innehåll"],
+  ["observed-stale", "Inte läst på länge", "Brevlådan har inte lästs sedan 2026-10-04 05:23."],
+  ["failed-after", "Senaste inläsningen misslyckades", "Brevlådans svar kunde inte läsas."],
+  ["sign-in-unanswered", "Inloggningen besvarades inte", "Lösenordet skickades, men brevlådan gav inget svar. Nästa inloggningsförsök görs tidigast 2026-10-05 09:23."],
+  ["no-reports", "Ingen rapport under perioden", "Ingen rapport täcker de senaste 7 dygnen."],
+  ["no-reports-conflicting", "Ingen rapport som räknas", "En rapport finns i flera versioner"],
+  ["no-reports-stale", "Ingen rapport, inte läst på länge", "Brevlådan har inte lästs sedan 2026-10-04 05:23."],
+  ["not-observable", "Brevlådan inte läst än", "Brevlådan har inte lästs än."],
+  ["not-configured", "Läses inte i miljön", "Läses inte i den här miljön."],
+  ["misconfigured", "Lösenordet är tomt", "Lösenordet till brevlådan är tomt."],
+  ["failed-unreachable", "Brevlådan nås inte", "Brevlådan gick inte att nå."],
+  ["failed-timeout", "Brevlådan svarar inte i tid", "Brevlådan svarade inte i tid."],
+  ["failed-tls", "Certifikatet kan inte verifieras", "Brevlådans certifikat kunde inte verifieras."],
+  ["failed-auth-refused", "Inloggningen nekas", "Brevlådan nekade inloggningen. Nästa inloggningsförsök görs tidigast 2026-10-05 09:23."],
+  ["failed-auth-unconfirmed", "Inloggningen besvaras inte", "Lösenordet skickades, men brevlådan gav inget svar."],
+  ["failed-protocol", "Oläsbart svar från brevlådan", "Brevlådans svar kunde inte läsas."],
+  ["failed-incomplete", "Första inläsningen har inte avslutats", "Den första inläsningen av brevlådan började 2026-10-04 09:23 och har inte avslutats."],
+];
+
+test("the DMARC reports show each fixture state, keep their own window, and follow the band only when it fails or loads (#1981 PR 4b)", async ({ page }) => {
+  await page.goto(`${ROOT}/e-post?period=d7`);
+  const dmarc = page.getByRole("region", { name: "DMARC-rapporter", exact: true });
+  const scenario = page.getByLabel("Visa DMARC-rapporter");
+  await expect(dmarc.getByRole("definition")).toHaveText(["51", "3"]);
+  await expect(dmarc.getByRole("table").getByRole("rowheader")).toHaveCount(3);
+
+  for (const [, label, line] of DMARC_PREVIEW) {
+    await scenario.selectOption({ label });
+    const lines = dmarc.locator(":scope > div > p.jp-adminsoon");
+    if (line === null) await expect(lines).toHaveCount(0);
+    else await expect(lines.first()).toContainText(line);
+    await expect(dmarc).not.toContainText("Kommer snart");
+  }
+  await scenario.selectOption({ label: "Fler källor än tabellen visar" });
+  await expect(dmarc.locator("tbody tr")).toHaveCount(25);
+  await expect(dmarc.getByText("Visar 25 av 31 rader.", { exact: true })).toBeVisible();
+
+  // Leverans's period never reaches the DMARC reports.
+  const before = await dmarc.innerText();
+  await page.getByRole("link", { name: "24 tim", exact: true }).click();
+  await expect(page).toHaveURL(/\?period=h24$/);
+  expect(await dmarc.innerText()).toBe(before);
+
+  await state(page, "Kommer snart");
+  await expect(dmarc.locator("tbody tr")).toHaveCount(25);
+  await state(page, "Fel");
+  await expect(dmarc.locator(":scope > div > p.jp-adminsoon")).toHaveText(["Uppgifterna kunde inte hämtas. Försök igen om en stund."]);
+  await state(page, "Laddar");
+  await expect(dmarc.locator("tbody tr")).toHaveText(["Hämtar uppgifter…"]);
+});
+
+test("renders every DMARC state at 1280 and 375 px in both themes (#1981 PR 4b)", async ({ page }) => {
+  const directory = previewScreenshotDirectory();
+  test.skip(directory === null, "renders only with ADMIN_PREVIEW_SCREENSHOT_DIR");
+  if (directory === null) return;
+  mkdirSync(directory, { recursive: true });
+  const dmarc = page.getByRole("region", { name: "DMARC-rapporter", exact: true });
+  const shoot = async (name: string, width: number) => {
+    for (const theme of ["light", "dark"] as const) {
+      await page.evaluate(async (dark) => {
+        if (dark) document.documentElement.dataset.theme = "dark";
+        else delete document.documentElement.dataset.theme;
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        await Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined)));
+      }, theme === "dark");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${name} scrolls sideways`).toBe(true);
+      await dmarc.screenshot({ path: join(directory, `preview-dmarc-${name}-${theme}-${width}.png`), animations: "disabled" });
+    }
+  };
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
+    await page.goto(`${ROOT}/e-post?period=d7`);
+    const scenario = page.getByLabel("Visa DMARC-rapporter");
+    for (const [name, label] of DMARC_PREVIEW) {
+      await scenario.selectOption({ label });
+      await expect(dmarc.getByRole("table")).toBeVisible();
+      await shoot(name, width);
+    }
+    for (const [name, band] of [["failed", "Fel"], ["loading", "Laddar"]] as const) {
+      await state(page, band);
+      await shoot(name, width);
+    }
+    await state(page, "Inkopplad");
+  }
+});
+
 test("the month against the free allowance shows each fixture state, and follows the band only when it fails or loads", async ({ page }) => {
   await page.goto(`${ROOT}/e-post`);
   const allowance = page.getByRole("region", { name: /^Utskick (i |denna)/ });

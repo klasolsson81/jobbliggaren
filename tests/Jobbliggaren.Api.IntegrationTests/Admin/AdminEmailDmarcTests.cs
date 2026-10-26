@@ -204,6 +204,7 @@ public sealed class AdminEmailDmarcTests(ApiFactory factory) : IAsyncLifetime
         ingestion.GetProperty("lastAttemptAt").GetDateTimeOffset().ShouldBe(seeded.RunStart);
         ingestion.GetProperty("lastSuccessAt").GetDateTimeOffset().ShouldBe(seeded.RunStart);
         ingestion.GetProperty("latestFailure").ValueKind.ShouldBe(JsonValueKind.Null);
+        ingestion.GetProperty("signInResumesAt").ValueKind.ShouldBe(JsonValueKind.Null);
         ingestion.GetProperty("stale").GetBoolean().ShouldBeFalse();
 
         var mailbox = body.GetProperty("mailbox");
@@ -244,7 +245,8 @@ public sealed class AdminEmailDmarcTests(ApiFactory factory) : IAsyncLifetime
         var root = document.RootElement;
 
         Keys(root).ShouldBe(BodyKeys);
-        Keys(root.GetProperty("ingestion")).ShouldBe(["lastAttemptAt", "lastSuccessAt", "latestFailure", "stale"]);
+        Keys(root.GetProperty("ingestion"))
+            .ShouldBe(["lastAttemptAt", "lastSuccessAt", "latestFailure", "signInResumesAt", "stale"]);
         Keys(root.GetProperty("mailbox")).ShouldBe(["abandoned", "rejected", "retryPending", "skipped", "volumeCapped"]);
         var sources = root.GetProperty("sources").EnumerateArray().ToList();
         sources.Count.ShouldBe(4);
@@ -267,6 +269,39 @@ public sealed class AdminEmailDmarcTests(ApiFactory factory) : IAsyncLifetime
         {
             raw.ShouldNotContain(absent, Case.Insensitive, "a reporter's own name and report id never reach the browser");
         }
+    }
+
+    [Theory]
+    [InlineData(DmarcRunOutcome.AuthRefused, false)]
+    [InlineData(DmarcRunOutcome.AuthRefused, true)]
+    [InlineData(DmarcRunOutcome.AuthUnconfirmed, false)]
+    [InlineData(DmarcRunOutcome.AuthUnconfirmed, true)]
+    public async Task Dmarc_ShouldSayWhenTheSignInResumes_WhenTheLatestSignInBackedOff(
+        DmarcRunOutcome outcome, bool succeededBefore)
+    {
+        var now = DaysAhead(2);
+        if (succeededBefore)
+        {
+            await IngestAsync(now);
+        }
+
+        // A later run whose sign-in backs off, in the job's order for a failed open: the state, the crash sweep, the attempt.
+        var runStart = now.AddMinutes(-20);
+        await WithWorkerStoreAsync(async store =>
+        {
+            ((await store.ReadStateAsync(Ct)) is not null).ShouldBe(succeededBefore);
+            await store.SweepCrashesAsync(Ct);
+            await store.RecordAttemptAsync(runStart, outcome, Ct);
+        });
+        using var host = HostAt(now);
+        var admin = await AdminClientAsync(host);
+
+        var body = await ReadAsync(await admin.GetAsync(DmarcPath, Ct));
+
+        body.GetProperty("status").GetString().ShouldBe(succeededBefore ? "Observed" : "Failed");
+        var ingestion = body.GetProperty("ingestion");
+        ingestion.GetProperty("latestFailure").GetString().ShouldBe(outcome.ToString());
+        ingestion.GetProperty("signInResumesAt").GetDateTimeOffset().ShouldBe(runStart + DmarcIngestionLimits.SignInBackoff);
     }
 
     // ---- the ingestion, as the job writes it ----
@@ -305,7 +340,14 @@ public sealed class AdminEmailDmarcTests(ApiFactory factory) : IAsyncLifetime
             [Record("192.0.2.11", 1, "pass", "pass")], policyDomain: "other.example"), receivedAt)
             .ShouldBeOfType<DmarcAcceptance.Rejected>();
 
-        // The Worker's own registration of the store, over this host's database; the Api composes none of it.
+        await WithWorkerStoreAsync(store => WriteRunAsync(store, runStart, receivedAt, first, second, refused.Reason));
+
+        return new Seeded(runStart, twoDaysBefore, dayBefore.AddDays(1));
+    }
+
+    /// <summary>The Worker's own registration of the store, over this host's database; the Api composes none of it.</summary>
+    private async Task WithWorkerStoreAsync(Func<IDmarcReportStore, Task> write)
+    {
         await using var scope = factory.Services.CreateAsyncScope();
         var worker = new ServiceCollection()
             .AddLogging()
@@ -315,9 +357,7 @@ public sealed class AdminEmailDmarcTests(ApiFactory factory) : IAsyncLifetime
         await using var run = provider.CreateAsyncScope();
         var store = run.ServiceProvider.GetRequiredService<IDmarcReportStore>();
         store.ShouldBeOfType<SqlDmarcReportStore>();
-        await WriteRunAsync(store, runStart, receivedAt, first, second, refused.Reason);
-
-        return new Seeded(runStart, twoDaysBefore, dayBefore.AddDays(1));
+        await write(store);
     }
 
     /// <summary>The store's calls through its port, in the order <c>DmarcReportIngestionJob</c> makes them.</summary>

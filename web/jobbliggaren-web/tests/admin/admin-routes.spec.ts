@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, win32 } from "node:path";
 import { ACCOUNT_D_DELETION_EARLIEST, STEP_UP_CHALLENGE, STEP_UP_GRANT } from "./fixtures";
-import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
+import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, TEXT_SPACING, startHarness, type Harness } from "./servers";
 
 /**
  * The seven admin routes in a real browser (#1973, ADR 0150): the nav reaches every page and marks
@@ -685,10 +685,6 @@ function expectInside(parts: Awaited<ReturnType<typeof regionLineParts>>, where:
   }
 }
 
-/** WCAG 1.4.12's spacing, as its bookmarklets apply it. */
-const TEXT_SPACING =
-  "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
-
 const ACCOUNT_LINES = [
   { state: "empty", mode: "ok", term: "ingen-traff", text: "Inga konton matchar sökningen eller filtret." },
   { state: "rate-limited", mode: "rateLimited", text: "För många förfrågningar." },
@@ -715,6 +711,19 @@ for (const width of [320, 375]) {
         // The provider's failures list is observed, so the one region line on the page is our own count's.
         await expect(page.locator("td.jp-admintable__soon")).toHaveCount(1);
         expectInside(await regionLineParts(page), `the ${scenario} line at ${width}px`);
+      }
+    });
+  }
+
+  for (const spaced of [false, true]) {
+    test(`the DMARC table's state line sits inside its scroll region at ${width}px${spaced ? " with 1.4.12 spacing" : ""} (#1981 PR 4b)`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      for (const scenario of ["notConfigured", "noReports"] as const) {
+        harness.emailDmarc = scenario;
+        await page.goto("/admin/e-post");
+        if (spaced) await page.addStyleTag({ content: TEXT_SPACING });
+        await expect(page.locator("td.jp-admintable__soon")).toHaveCount(1);
+        expectInside(await regionLineParts(page), `the DMARC ${scenario} line at ${width}px`);
       }
     });
   }

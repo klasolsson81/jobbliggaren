@@ -69,6 +69,31 @@
       "partial": "Räkningen började inom perioden",
       "notConfigured": "Räknas inte i miljön",
       "notObservable": "Räkningen visar inga utskick"
+    },
+    "dmarcLabel": "Visa DMARC-rapporter",
+    "dmarcScenarios": {
+      "observed": "Rapporter finns",
+      "capped": "Fler källor än tabellen visar",
+      "sharedAddress": "Samma adress, två domäner",
+      "noneFailing": "Inga DMARC-underkända",
+      "mailbox": "Mejl som inte kunde läsas",
+      "conflicting": "Rapport i flera versioner",
+      "observedStale": "Inte läst på länge",
+      "failedAfter": "Senaste inläsningen misslyckades",
+      "signInUnanswered": "Inloggningen besvarades inte",
+      "noReports": "Ingen rapport under perioden",
+      "noReportsConflicting": "Ingen rapport som räknas",
+      "noReportsStale": "Ingen rapport, inte läst på länge",
+      "notObservable": "Brevlådan inte läst än",
+      "notConfigured": "Läses inte i miljön",
+      "misconfigured": "Lösenordet är tomt",
+      "failedUnreachable": "Brevlådan nås inte",
+      "failedTimeout": "Brevlådan svarar inte i tid",
+      "failedTls": "Certifikatet kan inte verifieras",
+      "failedAuthRefused": "Inloggningen nekas",
+      "failedAuthUnconfirmed": "Inloggningen besvaras inte",
+      "failedProtocol": "Oläsbart svar från brevlådan",
+      "failedIncomplete": "Första inläsningen har inte avslutats"
     }
   }
 }

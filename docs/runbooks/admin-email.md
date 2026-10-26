@@ -97,7 +97,8 @@ The page names the month only where UTC and Stockholm agree on it; otherwise it 
 
 **What they are.** Receiving mail services (only Google so far) send a daily aggregate report to `dmarc@jobbliggaren.se`, a
 STRATO mailbox. The Worker reads that mailbox every hour at :23, read-only, and stores the accepted reports;
-`GET /api/v1/admin/email/dmarc` serves them over a fixed seven-day window, and PR 4b shows them on `/admin/e-post`. The figures
+`GET /api/v1/admin/email/dmarc` serves them over a fixed seven-day window, and the DMARC-rapporter section on `/admin/e-post`
+shows them. The figures
 are the reporters' own statements, never verified by us, and they are a third source: never Scaleway's figures and never our
 own handover count. A source is flagged when any of its messages failed DMARC, meaning neither DKIM nor SPF passed aligned.
 
@@ -105,6 +106,17 @@ own handover count. A source is flagged when any of its messages failed DMARC, m
 `Misconfigured` (pointer set, password blank), `Failed` (no run has succeeded yet; the latest outcome says why), and, once a run
 has succeeded, `Observed` or `NoReports`, with the latest failure and `stale` (the latest run failed, or the latest success is
 more than three hours old) beside them.
+
+**What the section says** (ADR 0150 Amendment (4)):
+- The note's span is the covered period of the included reports, from the earliest start to the latest end. The end is
+  exclusive: Google's report for a UTC day reads "02:00 till 02:00" in summer time.
+- At most 25 rows, failing sources first; "Visar 25 av N rader." when more were counted. The figures count every source.
+- "… kunde inte läsas som rapport" counts the ledger's `Skipped*` and `Rejected*` outcomes; "… kunde inte sparas" counts
+  `VolumeCapped`; "… efter upprepade försök" counts `Abandoned`; all three over mail received in the window. "… väntar på
+  ett nytt försök" counts every `RetryPending`, whenever received. Tell them apart with the `count(*)` by `outcome` reading
+  below.
+- "… finns i flera versioner …" counts the reports in the window whose reporter and report id were stored with other
+  content; none of their versions is in any figure (ADR 0185 D7).
 
 **Reading on the box (CLAUDE.md §9.2).** Every row of the four tables is personal data or points at it (§9.2 (b)). Only these
 are (a):
@@ -182,8 +194,8 @@ He also deletes the messages that carry those reports from the mailbox in webmai
 | `Misconfigured` | The pointer is set but the password file is blank: remove the file and inject again. |
 | `Unreachable` | The egress rule is missing, or STRATO has renumbered `imap.strato.de`: re-resolve and edit rule 6 with Klas's GO. Never a port-only rule. |
 | `TlsFailed` | The certificate chain fails. Expected once a worker image lacks "T-TeleSec GlobalRoot Class 2" (ADR 0185 lapse trigger 1). Never fixed by relaxing validation. |
-| `AuthRefused` | The password was refused. No run connects again for 24 hours, so a fixed password is picked up after that. Rotate it (above). |
-| `AuthUnconfirmed` | The password was sent and no answer came: a timeout, a BYE or a reset. No run connects again for 24 hours. It does not say the password is wrong; if it recurs, read STRATO's status before rotating. |
+| `AuthRefused` | The password was refused. No run connects again for 24 hours, so a fixed password is picked up after that; the page shows the earliest next sign-in. Rotate it (above). |
+| `AuthUnconfirmed` | The password was sent and no answer came: a timeout, a BYE or a reset. No run connects again for 24 hours; the page shows the earliest next sign-in. It does not say the password is wrong; if it recurs, read STRATO's status before rotating. |
 | `Timeout` | Transient. A lasting one: STRATO's status. |
 | `Protocol` | The server answered outside the protocol, or refused a command as malformed. Count the 3135–3139 events; a code change. |
 | `Incomplete` | The first run did not finish. Count the 3120–3123 events in the worker log. |

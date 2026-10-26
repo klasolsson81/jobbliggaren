@@ -545,6 +545,13 @@ describe("admin overview failed-sends source (#1981 PR 2)", () => {
     expect(paths.filter((path) => path.includes("/email/failures"))).toEqual([]);
   });
 
+  // ADR 0185 lapse trigger 4 and OQ9 condition 2: no DMARC figure feeds the overview or its attention card (#1981 PR 4b).
+  it("never reads the DMARC reports", async () => {
+    await loadAdminOverview();
+    const paths = transport.mock.calls.map((call) => String(call[1]));
+    expect(paths.filter((path) => path.includes("/email/dmarc"))).toEqual([]);
+  });
+
   it("asks only after an admin read has succeeded (#2064)", async () => {
     let succeeded = 0;
     transport.mockImplementation(async (_session: string, path: string) => {

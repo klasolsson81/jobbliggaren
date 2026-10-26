@@ -5,6 +5,7 @@ import type {
   EmailAllowanceDto,
   EmailDeliveryDto,
   EmailDeliveryPeriod,
+  EmailDmarcDto,
   EmailFailuresDto,
   EmailKindsDto,
 } from "@/lib/dto/admin-email";
@@ -408,6 +409,9 @@ export type AdminEmailFailures = EmailFailuresDto;
 
 /** Our own count of handovers per mail kind in a period (#1981 PR 3), the DTO as the API sends it. */
 export type AdminEmailKinds = EmailKindsDto;
+
+/** The DMARC aggregate reports over the region's fixed window (#1981 PR 4b), the DTO as the API sends it. */
+export type AdminEmailDmarc = EmailDmarcDto;
 
 /**
  * One of Leverans's reads as the page holds it. It is built, so it is never "Kommer snart": it is pending, our own

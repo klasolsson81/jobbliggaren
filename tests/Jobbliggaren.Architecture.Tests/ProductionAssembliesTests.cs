@@ -84,7 +84,10 @@ public class ProductionAssembliesTests
         exclusions.ShouldAllBe(declared => !string.IsNullOrWhiteSpace(declared.Exclusion.Reason), Bound);
         exclusions.ShouldAllBe(declared => ProductionAssemblies.All.Contains(declared.Exclusion.Assembly), Bound);
         exclusions.Select(declared => $"{declared.Rule}: {declared.Exclusion.Assembly.Name}").ShouldBe(
-            [],
+            [
+                $"{nameof(NoPasswordSymbolTests)}: Jobbliggaren.Migrate",
+                $"{nameof(NoPasswordSymbolTests)}: Jobbliggaren.Infrastructure.Mailbox",
+            ],
             ignoreOrder: true,
             Bound);
     }

@@ -1,8 +1,3 @@
-using Jobbliggaren.Api.Configuration;
-using Jobbliggaren.Application.Auth;
-using Jobbliggaren.Domain.JobSeekers;
-using Jobbliggaren.Infrastructure.Identity;
-using Jobbliggaren.Worker.Auditing;
 using Microsoft.AspNetCore.Identity;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -16,8 +11,8 @@ namespace Jobbliggaren.Architecture.Tests;
 /// string constant, literal or attribute argument. One instrument, Mono.Cecil (senior-cto-advisor F3, 2026-09-25;
 /// scope revised in 5b's form round).
 /// <para>
-/// <b>Scope, per assembly.</b> Domain, Application, Api, Worker and Infrastructure. Migrate is outside it: its
-/// master password is infrastructure, not the auth surface.
+/// <b>Scope, per assembly.</b> Every production assembly but those in <see cref="OutsideTheAuthSurface"/>, each named
+/// there with its reason and checked to still hold the password symbol it is left out for.
 /// </para>
 /// <para>
 /// <b>Role rule, in every assembly.</b> A type is judged by its outermost declaring type, and a compiler-generated
@@ -43,43 +38,54 @@ public class NoPasswordSymbolTests
     private const string BackingServiceCredentialType = "StackExchange.Redis.ConfigurationOptions";
     private const string BackingServiceCredentialScope = "StackExchange.Redis";
 
-    public static TheoryData<Type, bool> AuthSurfaceAssemblies() => new()
+    private static readonly Exclusion[] OutsideTheAuthSurface =
+    [
+        new(ProductionAssemblies.Migrate, "its master password is infrastructure, not the auth surface"),
+        new(
+            ProductionAssemblies.InfrastructureMailbox,
+            "the IMAP password of dmarc@ is a backing service's credential, like Redis's ConfigurationOptions, not a "
+            + "user's (ADR 0185)"),
+    ];
+
+    public static TheoryData<string> AuthSurfaceAssemblies() => ProductionAssemblies.Names(OutsideTheAuthSurface);
+
+    public static TheoryData<string> ExcludedAssemblies()
     {
-        { typeof(JobSeeker), false },
-        { typeof(AuthErrorCodes), false },
-        { typeof(HstsOptions), false },
-        { typeof(WorkerSystemUser), false },
-        { typeof(ApplicationUser), true },
-    };
+        var rows = new TheoryData<string>();
+        foreach (var exclusion in OutsideTheAuthSurface)
+            rows.Add(exclusion.Assembly.Name);
+        return rows;
+    }
 
     [Theory]
     [MemberData(nameof(AuthSurfaceAssemblies))]
-    public void No_password_symbol_is_declared_referenced_or_held_as_a_constant(
-        Type assemblyMarker, bool backingServiceCredentialsOutOfScope)
+    public void No_password_symbol_is_declared_referenced_or_held_as_a_constant(string name)
     {
-        var scan = ScanAssembly(assemblyMarker, backingServiceCredentialsOutOfScope);
-        var name = scan.AssemblyName;
+        var assembly = ProductionAssemblies.Named(name);
+        var scan = ScanAssembly(assembly);
 
         scan.Symbols.ShouldNotBeEmpty($"{name}: nothing was scanned, so an empty offender list proves nothing");
+        scan.Symbols.ShouldContain(
+            s => s.Arm == Arm.Declaration && s.Text == assembly.Anchor.FullName,
+            $"{name}: the declaration arm never reached the anchor, so the role rule scoped the assembly's own types out");
         scan.Symbols.ShouldContain(s => s.Arm == Arm.Literal, $"{name}: no ldstr literal was read");
         scan.Symbols.ShouldContain(s => s.Arm == Arm.Attribute, $"{name}: no attribute argument was read");
 
-        var offenders = scan.Symbols
-            .Where(s => s.Arm is Arm.Constant or Arm.Literal or Arm.Attribute
-                ? ConstantNamesAPassword(s.Text)
-                : NameNamesAPassword(s.Text))
-            .Select(s => $"{s.Arm}: {s.Text}")
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToList();
-
+        var offenders = Offenders(scan);
         offenders.ShouldBeEmpty($"{name} still reaches a password symbol:\n  " + string.Join("\n  ", offenders));
     }
+
+    /// <summary>An exclusion whose assembly no longer reaches a password symbol is dead and comes out.</summary>
+    [Theory]
+    [MemberData(nameof(ExcludedAssemblies))]
+    public void Each_assembly_outside_the_auth_surface_still_holds_the_symbol_it_is_left_out_for(string name) =>
+        Offenders(ScanAssembly(ProductionAssemblies.Named(name))).ShouldNotBeEmpty(
+            $"{name} no longer reaches a password symbol, so remove it from {nameof(OutsideTheAuthSurface)}");
 
     [Fact]
     public void Infrastructure_is_scanned_where_the_identity_adapter_lives_and_its_target_rule_removes_one_credential()
     {
-        var scan = ScanAssembly(typeof(ApplicationUser), backingServiceCredentialsOutOfScope: true);
+        var scan = ScanAssembly(ProductionAssemblies.Infrastructure);
 
         scan.Symbols.ShouldContain(
             s => s.Arm == Arm.Declaration
@@ -116,7 +122,7 @@ public class NoPasswordSymbolTests
     [InlineData("Jobbliggaren.Infrastructure.Auth.LoginChallenges.IdentityInboxProofRecorder/<RecordAsync>d__", true)]
     public void The_role_rule_scopes_a_type_by_its_outermost_declaring_type(string typeName, bool inScope)
     {
-        using var loaded = ReadAssembly(typeof(ApplicationUser));
+        using var loaded = ReadAssembly(ProductionAssemblies.Infrastructure);
         var module = loaded.Definition.MainModule;
         var reachers = Reachers(module);
 
@@ -131,7 +137,7 @@ public class NoPasswordSymbolTests
     [Fact]
     public void A_compiler_generated_top_level_type_is_scoped_by_the_bodies_that_reach_it()
     {
-        using var loaded = ReadAssembly(typeof(ApplicationUser));
+        using var loaded = ReadAssembly(ProductionAssemblies.Infrastructure);
         var module = loaded.Definition.MainModule;
         var reachers = Reachers(module);
         var anonymous = module.GetTypes()
@@ -152,7 +158,7 @@ public class NoPasswordSymbolTests
     [Fact]
     public void The_normalisation_strips_the_passwordless_symbols_rather_than_skipping_them()
     {
-        var scan = ScanAssembly(typeof(AuthErrorCodes), backingServiceCredentialsOutOfScope: false);
+        var scan = ScanAssembly(ProductionAssemblies.Application);
 
         scan.Symbols
             .Where(s => s.Text.Contains(Passwordless, StringComparison.OrdinalIgnoreCase))
@@ -196,6 +202,16 @@ public class NoPasswordSymbolTests
         int IdentityMembersResolved,
         int OwnInScopeMembersCounted);
 
+    private static List<string> Offenders(Scan scan) =>
+        scan.Symbols
+            .Where(s => s.Arm is Arm.Constant or Arm.Literal or Arm.Attribute
+                ? ConstantNamesAPassword(s.Text)
+                : NameNamesAPassword(s.Text))
+            .Select(s => $"{s.Arm}: {s.Text}")
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
     private static bool NameNamesAPassword(string text) =>
         text.Replace(Passwordless, string.Empty, StringComparison.OrdinalIgnoreCase)
             .Contains("password", StringComparison.OrdinalIgnoreCase);
@@ -216,20 +232,22 @@ public class NoPasswordSymbolTests
         }
     }
 
-    private static LoadedAssembly ReadAssembly(Type marker)
+    private static LoadedAssembly ReadAssembly(ProductionAssembly assembly)
     {
         var resolver = new DefaultAssemblyResolver();
         resolver.AddSearchDirectory(AppContext.BaseDirectory);
         // The shared framework is not copied to the test's bin, and Identity lives there.
         resolver.AddSearchDirectory(Path.GetDirectoryName(typeof(UserManager<>).Assembly.Location)!);
         return new LoadedAssembly(
-            AssemblyDefinition.ReadAssembly(marker.Assembly.Location, new ReaderParameters { AssemblyResolver = resolver }),
+            assembly.ReadDefinition(new ReaderParameters { AssemblyResolver = resolver }),
             resolver);
     }
 
-    private static Scan ScanAssembly(Type marker, bool backingServiceCredentialsOutOfScope)
+    private static Scan ScanAssembly(ProductionAssembly production)
     {
-        using var loaded = ReadAssembly(marker);
+        // The target rule's one exemption, a backing service's credential, applies where the identity adapter lives.
+        var backingServiceCredentialsOutOfScope = production == ProductionAssemblies.Infrastructure;
+        using var loaded = ReadAssembly(production);
         var assembly = loaded.Definition;
         var symbols = new List<Symbol>();
         var removed = new List<string>();

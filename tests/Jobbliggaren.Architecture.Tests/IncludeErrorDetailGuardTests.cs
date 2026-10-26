@@ -95,19 +95,17 @@ public class IncludeErrorDetailGuardTests
             "address — and from there into the container log and Seq (#1633).");
     }
 
+    public static TheoryData<string> EveryAssembly() => ProductionAssemblies.Names();
+
     [Theory]
-    [InlineData(typeof(Jobbliggaren.Api.Configuration.HstsOptions))]
-    [InlineData(typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser))]
-    [InlineData(typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions))]
-    [InlineData(typeof(Jobbliggaren.Infrastructure.Persistence.AppDbContext))]
-    [InlineData(typeof(Jobbliggaren.Migrate.ConnectionStringFactory))]
-    public void Assembly_should_not_build_a_connection_string_enabling_Include_Error_Detail(
-        Type assemblyMarker)
+    [MemberData(nameof(EveryAssembly))]
+    public void Assembly_should_not_build_a_connection_string_enabling_Include_Error_Detail(string name)
     {
-        using var assembly = AssemblyDefinition.ReadAssembly(assemblyMarker.Assembly.Location);
+        var production = ProductionAssemblies.Named(name);
+        using var assembly = production.ReadDefinition();
 
         var offenders = new List<string>();
-        var instructionsScanned = 0;
+        var anchorInstructionsScanned = 0;
 
         foreach (var type in assembly.Modules.SelectMany(m => m.GetTypes()))
         {
@@ -115,7 +113,8 @@ public class IncludeErrorDetailGuardTests
             {
                 foreach (var instruction in method.Body.Instructions)
                 {
-                    instructionsScanned++;
+                    if (type.FullName == production.Anchor.FullName)
+                        anchorInstructionsScanned++;
 
                     if (instruction.OpCode == OpCodes.Ldstr
                         && instruction.Operand is string literal
@@ -139,12 +138,11 @@ public class IncludeErrorDetailGuardTests
 
         // The probe's vacuity guard, and it is not decoration: an assembly Cecil reads with zero
         // method bodies produces an empty offender list and a green case after scanning nothing.
-        // That is the #843 test-fiction class, and only one of these four assemblies was ever
-        // mutation-proven.
-        instructionsScanned.ShouldBeGreaterThan(
+        // That is the #843 test-fiction class, so the anchor's own instructions must be among those read.
+        anchorInstructionsScanned.ShouldBeGreaterThan(
             0,
-            $"{assembly.Name.Name}: zero IL instructions were examined, so this case passed " +
-            "without measuring anything. Fix the marker type or the assembly resolution.");
+            $"{name}: none of the anchor's IL instructions were examined, so this case passed " +
+            "without measuring anything.");
 
         offenders.ShouldBeEmpty(
             $"{assembly.Name.Name} builds a connection string that turns on Include Error Detail. " +

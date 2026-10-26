@@ -1,13 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.RegularExpressions;
-using Jobbliggaren.Api.Authorization;
-using Jobbliggaren.Infrastructure.Email;
-using Jobbliggaren.Migrate;
-using Jobbliggaren.Worker.Auditing;
-using NetArchTest.Rules;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -22,7 +16,7 @@ namespace Jobbliggaren.Architecture.Tests;
 ///     under <c>src/</c>, <c>tests/</c> or <c>perf/</c>, plus the repo-root build files — which is
 ///     every place a declaration can reach a project.</item>
 ///   <item><b>No import</b>, in any C# form, in any <c>.cs</c> file under those same roots.</item>
-///   <item><b>No IL dependency</b> in the seven PRODUCTION assemblies. Test assemblies are out of
+///   <item><b>No IL dependency</b> in any PRODUCTION assembly (<see cref="ProductionAssemblies"/>). Test assemblies are out of
 ///     reach here and covered by (1) and (2) instead — see
 ///     <see cref="NoProductionAssemblyDependsOnAnAmazonType"/> for why, rather than a claim that
 ///     they are covered.</item>
@@ -261,9 +255,9 @@ public class NoAmazonReferenceTests
     /// </summary>
     [Theory]
     [MemberData(nameof(AssembliesThatMayNeverTouchAmazon))]
-    public void NoProductionAssemblyDependsOnAnAmazonType(string name, Assembly assembly)
+    public void NoProductionAssemblyDependsOnAnAmazonType(string name)
     {
-        var result = Types.InAssembly(assembly)
+        var result = ProductionAssemblies.Named(name).ArchTypes()
             .Should().NotHaveDependencyOn("Amazon")
             .GetResult();
 
@@ -288,12 +282,13 @@ public class NoAmazonReferenceTests
     /// </summary>
     [Theory]
     [MemberData(nameof(AssembliesThatMayNeverTouchAmazon))]
-    public void TheDependencySearchMechanismIsLiveAndSegmentMatched(string name, Assembly assembly)
+    public void TheDependencySearchMechanismIsLiveAndSegmentMatched(string name)
     {
-        Types.InAssembly(assembly).GetTypes().ShouldNotBeEmpty(
+        var assembly = ProductionAssemblies.Named(name);
+        assembly.ArchTypes().GetTypes().ShouldNotBeEmpty(
             $"{name} presented no types at all, so the IL fact above asserts over an empty set");
 
-        var matched = Types.InAssembly(assembly)
+        var matched = assembly.ArchTypes()
             .Should().NotHaveDependencyOn(ProbeNamespace)
             .GetResult();
 
@@ -302,7 +297,7 @@ public class NoAmazonReferenceTests
             + "construction — every type derives from System.Object. The dependency search is not "
             + "matching, so the Amazon facts above are passing vacuously.");
 
-        var trailingDot = Types.InAssembly(assembly)
+        var trailingDot = assembly.ArchTypes()
             .Should().NotHaveDependencyOn(ProbeNamespace + ".")
             .GetResult();
 
@@ -313,21 +308,7 @@ public class NoAmazonReferenceTests
             + "semantics changed and the hazard this file guards against has moved.");
     }
 
-    public static TheoryData<string, Assembly> AssembliesThatMayNeverTouchAmazon() =>
-        new()
-        {
-            { "Jobbliggaren.Domain", typeof(Jobbliggaren.Domain.Common.AggregateRoot<>).Assembly },
-            { "Jobbliggaren.Application", typeof(Jobbliggaren.Application.AssemblyMarker).Assembly },
-            // Infrastructure joins the list with #183: it held the ONLY exemption, for the SES arm's
-            // namespace, and that arm is gone.
-            { "Jobbliggaren.Infrastructure", typeof(EmailOptions).Assembly },
-            { "Jobbliggaren.Api", typeof(AdminRoleRequirement).Assembly },
-            { "Jobbliggaren.Worker", typeof(WorkerSystemUser).Assembly },
-            { "Jobbliggaren.Infrastructure.Mailbox", typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly },
-            // ConnectionStringFactory is Migrate's only public type — every other one is internal,
-            // so it is the assembly handle, not a choice about what to test.
-            { "Jobbliggaren.Migrate", typeof(ConnectionStringFactory).Assembly },
-        };
+    public static TheoryData<string> AssembliesThatMayNeverTouchAmazon() => ProductionAssemblies.Names();
 
     /// <summary>
     /// Which package ids this guard adjudicates.

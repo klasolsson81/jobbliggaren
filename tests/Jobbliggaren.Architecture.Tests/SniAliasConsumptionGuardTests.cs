@@ -1,7 +1,5 @@
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
-using NetArchTest.Rules;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -21,7 +19,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>Both assemblies, and compiler-generated types rolled up to their owner.</b> Two holes in the
+/// <b>Every production assembly, and compiler-generated types rolled up to their owner.</b> Two holes in the
 /// first version of this guard were found by review, and each let through the shape that would
 /// actually occur: scanning only Application missed the raw register predicate in
 /// <c>CompanyWatchBrowseQuery</c>, and discarding names containing <c>&lt;</c> missed the idiomatic
@@ -57,12 +55,6 @@ public class SniAliasConsumptionGuardTests
         "SniAliasFile",
     ];
 
-    private static readonly Assembly[] Scanned =
-    [
-        typeof(SniAliasCatalog).Assembly,
-        typeof(Jobbliggaren.Infrastructure.CompanyRegister.Reference.CriterionReferenceProvider).Assembly,
-    ];
-
     private static bool IsCompilerGenerated(Type t) =>
         t.Name.StartsWith('<') || t.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false);
 
@@ -84,8 +76,8 @@ public class SniAliasConsumptionGuardTests
     /// UNFILTERED so callers can prove the query still sees something — a NetArchTest query that
     /// silently matches nothing makes every <c>ShouldBeEmpty</c> below pass for the wrong reason.</summary>
     private static List<string> AllConsumers() =>
-        Scanned
-            .SelectMany(asm => Types.InAssembly(asm)
+        ProductionAssemblies.All
+            .SelectMany(assembly => assembly.ArchTypes()
                 .That()
                 .HaveDependencyOn(typeof(SniAliasCatalog).FullName)
                 .GetTypes())

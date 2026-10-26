@@ -56,9 +56,9 @@ public sealed record RawSqlNonReach(string TypeFullName, string Method, string W
 
 /// <summary>
 /// The lifecycle read-path registry for <c>JobAds</c> (#887) — every backend <c>get_JobAds</c> site
-/// in Application + Infrastructure, classified, with a written reason where the kind demands one.
-/// <c>JobAdLifecycleReadRegistryTests</c> pins it against an exhaustive Mono.Cecil IL scan of the two
-/// assemblies: a site with no decision, or a method whose declared decision count does not equal the
+/// in the production assemblies, classified, with a written reason where the kind demands one.
+/// <c>JobAdLifecycleReadRegistryTests</c> pins it against an exhaustive Mono.Cecil IL scan of every
+/// production assembly: a site with no decision, or a method whose declared decision count does not equal the
 /// number of <c>get_JobAds</c> calls the scan finds in it, <b>breaks the build</b>, naming the method
 /// and the number of decisions owed.
 /// </summary>

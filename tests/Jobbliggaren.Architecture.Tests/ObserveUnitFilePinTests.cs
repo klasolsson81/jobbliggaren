@@ -279,18 +279,7 @@ public class ObserveUnitFilePinTests
     public void TheBackupSampleSource_IsInjectedOnlyIntoItsOneQueryHandler()
     {
         const BindingFlags declared = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-        Assembly[] owned =
-        [
-            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
-            typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
-            typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
-            typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
-        ];
-
-        var consumers = owned
-            .SelectMany(assembly => assembly.GetTypes())
+        var consumers = ProductionAssemblies.ReflectedTypes()
             .Where(type => type.GetConstructors(declared).Cast<MethodBase>().Concat(type.GetMethods(declared))
                 .Any(member => member.GetParameters().Any(parameter => parameter.ParameterType == typeof(IBackupSampleSource))))
             .Select(type => type.FullName!)

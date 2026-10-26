@@ -215,18 +215,7 @@ public class TaxonomyAclLayerTests
     public void Only_the_search_text_resolver_injects_ITaxonomyLabelMatcher()
     {
         var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyLabelMatcher);
-        // Every assembly that can resolve the port (precedent: ErasurePortInjectionRadiusTests).
-        var assemblies = new[]
-        {
-            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver).Assembly,
-            typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
-            typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
-            typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
-        };
-
-        var consumers = assemblies
-            .SelectMany(a => a.GetTypes())
+        var consumers = ProductionAssemblies.ReflectedTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false })
             .Where(t => t.GetConstructors(
                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
@@ -244,16 +233,7 @@ public class TaxonomyAclLayerTests
     public void Only_the_search_text_resolver_injects_IOccupationNameLineageProvider()
     {
         var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.IOccupationNameLineageProvider);
-        var assemblies = new[]
-        {
-            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver).Assembly,
-            typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
-            typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
-        };
-
-        var consumers = assemblies
-            .SelectMany(a => a.GetTypes())
+        var consumers = ProductionAssemblies.ReflectedTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false })
             .Where(t => t.GetConstructors(
                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic

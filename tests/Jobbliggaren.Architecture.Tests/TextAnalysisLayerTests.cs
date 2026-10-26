@@ -149,8 +149,8 @@ public class TextAnalysisLayerTests
     [Fact]
     public void Only_the_review_engine_and_its_evaluation_context_consume_ISpellChecker()
     {
-        // Build the actual constructor-consumer list across Application AND
-        // Infrastructure (the impl HunspellSpellChecker and the
+        // Build the actual constructor-consumer list across every production
+        // assembly (the impl HunspellSpellChecker and the
         // AddTextAnalysis DI registration are NOT constructor-consumers of the
         // PORT — they construct the impl, they don't inject ISpellChecker). The
         // TWO legitimate consumers are CvReviewEngine (DI) + CriterionEvaluationContext
@@ -158,14 +158,7 @@ public class TextAnalysisLayerTests
         // ISpellChecker is a premature/unexpected consumer.
         var port = typeof(Jobbliggaren.Application.Common.Abstractions.TextAnalysis.ISpellChecker);
 
-        var assemblies = new[]
-        {
-            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
-        };
-
-        var consumers = assemblies
-            .SelectMany(a => a.GetTypes())
+        var consumers = ProductionAssemblies.ReflectedTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false })
             .Where(t => t.GetConstructors()
                 .Any(c => c.GetParameters().Any(p => p.ParameterType == port)))

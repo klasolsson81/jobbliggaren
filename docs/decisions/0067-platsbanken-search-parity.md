@@ -664,8 +664,7 @@ operative text. It also changes ADR 0060's capture chain: the behaviour's no-op 
    processing register records the same next to each entry.
 
 7. **Rows stored before the guard.** They remain stored until a purge follow-up. Whether there are any is read on the box once this
-   release is live, as a count only. If any are, the purge is a scoped, logged DELETE migration that takes its ids from the same constant
-   and derivation, behind Klas's migration GO. #2199 stays open until that purge is merged or the count reads none. No read-side mask: a
+   release is live, as a count only. If any are, the purge is a scoped, logged DELETE migration behind Klas's migration GO. #2199 stays open until that purge is merged or the count reads none. No read-side mask: a
    hidden row would still be stored, counted against the cap of 20, and invisible to its own data subject.
 
 ---

@@ -16,7 +16,7 @@ public sealed class ReligiousOccupationsArtefactTests
     private const string SnapshotResourceName = "Jobbliggaren.Infrastructure.Taxonomy.taxonomy-snapshot.json";
 
     private static readonly Lazy<ReligiousOccupations> Real =
-        new(() => new ReligiousOccupations(OccupationNameLineageLoader.Load(), TaxonomySnapshotSeeder.LoadSnapshot()));
+        new(() => new ReligiousOccupations(OccupationNameLineageLoader.Load(), TaxonomySnapshotLoader.Load()));
 
     // Both directions over every name the artefact holds: a name derived in by mistake (through a replaced-by
     // edge, say) fails as surely as one left out. On the name axis a policy group id is refused too.
@@ -79,6 +79,32 @@ public sealed class ReligiousOccupationsArtefactTests
             Real.Value.AreSingledOutBy(field.Groups, [name]).ShouldBeTrue(field.ConceptId);
             Real.Value.AreSingledOutBy([.. field.Groups, name], []).ShouldBeTrue(field.ConceptId);
         }
+    }
+
+    // Coverage, not equality: a whole field stays a whole field beside a group of a field that holds no
+    // religious group (senior-cto-advisor's own example, "all of Chefer plus Ekonomiassistenter").
+    [Fact]
+    public void AWholeFieldPlusAnOrdinaryGroupOfAnotherField_IsNotSingledOut()
+    {
+        var ordinary = SnapshotFields()
+            .First(f => !f.Groups.Any(ReligiousOccupationGroups.ConceptIds.Contains))
+            .Groups[0];
+
+        foreach (var field in FieldsHoldingAPolicyGroup())
+            Real.Value.AreSingledOutBy([.. field.Groups, ordinary], []).ShouldBeFalse(field.ConceptId);
+    }
+
+    // Declared unreachable: the committed snapshot holds every policy group, which
+    // EveryPolicyGroup_IsAnOccupationGroupInTheTaxonomy_AndFilesAtLeastOneName pins, and a refresh trips the
+    // version lock below. This asserts only how the guard degrades if that invariant broke: a policy group no
+    // field holds is refused, never waved through as covered.
+    [Fact]
+    public void APolicyGroupNoFieldHolds_IsSingledOut()
+    {
+        var religious = new ReligiousOccupations(OccupationNameLineageLoader.Load(), new TaxonomySnapshotFile());
+
+        foreach (var group in ReligiousOccupationGroups.ConceptIds)
+            religious.AreSingledOutBy([group], []).ShouldBeTrue(group);
     }
 
     // A policy group of ANOTHER field, picked alone beside a whole field, was singled out.

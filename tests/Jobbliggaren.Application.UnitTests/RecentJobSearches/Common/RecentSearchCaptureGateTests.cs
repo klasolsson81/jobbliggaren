@@ -54,7 +54,7 @@ public sealed class RecentSearchCaptureGateTests
     public void Admit_AReligiousName_ReturnsNull() =>
         Gate.Admit(new ListJobAdsQuery(OccupationName: ["5avt_87C_rXE"])).ShouldBeNull();
 
-    // A gate the list handler calls on every request must not throw on what a request can carry.
+    // Create refuses Relevance without terms, so the gate stores the sort the search fell back to.
     [Fact]
     public void Admit_ARelevanceSortWithoutTerms_StoresTheSortThatRan()
     {

@@ -1069,7 +1069,7 @@ public class RecentJobSearchCaptureBehaviorTests
 
     private static IReadOnlyList<string> WholeFieldOf(string group) =>
         [
-            .. TaxonomySnapshotSeeder.LoadSnapshot().OccupationFields
+            .. TaxonomySnapshotLoader.Load().OccupationFields
                 .Single(f => (f.OccupationGroups ?? []).Any(g => g.ConceptId == group))
                 .OccupationGroups!.Select(g => g.ConceptId),
         ];
@@ -1103,7 +1103,7 @@ public class RecentJobSearchCaptureBehaviorTests
              "Q", "Region", "Remote", "SortBy", "WorktimeExtent"],
             "a member arrived on or left ICapturesRecentSearch. If it is a NEW string-bearing " +
             "dimension it reaches recent_job_searches in plaintext, and it must be added to the " +
-            "BearsPersonnummer chain in RecentJobSearchCaptureBehavior AND to the default-browse " +
+            "BearsPersonnummer chain in RecentSearchCaptureGate AND to the default-browse " +
             "guard — neither of which fails on its own when a dimension is merely missing. " +
             "Update this list in the same commit as the guard, never before it.");
     }

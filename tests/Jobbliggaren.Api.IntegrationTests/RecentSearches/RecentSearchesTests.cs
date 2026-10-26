@@ -4,7 +4,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.RecentJobSearches.Common;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Taxonomy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -276,10 +278,10 @@ public class RecentSearchesTests(ApiFactory factory)
     // one runs and is never stored. The ids are JobTech's own, read through the real composition root:
     // the four groups of the policy constant, and Imam, which the lineage artefact files under Präster.
     [Theory]
-    [InlineData("occupationGroup", "2L2s_EU8_PzR")] // Präster
-    [InlineData("occupationGroup", "x5rn_vga_gRK")] // Pastorer m.fl.
-    [InlineData("occupationGroup", "wzeq_No2_LF1")] // Diakoner
-    [InlineData("occupationGroup", "x9mo_1VH_Rps")] // Chefer och ledare inom trossamfund
+    [InlineData("occupationGroup", ReligiousOccupationGroups.Priests)]
+    [InlineData("occupationGroup", ReligiousOccupationGroups.Pastors)]
+    [InlineData("occupationGroup", ReligiousOccupationGroups.Deacons)]
+    [InlineData("occupationGroup", ReligiousOccupationGroups.LeadersOfReligiousCommunities)]
     [InlineData("occupationName", "5avt_87C_rXE")] // Imam
     public async Task Searching_jobs_on_a_religious_occupation_runs_the_search_and_stores_nothing(
         string axis, string conceptId)
@@ -293,15 +295,46 @@ public class RecentSearchesTests(ApiFactory factory)
         var page = await searchResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
         page.GetProperty("isStorableAsRecentSearch").GetBoolean().ShouldBeFalse();
 
-        var items = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me/recent-searches", ct);
-        items.GetArrayLength().ShouldBe(0);
+        (await StoredSearchesAsync(ct)).ShouldBeEmpty();
+    }
+
+    // "Välj alla" on a field that holds religious groups puts the whole field on the axis, and a whole
+    // field is stored as picked (senior-cto-advisor, 2026-10-26). The field is read from the snapshot the
+    // composition root builds the guard from, so this also proves that half of the wiring.
+    [Fact]
+    public async Task Searching_jobs_on_a_whole_field_that_holds_religious_groups_stores_the_search()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var field = TaxonomySnapshotLoader.Load().OccupationFields
+            .Single(f => (f.OccupationGroups ?? []).Any(g => g.ConceptId == ReligiousOccupationGroups.Priests))
+            .OccupationGroups!.Select(g => g.ConceptId).ToList();
+
+        var page = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/v1/job-ads?{string.Join("&", field.Select(g => $"occupationGroup={g}"))}&commit=true&page=1&pageSize=20",
+            ct);
+
+        page.GetProperty("isStorableAsRecentSearch").GetBoolean().ShouldBeTrue();
+        (await StoredSearchesAsync(ct)).ShouldHaveSingleItem().OccupationGroup.Count.ShouldBe(field.Count);
+    }
+
+    // What is stored, read from the table: the list endpoint would hide a row a read mask kept.
+    private async Task<List<Jobbliggaren.Domain.RecentJobSearches.RecentJobSearch>> StoredSearchesAsync(
+        CancellationToken ct)
+    {
+        var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);
+        var userId = Guid.Parse(me.GetProperty("userId").GetString()!);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var seeker = await db.JobSeekers.AsNoTracking().SingleAsync(js => js.UserId == userId, ct);
+        return await db.RecentJobSearches.AsNoTracking().Where(r => r.JobSeekerId == seeker.Id).ToListAsync(ct);
     }
 
     // The verdict rides on every list answer, commit or not, because the hero reads it from the live
     // preview before the user asks to save.
     [Theory]
     [InlineData("q=backend", true)]
-    [InlineData("occupationGroup=2L2s_EU8_PzR", false)]
+    [InlineData("occupationGroup=" + ReligiousOccupationGroups.Priests, false)]
     [InlineData("q=19811218-9876", false)]
     [InlineData("sortBy=PublishedAtDesc", false)]
     public async Task The_job_ads_list_answers_whether_the_search_can_be_stored(string query, bool storable)

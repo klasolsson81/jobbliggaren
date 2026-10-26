@@ -14,7 +14,7 @@ internal static class RealRecentSearchCaptureGate
 {
     private static readonly Lazy<RecentSearchCaptureGate> Gate = new(() => new RecentSearchCaptureGate(
         new SearchQueryParser(),
-        new ReligiousOccupations(OccupationNameLineageLoader.Load(), TaxonomySnapshotSeeder.LoadSnapshot())));
+        new ReligiousOccupations(OccupationNameLineageLoader.Load(), TaxonomySnapshotLoader.Load())));
 
     public static RecentSearchCaptureGate Instance => Gate.Value;
 }

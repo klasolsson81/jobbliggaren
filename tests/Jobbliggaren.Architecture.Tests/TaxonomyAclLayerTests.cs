@@ -215,27 +215,8 @@ public class TaxonomyAclLayerTests
     public void Only_the_search_text_resolver_injects_ITaxonomyLabelMatcher()
     {
         var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyLabelMatcher);
-        // Every assembly that can resolve the port (precedent: ErasurePortInjectionRadiusTests).
-        var assemblies = new[]
-        {
-            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver).Assembly,
-            typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
-            typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
-            typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
-        };
 
-        var consumers = assemblies
-            .SelectMany(a => a.GetTypes())
-            .Where(t => t is { IsClass: true, IsAbstract: false })
-            .Where(t => t.GetConstructors(
-                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
-                    | System.Reflection.BindingFlags.Instance)
-                .Any(c => c.GetParameters().Any(p => port.IsAssignableFrom(p.ParameterType))))
-            .Select(t => t.Name)
-            .ToList();
-
-        consumers.ShouldBe([nameof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver)]);
+        ConstructorConsumersOf(port).ShouldBe([nameof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver)]);
     }
 
     // #2199 — the occupation-name lineage reaches the search path at the same one point, so the
@@ -244,25 +225,8 @@ public class TaxonomyAclLayerTests
     public void Only_the_search_text_resolver_injects_IOccupationNameLineageProvider()
     {
         var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.IOccupationNameLineageProvider);
-        var assemblies = new[]
-        {
-            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver).Assembly,
-            typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
-            typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
-        };
 
-        var consumers = assemblies
-            .SelectMany(a => a.GetTypes())
-            .Where(t => t is { IsClass: true, IsAbstract: false })
-            .Where(t => t.GetConstructors(
-                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
-                    | System.Reflection.BindingFlags.Instance)
-                .Any(c => c.GetParameters().Any(p => port.IsAssignableFrom(p.ParameterType))))
-            .Select(t => t.Name)
-            .ToList();
-
-        consumers.ShouldBe([nameof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver)]);
+        ConstructorConsumersOf(port).ShouldBe([nameof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver)]);
     }
 
     // #2199 PR 2b — the loaded lineage itself reaches exactly two constructors: the provider the search
@@ -272,7 +236,12 @@ public class TaxonomyAclLayerTests
     public void Only_the_lineage_provider_and_the_religious_occupations_take_the_loaded_lineage()
     {
         ConstructorConsumersOf(typeof(Jobbliggaren.Application.JobAds.Abstractions.OccupationNameLineage))
-            .ShouldBe(["OccupationNameLineageProvider", "ReligiousOccupations"], ignoreOrder: true);
+            .ShouldBe(
+                [
+                    nameof(Jobbliggaren.Infrastructure.Taxonomy.OccupationNameLineageProvider),
+                    nameof(Jobbliggaren.Infrastructure.Taxonomy.ReligiousOccupations),
+                ],
+                ignoreOrder: true);
     }
 
     [Fact]
@@ -302,6 +271,8 @@ public class TaxonomyAclLayerTests
         ]);
     }
 
+    // Every assembly that can resolve a port (precedent: ErasurePortInjectionRadiusTests), and the class
+    // names whose constructors take the dependency.
     private static List<string> ConstructorConsumersOf(Type dependency)
     {
         var assemblies = new[]
@@ -310,6 +281,7 @@ public class TaxonomyAclLayerTests
             typeof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver).Assembly,
             typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
             typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
+            typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
         };
 
         return assemblies

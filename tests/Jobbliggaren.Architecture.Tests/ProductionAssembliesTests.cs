@@ -95,8 +95,8 @@ public class ProductionAssembliesTests
     }
 
     /// <summary>
-    /// No test outside <see cref="ProductionAssemblies"/> builds a set of assemblies of its own, which is how
-    /// TaxonomyAclLayerTests came to scan everything but the Mailbox. The IL of this project holds no
+    /// No test outside <see cref="ProductionAssemblies"/> builds a set of assemblies of its own, which is how a
+    /// TaxonomyAclLayerTests rule came to leave the Mailbox out. The IL of this project holds no
     /// <see cref="Assembly"/> array and no generic type built over <see cref="Assembly"/> outside the source, and an
     /// <see cref="Exclusion"/> is built only in a static initialiser, where the inventory above finds it. The scan does
     /// not see a theory of marker types, or handles held in separate fields and joined later.

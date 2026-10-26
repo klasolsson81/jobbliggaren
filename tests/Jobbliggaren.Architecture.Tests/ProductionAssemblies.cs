@@ -7,9 +7,9 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <summary>
 /// #1981 (senior-cto-advisor r2 §3, finding 11) — the one list of production assemblies the architecture rules read.
 /// It names every project under <c>src/</c>, and <see cref="ProductionAssembliesTests"/> pins it against the build
-/// files. A rule reads all of it. A rule about who may hold or call a type finds nothing in an assembly that cannot
-/// reference that type, so reading it claims nothing; only a rule about what an assembly contains may leave one out,
-/// through an <see cref="Exclusion"/> declared beside that rule.
+/// files. A rule that reads more than one assembly reads all of it. A rule about who may hold or call a type finds
+/// nothing in an assembly that cannot reference that type, so reading it claims nothing; only a rule about what an
+/// assembly contains may leave one out, through an <see cref="Exclusion"/> declared beside that rule.
 /// </summary>
 internal static class ProductionAssemblies
 {
@@ -60,7 +60,6 @@ internal static class ProductionAssemblies
 
     /// <summary>
     /// The theory rows of a rule about what an assembly contains: every production assembly but the excluded ones.
-    /// The rows are names, because a row xUnit cannot serialise collapses into one test case.
     /// </summary>
     internal static TheoryData<string> Names(params Exclusion[] except)
     {
@@ -119,6 +118,7 @@ internal sealed record ProductionAssembly(string Name, Type Anchor)
 
 /// <summary>
 /// A production assembly a content rule leaves out, and why. It is declared as a static field of the rule it argues
-/// for, so <see cref="ProductionAssembliesTests"/> finds every one, and that rule checks it is still needed.
+/// for, so <see cref="ProductionAssembliesTests"/> finds every one, and the rule that declares it owes a check that
+/// it is still needed.
 /// </summary>
 internal sealed record Exclusion(ProductionAssembly Assembly, string Reason);

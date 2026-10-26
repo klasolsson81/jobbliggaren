@@ -3,10 +3,7 @@ using Mono.Cecil;
 
 namespace Jobbliggaren.Architecture.Tests;
 
-/// <summary>
-/// The IL type-reference sweep of every production assembly (<see cref="ProductionAssemblies"/>), shared by
-/// <see cref="AccountActivityReaderTests"/>, <see cref="ReadTimeMatchingConsumerTests"/> and the DMARC boundary tests.
-/// </summary>
+/// <summary>The IL type-reference sweep of every production assembly (<see cref="ProductionAssemblies"/>).</summary>
 internal static class ProductionTypeSweep
 {
     internal static IEnumerable<TypeDefinition> Types()

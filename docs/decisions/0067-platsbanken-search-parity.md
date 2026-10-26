@@ -608,6 +608,66 @@ delivered here. On the points below this amendment is the operative text.
      keys and sends no `occupationName`, and the API is reachable only through Next, so no user can store a name before PR 3. PR 3 asks Klas for the text.
    - The replay of `occupationNameList` in the recent-search link, the chips, and the fields in the recent-search zod schema.
 
+## Amendment 2026-10-26 — a search that singles out a religious office is never stored in recent searches: one capture gate decides what may be stored, the list page answers its verdict, and the lineage artefact gets a second reader for a different question (#2199 PR 2b)
+
+**Status:** Accepted 2026-10-26. **Source:** security-auditor's Art. 9 Major on PR #2241 and her 2b plan read (local); Klas, 2026-10-25,
+AskUserQuestion: "(a) Capture-vakt", "Du eller CTO väljer, det ska vara så enkelt och bra som möjligt för användaren, utan hinder." and
+"Du / CTO väljer"; senior-cto-advisor's rulings 4–6 of 2026-10-25 and its reach rulings of 2026-10-26 (all local, ADR 0072, so every
+operative point is restated here); dotnet-architect's and design-reviewer's 2b plan reads. Additive: the Amendments 2026-10-24 and
+2026-10-25 are untouched in their text, except where point 5 names the one sentence it narrows. On the points below this amendment is the
+operative text. It also changes ADR 0060's capture chain: the behaviour's no-op conditions now include the gate's refusal.
+
+1. **What is refused.** A committed /jobb search runs as before, but is not stored in `recent_job_searches` when its Yrke selection
+   singles out a religious office. That is when either holds, read on the ids `SearchCriteria.Create` would store:
+   - an occupation-name the lineage artefact files under one of the four groups appears on either axis;
+   - or one of the four groups appears and is not covered: it is covered only when the occupation-group axis holds every group of an
+     occupation field that contains it. A group id sent as an occupation-name covers nothing.
+
+   The four groups are `ReligiousOccupationGroups`: Präster `2L2s_EU8_PzR`, Pastorer m.fl. `x5rn_vga_gRK`, Diakoner `wzeq_No2_LF1` and
+   Chefer och ledare inom trossamfund `x9mo_1VH_Rps`, the only religion-specific groups in JobTech's taxonomy. A name in them says which
+   faith (Imam, Rabbin, "Präst, Svenska kyrkan"), which Art. 6(1)(f), the basis of this processing, cannot carry.
+
+2. **Skip, not filter, and the whole-field exception.** The whole capture is skipped, as for the personnummer guards: a criteria with the
+   ids removed would hash like a genuine narrower search and `Bump()` it. "Välj alla" on Yrken med social inriktning (three of the
+   groups) or Chefer och verksamhetsledare (one) puts the whole field on the axis; a whole field means the field, as the recent-search
+   label already reads it (E2g), so it is stored as picked. A field missing even one group is not a whole field, and a group of another
+   field picked beside it is still singled out (senior-cto-advisor, 2026-10-26).
+
+3. **Membership and derivation.** Only the four group ids are typed. The names are derived at load from each entry's own
+   `groupConceptId` in `occupation-name-lineage.json`, deprecated names included (30 names, 19 current, measured 2026-10-26). Replaced-by
+   edges are not followed: they are the search rule's, a union over versions that can be re-pointed, and which group files a name is
+   JobTech's classification. The fields come from `taxonomy-snapshot.json`, the artefact the database is seeded from.
+   `ReligiousOccupationsArtefactTests` re-derives both from the raw JSON in both directions, and pins the taxonomy versions (lineage
+   `["30","31"]`, `lineageVersion` `1`, snapshot `30`) the four were confirmed against: a taxonomy refresh fails there until its author
+   re-confirms the constant.
+
+4. **One gate, and its verdict on the wire.** `RecentSearchCaptureGate.Admit` is the whole chain in one place: the default-browse guard,
+   the employer, q and taxonomy-axis personnummer skips, `SearchCriteria.Create`, and the rule above. `RecentJobSearchCaptureBehavior`
+   stores exactly what it admits and keeps only the commit flag, the response marker and the user. The gate is pure, depending on the
+   parser and `IReligiousOccupations` alone (architecture-pinned), so `ListJobAdsQuery` answers `JobAdListPage`, the page plus
+   `isStorableAsRecentSearch`, on every request, commit or not. The page is flat, so the wire only gains a field, and
+   `PagedResultContractTests` declares it as a fourth form. On /jobb the hero offers "Spara sökningen" only when that verdict, tagged with
+   the search it answers, says yes for the search on screen, inside a slot of fixed height. No copy explains a refusal. This also ends the
+   false "Sökningen är sparad" on every personnummer skip. An admitted search whose capture then fails still shows it: #2242.
+
+5. **A second reader of the lineage artefact.** Point 4 of the Amendment 2026-10-24 says "only `JobAdSearchTextResolver` injects it, so
+   the filter and the counts have one reader". That still holds for `IOccupationNameLineageProvider` and for `Resolve`: one reader per
+   question. The loaded `OccupationNameLineage` is now handed to two constructors, the provider and the Infrastructure `ReligiousOccupations`
+   behind the narrow port `IReligiousOccupations`. That class copies what it needs into frozen sets at load and keeps no reference to
+   the lineage, and `TaxonomyAclLayerTests` pins both takers.
+
+6. **What the guard does not reach** (measured 2026-10-26, not exhaustive). Not guarded, not assessed: free-text `q`, where a typed term is
+   stored as typed (a ticked Imam is refused, a typed "imam" is not); religion-adjacent names JobTech files under secular groups
+   (Fritidsledare i församling, Församlingspedagog, Kantor/Kyrkomusiker and others), including `fMr9_x3z_q2H`, whose edges lead into the
+   four; the employer axis; and the other stores that can hold the same ids, which are `job_seekers.match_preferences`,
+   `saved_searches.criteria` (no frontend caller) and `parsed_resumes.occupation_proposals`, plus the smart-watch SNI `94910`. The
+   processing register records the same next to each entry.
+
+7. **Rows stored before the guard.** They remain stored until a purge follow-up. Whether there are any is read on the box once this
+   release is live, as a count only. If any are, the purge is a scoped, logged DELETE migration that takes its ids from the same constant
+   and derivation, behind Klas's migration GO. #2199 stays open until that purge is merged or the count reads none. No read-side mask: a
+   hidden row would still be stored, counted against the cap of 20, and invisible to its own data subject.
+
 ---
 
 *ADR-index underhålls av docs-keeper. ADR 0067 fastställer Platsbanken-sök-paritets-initiativets design: yrke-filter-nivåskifte till ssyk-level-4 (occupation-name-substrat bevarat), nya STORED-dimensioner (kommun/yrkesgrupp/anställningsform/omfattning) i Klass 1/Klass 2-sekvens, distans-defer, facet-counts via port-metod, typeahead-chip-sök med residual-FTS, VO-expansion, och fas-uppdelning A–E. Kompletteras av ADR 0043-amendment 2026-06-08 (kommun-dimension + yrkesgrupp-nivå).*

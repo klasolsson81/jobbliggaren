@@ -6,12 +6,13 @@ import { JsonLdScript } from "@/components/seo/json-ld-script";
 import type { PublicJobAdDto } from "@/lib/dto/public-job-ad";
 import type { PublicJobAdSummary } from "@/lib/dto/public-job-ad-catalogue";
 import { type CodedTaxonomyId, codedTaxonomyName, isCodedTaxonomyId } from "@/lib/i18n/coded-taxonomy";
-import { adSourceLink } from "@/lib/job-ads/ad-source-link";
+import { adSourceLink, applicationLinkHref } from "@/lib/job-ads/ad-source-link";
 import { buildJobPosting } from "@/lib/job-ads/job-posting-json-ld";
 import { LOGIN_ENTRY_PATH } from "@/lib/auth/login-paths";
 import { publicJobAdPath } from "@/lib/job-ads/public-job-ad-url";
 import { formatAdDescription } from "./format-ad-description";
 import { JobAdDetailMeta } from "./job-ad-detail-meta";
+import { JobAdSourceLink } from "./job-ad-source-link";
 import { PublicJobAdList } from "./public-job-ad-list";
 import { ShareJobAd } from "./share-job-ad";
 import { StripBounceMarker } from "./strip-bounce-marker";
@@ -35,9 +36,11 @@ const RELATED_TITLE_ID = "jp-related-title";
  * asserts nothing this row and the rest of the page do not show, and is absent when the ad is not complete enough for
  * it; the page stays indexable either way. It never carries the group.
  *
- * The page is where a shared link lands, for a visitor who is not signed in (ADR 0183). The link out is the one primary
- * action and appears once, in the head under "Sök jobbet", so a visitor from a search result or a shared link sees
- * where to apply without scrolling. The share row follows the text, where the decision to pass the ad on is made. The
+ * The page is where a shared link lands, for a visitor who is not signed in (ADR 0183). The head ends with the one primary
+ * action, so a visitor from a search result or a shared link sees where to apply without scrolling. With the employer's
+ * application page, as the backend's gate admits it (#2214 PR 1b), that is "Ansök", after the ad's own page as a text
+ * link on its line (`JobAdSourceLink`, the signed-in card's two links, #2191). Without one it is the link out, once,
+ * under "Sök jobbet". The share row follows the text, where the decision to pass the ad on is made. The
  * footer invites the visitor to sign in and come back to this ad: a plain link with `rel="nofollow"`, since every
  * listed ad would otherwise hand crawlers its own login URL.
  *
@@ -62,6 +65,7 @@ export function PublicJobAd({
   const tLanding = useTranslations("landing");
   const shareLabels = useShareJobAdLabels();
   const link = adSourceLink(jobAd.url);
+  const applyHref = applicationLinkHref(jobAd.applicationUrl);
 
   const location = [jobAd.municipalityName, jobAd.regionName]
     .filter((name): name is string => name !== null && name.trim() !== "")
@@ -116,15 +120,26 @@ export function PublicJobAd({
                 )}
               </div>
             )}
-            {link && (
-              <section aria-labelledby={APPLY_TITLE_ID} className="mt-4">
-                <h2 id={APPLY_TITLE_ID} className="jp-eyebrow mb-2">
-                  {tPublic("apply.heading")}
-                </h2>
-                <a href={link.href} target="_blank" rel="noopener noreferrer" className="jp-btn jp-btn--primary">
-                  <ExternalLink size={14} aria-hidden="true" /> {tPublic(link.label)}
-                </a>
-              </section>
+            {applyHref !== null ? (
+              <>
+                <JobAdSourceLink jobAd={{ url: jobAd.url, applicationUrl: applyHref }} />
+                <div className="mt-4">
+                  <a href={applyHref} target="_blank" rel="nofollow noopener noreferrer" className="jp-btn jp-btn--primary">
+                    <ExternalLink size={14} aria-hidden="true" /> {tUi("detail.apply")}
+                  </a>
+                </div>
+              </>
+            ) : (
+              link && (
+                <section aria-labelledby={APPLY_TITLE_ID} className="mt-4">
+                  <h2 id={APPLY_TITLE_ID} className="jp-eyebrow mb-2">
+                    {tPublic("apply.heading")}
+                  </h2>
+                  <a href={link.href} target="_blank" rel="noopener noreferrer" className="jp-btn jp-btn--primary">
+                    <ExternalLink size={14} aria-hidden="true" /> {tPublic(link.label)}
+                  </a>
+                </section>
+              )
             )}
           </div>
         </header>

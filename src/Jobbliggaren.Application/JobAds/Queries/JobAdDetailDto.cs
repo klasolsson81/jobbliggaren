@@ -27,9 +27,10 @@ namespace Jobbliggaren.Application.JobAds.Queries;
 /// </para>
 /// <para>
 /// <b><see cref="ApplicationUrl"/> (#2191)</b> is the employer's own application page, rendered as the
-/// modal's "Ansök" link. Detail-only for the same reason as the contacts: no list surface links to it,
-/// and the public DTO never carries it (ADR 0166 D10, ADR 0171). Null when the ad has none, which
-/// includes every non-Active ad, since the aggregate clears it at archival.
+/// modal's "Ansök" link. No list surface links to it, and the public DTO carries it only as the public
+/// gate admits it (<c>PublicApplicationLink</c>, #2214 PR 1b), whereas this one carries every link
+/// <c>ApplicationUrl.FromSource</c> stores. Null when the ad has none, which includes every non-Active
+/// ad, since the aggregate clears it at archival.
 /// </para>
 /// <para>
 /// <b><see cref="IsListed"/> (#2214 PR 3, ADR 0183 D6)</b> is whether this ad is publicly listed,

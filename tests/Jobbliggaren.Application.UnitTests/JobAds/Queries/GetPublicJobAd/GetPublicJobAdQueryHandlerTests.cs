@@ -49,7 +49,8 @@ public class GetPublicJobAdQueryHandlerTests
                     .ToList()));
     }
 
-    private static JobAd Import(DateTimeOffset publishedAt, DateTimeOffset? expiresAt, JobAdFacets? facets = null)
+    private static JobAd Import(
+        DateTimeOffset publishedAt, DateTimeOffset? expiresAt, JobAdFacets? facets = null, string? applicationUrl = null)
     {
         var externalId = TestIds.ExternalId();
         var payload = $"{{\"id\":\"{externalId}\"}}";
@@ -65,7 +66,8 @@ public class GetPublicJobAdQueryHandlerTests
             publishedAt: publishedAt,
             expiresAt: expiresAt,
             clock: Clock,
-            applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
+            applicationUrl: applicationUrl is null ? null : ApplicationUrl.FromSource(applicationUrl).ShouldNotBeNull(),
+            extractTerms: TestKeywordExtraction.None).Value;
     }
 
     /// <summary>Saves the ad, then applies an optional lifecycle change to the saved row, as production does.</summary>
@@ -107,6 +109,7 @@ public class GetPublicJobAdQueryHandlerTests
             CompanyName: "Klarna",
             Description: "Vi söker en backend-utvecklare.",
             Url: "https://arbetsformedlingen.se/platsbanken/annonser/1",
+            ApplicationUrl: null,
             PublishedAt: publishedAt,
             ExpiresAt: expiresAt,
             MunicipalityConceptId: "mun_sthlm",
@@ -120,6 +123,35 @@ public class GetPublicJobAdQueryHandlerTests
         await _taxonomy.Received(1).ResolveLabelsAsync(
             Arg.Is<IReadOnlyList<string>>(ids => ids.SequenceEqual(AllThreeIds)),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ListedAdWithAnEmployerApplicationPage_CarriesIt()
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-2), Clock.UtcNow.AddDays(20),
+            applicationUrl: "https://jobb.example.se/ansok/123"));
+
+        var result = await HandleAsync(db, id);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ApplicationUrl.ShouldBe("https://jobb.example.se/ansok/123");
+    }
+
+    [Theory]
+    [InlineData("https://jobb.example.se/ansok?tel=0701234567")]
+    [InlineData("https://www.linkedin.com/in/someone")]
+    [InlineData("https://bit.ly/abc")]
+    public async Task Handle_ListedAdWhoseApplicationLinkIsAContactChannel_CarriesNoLink(string applicationUrl)
+    {
+        await using var db = TestAppDbContextFactory.Create();
+        var id = await SeedAsync(db, Import(Clock.UtcNow.AddDays(-2), Clock.UtcNow.AddDays(20),
+            applicationUrl: applicationUrl));
+
+        var result = await HandleAsync(db, id);
+
+        result.IsSuccess.ShouldBeTrue("the ad itself is still listed; only the link stays off the public page");
+        result.Value.ApplicationUrl.ShouldBeNull();
     }
 
     [Fact]

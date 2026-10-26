@@ -6,9 +6,10 @@ import type { JobAdDetailDto } from "@/lib/dto/job-ads";
 
 /**
  * #2191 (ADR 0053 Amendment 2026-10-19) — the ad's own page at the source, on a line of its own under the
- * header's dates, when the footer's primary is "Ansök" to the employer's application page. The footer then
- * has no room for "Öppna annonsen" on one row, and the original ad must stay easy to find. Without an
- * application page the footer's "Öppna annonsen" is the way to the ad, so this renders nothing.
+ * header's dates, when the primary is "Ansök" to the employer's application page: the footer's on the
+ * signed-in card, which then has no room for "Öppna annonsen" on one row, and the head's on the public page
+ * (#2214 PR 1b). The original ad must stay easy to find. Without an application page "Öppna annonsen" is
+ * the way to the ad, so this renders nothing.
  */
 export function JobAdSourceLink({
   jobAd,

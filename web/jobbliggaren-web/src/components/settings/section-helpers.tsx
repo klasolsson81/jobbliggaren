@@ -5,7 +5,7 @@
 // match-setup-rail-modal (DRY, ADR 0077 STEG 5, amendad #526) — extraherade ur dialogen utan
 // beteendeändring (samma roller/etiketter/markup som tidigare).
 
-import { type KeyboardEvent, useCallback, useId, useRef } from "react";
+import { Fragment, type KeyboardEvent, useCallback, useId, useRef } from "react";
 import { Check } from "lucide-react";
 import { useFormatter } from "next-intl";
 import { formatNumber } from "@/lib/i18n/format";
@@ -33,12 +33,14 @@ import type { Option } from "./match-preferences-shared";
  * `included` (#2199) marks a row that is already part of a wider choice: checked, `aria-disabled`,
  * still focusable, and inert to click, Space and Enter. The type admits it only beside `secondary`,
  * because the second line is where the row says why. Without it the row renders exactly as before.
+
  */
 export function CheckItem(props: CheckItemProps) {
   if (props.secondary !== undefined) {
     return <TwoLineCheckItem {...props} secondary={props.secondary} />;
   }
-  const { label, checked, onToggle, isAll, indeterminate, describedBy, count } = props;
+  const { label, checked, onToggle, isAll, indeterminate, describedBy, count, breakAfterSlash } = props;
+  const text = breakAfterSlash ? withBreaksAfterSlash(label) : label;
   return (
     <div
       className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
@@ -53,10 +55,10 @@ export function CheckItem(props: CheckItemProps) {
         {checked && <Check size={14} aria-hidden="true" />}
       </span>
       {count === undefined ? (
-        label
+        text
       ) : (
         <span className="flex min-w-0 flex-1 items-baseline gap-3">
-          {label}
+          {text}
           <CheckItemCount count={count} />
         </span>
       )}
@@ -72,6 +74,7 @@ interface CheckItemBaseProps {
   readonly indeterminate?: boolean;
   readonly describedBy?: string;
   readonly count?: number;
+  readonly breakAfterSlash?: boolean;
 }
 
 type CheckItemProps = CheckItemBaseProps &
@@ -79,6 +82,20 @@ type CheckItemProps = CheckItemBaseProps &
     | { readonly secondary?: undefined; readonly included?: never }
     | { readonly secondary: string; readonly included?: boolean }
   );
+
+function withBreaksAfterSlash(text: string): React.ReactNode {
+  const parts = text.split("/");
+  return parts.map((part, i) => (
+    <Fragment key={i}>
+      {part}
+      {i < parts.length - 1 && (
+        <>
+          /<wbr />
+        </>
+      )}
+    </Fragment>
+  ));
+}
 
 function toggleOnSpaceOrEnter(e: KeyboardEvent<HTMLElement>, onToggle?: () => void) {
   if (e.key === " " || e.key === "Enter") {
@@ -109,6 +126,7 @@ function TwoLineCheckItem({
   secondary,
   count,
   included,
+  breakAfterSlash,
 }: CheckItemBaseProps & { readonly secondary: string; readonly included?: boolean }) {
   const id = useId();
   const nameId = `${id}-name`;
@@ -137,15 +155,15 @@ function TwoLineCheckItem({
       </span>
       <span className={count === undefined ? "flex min-w-0 flex-col" : "flex min-w-0 flex-1 flex-col"}>
         {count === undefined ? (
-          <span id={nameId}>{label}</span>
+          <span id={nameId}>{breakAfterSlash ? withBreaksAfterSlash(label) : label}</span>
         ) : (
           <span className="flex items-baseline gap-3">
-            <span id={nameId}>{label}</span>
+            <span id={nameId}>{breakAfterSlash ? withBreaksAfterSlash(label) : label}</span>
             <CheckItemCount id={countId} count={count} />
           </span>
         )}
         <span id={secondaryId} className="text-body-sm text-text-secondary">
-          {secondary}
+          {breakAfterSlash ? withBreaksAfterSlash(secondary) : secondary}
         </span>
       </span>
     </div>

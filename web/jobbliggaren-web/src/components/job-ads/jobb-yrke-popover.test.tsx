@@ -572,6 +572,29 @@ describe("/jobb Yrke: an occupation-name tick (#2199)", () => {
     expect(screen.getByRole("checkbox", { name: "UX-designer" })).toBeInTheDocument();
   });
 
+  it("requests the name counts without the Yrke picks, which the backend leaves out of that dimension", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) => new Response(JSON.stringify({}), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.ux });
+    render(hero("", [IT_GROUP.id], [UX_DESIGNER()]));
+    await openYrke(user);
+    await user.type(field(), "ux");
+
+    const nameRequest = async () => {
+      let found: URL | undefined;
+      await waitFor(() => {
+        const call = fetchMock.mock.calls.find(([url]) => String(url).includes("dimension=OccupationName"));
+        expect(call).toBeDefined();
+        found = new URL(String(call?.[0]), "http://localhost");
+      });
+      return found as URL;
+    };
+    const params = (await nameRequest()).searchParams;
+    expect(params.getAll("occupationGroup")).toEqual([]);
+    expect(params.getAll("occupationName")).toEqual([]);
+  });
+
   it("the place counts are taken under the picked names", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (_input: RequestInfo | URL) => new Response(JSON.stringify({}), { status: 200 }));

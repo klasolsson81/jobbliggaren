@@ -464,6 +464,7 @@ describe("OccupationSearchResults — occupation-names on /jobb (#2199)", () => 
     expect(column).toHaveAccessibleDescription("GROUP-HINT");
     expect(within(column).getByText("Yrken")).toBeInTheDocument();
     expect(within(column).getByRole("checkbox", { name: "UX-designer" })).toHaveAttribute("aria-checked", "false");
+    expect(within(column).getByRole("checkbox", { name: "UX-designer" })).not.toHaveAccessibleDescription();
     expect(screen.getByRole("button", { name: `1 yrke i ${UX_GROUP.label}` })).toHaveAttribute("aria-pressed", "true");
     expect(onToggle).not.toHaveBeenCalled();
     expect(onToggleName).not.toHaveBeenCalled();
@@ -492,13 +493,13 @@ describe("OccupationSearchResults — occupation-names on /jobb (#2199)", () => 
     expect(screen.getByRole("group", { name: IT_GROUP.label })).toHaveAccessibleDescription("GROUP-HINT");
   });
 
-  it("names an open Word row under the band, with the Word hint, its variants on one line", () => {
+  it("names an open Word row under the band, with the Word hint, each variant naming its group", () => {
     renderNames(answer([projektledareRow]));
 
     const column = screen.getByRole("group", { name: "Projektledare" });
     expect(column).toHaveAccessibleDescription("WORD-HINT");
     const variant = within(column).getByRole("checkbox", { name: "Projektledare, IT" });
-    expect(variant).not.toHaveAccessibleDescription();
+    expect(variant).toHaveAccessibleDescription(`Yrkesgrupp: ${IT_GROUP.label}`);
   });
 
   it("checks two variants of one group apart, by their own ids", () => {

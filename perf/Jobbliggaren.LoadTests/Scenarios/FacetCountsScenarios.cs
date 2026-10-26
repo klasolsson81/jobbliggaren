@@ -39,8 +39,7 @@
 //     pipeline, no rate limiter). Two scenarios:
 //       * OccupationNameHeavy — no filters, the widest pair set.
 //       * OccupationNameWithPicks — the same facet with five occupationName= on
-//         the wire, the request shape the FE sends when the user has already
-//         picked occupation names. ExcludeDimension clears BOTH Yrke lists
+//         the wire. ExcludeDimension clears BOTH Yrke lists
 //         (occupationGroup and occupationName) for the OccupationName facet, so
 //         the picks do NOT narrow the WHERE: the difference from Heavy is the
 //         cost of the request shape (binding, validator, criteria, SPOT
@@ -258,8 +257,7 @@ internal static class FacetCountsScenarios
 
     /// <summary>
     /// #2199 — the occupation-name facet with five picked occupation names (repeated
-    /// occupationName=), the request shape the FE sends when the user has already
-    /// picked occupation names. ExcludeDimension clears the picks out of the WHERE
+    /// occupationName=). ExcludeDimension clears the picks out of the WHERE
     /// (both Yrke lists), so the DB work is the same as <see cref="OccupationNameHeavy"/>;
     /// the difference from that scenario is the cost of the request shape. Five ids
     /// from the lineage artefact: current names (currentIn ⊇ "31"), see

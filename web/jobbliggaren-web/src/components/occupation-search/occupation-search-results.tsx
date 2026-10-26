@@ -222,6 +222,7 @@ function Answer({
               count={counts ? (counts[row.groupConceptId] ?? 0) : undefined}
               checked={selected.includes(row.groupConceptId)}
               onToggle={() => onToggle(row.groupConceptId)}
+              breakAfterSlash={names !== undefined}
             />
           );
           if (names === undefined || row.matchedNames.length === 0) return groupCheck;
@@ -276,7 +277,7 @@ function Answer({
           <div
             id={rightId}
             ref={rightColumnRef}
-            className="jp-matchdialog__cascade-col"
+            className="jp-matchdialog__cascade-col jp-occsearch__names"
             role="group"
             aria-labelledby={rightHeadingId}
             aria-describedby={rightHintId}
@@ -296,6 +297,7 @@ function Answer({
                 t={t}
                 name={name}
                 included={selected.includes(name.groupConceptId)}
+                namesGroup={openRow.kind === "Word"}
                 names={names}
               />
             ))}
@@ -380,31 +382,42 @@ function NameRow({
   t,
   name,
   included,
+  namesGroup,
   names,
 }: {
   readonly t: Translate;
   readonly name: NameEntry;
   readonly included: boolean;
+  readonly namesGroup: boolean;
   readonly names: OccupationNameSelection;
 }) {
   const count = names.counts ? (names.counts[name.id] ?? 0) : undefined;
   const toggle = () => names.onToggle(name.id);
-  return included ? (
+  if (included) {
+    return (
+      <CheckItem
+        label={name.label}
+        secondary={t("variantIncluded", { group: name.groupLabel })}
+        included
+        checked
+        count={count}
+        onToggle={toggle}
+        breakAfterSlash
+      />
+    );
+  }
+  const checked = names.selected.includes(name.id);
+  return namesGroup ? (
     <CheckItem
       label={name.label}
-      secondary={t("variantIncluded", { group: name.groupLabel })}
-      included
-      checked
+      secondary={t("variantGroup", { group: name.groupLabel })}
+      checked={checked}
       count={count}
       onToggle={toggle}
+      breakAfterSlash
     />
   ) : (
-    <CheckItem
-      label={name.label}
-      checked={names.selected.includes(name.id)}
-      count={count}
-      onToggle={toggle}
-    />
+    <CheckItem label={name.label} checked={checked} count={count} onToggle={toggle} breakAfterSlash />
   );
 }
 

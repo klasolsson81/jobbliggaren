@@ -60,6 +60,30 @@ describe("CheckItem — the facet count (#2198 PR 2)", () => {
   });
 });
 
+describe("CheckItem — breakAfterSlash (#2199)", () => {
+  it("offers a break after each slash in both lines, and keeps the accessible name and description", () => {
+    render(
+      <CheckItem
+        label="Kommunchef/Kommundirektör"
+        secondary="träff på Skolchef/Skoldirektör"
+        checked={false}
+        onToggle={vi.fn()}
+        breakAfterSlash
+      />,
+    );
+
+    const row = screen.getByRole("checkbox", { name: "Kommunchef/Kommundirektör" });
+    expect(row).toHaveAccessibleDescription("träff på Skolchef/Skoldirektör");
+    expect(row.querySelectorAll("wbr")).toHaveLength(2);
+  });
+
+  it("renders no break opportunity without the prop", () => {
+    render(<CheckItem label="Kommunchef/Kommundirektör" checked={false} onToggle={vi.fn()} />);
+
+    expect(screen.getByRole("checkbox", { name: "Kommunchef/Kommundirektör" }).querySelector("wbr")).toBeNull();
+  });
+});
+
 describe("CheckItem — the included state (#2199)", () => {
   it("is checked, aria-disabled, still focusable, and says why in its description", () => {
     render(

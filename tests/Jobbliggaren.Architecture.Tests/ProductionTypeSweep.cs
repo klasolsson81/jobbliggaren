@@ -1,32 +1,19 @@
 using System.Runtime.CompilerServices;
-using Jobbliggaren.Infrastructure.Admin.Accounts;
 using Mono.Cecil;
 
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// The IL type-reference sweep of every production assembly, shared by <see cref="AccountActivityReaderTests"/> and
-/// <see cref="ReadTimeMatchingConsumerTests"/>.
+/// The IL type-reference sweep of every production assembly (<see cref="ProductionAssemblies"/>), shared by
+/// <see cref="AccountActivityReaderTests"/>, <see cref="ReadTimeMatchingConsumerTests"/> and the DMARC boundary tests.
 /// </summary>
 internal static class ProductionTypeSweep
 {
-    internal static readonly string[] AssemblyPaths =
-    [
-        typeof(Jobbliggaren.Domain.Matching.UserJobAdMatch).Assembly.Location,
-        typeof(Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.TopMatchMailDispatcher).Assembly.Location,
-        typeof(SqlAccountDirectory).Assembly.Location,
-        typeof(Jobbliggaren.Api.Endpoints.AuthProblem).Assembly.Location,
-        typeof(Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker).Assembly.Location,
-        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly.Location,
-        typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly.Location,
-        typeof(Jobbliggaren.Migrate.Roles).Assembly.Location,
-    ];
-
     internal static IEnumerable<TypeDefinition> Types()
     {
-        foreach (var path in AssemblyPaths)
+        foreach (var production in ProductionAssemblies.All)
         {
-            using var assembly = AssemblyDefinition.ReadAssembly(path);
+            using var assembly = production.ReadDefinition();
             foreach (var type in assembly.Modules.SelectMany(module => module.GetTypes()))
                 yield return type;
         }

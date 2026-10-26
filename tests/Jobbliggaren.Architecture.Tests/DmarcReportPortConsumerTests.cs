@@ -187,9 +187,9 @@ public class DmarcReportPortConsumerTests
     private static List<CallSite> CallSitesOf(Type declaringType, string method)
     {
         var sites = new List<CallSite>();
-        foreach (var path in ProductionTypeSweep.AssemblyPaths.Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var production in ProductionAssemblies.All)
         {
-            using var assembly = AssemblyDefinition.ReadAssembly(path);
+            using var assembly = production.ReadDefinition();
             foreach (var caller in assembly.Modules.SelectMany(module => module.GetTypes()).SelectMany(type => type.Methods))
             {
                 if (!caller.HasBody)

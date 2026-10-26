@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
-using Jobbliggaren.Infrastructure.Mailbox.Dmarc;
 using Mono.Cecil;
 using Shouldly;
 
@@ -33,7 +32,7 @@ public class DmarcMailboxDependencyTests
         @"<ProjectReference\b[^>]*?Include\s*=\s*""(?<path>[^""]+)""",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant);
 
-    private static readonly string MailboxAssemblyPath = typeof(DmarcMailboxCollectionExtensions).Assembly.Location;
+    private static readonly string MailboxAssemblyPath = ProductionAssemblies.InfrastructureMailbox.Location;
 
     [Fact]
     public void Only_the_mailbox_project_and_the_central_version_file_declare_a_mail_package()
@@ -118,15 +117,14 @@ public class DmarcMailboxDependencyTests
     [Fact]
     public void Only_the_mailbox_assembly_references_a_mail_assembly()
     {
-        var offenders = ProductionTypeSweep.AssemblyPaths
-            .Where(path => !string.Equals(path, MailboxAssemblyPath, StringComparison.OrdinalIgnoreCase))
-            .SelectMany(path => AssemblyReferenceNames(path)
+        var offenders = ProductionAssemblies.All
+            .Where(assembly => assembly != ProductionAssemblies.InfrastructureMailbox)
+            .SelectMany(assembly => AssemblyReferenceNames(assembly.Location)
                 .Where(MailAssemblyNames.Contains)
-                .Select(reference => $"{Path.GetFileNameWithoutExtension(path)} -> {reference}"))
+                .Select(reference => $"{assembly.Name} -> {reference}"))
             .ToList();
 
         offenders.ShouldBeEmpty("MailKit and MimeKit belong to Jobbliggaren.Infrastructure.Mailbox alone (Beslut D2)");
-        ProductionTypeSweep.AssemblyPaths.ShouldContain(MailboxAssemblyPath);
     }
 
     /// <summary>The positive half: the scan above is asked about the right assembly, and it is the one holding MailKit.</summary>

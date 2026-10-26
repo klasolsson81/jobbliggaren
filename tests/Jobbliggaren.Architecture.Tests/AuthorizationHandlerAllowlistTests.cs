@@ -1,5 +1,3 @@
-using Jobbliggaren.Api.Authorization;
-using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Shouldly;
 
@@ -25,10 +23,8 @@ public class AuthorizationHandlerAllowlistTests
     {
         var allowed = new[] { "AdminRoleAuthorizationHandler" };
 
-        // Scan both Api (where AdminRoleAuthorizationHandler lives) AND Infrastructure (which may reference
-        // Microsoft.AspNetCore.Authorization too), so a privilege-granting handler in either layer is caught.
-        var implementations = new[] { typeof(AdminRoleRequirement).Assembly, typeof(AppDbContext).Assembly }
-            .SelectMany(a => a.GetTypes())
+        // Scan every production assembly, so a privilege-granting handler in any layer is caught.
+        var implementations = ProductionAssemblies.ReflectedTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false }
                         && typeof(IAuthorizationHandler).IsAssignableFrom(t))
             .Select(t => t.Name)

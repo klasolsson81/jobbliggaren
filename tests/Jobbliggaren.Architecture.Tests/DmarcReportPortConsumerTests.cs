@@ -5,7 +5,6 @@ using Jobbliggaren.Application.Admin.Email.Jobs.DmarcReportIngestion;
 using Jobbliggaren.Application.Admin.Email.Jobs.DmarcReportRetention;
 using Jobbliggaren.Infrastructure.Email.Dmarc;
 using Jobbliggaren.Infrastructure.Mailbox.Dmarc;
-using Jobbliggaren.Worker.Auditing;
 using Jobbliggaren.Worker.Hosting;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -35,11 +34,6 @@ public class DmarcReportPortConsumerTests
 
     private static readonly string QueryNamespace = typeof(GetDmarcReportsQuery).Namespace!;
 
-    private static readonly Assembly ApplicationAssembly = typeof(Jobbliggaren.Application.AssemblyMarker).Assembly;
-    private static readonly Assembly InfrastructureAssembly = typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly;
-    private static readonly Assembly ApiAssembly = typeof(Jobbliggaren.Api.Endpoints.AdminEmailEndpoints).Assembly;
-    private static readonly Assembly WorkerAssembly = typeof(WorkerSystemUser).Assembly;
-
     public static TheoryData<string, string[]> PortConsumers() => new()
     {
         { typeof(IDmarcMailbox).FullName!, [typeof(DmarcReportIngestionJob).FullName!] },
@@ -55,18 +49,7 @@ public class DmarcReportPortConsumerTests
     {
         const BindingFlags declared =
             BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-        Assembly[] owned =
-        [
-            ApplicationAssembly,
-            InfrastructureAssembly,
-            ApiAssembly,
-            WorkerAssembly,
-            typeof(DmarcMailboxCollectionExtensions).Assembly,
-            typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
-        ];
-
-        var found = owned
-            .SelectMany(assembly => assembly.GetTypes())
+        var found = ProductionAssemblies.ReflectedTypes()
             .Where(type => type.GetConstructors(declared).Cast<MethodBase>().Concat(type.GetMethods(declared))
                 .Any(member => member.GetParameters().Any(parameter => parameter.ParameterType.FullName == port)))
             .Select(type => type.FullName!)
@@ -122,7 +105,7 @@ public class DmarcReportPortConsumerTests
     [Fact]
     public void NoTypeWrittenInTheWorker_NamesTheRead()
     {
-        var written = ReadSideMentions(WorkerAssembly)
+        var written = ReadSideMentions(ProductionAssemblies.Worker)
             .Where(mention => !mention.ByMediatorGenerator)
             .ToList();
 
@@ -138,7 +121,7 @@ public class DmarcReportPortConsumerTests
     [Fact]
     public void TheWorkersGeneratedMediator_NamesOnlyTheQueryAndItsHandler()
     {
-        var generated = ReadSideMentions(WorkerAssembly)
+        var generated = ReadSideMentions(ProductionAssemblies.Worker)
             .Where(mention => mention.ByMediatorGenerator)
             .Select(mention => mention.Named)
             .Distinct(StringComparer.Ordinal)
@@ -162,9 +145,9 @@ public class DmarcReportPortConsumerTests
     {
         var target = assembly switch
         {
-            "Application" => ApplicationAssembly,
-            "Infrastructure" => InfrastructureAssembly,
-            "Api" => ApiAssembly,
+            "Application" => ProductionAssemblies.Application,
+            "Infrastructure" => ProductionAssemblies.Infrastructure,
+            "Api" => ProductionAssemblies.Api,
             _ => throw new ArgumentOutOfRangeException(nameof(assembly), assembly, "Not a scanned assembly."),
         };
 
@@ -187,9 +170,9 @@ public class DmarcReportPortConsumerTests
     private static List<CallSite> CallSitesOf(Type declaringType, string method)
     {
         var sites = new List<CallSite>();
-        foreach (var path in ProductionTypeSweep.AssemblyPaths.Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var production in ProductionAssemblies.All)
         {
-            using var assembly = AssemblyDefinition.ReadAssembly(path);
+            using var assembly = production.ReadDefinition();
             foreach (var caller in assembly.Modules.SelectMany(module => module.GetTypes()).SelectMany(type => type.Methods))
             {
                 if (!caller.HasBody)
@@ -219,10 +202,10 @@ public class DmarcReportPortConsumerTests
     /// it was written in) with each read-side type its signatures or IL name: the read port, its adapter, or anything in
     /// the reports query's namespace.
     /// </summary>
-    private static List<Mention> ReadSideMentions(Assembly assembly)
+    private static List<Mention> ReadSideMentions(ProductionAssembly assembly)
     {
         var mentions = new HashSet<Mention>();
-        using var definition = AssemblyDefinition.ReadAssembly(assembly.Location);
+        using var definition = assembly.ReadDefinition();
         foreach (var type in definition.Modules.SelectMany(module => module.GetTypes()))
         {
             var owner = ProductionTypeSweep.OwnerOf(type);

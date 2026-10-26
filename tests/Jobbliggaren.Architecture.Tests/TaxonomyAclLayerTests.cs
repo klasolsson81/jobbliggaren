@@ -271,21 +271,10 @@ public class TaxonomyAclLayerTests
         ]);
     }
 
-    // Every assembly that can resolve a port (precedent: ErasurePortInjectionRadiusTests), and the class
-    // names whose constructors take the dependency.
+    // The class names whose constructors take the dependency, in every production assembly.
     private static List<string> ConstructorConsumersOf(Type dependency)
     {
-        var assemblies = new[]
-        {
-            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver).Assembly,
-            typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
-            typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
-            typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
-        };
-
-        return assemblies
-            .SelectMany(a => a.GetTypes())
+        return ProductionAssemblies.ReflectedTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false })
             .Where(t => t.GetConstructors(
                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic

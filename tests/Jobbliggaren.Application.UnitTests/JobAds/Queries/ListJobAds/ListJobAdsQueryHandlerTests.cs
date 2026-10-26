@@ -5,6 +5,7 @@ using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Matching.Grading;
+using Jobbliggaren.Application.RecentJobSearches.Common;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -76,7 +77,7 @@ public class ListJobAdsQueryHandlerTests
             cvSkills ?? []);
 
     private ListJobAdsQueryHandler NewHandler() =>
-        new(_search, _matchSearch, _profileBuilder, _db, _currentUser);
+        new(_search, _matchSearch, _profileBuilder, _db, _currentUser, RealRecentSearchCaptureGate.Instance);
 
     private static PagedResult<JobAdDto> EmptyPage(int page = 1, int pageSize = 20) =>
         new([], 0, page, pageSize);
@@ -269,9 +270,48 @@ public class ListJobAdsQueryHandlerTests
 
         var result = await handler.Handle(new ListJobAdsQuery(), TestContext.Current.CancellationToken);
 
-        result.ShouldBeSameAs(portResult);
+        result.Items.ShouldBeSameAs(portResult.Items);
         result.TotalCount.ShouldBe(1);
         result.Items.ShouldHaveSingleItem().Title.ShouldBe("Backend-utvecklare");
+    }
+
+    // #2199 PR 2b — the page answers whether RecentSearchCaptureGate admits the search, on every request,
+    // commit or not: the hero reads it from the live preview before the user asks to save.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Handle_AnOrdinarySearch_IsStorableAsRecentSearch(bool commit)
+    {
+        _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>()).Returns(EmptyPage());
+
+        var result = await NewHandler().Handle(
+            new ListJobAdsQuery(Q: "backend", Commit: commit), TestContext.Current.CancellationToken);
+
+        result.IsStorableAsRecentSearch.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_AReligiousGroup_IsNotStorableAsRecentSearch()
+    {
+        _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>()).Returns(EmptyPage());
+
+        var result = await NewHandler().Handle(
+            new ListJobAdsQuery(OccupationGroup: [ReligiousOccupationGroups.Priests]),
+            TestContext.Current.CancellationToken);
+
+        result.IsStorableAsRecentSearch.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("19811218-9876")]
+    public async Task Handle_ASearchTheGateRefuses_IsNotStorableAsRecentSearch(string? q)
+    {
+        _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>()).Returns(EmptyPage());
+
+        var result = await NewHandler().Handle(new ListJobAdsQuery(Q: q), TestContext.Current.CancellationToken);
+
+        result.IsStorableAsRecentSearch.ShouldBeFalse();
     }
 
     [Fact]
@@ -512,7 +552,7 @@ public class ListJobAdsQueryHandlerTests
             new ListJobAdsQuery(Sort: ListJobAdsSort.MatchDesc),
             TestContext.Current.CancellationToken);
 
-        result.ShouldBeSameAs(matchResult);
+        result.Items.ShouldBeSameAs(matchResult.Items);
     }
 
     // --- ADR 0079 STEG 5: grad-filter × sort frikopplade ---------------------
@@ -867,7 +907,7 @@ public class ListJobAdsQueryHandlerTests
     }
 
     private ListJobAdsQueryHandler NewHandlerWith(IAppDbContext db) =>
-        new(_search, _matchSearch, _profileBuilder, db, _currentUser);
+        new(_search, _matchSearch, _profileBuilder, db, _currentUser, RealRecentSearchCaptureGate.Instance);
 
     // Seeds a JobSeeker for userId into a fresh InMemory context and returns it + the seeker id.
     private static async Task<(AppDbContext Db, JobSeekerId SeekerId)> SeededDbAsync(

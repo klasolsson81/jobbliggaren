@@ -1,10 +1,11 @@
 using Jobbliggaren.Application.Common.Abstractions;
-using Jobbliggaren.Application.JobAds.Internal;
 using Jobbliggaren.Application.RecentJobSearches.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Behaviors;
 using Jobbliggaren.Application.RecentJobSearches.Common;
+using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.SavedSearches;
+using Jobbliggaren.Infrastructure.Taxonomy;
 using Mediator;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -67,8 +68,9 @@ public class RecentJobSearchCaptureBehaviorTests
         where TMessage : IMessage =>
         // #831 — the REAL parser, not a substitute: it is pure CPU and deterministic, and the
         // behaviour under test is precisely "capture what the parser decided the search was".
-        // A fake here would let the test agree with itself instead of with production.
-        new(_currentUser, _capturer, new SearchQueryParser(),
+        // A fake here would let the test agree with itself instead of with production. #2199 PR 2b:
+        // the gate that holds it is the real one too, religious occupations included.
+        new(_currentUser, _capturer, RealRecentSearchCaptureGate.Instance,
             Substitute.For<ILogger<RecentJobSearchCaptureBehavior<TMessage, TResponse>>>());
 
     private static MessageHandlerDelegate<TMessage, TResponse> Next<TMessage, TResponse>(
@@ -963,6 +965,115 @@ public class RecentJobSearchCaptureBehaviorTests
         typeof(ICapturesRecentSearch).GetProperty("WorktimeExtent").ShouldNotBeNull();
     }
 
+    // ---------------------------------------------------------------
+    // #2199 PR 2b — a religious office singled out is never stored
+    // ---------------------------------------------------------------
+    // The SEARCH runs and only the capture is skipped, as for the personnummer guards above. The ids
+    // are JobTech's: the policy constant's groups, and names the lineage artefact files under them.
+    // ReligiousOccupationsArtefactTests pins that the real adapter singles them out.
+
+    private const string Imam = "5avt_87C_rXE";
+    // Deprecated in both taxonomy versions, so only a hand-edited URL reaches it.
+    private const string Kaplan = "memm_eLn_j1a";
+    // Filed by JobTech under Fritidsledare m.fl., a secular group: not guarded, not assessed.
+    private const string Forsamlingspedagog = "aWHP_Fv2_1US";
+    private const string ProjektledareIt = "z5AM_ayf_WcL";
+
+    private async Task ShouldCaptureNothing(FakeSearchQuery query)
+    {
+        await HandleAsync(query);
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    private static FakeSearchQuery Yrke(IReadOnlyList<string>? groups = null, IReadOnlyList<string>? names = null) =>
+        new(Q: null, OccupationGroup: groups, Municipality: null, Region: null, OccupationName: names);
+
+    [Theory]
+    [InlineData(ReligiousOccupationGroups.Priests)]
+    [InlineData(ReligiousOccupationGroups.Pastors)]
+    [InlineData(ReligiousOccupationGroups.Deacons)]
+    [InlineData(ReligiousOccupationGroups.LeadersOfReligiousCommunities)]
+    public Task Handle_AReligiousGroupOnly_RunsTheSearchButCapturesNothing(string group) =>
+        ShouldCaptureNothing(Yrke(groups: [group]));
+
+    [Fact]
+    public Task Handle_AReligiousNameOnly_CapturesNothing() =>
+        ShouldCaptureNothing(Yrke(names: [Imam]));
+
+    [Fact]
+    public Task Handle_AReligiousGroupAndName_CapturesNothing() =>
+        ShouldCaptureNothing(Yrke(groups: [ReligiousOccupationGroups.Priests], names: [Imam]));
+
+    [Fact]
+    public Task Handle_AReligiousNameAmongOrdinaryNames_CapturesNothingAtAll() =>
+        ShouldCaptureNothing(Yrke(names: [ProjektledareIt, Imam]));
+
+    [Fact]
+    public Task Handle_ADeprecatedReligiousName_CapturesNothing() =>
+        ShouldCaptureNothing(Yrke(names: [Kaplan]));
+
+    // The axes are validated on shape only, so an id can arrive on the other one.
+    [Fact]
+    public Task Handle_AReligiousNameOnTheGroupAxis_CapturesNothing() =>
+        ShouldCaptureNothing(Yrke(groups: [Imam]));
+
+    [Fact]
+    public Task Handle_AReligiousGroupOnTheNameAxis_CapturesNothing() =>
+        ShouldCaptureNothing(Yrke(names: [ReligiousOccupationGroups.Priests]));
+
+    [Theory]
+    [InlineData(ProjektledareIt)]
+    [InlineData(Forsamlingspedagog)]
+    public async Task Handle_ANameOutsideTheReligiousGroups_IsCaptured(string name)
+    {
+        await HandleAsync(Yrke(names: [name]));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Is<SearchCriteria>(c => c.OccupationName.SequenceEqual(new[] { name })), 7,
+            Arg.Any<CancellationToken>());
+    }
+
+    // "Välj alla" on Yrken med social inriktning puts all its groups, three religious ones among them,
+    // on the axis. A whole field means the field and is stored as picked (senior-cto-advisor,
+    // 2026-10-26). The field is read from the real snapshot, never typed here.
+    [Fact]
+    public async Task Handle_AWholeFieldHoldingReligiousGroups_IsCaptured()
+    {
+        var field = WholeFieldOf(ReligiousOccupationGroups.Priests);
+
+        await HandleAsync(Yrke(groups: field));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Is<SearchCriteria>(c => c.OccupationGroup.Count == field.Count), 7,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public Task Handle_AWholeFieldMinusAnOrdinaryGroup_CapturesNothing()
+    {
+        var field = WholeFieldOf(ReligiousOccupationGroups.Priests);
+        var ordinary = field.First(g => !ReligiousOccupationGroups.ConceptIds.Contains(g));
+
+        return ShouldCaptureNothing(Yrke(groups: [.. field.Where(g => g != ordinary)]));
+    }
+
+    [Fact]
+    public Task Handle_AWholeFieldPlusAReligiousName_CapturesNothing() =>
+        ShouldCaptureNothing(Yrke(groups: WholeFieldOf(ReligiousOccupationGroups.Priests), names: [Imam]));
+
+    [Fact]
+    public Task Handle_AWholeFieldPlusAReligiousGroupOfAnotherFieldAlone_CapturesNothing() =>
+        ShouldCaptureNothing(Yrke(groups:
+            [.. WholeFieldOf(ReligiousOccupationGroups.Priests), ReligiousOccupationGroups.LeadersOfReligiousCommunities]));
+
+    private static IReadOnlyList<string> WholeFieldOf(string group) =>
+        [
+            .. TaxonomySnapshotLoader.Load().OccupationFields
+                .Single(f => (f.OccupationGroups ?? []).Any(g => g.ConceptId == group))
+                .OccupationGroups!.Select(g => g.ConceptId),
+        ];
+
     // #1419: EXHAUSTIVE, because the block above is inclusion-only and inclusion cannot see
     // GROWTH. This interface has grown twice — Employer (#311 PR-2b) and Remote (#551 PR-D) —
     // and both times a dimension reached the sink while a guard did not follow. That is the
@@ -992,7 +1103,7 @@ public class RecentJobSearchCaptureBehaviorTests
              "Q", "Region", "Remote", "SortBy", "WorktimeExtent"],
             "a member arrived on or left ICapturesRecentSearch. If it is a NEW string-bearing " +
             "dimension it reaches recent_job_searches in plaintext, and it must be added to the " +
-            "BearsPersonnummer chain in RecentJobSearchCaptureBehavior AND to the default-browse " +
+            "BearsPersonnummer chain in RecentSearchCaptureGate AND to the default-browse " +
             "guard — neither of which fails on its own when a dimension is merely missing. " +
             "Update this list in the same commit as the guard, never before it.");
     }

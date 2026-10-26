@@ -215,16 +215,8 @@ public class TaxonomyAclLayerTests
     public void Only_the_search_text_resolver_injects_ITaxonomyLabelMatcher()
     {
         var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.ITaxonomyLabelMatcher);
-        var consumers = ProductionAssemblies.ReflectedTypes()
-            .Where(t => t is { IsClass: true, IsAbstract: false })
-            .Where(t => t.GetConstructors(
-                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
-                    | System.Reflection.BindingFlags.Instance)
-                .Any(c => c.GetParameters().Any(p => port.IsAssignableFrom(p.ParameterType))))
-            .Select(t => t.Name)
-            .ToList();
 
-        consumers.ShouldBe([nameof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver)]);
+        ConstructorConsumersOf(port).ShouldBe([nameof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver)]);
     }
 
     // #2199 — the occupation-name lineage reaches the search path at the same one point, so the
@@ -233,15 +225,62 @@ public class TaxonomyAclLayerTests
     public void Only_the_search_text_resolver_injects_IOccupationNameLineageProvider()
     {
         var port = typeof(Jobbliggaren.Application.JobAds.Abstractions.IOccupationNameLineageProvider);
-        var consumers = ProductionAssemblies.ReflectedTypes()
+
+        ConstructorConsumersOf(port).ShouldBe([nameof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver)]);
+    }
+
+    // #2199 PR 2b — the loaded lineage itself reaches exactly two constructors: the provider the search
+    // reads, and the religious occupations the recent-search capture gate reads. A third taker would be a
+    // reader the provider pin above cannot see.
+    [Fact]
+    public void Only_the_lineage_provider_and_the_religious_occupations_take_the_loaded_lineage()
+    {
+        ConstructorConsumersOf(typeof(Jobbliggaren.Application.JobAds.Abstractions.OccupationNameLineage))
+            .ShouldBe(
+                [
+                    nameof(Jobbliggaren.Infrastructure.Taxonomy.OccupationNameLineageProvider),
+                    nameof(Jobbliggaren.Infrastructure.Taxonomy.ReligiousOccupations),
+                ],
+                ignoreOrder: true);
+    }
+
+    [Fact]
+    public void Only_the_recent_search_capture_gate_injects_IReligiousOccupations()
+    {
+        ConstructorConsumersOf(typeof(Jobbliggaren.Application.RecentJobSearches.Abstractions.IReligiousOccupations))
+            .ShouldBe([nameof(Jobbliggaren.Application.RecentJobSearches.Common.RecentSearchCaptureGate)]);
+    }
+
+    // security-auditor's 2b condition 6: the gate is a pure function of the search, so the verdict the list
+    // answers and the capture can never disagree, and the verdict is no oracle for anything but the
+    // caller's own request. It may depend on the parser and the religious occupations and nothing else: no
+    // database, no current user, no clock, no capture outcome.
+    [Fact]
+    public void The_recent_search_capture_gate_depends_only_on_the_parser_and_the_religious_occupations()
+    {
+        var parameters = typeof(Jobbliggaren.Application.RecentJobSearches.Common.RecentSearchCaptureGate)
+            .GetConstructors()
+            .ShouldHaveSingleItem()
+            .GetParameters()
+            .Select(p => p.ParameterType);
+
+        parameters.ShouldBe(
+        [
+            typeof(Jobbliggaren.Application.JobAds.Abstractions.ISearchQueryParser),
+            typeof(Jobbliggaren.Application.RecentJobSearches.Abstractions.IReligiousOccupations),
+        ]);
+    }
+
+    // The class names whose constructors take the dependency, in every production assembly.
+    private static List<string> ConstructorConsumersOf(Type dependency)
+    {
+        return ProductionAssemblies.ReflectedTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false })
             .Where(t => t.GetConstructors(
                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
                     | System.Reflection.BindingFlags.Instance)
-                .Any(c => c.GetParameters().Any(p => port.IsAssignableFrom(p.ParameterType))))
+                .Any(c => c.GetParameters().Any(p => dependency.IsAssignableFrom(p.ParameterType))))
             .Select(t => t.Name)
             .ToList();
-
-        consumers.ShouldBe([nameof(Jobbliggaren.Infrastructure.JobAds.JobAdSearchTextResolver)]);
     }
 }

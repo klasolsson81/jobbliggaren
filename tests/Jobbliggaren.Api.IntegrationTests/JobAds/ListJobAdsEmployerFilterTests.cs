@@ -98,7 +98,8 @@ public class ListJobAdsEmployerFilterTests(ApiFactory factory)
             Substitute.For<Jobbliggaren.Application.JobAds.Abstractions.IPerUserJobAdSearchQuery>(),
             Substitute.For<Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder>(),
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>());
+            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>(),
+            scope.ServiceProvider.GetRequiredService<Jobbliggaren.Application.RecentJobSearches.Common.RecentSearchCaptureGate>());
 
     // Distinkta 10-siffriga org.nr per test (undvik kollision i den delade Api-DB:n,
     // reference_api_integration_shared_db_contamination). Stabil prefix + suffix-rand.

@@ -74,8 +74,11 @@ public sealed class LayoutCorpusReportTests
     /// bump rule, not a side effect: the artefact WAS regenerated, so its provenance did move. The
     /// preceding PR (the predicate promotion) correctly did NOT bump, having regenerated
     /// nothing.</para>
+    ///
+    /// <para>Bumped to <c>354e4a92</c> on 2026-11-01 (#2249), in the same commit as the
+    /// regeneration: entry boundaries recovered without blank lines move the product.</para>
     /// </summary>
-    private const string BaseCommit = "26963715";
+    private const string BaseCommit = "354e4a92";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()

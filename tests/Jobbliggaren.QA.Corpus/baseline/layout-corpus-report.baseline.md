@@ -104,7 +104,7 @@
 > ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
 > ```
 >
-> Base commit: `26963715`.
+> Base commit: `354e4a92`.
 > Deterministic; NO AI/LLM anywhere in the measured chain (ADR 0071).
 
 ## Claim discipline (ADR 0109 §4)
@@ -218,27 +218,27 @@ published so far: no fixture yet distinguishes them, which is a fact about the f
 
 | # | Case | Verdict | GT emp | Parsed exp | Promoted exp | With period | GT edu | Parsed edu | Promoted edu | First blocking gate |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | `pdf-sidebar-emitted-first` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 2 | `pdf-interleaved-baseline-fusion` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 1 | 1 | — |
-| 3 | `pdf-zero-xgap-concat` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 4 | `pdf-single-column-sv` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 5 | `pdf-single-column-spaced` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 6 | `pdf-single-column-intra-block-spaced` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 7 | `pdf-single-column-intra-block-spaced-tight-list` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 8 | `pdf-sidebar-spaced` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 9 | `pdf-single-column-en` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 10 | `pdf-nonsequential-decorative` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 1 | `pdf-sidebar-emitted-first` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 2 | `pdf-interleaved-baseline-fusion` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 3 | 3 | — |
+| 3 | `pdf-zero-xgap-concat` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 3 | 3 | — |
+| 4 | `pdf-single-column-sv` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 5 | `pdf-single-column-spaced` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 6 | `pdf-single-column-intra-block-spaced` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 7 | `pdf-single-column-intra-block-spaced-tight-list` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 8 | `pdf-sidebar-spaced` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 9 | `pdf-single-column-en` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 10 | `pdf-nonsequential-decorative` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 | 11 | `pdf-headingless` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 0 | 0 | — |
-| 12 | `pdf-unknown-heading-after-profile` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 13 | `pdf-known-heading-after-profile` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 14 | `pdf-decorated-heading-glue` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 1 | 1 | — |
-| 15 | `pdf-two-page-seam` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 16 | `pdf-pnr-bearing` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | PersonnummerPresent |
-| 17 | `docx-table-label-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 18 | `docx-flat-label-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 12 | `pdf-unknown-heading-after-profile` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 13 | `pdf-known-heading-after-profile` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 14 | `pdf-decorated-heading-glue` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 3 | 3 | — |
+| 15 | `pdf-two-page-seam` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 16 | `pdf-pnr-bearing` | **Blocked** | 5 | 5 | — | — | 3 | 3 | — | PersonnummerPresent |
+| 17 | `docx-table-label-first-no-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 18 | `docx-flat-label-first-no-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 | 19 | `docx-table-label-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 | 20 | `docx-role-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
-| 21 | `docx-role-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 21 | `docx-role-first-no-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 | 22 | `docx-company-first-header` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 | 23 | `docx-irreducible-unattributed-experience` | **Blocked** | 5 | 6 | — | — | 3 | 3 | — | IncompleteContent |
 
@@ -281,85 +281,85 @@ published one table up, per case, in §2's fidelity verdict. Resolve it there.
 | Case | Kind | Marker | In bytes | In parsed artifact | Structural field | In section span | Found in other section | Verdict |
 |---|---|---|---|---|---|---|---|---|
 | `pdf-sidebar-emitted-first` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-sidebar-emitted-first` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-emitted-first` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-emitted-first` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-emitted-first` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-emitted-first` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-emitted-first` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-emitted-first` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-emitted-first` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `pdf-sidebar-emitted-first` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-sidebar-emitted-first` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-emitted-first` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-emitted-first` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-emitted-first` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-interleaved-baseline-fusion` | Employment | Klarna AB | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-interleaved-baseline-fusion` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-interleaved-baseline-fusion` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-interleaved-baseline-fusion` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-interleaved-baseline-fusion` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-interleaved-baseline-fusion` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-interleaved-baseline-fusion` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-interleaved-baseline-fusion` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-interleaved-baseline-fusion` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-zero-xgap-concat` | Employment | Klarna AB | yes | yes | no | yes | — | **RetainedButOrphaned** |
 | `pdf-zero-xgap-concat` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-zero-xgap-concat` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-zero-xgap-concat` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-zero-xgap-concat` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-zero-xgap-concat` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-zero-xgap-concat` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-zero-xgap-concat` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-zero-xgap-concat` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-zero-xgap-concat` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-sv` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-sv` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-sv` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-sv` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-sv` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-sv` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-sv` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-sv` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-sv` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-sv` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-sv` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-sv` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-sv` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-sv` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-spaced` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-spaced` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-spaced` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-intra-block-spaced` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-intra-block-spaced` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-intra-block-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-intra-block-spaced` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-intra-block-spaced-tight-list` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-intra-block-spaced-tight-list` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-sidebar-spaced` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-sidebar-spaced` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-spaced` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-spaced` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-spaced` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-spaced` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-spaced` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `pdf-sidebar-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-sidebar-spaced` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-en` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-en` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-en` | Employment | Region Vastra Gotaland | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-en` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-en` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-en` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-en` | Employment | Region Vastra Gotaland | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-en` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-en` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-en` | Education | Chalmers University of Technology | yes | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-en` | Education | University of Gothenburg | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-en` | Education | Hvitfeldtska Upper Secondary | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-en` | Education | University of Gothenburg | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-en` | Education | Hvitfeldtska Upper Secondary | yes | yes | yes | yes | — | **Survived** |
 | `pdf-nonsequential-decorative` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-nonsequential-decorative` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-nonsequential-decorative` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-nonsequential-decorative` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-nonsequential-decorative` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `pdf-nonsequential-decorative` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `pdf-nonsequential-decorative` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-nonsequential-decorative` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `pdf-nonsequential-decorative` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-nonsequential-decorative` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-nonsequential-decorative` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-nonsequential-decorative` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-headingless` | Employment | Klarna AB | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-headingless` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-headingless` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
@@ -369,37 +369,37 @@ published one table up, per case, in §2's fidelity verdict. Resolve it there.
 | `pdf-headingless` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-headingless` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `pdf-unknown-heading-after-profile` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-unknown-heading-after-profile` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-unknown-heading-after-profile` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-unknown-heading-after-profile` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-unknown-heading-after-profile` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-unknown-heading-after-profile` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `pdf-unknown-heading-after-profile` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `pdf-unknown-heading-after-profile` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-unknown-heading-after-profile` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `pdf-unknown-heading-after-profile` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-unknown-heading-after-profile` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-unknown-heading-after-profile` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-unknown-heading-after-profile` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-unknown-heading-after-profile` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-known-heading-after-profile` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-known-heading-after-profile` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-known-heading-after-profile` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-known-heading-after-profile` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-known-heading-after-profile` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-known-heading-after-profile` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `pdf-known-heading-after-profile` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `pdf-known-heading-after-profile` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-known-heading-after-profile` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `pdf-known-heading-after-profile` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-known-heading-after-profile` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-known-heading-after-profile` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-known-heading-after-profile` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-known-heading-after-profile` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-decorated-heading-glue` | Employment | Klarna AB | yes | yes | no | no | Summary | **AbsorbedIntoOtherSection** |
 | `pdf-decorated-heading-glue` | Employment | Volvo Cars | yes | yes | no | no | Summary | **AbsorbedIntoOtherSection** |
 | `pdf-decorated-heading-glue` | Employment | Västra Götalandsregionen | yes | yes | no | no | Summary | **AbsorbedIntoOtherSection** |
 | `pdf-decorated-heading-glue` | Employment | Consid AB | yes | yes | no | no | Summary | **AbsorbedIntoOtherSection** |
 | `pdf-decorated-heading-glue` | Employment | Sigma IT | yes | yes | no | no | Summary | **AbsorbedIntoOtherSection** |
 | `pdf-decorated-heading-glue` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-decorated-heading-glue` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-decorated-heading-glue` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-decorated-heading-glue` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-decorated-heading-glue` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-two-page-seam` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-two-page-seam` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-two-page-seam` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-two-page-seam` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-two-page-seam` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-two-page-seam` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `pdf-two-page-seam` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `pdf-two-page-seam` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-two-page-seam` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `pdf-two-page-seam` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-two-page-seam` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-two-page-seam` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-two-page-seam` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `pdf-two-page-seam` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `pdf-pnr-bearing` | Employment | Klarna AB | yes | yes | no | no | — | **RetainedNotPromoted** |
 | `pdf-pnr-bearing` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedNotPromoted** |
 | `pdf-pnr-bearing` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedNotPromoted** |
@@ -409,21 +409,21 @@ published one table up, per case, in §2's fidelity verdict. Resolve it there.
 | `pdf-pnr-bearing` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedNotPromoted** |
 | `pdf-pnr-bearing` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedNotPromoted** |
 | `docx-table-label-first-no-blanks` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `docx-table-label-first-no-blanks` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-table-label-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-table-label-first-no-blanks` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-table-label-first-no-blanks` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-table-label-first-no-blanks` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-no-blanks` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-no-blanks` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `docx-table-label-first-no-blanks` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `docx-table-label-first-no-blanks` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-table-label-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-table-label-first-no-blanks` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `docx-flat-label-first-no-blanks` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `docx-flat-label-first-no-blanks` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-flat-label-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-flat-label-first-no-blanks` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-flat-label-first-no-blanks` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-flat-label-first-no-blanks` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `docx-flat-label-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `docx-flat-label-first-no-blanks` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `docx-flat-label-first-no-blanks` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `docx-flat-label-first-no-blanks` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `docx-flat-label-first-no-blanks` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-flat-label-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-flat-label-first-no-blanks` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `docx-flat-label-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `docx-table-label-first-with-blanks` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
 | `docx-table-label-first-with-blanks` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
 | `docx-table-label-first-with-blanks` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
@@ -441,13 +441,13 @@ published one table up, per case, in §2's fidelity verdict. Resolve it there.
 | `docx-role-first-with-blanks` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
 | `docx-role-first-with-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `docx-role-first-no-blanks` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `docx-role-first-no-blanks` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-role-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-role-first-no-blanks` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-role-first-no-blanks` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-role-first-no-blanks` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-no-blanks` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-no-blanks` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
 | `docx-role-first-no-blanks` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `docx-role-first-no-blanks` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `docx-role-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-role-first-no-blanks` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
 | `docx-company-first-header` | Employment | Klarna AB | yes | yes | no | yes | — | **RetainedButOrphaned** |
 | `docx-company-first-header` | Employment | Volvo Cars | yes | yes | no | yes | — | **RetainedButOrphaned** |
 | `docx-company-first-header` | Employment | Västra Götalandsregionen | yes | yes | no | yes | — | **RetainedButOrphaned** |
@@ -656,8 +656,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 2 entries`
 
@@ -666,7 +666,7 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: NotFound — no heading detected; 21 unclassified line(s) carried from above the first heading`
 - `Experience: NotFound — no heading detected`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: NotFound — no heading detected`
 - `Languages: NotFound — no heading detected`
 
@@ -675,7 +675,7 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: NotFound — no heading detected; text dropped from 1 line(s) as contact-block material`
 - `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: NotFound — no heading detected`
 - `Languages: NotFound — no heading detected`
 
@@ -683,8 +683,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
 
@@ -692,8 +692,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
 
@@ -701,8 +701,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
 
@@ -710,8 +710,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 21 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
 
@@ -719,8 +719,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 14 entries`
 - `Languages: Confident — heading 'språk' matched; 10 entries`
 
@@ -728,8 +728,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'summary' matched; summary text present`
-- `Experience: Confident — heading 'experience' matched; 1 entries`
-- `Education: Confident — heading 'education' matched; 1 entries`
+- `Experience: Confident — heading 'experience' matched; 5 entries`
+- `Education: Confident — heading 'education' matched; 3 entries`
 - `Skills: Confident — heading 'skills' matched; 7 entries`
 - `Languages: Confident — heading 'languages' matched; 8 entries`
 
@@ -737,8 +737,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Degraded — email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 12 entries`
 
@@ -755,8 +755,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 2 entries`
 
@@ -764,8 +764,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 2 entries`
 
@@ -774,7 +774,7 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
 - `Experience: NotFound — no heading detected`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: NotFound — no heading detected`
 
@@ -782,8 +782,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: NotFound — no heading detected`
 
@@ -791,8 +791,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: NotFound — no heading detected`
 
@@ -800,8 +800,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
 
@@ -809,8 +809,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
 
@@ -836,8 +836,8 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
 - `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
 
@@ -1006,12 +1006,12 @@ permitted to differ is the detected language.
 | Field | Swedish | English |
 |---|---|---|
 | detected language (permitted to differ) | Sv | En |
-| parsed experience | 1 | 1 |
-| parsed education | 1 | 1 |
+| parsed experience | 5 | 5 |
+| parsed education | 3 | 3 |
 | headings detected | 5 | 5 |
 | first blocking gate | — | — |
 | promoted | yes | yes |
-| fidelity verdict | PromotedLossy | PromotedLossy |
+| fidelity verdict | PromotedFaithful | PromotedFaithful |
 
 ## 9. Known precision gaps and deliberate omissions
 
@@ -1022,12 +1022,10 @@ permitted to differ is the detected language.
   invisibility shipped as a measurement, not as a distinct extraction mechanic.
 - **Scanned / `NoTextLayer` documents are absent**, so the `ParseConfidence.Failed`
   branch of the import handler's segment conditional is unexercised.
-- **Entry boundaries still need a blank line, and nothing here recovers them.**
-  `SplitEntries` splits on blank lines only, so a DOCX that authors none yields ONE entry
-  per block. That is why the `-no-blanks` rows report 1 of 5 employments — a document
-  fact, not a header-order fact, which #1060 β-1's role-first control arm separated. Not
-  fixed there: its blast radius is every row in this table, so it would have made that
-  PR's diff unattributable. Named so a promoting row is not read as a recovered one.
+- **Without a blank line, entry boundaries come from each entry's own date, never from
+  spacing (#2249).** `EntryBoundaries` splits a run that carries two or more date rows or
+  dated headers; a run whose entries state no period still yields ONE entry. No arm here
+  authors undated entries without blank lines, so that residual is not measured.
 - **`RetainedButOrphaned` conflates three realities — gone, fused, and wrong-slot —
   and that is deliberate.** A finer verdict would have to name WHICH field holds the
   marker, and §3 publishes no promoted field values, so the label could not be cited

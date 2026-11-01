@@ -491,12 +491,10 @@ public static class LayoutCorpusReport
         L("  invisibility shipped as a measurement, not as a distinct extraction mechanic.");
         L("- **Scanned / `NoTextLayer` documents are absent**, so the `ParseConfidence.Failed`");
         L("  branch of the import handler's segment conditional is unexercised.");
-        L("- **Entry boundaries still need a blank line, and nothing here recovers them.**");
-        L("  `SplitEntries` splits on blank lines only, so a DOCX that authors none yields ONE entry");
-        L("  per block. That is why the `-no-blanks` rows report 1 of 5 employments — a document");
-        L("  fact, not a header-order fact, which #1060 β-1's role-first control arm separated. Not");
-        L("  fixed there: its blast radius is every row in this table, so it would have made that");
-        L("  PR's diff unattributable. Named so a promoting row is not read as a recovered one.");
+        L("- **Without a blank line, entry boundaries come from each entry's own date, never from");
+        L("  spacing (#2249).** `EntryBoundaries` splits a run that carries two or more date rows or");
+        L("  dated headers; a run whose entries state no period still yields ONE entry. No arm here");
+        L("  authors undated entries without blank lines, so that residual is not measured.");
         L("- **`RetainedButOrphaned` conflates three realities — gone, fused, and wrong-slot —");
         L("  and that is deliberate.** A finer verdict would have to name WHICH field holds the");
         L("  marker, and §3 publishes no promoted field values, so the label could not be cited");

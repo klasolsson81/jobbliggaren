@@ -70,7 +70,23 @@
       "reactivate": "Reactivate",
       "finishAndSend": "Mark as Sent",
       "daysInStep": "{days, plural, one {# day in this step} other {# days in this step}}",
-      "latestEvent": "{event} on {date}"
+      "latestEvent": "{event} on {date}",
+      "fields": {
+        "location": "Location",
+        "locationMissing": "Not stated in the ad",
+        "applied": "Applied",
+        "notApplied": "Not applied yet",
+        "ad": "Ad",
+        "adMissing": "No ad link saved",
+        "openAria": "Open the ad {title} in a new tab",
+        "copy": "Copy",
+        "copied": "Copied",
+        "copyAria": "Copy the link to the ad {title}",
+        "copiedAnnounced": "The link to the ad has been copied",
+        "sourceLive": "{source} · opens in a new tab",
+        "sourceSaved": "{source} · saved when you applied",
+        "sourceManual": "Link you entered"
+      }
     },
     "statusMenu": {
       "trigger": "Change status",

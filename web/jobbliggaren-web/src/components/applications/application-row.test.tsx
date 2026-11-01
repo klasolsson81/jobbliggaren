@@ -100,17 +100,21 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
     expect(row.children[1]).toHaveClass("jp-app__actions--row");
   });
 
-  it("titeln är radens ENDA länk (länk-overlay, ingen nästlad interaktivitet i ankaret)", () => {
+  // #2248: the card gained a second link — the ad itself — so "the only link" became "the only
+  // link to the detail route, with nothing nested in it". The ad link is a sibling of the row
+  // link, never inside it (valid HTML / a11y), exactly like the buttons.
+  it("titeln är radens enda detaljlänk (länk-overlay, ingen nästlad interaktivitet i ankaret)", () => {
     renderRow(makeApplication());
-    const links = screen.getAllByRole("link");
-    expect(links).toHaveLength(1);
-    expect(links[0]).toHaveClass("jp-app__rowlink");
-    expect(links[0]).toHaveAttribute(
+    const rowLinks = screen
+      .getAllByRole("link")
+      .filter((link) => link.classList.contains("jp-app__rowlink"));
+    expect(rowLinks).toHaveLength(1);
+    expect(rowLinks[0]).toHaveAttribute(
       "href",
       "/ansokningar/11111111-2222-3333-4444-555555555555"
     );
-    // Knapparna ligger UTANFÖR ankaret (giltig HTML / a11y).
-    expect(links[0]!.querySelector("button")).toBeNull();
+    // Knapparna och annonslänken ligger UTANFÖR ankaret (giltig HTML / a11y).
+    expect(rowLinks[0]!.querySelector("button, a")).toBeNull();
   });
 
   it("renders jobtitel + företag separat när jobAd finns", () => {
@@ -128,7 +132,11 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
   });
 
   it("renderar dagar, händelserad och titel i sans (#1827 M3)", () => {
-    const { container } = renderRow(makeApplication());
+    // A later event than the submission, so the event line renders (#2248 hides one that only
+    // repeats the "Sökt" date).
+    const { container } = renderRow(
+      makeApplication({ status: "InterviewScheduled", lastStatusChangeAt: "2026-05-12" })
+    );
     expect(container.querySelector(".jp-app__days")).toBeInTheDocument();
     expect(container.querySelector(".jp-app__eventline")).toBeInTheDocument();
     expect(container.querySelectorAll(".jp-mono, .font-mono")).toHaveLength(0);
@@ -208,13 +216,20 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
   });
 
   it("renderar senaste-händelse-raden ur latestEventOf ('{händelse} den {datum}', #780)", () => {
-    const { container } = renderRow(makeApplication());
-    // Submitted + lastStatusChangeAt 2026-05-10 → StatusReached → "Ansökan
-    // skickad"; formatDate(sv) → "10 maj 2026". Uppföljningens fritext (PII/DEK)
-    // surfas ALDRIG — endast den generiska etiketten.
+    // A Submitted application WITHOUT an appliedAt still says when it was sent — the "Sökt"
+    // field has nothing to show then, so nothing is repeated. formatDate(sv) → "10 maj 2026".
+    // Uppföljningens fritext (PII/DEK) surfas ALDRIG — endast den generiska etiketten.
+    const { container } = renderRow(makeApplication({ appliedAt: null }));
     expect(container.querySelector(".jp-app__eventline")).toHaveTextContent(
       "Ansökan skickad den 10 maj 2026"
     );
+  });
+
+  // #2248: when the latest event IS the submission, "Sökt" already carries that date.
+  it("utelämnar händelseraden när den bara upprepar Sökt-datumet (#2248)", () => {
+    const { container } = renderRow(makeApplication());
+    expect(container.querySelector(".jp-app__eventline")).toBeNull();
+    expect(container.querySelector(".jp-app__fields")).toHaveTextContent("Sökt10 maj 2026");
   });
 
   it("renderar 'Uppföljning loggad den {datum}' när uppföljningen är senaste händelsen (#780, PII/DEK-grenen)", () => {
@@ -420,7 +435,7 @@ describe("ApplicationRow (2a, #630 PR 7)", () => {
   // klick-ankare (drawer-ankaret pensionerades med drawern, 2026-07-10).
   it("radlänken pekar på detaljroutens href utan klick-sidoeffekter", () => {
     renderRow(makeApplication());
-    const link = screen.getByRole("link");
+    const link = screen.getByRole("link", { name: "Backend-utvecklare" });
     expect(link).toHaveAttribute(
       "href",
       "/ansokningar/11111111-2222-3333-4444-555555555555",

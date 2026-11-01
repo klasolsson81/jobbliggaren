@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Applications.Attention;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -12,7 +13,7 @@ namespace Jobbliggaren.Application.Applications.Queries.GetApplications;
 
 public sealed class GetApplicationsQueryHandler(
     IAppDbContext db, ICurrentUser currentUser, IDateTimeProvider clock,
-    IOptions<ApplicationAttentionOptions> attentionOptions)
+    IOptions<ApplicationAttentionOptions> attentionOptions, ITaxonomyReadModel taxonomy)
     : IQueryHandler<GetApplicationsQuery, PagedResult<ApplicationDto>>
 {
     public async ValueTask<PagedResult<ApplicationDto>> Handle(
@@ -59,7 +60,7 @@ public sealed class GetApplicationsQueryHandler(
         // JobAdSummaryDto Status. Läsvägen kodade en gång "annonsen är borta" som
         // j == null och delegerade den domen till ett filter utan writer; följden
         // var att PreservedAdPanel aldrig renderades i produktion (#805-3).
-        var items = await baseQuery
+        var rows = await baseQuery
             .OrderByDescending(a => a.UpdatedAt)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
@@ -74,7 +75,7 @@ public sealed class GetApplicationsQueryHandler(
                 // (ADR 0048 — FK ej mot rad användaren ej får se).
                 JobAdGuid = j != null ? (Guid?)j.Id.Value : null
             })
-            .Select(r => new ApplicationDto(
+            .Select(r => new LocatedRow(new ApplicationDto(
                 r.a.Id.Value,
                 r.a.JobSeekerId.Value,
                 r.JobAdGuid,
@@ -133,18 +134,25 @@ public sealed class GetApplicationsQueryHandler(
                 r.a.LastFollowUpAt,
                 // #1827: the owned snapshot's own column, no join (lockstep with
                 // GetPipeline).
-                r.a.AdSnapshot != null && r.a.AdSnapshot.Description != null))
+                r.a.AdSnapshot != null && r.a.AdSnapshot.Description != null),
+                // #2248: the live row's municipality — the activity report's source, and it
+                // survives Erase() (NotRecruiterData). No ad row (manual) → no Ort.
+                r.j != null ? r.j.MunicipalityConceptId : null))
             .ToListAsync(cancellationToken);
+
+        var locations = await MunicipalityLabels.ResolveAsync(
+            taxonomy, rows.Select(r => r.MunicipalityConceptId), cancellationToken);
 
         // #343 (ADR 0085 §3, CTO Option a): stamp the attention signal in-memory over
         // the materialised page (Evaluate = SSOT, not SQL-translatable). Lockstep with
         // GetPipelineQueryHandler so the shared ApplicationDto is truthful on both read
         // paths (#342 invariant); pure CPU over the bounded page, no extra DB cost.
         var options = attentionOptions.Value;
-        var withAttention = items
-            .Select(dto => dto with
+        var withAttention = rows
+            .Select(r => r.Dto with
             {
-                AttentionSignal = ApplicationAttentionEvaluator.Evaluate(dto, options, now),
+                AttentionSignal = ApplicationAttentionEvaluator.Evaluate(r.Dto, options, now),
+                Location = MunicipalityLabels.For(locations, r.MunicipalityConceptId),
             })
             .ToList();
         return new PagedResult<ApplicationDto>(withAttention, totalCount, query.Page, query.PageSize);
@@ -152,4 +160,7 @@ public sealed class GetApplicationsQueryHandler(
 
     private static PagedResult<ApplicationDto> Empty(GetApplicationsQuery query) =>
         new(Array.Empty<ApplicationDto>(), 0, query.Page, query.PageSize);
+
+    // The projected DTO plus the one column the in-memory Ort stamp needs (#2248).
+    private sealed record LocatedRow(ApplicationDto Dto, string? MunicipalityConceptId);
 }

@@ -99,6 +99,10 @@ export const applicationDtoSchema = applicationCoreSchema.extend({
   // the backend can tell a minimised copy after an undo). .optional() for deploy
   // skew: a missing value means "unknown", never "no text".
   hasPreservedAdText: z.boolean().optional(),
+  // #2248: the ad's "Ort" — its municipality resolved to a Swedish name on the backend, the
+  // value the activity report shows. null when the ad names none or has no ad row (manual).
+  // .optional() for deploy skew: a missing value renders as "Saknas i annonsen", never a guess.
+  location: z.string().nullable().optional(),
   // #343 (ADR 0085 §3, CTO Option a): the single highest-priority reason this
   // application needs action now, computed ONCE on the backend by
   // ApplicationAttentionEvaluator (the SSOT) and serialized by NAME. The FE only

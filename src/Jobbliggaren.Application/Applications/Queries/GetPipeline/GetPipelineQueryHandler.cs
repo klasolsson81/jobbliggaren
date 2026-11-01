@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Applications.Attention;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -11,7 +12,7 @@ namespace Jobbliggaren.Application.Applications.Queries.GetPipeline;
 
 public sealed class GetPipelineQueryHandler(
     IAppDbContext db, ICurrentUser currentUser, IDateTimeProvider clock,
-    IOptions<ApplicationAttentionOptions> attentionOptions)
+    IOptions<ApplicationAttentionOptions> attentionOptions, ITaxonomyReadModel taxonomy)
     : IQueryHandler<GetPipelineQuery, IReadOnlyList<PipelineGroupDto>>
 {
     public async ValueTask<IReadOnlyList<PipelineGroupDto>> Handle(
@@ -56,7 +57,7 @@ public sealed class GetPipelineQueryHandler(
                 // FK-Guid, undviker Nullable<JobAdId>.Value i trädet.
                 JobAdGuid = j != null ? (Guid?)j.Id.Value : null
             })
-            .Select(r => new ApplicationDto(
+            .Select(r => new LocatedRow(new ApplicationDto(
                 r.a.Id.Value,
                 r.a.JobSeekerId.Value,
                 r.JobAdGuid,
@@ -122,8 +123,14 @@ public sealed class GetPipelineQueryHandler(
                 r.a.LastFollowUpAt,
                 // #1827: the owned snapshot's own column, no join (lockstep with
                 // GetApplications).
-                r.a.AdSnapshot != null && r.a.AdSnapshot.Description != null))
+                r.a.AdSnapshot != null && r.a.AdSnapshot.Description != null),
+                // #2248: the live row's municipality — the activity report's source, and it
+                // survives Erase() (NotRecruiterData). No ad row (manual) → no Ort.
+                r.j != null ? r.j.MunicipalityConceptId : null))
             .ToListAsync(cancellationToken);
+
+        var locations = await MunicipalityLabels.ResolveAsync(
+            taxonomy, rows.Select(r => r.MunicipalityConceptId), cancellationToken);
 
         // #343 (ADR 0085 §3, CTO Option a): stamp the attention signal in-memory over
         // the already-materialised rows. ApplicationAttentionEvaluator.Evaluate is the
@@ -135,12 +142,16 @@ public sealed class GetPipelineQueryHandler(
         // Evaluate returns the single highest-priority signal.
         var options = attentionOptions.Value;
         return rows
-            .Select(dto => dto with
+            .Select(r => r.Dto with
             {
-                AttentionSignal = ApplicationAttentionEvaluator.Evaluate(dto, options, now),
+                AttentionSignal = ApplicationAttentionEvaluator.Evaluate(r.Dto, options, now),
+                Location = MunicipalityLabels.For(locations, r.MunicipalityConceptId),
             })
             .GroupBy(r => r.Status)
             .Select(g => new PipelineGroupDto(g.Key, g.Count(), g.ToList()))
             .ToList();
     }
+
+    // The projected DTO plus the one column the in-memory Ort stamp needs (#2248).
+    private sealed record LocatedRow(ApplicationDto Dto, string? MunicipalityConceptId);
 }

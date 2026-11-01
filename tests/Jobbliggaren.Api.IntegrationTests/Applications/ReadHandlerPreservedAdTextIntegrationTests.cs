@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Applications.Queries;
 using Jobbliggaren.Application.Applications.Queries.GetApplications;
 using Jobbliggaren.Application.Applications.Queries.GetPipeline;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -29,6 +30,11 @@ namespace Jobbliggaren.Api.IntegrationTests.Applications;
 [Collection("Api")]
 public class ReadHandlerPreservedAdTextIntegrationTests
 {
+    // #2248: both list reads resolve the ad's Ort through the taxonomy ACL; the real port, so a
+    // handler built by hand reads what the DI-built one does.
+    private static ITaxonomyReadModel Taxonomy(IServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<ITaxonomyReadModel>();
+
     private readonly ApiFactory _factory;
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
@@ -56,7 +62,7 @@ public class ReadHandlerPreservedAdTextIntegrationTests
         await SeedSeekerAsync(db, clock, _userId);
         await ApplyToSeededJobAdAsync(db, clock);
 
-        var (list, pipeline) = await ReadBothAsync(db, clock);
+        var (list, pipeline) = await ReadBothAsync(scope, db, clock);
 
         list.HasPreservedAdText.ShouldBeTrue();
         pipeline.HasPreservedAdText.ShouldBeTrue();
@@ -77,7 +83,7 @@ public class ReadHandlerPreservedAdTextIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var (list, pipeline) = await ReadBothAsync(db, clock);
+        var (list, pipeline) = await ReadBothAsync(scope, db, clock);
 
         list.HasPreservedAdText.ShouldBeFalse();
         pipeline.HasPreservedAdText.ShouldBeFalse();
@@ -96,7 +102,7 @@ public class ReadHandlerPreservedAdTextIntegrationTests
         await db.SaveChangesAsync(CancellationToken.None);
         db.ChangeTracker.Clear();
 
-        var (list, pipeline) = await ReadBothAsync(db, clock);
+        var (list, pipeline) = await ReadBothAsync(scope, db, clock);
 
         list.HasPreservedAdText.ShouldBeFalse();
         pipeline.HasPreservedAdText.ShouldBeFalse();
@@ -117,7 +123,7 @@ public class ReadHandlerPreservedAdTextIntegrationTests
         await db.SaveChangesAsync(CancellationToken.None);
         db.ChangeTracker.Clear();
 
-        var (list, pipeline) = await ReadBothAsync(db, clock);
+        var (list, pipeline) = await ReadBothAsync(scope, db, clock);
 
         list.Status.ShouldBe(ApplicationStatus.Submitted.Name);
         list.HasPreservedAdText.ShouldBeFalse();
@@ -160,12 +166,12 @@ public class ReadHandlerPreservedAdTextIntegrationTests
     }
 
     private async Task<(ApplicationDto List, ApplicationDto Pipeline)> ReadBothAsync(
-        AppDbContext db, IDateTimeProvider clock)
+        IServiceScope scope, AppDbContext db, IDateTimeProvider clock)
     {
-        var listHandler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var listHandler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var listResult = await listHandler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
-        var pipelineHandler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var pipelineHandler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var pipelineResult = await pipelineHandler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var list = listResult.Items.ShouldHaveSingleItem();

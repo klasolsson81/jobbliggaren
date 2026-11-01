@@ -2,6 +2,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Applications.Attention;
 using Jobbliggaren.Application.Applications.Queries.GetPipeline;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -29,6 +30,11 @@ namespace Jobbliggaren.Api.IntegrationTests.Applications;
 [Collection("Api")]
 public class GetPipelineQueryHandlerIntegrationTests
 {
+    // #2248: both list reads resolve the ad's Ort through the taxonomy ACL; the real port, so a
+    // handler built by hand reads what the DI-built one does.
+    private static ITaxonomyReadModel Taxonomy(IServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<ITaxonomyReadModel>();
+
     private readonly ApiFactory _factory;
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
@@ -66,7 +72,7 @@ public class GetPipelineQueryHandlerIntegrationTests
 
         await SeedSeekerAsync(db, clock, _userId);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -83,7 +89,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         currentUser.UserId.Returns((Guid?)null);
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var handler = new GetPipelineQueryHandler(db, currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -109,7 +115,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(submitted);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -135,7 +141,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -161,7 +167,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(submitted);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -200,7 +206,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(rejected);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -232,7 +238,7 @@ public class GetPipelineQueryHandlerIntegrationTests
 
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
@@ -258,7 +264,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -280,7 +286,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -304,7 +310,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -336,7 +342,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Entry(followUp).Property(f => f.DeletedAt).CurrentValue = clock.UtcNow;
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -361,7 +367,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -386,7 +392,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -407,7 +413,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -439,7 +445,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "OfferReceived").Applications.Single();
@@ -461,7 +467,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();
@@ -484,7 +490,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Submitted").Applications.Single();

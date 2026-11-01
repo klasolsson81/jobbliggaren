@@ -244,13 +244,21 @@ describe("ApplicationsPipeline — Lista-sektioner (2a)", () => {
   });
 });
 
+// One detail link per row. Each card also links to its ad (#2248), so rows are counted by their
+// row link, not by every link in the list.
+function rowLinksIn(list: HTMLElement) {
+  return within(list)
+    .getAllByRole("link")
+    .filter((link) => link.classList.contains("jp-app__rowlink"));
+}
+
 describe("ApplicationsPipeline — 'Visa N till' (cap 10)", () => {
   it("visar max 10 rader och en 'Visa N till'-knapp; count = shown", () => {
     renderPipeline(makePipeline({ Submitted: 13 }));
 
     const section = document.getElementById("status-Submitted")!;
     const list = document.getElementById("status-Submitted-list")!;
-    expect(within(list).getAllByRole("link")).toHaveLength(10);
+    expect(rowLinksIn(list)).toHaveLength(10);
     expect(
       within(section).getByRole("button", { name: "Visa 3 till" }),
     ).toBeInTheDocument();
@@ -264,7 +272,7 @@ describe("ApplicationsPipeline — 'Visa N till' (cap 10)", () => {
     await user.click(screen.getByRole("button", { name: "Visa 3 till" }));
 
     const list = document.getElementById("status-Submitted-list")!;
-    expect(within(list).getAllByRole("link")).toHaveLength(13);
+    expect(rowLinksIn(list)).toHaveLength(13);
     expect(
       screen.queryByRole("button", { name: /Visa \d+ till/ }),
     ).not.toBeInTheDocument();

@@ -4119,6 +4119,61 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-variant-numeric: tabular-nums;
   color: var(--jp-ink-2);
 }
+/* #2248 — the card's a-kassa facts: Ort, Sökt and the ad link, as a label | value grid under a
+   hairline. One layout at every width; only the URL truncates (it is one line, the full URL
+   rides in `title`), every other value wraps, so a 360px card never scrolls sideways. */
+.jp-app__fields {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  column-gap: 10px;
+  row-gap: 6px;
+  align-items: baseline;
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--jp-border-soft);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-app__fields dt {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-2);
+}
+.jp-app__fields dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.jp-app__fields dd[data-missing] {
+  color: var(--jp-ink-2);
+}
+/* The link and its copy button sit above the row link's ::after overlay (the #2012 pattern), so
+   opening or copying the ad never opens the progress modal. The caption below stays part of the
+   card's target. */
+.jp-app__adlink {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.jp-app__adurl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jp-app__adcaption {
+  margin-top: 2px;
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+@media (max-width: 720px) {
+  /* WCAG 2.5.8: a 44px target on touch, where the button is the only way to copy. */
+  .jp-app__copybtn { min-height: 44px; min-width: 44px; }
+}
 .jp-app__actions--row {
   flex-direction: row;
   align-items: center;

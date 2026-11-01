@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Applications.Attention;
 using Jobbliggaren.Application.Applications.Queries.GetApplications;
 using Jobbliggaren.Application.Applications.Queries.GetPipeline;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -39,6 +40,11 @@ namespace Jobbliggaren.Api.IntegrationTests.Applications;
 [Collection("Api")]
 public class LastFollowUpWaitResetIntegrationTests
 {
+    // #2248: both list reads resolve the ad's Ort through the taxonomy ACL; the real port, so a
+    // handler built by hand reads what the DI-built one does.
+    private static ITaxonomyReadModel Taxonomy(IServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<ITaxonomyReadModel>();
+
     private readonly ApiFactory _factory;
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
@@ -73,7 +79,7 @@ public class LastFollowUpWaitResetIntegrationTests
 
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var withDto = result.Items.Single(a => a.Id == withFollowUp.Id.Value);
@@ -106,7 +112,7 @@ public class LastFollowUpWaitResetIntegrationTests
 
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var submitted = result.Single(g => g.Status == "Submitted").Applications;
@@ -139,7 +145,7 @@ public class LastFollowUpWaitResetIntegrationTests
         // "now" is 30 days later — at the 30-day ghost-suggest window → GhostSuggested.
         var now = t0.AddDays(30);
         var nowClock = new FakeDateTimeProvider(now);
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, nowClock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, nowClock, AttentionOptions, Taxonomy(scope));
 
         var before = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
         before.Items.Single().AttentionSignal.ShouldBe(ApplicationAttentionSignal.GhostSuggested);

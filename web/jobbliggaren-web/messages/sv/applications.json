@@ -70,7 +70,23 @@
       "reactivate": "Återaktivera",
       "finishAndSend": "Markera som Skickad",
       "daysInStep": "{days, plural, one {# dag i steget} other {# dagar i steget}}",
-      "latestEvent": "{event} den {date}"
+      "latestEvent": "{event} den {date}",
+      "fields": {
+        "location": "Ort",
+        "locationMissing": "Saknas i annonsen",
+        "applied": "Sökt",
+        "notApplied": "Inte sökt än",
+        "ad": "Annons",
+        "adMissing": "Ingen annonslänk sparad",
+        "openAria": "Öppna annonsen {title} i en ny flik",
+        "copy": "Kopiera",
+        "copied": "Kopierad",
+        "copyAria": "Kopiera länken till annonsen {title}",
+        "copiedAnnounced": "Länken till annonsen är kopierad",
+        "sourceLive": "{source} · öppnas i ny flik",
+        "sourceSaved": "{source} · sparad när du sökte",
+        "sourceManual": "Länk du angav"
+      }
     },
     "statusMenu": {
       "trigger": "Byt status",

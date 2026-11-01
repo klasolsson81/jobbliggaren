@@ -157,6 +157,9 @@ public class TaxonomyAclLayerTests
             // (CTO-dom 2026-06-29 option B; architect B1). Samma ResolveLabelsAsync-
             // mönster som #316. Sorterar "GetAp" mellan "GetAc" och "GetJ".
             nameof(Jobbliggaren.Application.Applications.Queries.GetApplicationById.GetApplicationByIdQueryHandler),
+            // #2248 — the two list reads resolve the same municipality concept-id to the same "Ort"
+            // the activity report shows (shared MunicipalityLabels, one batched call per read).
+            nameof(Jobbliggaren.Application.Applications.Queries.GetApplications.GetApplicationsQueryHandler),
             // Fas 4b 8b.4a (2026-07-13, ADR 0107) — tionde legitim konsument, READ-SIDE: CV:ts
             // sektionsförslag slår upp yrkesgrupp→yrkesområde (GetContainingOccupationFieldsAsync,
             // portens 6:e metod) för att välja branschgrupp. Yrket kommer från den BEKRÄFTADE axeln
@@ -172,6 +175,8 @@ public class TaxonomyAclLayerTests
             // handler, samma ResolveLabelsAsync-mönster; ingen Clean Arch-brott (§2.1).
             // (Sorterar före GetTaxonomyTree: "GetJ" < "GetT".)
             nameof(Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail.GetJobAdMatchDetailQueryHandler),
+            // #2248 — see GetApplicationsQueryHandler above (lockstep pair).
+            nameof(Jobbliggaren.Application.Applications.Queries.GetPipeline.GetPipelineQueryHandler),
             // #2090 S3 / ADR 0171 (2026-10-17) — the first ANONYMOUS consumer, read-side only: the public
             // job-ad read resolves the kommun and län concept ids to their snapshot names for the public
             // page and its JobPosting markup, and since #2203 S6 the occupation group for the page alone.

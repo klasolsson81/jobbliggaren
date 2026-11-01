@@ -270,7 +270,18 @@
         "metItem": "Uppfyllt: {label}",
         "unmetItem": "Saknas: {label}",
         "showMore": "Visa {count} till",
-        "showLess": "Visa färre"
+        "showLess": "Visa färre",
+        "add": {
+          "prefix": "Lägg till",
+          "title": "Lägg till {label} bland kompetenserna i din profil",
+          "pending": "Lägger till",
+          "added": "{label} finns nu bland kompetenserna i din profil.",
+          "errors": {
+            "notLoggedIn": "Logga in för att lägga till kompetenser i din profil.",
+            "failed": "Det gick inte att lägga till kompetensen. Försök igen.",
+            "network": "Det gick inte att nå tjänsten. Kontrollera anslutningen och försök igen."
+          }
+        }
       }
     },
     "gradeFilter": {

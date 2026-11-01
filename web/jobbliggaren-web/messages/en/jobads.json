@@ -270,7 +270,18 @@
         "metItem": "Met: {label}",
         "unmetItem": "Missing: {label}",
         "showMore": "Show {count} more",
-        "showLess": "Show fewer"
+        "showLess": "Show fewer",
+        "add": {
+          "prefix": "Add",
+          "title": "Add {label} to the skills in your profile",
+          "pending": "Adding",
+          "added": "{label} is now among the skills in your profile.",
+          "errors": {
+            "notLoggedIn": "Sign in to add skills to your profile.",
+            "failed": "The skill could not be added. Try again.",
+            "network": "The service could not be reached. Check your connection and try again."
+          }
+        }
       }
     },
     "gradeFilter": {

@@ -3,6 +3,8 @@ import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRight, Check, CircleAlert, Info, Minus, X } from "lucide-react";
 import { MatchChip } from "./match-chip";
+import { MatchSkillAddButton } from "./match-skill-add-button";
+import { MatchSkillAddRegion } from "./match-skill-add-region";
 import { MatchSkillOverflow } from "./match-skill-overflow";
 import styles from "./job-ad-match-section.module.css";
 import type { JobAdMatchDetail } from "@/lib/dto/job-ad-match";
@@ -16,6 +18,7 @@ import {
   type DimensionRow,
   type MatchDimensionKey,
   type SkillChecklist,
+  type SkillChip,
   type SkillGroup,
 } from "@/lib/job-ads/match-checklist";
 
@@ -104,6 +107,42 @@ function ChipIcon({ tone }: { tone: ChipTone }) {
   return <Icon size={14} className={styles.chipIcon} aria-hidden="true" />;
 }
 
+function ChipBody({ chip, requirement, t }: { chip: SkillChip; requirement: boolean; t: MatchTranslator }) {
+  // #2247: a skill the profile lacks, carrying the concept identity the backend can store, is one
+  // "Lägg till" button. Without identity there is nothing to add, so the chip stays text.
+  if (chip.tone !== "met" && chip.conceptIds.length > 0) {
+    return (
+      <MatchSkillAddButton
+        chipKey={chip.key}
+        conceptIds={chip.conceptIds}
+        label={chip.label}
+        icon={<ChipIcon tone={chip.tone} />}
+        status={requirement ? t("skills.unmetItem", { label: chip.label }) : undefined}
+      />
+    );
+  }
+
+  return (
+    <>
+      <ChipIcon tone={chip.tone} />
+      {requirement ? (
+        // A requirement list mixes met and missing chips; the icon is decorative, so the
+        // status is spoken in words (WCAG 1.3.1).
+        <>
+          <span aria-hidden="true">{chip.label}</span>
+          <span className="sr-only">
+            {chip.tone === "met"
+              ? t("skills.metItem", { label: chip.label })
+              : t("skills.unmetItem", { label: chip.label })}
+          </span>
+        </>
+      ) : (
+        chip.label
+      )}
+    </>
+  );
+}
+
 function groupHeading(
   kind: SkillGroup["kind"],
   hasRequirements: boolean,
@@ -146,21 +185,7 @@ function SkillGroupBlock({
           data-tone={chip.tone}
           data-overflow={start !== null && index >= start ? "" : undefined}
         >
-          <ChipIcon tone={chip.tone} />
-          {requirement ? (
-            // A requirement list mixes met and missing chips; the icon is decorative, so the
-            // status is spoken in words (WCAG 1.3.1).
-            <>
-              <span aria-hidden="true">{chip.label}</span>
-              <span className="sr-only">
-                {chip.tone === "met"
-                  ? t("skills.metItem", { label: chip.label })
-                  : t("skills.unmetItem", { label: chip.label })}
-              </span>
-            </>
-          ) : (
-            chip.label
-          )}
+          <ChipBody chip={chip} requirement={requirement} t={t} />
         </li>
       ))}
     </ul>
@@ -205,7 +230,7 @@ function SkillsBox({ skills, t }: { skills: SkillChecklist; t: MatchTranslator }
       {skills.state === "notAssessed" ? (
         <Notice>{t("skillsFoot")}</Notice>
       ) : (
-        <>
+        <MatchSkillAddRegion>
           {skills.groups.map((group) => (
             <SkillGroupBlock
               key={group.kind}
@@ -222,7 +247,7 @@ function SkillsBox({ skills, t }: { skills: SkillChecklist; t: MatchTranslator }
           {skills.requirementsNote !== null && (
             <Notice>{t(`requirementsEmpty.${skills.requirementsNote}`)}</Notice>
           )}
-        </>
+        </MatchSkillAddRegion>
       )}
     </div>
   );

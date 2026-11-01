@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { render as rawRender } from "@testing-library/react/pure";
 import userEvent from "@testing-library/user-event";
@@ -21,6 +21,11 @@ import type {
 // Fixtures follow the producers in src/Jobbliggaren.Infrastructure/Matching/MatchScorer.cs, graded
 // by MatchGradeCalculator (no grade unless Yrke is Match; a stated Ort or employment type the ad
 // contradicts floors the grade at Basic).
+
+// The skills box hosts the #2247 add region (its own tests: match-skill-add.test.tsx), which needs a
+// router and the server action; neither is exercised here.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/lib/actions/match-preferences", () => ({ addPreferredSkillsAction: vi.fn() }));
 
 type Entry = [conceptId: string, label: string | null];
 
@@ -266,7 +271,8 @@ describe("JobAdMatchSection — the skills box", () => {
     expect(within(also).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["C#"]);
     expect(screen.queryByText(/\(C#, programmeringsspråk\)/)).not.toBeInTheDocument();
     const missing = screen.getByRole("list", { name: "Kompetenser: Finns inte i din profil" });
-    expect(within(missing).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Teknisk fysik"]);
+    // A missing skill with concept identity is its "Lägg till" button (#2247).
+    expect(within(missing).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Lägg till Teknisk fysik"]);
   });
 
   it("keeps the taxonomy's own qualifiers (Klas 2026-10-03)", () => {

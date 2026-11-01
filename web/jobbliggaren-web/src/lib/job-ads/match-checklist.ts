@@ -50,6 +50,8 @@ export interface SkillChip {
   key: string;
   label: string;
   tone: ChipTone;
+  /** The chip's concept group (#277); empty when the API sent no concept identity (#2247 adds none then). */
+  conceptIds: string[];
 }
 
 export type SkillGroupKind = "must" | "nice" | "profileMatched" | "profileMissing";
@@ -301,11 +303,13 @@ export function buildSkillChecklist(match: JobAdMatchDetail): SkillChecklist {
         key: `${kind}:met:${source.ids.join("+") || index}`,
         label: source.label,
         tone: "met" as const,
+        conceptIds: source.ids,
       })),
       ...unmet.map((source, index) => ({
         key: `${kind}:unmet:${source.ids.join("+") || index}`,
         label: source.label,
         tone: missingTone,
+        conceptIds: source.ids,
       })),
     ];
     met.forEach((source) => metIds.push(source.ids));
@@ -336,6 +340,7 @@ export function buildSkillChecklist(match: JobAdMatchDetail): SkillChecklist {
           key: `${kind}:${source.ids.join("+") || index}`,
           label: source.label,
           tone,
+          conceptIds: source.ids,
         })),
       });
     }

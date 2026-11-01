@@ -3,6 +3,7 @@ using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Auth.Queries.GetCurrentUser;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobSeekers.Commands.AddPreferredSkills;
 using Jobbliggaren.Application.JobSeekers.Commands.SetDigestCadence;
 using Jobbliggaren.Application.JobSeekers.Commands.SetMatchSummaryMail;
 using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationMail;
@@ -48,6 +49,18 @@ public static class MeEndpoints
         // is left as stored.
         group.MapPatch("/match-preferences", async (
             UpdateMatchPreferencesCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // #2247 — adds one skill group to the confirmed set (a union, never a replace): the job card's
+        // "Lägg till" on a skill the ad asks for and the profile lacks.
+        group.MapPost("/match-preferences/skills", async (
+            AddPreferredSkillsCommand command, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(command, ct);
             return result.IsSuccess

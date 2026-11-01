@@ -504,6 +504,70 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         }
     }
 
+    private static readonly string[] MalformedConceptIds = ["bad id!"];
+    private static readonly string[] AnyConceptIds = ["sk_a"];
+
+    // #2247 — the card's "Lägg till" writes through POST /me/match-preferences/skills, and the NEXT read of
+    // the same detail reports the skill as matched: the move from "missing" to "matched" is the backend's
+    // own verdict, never a client-side reshuffle.
+    [Fact]
+    public async Task POST_preferred_skills_TheAddedMissingSkillsAreMatchedOnTheNextDetailRead()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var grp = NewConceptId("grp");
+        var reg = NewConceptId("reg");
+        var emp = NewConceptId("emp");
+        var extractor = _factory.Services.GetRequiredService<IJobAdKeywordExtractor>();
+        ExtractedTerms Extract(string title, string description) =>
+            extractor.Extract(new JobAdExtractionInput(title, description));
+        var unrelated = NewConceptId("sk");
+        await SetPreferencesAsync([grp], [reg], [emp], ct, skills: [unrelated]);
+        var adId = await SeedJobAdAsync("boka", grp, reg, emp, null, ct,
+            description: "datateknik", extractTerms: Extract);
+
+        var before = await (await GetDetailAsync(adId, ct)).Content.ReadFromJsonAsync<JsonElement>(ct);
+        var missing = WireMemberIds(before, "skillOverlap", "missing");
+        missing.ShouldNotBeEmpty();
+        WireMemberIds(before, "skillOverlap", "matched").ShouldBeEmpty();
+
+        var add = await _client.PostAsJsonAsync(
+            "/api/v1/me/match-preferences/skills", new { conceptIds = missing }, ct);
+        add.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var after = await (await GetDetailAsync(adId, ct)).Content.ReadFromJsonAsync<JsonElement>(ct);
+        WireMemberIds(after, "skillOverlap", "matched").ShouldBe(missing, ignoreOrder: true);
+        WireMemberIds(after, "skillOverlap", "missing").ShouldBeEmpty();
+
+        // The earlier confirmed skill is still there: a union, not a replace.
+        var profile = await (await _client.GetAsync("/api/v1/me/profile", ct)).Content.ReadFromJsonAsync<JsonElement>(ct);
+        profile.GetProperty("preferredSkills").EnumerateArray().Select(e => e.GetString())
+            .ShouldContain(unrelated);
+    }
+
+    [Fact]
+    public async Task POST_preferred_skills_MalformedConceptId_Returns400()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/me/match-preferences/skills", new { conceptIds = MalformedConceptIds }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task POST_preferred_skills_Unauthenticated_Returns401()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _factory.CreateClient().PostAsJsonAsync(
+            "/api/v1/me/match-preferences/skills", new { conceptIds = AnyConceptIds }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

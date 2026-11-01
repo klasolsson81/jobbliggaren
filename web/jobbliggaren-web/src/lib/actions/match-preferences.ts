@@ -12,6 +12,7 @@ import type { OccupationCandidate } from "@/lib/dto/match-preferences";
 import type { SkillGroup } from "@/lib/dto/skills";
 import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
 import {
+  addPreferredSkillsSchema,
   makeUpdateMatchPreferencesSchema,
   type UpdateMatchPreferencesInput,
 } from "./match-preferences-schemas";
@@ -69,6 +70,42 @@ export async function updateMatchPreferencesAction(
 
   revalidatePath(MINA_SIDOR_HREF.matchning);
   revalidatePath("/oversikt");
+  return { success: true };
+}
+
+/**
+ * #2247 — the job card's "Lägg till" on a skill the ad asks for and the profile lacks. Adds ONE chip's
+ * concept group to the confirmed set through `POST /api/v1/me/match-preferences/skills` (204), a union
+ * on the server: the card never holds the stored set, so a read-then-PATCH from it would let two quick
+ * clicks overwrite each other. Same guard → parse → fetch → `mapActionError` shape as above; the body
+ * is never read.
+ *
+ * Success only means the backend stored it. The chip moves to "Matchar din profil" when the caller
+ * refreshes and the match is computed again — never before.
+ */
+export async function addPreferredSkillsAction(
+  conceptIds: ReadonlyArray<string>
+): Promise<ActionResult> {
+  const t = await getTranslations("jobads.ui.match.skills.add.errors");
+  const te = await getTranslations("errors");
+  const sessionId = await getSessionId();
+  if (!sessionId) return { success: false, error: t("notLoggedIn") };
+
+  const parsed = addPreferredSkillsSchema.safeParse(conceptIds);
+  if (!parsed.success) return { success: false, error: t("failed") };
+
+  try {
+    const res = await authedFetch(sessionId, `/api/v1/me/match-preferences/skills`, {
+      method: "POST",
+      body: JSON.stringify({ conceptIds: parsed.data }),
+    });
+
+    if (!res.ok) return { success: false, error: mapActionError(res, t("failed"), te) };
+  } catch {
+    return { success: false, error: t("network") };
+  }
+
+  revalidatePath(MINA_SIDOR_HREF.matchning);
   return { success: true };
 }
 

@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Domain.Resumes;
@@ -184,9 +183,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
 
             if (headings[h].Kind is { } kind)
             {
-                // Same typed heading twice ⇒ concatenate the blocks deterministically.
+                // Same typed heading twice ⇒ concatenate the blocks deterministically. The seam is a
+                // BLANK line (#2249): a second heading is a boundary the user wrote, so the last
+                // entry of the first block ("Arbetslivserfarenhet") must not run on into the first
+                // entry of the second ("Anställningar"). A single newline fused them.
                 blocks[kind] = blocks.TryGetValue(kind, out var existing)
-                    ? string.Concat(existing, "\n", block).Trim()
+                    ? string.Concat(existing, "\n\n", block).Trim()
                     : block;
                 continue;
             }
@@ -203,7 +205,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     }
 
     /// <summary>
-    /// A free section's body → entries, reusing the SAME blank-line rule as Experience/Education
+    /// A free section's body → entries, reusing the SAME entry rule as Experience/Education
     /// (DRY — one owner of what an "entry" is). The first line becomes the entry Title only when
     /// the entry has more than one line; a lone line, or a bullet, is content, and the parser will
     /// not promote it into a title it did not write.
@@ -229,15 +231,9 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         return entries;
     }
 
-    private static bool IsBulletLine(string line)
-    {
-        var trimmed = line.TrimStart();
-        return trimmed.Length > 0 && BulletMarkers.Contains(trimmed[0]);
-    }
-
-    // Bullet glyphs a CV realistically uses. A bulleted first line is content, never a title.
-    private static readonly SearchValues<char> BulletMarkers =
-        SearchValues.Create(['-', '*', '•', '–', '—', '·', '●', '▪']);
+    // A bulleted first line is content, never a title. One glyph set with EntryBoundaries, which
+    // asks the same question of a header line.
+    private static bool IsBulletLine(string line) => EntryBoundaries.IsBulletLine(line);
 
     private static List<string> PreambleLines(
         string[] lines,
@@ -474,7 +470,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
 
     private readonly record struct Entry(IReadOnlyList<string> Lines, string Text);
 
-    // Split a section block into entries on blank lines.
+    // Split a section block into entries on blank lines, then split each blank-delimited run on the
+    // dated-entry structure it carries (#2249 — PDF text and paragraph-spaced DOCX have no blank
+    // lines at all; EntryBoundaries owns that rule). A run with fewer than two dated entries comes
+    // back whole, so a blank-line-separated CV parses exactly as before.
     private static IEnumerable<Entry> SplitEntries(string block)
     {
         var current = new List<string>();
@@ -484,7 +483,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             {
                 if (current.Count > 0)
                 {
-                    yield return new Entry(current, string.Join('\n', current).Trim());
+                    foreach (var entry in EntriesOf(current))
+                        yield return entry;
                     current = [];
                 }
             }
@@ -495,8 +495,14 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         }
 
         if (current.Count > 0)
-            yield return new Entry(current, string.Join('\n', current).Trim());
+        {
+            foreach (var entry in EntriesOf(current))
+                yield return entry;
+        }
     }
+
+    private static IEnumerable<Entry> EntriesOf(List<string> run) =>
+        EntryBoundaries.Split(run).Select(lines => new Entry(lines, string.Join('\n', lines).Trim()));
 
     // Header line → (title, organization) best-effort, the split reading the SECOND line when the
     // first carries nothing but a period; falls back to the second line as the organization for

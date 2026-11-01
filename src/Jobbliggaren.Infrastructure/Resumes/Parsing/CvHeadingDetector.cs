@@ -66,12 +66,23 @@ internal static class CvHeadingDetector
             var atSectionBoundary = i == 0 || lines[i - 1].Trim().Length == 0;
 
             var colon = lines[i].IndexOf(':', StringComparison.Ordinal);
-            if (!atSectionBoundary || colon <= 0)
+            if (colon <= 0)
             {
                 continue;
             }
 
             var inlineContent = lines[i][(colon + 1)..].Trim();
+
+            // #2249: the one exception to the boundary gate. PDF text carries no blank lines at all,
+            // so an inline "Experience: …" there is never at a boundary and its whole section was
+            // lost. Position cannot vouch for it, but the lines AFTER it can: a dated-entry section
+            // opens on a dated entry (EntryBoundaries.OpensEntry), and a profile sentence that
+            // happens to start with the word ("Experience: over 10 years in QA.") is followed by
+            // more prose. Only the two typed sections whose entries carry periods qualify.
+            if (!atSectionBoundary && !OpensDatedSection(lines, i, colon, inlineContent, lexicon))
+            {
+                continue;
+            }
 
             // #815: the inline split is restricted to TYPED headings. A free heading may only be
             // recognised as a whole line.
@@ -99,6 +110,24 @@ internal static class CvHeadingDetector
         }
 
         return headings;
+    }
+
+    // True when lines[i] reads "<Experience|Education heading>: …" and a dated entry starts right
+    // there (the inline remainder as its header) or on the next line.
+    private static bool OpensDatedSection(
+        string[] lines, int i, int colon, string inlineContent, CvParsingLexiconData lexicon)
+    {
+        if (!TryMatch(lines[i][..colon], lexicon, out var kind, out _, out _)
+            || kind is not (ParsedSectionKind.Experience or ParsedSectionKind.Education))
+        {
+            return false;
+        }
+
+        var next = i + 1 < lines.Length ? lines[i + 1] : null;
+        var afterNext = i + 2 < lines.Length ? lines[i + 2] : null;
+
+        return (inlineContent.Length > 0 && EntryBoundaries.OpensEntry(inlineContent, next))
+            || (next is not null && EntryBoundaries.OpensEntry(next, afterNext));
     }
 
     /// <summary>

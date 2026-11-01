@@ -329,9 +329,9 @@ public class PdfPigOpenXmlCvTextExtractorTests
 
     // #1060 PR E — THE BASE, pinned. Three documents with the same words and three different
     // authored spacings. `ContentOrderTextExtractor.GetText(page)` emits one newline per visual
-    // line regardless, so all three produce the same shape — zero blank lines — and the segmenter,
-    // which splits entries on blank lines and nothing else, cannot tell them apart. That is #1060
-    // stated at the layer that owns it.
+    // line regardless, so all three produce the same shape — zero blank lines. That is #1060
+    // stated at the layer that owns it. (Since #2249 the segmenter no longer needs the blank line:
+    // EntryBoundaries recovers entries from their own dates, so these rows pin the extractor only.)
     //
     // WHAT A FUTURE BOUNDARY FIX MUST DO TO THESE ROWS, stated precisely because getting it wrong
     // is how the next attempt repeats this one:

@@ -2,21 +2,21 @@
   <ItemGroup>
     <!-- Mediator (CQRS via source generator) -->
     <PackageVersion Include="EFCore.NamingConventions" Version="10.0.1" />
-    <PackageVersion Include="FluentValidation" Version="12.1.1" />
-    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageVersion Include="FluentValidation" Version="12.2.0" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0" />
     <PackageVersion Include="Mediator.SourceGenerator" Version="3.0.2" />
     <PackageVersion Include="Mediator.Abstractions" Version="3.0.2" />
     <!-- EF Core — Application uses DbSet<T> as abstraction per ADR 0009 (bridge pattern).
          Provider-specific packages (Npgsql, Relational) stay in Infrastructure. -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
     <!-- Test stack -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageVersion>
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.2" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <!-- NSubstitute 6.0.0 (#1163, 2026-08-02). 6.0.0 enables nullable annotations on the whole
          public API for .NET 8+. The only migration upstream documents is
@@ -63,33 +63,33 @@
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <!-- Integration testing -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.12" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.15.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0" />
     <!-- Worker host -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
     <!-- DI-abstraktion i Application (IServiceScopeFactory för snapshot child-scope,
          root-cause-fix 2026-05-16). Ren DI-abstraktion (ej EF/ASP.NET) → Clean Arch OK.
          Tidigare transitiv via FluentValidation.DependencyInjectionExtensions;
          explicit ref = versionshygien (senior-cto-advisor + dotnet-architect 2026-05-16). -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
     <!-- #1981 PR 4a (ADR 0185) — IConfiguration for Jobbliggaren.Infrastructure.Mailbox's AddDmarcMailbox, which
          reads the one password key. Already in every host's graph through Microsoft.Extensions.Hosting 10.0.12; the
          Mailbox project references Application only, which does not carry it, so it is declared rather than reached
          through Infrastructure. -->
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.14" />
     <!-- Auth + JWT -->
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.14" />
     <!-- Health checks — TD-29 / F2-P6 strict readiness-probe.
          Microsoft.Extensions.Diagnostics.HealthChecks.* är Microsoft-paket (inte Xabaril).
          AddDbContextCheck<T> pingar DbContext via SELECT 1, returnerar Healthy/Unhealthy.
          Redis-check skrivs som custom IHealthCheck via IConnectionMultiplexer.IsConnected
          — undviker third-party Xabaril-dep, ~10 rader kod. -->
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.14" />
     <!-- Redis -->
-    <PackageVersion Include="StackExchange.Redis" Version="3.3.1" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.4.29" />
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.12" />
     <!-- Test — Redis container -->
-    <PackageVersion Include="Testcontainers.Redis" Version="4.15.0" />
+    <PackageVersion Include="Testcontainers.Redis" Version="4.16.0" />
     <!-- Transitive CVE pin: Testcontainers 4.13.0 declares SSH.NET >= 2025.1.0 (measured in
          its nuspec, all TFM groups), which is vulnerable to GHSA-q939-rpr3-3284 (HIGH —
          ScpClient recursive download allows arbitrary file write via server-controlled SCP
@@ -130,7 +130,7 @@
          vars arm inte behöver något paket alls, så allow-listan föll bort med sin enda medlem.
          NoAmazonReferenceTests bär förbudet och sina icke-vakuitetsankare. -->
 
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.14" />
     <!-- TD-104 / Pre-4 STEG 6 — persistent strukturerad logg-sink (senior-cto-advisor
          Variant B: MEL → Seq, additivt på befintlig MEL-pipeline; Serilog avvisat YAGNI).
          9.0.0 = senaste stabila (net8/net9/netstandard2.0-asset). .NET 10-kompatibel:
@@ -157,7 +157,7 @@
          Web-verifierad 2026-06-06 (reactiveui/refit #2114, nuget.org). -->
     <PackageVersion Include="Refit" Version="11.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="11.2.0" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
     <PackageVersion Include="WireMock.Net" Version="1.25.0" />
     <!-- Transitiv CVE-pinning: WireMock.Net 1.25.0 drar in OpenTelemetry.Api 1.14.0 +
          OpenTelemetry.Exporter.OpenTelemetryProtocol 1.14.0 vilka är sårbara mot
@@ -287,7 +287,7 @@
          plus rotens byggfiler, och noll Amazon-importer i någon .cs under samma rötter. Lägg inte tillbaka
          ett AWSSDK-paket "bara för att"; kryptering är fortsatt Local-only (#802) och
          SecretsManager/KeyManagementService/S3/Bedrock/AWS.Logger.* var bannade redan innan. -->
-    <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.2" />
+    <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.3" />
     <!-- #1981 PR 4a (ADR 0185, Klas GO K2 2026-10-24) — the Worker reads the DMARC aggregate reports sent to
          dmarc@jobbliggaren.se over IMAPS, read-only. The BCL has no IMAP client and no MIME body parser, and
          Microsoft's own SmtpClient page points to MailKit. The PackageReference lives ONLY in

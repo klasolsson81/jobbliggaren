@@ -109,7 +109,7 @@ filter both call, so the definition of "junior IT" exists once (the single point
 - **Six keys, and nothing else from the reading:** `//` (maintainer documentation, not mapped), `juniorItListVersion`, `readAt`, `occupationFieldConceptId`, `headlinePattern` and
   `curatedExternalIds`, the 144 ids. No label, year, place, note, title, employer or our own id. The ids were generated from Klas's reading by a one-off command outside the repository.
 - **The loader fails loud at host build** (the list is instance-registered): no version; a `readAt` that is not `yyyy-MM-dd`; no field id; no pattern; a pattern that does not compile (it is
-  compiled with a one-second timeout); an id that is not decimal digits (`^[0-9]{1,20}$`, since anything else could never equal a Platsbanken id and would shrink the list unseen); or an id named
+  compiled with a one-second timeout); an id that is not decimal digits (since anything else could never equal a Platsbanken id and would shrink the list unseen); or an id named
   twice. A test (written in this PR) pins the file's six keys, so a seventh cannot ride in unnoticed, together with the id form, the absence of duplicates and the count of 144. The loader itself
   ignores an unmapped key; the pin is the test's.
 - **The pattern runs in PostgreSQL at request time and in .NET only in the loader's compile check and the agreement test** (D4). Titles are third-party input, so no request ever runs a .NET regex
@@ -138,10 +138,9 @@ The pattern is a port of the reading's `HEAD_JUNIOR`. The change is that `\b` is
 - **One `now` for both reads.** The handler takes `clock.UtcNow` once and passes it to `CountByMunicipalityAsync` and `ReadPageAsync`. The total is the count's sum, for the chosen kommun or for all
   of them. A page past the last page (`lastPage = max(1, ceil(total / 20))`) answers `NoSuchPage`, which the endpoint maps to **404**, as the catalogue does. A kommun with no listed junior ad
   answers 200 with an empty page and the options. The registry (ADR 0113) holds two `Active` entries, `JuniorItJobAdQuery.CountByMunicipalityAsync` and `.ReadPageAsync`.
-- **The options.** `places` is every kommun that has a listed junior IT ad, counted over the **whole** list whatever kommun was chosen, so the visitor can move between them, sorted by count and
-  then by name. A kommun without a name in the taxonomy cannot be offered by name, so it is left out of the options and still counts in the total. Ads without a kommun count in the unfiltered
+- **The options.** `places` is every kommun that has a listed junior IT ad, counted over the **whole** list whatever kommun was chosen, so the visitor can move between them. A kommun without a name in the taxonomy cannot be offered by name, so it is left out of the options and still counts in the total. Ads without a kommun count in the unfiltered
   total and appear in no option. Counts and rows come from the same composed base, so they cannot disagree about membership. No option and no count is keyed by employer.
-- **The parameters.** `municipality` is a JobTech concept id (at most 32 characters, `^[A-Za-z0-9_]+$`); `sortBy` is `PublishedAtDesc` (the default) or `ExpiresAtAsc`; `page` is 1 to 100
+- **The parameters.** `municipality` is a JobTech concept id (at most 32 characters); `sortBy` is `PublishedAtDesc` (the default) or `ExpiresAtAsc`; `page` is 1 to 100
   (`MaxPage`, which bounds the URL space and not the list). The validator refuses anything else with the pipeline's 400. The page size is a constant, 20. `JobAdSortBy` is reused and restricted in the
   validator to those two (architect Nice-to-have 1), and `ApplySort` puts a null deadline last under `ExpiresAtAsc`.
 - **`no-store`** comes from the `/api/v1/public` prefix block in `Program.cs`, which covers every answer under the prefix (security-auditor S9; the tests read the 200, 400, 404 and 429).

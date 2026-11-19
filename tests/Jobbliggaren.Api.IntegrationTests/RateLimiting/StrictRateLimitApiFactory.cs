@@ -100,6 +100,8 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdCatalogue__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRelated__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRelated__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdJuniorIt__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdJuniorIt__WindowSeconds", null);
 
         using var scope = Services.CreateScope();
         // F6 P4 — pg_trgm krävs av F6P4aJobAdTrigramIndexes (se ApiFactory).

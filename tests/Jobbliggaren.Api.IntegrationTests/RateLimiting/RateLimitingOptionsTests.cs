@@ -108,6 +108,18 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_PublicJobAdJuniorIt_Is60Per60sIn6Segments()
+    {
+        // ADR 0186 — the open junior IT list, IP-partitioned TokenBucket, its own bucket at the catalogue's starting
+        // numbers.
+        var sut = new RateLimitingOptions();
+
+        sut.PublicJobAdJuniorIt.PermitLimit.ShouldBe(60);
+        sut.PublicJobAdJuniorIt.WindowSeconds.ShouldBe(60);
+        sut.PublicJobAdJuniorIt.SegmentsPerWindow.ShouldBe(6);
+    }
+
+    [Fact]
     public void Defaults_AuthLoose_Is30Per60s()
     {
         var sut = new RateLimitingOptions();

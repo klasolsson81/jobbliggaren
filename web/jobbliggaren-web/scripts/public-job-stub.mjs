@@ -13,7 +13,9 @@
  * or an answer held past the web's timeout. It answers the catalogue's pages in a mode too: three pages of rows, a page
  * past the end, the budget, its own 503, an outage, or an answer held past the web's timeout. It answers the related ads
  * in a mode too: five rows under the listed ad and none under the one without a kommun, the budget, an outage, a row
- * with a member beyond the six, or an answer held past the web's 2-second timeout. Any other path is a 401.
+ * with a member beyond the six, or an answer held past the web's 2-second timeout. It answers the open junior IT list
+ * (ADR 0186) in a mode too: two pages of rows over three kommuner, filtered by kommun, an empty list, the budget or an
+ * outage. Any other path is a 401.
  */
 import { createServer } from "node:http";
 
@@ -170,6 +172,55 @@ function answerRelated(id, res, send) {
   }
 }
 
+/** The junior IT list's kommuner and rows: 23 listed ads over three kommuner, so two pages for all of them. */
+export const JUNIOR_PLACES = [
+  { municipalityConceptId: "PVZL_BQT_XtL", name: "Göteborg", count: 9 },
+  { municipalityConceptId: "AvNB_uwa_6n6", name: "Stockholm", count: 12 },
+  { municipalityConceptId: "oYPt_yRA_Smm", name: "Östersund", count: 2 },
+];
+export const juniorRow = (n, place = JUNIOR_PLACES[n % 3]) => ({
+  id: `cccccccc-0000-4000-8000-${String(n).padStart(12, "0")}`,
+  title: `Junior utvecklare ${n}`,
+  companyName: `IT-bolag ${n} AB`,
+  municipalityName: place.name,
+  regionName: null,
+  publishedAt: "2026-11-10T08:00:00+00:00",
+  expiresAt: n % 4 === 0 ? null : "2026-12-10T22:59:59+00:00",
+});
+/** How the stub answers the junior IT list; a check sets it, and the checks reset it to "ok". */
+export const junior = { mode: "ok" };
+
+function answerJunior(url, send) {
+  const page = Number(url.searchParams.get("page") ?? "1");
+  const kommun = url.searchParams.get("municipality");
+  switch (junior.mode) {
+    case "ok": {
+      if (!Number.isInteger(page) || page < 1) return send(400, "{}");
+      const place = kommun === null ? null : JUNIOR_PLACES.find((p) => p.municipalityConceptId === kommun);
+      const total = kommun === null ? JUNIOR_PLACES.reduce((sum, p) => sum + p.count, 0) : (place?.count ?? 0);
+      const pages = Math.max(1, Math.ceil(total / 20));
+      if (page > pages) return send(404, "");
+      const from = (page - 1) * 20 + 1;
+      const items = Array.from({ length: Math.max(0, Math.min(20, total - from + 1)) }, (_, i) =>
+        juniorRow(from + i, place ?? undefined)
+      );
+      return send(
+        200,
+        JSON.stringify({
+          rows: { items, totalCount: total, page, pageSize: 20, totalPages: Math.ceil(total / 20) },
+          places: JUNIOR_PLACES,
+        })
+      );
+    }
+    case "empty":
+      return send(200, JSON.stringify({ rows: { items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0 }, places: [] }));
+    case "budget":
+      return send(429, "{}", { "retry-after": "9" });
+    default:
+      return send(500, "{}");
+  }
+}
+
 export function stubHandler(req, res) {
   seen.push({ method: req.method, path: req.url, headers: { ...req.headers } });
 
@@ -182,6 +233,9 @@ export function stubHandler(req, res) {
   }
   if (url.pathname === "/api/v1/public/job-ads/catalogue") {
     return answerCatalogue(url, res, send);
+  }
+  if (url.pathname === "/api/v1/public/job-ads/junior") {
+    return answerJunior(url, send);
   }
   const relatedMatch = /^\/api\/v1\/public\/job-ads\/([0-9a-f-]{36})\/related$/.exec(url.pathname);
   if (relatedMatch !== null) {

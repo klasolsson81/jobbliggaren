@@ -63,5 +63,35 @@
       "body": "Listan över lediga jobb har ingen sådan sida.",
       "toCatalogue": "Till lediga jobb"
     }
+  },
+  "junior": {
+    "title": "Juniora IT-jobb",
+    "lede": "Lediga jobb inom data och IT för dig som är ny i yrket: juniortjänster, traineeprogram, praktik och jobb utan krav på tidigare erfarenhet. Annonserna kommer från Platsbanken, och listan ändras när annonser publiceras och stängs.",
+    "metaDescription": "Lediga juniora IT-jobb från Platsbanken: juniortjänster, traineeprogram och jobb utan krav på tidigare erfarenhet. Välj ort och sortera listan.",
+    "filters": {
+      "heading": "Välj ort och sortering",
+      "place": "Ort",
+      "allPlaces": "Alla orter ({count, number})",
+      "placeOption": "{name} ({count, number})",
+      "submit": "Visa"
+    },
+    "count": "{count, plural, one {ledigt jobb} other {lediga jobb}}",
+    "countInPlace": "{count, plural, one {ledigt jobb} other {lediga jobb}} i {place}",
+    "lastApplication": "Sista ansökningsdag",
+    "openAdHint": "Öppna en annons för att läsa hela texten. Är du inloggad kan du spara annonsen och markera att du har sökt jobbet.",
+    "empty": {
+      "title": "Inga juniora IT-jobb just nu",
+      "body": "Listan ändras när nya annonser publiceras. Titta in igen om några dagar."
+    },
+    "emptyPlace": {
+      "title": "Inga juniora IT-jobb på den orten just nu",
+      "body": "Välj en annan ort, eller visa listan för alla orter.",
+      "allPlaces": "Visa alla orter"
+    },
+    "notFound": {
+      "title": "Sidan finns inte",
+      "body": "Listan över juniora IT-jobb har ingen sådan sida.",
+      "toList": "Till juniora IT-jobb"
+    }
   }
 }

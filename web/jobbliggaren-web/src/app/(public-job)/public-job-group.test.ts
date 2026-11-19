@@ -133,7 +133,15 @@ describe("(public-job) route group", () => {
     expect(rows).not.toMatch(/from "next\/link"/);
     const list = read(resolve(SRC, "components/job-ads/public-junior-it-list.tsx"));
     expect(list).toMatch(/prefetch=\{false\}/);
-    expect(list).not.toMatch(/cookies\(|headers\(|getSession|auth\(/);
+    for (const file of [
+      list,
+      page,
+      rows,
+      read(resolve(GROUP, "junior/not-found.tsx")),
+      read(resolve(SRC, "lib/api/public-junior-it-job-ads.ts")),
+    ]) {
+      expect(file).not.toMatch(/cookies\(|getSession|auth\(|getCurrentUser/);
+    }
     const segmentNotFound = read(resolve(GROUP, "junior/not-found.tsx"));
     expect(segmentNotFound).not.toMatch(/from "next\/link"/);
     expect(segmentNotFound).not.toMatch(/getPublicJuniorItJobAds|fetch\(/);

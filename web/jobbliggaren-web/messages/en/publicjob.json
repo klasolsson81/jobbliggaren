@@ -66,26 +66,24 @@
   },
   "junior": {
     "title": "Junior IT jobs",
-    "lede": "Open jobs in data and IT for people new to the field: junior roles, trainee programmes, internships and jobs that ask for no previous experience. The ads come from Platsbanken, and the list changes as ads are published and close.",
+    "lede": "Open jobs in data and IT for people new to the field, from Platsbanken.",
     "metaDescription": "Open junior IT jobs from Platsbanken: junior roles, trainee programmes and jobs that ask for no previous experience. Choose a place and sort the list.",
     "filters": {
       "heading": "Choose a place and an order",
       "place": "Place",
-      "allPlaces": "All places ({count, number})",
+      "allPlaces": "All places",
       "placeOption": "{name} ({count, number})",
       "submit": "Show"
     },
     "count": "{count, plural, one {open job} other {open jobs}}",
     "countInPlace": "{count, plural, one {open job} other {open jobs}} in {place}",
     "lastApplication": "Last day to apply",
-    "openAdHint": "Open an ad to read the full text. If you are signed in, you can save the ad and mark that you have applied.",
     "empty": {
       "title": "No junior IT jobs right now",
-      "body": "The list changes as new ads are published. Check again in a few days."
+      "body": "Check again in a few days."
     },
     "emptyPlace": {
       "title": "No junior IT jobs in that place right now",
-      "body": "Choose another place, or show the list for all places.",
       "allPlaces": "Show all places"
     },
     "notFound": {

@@ -50,8 +50,8 @@ const row = (n: number, overrides: Partial<Record<string, string | null>> = {}) 
 });
 
 const places = [
-  { municipalityConceptId: STHLM, name: "Stockholm", count: 39 },
   { municipalityConceptId: GBG, name: "Göteborg", count: 20 },
+  { municipalityConceptId: STHLM, name: "Stockholm", count: 39 },
 ];
 
 const pageOf = (items: ReturnType<typeof row>[], totalCount: number, page = 1, placeList = places) => ({
@@ -92,7 +92,7 @@ describe("the junior IT list page", () => {
     expect(rows[1]!.querySelectorAll("time")).toHaveLength(1);
   });
 
-  it("offers every kommun in Swedish order with its count, and the two orders /jobb offers, in a plain GET form", async () => {
+  it("offers every kommun in the API's order with its count, and the two orders /jobb offers, in a plain GET form", async () => {
     getPublicJuniorItJobAds.mockResolvedValue(pageOf([row(1)], 59));
     const { container } = render(await PublicJuniorItPage(props()));
 
@@ -102,7 +102,7 @@ describe("the junior IT list page", () => {
     const place = screen.getByLabelText("Ort") as HTMLSelectElement;
     expect(place.name).toBe("municipality");
     expect([...place.options].map((o) => [o.value, o.textContent])).toEqual([
-      ["", "Alla orter (59)"],
+      ["", "Alla orter"],
       [GBG, "Göteborg (20)"],
       [STHLM, "Stockholm (39)"],
     ]);
@@ -150,6 +150,33 @@ describe("the junior IT list page", () => {
     );
   });
 
+  it("names no total in the all-places option, which the ads without a named kommun would contradict", async () => {
+    getPublicJuniorItJobAds.mockResolvedValue(pageOf([row(1)], 64));
+    const { container } = render(await PublicJuniorItPage(props()));
+
+    expect((screen.getByLabelText("Ort") as HTMLSelectElement).options[0]!.textContent).toBe("Alla orter");
+    expect(container.querySelector(".jp-results-count")?.textContent).toBe("64 lediga jobb");
+  });
+
+  it("keeps the form, the order included, when no listed ad has a named kommun", async () => {
+    getPublicJuniorItJobAds.mockResolvedValue(pageOf([row(1, { municipalityName: null })], 1, 1, []));
+    render(await PublicJuniorItPage(props()));
+
+    expect([...(screen.getByLabelText("Ort") as HTMLSelectElement).options].map((o) => o.value)).toEqual([""]);
+    expect(screen.getByLabelText(sv.jobads.ui.toolbar.sortLabel)).toBeInTheDocument();
+  });
+
+  it("names the län where an ad names no kommun, and no place where it names neither", async () => {
+    getPublicJuniorItJobAds.mockResolvedValue(
+      pageOf([row(1, { municipalityName: null }), row(2, { municipalityName: null, regionName: null })], 2)
+    );
+    render(await PublicJuniorItPage(props()));
+
+    const rows = screen.getAllByRole("listitem").filter((li) => li.closest("ol[aria-labelledby]"));
+    expect(within(rows[0]!).getByText("Västra Götalands län")).toBeInTheDocument();
+    expect(within(rows[1]!).queryByText(/län|Göteborg/)).toBeNull();
+  });
+
   it("renders the empty state when the whole list is empty", async () => {
     getPublicJuniorItJobAds.mockResolvedValue(pageOf([], 0, 1, []));
     const { container } = render(await PublicJuniorItPage(props()));
@@ -165,6 +192,7 @@ describe("the junior IT list page", () => {
     render(await PublicJuniorItPage(props({ municipality: "zzzz_zzz_zzz", sortBy: "ExpiresAtAsc" })));
 
     expect(screen.getByRole("heading", { level: 2, name: sv.publicjob.junior.emptyPlace.title })).toBeInTheDocument();
+    expect(document.querySelector("form")).toBeNull();
     expect(screen.getByRole("link", { name: sv.publicjob.junior.emptyPlace.allPlaces })).toHaveAttribute(
       "href",
       "/junior?sortBy=ExpiresAtAsc"

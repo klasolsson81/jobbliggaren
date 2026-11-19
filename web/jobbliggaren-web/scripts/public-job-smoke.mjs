@@ -643,6 +643,7 @@ try {
     assert.equal(res.status, 200);
     assert.match(res.headers.get("cache-control") ?? "", /no-store/);
     assert.match(res.body, /<meta name="robots" content="noindex, follow"/);
+    assert.equal(res.headers.get("set-cookie"), null, "the campaign page sets no cookie");
     assert.doesNotMatch(res.body, /<link rel="canonical"/);
     assert.doesNotMatch(res.body, /application\/ld\+json/);
     const calls = juniorCalls();

@@ -51,8 +51,11 @@ describe("getPublicJuniorItJobAds", () => {
     expect(await getPublicJuniorItJobAds("PVZL_BQT_XtL", "ExpiresAtAsc", 2)).toEqual({ kind: "ok", page: ANSWER });
   });
 
-  it("parses a row without a last publication day", async () => {
-    const answer = { ...ANSWER, rows: { ...ANSWER.rows, items: [{ ...ROW, expiresAt: null }] } };
+  it("parses a row without a last publication day, a kommun or a län", async () => {
+    const answer = {
+      ...ANSWER,
+      rows: { ...ANSWER.rows, items: [{ ...ROW, expiresAt: null, municipalityName: null, regionName: null }] },
+    };
     fetchMock.mockResolvedValue(json(answer));
 
     expect(await getPublicJuniorItJobAds(null, "PublishedAtDesc", 1)).toEqual({ kind: "ok", page: answer });

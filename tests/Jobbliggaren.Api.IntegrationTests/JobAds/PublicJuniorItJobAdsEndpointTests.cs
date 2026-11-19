@@ -13,9 +13,8 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
 /// The open junior IT list <c>GET /api/v1/public/job-ads/junior</c> (ADR 0186) on the real host, anonymously: the real
-/// list, the real taxonomy and the shared database. Other classes' rows live in that database, so an ad is looked for in
-/// a kommun no other class uses, and the exact set and order are asserted on a database of their own in
-/// <c>JuniorItJobAdQueryReadTests</c>.
+/// list, the real taxonomy and the shared database. Other classes' rows live in that database, so the exact set and order
+/// are asserted on a database of their own in <c>JuniorItJobAdQueryReadTests</c>.
 /// </summary>
 [Collection("Api")]
 public sealed class PublicJuniorItJobAdsEndpointTests(ApiFactory factory)

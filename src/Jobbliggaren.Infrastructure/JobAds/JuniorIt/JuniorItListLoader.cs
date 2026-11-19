@@ -26,7 +26,7 @@ internal static class JuniorItListLoader
     private const string ResourceName = "Jobbliggaren.Infrastructure.JobAds.JuniorIt.junior-it-list.v1.json";
 
     // Platsbanken ids are decimal digits; anything else could never match a row and would shrink the list unseen.
-    private static readonly Regex ExternalIdShape = new("^[0-9]{1,20}$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+    private static readonly Regex ExternalIdShape = new(@"^[0-9]{1,20}\z", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

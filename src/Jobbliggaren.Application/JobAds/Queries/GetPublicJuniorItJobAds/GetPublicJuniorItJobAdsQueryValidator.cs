@@ -19,7 +19,7 @@ public sealed class GetPublicJuniorItJobAdsQueryValidator : AbstractValidator<Ge
             RuleFor(q => q.Municipality)
                 .MaximumLength(PublicJuniorItJobAdLimits.MaxMunicipalityLength)
                 .WithMessage("Orten finns inte.")
-                .Matches("^[A-Za-z0-9_]+$")
+                .Matches(@"^[A-Za-z0-9_]+\z")
                 .WithMessage("Orten finns inte.");
         });
     }

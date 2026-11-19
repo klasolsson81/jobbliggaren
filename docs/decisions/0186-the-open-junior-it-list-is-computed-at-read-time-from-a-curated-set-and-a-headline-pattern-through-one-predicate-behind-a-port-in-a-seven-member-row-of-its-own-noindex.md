@@ -13,12 +13,12 @@ date). ADR 0166 gets the dated amendment that carries the legal outcome (D8). No
 [#2261](https://github.com/klasolsson81/jobbliggaren/issues/2261) (PR 2, the junior filter on `/jobb`, its own session after #2241) · ADR 0160 (the publication predicate and the anonymous read) ·
 ADR 0176 (the catalogue and the six-member row) · ADR 0182 (the related section: the closest precedent for an anonymous read on its own bucket) · ADR 0113 (every `job_ads` read site carries a
 written lifecycle decision) · ADR 0043 (the taxonomy port) · ADR 0071 Decision 1 (no AI/LLM in the product) · ADR 0045 (budgets) · ADR 0154 (every merge is a deploy)
-**Measured against:** the uncommitted work on `feat/junior-it-list` in `C:/DOTNET-UTB/JobbPilot/.claude/worktrees/jobbliggaren-junior-list-4d2889`, cut from `354e4a926` (`origin/main`), read on
-2026-11-19. Nothing is committed or pushed, and the merge is the go-live.
+**Measured against:** `feat/junior-it-list` in `C:/DOTNET-UTB/JobbPilot/.claude/worktrees/jobbliggaren-junior-list-4d2889`, cut from `354e4a926` (`origin/main`), read on
+2026-11-19.
 
 > **Provenance.** Written by `adr-keeper` for the driving session from its brief (CLAUDE.md §9.2, §13); it adds no decision of its own. D1–D7 follow the approved plan
 > (`C:/Users/zebac/.claude/plans/pasted-content-id-cd52-bygg-en-distributed-leaf.md`, local) as the two plan reads changed it. D8 only points. D9 records a choice that is Klas's and is open.
-> Facts about the code were read in the uncommitted tree on 2026-11-19. The numbers under *Measurements* are the driving session's of that date, given in the brief; none was re-run for this ADR.
+> Facts about the code were read on 2026-11-19. The numbers under *Measurements* are the driving session's of that date, given in the brief; none was re-run for this ADR.
 > What no source measures is listed under *What is not measured*. The mandatory agents review the delivered diff in the PR. The ADR lies in the ignored 0071–0199 range and needs `git add -f`
 > and a README row (precedent 0167–0185).
 >
@@ -90,7 +90,7 @@ filter both call, so the definition of "junior IT" exists once (the single point
   Npgsql 10.0.3 accepts the parameterised pattern (architect V1, read in `NpgsqlRegexTranslator.cs`); a Testcontainers test is the oracle for what is sent.
 - **`JuniorItSetResolver`** is a singleton built from the loaded file and the taxonomy port. `ResolveAsync` returns a `JuniorItSet`: the curated ids, the Data/IT groups and the pattern. It reads the
   tree through `ITaxonomyReadModel.GetTreeAsync`, finds the file's `occupationFieldConceptId` and takes that field's groups. A field the taxonomy no longer knows, or one without groups, **throws**,
-  because it would turn the headline arm off without a word. This is the field cross-check the architect asked of the loader (Nice-to-have 2); it runs at first read and not at load, because the
+  because it would turn the headline arm off without a word. This is the field cross-check the architect asked of the loader (Nice-to-have 2); it runs at read and not at load, because the
   loader has no taxonomy. **#2261 is to reuse this resolver and this predicate, not copy them.**
 - **`IJuniorItJobAdQuery`** (`Application/JobAds/Abstractions/`) is the port, and it returns raw rows with concept ids. Naming and building the DTO stay in Application. It has two members, both
   read from the same `now`:
@@ -180,7 +180,7 @@ policies' tests are to stay byte-unchanged (security-auditor S10).
   anonymous visitor get the same answer.
 - **`noindex, follow` on every 200,** `robots: { index: false, follow: true }`; in no sitemap; and `robots.ts` is unchanged, because a disallow would hide the `noindex` from a crawler. The title,
   description and link preview are fixed text from `messages/{sv,en}/publicjob.json`, never a row or a count. There is no JSON-LD.
-- **The form.** A plain GET `<form>`, so it works without JavaScript: `<select name="municipality">` ("Alla orter (n)" and each kommun with its count), `<select name="sortBy">` (newest first, or the
+- **The form.** A plain GET `<form>`, so it works without JavaScript: `<select name="municipality">` ("Alla orter" and each kommun with its count), `<select name="sortBy">` (newest first, or the
   last day to apply, in `/jobb`'s own copy) and a "Visa" button. Changing either starts again from page 1. A count line, the rows and the pager sit in one `data-nosnippet` block, as the catalogue's
   do. The pager is the catalogue's model, with no prefetch.
 - **Rows** are plain `<a href="/jobb/<id>">`, never `next/link`: a prefetched row would spend the visitor's job-page budget before a click. A full document load is same-site, so a signed-in
@@ -189,7 +189,7 @@ policies' tests are to stay byte-unchanged (security-auditor S10).
   schema in `lib/dto/`, and `cache()` so that `generateMetadata` and the page make one read. A 404 or 400 is the page's 404; every other outcome throws and is a 5xx, so an outage never reads as a
   page that does not exist. It is in the `(public-job)` group's closed list of readers and in `PUBLIC_SURFACE`, where the group test's no-ISR and no-console rules read it.
 - **Copy** says nothing that grades the matching or implies it is wrong, carries no label or year from the reading, and keeps the civic tone (AGENTS.md §10).
-- **States to render before the design verdict** (AGENTS.md §8, point 4): the list, a chosen kommun, an empty kommun, the 503 from the API, a 500, a page past the end, and narrow and wide widths.
+- **States to render before the design verdict** (AGENTS.md §8, point 4): the list, a chosen kommun, an empty kommun, a 500, a page past the end, and narrow and wide widths.
 
 **The legal outcome has one home, and the merge waits for it.** ADR 0166, "Amendment 2026-11-19 (#2260, ADR 0186)", is the single home of the legal outcome for the junior list: the re-take of the
 D10 conclusion, the weights, the DPIA #456 §8-B addendum, the triggers that guard it, Klas's three answers and `security-auditor`'s signature. **This ADR points there and restates none of it** (one
@@ -224,10 +224,10 @@ This ADR decides none of them. Whichever Klas takes is its own ADR, and B or D g
 - **How many of the 144 ids are listed on the box.** Not read. The amendment's reading before the first push, and the plan's two readings after deploy (a count of listed curated ids, and a second a few days later that must have fallen as ads closed, with the page's count matching), are counts-only readings owed, and not measurements of this ADR.
 
 **Owed by this ADR's own tests, in the same PR** (named here ahead of the panel; the PR holds them): the loader's test (D3); `JuniorItHeadlinePatternAgreementTests` (D4);
-`PublicJuniorItJobAdDtoContractTests` and the wire test (D6); the validator's test; the rate-limit rows (D7); and `JuniorItJobAdQueryReadTests` (Testcontainers + ApiFactory, anonymous), whose
+`PublicJuniorItJobAdDtoContractTests` and the wire test (D6); the validator's test; the rate-limit rows (D7); and `JuniorItJobAdQueryReadTests` (Testcontainers), whose
 premises come from production paths (AGENTS.md §5, Tests): ads are seeded through `JobAd.Import`; a curated ad, a Data/IT ad with a junior headline and a non-Data/IT ad with the same headline are
 each in or out as D1 says, and a non-Data/IT curated ad is out; an ad removed through `ArchiveExternalJobAdCommand`, an ad whose `ExpiresAt` the clock passes, an ad run through `ExpireJobAdsJob` and an
-ad erased by `Erase()` are each absent from the rows, the total and the options at once; a kommun with no listed junior ad is no option; the kommun filter, both orders, a page past the end and the 429.
+ad erased by `Erase()` are each absent from the rows, the total and the options at once; a kommun with no listed junior ad is no option; the kommun filter, both orders and a page past the end.
 
 ## Alternatives considered
 
@@ -320,7 +320,7 @@ Each reading below is dated and has its source. Nothing is estimated. All are th
 
 ## References
 
-- Code, in the uncommitted tree: `src/Jobbliggaren.Application/JobAds/Abstractions/IJuniorItJobAdQuery.cs` · `src/Jobbliggaren.Application/JobAds/Queries/GetPublicJuniorItJobAds/` ·
+- Code: `src/Jobbliggaren.Application/JobAds/Abstractions/IJuniorItJobAdQuery.cs` · `src/Jobbliggaren.Application/JobAds/Queries/GetPublicJuniorItJobAds/` ·
   `src/Jobbliggaren.Infrastructure/JobAds/JuniorIt/` (`JuniorItListLoader.cs`, `JuniorItPredicate.cs`, `JuniorItSetResolver.cs`, `junior-it-list.v1.json`) ·
   `src/Jobbliggaren.Infrastructure/JobAds/JuniorItJobAdQuery.cs` · `src/Jobbliggaren.Infrastructure/JobAds/JobAdSearchComposition.cs` · `src/Jobbliggaren.Application/JobAds/Publication/JobAdPublication.cs` ·
   `src/Jobbliggaren.Api/Endpoints/PublicJobAdsEndpoints.cs` · `src/Jobbliggaren.Api/RateLimiting/RateLimitingExtensions.cs` and `RateLimitingOptions.cs` (`PublicJobAdJuniorIt`) ·

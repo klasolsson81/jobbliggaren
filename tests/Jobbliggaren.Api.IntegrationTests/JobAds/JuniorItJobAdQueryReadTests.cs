@@ -281,8 +281,8 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
         page.Rows.Items.Select(r => r.Id).ShouldBe([newer, older]);
         page.Rows.TotalCount.ShouldBe(2);
         page.Places.ShouldBe([
-            new PublicJuniorItPlaceDto(Stockholm, "Stockholm", 2),
             new PublicJuniorItPlaceDto(Goteborg, "Göteborg", 1),
+            new PublicJuniorItPlaceDto(Stockholm, "Stockholm", 2),
         ]);
     }
 
@@ -300,6 +300,8 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
             text.ShouldContain("~*");
             parameters.ShouldContain(List.HeadlinePattern, "the pattern is bound as a parameter");
             text.ShouldNotContain("trainee", Case.Insensitive, "the pattern never reaches the SQL text");
+            parameters.ShouldContain(CuratedInField, "the curated ids are bound as an array parameter");
+            text.ShouldNotContain(CuratedInField, Case.Sensitive, "a curated id never reaches the SQL text");
             text.ShouldContain("occupation_group_concept_id");
             text.ShouldContain("external_id");
             text.ShouldContain("external_source");
@@ -422,7 +424,12 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
             if (command.CommandText.Contains("job_ads", StringComparison.Ordinal))
             {
                 IReadOnlyList<string> parameters =
-                    [.. command.Parameters.Cast<DbParameter>().Select(p => p.Value).OfType<string>()];
+                    [.. command.Parameters.Cast<DbParameter>().SelectMany(p => p.Value switch
+                    {
+                        string value => new[] { value },
+                        IEnumerable<string> values => values,
+                        _ => Array.Empty<string>(),
+                    })];
                 lock (_commands) _commands.Add((command.CommandText, parameters));
             }
 

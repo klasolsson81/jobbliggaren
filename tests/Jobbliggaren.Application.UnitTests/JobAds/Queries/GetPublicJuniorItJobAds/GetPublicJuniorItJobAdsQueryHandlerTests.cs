@@ -25,6 +25,10 @@ public class GetPublicJuniorItJobAdsQueryHandlerTests
     private const string Stockholm = "mun_sthlm";
     private const string Solna = "mun_solna";
     private const string Goteborg = "mun_gbg";
+    private const string Ystad = "mun_ystad";
+    private const string Are = "mun_are";
+    private const string Angelholm = "mun_angelholm";
+    private const string Ostersund = "mun_ostersund";
     private const string StockholmsLan = "reg_ab";
     private const string VastraGotalandsLan = "reg_o";
     private const int PageSize = PublicJuniorItJobAdLimits.PageSize;
@@ -36,6 +40,10 @@ public class GetPublicJuniorItJobAdsQueryHandlerTests
         [Stockholm] = "Stockholm",
         [Solna] = "Solna",
         [Goteborg] = "Göteborg",
+        [Ystad] = "Ystad",
+        [Are] = "Åre",
+        [Angelholm] = "Ängelholm",
+        [Ostersund] = "Östersund",
         [StockholmsLan] = "Stockholms län",
         [VastraGotalandsLan] = "Västra Götalands län",
     };
@@ -132,8 +140,8 @@ public class GetPublicJuniorItJobAdsQueryHandlerTests
 
         page.Rows.TotalCount.ShouldBe(2);
         page.Places.ShouldBe([
-            new PublicJuniorItPlaceDto(Stockholm, "Stockholm", 3),
             new PublicJuniorItPlaceDto(Goteborg, "Göteborg", 2),
+            new PublicJuniorItPlaceDto(Stockholm, "Stockholm", 3),
         ]);
         await _port.Received(1).ReadPageAsync(Now, Goteborg, JobAdSortBy.PublishedAtDesc, 0, PageSize, Arg.Any<CancellationToken>());
     }
@@ -223,7 +231,7 @@ public class GetPublicJuniorItJobAdsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ThePlaces_AreTheNamedKommuner_MostAdsFirst_ThenByName()
+    public async Task Handle_ThePlaces_AreTheNamedKommuner_InSwedishAlphabeticalOrder()
     {
         // A kommun the taxonomy cannot name is no option, but its ads still count; so do the ads without a kommun.
         CountsAre((Stockholm, 2), (Goteborg, 5), (Solna, 2), (null, 4), ("mun_drifted", 7));
@@ -240,6 +248,17 @@ public class GetPublicJuniorItJobAdsQueryHandlerTests
             new PublicJuniorItPlaceDto(Stockholm, "Stockholm", 2),
         ]);
         page.Rows.TotalCount.ShouldBe(20);
+    }
+
+    [Fact]
+    public async Task Handle_ThePlaces_PutÅÄÖAfterZ_InThatOrder()
+    {
+        CountsAre((Ostersund, 1), (Angelholm, 1), (Are, 1), (Ystad, 1));
+        PageIs([.. RowsIn(Ostersund, null, 1), .. RowsIn(Angelholm, null, 1), .. RowsIn(Are, null, 1), .. RowsIn(Ystad, null, 1)]);
+
+        var page = (await HandleAsync()).ShouldBeOfType<PublicJuniorItJobAdsPage.Available>();
+
+        page.Places.Select(p => p.Name).ShouldBe(["Ystad", "Åre", "Ängelholm", "Östersund"]);
     }
 
     [Fact]

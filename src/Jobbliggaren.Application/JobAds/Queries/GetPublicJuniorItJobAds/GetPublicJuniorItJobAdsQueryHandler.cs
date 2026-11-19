@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -13,6 +14,9 @@ public sealed class GetPublicJuniorItJobAdsQueryHandler(
     IJuniorItJobAdQuery juniorIt, ITaxonomyReadModel taxonomy, IDateTimeProvider clock)
     : IQueryHandler<GetPublicJuniorItJobAdsQuery, PublicJuniorItJobAdsPage>
 {
+    private static readonly StringComparer SwedishOrder =
+        StringComparer.Create(CultureInfo.GetCultureInfo("sv-SE"), CompareOptions.None);
+
     public async ValueTask<PublicJuniorItJobAdsPage> Handle(
         GetPublicJuniorItJobAdsQuery query, CancellationToken cancellationToken)
     {
@@ -57,8 +61,7 @@ public sealed class GetPublicJuniorItJobAdsQueryHandler(
             .Select(c => (Count: c, Name: PublicTaxonomyNames.NameOf(names, c.MunicipalityConceptId)))
             .Where(p => p.Name is not null)
             .Select(p => new PublicJuniorItPlaceDto(p.Count.MunicipalityConceptId!, p.Name!, p.Count.Count))
-            .OrderByDescending(p => p.Count)
-            .ThenBy(p => p.Name, StringComparer.Ordinal)
+            .OrderBy(p => p.Name, SwedishOrder)
             .ToList();
 
         return new PublicJuniorItJobAdsPage.Available(

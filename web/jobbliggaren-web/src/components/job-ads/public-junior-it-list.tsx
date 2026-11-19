@@ -29,8 +29,6 @@ export function PublicJuniorItList({ page, query }: { page: PublicJuniorItJobAds
   const format = useFormatter();
   const { rows, places } = page;
 
-  const allCount = places.reduce((sum, p) => sum + p.count, 0);
-  const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name, "sv"));
   const chosen = query.municipality === null ? null : (places.find((p) => p.municipalityConceptId === query.municipality) ?? null);
   const hasList = rows.totalCount > 0;
 
@@ -47,7 +45,7 @@ export function PublicJuniorItList({ page, query }: { page: PublicJuniorItJobAds
       </section>
 
       <div className="jp-container jp-page">
-        {places.length > 0 && (
+        {hasList && (
           <form method="get" action={JUNIOR_IT_PATH} className="mb-6">
             <fieldset className="flex flex-wrap items-end gap-4">
               <legend className="sr-only">{t("filters.heading")}</legend>
@@ -56,8 +54,8 @@ export function PublicJuniorItList({ page, query }: { page: PublicJuniorItJobAds
                   {t("filters.place")}
                 </label>
                 <select id={PLACE_ID} name="municipality" className="jp-sortfield__select" defaultValue={chosen?.municipalityConceptId ?? ""}>
-                  <option value="">{t("filters.allPlaces", { count: allCount })}</option>
-                  {sortedPlaces.map((p) => (
+                  <option value="">{t("filters.allPlaces")}</option>
+                  {places.map((p) => (
                     <option key={p.municipalityConceptId} value={p.municipalityConceptId}>
                       {t("filters.placeOption", { name: p.name, count: p.count })}
                     </option>
@@ -90,7 +88,6 @@ export function PublicJuniorItList({ page, query }: { page: PublicJuniorItJobAds
         {!hasList && query.municipality !== null && (
           <div className="jp-empty">
             <h2 className="jp-empty__title">{t("emptyPlace.title")}</h2>
-            <p className="jp-empty__body">{t("emptyPlace.body")}</p>
             <p className="mt-4">
               <a href={juniorItHref({ municipality: null, sortBy: query.sortBy, page: 1 })} className="jp-btn jp-btn--secondary">
                 {t("emptyPlace.allPlaces")}
@@ -118,7 +115,6 @@ export function PublicJuniorItList({ page, query }: { page: PublicJuniorItJobAds
                 prefetch={false}
               />
             </div>
-            <p className="jp-hint mt-6">{t("openAdHint")}</p>
           </div>
         )}
       </div>

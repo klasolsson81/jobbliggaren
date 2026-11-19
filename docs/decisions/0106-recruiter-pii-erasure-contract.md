@@ -1401,3 +1401,17 @@ here, as the amendments above recorded theirs, and the table is not restated.
   parameters that are never returned or logged.
 
 No supersession: ADR 0106 remains **Accepted**.
+
+## Amendment 2026-11-19 (#2260, ADR 0186) — D9 read-path table: the open junior IT list's two reads
+
+ADR 0186 adds two methods that project `JobAd` fields for the open junior IT list (`GET /api/v1/public/job-ads/junior`). The D9 table gains one row for the two. It is recorded here, as the amendments above recorded theirs, and the table is not restated.
+
+| Site | Surface | Projects | Gated on `Status != Erased`? | Issue |
+|---|---|---|---|---|
+| `JuniorItJobAdQuery.CountByMunicipalityAsync` and `JuniorItJobAdQuery.ReadPageAsync` (the junior list's count and page reads) | Anonymous open junior IT list (through `junior`) | Count: kommun id and a number of ads. Page: Id, Title, Company.Name, kommun and län ids, PublishedAt, ExpiresAt | ✅ Yes — `JobAdPublication.IsListed(now)` at request time on both (ADR 0186 D1, D5), so an Erased row is never read or counted | — |
+
+- Both methods are registered in `JobAdLifecycleReadRegistry` (ADR 0113) as Active sites.
+- **Tier B is how an erasure is honoured in the junior list.** Every row, the total and the kommun options are read and classified per request, so an erased ad leaves all three at once. No check step and no removal request is owed for the junior list (`docs/runbooks/recruiter-pii-erasure.md` §2.4a; `JuniorItJobAdQueryReadTests` pins the absence through the production erase path).
+- The company name leaves in a row, as on the job page, in the catalogue and in the related section; the organization number is never projected (ADR 0087 D8(c)).
+
+No supersession: ADR 0106 remains **Accepted**.

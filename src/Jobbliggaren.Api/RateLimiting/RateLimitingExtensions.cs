@@ -33,6 +33,7 @@ public static partial class RateLimitingExtensions
     public const string PublicJobAdListedIdsPolicy = "public-job-ad-listed-ids";
     public const string PublicJobAdCataloguePolicy = "public-job-ad-catalogue";
     public const string PublicJobAdRelatedPolicy = "public-job-ad-related";
+    public const string PublicJobAdJuniorItPolicy = "public-job-ad-junior-it";
     public const string MeListReadPolicy = "me-list-read";
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
@@ -374,6 +375,11 @@ public static partial class RateLimitingExtensions
             // group's indexed read; the limit protects availability, not
             // confidentiality.
             AddIpTokenBucketPolicy(options, PublicJobAdRelatedPolicy, rateLimitOpts.PublicJobAdRelated);
+
+            // Partition: IP. The open junior IT list (ADR 0186), its own budget, so a visitor paging through it cannot
+            // drain the job pages' budget, or the reverse. Each call is a grouped count and one page over the listed
+            // ads of one occupation field's groups; the limit protects availability, not confidentiality.
+            AddIpTokenBucketPolicy(options, PublicJobAdJuniorItPolicy, rateLimitOpts.PublicJobAdJuniorIt);
 
             // Partition: UserId (claim "sub"). Auth-gated GET-ytor under /me/* +
             // /applications/pipeline + /resumes (Pre-4 STEG 5, TD-92). Egen policy

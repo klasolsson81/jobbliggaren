@@ -1102,6 +1102,14 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IEmployerDisambiguationQuery,
             JobAds.EmployerDisambiguationQuery>();
 
+        // The open junior IT list (ADR 0186). The list is loaded once, at host build, so a malformed file stops the
+        // host; its predicate is a provider-translated regex, so the read is implemented here.
+        services.AddSingleton(JobAds.JuniorIt.JuniorItListLoader.Load());
+        services.AddSingleton<JobAds.JuniorIt.JuniorItSetResolver>();
+        services.AddScoped<
+            Jobbliggaren.Application.JobAds.Abstractions.IJuniorItJobAdQuery,
+            JobAds.JuniorItJobAdQuery>();
+
         // Reads the stored organisation number for a set of ads on the server, so following a
         // company from a job card never sends the raw number to the client (ADR 0087 D8(c)).
         services.AddScoped<

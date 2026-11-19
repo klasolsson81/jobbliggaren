@@ -990,6 +990,17 @@ public sealed class RateLimitingOptions
         WindowSeconds = 60,
     };
 
+    /// <summary>
+    /// The open junior IT list <c>GET /api/v1/public/job-ads/junior</c> (ADR 0186) — partitioned per client IP,
+    /// TokenBucket, its own bucket beside the catalogue's and the detail's, at the same starting numbers. A starting
+    /// number for a new endpoint, not a raise.
+    /// </summary>
+    public PolicyOptions PublicJobAdJuniorIt { get; init; } = new()
+    {
+        PermitLimit = 60,
+        WindowSeconds = 60,
+    };
+
     public sealed class PolicyOptions
     {
         public int PermitLimit { get; init; }

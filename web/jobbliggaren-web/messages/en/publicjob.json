@@ -63,5 +63,33 @@
       "body": "The list of job vacancies has no such page.",
       "toCatalogue": "To job vacancies"
     }
+  },
+  "junior": {
+    "title": "Junior IT jobs",
+    "lede": "Open jobs in data and IT for people new to the field, from Platsbanken.",
+    "metaDescription": "Open junior IT jobs from Platsbanken: junior roles, trainee programmes and jobs that ask for no previous experience. Choose a place and sort the list.",
+    "filters": {
+      "heading": "Choose a place and an order",
+      "place": "Place",
+      "allPlaces": "All places",
+      "placeOption": "{name} ({count, number})",
+      "submit": "Show"
+    },
+    "count": "{count, plural, one {open job} other {open jobs}}",
+    "countInPlace": "{count, plural, one {open job} other {open jobs}} in {place}",
+    "lastApplication": "Last day to apply",
+    "empty": {
+      "title": "No junior IT jobs right now",
+      "body": "Check again in a few days."
+    },
+    "emptyPlace": {
+      "title": "No junior IT jobs in that place right now",
+      "allPlaces": "Show all places"
+    },
+    "notFound": {
+      "title": "Page not found",
+      "body": "The list of junior IT jobs has no such page.",
+      "toList": "To junior IT jobs"
+    }
   }
 }

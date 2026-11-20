@@ -80,7 +80,8 @@ public class ListJobAdsFtsTests(ApiFactory factory)
             Substitute.For<Jobbliggaren.Application.JobAds.Abstractions.IPerUserJobAdSearchQuery>(),
             Substitute.For<Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder>(),
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>());
+            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>(),
+            scope.ServiceProvider.GetRequiredService<Jobbliggaren.Application.RecentJobSearches.Common.RecentSearchCaptureGate>());
 
     // 1. FTS svensk stemming — websearch_to_tsquery('swedish', …) reducerar
     //    böjningsformer (lärare/läraren/lärares) till samma lexem.

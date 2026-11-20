@@ -26,9 +26,6 @@ internal sealed partial class TaxonomySnapshotSeeder(
     ILogger<TaxonomySnapshotSeeder> logger)
     : IHostedService
 {
-    private const string ResourceName =
-        "Jobbliggaren.Infrastructure.Taxonomy.taxonomy-snapshot.json";
-
     private const string Klass2ResourceName =
         "Jobbliggaren.Infrastructure.Taxonomy.klass2-taxonomy.json";
 
@@ -122,17 +119,7 @@ internal sealed partial class TaxonomySnapshotSeeder(
     internal static bool IsSchemaInitGracePeriod(IHostEnvironment env) =>
         env.IsDevelopment() || env.IsEnvironment("Test");
 
-    internal static TaxonomySnapshotFile LoadSnapshot()
-    {
-        var asm = typeof(TaxonomySnapshotSeeder).Assembly;
-        using var stream = asm.GetManifestResourceStream(ResourceName)
-            ?? throw new InvalidOperationException(
-                $"Embedded taxonomi-snapshot saknas: {ResourceName}. " +
-                "Verifiera <EmbeddedResource> i Jobbliggaren.Infrastructure.csproj.");
-        return JsonSerializer.Deserialize<TaxonomySnapshotFile>(stream)
-            ?? throw new InvalidOperationException(
-                "taxonomy-snapshot.json deserialiserade till null.");
-    }
+    internal static TaxonomySnapshotFile LoadSnapshot() => TaxonomySnapshotLoader.Load();
 
     // ADR 0043-amendment 2026-06-13 — frusen Klass 2 (anställningsform +
     // omfattning). Separat embedded resource (CTO BESLUT 1 Variant B).

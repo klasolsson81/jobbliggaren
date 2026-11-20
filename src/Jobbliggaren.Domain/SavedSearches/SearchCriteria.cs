@@ -162,7 +162,7 @@ public sealed record SearchCriteria
         // #551 PR-D: Remote deltar likaledes — en distans-only-sökning (remote=true ensam) är en
         // äkta filter-intention (WHERE remote, "visa distans-jobb"), inte default-browse. remote=false
         // ensamt förblir tomt (bool-semantik: false = inget filter). MÅSTE hållas i lockstep med
-        // capture-guarden i RecentJobSearchCaptureBehavior (architect-bind — annars tyst no-capture).
+        // capture-guarden i RecentSearchCaptureGate (architect-bind — annars tyst no-capture).
         // #2199 PR 2: a name-only search (OccupationName:[x] alone) is a valid search, like a
         // group-only one.
         if (normOccupationGroup.Length == 0 && normOccupationName.Length == 0

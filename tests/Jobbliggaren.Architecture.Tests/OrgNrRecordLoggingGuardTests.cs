@@ -67,27 +67,6 @@ public class OrgNrRecordLoggingGuardTests
     private static readonly Assembly InfrastructureAssembly =
         typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly;
 
-    /// <summary>
-    /// The product assemblies whose records can reach a logger. Domain + Application + Infrastructure
-    /// + Api + Worker + Infrastructure.Mailbox. <c>Jobbliggaren.Migrate</c> is excluded on purpose — it holds only EF-generated
-    /// <c>Migration</c> subclasses, never a domain record, so scanning it adds false-positive surface
-    /// for zero coverage. This list is load-bearing (dropping an entry silently narrows coverage), so
-    /// <see cref="The_scan_covers_all_six_owned_assemblies_including_the_snake_case_spelling"/> pins
-    /// all six by name.
-    /// </summary>
-    private static readonly Assembly[] OwnedAssemblies =
-    [
-        typeof(JobAd).Assembly,                 // Jobbliggaren.Domain
-        typeof(CompanyWatchDto).Assembly,       // Jobbliggaren.Application
-        InfrastructureAssembly,                 // Jobbliggaren.Infrastructure
-        typeof(CompaniesEndpoints).Assembly,    // Jobbliggaren.Api
-        // Worker has no org.nr-bearing record to anchor a type-reach assertion on; it is scanned
-        // fail-closed so a future one is caught, and the by-name pin keeps it in the list.
-        typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly, // Jobbliggaren.Worker
-        // The DMARC mailbox adapter (#1981, ADR 0185) is scanned fail-closed for the same reason.
-        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly, // Jobbliggaren.Infrastructure.Mailbox
-    ];
-
     private static readonly Type BatchRowType = ResolveNestedType(
         "Jobbliggaren.Infrastructure.CompanyRegister.ScbCompanyRegisterStore", "BatchRow");
 
@@ -161,30 +140,18 @@ public class OrgNrRecordLoggingGuardTests
     }
 
     [Fact]
-    public void The_scan_covers_all_six_owned_assemblies_including_the_snake_case_spelling()
+    public void The_scan_reaches_a_record_in_every_layer_that_has_one_including_the_snake_case_spelling()
     {
-        // Non-vacuity + coverage pin. OwnedAssemblies is load-bearing — dropping an entry silently
-        // narrows coverage with a green suite, the exact failure mode #883 exists to fight. Pin all
-        // six by name, then pin that the scan actually REACHES a record in the layers that have one:
+        // Non-vacuity pin. The scan reads every production assembly (ProductionAssemblies, which its own
+        // tests keep complete); this pins that it actually REACHES a record in the layers that have one:
         //   - Domain, PascalCase          -> JobAdFacets
         //   - Application, PascalCase      -> ScbCompanyRecord
         //   - Api                          -> CompaniesEndpoints.CompanyLookupRequest
         //   - Infrastructure, snake_case   -> BatchRow (organization_number, load-bearing for
         //     jsonb_to_recordset — it cannot be renamed, so the shared detector must recognise the
         //     spelling; this proves it does and that Infra is scanned at all).
-        // Worker and Infrastructure.Mailbox are pinned by name only: neither has an org.nr record to
-        // anchor on today, and the fail-closed scan catches a future one.
-        OwnedAssemblies.Select(a => a.GetName().Name).OrderBy(n => n, StringComparer.Ordinal).ToList()
-            .ShouldBe(
-            [
-                "Jobbliggaren.Api",
-                "Jobbliggaren.Application",
-                "Jobbliggaren.Domain",
-                "Jobbliggaren.Infrastructure",
-                "Jobbliggaren.Infrastructure.Mailbox",
-                "Jobbliggaren.Worker",
-            ], "OwnedAssemblies must scan exactly the six product assemblies (Migrate excluded)");
-
+        // The other assemblies hold no org.nr record to anchor on today, and the fail-closed scan
+        // catches a future one.
         var scanned = OrgNrBearingRecords().ToHashSet();
 
         scanned.ShouldContain(typeof(JobAdFacets), "the scan must reach the Domain assembly");
@@ -319,8 +286,7 @@ public class OrgNrRecordLoggingGuardTests
     /// <c>OrgNrSurfaceScan.OrgNrSurfacingTypes</c>, so the two guards agree on what a candidate is.
     /// </summary>
     private static IEnumerable<Type> OrgNrBearingRecords() =>
-        OwnedAssemblies
-            .SelectMany(SafeGetTypes)
+        ProductionAssemblies.ReflectedTypes()
             .Where(t => !t.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
             .Where(OrgNrSurfaceScan.HasOrgNrMember);
 
@@ -516,22 +482,6 @@ public class OrgNrRecordLoggingGuardTests
         cases.Add((RelatedCandidateType, candidate.ToString()!, KnownId.ToString()));
 
         return cases;
-    }
-
-    private static IEnumerable<Type> SafeGetTypes(Assembly assembly)
-    {
-        // Multi-assembly reflection over Api/Worker can, in principle, hit a type whose dependency
-        // fails to load. Degrade to the loadable types rather than throwing — the guard stays
-        // fail-closed on what it CAN see. (First-party project references load cleanly today; this is
-        // defence-in-depth against a future dependency.)
-        try
-        {
-            return assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            return ex.Types.Where(t => t is not null)!;
-        }
     }
 
     private static Type ResolveNestedType(string outerFullName, string nestedName)

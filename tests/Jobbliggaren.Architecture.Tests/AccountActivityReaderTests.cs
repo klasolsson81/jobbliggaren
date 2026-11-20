@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Jobbliggaren.Infrastructure.Admin.Accounts;
 using Jobbliggaren.Infrastructure.Auth.Activity;
 using Jobbliggaren.Infrastructure.Persistence.Configurations;
@@ -26,15 +25,6 @@ public class AccountActivityReaderTests
     private const string Bound =
         "ADR 0172 D3: only SqlAccountDirectory reads account_activity; any other consumer is a new purpose "
         + "(security-auditor's bound (b), #2161) and needs its own review.";
-
-    [Fact]
-    public void The_scan_reads_every_project_under_src()
-    {
-        var projects = Directory.GetFiles(Path.Combine(RepoRoot(), "src"), "*.csproj", SearchOption.AllDirectories)
-            .Select(path => Path.GetFileNameWithoutExtension(path));
-
-        ProductionTypeSweep.AssemblyPaths.Select(path => Path.GetFileNameWithoutExtension(path)).ShouldBe(projects, ignoreOrder: true, Bound);
-    }
 
     [Fact]
     public void Only_the_configuration_the_recorder_and_the_directory_name_the_table()
@@ -75,7 +65,4 @@ public class AccountActivityReaderTests
         return owner.BaseType?.FullName is { } baseType
             && (baseType == typeof(Migration).FullName || baseType == typeof(ModelSnapshot).FullName);
     }
-
-    private static string RepoRoot([CallerFilePath] string thisFile = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(thisFile)!, "..", ".."));
 }

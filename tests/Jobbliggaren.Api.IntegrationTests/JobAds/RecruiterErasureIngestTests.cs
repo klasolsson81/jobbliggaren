@@ -3703,7 +3703,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// </summary>
     /// <remarks>
     /// <b>The seeded state is producible by <c>src/</c> today, and the actor is named.</b>
-    /// <c>RecentJobSearchCaptureBehavior</c> guards these six axes with <c>BearsPersonnummer</c>
+    /// <c>RecentSearchCaptureGate</c> guards these six axes with <c>BearsPersonnummer</c>
     /// (#1419), whose detector runs <c>Personnummer.TryParse</c> — date sanity AND Luhn.
     /// <c>5509281234</c> fails Luhn, so it is not flagged and
     /// <c>?occupationGroup=5509281234&amp;commit=true</c> still persists it. That is #1419's own

@@ -8,7 +8,7 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #887 — every backend read (or write) of <c>JobAds</c> in Application + Infrastructure must carry
+/// #887 — every backend read (or write) of <c>JobAds</c> in the production assemblies must carry
 /// a written lifecycle decision in <see cref="JobAdLifecycleReadRegistry"/>, or the build breaks.
 /// </summary>
 /// <remarks>
@@ -37,25 +37,12 @@ public class JobAdLifecycleReadRegistryTests
 
     private const string GetterName = "get_JobAds";
 
-    /// <summary>
-    /// The scanned assemblies: Application (interface reads) and Infrastructure (concrete reads).
-    /// Api/Worker compose DI only and hold no <c>JobAds</c> queries; Domain cannot see EF. Migrate
-    /// is outside the scope too: its one <c>job_ads</c> read is a diagnostic raw-SQL EXPLAIN
-    /// (index-plan verification, ops-only — it surfaces no ad to any user), and being raw SQL it
-    /// would be a stated non-reach even if the assembly were scanned.
-    /// </summary>
-    private static IEnumerable<string> ScannedAssemblyPaths =>
-    [
-        typeof(IAppDbContext).Assembly.Location,   // Jobbliggaren.Application
-        typeof(AppDbContext).Assembly.Location,     // Jobbliggaren.Infrastructure
-    ];
-
     // ────────────────────────────────────────────────────────────────────────────────────────
     // THE SCAN
     // ────────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Every <c>get_JobAds</c> call in the two assemblies, attributed to its LOGICAL method
+    /// Every <c>get_JobAds</c> call in the production assemblies, attributed to its LOGICAL method
     /// (<c>Namespace.Type.Method</c>), with a count. Compiler-generated wrappers — async/iterator
     /// state machines (<c>&lt;Handle&gt;d__N.MoveNext</c>), lambdas (<c>&lt;Handle&gt;b__N</c>) and
     /// local functions (<c>&lt;Handle&gt;g__L|N</c>) — are unwrapped back to the method that declared
@@ -66,9 +53,9 @@ public class JobAdLifecycleReadRegistryTests
     {
         var sites = new Dictionary<string, int>(StringComparer.Ordinal);
 
-        foreach (var path in ScannedAssemblyPaths)
+        foreach (var production in ProductionAssemblies.All)
         {
-            using var assembly = AssemblyDefinition.ReadAssembly(path);
+            using var assembly = production.ReadDefinition();
 
             foreach (var module in assembly.Modules)
                 foreach (var type in module.GetTypes())

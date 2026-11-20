@@ -13,7 +13,7 @@ namespace Jobbliggaren.Application.UnitTests.SavedSearches;
 /// stored criteria into the search filter, and every axis of <see cref="SearchCriteria"/> must cross
 /// it with its value intact. Written on the value object rather than on a saved search, because no
 /// write path stores every axis on a saved search; the criteria below is the shape
-/// <c>RecentJobSearchCaptureBehavior</c> builds from a committed /jobb search.
+/// <c>RecentSearchCaptureGate</c> builds from a committed /jobb search.
 /// </summary>
 public class SearchCriteriaMappingParityTests
 {

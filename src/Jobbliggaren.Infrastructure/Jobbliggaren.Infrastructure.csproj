@@ -127,6 +127,10 @@
     <EmbeddedResource Include="CompanyWatches\brand-groups.v1.json">
       <LogicalName>Jobbliggaren.Infrastructure.CompanyWatches.brand-groups.v1.json</LogicalName>
     </EmbeddedResource>
+    <!-- ADR 0186 — the open junior IT list: curated Platsbanken ids and the headline pattern. -->
+    <EmbeddedResource Include="JobAds\JuniorIt\junior-it-list.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.JobAds.JuniorIt.junior-it-list.v1.json</LogicalName>
+    </EmbeddedResource>
     <!-- ADR 0067 Fas C2 — FRUSEN migration-ägd reverse-lookup-resurs
          (occupation-name → ssyk-level-4). Läses ENDAST av C2-migrationen;
          regenereras aldrig (CTO-dom (c) 2026-06-09, migrations-immutabilitet). -->

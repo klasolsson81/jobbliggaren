@@ -194,6 +194,24 @@ public sealed class OccupationNameLineageTests
         counts.ShouldBe(new Dictionary<string, int> { ["A"] = 3 });
     }
 
+    // #2199 PR 2b — the names a group files, read from the artefact's own groupConceptId: deprecated
+    // names included, and never through a replaced-by edge (M → Y crosses into G4, which is not asked).
+    [Fact]
+    public void ConceptIdsInGroups_ReturnsEveryNameTheGroupsFile_DeprecatedIncluded() =>
+        Lineage().ConceptIdsInGroups(["G1", "G3"]).ShouldBe(["A", "B", "C", "M", "W", "X"]);
+
+    [Fact]
+    public void ConceptIdsInGroups_NeverFollowsAReplacedByEdgeIntoTheGroup() =>
+        Lineage().ConceptIdsInGroups(["G4"]).ShouldBe(["Y"]);
+
+    [Fact]
+    public void ConceptIdsInGroups_AGroupNoNameIsFiledUnder_IsEmpty() =>
+        Lineage().ConceptIdsInGroups(["G5"]).ShouldBeEmpty();
+
+    [Fact]
+    public void ConceptIdsInGroups_NoGroups_IsEmpty() =>
+        Lineage().ConceptIdsInGroups([]).ShouldBeEmpty();
+
     [Fact]
     public void Constructor_ACycle_Throws() =>
         Should.Throw<ArgumentException>(() => new OccupationNameLineage("test",

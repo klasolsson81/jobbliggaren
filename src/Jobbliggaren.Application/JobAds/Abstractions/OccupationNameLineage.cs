@@ -103,6 +103,24 @@ public sealed class OccupationNameLineage
         return match;
     }
 
+    /// <summary>
+    /// #2199 PR 2b — every name the artefact files under one of <paramref name="groupConceptIds"/>, deprecated
+    /// names included, in Ordinal order. It reads each entry's own group and never a replaced-by edge: which
+    /// group a name belongs to is JobTech's classification, and the edges are this class's search rule.
+    /// </summary>
+    public IReadOnlyList<string> ConceptIdsInGroups(IReadOnlyCollection<string> groupConceptIds)
+    {
+        ArgumentNullException.ThrowIfNull(groupConceptIds);
+        var groups = new HashSet<string>(groupConceptIds, StringComparer.Ordinal);
+        return
+        [
+            .. _groupOf
+                .Where(kv => kv.Value is { } group && groups.Contains(group))
+                .Select(kv => kv.Key)
+                .Order(StringComparer.Ordinal),
+        ];
+    }
+
     /// <summary>The single terminal a pick shares with the ads that resolve to it, or <see langword="null"/> for a pick with several.</summary>
     public string? TargetOf(string pick) =>
         _terminalsOf.TryGetValue(pick, out var terminals)

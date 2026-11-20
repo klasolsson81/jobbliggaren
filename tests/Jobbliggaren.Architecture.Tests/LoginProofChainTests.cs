@@ -39,18 +39,8 @@ public sealed class LoginProofChainTests
         BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic
         | BindingFlags.DeclaredOnly;
 
-    private static readonly Assembly[] Composing =
-    [
-        typeof(LoginProofOutcome).Assembly,
-        typeof(IdentityInboxProofRecorder).Assembly,
-        typeof(Jobbliggaren.Api.Endpoints.AuthEndpoints).Assembly,
-        typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
-        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
-        typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
-    ];
-
     private static string[] ConsumersOf(Type dependency) =>
-        [.. Composing.SelectMany(a => a.GetTypes())
+        [.. ProductionAssemblies.ReflectedTypes()
             .Where(t => t.GetConstructors(Declared).Cast<MethodBase>().Concat(t.GetMethods(Declared))
                 .Any(m => m.GetParameters().Any(p => p.ParameterType == dependency)))
             .Select(t => t.FullName!)

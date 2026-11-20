@@ -102,18 +102,7 @@ public class EmailSendCountBoundaryTests
     {
         const BindingFlags declared =
             BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-        Assembly[] owned =
-        [
-            typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
-            typeof(Jobbliggaren.Api.Endpoints.AdminEmailEndpoints).Assembly,
-            typeof(WorkerSystemUser).Assembly,
-            typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
-            typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
-        ];
-
-        return owned
-            .SelectMany(assembly => assembly.GetTypes())
+        return ProductionAssemblies.ReflectedTypes()
             .Where(type => type.GetConstructors(declared).Cast<MethodBase>().Concat(type.GetMethods(declared))
                 .Any(member => member.GetParameters().Any(parameter => port.IsAssignableFrom(parameter.ParameterType))))
             .Select(type => type.FullName!)

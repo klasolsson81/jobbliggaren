@@ -45,15 +45,6 @@ public class JobSeekerWriterReplayGuardTests
         typeof(IFailedAccessLogger),
     ];
 
-    private static readonly Assembly[] ScannedAssemblies =
-    [
-        typeof(IAppDbContext).Assembly,
-        typeof(Jobbliggaren.Infrastructure.Persistence.AppDbContext).Assembly,
-        typeof(Jobbliggaren.Api.Endpoints.AuthProblem).Assembly,
-        typeof(Jobbliggaren.Worker.Hosting.BackgroundMatchingWorker).Assembly,
-        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
-    ];
-
     [Fact]
     public void Every_writer_of_a_job_seeker_retries_or_is_the_shared_protected_deletion_scheduler_that_refuses_conflicts()
     {
@@ -160,13 +151,13 @@ public class JobSeekerWriterReplayGuardTests
         mutators.ShouldContain(nameof(JobSeeker.UpdateNotificationConsent));
 
         var writers = new HashSet<Type>();
-        foreach (var assembly in ScannedAssemblies)
+        foreach (var production in ProductionAssemblies.All)
         {
-            using var module = ModuleDefinition.ReadModule(assembly.Location);
-            foreach (var type in module.Types)
+            using var definition = production.ReadDefinition();
+            foreach (var type in definition.MainModule.Types)
             {
                 if (MethodsIncludingNestedTypes(type).Any(method => CallsAMutator(method, mutators)))
-                    writers.Add(assembly.GetType(type.FullName, throwOnError: true)!);
+                    writers.Add(production.Assembly.GetType(type.FullName, throwOnError: true)!);
             }
         }
 

@@ -25,15 +25,6 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </remarks>
 public class VolatileRedisIsolationTests
 {
-    private static readonly Assembly[] OwnedAssemblies =
-    [
-        typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-        typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
-        typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
-        typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
-        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
-    ];
-
     /// <summary>The routes to the DURABLE instance: the registered multiplexer and the cache built on it.</summary>
     private static readonly Type[] DurableRoutes = [typeof(IConnectionMultiplexer), typeof(IDistributedCache)];
 
@@ -52,8 +43,7 @@ public class VolatileRedisIsolationTests
     [Fact]
     public void VolatileRedisConnection_IsConstructorInjected_OnlyByRegisteredStoresAndAvailabilityChecks()
     {
-        var consumers = OwnedAssemblies
-            .SelectMany(a => a.GetTypes())
+        var consumers = ProductionAssemblies.ReflectedTypes()
             .Where(t => ConstructorParameterTypes(t).Contains(typeof(VolatileRedisConnection)))
             .Select(t => t.FullName!)
             .OrderBy(n => n, StringComparer.Ordinal)

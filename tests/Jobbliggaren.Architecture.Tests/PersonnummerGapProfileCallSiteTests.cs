@@ -29,7 +29,7 @@ public class PersonnummerGapProfileCallSiteTests
     // precisely the decision this file exists to make visible.
     private static readonly (string File, string Profile)[] Expected =
     [
-        ("Jobbliggaren.Application/RecentJobSearches/Behaviors/RecentJobSearchCaptureBehavior.cs", "SingleLineUserInput"),
+        ("Jobbliggaren.Application/RecentJobSearches/Common/RecentSearchCaptureGate.cs", "SingleLineUserInput"),
         ("Jobbliggaren.Application/Resumes/Commands/ImportResume/ImportResumeCommandHandler.cs", "ExtractedDocumentText"),
         ("Jobbliggaren.Application/Resumes/Common/AutoPromoteGate.cs", "ExtractedDocumentText"),
         ("Jobbliggaren.Application/Resumes/Common/ResumeContentPersonnummerGuard.cs", "ExtractedDocumentText"),
@@ -118,7 +118,7 @@ public class PersonnummerGapProfileCallSiteTests
             7,
             "six files, seven invocations: ImportResumeCommandHandler guards the CV body and the " +
             "file name separately, PreambleResidue lets the scan decide a hard cut the digit run " +
-            "leaves nowhere else to put, and RecentJobSearchCaptureBehavior reaches Normalize ONCE — " +
+            "leaves nowhere else to put, and RecentSearchCaptureGate reaches Normalize ONCE — " +
             "through the single BearsPersonnummer predicate that both ?q= and the taxonomy " +
             "axes (#1419) call. It went 7 -> 8 -> 7 across those two PRs, and the way back down " +
             "was giving one predicate one home (#844), not removing a guard. #1741 PR B took it " +

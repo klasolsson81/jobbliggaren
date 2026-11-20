@@ -89,18 +89,17 @@ public class PooledConnectionResetIlTests
         return normalised.Contains(Key, StringComparison.OrdinalIgnoreCase);
     }
 
+    public static TheoryData<string> EveryAssembly() => ProductionAssemblies.Names();
+
     [Theory]
-    [InlineData(typeof(Jobbliggaren.Api.Configuration.HstsOptions))]
-    [InlineData(typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser))]
-    [InlineData(typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions))]
-    [InlineData(typeof(Jobbliggaren.Infrastructure.Persistence.AppDbContext))]
-    [InlineData(typeof(Jobbliggaren.Migrate.ConnectionStringFactory))]
-    public void Assembly_should_not_disable_pooled_connection_reset(Type assemblyMarker)
+    [MemberData(nameof(EveryAssembly))]
+    public void Assembly_should_not_disable_pooled_connection_reset(string name)
     {
-        var assemblyPath = assemblyMarker.Assembly.Location;
-        using var assembly = AssemblyDefinition.ReadAssembly(assemblyPath);
+        var production = ProductionAssemblies.Named(name);
+        using var assembly = production.ReadDefinition();
 
         var offenders = new List<string>();
+        var anchorBodiesRead = 0;
 
         foreach (var module in assembly.Modules)
         {
@@ -110,6 +109,9 @@ public class PooledConnectionResetIlTests
                 {
                     if (!method.HasBody)
                         continue;
+
+                    if (type.FullName == production.Anchor.FullName)
+                        anchorBodiesRead++;
 
                     foreach (var instruction in method.Body.Instructions)
                     {
@@ -132,6 +134,7 @@ public class PooledConnectionResetIlTests
             }
         }
 
+        anchorBodiesRead.ShouldBeGreaterThan(0, $"{name}: the scan read none of the anchor's method bodies, so an empty offender list proves nothing");
         offenders.ShouldBeEmpty(
             $"Reset-on-close-nyckeln FÖREKOMMER i {assembly.Name.Name} (#1232) — som sträng-literal eller " +
             "set_NoResetOnClose-anrop. Guarden mäter förekomsten, inte att något värde faktiskt sätts " +
@@ -156,9 +159,9 @@ public class PooledConnectionResetIlTests
     {
         // THE VACUITY GUARD, and it is a self-test rather than a corpus count on purpose.
         //
-        // Measured: only TWO literals in all four scanned assemblies are even candidates today,
-        // both design-time factories in Infrastructure — so three of the four theory rows above
-        // assert over an empty set and would pass no matter what the predicate did. A guard whose
+        // When this guard was written (#1232), the only candidate literals were two design-time
+        // factories in Infrastructure, so most theory rows above asserted over an empty set and
+        // would pass no matter what the predicate did. A guard whose
         // corpus is empty cannot demonstrate anything about itself, so the predicate is exercised
         // directly instead.
         //

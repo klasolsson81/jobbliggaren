@@ -1,4 +1,3 @@
-using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Shouldly;
 
@@ -6,7 +5,7 @@ namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
 /// Architecture-test för TD-48 (Trust=true-läckage). Skannar alla Ldstr-instruktioner
-/// i Api/Worker/Infrastructure/Migrate-assemblies via Mono.Cecil IL-introspektion och
+/// i varje produktionsassembly (<see cref="ProductionAssemblies"/>) via Mono.Cecil IL-introspektion och
 /// failar om någon string-literal innehåller <c>"Trust Server Certificate=true"</c>.
 ///
 /// Bakgrund (Fas 1 Block A4 / TD-38): connection-strings för Api+Worker tvingar
@@ -24,18 +23,17 @@ public class ConnectionStringLeakageTests
 {
     private const string ForbiddenSubstring = "Trust Server Certificate=true";
 
+    public static TheoryData<string> EveryAssembly() => ProductionAssemblies.Names();
+
     [Theory]
-    [InlineData(typeof(Jobbliggaren.Api.Configuration.HstsOptions))]
-    [InlineData(typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser))]
-    [InlineData(typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions))]
-    [InlineData(typeof(Jobbliggaren.Infrastructure.Persistence.AppDbContext))]
-    [InlineData(typeof(Jobbliggaren.Migrate.ConnectionStringFactory))]
-    public void Assembly_should_not_contain_Trust_Server_Certificate_true_in_IL(Type assemblyMarker)
+    [MemberData(nameof(EveryAssembly))]
+    public void Assembly_should_not_contain_Trust_Server_Certificate_true_in_IL(string name)
     {
-        var assemblyPath = assemblyMarker.Assembly.Location;
-        using var assembly = AssemblyDefinition.ReadAssembly(assemblyPath);
+        var production = ProductionAssemblies.Named(name);
+        using var assembly = production.ReadDefinition();
 
         var offenders = new List<string>();
+        var anchorBodiesRead = 0;
 
         foreach (var module in assembly.Modules)
         {
@@ -45,6 +43,9 @@ public class ConnectionStringLeakageTests
                 {
                     if (!method.HasBody)
                         continue;
+
+                    if (type.FullName == production.Anchor.FullName)
+                        anchorBodiesRead++;
 
                     foreach (var instruction in method.Body.Instructions)
                     {
@@ -63,6 +64,7 @@ public class ConnectionStringLeakageTests
             }
         }
 
+        anchorBodiesRead.ShouldBeGreaterThan(0, $"{name}: the scan read none of the anchor's method bodies, so an empty offender list proves nothing");
         offenders.ShouldBeEmpty(
             $"Trust Server Certificate=true detekterat i {assembly.Name.Name} (TD-48). " +
             $"Connection-strings MÅSTE bygga TLS-postur via injicerad/konfig-driven " +

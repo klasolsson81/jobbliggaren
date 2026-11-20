@@ -22,16 +22,6 @@ public sealed class AddressSwapCallerTests
         BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic
         | BindingFlags.DeclaredOnly;
 
-    private static readonly Assembly[] Composing =
-    [
-        typeof(ConfirmedAddressSwap).Assembly,
-        typeof(UserAccountService).Assembly,
-        typeof(Jobbliggaren.Api.Endpoints.AuthEndpoints).Assembly,
-        typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
-        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
-        typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
-    ];
-
     [Fact]
     public void Only_the_port_the_adapter_and_the_shared_caller_name_the_address_swap_in_source()
     {
@@ -57,8 +47,7 @@ public sealed class AddressSwapCallerTests
     [Fact]
     public void Only_the_handlers_that_complete_an_address_change_take_the_shared_caller()
     {
-        var consumers = Composing
-            .SelectMany(assembly => assembly.GetTypes())
+        var consumers = ProductionAssemblies.ReflectedTypes()
             .Where(type => type.GetConstructors(Declared).Cast<MethodBase>().Concat(type.GetMethods(Declared))
                 .Any(member => member.GetParameters().Any(p => p.ParameterType == typeof(ConfirmedAddressSwap))))
             .Select(type => type.FullName!)

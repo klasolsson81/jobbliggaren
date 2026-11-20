@@ -25,17 +25,6 @@ public class AdminAccountDirectoryTests
         BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic
         | BindingFlags.DeclaredOnly;
 
-    /// <summary>Every assembly that can resolve a port: Application declares, Infrastructure, Infrastructure.Mailbox, Api, Worker and Migrate compose.</summary>
-    private static readonly Assembly[] OwnedAssemblies =
-    [
-        typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-        typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
-        typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
-        typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
-        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
-        typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
-    ];
-
     private static IEnumerable<Type> AdminMessages() =>
         typeof(Jobbliggaren.Application.AssemblyMarker).Assembly.GetTypes()
             .Where(type => type is { IsAbstract: false, IsInterface: false }
@@ -64,8 +53,7 @@ public class AdminAccountDirectoryTests
     [Fact]
     public void The_account_directory_is_injected_only_into_the_admin_account_queries()
     {
-        var consumers = OwnedAssemblies
-            .SelectMany(assembly => assembly.GetTypes())
+        var consumers = ProductionAssemblies.ReflectedTypes()
             .Where(type => type.GetConstructors(Declared).Cast<MethodBase>().Concat(type.GetMethods(Declared))
                 .Any(member => member.GetParameters()
                     .Any(parameter => parameter.ParameterType == typeof(IAccountDirectory))))

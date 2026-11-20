@@ -2,7 +2,6 @@ using System.IO.Compression;
 using Jobbliggaren.Infrastructure.Common.IO;
 using Jobbliggaren.Infrastructure.Email.Dmarc;
 using Jobbliggaren.Infrastructure.Email.Dmarc.Decoding;
-using Jobbliggaren.Infrastructure.Mailbox.Dmarc;
 using Mono.Cecil;
 using Shouldly;
 
@@ -81,13 +80,9 @@ public class DmarcReportDiskBoundaryTests
     private static List<ScopedCall> CallsInScope()
     {
         var calls = new List<ScopedCall>();
-        foreach (var location in new[]
-                 {
-                     typeof(XmlDmarcReportDecoder).Assembly.Location,
-                     typeof(DmarcMailboxCollectionExtensions).Assembly.Location,
-                 })
+        foreach (var production in ProductionAssemblies.All)
         {
-            using var assembly = AssemblyDefinition.ReadAssembly(location);
+            using var assembly = production.ReadDefinition();
             foreach (var type in assembly.MainModule.GetTypes())
             {
                 var owner = ProductionTypeSweep.OwnerOf(type).FullName;

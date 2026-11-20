@@ -39,21 +39,26 @@ const PUBLIC_SURFACE = [
   resolve(SRC, "components/job-ads/public-job-ad.tsx"),
   resolve(SRC, "components/job-ads/public-job-ad-catalogue.tsx"),
   resolve(SRC, "components/job-ads/public-job-ad-list.tsx"),
+  resolve(SRC, "components/job-ads/public-junior-it-job-ad-list.tsx"),
+  resolve(SRC, "components/job-ads/public-junior-it-list.tsx"),
   resolve(SRC, "components/job-ads/strip-bounce-marker.tsx"),
   resolve(SRC, "lib/api/public-job-ad.ts"),
   resolve(SRC, "lib/api/public-job-ad-catalogue.ts"),
   resolve(SRC, "lib/api/public-job-ad-probe.ts"),
   resolve(SRC, "lib/api/public-job-ad-related.ts"),
+  resolve(SRC, "lib/api/public-junior-it-job-ads.ts"),
   resolve(SRC, "lib/auth/public-job-ad-route.ts"),
   resolve(SRC, "lib/job-ads/job-posting-json-ld.ts"),
   resolve(SRC, "lib/job-ads/catalogue-page-param.ts"),
   resolve(SRC, "lib/job-ads/public-catalogue-url.ts"),
+  resolve(SRC, "lib/job-ads/junior-it-params.ts"),
 ];
 
 describe("(public-job) route group", () => {
   it("finds the group's pages (the derivation is not vacuous)", () => {
     const pages = groupFiles.map((f) => toPosix(relative(GROUP, f))).filter((f) => f.endsWith("/page.tsx"));
     expect(pages.sort()).toEqual([
+      "junior/page.tsx",
       "lediga-jobb/page.tsx",
       "publik/borttagen/page.tsx",
       "publik/jobb/[id]/page.tsx",
@@ -99,6 +104,7 @@ describe("(public-job) route group", () => {
       "lib/api/public-job-ad-probe.ts",
       "lib/api/public-job-ad-related.ts",
       "lib/api/public-job-ad.ts",
+      "lib/api/public-junior-it-job-ads.ts",
     ]);
   });
 
@@ -117,6 +123,28 @@ describe("(public-job) route group", () => {
     const segmentNotFound = read(resolve(GROUP, "lediga-jobb/not-found.tsx"));
     expect(segmentNotFound).not.toMatch(/from "next\/link"/);
     expect(segmentNotFound).not.toMatch(/getPublicJobAdCatalogue|fetch\(/);
+  });
+
+  it("keeps the junior list out of every index: noindex on its page, plain anchors on its rows, no prefetch (ADR 0186)", () => {
+    const page = read(resolve(GROUP, "junior/page.tsx"));
+    expect(page).toMatch(/robots: \{ index: false, follow: true \}/);
+    expect(page).not.toMatch(/index: true|alternates|canonical/);
+    const rows = read(resolve(SRC, "components/job-ads/public-junior-it-job-ad-list.tsx"));
+    expect(rows).not.toMatch(/from "next\/link"/);
+    const list = read(resolve(SRC, "components/job-ads/public-junior-it-list.tsx"));
+    expect(list).toMatch(/prefetch=\{false\}/);
+    for (const file of [
+      list,
+      page,
+      rows,
+      read(resolve(GROUP, "junior/not-found.tsx")),
+      read(resolve(SRC, "lib/api/public-junior-it-job-ads.ts")),
+    ]) {
+      expect(file).not.toMatch(/cookies\(|getSession|auth\(|getCurrentUser/);
+    }
+    const segmentNotFound = read(resolve(GROUP, "junior/not-found.tsx"));
+    expect(segmentNotFound).not.toMatch(/from "next\/link"/);
+    expect(segmentNotFound).not.toMatch(/getPublicJuniorItJobAds|fetch\(/);
   });
 
   it("logs nothing on the page's own path: no console call carries an ad's title, company or description", () => {

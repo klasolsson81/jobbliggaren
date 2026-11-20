@@ -24,30 +24,10 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </remarks>
 public class ErasurePortInjectionRadiusTests
 {
-    /// <summary>
-    /// Every assembly that can resolve the port, not just the one that declares it.
-    /// <see cref="IRecruiterErasureMatchQuery"/> is <c>public</c> and registered in
-    /// <c>AddPersistence</c>, which <c>Jobbliggaren.Worker</c>'s composition root calls too — so a
-    /// Hangfire job constructor could take it and hand that whole job scope a multi-minute ceiling.
-    /// Scanning Application alone would pass green forever while missing exactly that
-    /// (<c>dotnet-architect</c>, 2026-08-23). Same shape as
-    /// <c>OrgNrRecordLoggingGuardTests.OwnedAssemblies</c>; Domain is excluded because it may not
-    /// reference an Application port at all (§2.1).
-    /// </summary>
-    private static readonly Assembly[] OwnedAssemblies =
-    [
-        typeof(Jobbliggaren.Application.AssemblyMarker).Assembly,
-        typeof(Jobbliggaren.Infrastructure.AssemblyMarker).Assembly,
-        typeof(Jobbliggaren.Api.Endpoints.AdminJobAdsEndpoints).Assembly,
-        typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
-        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly,
-    ];
-
     [Fact]
     public void ErasurePortIsConstructorInjectedOnlyByTheErasureHandler()
     {
-        var consumers = OwnedAssemblies
-            .SelectMany(a => a.GetTypes())
+        var consumers = ProductionAssemblies.ReflectedTypes()
             .Where(t => t.GetConstructors(
                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .Any(c => c.GetParameters()

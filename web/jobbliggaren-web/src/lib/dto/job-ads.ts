@@ -147,7 +147,13 @@ export const jobAdDetailDtoSchema = jobAdDtoSchema.extend({
 });
 export type JobAdDetailDto = z.infer<typeof jobAdDetailDtoSchema>;
 
-export const listJobAdsResultSchema = pagedResult(jobAdDtoSchema);
+// #2199 PR 2b — the list page also answers whether the backend's capture gate would store this search in
+// Senaste sökningar; the hero offers "Spara sökningen" only on a `true`. `.default(false)` fills a wire that
+// omits it (web/api image skew) and fails SAFE: a missing verdict hides the action, never shows it (the
+// `isListed` precedent). The shared `pagedResult` helper is untouched.
+export const listJobAdsResultSchema = pagedResult(jobAdDtoSchema).extend({
+  isStorableAsRecentSearch: z.boolean().default(false),
+});
 export type ListJobAdsResult = z.infer<typeof listJobAdsResultSchema>;
 
 // ADR 0067 Beslut 5a — utökad typeahead-union. `GET /api/v1/job-ads/suggest`

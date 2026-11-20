@@ -5,7 +5,7 @@ namespace Jobbliggaren.Application.RecentJobSearches.Common;
 /// <summary>
 /// The one predicate deciding which values of the employer axis may leave the request that
 /// carried them — into <c>recent_job_searches.employer_list</c> on the way in
-/// (<c>RecentJobSearchCaptureBehavior</c>, A2) and into count, label and projection on the way
+/// (<c>RecentSearchCaptureGate</c>, A2) and into count, label and projection on the way
 /// out (<c>ListRecentSearchesQueryHandler</c>). ADR 0087 D8(c)'s masked arm, #1471: an org.nr is
 /// public legal-entity data, but for an enskild firma it IS the holder's personnummer (#841), so
 /// a personnummer-shaped value is withheld on both sides by the same rule.

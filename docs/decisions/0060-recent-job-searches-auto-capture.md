@@ -311,3 +311,13 @@ och motsades av `BUILD.md` §10.6 (*"UI på svenska"*). Klas-beslut 2026-08-28: 
 **Dess hem är `BUILD.md` §10.6**, som är spårad och därför läsbar för var och en; ADR 0137 bär
 härledningen men hålls lokal per ADR 0072, så den citeras här som proveniens och aldrig som
 den plats regeln ska läsas på.
+
+---
+
+# Amendment 2026-10-26 — ADR 0067 (what may be stored is one gate, which also refuses a religious office)
+
+Per [ADR 0067 Amendment 2026-10-26](./0067-platsbanken-search-parity.md) (#2199 PR 2b): the behaviour's no-op conditions that decide
+*what* may be stored — the default-browse guard, the personnummer skips and `SearchCriteria.Create` — now live in one pure predicate,
+`RecentSearchCaptureGate`, which also refuses a search that singles out a religious office. The list page answers its verdict. The
+mechanism this ADR decides is unchanged: the post-handler behaviour, its markers, best-effort capture and the commit gate. That
+amendment is the operative text for the gate.

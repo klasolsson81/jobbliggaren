@@ -56,9 +56,9 @@ public sealed record RawSqlNonReach(string TypeFullName, string Method, string W
 
 /// <summary>
 /// The lifecycle read-path registry for <c>JobAds</c> (#887) — every backend <c>get_JobAds</c> site
-/// in Application + Infrastructure, classified, with a written reason where the kind demands one.
-/// <c>JobAdLifecycleReadRegistryTests</c> pins it against an exhaustive Mono.Cecil IL scan of the two
-/// assemblies: a site with no decision, or a method whose declared decision count does not equal the
+/// in the production assemblies, classified, with a written reason where the kind demands one.
+/// <c>JobAdLifecycleReadRegistryTests</c> pins it against an exhaustive Mono.Cecil IL scan of every
+/// production assembly: a site with no decision, or a method whose declared decision count does not equal the
 /// number of <c>get_JobAds</c> calls the scan finds in it, <b>breaks the build</b>, naming the method
 /// and the number of decisions owed.
 /// </summary>
@@ -243,6 +243,15 @@ public static class JobAdLifecycleReadRegistry
                     + "selecting a suggestion navigates to ?employer=, which ApplyFilter scopes to Active, so an "
                     + "employer with only archived ads would be a chip with no target and an ad count the chip then "
                     + "contradicts.")),
+            ["Jobbliggaren.Infrastructure.JobAds.JuniorItJobAdQuery.CountByMunicipalityAsync"] =
+                One(Active(".Where(JobAdPublication.IsListed(now)).Where(JuniorItPredicate.Matches(set)).GroupBy(kommun id)"
+                    + ".Select(id, count) — the open junior IT list's total and kommun options (ADR 0186), read per request. "
+                    + "Only the kommun id and a count leave the query.")),
+            ["Jobbliggaren.Infrastructure.JobAds.JuniorItJobAdQuery.ReadPageAsync"] =
+                One(Active(".Where(JobAdPublication.IsListed(now)).Where(JuniorItPredicate.Matches(set))"
+                    + "[.Where(kommun == chosen)].ApplySort(PublishedAtDesc | ExpiresAtAsc).Skip().Take() — one page of the open "
+                    + "junior IT list (ADR 0186), read per request. A narrow row: id, title, company name, kommun and län ids, "
+                    + "publication date, last publication day.")),
             ["Jobbliggaren.Application.Matching.Queries.NewMatchSet.Matches"] =
                 One(Active("join JobAds where j.Status == Active — the single definition of the user's new "
                     + "matches, shared by the uncapped new-match count (#913 B3 witness), the notification "

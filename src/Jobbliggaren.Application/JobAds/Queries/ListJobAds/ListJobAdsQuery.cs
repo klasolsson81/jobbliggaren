@@ -114,7 +114,7 @@ public sealed record ListJobAdsQuery(
     // ?occupationName=. Appended last so no positional argument above can shift into it. A
     // committed search carrying it is captured with it (#2199 PR 2).
     IReadOnlyList<string>? OccupationName = null)
-    : IQuery<PagedResult<JobAdDto>>, ICapturesRecentSearch
+    : IQuery<JobAdListPage>, ICapturesRecentSearch
 {
     // ICapturesRecentSearch + default/fallback-väg ser ALLTID ett rent
     // Domain-värde (MatchDesc → PublishedAtDesc). Match-sorten persisteras aldrig

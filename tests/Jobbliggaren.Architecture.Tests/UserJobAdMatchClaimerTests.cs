@@ -17,17 +17,6 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </summary>
 public sealed class UserJobAdMatchClaimerTests
 {
-    private static readonly string[] ProductionAssemblyPaths =
-    [
-        typeof(UserJobAdMatch).Assembly.Location,
-        typeof(TopMatchMailDispatcher).Assembly.Location,
-        typeof(Jobbliggaren.Infrastructure.Persistence.AppDbContext).Assembly.Location,
-        typeof(Jobbliggaren.Api.Endpoints.AuthProblem).Assembly.Location,
-        typeof(BackgroundMatchingWorker).Assembly.Location,
-        typeof(Jobbliggaren.Infrastructure.Mailbox.Dmarc.DmarcMailboxCollectionExtensions).Assembly.Location,
-        typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly.Location,
-    ];
-
     [Fact]
     public void MarkQueued_IsCalledOnlyByTheToppmatchDispatcherAndTheStrongDigest()
     {
@@ -65,9 +54,9 @@ public sealed class UserJobAdMatchClaimerTests
     {
         var declaringTypeName = declaringType.FullName;
         var referrers = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var path in ProductionAssemblyPaths)
+        foreach (var production in ProductionAssemblies.All)
         {
-            using var assembly = AssemblyDefinition.ReadAssembly(path);
+            using var assembly = production.ReadDefinition();
             foreach (var method in assembly.Modules.SelectMany(module => module.GetTypes()).SelectMany(type => type.Methods))
             {
                 if (method.HasBody && method.Body.Instructions.Any(instruction =>

@@ -21,6 +21,11 @@ public static class DependencyInjection
         // ListJobAdsQueryHandler.
         services.AddSingleton<ISearchQueryParser, SearchQueryParser>();
 
+        // #2199 PR 2b — the one predicate on what recent searches may store, read by the capture
+        // behaviour and by ListJobAdsQueryHandler. Its religious-occupation set is registered in
+        // Infrastructure's AddPersistence, which both hosts call.
+        services.AddSingleton<RecentJobSearches.Common.RecentSearchCaptureGate>();
+
         // Mediator + pipeline behaviors registreras i composition roots (Api/Worker)
         return services;
     }

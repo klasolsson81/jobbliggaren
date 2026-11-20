@@ -99,7 +99,8 @@ public class ListJobAdsKlass2FilterTests(ApiFactory factory)
             Substitute.For<Jobbliggaren.Application.JobAds.Abstractions.IPerUserJobAdSearchQuery>(),
             Substitute.For<Jobbliggaren.Application.Matching.Abstractions.IMatchProfileBuilder>(),
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>());
+            Substitute.For<Jobbliggaren.Application.Common.Abstractions.ICurrentUser>(),
+            scope.ServiceProvider.GetRequiredService<Jobbliggaren.Application.RecentJobSearches.Common.RecentSearchCaptureGate>());
 
     // ---------------------------------------------------------------
     // (a) EmploymentType single

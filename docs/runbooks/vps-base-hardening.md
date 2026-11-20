@@ -697,9 +697,11 @@ complete object to re-`PUT` elsewhere. Either way:
 3. `GET` again and diff against the tables above.
 4. Re-run the §6.4 probes on new connections.
 
-**If your source IP changes** and SSH stops working, that is not a lockout. Confirm the new
-address from any device (`curl ifconfig.me`), edit the SSH rule (§6.2 row 1) in the SCP, and reconnect. Use the VNC
-console in the meantime.
+**If your source IP changes** and SSH stops working, that is not a lockout. Two locks hold the old address, and both
+must change. Confirm the new address from any device (`curl ifconfig.me`), edit the SSH rule (§6.2 row 1) in the SCP,
+then sign in at the VNC console and replace the address in the key's `from="…"` (§4.0) by hand:
+`sed -i s/<OLD_IP>/<NEW_IP>/ .ssh/authorized_keys`, checked with `grep -c <NEW_IP> .ssh/authorized_keys` (1). With
+only the edge rule changed, SSH answers `Permission denied (publickey)` instead of timing out.
 
 ### 6.6 DHCPv4 — measured: not in use
 
@@ -970,7 +972,7 @@ to read output and to run short, hand-typed commands.
 | 5 | Malformed `/etc/fstab` → emergency mode at boot | `findmnt --verify` at edit time; no SSH after reboot | VNC console; restore fstab from `/var/backups/hardening/` |
 | 6 | `nftables.service` not enabled → unfiltered host after reboot | `systemctl is-enabled nftables` | `systemctl enable --now nftables` |
 | 7 | Wrong `Origins-Pattern` → zero security updates, silently, forever | The `--dry-run` check shows more or fewer than one origin | Fix the drop-in; re-run the dry run |
-| 8 | Your source IP changed; SSH looks like a lockout | `curl ifconfig.me` from another device | Edit the SSH rule (§6.2 row 1) in the SCP (browser path is unaffected); VNC in the meantime |
+| 8 | Your source IP changed; SSH looks like a lockout | `curl ifconfig.me` from another device | Edit the SSH rule (§6.2 row 1) in the SCP (browser path is unaffected), then the key's `from="…"` at the VNC console (§6.5) |
 | 9 | Egress default-deny cuts DNS, NTP or apt | The §9 battery fails from inside immediately | Set `egressImplicitRule` back to `ACCEPT_ALL` — it is a **field, not a rule** (§6.1) — fix the gap, set `DROP_ALL` again |
 | 10 | An edge rule change locks out SSH | New session refused while the browser still works | SCP/API is unaffected by box-side rules: restore from the saved `GET` (§6.5); VNC console meanwhile |
 | 11 | Box does not come back from a reboot | No SSH after ~6 minutes | VNC console → `systemctl --failed`, `journalctl -xb` |

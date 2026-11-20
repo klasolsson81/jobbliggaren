@@ -110,6 +110,24 @@ public sealed class ForwardedClientBudgetTests
             .ShouldBe(StatusCodes.Status204NoContent);
     }
 
+    // ADR 0186 — the open junior IT list: the web relays the visitor's address on every call, so the bucket is per
+    // forwarded client, and its burst is exactly the budget.
+    [Fact]
+    public async Task PublicJobAdJuniorIt_TrustedProxy_DistinctClients_ReceiveIndependentBudgets()
+    {
+        using var host = await CreateHostAsync(RateLimitingExtensions.PublicJobAdJuniorItPolicy);
+        var server = host.GetTestServer();
+        var budget = new RateLimitingOptions().PublicJobAdJuniorIt.PermitLimit;
+        for (var i = 0; i < budget; i++)
+            (await SendAsync(server, "192.0.2.10", "198.51.100.1")).Response.StatusCode
+                .ShouldBe(StatusCodes.Status204NoContent);
+
+        (await SendAsync(server, "192.0.2.10", "198.51.100.1")).Response.StatusCode
+            .ShouldBe(StatusCodes.Status429TooManyRequests);
+        (await SendAsync(server, "192.0.2.10", "198.51.100.2")).Response.StatusCode
+            .ShouldBe(StatusCodes.Status204NoContent);
+    }
+
     // ADR 0174 — the job sitemap's parts: the web relays the crawler's address on every call, so the bucket is per
     // forwarded client, and its burst is exactly the budget.
     [Fact]

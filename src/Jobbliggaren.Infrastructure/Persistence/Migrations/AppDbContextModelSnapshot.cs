@@ -2517,6 +2517,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 
                             b1.Property<DateTimeOffset?>("NotificationConsentWithdrawnAt");
 
+                            b1.Property<DateTimeOffset?>("NotificationFeedCriterionAdsOffAt");
+
                             b1.Property<DateTimeOffset?>("NotificationFeedFollowedAdsOffAt");
 
                             b1.Property<DateTimeOffset?>("NotificationFeedMatchesOffAt");

@@ -193,6 +193,31 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
         prefs.NotificationMailOffAt.ShouldNotBeNull();
     }
 
+    // ADR 0175 D8 (#1663 PR 3) - the actor is every row written before migration AddNotificationFeedCriterionAdsSwitch: its
+    // writer's Preferences had no third bell key, which the current writer emits (CurrentWriter_EmitsEveryPreferencesParameterAsAKey).
+    // The stamp must read as null, which is "on", so Branschbevakning notifications reach the bell from the start for every
+    // existing user (DPIA 560 §D9, ruling (2)), and the two older switches beside it keep their values.
+    [Fact]
+    public async Task LegacyRow_WrittenBeforeAddNotificationFeedCriterionAdsSwitch_ReadsTheThirdBellSwitchOn()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(ct);
+        string[] thirdKey = [nameof(Preferences.NotificationFeedCriterionAdsOffAt)];
+        thirdKey.ShouldBeSubsetOf(await StoredKeysAsync(seeker.Id.Value, ct));
+
+        var beforeTheThirdSwitchJson = """
+            {"Language":"sv","BackgroundMatchNotificationsEnabled":true,"DigestCadence":1,"NotificationConsentAt":"2026-09-01T08:00:00+00:00","NotificationConsentWithdrawnAt":null,"FollowedCompanyNotificationsEnabled":false,"FollowedCompanyNotificationConsentAt":null,"FollowedCompanyNotificationConsentWithdrawnAt":null,"NotificationMailOffAt":null,"TopMatchMailOffAt":null,"MatchSummaryMailOffAt":null,"NotificationFeedMatchesOffAt":"2026-11-01T08:00:00+00:00","NotificationFeedFollowedAdsOffAt":null}
+            """;
+        await SetRawPreferencesAsync(seeker.Id.Value, beforeTheThirdSwitchJson, ct);
+
+        var prefs = await ReloadPreferencesAsync(seeker.Id, ct);
+
+        prefs.NotificationFeedCriterionAdsOffAt.ShouldBeNull();
+        prefs.NotificationFeedMatchesOffAt.ShouldNotBeNull();
+        prefs.NotificationFeedFollowedAdsOffAt.ShouldBeNull();
+        prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
+    }
+
     // architect Nice-to-have 2 (#2107): a missing key reads as its type's CLR default, never as the
     // record's parameter default. The actor is a row written before ADR 0080 added DigestCadence, which
     // the current writer emits (CurrentWriter_EmitsEveryPreferencesParameterAsAKey), the shape of

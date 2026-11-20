@@ -523,7 +523,6 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         RefreshJuniorInputFingerprint();
     }
 
-    // #2264 — the one place the junior fingerprint is computed: every member that rewrites the title or text calls it.
     private void RefreshJuniorInputFingerprint() =>
         JuniorInputFingerprint = Jobbliggaren.Domain.JobAds.JuniorInputFingerprint.Of(
             Title, Description, OccupationGroupConceptId, ExperienceRequired);

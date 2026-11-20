@@ -56,14 +56,20 @@ FROM caddy:2-builder-alpine AS build
 # klauspost/compress is raised for CVE-2026-63209 (HIGH, a denial of service through an
 # integer overflow in dictionary processing), fixed in v1.18.7. Trivy measured v1.18.6 in
 # this build's binary on 2026-10-23. The module root carries Go files, so it binds as is.
+#
+# Trivy measured two more HIGH in this build's binary on 2026-11-20: go-jose v4.1.4
+# (CVE-2026-116587, a denial of service), fixed in v4.1.6, and x/net v0.60.0
+# (CVE-2026-78661, a denial of service in x/net/html), fixed in v0.62.0. go-jose's v4 root
+# carries Go files, so it binds as is; x/net keeps its http2 package entry, raised.
 RUN mkdir -p /out \
     && xcaddy build v2.11.4 \
       --output /out/caddy \
       --with golang.org/x/text@v0.39.0 \
       --with google.golang.org/grpc@v1.83.2 \
       --with golang.org/x/crypto/bcrypt@v0.55.0 \
-      --with golang.org/x/net/http2@v0.60.0 \
-      --with github.com/klauspost/compress@v1.18.7
+      --with golang.org/x/net/http2@v0.62.0 \
+      --with github.com/klauspost/compress@v1.18.7 \
+      --with github.com/go-jose/go-jose/v4@v4.1.6
 
 FROM caddy:2-alpine AS runtime
 

@@ -136,7 +136,7 @@ describe("AppShell (v3 header-shell)", () => {
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     const nav = screen.getByRole("navigation", { name: "Admin-navigation" });
-    expect(within(nav).getAllByRole("link")).toHaveLength(7);
+    expect(within(nav).getAllByRole("link")).toHaveLength(8);
     expect(within(nav).getByRole("link", { name: "Granskning" })).toHaveAttribute("href", "/admin/granskning");
     expect(screen.queryByRole("navigation", { name: "Huvudnavigation" })).toBeNull();
     expect(screen.getByRole("main")).toBe(main);

@@ -12,6 +12,7 @@ const ITEMS = [
   ["Översikt", "/admin"],
   ["Användare", "/admin/anvandare"],
   ["Feedback", "/admin/feedback"],
+  ["Juniorjobb", "/admin/juniorjobb"],
   ["Loggar", "/admin/loggar"],
   ["E-postleverans", "/admin/e-post"],
   ["Bakgrundsjobb", "/admin/jobb"],
@@ -29,7 +30,7 @@ describe("AdminNav", () => {
     pathnameMock.mockReturnValue("/admin/granskning");
   });
 
-  it("renders the seven admin pages in the designed order inside a labelled navigation landmark", () => {
+  it("renders the eight admin pages in the designed order inside a labelled navigation landmark", () => {
     render(<AdminNav />);
 
     expect(navLinks().map((link) => [link.textContent, link.getAttribute("href")])).toEqual(

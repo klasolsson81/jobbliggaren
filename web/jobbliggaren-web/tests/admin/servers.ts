@@ -958,6 +958,14 @@ export async function startHarness(ports: HarnessPorts = HARNESS_PORTS): Promise
       return value === undefined ? bare(status) : json(status, value, { "Cache-Control": "private, no-store" });
     };
     const submissions = () => [...harness.feedback.values()];
+    // #2264 — the junior queue's list. An empty queue: the routes spec only needs the page to read and render.
+    if (route === "GET /api/v1/admin/junior-job-ads") {
+      if (harness.mode !== "ok") return refusal(harness.mode);
+      return json(200, {
+        items: { items: [], totalCount: 0, page: 1, pageSize: 25, totalPages: 0 },
+        counts: { unclear: 0, shown: 0, decided: 0 },
+      }, { "Cache-Control": "private, no-store" });
+    }
     if (route === "GET /api/v1/admin/feedback") {
       return feedbackRead("list", () => ({
         status: 200,

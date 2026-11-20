@@ -965,6 +965,47 @@ describe("JobbHeroSearch — no-JS bär Distans (#551 punkt 4)", () => {
   });
 });
 
+describe("JobbHeroSearch — the junior filter (#2261)", () => {
+  it("a committed junior filter is a hidden input, so a native GET keeps it", () => {
+    const { container } = setup({ q: "volvo", junior: true });
+    const input = container.querySelector('input[name="junior"]');
+    expect(input).not.toBeNull();
+    expect(input).toHaveAttribute("value", "on");
+  });
+
+  it("without the filter there is no input", () => {
+    const { container } = setup({ q: "volvo", junior: false });
+    expect(container.querySelector('input[name="junior"]')).toBeNull();
+  });
+
+  it("an external junior change survives the next text commit", async () => {
+    const user = userEvent.setup();
+    const { rerender } = setup();
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q=""
+        occupationGroup={[]}
+        occupationName={[]}
+        region={[]}
+        municipality={[]}
+        remote={false}
+        junior={true}
+        employmentType={[]}
+        worktimeExtent={[]}
+        matchGrades={[]}
+        employer={[]}
+        sortBy="PublishedAtDesc"
+        initialCommitted={false}
+      />,
+    );
+    await user.type(screen.getByRole("combobox"), "volvo ");
+    expect(replaceMock).toHaveBeenLastCalledWith("/jobb?junior=on&q=volvo", {
+      scroll: false,
+    });
+  });
+});
+
 describe("JobbHeroSearch — the occupation-name axis (#2199)", () => {
   // A name is picked in the Yrke popover and is never written as text, so this
   // component must carry it through every commit and through the no-JS form.

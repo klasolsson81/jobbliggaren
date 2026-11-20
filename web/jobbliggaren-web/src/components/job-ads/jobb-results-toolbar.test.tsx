@@ -568,3 +568,35 @@ describe("JobbResultsToolbar — the occupation-name axis (#2199)", () => {
     );
   });
 });
+
+describe("JobbResultsToolbar — the junior filter (#2261)", () => {
+  it("Rensa sökord och filter clears junior too", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ junior: true, q: "data" });
+    await user.click(
+      screen.getByRole("button", { name: "Rensa sökord och filter" }),
+    );
+    expect(pushMock).toHaveBeenCalledWith("/jobb?commit=true");
+  });
+
+  it("a sort change keeps junior", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ junior: true, q: "data" });
+    await user.selectOptions(screen.getByLabelText("Sortera"), "Relevans");
+    expect(pushMock).toHaveBeenCalledWith(
+      "/jobb?junior=on&q=data&sortBy=Relevance&commit=true",
+    );
+  });
+
+  it("a junior-only search renders no filter-chip group, and a q chip does", () => {
+    const { unmount } = renderToolbar({ junior: true, q: "" });
+    expect(
+      screen.queryByRole("group", { name: "Aktiva sökord och filter" }),
+    ).toBeNull();
+    unmount();
+    renderToolbar({ junior: true, q: "data" });
+    expect(
+      screen.getByRole("group", { name: "Aktiva sökord och filter" }),
+    ).toBeInTheDocument();
+  });
+});

@@ -91,14 +91,17 @@ vi.mock("@/lib/api/taxonomy", () => ({
 const toolbarProps: {
   resolvedLabels?: Record<string, string>;
   occupationName?: ReadonlyArray<string>;
+  junior?: boolean;
 } = {};
 vi.mock("@/components/job-ads/jobb-results-toolbar", () => ({
   JobbResultsToolbar: (props: {
     resolvedLabels: Record<string, string>;
     occupationName: ReadonlyArray<string>;
+    junior: boolean;
   }) => {
     toolbarProps.resolvedLabels = props.resolvedLabels;
     toolbarProps.occupationName = props.occupationName;
+    toolbarProps.junior = props.junior;
     return null;
   },
 }));
@@ -210,6 +213,20 @@ describe("JobbResults — the load's completion reaches the surface region", () 
       expect.arrayContaining(["z5AM_ayf_WcL"]),
     );
     expect(toolbarProps.occupationName).toEqual(["z5AM_ayf_WcL"]);
+  });
+
+  it("#2261: the junior filter reaches the list query and the toolbar", async () => {
+    getJobAds.mockResolvedValue({
+      kind: "ok",
+      data: { items: [sampleAd("a1")], page: 1, pageSize: 20, totalCount: 1 },
+    });
+
+    await renderHosted({ junior: true });
+
+    expect(getJobAds).toHaveBeenCalledWith(
+      expect.objectContaining({ junior: true }),
+    );
+    expect(toolbarProps.junior).toBe(true);
   });
 
   it("a SEARCH announces the count — W3C's '18 results returned'", async () => {

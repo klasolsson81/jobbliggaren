@@ -221,7 +221,7 @@ describe("JobbKlass2Panel — Juniora IT-jobb (#2261)", () => {
     const box = screen.getByRole("checkbox", { name: "Juniora IT-jobb" });
     expect(box).toHaveAttribute("aria-checked", "false");
     expect(box).toHaveAccessibleDescription(
-      "Jobb inom data och IT för dig som är ny i yrket.",
+      "För dig som är ny i yrket.",
     );
   });
 

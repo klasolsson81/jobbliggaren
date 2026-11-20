@@ -137,7 +137,7 @@ describe("getJobAds — the junior wire mapping (#2261)", () => {
     return new URL(url).searchParams;
   }
 
-  // The endpoint binds a C# bool, so the route's sentinel "on" would leave it unfiltered.
+  // The endpoint binds a C# bool.
   it("junior=true emits ?junior=true, the bool value, never 'on'", async () => {
     const params = await urlFor({ junior: true });
     expect(params.get("junior")).toBe("true");
@@ -208,5 +208,18 @@ describe("the occupation-name axis on the wire (#2199)", () => {
       "z5AM_ayf_WcL",
       "1jm3_XFQ_TdJ",
     ]);
+  });
+
+  it("#2261: the facet-count query sends junior=true, and nothing when off", async () => {
+    const on = await sentParams(
+      () => getFacetCounts("Municipality", { junior: true }),
+      {},
+    );
+    expect(on.get("junior")).toBe("true");
+    const off = await sentParams(
+      () => getFacetCounts("Municipality", { junior: false }),
+      {},
+    );
+    expect(off.has("junior")).toBe(false);
   });
 });

@@ -168,157 +168,157 @@ export function JobbKlass2Panel({
             {t("klass2.juniorHint")}
           </p>
         </div>
-      {noOptions ? (
-        // A section of its own, so the divider separates it from the junior checkbox above; the padding
-        // sits on the inner element because the section rule sets its own.
-        <div className="jp-panel__section">
-          <div className="jp-popover__empty p-4">{emptyText}</div>
-        </div>
-      ) : (
-        <>
-          {/* ── Omfattning (radio single-select) ── */}
+        {noOptions ? (
+          // A section of its own, so the divider separates it from the junior checkbox above; the padding
+          // sits on the inner element because the section rule sets its own.
           <div className="jp-panel__section">
-            <div className="jp-panel__sectionhead">
-              <span className="jp-popover__title">{t("klass2.worktimeHeading")}</span>
-              {worktimeExtent.length > 0 && (
-                <button
-                  type="button"
-                  className="jp-clearlink"
-                  onClick={() => onWorktimeExtentChange([])}
-                >
-                  {t("klass2.clear")}
-                </button>
-              )}
-            </div>
-            <div
-              role="radiogroup"
-              aria-label={t("klass2.worktimeHeading")}
-              className="jp-panel__group"
-            >
-              {worktimeRadioOptions.map((opt, index) => {
-                const checked = activeWorktime === opt.value;
-                return (
-                  <div
-                    key={opt.value}
-                    className="jp-radioitem"
-                    role="radio"
-                    aria-checked={checked}
-                    // Roving tabindex: bara den valda radion är i tab-ordningen
-                    // (en tab-stop för hela gruppen, WAI-ARIA radiogroup).
-                    tabIndex={checked ? 0 : -1}
-                    onClick={() =>
-                      onWorktimeExtentChange(
-                        opt.value === WORKTIME_ALL ? [] : [opt.value],
-                      )
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === " " || e.key === "Enter") {
-                        e.preventDefault();
+            <div className="jp-popover__empty p-4">{emptyText}</div>
+          </div>
+        ) : (
+          <>
+            {/* ── Omfattning (radio single-select) ── */}
+            <div className="jp-panel__section">
+              <div className="jp-panel__sectionhead">
+                <span className="jp-popover__title">{t("klass2.worktimeHeading")}</span>
+                {worktimeExtent.length > 0 && (
+                  <button
+                    type="button"
+                    className="jp-clearlink"
+                    onClick={() => onWorktimeExtentChange([])}
+                  >
+                    {t("klass2.clear")}
+                  </button>
+                )}
+              </div>
+              <div
+                role="radiogroup"
+                aria-label={t("klass2.worktimeHeading")}
+                className="jp-panel__group"
+              >
+                {worktimeRadioOptions.map((opt, index) => {
+                  const checked = activeWorktime === opt.value;
+                  return (
+                    <div
+                      key={opt.value}
+                      className="jp-radioitem"
+                      role="radio"
+                      aria-checked={checked}
+                      // Roving tabindex: bara den valda radion är i tab-ordningen
+                      // (en tab-stop för hela gruppen, WAI-ARIA radiogroup).
+                      tabIndex={checked ? 0 : -1}
+                      onClick={() =>
                         onWorktimeExtentChange(
                           opt.value === WORKTIME_ALL ? [] : [opt.value],
-                        );
-                        return;
+                        )
                       }
-                      // Pilnavigering (WAI-ARIA radiogroup): flytta val + fokus.
-                      if (
-                        e.key === "ArrowDown" ||
-                        e.key === "ArrowRight" ||
-                        e.key === "ArrowUp" ||
-                        e.key === "ArrowLeft"
-                      ) {
-                        e.preventDefault();
-                        const dir =
-                          e.key === "ArrowDown" || e.key === "ArrowRight"
-                            ? 1
-                            : -1;
-                        const nextIndex =
-                          (index + dir + worktimeRadioOptions.length) %
-                          worktimeRadioOptions.length;
-                        const next = worktimeRadioOptions[nextIndex];
-                        if (!next) return;
-                        onWorktimeExtentChange(
-                          next.value === WORKTIME_ALL ? [] : [next.value],
-                        );
-                        const parent = e.currentTarget.parentElement;
-                        const target = parent?.children[nextIndex];
-                        if (target instanceof HTMLElement) target.focus();
-                      }
-                    }}
-                  >
-                    <span className="jp-radioitem__dot" aria-hidden="true">
-                      {checked && <span className="jp-radioitem__fill" />}
-                    </span>
-                    {opt.label}
-                    {/* "Alla"-radion bär inget tal (summan = totalCount, SPOT). */}
-                    {opt.value !== WORKTIME_ALL && worktimeExtentCounts && (
-                      <span className="jp-radioitem__count">
-                        ({formatNumber(format, worktimeExtentCounts[opt.value] ?? 0)})
+                      onKeyDown={(e) => {
+                        if (e.key === " " || e.key === "Enter") {
+                          e.preventDefault();
+                          onWorktimeExtentChange(
+                            opt.value === WORKTIME_ALL ? [] : [opt.value],
+                          );
+                          return;
+                        }
+                        // Pilnavigering (WAI-ARIA radiogroup): flytta val + fokus.
+                        if (
+                          e.key === "ArrowDown" ||
+                          e.key === "ArrowRight" ||
+                          e.key === "ArrowUp" ||
+                          e.key === "ArrowLeft"
+                        ) {
+                          e.preventDefault();
+                          const dir =
+                            e.key === "ArrowDown" || e.key === "ArrowRight"
+                              ? 1
+                              : -1;
+                          const nextIndex =
+                            (index + dir + worktimeRadioOptions.length) %
+                            worktimeRadioOptions.length;
+                          const next = worktimeRadioOptions[nextIndex];
+                          if (!next) return;
+                          onWorktimeExtentChange(
+                            next.value === WORKTIME_ALL ? [] : [next.value],
+                          );
+                          const parent = e.currentTarget.parentElement;
+                          const target = parent?.children[nextIndex];
+                          if (target instanceof HTMLElement) target.focus();
+                        }
+                      }}
+                    >
+                      <span className="jp-radioitem__dot" aria-hidden="true">
+                        {checked && <span className="jp-radioitem__fill" />}
                       </span>
-                    )}
-                  </div>
-                );
-              })}
+                      {opt.label}
+                      {/* "Alla"-radion bär inget tal (summan = totalCount, SPOT). */}
+                      {opt.value !== WORKTIME_ALL && worktimeExtentCounts && (
+                        <span className="jp-radioitem__count">
+                          ({formatNumber(format, worktimeExtentCounts[opt.value] ?? 0)})
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          {/* ── Anställningsform (checkbox multi-select) ── */}
-          <div className="jp-panel__section">
-            <div className="jp-panel__sectionhead">
-              <span className="jp-popover__title">{t("klass2.employmentHeading")}</span>
-              {employmentType.length > 0 && (
-                <button
-                  type="button"
-                  className="jp-clearlink"
-                  onClick={() => onEmploymentTypeChange([])}
-                >
-                  {t("klass2.clear")}
-                </button>
-              )}
-            </div>
-            <div role="group" aria-label={t("klass2.employmentHeading")}>
-              {employmentCheckOptions.map((opt) => {
-                const checked = employmentType.includes(opt.conceptId);
-                return (
-                  <div
-                    key={opt.conceptId}
-                    className="jp-checkitem"
-                    role="checkbox"
-                    aria-checked={checked}
-                    tabIndex={0}
-                    onClick={() =>
-                      toggleEmployment(
-                        employmentType,
-                        opt.conceptId,
-                        onEmploymentTypeChange,
-                      )
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === " " || e.key === "Enter") {
-                        e.preventDefault();
+            {/* ── Anställningsform (checkbox multi-select) ── */}
+            <div className="jp-panel__section">
+              <div className="jp-panel__sectionhead">
+                <span className="jp-popover__title">{t("klass2.employmentHeading")}</span>
+                {employmentType.length > 0 && (
+                  <button
+                    type="button"
+                    className="jp-clearlink"
+                    onClick={() => onEmploymentTypeChange([])}
+                  >
+                    {t("klass2.clear")}
+                  </button>
+                )}
+              </div>
+              <div role="group" aria-label={t("klass2.employmentHeading")}>
+                {employmentCheckOptions.map((opt) => {
+                  const checked = employmentType.includes(opt.conceptId);
+                  return (
+                    <div
+                      key={opt.conceptId}
+                      className="jp-checkitem"
+                      role="checkbox"
+                      aria-checked={checked}
+                      tabIndex={0}
+                      onClick={() =>
                         toggleEmployment(
                           employmentType,
                           opt.conceptId,
                           onEmploymentTypeChange,
-                        );
+                        )
                       }
-                    }}
-                  >
-                    <span className="jp-checkitem__box">
-                      {checked && <Check size={14} aria-hidden="true" />}
-                    </span>
-                    {opt.label}
-                    {employmentTypeCounts && (
-                      <span className="jp-checkitem__count">
-                        ({formatNumber(format, employmentTypeCounts[opt.conceptId] ?? 0)})
+                      onKeyDown={(e) => {
+                        if (e.key === " " || e.key === "Enter") {
+                          e.preventDefault();
+                          toggleEmployment(
+                            employmentType,
+                            opt.conceptId,
+                            onEmploymentTypeChange,
+                          );
+                        }
+                      }}
+                    >
+                      <span className="jp-checkitem__box">
+                        {checked && <Check size={14} aria-hidden="true" />}
                       </span>
-                    )}
-                  </div>
-                );
-              })}
+                      {opt.label}
+                      {employmentTypeCounts && (
+                        <span className="jp-checkitem__count">
+                          ({formatNumber(format, employmentTypeCounts[opt.conceptId] ?? 0)})
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
       </div>
       {footer && <div className="jp-popover__foot">{footer}</div>}
     </PopoverShell>

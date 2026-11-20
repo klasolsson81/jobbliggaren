@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, act } from "@testing-library/react";
+import { render, screen, within, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JobbHeroFilters } from "./jobb-hero-filters";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
@@ -409,6 +409,27 @@ describe("JobbHeroFilters — facet-counts + Visa N annonser (E2c)", () => {
       expect(screen.getByText("(340)")).toBeInTheDocument();
       // "Hela länet"-radens count = region-facetten för aktiva länet.
       expect(screen.getByText(/1\s500/)).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("#2261: an active junior filter reaches the facet-count fetch", async () => {
+    const user = userEvent.setup();
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      setup({ initialJunior: true });
+      await user.click(screen.getByRole("button", { name: /^Ort/ }));
+      await waitFor(() => expect(urls.length).toBeGreaterThan(0));
+      const url = new URL(urls[0]!, "http://localhost");
+      expect(url.pathname).toBe("/api/jobb/facet-counts");
+      expect(url.searchParams.get("junior")).toBe("true");
     } finally {
       vi.unstubAllGlobals();
     }

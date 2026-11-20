@@ -497,9 +497,7 @@ export function JobbResultsToolbar({
     // #551 punkt 4 — clearAllFilters nollar distans, så grinden måste kunna SE
     // den. Utan detta är "Rensa sökord och filter" osynlig för ett rent
     // Distans-filter, alltså en funktion vars grind inte ser vad den rensar.
-    urlState.remote ||
-    // #2261 — the same for the junior filter, which clearAllFilters clears too.
-    urlState.junior;
+    urlState.remote;
 
   return (
     <>

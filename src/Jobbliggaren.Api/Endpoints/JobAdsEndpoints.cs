@@ -6,6 +6,7 @@ using Jobbliggaren.Application.JobAds.Commands.CreateJobAd;
 using Jobbliggaren.Application.JobAds.Queries.DisambiguateEmployers;
 using Jobbliggaren.Application.JobAds.Queries.GetFacetCounts;
 using Jobbliggaren.Application.JobAds.Queries.GetJobAd;
+using Jobbliggaren.Application.JobAds.Queries.GetJuniorItJobAdCount;
 using Jobbliggaren.Application.JobAds.Queries.GetRemoteAdCount;
 using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
@@ -227,6 +228,17 @@ public static class JobAdsEndpoints
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.FacetCountsPolicy);
+
+        // ADR 0188 (#2265) — the count behind the junior quick link in the /jobb hero: /junior's own number, read per
+        // request (ADR 0166 trigger 22). Its own per-user bucket. Cache-Control: private, no-store, as /remote-count.
+        group.MapGet("/junior-it-count", async (
+            IMediator mediator, HttpContext http, CancellationToken ct) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new GetJuniorItJobAdCountQuery(), ct);
+            return Results.Ok(result);
+        })
+        .RequireRateLimiting(RateLimitingExtensions.JobAdJuniorItCountPolicy);
 
         // ADR 0087 D6/D8(c) (#311 PR-2b C2) — employer disambiguation: given a company-name term
         // (?q=), the DISTINCT legal entities in the ad corpus that match, one row per org.nr (the

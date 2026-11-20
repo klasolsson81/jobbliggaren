@@ -247,6 +247,22 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
         UpdatedAt = now;
     }
 
+    /// <summary>
+    /// ADR 0188 (#2265) — shows or hides the default "Juniora IT-jobb" quick link in the /jobb hero, with
+    /// <see cref="SetNotificationMail"/>'s semantics, on <see cref="Preferences.JuniorQuickLinkOffAt"/> only. The cap
+    /// of three quick links spans this stamp and the marked recent searches, two aggregates, so it is not checked
+    /// here: the handler checks <see cref="QuickLinkCap"/> before it turns the link on.
+    /// </summary>
+    public void SetJuniorQuickLink(bool on, IDateTimeProvider clock)
+    {
+        var now = clock.UtcNow;
+        var offAt = PauseStamp(Preferences.JuniorQuickLinkOffAt, on, now);
+        if (offAt == Preferences.JuniorQuickLinkOffAt)
+            return;
+        Preferences = Preferences with { JuniorQuickLinkOffAt = offAt };
+        UpdatedAt = now;
+    }
+
     // On clears the stamp; off keeps the first stamp, or takes one now.
     private static DateTimeOffset? PauseStamp(DateTimeOffset? offAt, bool on, DateTimeOffset now) =>
         on ? null : offAt ?? now;

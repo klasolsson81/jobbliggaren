@@ -55,7 +55,7 @@ public class RecentJobSearchProjectionParityTests
     private static readonly HashSet<string> NotSearchDimensions = new(StringComparer.Ordinal)
     {
         "Id", "JobSeekerId", "FilterHash", "LastViewedAt", "LastSeenCount", "CreatedAt",
-        "DomainEvents",
+        "DomainEvents", "QuickLinkSlot",
     };
 
     [Fact]

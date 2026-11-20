@@ -17,7 +17,12 @@ public sealed class RecentJobSearchConfiguration : IEntityTypeConfiguration<Rece
 {
     public void Configure(EntityTypeBuilder<RecentJobSearch> builder)
     {
-        builder.ToTable("recent_job_searches");
+        // ADR 0188 (#2265) — the quick-link slot is bounded by the store, not only by the handler's check: the CHECK
+        // admits 1 to QuickLinkCap.MaxTotal, and the partial unique index below admits each slot once per job seeker,
+        // so no race marks more searches than there are slots (security-auditor's #2265 plan-read Major 1).
+        builder.ToTable("recent_job_searches", t => t.HasCheckConstraint(
+            "ck_recent_job_searches_quick_link_slot",
+            $"\"quick_link_slot\" BETWEEN 1 AND {QuickLinkCap.MaxTotal}"));
 
         builder.HasKey(r => r.Id);
         builder.Property(r => r.Id)
@@ -166,6 +171,15 @@ public sealed class RecentJobSearchConfiguration : IEntityTypeConfiguration<Rece
         builder.Property(r => r.CreatedAt)
             .HasColumnName("created_at")
             .IsRequired();
+
+        builder.Property(r => r.QuickLinkSlot)
+            .HasColumnName("quick_link_slot")
+            .HasColumnType("smallint");
+
+        builder.HasIndex(r => new { r.JobSeekerId, r.QuickLinkSlot })
+            .IsUnique()
+            .HasFilter("\"quick_link_slot\" IS NOT NULL")
+            .HasDatabaseName("ux_recent_job_searches_seeker_quick_link_slot");
 
         builder.Ignore(r => r.DomainEvents);
     }

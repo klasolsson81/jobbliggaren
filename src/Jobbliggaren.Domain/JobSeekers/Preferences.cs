@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Domain.JobSeekers;
 
 /// <summary>
-/// The job-seeker's locale + notification preferences. Stored as jsonb on
+/// The job-seeker's locale, notification and quick-link preferences. Stored as jsonb on
 /// <c>job_seekers.preferences</c>; the Vag 4 fields are ADDITIVE — a row written before
 /// ADR 0080 deserializes the missing keys to their safe defaults (background-match
 /// notifications OFF), so no data migration is needed for them. A new field still moves the
@@ -46,6 +46,13 @@ namespace Jobbliggaren.Domain.JobSeekers;
 /// <see cref="JobSeeker.SetNotificationFeedFollowedAds"/>.
 /// </para>
 /// <para>
+/// <b>ADR 0188 (#2265) — the junior quick link on /jobb.</b> <see cref="JuniorQuickLinkOffAt"/> hides the default
+/// "Juniora IT-jobb" link in the /jobb hero, with the shape of the pauses above: a stamp whose <c>null</c> means shown,
+/// so every row written before the key existed shows the link. The quick links to searches are not stored here: each is
+/// a mark on its own <c>RecentJobSearch</c> row, which takes the link with it on every path that deletes the row.
+/// Mutated only via <see cref="JobSeeker.SetJuniorQuickLink"/>.
+/// </para>
+/// <para>
 /// TD-115 (2026-06-25): the legacy <c>EmailNotifications</c> (opt-OUT default, Art.
 /// 7-noncompliant) + <c>WeeklySummary</c> flags were RETIRED — they gated no email path
 /// (the Vag 4 dispatch reads <see cref="BackgroundMatchNotificationsEnabled"/> + the
@@ -68,4 +75,5 @@ public sealed record Preferences(
     DateTimeOffset? TopMatchMailOffAt = null,
     DateTimeOffset? MatchSummaryMailOffAt = null,
     DateTimeOffset? NotificationFeedMatchesOffAt = null,
-    DateTimeOffset? NotificationFeedFollowedAdsOffAt = null);
+    DateTimeOffset? NotificationFeedFollowedAdsOffAt = null,
+    DateTimeOffset? JuniorQuickLinkOffAt = null);

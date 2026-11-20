@@ -107,10 +107,10 @@ filter both call, so the definition of "junior IT" exists once (the single point
 `brand-groups.v1.json` and AGENTS.md §5's rule that rubric data is versioned data and not inline strings.
 
 - **Six keys, and nothing else from the reading:** `//` (maintainer documentation, not mapped), `juniorItListVersion`, `readAt`, `occupationFieldConceptId`, `headlinePattern` and
-  `curatedExternalIds`, the 144 ids. No label, year, place, note, title, employer or our own id. The ids were generated from Klas's reading by a one-off command outside the repository.
+  `curatedExternalIds`, the 143 ids. No label, year, place, note, title, employer or our own id. The ids were generated from Klas's reading by a one-off command outside the repository.
 - **The loader fails loud at host build** (the list is instance-registered): no version; a `readAt` that is not `yyyy-MM-dd`; no field id; no pattern; a pattern that does not compile (it is
   compiled with a one-second timeout); an id that is not decimal digits (since anything else could never equal a Platsbanken id and would shrink the list unseen); or an id named
-  twice. A test (written in this PR) pins the file's six keys, so a seventh cannot ride in unnoticed, together with the id form, the absence of duplicates and the count of 144. The loader itself
+  twice. A test (written in this PR) pins the file's six keys, so a seventh cannot ride in unnoticed, together with the id form, the absence of duplicates and the count of 143. The loader itself
   ignores an unmapped key; the pin is the test's.
 - **The pattern runs in PostgreSQL at request time and in .NET only in the loader's compile check and the agreement test** (D4). Titles are third-party input, so no request ever runs a .NET regex
   over one (security-auditor m5).
@@ -220,7 +220,6 @@ This ADR decides none of them. Whichever Klas takes is its own ADR, and B or D g
   upgraded.
 - **The consequences of two statements, not one snapshot.** The count and the page are read at the same `now` in two statements. An ad that closes between them can leave a page one row short of its
   count; the next read is right. This is accepted.
-- **How many of the 144 ids are listed on the box.** Not read. The amendment's reading before the first push, and the plan's two readings after deploy (a count of listed curated ids, and a second a few days later that must have fallen as ads closed, with the page's count matching), are counts-only readings owed, and not measurements of this ADR.
 
 **Owed by this ADR's own tests, in the same PR** (named here ahead of the panel; the PR holds them): the loader's test (D3); `JuniorItHeadlinePatternAgreementTests` (D4);
 `PublicJuniorItJobAdDtoContractTests` and the wire test (D6); the validator's test; the rate-limit rows (D7); and `JuniorItJobAdQueryReadTests` (Testcontainers), whose
@@ -313,7 +312,7 @@ Each reading below is dated and has its source. Nothing is estimated. All are th
 
 | Reading | What | Recorded |
 |---|---|---|
-| R1 | the reading's size | 2026-11-19: 249 unique Data/IT candidates from JobTech read in full; 135 unique ads carry a list label; with the 9 Platsbanken duplicates that point at them, 144 ids. The headline rule `HEAD_JUNIOR` is right in 69 of 69 cases and finds 51 % of the junior ads. |
+| R1 | the reading's size | 2026-11-19: 249 unique Data/IT candidates from JobTech read in full; 135 unique ads carry a list label; with the 9 Platsbanken duplicates that point at them, 144 ids, of which the file holds 143 (the ADR 0166 amendment's reading of 2026-11-20 left out the one outside the Data/IT groups). The headline rule `HEAD_JUNIOR` is right in 69 of 69 cases and finds 51 % of the junior ads. |
 | R2 | the ported pattern against the original | 2026-11-19: on all 249 reading ads the ported pattern and `HEAD_JUNIOR` agreed, 69 hits each, all 69 carrying a list label; on 2 100 live Data/IT headlines they agreed, 56 hits each, 0 disagreements. A dated, historical measurement of the port; it says nothing about the pattern after a later edit. |
 | R3 | the stock of new ads the rule does not reach | 2026-11-19: 67 new unique candidates published in the last seven days, 49 of them not caught by the headline rule, so about 50 a week to read. |
 

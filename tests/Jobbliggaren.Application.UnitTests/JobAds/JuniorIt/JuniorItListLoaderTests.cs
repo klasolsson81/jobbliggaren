@@ -95,7 +95,7 @@ public class JuniorItListLoaderTests
         var list = JuniorItListLoader.Load();
 
         list.OccupationFieldConceptId.ShouldBe("apaJ_2ja_LuF", "the Data/IT occupation field");
-        list.CuratedExternalIds.Count.ShouldBe(144);
+        list.CuratedExternalIds.Count.ShouldBe(143);
         list.CuratedExternalIds.ShouldAllBe(id => id.Length > 0 && id.All(char.IsAsciiDigit));
         list.CuratedExternalIds.Distinct(StringComparer.Ordinal).Count().ShouldBe(list.CuratedExternalIds.Count);
     }

@@ -133,9 +133,11 @@ describe("recentJobSearchDtoSchema", () => {
     expect(parsed.q).toBeNull();
   });
 
-  it("defaults occupationGroupLabels and regionLabels, by the schema's shape", () => {
-    const { occupationGroupLabels, regionLabels } = recentJobSearchDtoSchema.shape;
+  it("defaults occupationGroupLabels, municipalityLabels and regionLabels, by the schema's shape", () => {
+    const { occupationGroupLabels, municipalityLabels, regionLabels } =
+      recentJobSearchDtoSchema.shape;
     expect(occupationGroupLabels.parse(undefined)).toEqual([]);
+    expect(municipalityLabels.parse(undefined)).toEqual([]);
     expect(regionLabels.parse(undefined)).toEqual([]);
   });
 
@@ -157,7 +159,7 @@ describe("recentJobSearchDtoSchema", () => {
   });
 
   it("requires employerList, by the schema's shape", () => {
-    expect(recentJobSearchDtoSchema.shape.employerList.safeParse(undefined).success).toBe(false);
+    expect(recentJobSearchDtoSchema.pick({ employerList: true }).safeParse({}).success).toBe(false);
   });
 
   it("carries occupationNameList and its labels from the wire (#2199)", () => {
@@ -173,9 +175,10 @@ describe("recentJobSearchDtoSchema", () => {
   });
 
   it("requires occupationNameList and defaults occupationNameLabels, by the schema's shape", () => {
-    const { occupationNameList, occupationNameLabels } = recentJobSearchDtoSchema.shape;
-    expect(occupationNameList.safeParse(undefined).success).toBe(false);
-    expect(occupationNameLabels.parse(undefined)).toEqual([]);
+    expect(
+      recentJobSearchDtoSchema.pick({ occupationNameList: true }).safeParse({}).success,
+    ).toBe(false);
+    expect(recentJobSearchDtoSchema.shape.occupationNameLabels.parse(undefined)).toEqual([]);
   });
 
   it("parses an Employer part, which carries neither text nor code (#1471)", () => {
@@ -204,7 +207,7 @@ describe("recentJobSearchDtoSchema", () => {
   });
 
   it("requires remote, by the schema's shape", () => {
-    expect(recentJobSearchDtoSchema.shape.remote.safeParse(undefined).success).toBe(false);
+    expect(recentJobSearchDtoSchema.pick({ remote: true }).safeParse({}).success).toBe(false);
   });
 
   it("parses Relevance numeric sortBy index 4", () => {

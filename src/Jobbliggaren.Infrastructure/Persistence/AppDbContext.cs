@@ -20,6 +20,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     : DbContext(options), IAppDbContext
 {
     public DbSet<JobAd> JobAds => Set<JobAd>();
+    public DbSet<JobAdJuniorAssessment> JuniorAssessments => Set<JobAdJuniorAssessment>();
     public DbSet<JobSeeker> JobSeekers => Set<JobSeeker>();
     public DbSet<DomainApplication> Applications => Set<DomainApplication>();
     public DbSet<Resume> Resumes => Set<Resume>();

@@ -68,7 +68,6 @@ public sealed class JuniorFacitMeasurement
 
         var ct = TestContext.Current.CancellationToken;
         var facit = ReadFacit(facitDir);
-        var duplicates = ReadDuplicates(facitDir);
         var ruleSet = JuniorRuleSetLoader.LoadDataIt();
         var groups = DataItGroups(ruleSet.OccupationFieldConceptId);
 
@@ -78,8 +77,8 @@ public sealed class JuniorFacitMeasurement
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var now = clock.UtcNow;
 
-        // The reading as rule 0, both directions, duplicates following the ad they copy — the form the rule file gets.
-        var readingRuleSet = ruleSet with { Reading = ToReading(ruleSet.Reading.RuleId, facit, duplicates) };
+        // The reading as shipped in the rule file (junior ids only, Klas 2026-11-20) decides the /junior projection.
+        var readingRuleSet = ruleSet;
 
         var failures = new Dictionary<string, int>(StringComparer.Ordinal);
         var facitResults = new Dictionary<string, Measured>(StringComparer.Ordinal);
@@ -256,7 +255,12 @@ public sealed class JuniorFacitMeasurement
         var pointAuto = stats.Where(s => s.Fires >= 10 && s.Precision >= Threshold).Select(s => s.RuleId).ToHashSet(StringComparer.Ordinal);
         var wilsonAuto = stats.Where(s => s.Fires > 0 && s.WilsonLow >= Threshold).Select(s => s.RuleId).ToHashSet(StringComparer.Ordinal);
 
-        foreach (var (name, auto) in new[] { ("A: precision ≥ 95 % and at least 10 cases", pointAuto), ("B: Wilson 95 % lower bound ≥ 95 %", wilsonAuto) })
+        var shipped = ruleSet.Rules.Where(x => x.Auto).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+        r.AppendLine(CultureInfo.InvariantCulture,
+            $"Rules that meet Klas's criterion (≥ 95 % on ≥ 10 cases, 2026-11-20): {string.Join(", ", ruleSet.Rules.Where(x => pointAuto.Contains(x.Id)).Select(x => x.Id))}. Automatic in the file: {string.Join(", ", ruleSet.Rules.Where(x => x.Auto).Select(x => x.Id))}. Wilson lower bound ≥ 95 %: {(wilsonAuto.Count == 0 ? "none" : string.Join(", ", wilsonAuto))}.");
+        r.AppendLine();
+
+        foreach (var (name, auto) in new[] { ("as shipped (the file's auto flags)", shipped) })
         {
             var simulated = ruleSet with { Rules = ruleSet.Rules.Select(x => x with { Auto = auto.Contains(x.Id) }).ToList() };
             r.AppendLine(CultureInfo.InvariantCulture, $"## Criterion {name}");
@@ -432,33 +436,11 @@ public sealed class JuniorFacitMeasurement
         return (field.OccupationGroups ?? []).Select(g => g.ConceptId).ToHashSet(StringComparer.Ordinal);
     }
 
-    private static JuniorReading ToReading(string ruleId, Dictionary<string, FacitRow> facit, Dictionary<string, string> duplicates)
-    {
-        var junior = new HashSet<string>(StringComparer.Ordinal);
-        var notJunior = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var (id, row) in facit)
-            (ShownLabels.Contains(row.Label) ? junior : notJunior).Add(id);
-        foreach (var (id, original) in duplicates)
-        {
-            if (facit.TryGetValue(original, out var row))
-                (ShownLabels.Contains(row.Label) ? junior : notJunior).Add(id);
-        }
-
-        return new JuniorReading(ruleId, junior, notJunior);
-    }
-
     private static Dictionary<string, FacitRow> ReadFacit(string dir)
     {
         using var stream = File.OpenRead(Path.Combine(dir, "junior-facit.json"));
         var file = JsonSerializer.Deserialize<FacitFile>(stream) ?? throw new InvalidOperationException("The reading is empty.");
         return file.Annonser.ToDictionary(a => a.Id, StringComparer.Ordinal);
-    }
-
-    private static Dictionary<string, string> ReadDuplicates(string dir)
-    {
-        using var stream = File.OpenRead(Path.Combine(dir, "kandidater.json"));
-        var file = JsonSerializer.Deserialize<CandidateFile>(stream) ?? throw new InvalidOperationException("The candidate file is empty.");
-        return file.Annonser.Where(a => a.DubblettAv is not null).ToDictionary(a => a.Id, a => a.DubblettAv!, StringComparer.Ordinal);
     }
 
     private sealed record Measured(
@@ -480,9 +462,5 @@ public sealed class JuniorFacitMeasurement
         [property: JsonPropertyName("etikett")] string Label,
         [property: JsonPropertyName("arMin")] int? ArMin);
 
-    private sealed record CandidateFile([property: JsonPropertyName("annonser")] IReadOnlyList<CandidateRow> Annonser);
 
-    private sealed record CandidateRow(
-        [property: JsonPropertyName("id")] string Id,
-        [property: JsonPropertyName("dubblettAv")] string? DubblettAv);
 }

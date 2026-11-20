@@ -2,6 +2,7 @@ using System.Reflection;
 using Hangfire;
 using Jobbliggaren.Application.BackgroundJobs;
 using Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchCriterionScan;
+using Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds;
 using Jobbliggaren.Application.Matching.Jobs.BackgroundMatching;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Worker.Hosting;
@@ -59,6 +60,7 @@ public class TopMatchMailBoundTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);

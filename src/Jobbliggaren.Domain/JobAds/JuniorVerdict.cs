@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Jobbliggaren.Domain.JobAds;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace Jobbliggaren.Domain.JobAds;
 /// verdict of its own, not an absence: the ad carries a junior signal that no automatic rule decides, so it waits
 /// for an admin's decision.
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum JuniorVerdict
 {
     Junior = 1,

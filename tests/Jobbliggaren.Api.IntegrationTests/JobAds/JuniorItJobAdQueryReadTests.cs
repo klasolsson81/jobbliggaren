@@ -1,14 +1,17 @@
 using System.Data.Common;
+using System.Text;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Commands.ArchiveExternalJobAd;
+using Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds;
 using Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds;
+using Jobbliggaren.Application.JobAds.Junior;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJuniorItJobAds;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.JobAds;
-using Jobbliggaren.Infrastructure.JobAds.JuniorIt;
+using Jobbliggaren.Infrastructure.JobAds.Junior;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Jobbliggaren.TestSupport;
@@ -17,21 +20,25 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
-/// The open junior IT list on real Postgres (ADR 0186, security-auditor S8): the real <c>JuniorItJobAdQuery</c> behind
-/// the real handler, the field's groups from the real taxonomy snapshot, the shipped headline pattern, and synthetic
-/// curated ids. Its own database per test, because the exact set, the total and the kommun options are the assertion.
+/// The open junior IT list on real Postgres (ADR 0186, ADR 0187): the real <c>JuniorItJobAdQuery</c> behind the real
+/// handler, the field's groups from the real taxonomy snapshot through the real <c>JuniorFieldResolver</c>, and a
+/// synthetic rule file read through the real loader. Its own database per test, because the exact set, the total and the
+/// kommun options are the assertion.
 /// </summary>
 /// <remarks>
 /// Every row is produced the way production produces it: imported through <c>JobAd.Import</c>, created as
-/// <c>POST /api/v1/job-ads</c> stores it, archived through <c>ArchiveExternalJobAdCommand</c> and
-/// <c>ExpireJobAdsJob</c>, erased through the aggregate, and past its deadline by the clock. Instants are whole seconds;
-/// ties are ordered by the uuid, whose order on Postgres is the ordinal order of its lower-case <c>"D"</c> string.
+/// <c>POST /api/v1/job-ads</c> stores it, classified by the real <c>ClassifyJuniorJobAdsJob</c> (which runs before every
+/// read, as the Worker's two-minute sweep does), decided through <c>JobAd.DecideJunior</c> (the admin command's
+/// aggregate call), archived through <c>ArchiveExternalJobAdCommand</c> and <c>ExpireJobAdsJob</c>, erased through the
+/// aggregate, and past its deadline by the clock. Instants are whole seconds; ties are ordered by the uuid, whose order
+/// on Postgres is the ordinal order of its lower-case <c>"D"</c> string.
 /// </remarks>
 [Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) : IAsyncLifetime
@@ -48,12 +55,43 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
     private const string StockholmsLan = "CifL_Rzy_Mku";
     private const string VastraGotalandsLan = "zdoY_6u5_Krt";
 
-    // Synthetic Platsbanken-shaped ids, outside the shipped list's range.
+    // Synthetic Platsbanken-shaped ids, outside the shipped reading's range.
     private const string CuratedInField = "90000001";
     private const string CuratedOutsideField = "90000002";
 
-    private static readonly JuniorItList List =
-        JuniorItListLoader.Load() with { CuratedExternalIds = [CuratedInField, CuratedOutsideField] };
+    // A synthetic rule file through the real loader: the reading names the two ids above; a junior, trainee or
+    // praktikant title is junior automatically; a "handleda" text queues the ad; a senior title excludes it.
+    private static string RuleFile(bool titleRuleIsAuto = true) => $$"""
+        {
+          "ruleSetVersion": "1",
+          "occupationFieldConceptId": "{{DataItField}}",
+          "enabled": true,
+          "reading": { "ruleId": "reading-test", "junior": ["{{CuratedInField}}", "{{CuratedOutsideField}}"] },
+          "patterns": {
+            "candidate": "\\b(junior|trainee|praktikant)",
+            "juniorTitle": "\\b(junior|trainee|praktikant)",
+            "seniorTitle": "\\bsenior",
+            "mentor": "handleda",
+            "years": "\\b(?<from>\\d{1,2}) års erfarenhet"
+          },
+          "candidatePatterns": ["candidate"],
+          "candidateWhenNoExperienceRequired": false,
+          "years": { "patterns": ["years"], "numberWords": {}, "plausibleMin": 1, "plausibleMax": 15 },
+          "rules": [
+            { "id": "title-senior", "verdict": "NotJunior", "auto": true, "all": [ { "on": "title", "pattern": "seniorTitle" } ] },
+            { "id": "text-mentor", "verdict": "NotJunior", "auto": false, "all": [ { "on": "text", "pattern": "mentor" } ] },
+            { "id": "title-junior", "verdict": "Junior", "auto": {{(titleRuleIsAuto ? "true" : "false")}}, "all": [ { "on": "title", "pattern": "juniorTitle" } ] }
+          ],
+          "candidateFallbackRuleId": "candidate-only",
+          "noSignalRuleId": "no-signal",
+          "timeoutRuleId": "match-timeout"
+        }
+        """;
+
+    private static JuniorRuleSet LoadRules(bool titleRuleIsAuto = true) =>
+        JuniorRuleSetLoader.LoadFrom(new MemoryStream(Encoding.UTF8.GetBytes(RuleFile(titleRuleIsAuto))));
+
+    private JuniorRuleSet _rules = LoadRules();
 
     private readonly MutableFakeDateTimeProvider _clock = new() { UtcNow = Now };
     private readonly CommandCapture _commands = new();
@@ -96,18 +134,18 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
     {
         var tree = await _taxonomy.GetTreeAsync(Ct);
 
-        var dataIt = tree.OccupationFields.Single(f => f.ConceptId == List.OccupationFieldConceptId);
+        var dataIt = tree.OccupationFields.Single(f => f.ConceptId == _rules.OccupationFieldConceptId);
         dataIt.ConceptId.ShouldBe(DataItField);
         dataIt.OccupationGroups.Select(g => g.ConceptId).ShouldContain(DataIt);
         dataIt.OccupationGroups.Select(g => g.ConceptId).ShouldContain(OtherDataIt);
         dataIt.OccupationGroups.Select(g => g.ConceptId).ShouldNotContain(NotDataIt);
         tree.OccupationFields.SelectMany(f => f.OccupationGroups).Select(g => g.ConceptId).ShouldContain(NotDataIt);
-        JuniorItListLoader.Load().CuratedExternalIds.ShouldNotContain(CuratedInField);
-        JuniorItListLoader.Load().CuratedExternalIds.ShouldNotContain(CuratedOutsideField);
+        JuniorRuleSetLoader.LoadDataIt().Reading.JuniorExternalIds.ShouldNotContain(CuratedInField);
+        JuniorRuleSetLoader.LoadDataIt().Reading.JuniorExternalIds.ShouldNotContain(CuratedOutsideField);
     }
 
     [Fact]
-    public async Task Read_ListsExactlyTheDataItAdsThatTheCuratedListOrTheTitleAdmits()
+    public async Task Read_ListsExactlyTheDataItAdsThatTheReadingOrAnAutomaticRuleClassifiedJunior()
     {
         var curated = await AddAsync(Imported("Systemutvecklare", DataIt, Stockholm, StockholmsLan, Now.AddDays(-2),
             externalId: CuratedInField));
@@ -287,23 +325,79 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
     }
 
     [Fact]
-    public async Task Read_BothQueries_CarryBothPredicates_SendThePatternToTildeStarAsAParameter_AndReadANarrowRow()
+    public async Task Read_AnUnclearAd_IsNotListed_UntilADecisionSaysJunior()
+    {
+        var unclear = Imported("Junior utvecklare", DataIt, Stockholm, StockholmsLan, Now.AddDays(-1),
+            description: "Du ska handleda nya kollegor.");
+        await AddAsync(unclear);
+
+        (await PageAsync()).Rows.TotalCount.ShouldBe(0);
+        (await VerdictOfAsync(unclear.Id.Value)).ShouldBe((JuniorVerdict.Unclear, "text-mentor"));
+
+        await DecideAsync(unclear.Id.Value, JuniorDecision.Junior);
+
+        (await PageAsync()).Rows.Items.Select(r => r.Id).ShouldBe([unclear.Id.Value]);
+    }
+
+    [Fact]
+    public async Task Read_ADecisionNotJunior_TakesAnAutomaticJuniorOffTheList()
+    {
+        var shown = await AddAsync(Imported("Junior utvecklare", DataIt, Stockholm, StockholmsLan, Now.AddDays(-1)));
+        (await PageAsync()).Rows.Items.Select(r => r.Id).ShouldBe([shown]);
+
+        await DecideAsync(shown, JuniorDecision.NotJunior);
+
+        (await PageAsync()).Rows.TotalCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ANewRuleVersion_ReclassifiesEveryOpenAd_AndLeavesEveryDecision()
+    {
+        var decided = await AddAsync(Imported("Junior utvecklare", DataIt, Stockholm, StockholmsLan, Now.AddDays(-1)));
+        var ruled = await AddAsync(Imported("Trainee inom IT", DataIt, Goteborg, VastraGotalandsLan, Now.AddDays(-2)));
+        (await PageAsync()).Rows.Items.Select(r => r.Id).ShouldBe([decided, ruled]);
+        await DecideAsync(decided, JuniorDecision.Junior);
+
+        // A deploy of a new rule file: the title rule is no longer automatic, so the version (with its content hash)
+        // changes and the sweep re-classifies both ads.
+        _rules = LoadRules(titleRuleIsAuto: false);
+
+        (await PageAsync()).Rows.Items.Select(r => r.Id).ShouldBe([decided]);
+        (await VerdictOfAsync(ruled)).ShouldBe((JuniorVerdict.Unclear, "title-junior"));
+        (await VerdictOfAsync(decided)).ShouldBe((JuniorVerdict.Unclear, "title-junior"));
+    }
+
+    [Fact]
+    public async Task ARewrittenAd_IsClassifiedAgainOnTheNextSweep()
+    {
+        var ad = Imported("Junior utvecklare", DataIt, Stockholm, StockholmsLan, Now.AddDays(-1));
+        await AddAsync(ad);
+        (await PageAsync()).Rows.Items.Select(r => r.Id).ShouldBe([ad.Id.Value]);
+
+        await RewriteTitleAsync(ad.Id.Value, "Senior utvecklare");
+
+        (await PageAsync()).Rows.TotalCount.ShouldBe(0);
+        // The new title carries no junior signal at all, so the rules never reach title-senior.
+        (await VerdictOfAsync(ad.Id.Value)).ShouldBe((JuniorVerdict.NotJunior, "no-signal"));
+    }
+
+    [Fact]
+    public async Task Read_BothQueries_ReadTheStoredClassification_UnderTheListedGate_AndReadANarrowRow()
     {
         await AddAsync(Imported("Junior utvecklare", DataIt, Stockholm, StockholmsLan, Now.AddDays(-1)));
+        await ClassifyAsync();
         _commands.Clear();
 
-        await PageAsync();
+        await HandleWithoutSweepAsync();
 
         _commands.Commands.Count.ShouldBe(2, "the grouped count and the page");
-        foreach (var (text, parameters) in _commands.Commands)
+        foreach (var (text, _) in _commands.Commands)
         {
-            text.ShouldContain("~*");
-            parameters.ShouldContain(List.HeadlinePattern, "the pattern is bound as a parameter");
-            text.ShouldNotContain("trainee", Case.Insensitive, "the pattern never reaches the SQL text");
-            parameters.ShouldContain(CuratedInField, "the curated ids are bound as an array parameter");
-            text.ShouldNotContain(CuratedInField, Case.Sensitive, "a curated id never reaches the SQL text");
+            text.ShouldNotContain("~*", Case.Sensitive, "no regex runs on the request path");
+            text.ShouldContain("job_ad_junior_assessments");
+            text.ShouldContain("verdict");
+            text.ShouldContain("decision");
             text.ShouldContain("occupation_group_concept_id");
-            text.ShouldContain("external_id");
             text.ShouldContain("external_source");
             text.ShouldContain("expires_at");
             text.ShouldNotContain("raw_payload", Case.Insensitive, "each read projects a narrow row, never the entity");
@@ -318,14 +412,68 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
         string? kommun = null, JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc, int page = 1) =>
         (await HandleAsync(kommun, sortBy, page)).ShouldBeOfType<PublicJuniorItJobAdsPage.Available>();
 
+    /// <summary>The Worker's sweep has run, then the request reads.</summary>
     private async Task<PublicJuniorItJobAdsPage> HandleAsync(
+        string? kommun = null, JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc, int page = 1)
+    {
+        await ClassifyAsync();
+        return await HandleWithoutSweepAsync(kommun, sortBy, page);
+    }
+
+    private async Task<PublicJuniorItJobAdsPage> HandleWithoutSweepAsync(
         string? kommun = null, JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc, int page = 1)
     {
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var port = new JuniorItJobAdQuery(db, new JuniorItSetResolver(List, _taxonomy));
+        var port = new JuniorItJobAdQuery(db, Catalog());
         return await new GetPublicJuniorItJobAdsQueryHandler(port, _taxonomy, _clock)
             .Handle(new GetPublicJuniorItJobAdsQuery(kommun, sortBy, page), Ct);
+    }
+
+    private JuniorFieldResolver Catalog() => new([_rules], _taxonomy);
+
+    /// <summary>One run of the real sweep, as the Worker's two-minute tick makes it.</summary>
+    private async Task ClassifyAsync()
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+        await new ClassifyJuniorJobAdsJob(
+                _provider.GetRequiredService<IServiceScopeFactory>(), db, Catalog(), _clock,
+                Options.Create(new ClassifyJuniorJobAdsOptions()), NullLogger<ClassifyJuniorJobAdsJob>.Instance)
+            .RunAsync(Ct);
+    }
+
+    /// <summary>The admin command's aggregate call: the assessment the sweep created, loaded, decided, saved.</summary>
+    private async Task DecideAsync(Guid id, JuniorDecision decision)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var assessment = await db.JuniorAssessments.Where(a => a.Id == new JobAdId(id)).SingleAsync(Ct);
+        assessment.Decide(decision, _clock).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(Ct);
+    }
+
+    /// <summary>The stream's re-import of a changed ad: <c>UpdateFromSource</c> with the source's new title.</summary>
+    private async Task RewriteTitleAsync(Guid id, string title)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var ad = await db.JobAds.Where(j => j.Id == new JobAdId(id)).SingleAsync(Ct);
+        ad.UpdateFromSource(
+                title, ad.Description, ad.Url, ad.RawPayload, TestFacets.From(occupationGroup: ad.OccupationGroupConceptId,
+                    municipality: ad.MunicipalityConceptId, region: ad.RegionConceptId),
+                [], ad.PublishedAt, ad.ExpiresAt, TestKeywordExtraction.None, applicationUrl: null)
+            .IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(Ct);
+    }
+
+    private async Task<(JuniorVerdict? Verdict, string? RuleId)> VerdictOfAsync(Guid id)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.JuniorAssessments.AsNoTracking().Where(a => a.Id == new JobAdId(id))
+            .Select(a => new { a.Verdict, a.RuleId }).SingleAsync(Ct);
+        return (row.Verdict, row.RuleId);
     }
 
     private async Task<Guid> AddAsync(JobAd ad, Action<JobAd>? lifecycle = null)
@@ -378,13 +526,13 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
 
     private JobAd Imported(
         string title, string? group, string? kommun, string? lan, DateTimeOffset publishedAt,
-        DateTimeOffset? expiresAt = null, string? externalId = null)
+        DateTimeOffset? expiresAt = null, string? externalId = null, string description = "Vi söker en utvecklare.")
     {
         externalId ??= $"8{Interlocked.Increment(ref _externalIds):D7}";
         return JobAd.Import(
             title: title,
             company: Company.Create("Exempelbolaget AB").Value,
-            description: "Vi söker en utvecklare.",
+            description: description,
             url: $"https://arbetsformedlingen.se/platsbanken/annonser/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: $"{{\"id\":\"{externalId}\"}}",

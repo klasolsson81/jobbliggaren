@@ -465,6 +465,15 @@ public static class DependencyInjection
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds.ExpireJobAdsJob>();
 
+        // #2264 (ADR 0187) — the junior classification sweep. Every option has a default.
+        services.AddOptions<Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds.ClassifyJuniorJobAdsOptions>()
+            .Bind(configuration.GetSection(
+                Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds.ClassifyJuniorJobAdsOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<
+            Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds.ClassifyJuniorJobAdsJob>();
+
         // The field-encryption backfill (ADR 0049 Beslut 4).
         services.AddScoped<
             Jobbliggaren.Application.Security.Jobs.BackfillFieldEncryption.BackfillFieldEncryptionJob>();
@@ -1102,10 +1111,14 @@ public static class DependencyInjection
             Jobbliggaren.Application.JobAds.Abstractions.IEmployerDisambiguationQuery,
             JobAds.EmployerDisambiguationQuery>();
 
-        // The open junior IT list (ADR 0186). The list is loaded once, at host build, so a malformed file stops the
-        // host; its predicate is a provider-translated regex, so the read is implemented here.
-        services.AddSingleton(JobAds.JuniorIt.JuniorItListLoader.Load());
-        services.AddSingleton<JobAds.JuniorIt.JuniorItSetResolver>();
+        // The junior classification (ADR 0187). The rule files are loaded once, at host build, so a malformed file stops
+        // the host; one file per occupation field, switched on one at a time. The open junior IT list (ADR 0186) reads
+        // the stored classification through the same field catalog the Worker's sweep writes through.
+        services.AddSingleton<IReadOnlyList<Jobbliggaren.Application.JobAds.Junior.JuniorRuleSet>>(
+            [JobAds.Junior.JuniorRuleSetLoader.LoadDataIt()]);
+        services.AddSingleton<
+            Jobbliggaren.Application.JobAds.Junior.IJuniorFieldCatalog,
+            JobAds.Junior.JuniorFieldResolver>();
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Abstractions.IJuniorItJobAdQuery,
             JobAds.JuniorItJobAdQuery>();

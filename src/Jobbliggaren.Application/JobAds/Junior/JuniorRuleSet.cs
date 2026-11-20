@@ -10,7 +10,7 @@ namespace Jobbliggaren.Application.JobAds.Junior;
 /// <param name="Version">The rule-set version stored beside every verdict it produces.</param>
 /// <param name="OccupationFieldConceptId">The JobTech occupation field the rules are written for.</param>
 /// <param name="Enabled">Whether ads in the field are classified at all.</param>
-/// <param name="Reading">A hand reading whose ids decide in both directions, ahead of every rule.</param>
+/// <param name="Reading">A hand reading whose junior ids are shown ahead of every rule.</param>
 /// <param name="CandidatePatterns">An ad is a junior candidate when one of these matches its title or text.</param>
 /// <param name="CandidateWhenNoExperienceRequired">An ad the advertiser marks "no experience required" is a candidate too.</param>
 /// <param name="Years">How a stated years-of-experience requirement is read.</param>
@@ -31,15 +31,11 @@ public sealed record JuniorRuleSet(
     string NoSignalRuleId,
     string TimeoutRuleId);
 
-/// <summary>A hand reading of Platsbanken ids, each judged junior or not junior.</summary>
-public sealed record JuniorReading(
-    string RuleId,
-    IReadOnlySet<string> JuniorExternalIds,
-    IReadOnlySet<string> NotJuniorExternalIds)
-{
-    public static JuniorReading None(string ruleId) =>
-        new(ruleId, new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal));
-}
+/// <summary>
+/// A hand reading: the Platsbanken ids Klas judged to be junior jobs. Junior ids only (Klas, 2026-11-20, "Bara
+/// junior-id:na"): an ad he judged otherwise goes through the rules like any other.
+/// </summary>
+public sealed record JuniorReading(string RuleId, IReadOnlySet<string> JuniorExternalIds);
 
 /// <summary>
 /// One rule: when every condition holds, the ad gets <see cref="Verdict"/> if the rule is <see cref="Auto"/>, and

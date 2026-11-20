@@ -126,6 +126,7 @@ public class AccountHardDeleteCascadeFitnessTests
     [
         typeof(JobSeeker), // the deletion ROOT itself (removed via db.JobSeekers.Remove(jobSeeker))
         typeof(JobAd),     // public employer/job data, not user-owned PII
+        typeof(JobAdJuniorAssessment), // #2264: a verdict about a job ad and the admin's decision; no user's data
     ];
 
     [Fact]

@@ -24,7 +24,7 @@ public class JuniorRuleSetLoaderTests
           "ruleSetVersion": "1.2",
           "occupationFieldConceptId": "field-1",
           "enabled": true,
-          "reading": { "ruleId": "reading-test", "junior": ["90000001"], "notJunior": ["90000002"] },
+          "reading": { "ruleId": "reading-test", "junior": ["90000001"] },
           "patterns": {
             "candidate": "\\bjunior|\\btrainee",
             "juniorTitle": "\\bjunior",
@@ -68,7 +68,6 @@ public class JuniorRuleSetLoaderTests
         set.Enabled.ShouldBeTrue();
         set.Reading.RuleId.ShouldBe("reading-test");
         set.Reading.JuniorExternalIds.ShouldBe(["90000001"]);
-        set.Reading.NotJuniorExternalIds.ShouldBe(["90000002"]);
         set.Rules.Select(r => r.Id).ShouldBe(["years-3-plus", "text-mentor", "title-junior", "flag-no-experience"]);
         set.Rules[0].Verdict.ShouldBe(JuniorVerdict.NotJunior);
         set.Rules[0].Auto.ShouldBeTrue();
@@ -103,7 +102,6 @@ public class JuniorRuleSetLoaderTests
     [InlineData("{ \"on\": \"text\", \"pattern\": \"mentor\" } ] },", "{ \"on\": \"body\", \"pattern\": \"mentor\" } ] },")] // unknown target
     [InlineData("{ \"on\": \"text\", \"pattern\": \"mentor\" } ] },", "{ \"on\": \"text\", \"pattern\": \"nothing\" } ] },")] // pattern nothing defines
     [InlineData("\"junior\": [\"90000001\"]", "\"junior\": [\"9000000x\"]")] // not a Platsbanken id
-    [InlineData("\"junior\": [\"90000001\"]", "\"junior\": [\"90000002\"]")] // one id in both directions
     [InlineData("\"junior\": [\"90000001\"]", "\"junior\": [\"90000001\", \"90000001\"]")] // one id twice
     [InlineData("\"years\": 3 }", "\"years\": 0 }")] // years without a positive bound
     [InlineData("\"flag\": false }", "\"flag\": null }")] // the experience mark without a flag
@@ -125,6 +123,32 @@ public class JuniorRuleSetLoaderTests
         set.OccupationFieldConceptId.ShouldBe("apaJ_2ja_LuF");
         set.Enabled.ShouldBeTrue();
         set.Rules.ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public void ExactlyOneRuleFileShips_AndItIsTheDataItField()
+    {
+        // Switching a second field on is trigger 22 and an Art. 9 re-read for that field (security-auditor m6): a new
+        // file must turn this test red, so the change is seen in review.
+        var ruleFiles = typeof(JuniorRuleSetLoader).Assembly.GetManifestResourceNames()
+            .Where(n => n.StartsWith("Jobbliggaren.Infrastructure.JobAds.Junior.junior-rules.", StringComparison.Ordinal))
+            .ToList();
+
+        ruleFiles.ShouldBe([JuniorRuleSetLoader.DataItResourceName]);
+    }
+
+    [Fact]
+    public void TheShippedReading_CarriesJuniorIdsAndNothingElse()
+    {
+        // Klas, 2026-11-20: "Bara junior-id:na (Rek.)". No direction, label, year, place or note (ADR 0166 trigger 23).
+        using var stream = typeof(JuniorRuleSetLoader).Assembly
+            .GetManifestResourceStream(JuniorRuleSetLoader.DataItResourceName)!;
+        using var document = JsonDocument.Parse(stream);
+
+        var reading = document.RootElement.GetProperty("reading");
+        reading.EnumerateObject().Select(p => p.Name).ShouldBe(["ruleId", "junior"], ignoreOrder: true);
+        reading.GetProperty("junior").EnumerateArray()
+            .ShouldAllBe(id => id.ValueKind == JsonValueKind.String && id.GetString()!.All(char.IsAsciiDigit));
     }
 
     [Fact]

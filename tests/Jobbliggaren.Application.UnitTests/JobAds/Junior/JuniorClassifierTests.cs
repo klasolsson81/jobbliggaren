@@ -18,19 +18,24 @@ public class JuniorClassifierTests
         new(id, title, text, experienceRequired);
 
     [Fact]
-    public void Classify_TheReadingDecidesBothWays_AheadOfEveryRule()
+    public void Classify_TheReadingShowsItsJuniorIds_AheadOfEveryRule()
     {
-        // The rules alone would say not junior (three years) and junior (a junior title) respectively.
+        // The rules alone would say not junior (three years).
         JuniorClassifier.Classify(Rules, Ad("Utvecklare", "Minst tre års erfarenhet.", id: "90000001"))
             .ShouldBe(new JuniorClassification(JuniorVerdict.Junior, "reading-test", Rules.Version));
+    }
+
+    [Fact]
+    public void Classify_AnAdTheReadingDoesNotName_GoesThroughTheRules()
+    {
         JuniorClassifier.Classify(Rules, Ad("Junior utvecklare", id: "90000002"))
-            .ShouldBe(new JuniorClassification(JuniorVerdict.NotJunior, "reading-test", Rules.Version));
+            .ShouldBe(new JuniorClassification(JuniorVerdict.Junior, "title-junior", Rules.Version));
     }
 
     [Fact]
     public void Evaluate_WithoutTheReading_JudgesARereadAdByTheRulesAlone()
     {
-        var evaluation = JuniorClassifier.Evaluate(Rules, Ad("Junior utvecklare", id: "90000002"), useReading: false);
+        var evaluation = JuniorClassifier.Evaluate(Rules, Ad("Junior utvecklare", id: "90000001"), useReading: false);
 
         evaluation.Classification.ShouldBe(new JuniorClassification(JuniorVerdict.Junior, "title-junior", Rules.Version));
     }

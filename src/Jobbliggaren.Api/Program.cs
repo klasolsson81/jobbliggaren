@@ -407,6 +407,7 @@ app.MapAdminCompanyWatchesEndpoints();
 app.MapAdminResumesEndpoints();
 app.MapAdminBackgroundJobsEndpoints();
 app.MapAdminFeedbackEndpoints();
+app.MapAdminJuniorJobAdsEndpoints();
 app.MapMeFeedbackEndpoints();
 app.MapJobAdsEndpoints();
 app.MapSavedSearchesEndpoints();

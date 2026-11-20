@@ -11,7 +11,7 @@ namespace Jobbliggaren.Infrastructure.JobAds.Junior;
 /// #2264 — loads one occupation field's junior rules (<c>junior-rules.*.json</c>) from the assembly. Every shape
 /// check fails loud at host build, because a malformed rule set is a list that silently shows the wrong ads: a pattern
 /// that does not compile under the linear-time engine, a rule id named twice, an unknown verdict or condition, a
-/// pattern name nothing defines, or an id the reading names in both directions.
+/// pattern name nothing defines, or a reading id that is not a Platsbanken id or is named twice.
 /// <para>
 /// The version stored beside every verdict is the file's declared version plus a short hash of the file's bytes, so
 /// any edit at all, a changed pattern or a flipped <c>auto</c> included, re-classifies every open ad in the field even
@@ -144,13 +144,8 @@ internal static class JuniorRuleSetLoader
         };
     }
 
-    private static JuniorReading ToReading(JuniorReadingFile reading)
-    {
-        var junior = ToIdSet(reading.Junior);
-        var notJunior = ToIdSet(reading.NotJunior);
-        Require(!junior.Overlaps(notJunior), "has a reading that names one id in both directions");
-        return new JuniorReading(reading.RuleId, junior, notJunior);
-    }
+    private static JuniorReading ToReading(JuniorReadingFile reading) =>
+        new(reading.RuleId, ToIdSet(reading.Junior));
 
     private static HashSet<string> ToIdSet(IReadOnlyList<string> ids)
     {
@@ -252,9 +247,6 @@ internal sealed record JuniorReadingFile
 
     [JsonPropertyName("junior")]
     public IReadOnlyList<string> Junior { get; init; } = [];
-
-    [JsonPropertyName("notJunior")]
-    public IReadOnlyList<string> NotJunior { get; init; } = [];
 }
 
 internal sealed record JuniorYearsFile

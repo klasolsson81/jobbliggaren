@@ -24,7 +24,8 @@ public sealed record JuniorEvaluation(
     int? YearsRequired);
 
 /// <summary>
-/// #2264 — the deterministic junior classification (no model, ADR 0071). Order of decision: the hand reading; then an
+/// #2264 — the deterministic junior classification (no model, ADR 0071). Order of decision: the hand reading's junior
+/// ids; then an
 /// ad with no junior signal is NotJunior; then the rules in file order (the first whose conditions all hold decides; a
 /// rule that is not automatic yields Unclear under its own id); then Unclear for a candidate no rule decides.
 /// The classification is total: a pattern that runs out of its match time yields Unclear under the file's timeout rule
@@ -60,11 +61,9 @@ public static class JuniorClassifier
     {
         if (input.ExternalId is not { } externalId)
             return null;
-        if (ruleSet.Reading.JuniorExternalIds.Contains(externalId))
-            return new JuniorClassification(JuniorVerdict.Junior, ruleSet.Reading.RuleId, ruleSet.Version);
-        if (ruleSet.Reading.NotJuniorExternalIds.Contains(externalId))
-            return new JuniorClassification(JuniorVerdict.NotJunior, ruleSet.Reading.RuleId, ruleSet.Version);
-        return null;
+        return ruleSet.Reading.JuniorExternalIds.Contains(externalId)
+            ? new JuniorClassification(JuniorVerdict.Junior, ruleSet.Reading.RuleId, ruleSet.Version)
+            : null;
     }
 
     private static JuniorEvaluation EvaluateRules(JuniorRuleSet ruleSet, JuniorClassificationInput input)

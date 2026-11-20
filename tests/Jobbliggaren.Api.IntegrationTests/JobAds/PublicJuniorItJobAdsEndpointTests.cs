@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
+using Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJuniorItJobAds;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -12,8 +13,8 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
-/// The open junior IT list <c>GET /api/v1/public/job-ads/junior</c> (ADR 0186) on the real host, anonymously: the real
-/// list, the real taxonomy and the shared database. Other classes' rows live in that database, so the exact set and order
+/// The open junior IT list <c>GET /api/v1/public/job-ads/junior</c> (ADR 0186, ADR 0187) on the real host, anonymously:
+/// the real rules, the real classification sweep, the real taxonomy and the shared database. Other classes' rows live in that database, so the exact set and order
 /// are asserted on a database of their own in <c>JuniorItJobAdQueryReadTests</c>.
 /// </summary>
 [Collection("Api")]
@@ -140,6 +141,9 @@ public sealed class PublicJuniorItJobAdsEndpointTests(ApiFactory factory)
             applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(Ct);
+
+        // The Worker's sweep classifies it, as its two-minute tick would (ADR 0187).
+        await scope.ServiceProvider.GetRequiredService<ClassifyJuniorJobAdsJob>().RunAsync(Ct);
         return jobAd.Id.Value;
     }
 }

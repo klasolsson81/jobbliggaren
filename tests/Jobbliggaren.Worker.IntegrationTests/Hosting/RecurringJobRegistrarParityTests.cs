@@ -2,6 +2,7 @@ using Hangfire;
 using Jobbliggaren.Application.Admin.ServiceObservations;
 using Jobbliggaren.Application.BackgroundJobs;
 using Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchCriterionScan;
+using Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Worker.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -50,6 +51,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "30 5 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -91,6 +93,7 @@ public class RecurringJobRegistrarParityTests
             }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -126,6 +129,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -151,6 +155,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -190,6 +195,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -223,6 +229,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -260,6 +267,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions { CadenceCron = "44 4 * * *" }),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -320,6 +328,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "22 22 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);

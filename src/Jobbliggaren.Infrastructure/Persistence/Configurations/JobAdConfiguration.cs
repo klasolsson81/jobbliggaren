@@ -193,6 +193,15 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
             .HasColumnName("remote")
             .ValueGeneratedNever();
 
+        // #2264 (ADR 0187) — the two junior inputs the ingest funnel writes: the advertiser's experience mark and the
+        // fingerprint of everything the junior rules read. Nullable, no default: a metadata-only ADD COLUMN. No index.
+        // The verdict and an admin's decision live in job_ad_junior_assessments.
+        builder.Property(j => j.ExperienceRequired)
+            .HasColumnName("experience_required");
+        builder.Property(j => j.JuniorInputFingerprint)
+            .HasColumnName("junior_input_fingerprint")
+            .HasMaxLength(JuniorInputFingerprint.Length);
+
         // #311 D1 (ADR 0087) — the employer's organisation number: the CANONICAL follow /
         // attribution key (no fuzzy name matching, the "Volvo×20" trap).
         //

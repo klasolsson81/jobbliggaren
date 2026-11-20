@@ -804,6 +804,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("employment_type_concept_id");
 
+                    b.Property<bool?>("ExperienceRequired")
+                        .HasColumnType("boolean")
+                        .HasColumnName("experience_required");
+
                     b.Property<DateTimeOffset?>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
@@ -817,6 +821,11 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.Property<string>("ExtractedTerms")
                         .HasColumnType("jsonb")
                         .HasColumnName("extracted_terms");
+
+                    b.Property<string>("JuniorInputFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("junior_input_fingerprint");
 
                     b.Property<string>("MunicipalityConceptId")
                         .HasColumnType("text")
@@ -896,6 +905,57 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_job_ads_status_published_at_id");
 
                     b.ToTable("job_ads", (string)null);
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Domain.JobAds.JobAdJuniorAssessment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_ad_id");
+
+                    b.Property<DateTimeOffset>("ClassifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("classified_at");
+
+                    b.Property<string>("ClassifiedFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("classified_fingerprint");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("Decision")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("decision");
+
+                    b.Property<string>("RuleId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("rule_id");
+
+                    b.Property<string>("RuleSetVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("rule_set_version");
+
+                    b.Property<string>("Verdict")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("verdict");
+
+                    b.HasKey("Id")
+                        .HasName("pk_job_ad_junior_assessments");
+
+                    b.ToTable("job_ad_junior_assessments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_job_ad_junior_assessments_decision_whole", "(decision IS NULL) = (decided_at IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.JobSeekers.JobSeeker", b =>
@@ -2420,6 +2480,16 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("External");
+                });
+
+            modelBuilder.Entity("Jobbliggaren.Domain.JobAds.JobAdJuniorAssessment", b =>
+                {
+                    b.HasOne("Jobbliggaren.Domain.JobAds.JobAd", null)
+                        .WithOne()
+                        .HasForeignKey("Jobbliggaren.Domain.JobAds.JobAdJuniorAssessment", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_job_ad_junior_assessments_job_ads_job_ad_id");
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.JobSeekers.JobSeeker", b =>

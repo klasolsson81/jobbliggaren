@@ -1090,19 +1090,19 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-header--switchable .jp-brand { flex: 0 0 auto; }
   .jp-header--switchable .jp-brand__lockup { width: min-content; }
   .jp-header--switchable .jp-nav {
-    flex: 0 0 536px;
+    flex: 0 0 581px;
     min-width: 0;
     gap: 0;
     margin-left: 0;
   }
   .jp-header--switchable .jp-nav__link {
-    padding: 6px;
+    padding: 6px 4px;
     font-size: var(--text-body-sm);
   }
   .jp-header--switchable .jp-nav__link[aria-current="page"]::after {
     bottom: calc((100% - var(--jp-header-inner-h)) / 2);
-    left: 6px;
-    right: 6px;
+    left: 4px;
+    right: 4px;
   }
   .jp-header--switchable .jp-nav--user { gap: 4px; }
   .jp-header--switchable .jp-nav--user .jp-nav__link {

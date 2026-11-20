@@ -47,8 +47,6 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// group facet, junior                            12    29.8 ms    40.8 ms
 /// group facet, junior, q                         12    17.5 ms    18.7 ms
 /// </code>
-/// Both junior plans read <c>ix_job_ads_occupation_group_concept_id</c> through a bitmap index scan and evaluate the
-/// curated and headline arms only on the field's rows.
 /// </para>
 /// </summary>
 [Collection("JobAdBrowsePlan")]
@@ -74,11 +72,13 @@ public class JuniorItFilterLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
 
         await using var scope = _fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var juniorIt = scope.ServiceProvider.GetRequiredService<JuniorItSetResolver>();
+        var taxonomy = new TaxonomyReadModel(scopeFactory);
+        var list = JuniorItListLoader.Load();
+        var juniorIt = new JuniorItSetResolver(list, taxonomy);
         var set = await juniorIt.ResolveAsync(ct);
-        var tree = await scope.ServiceProvider.GetRequiredService<ITaxonomyReadModel>().GetTreeAsync(ct);
+        var tree = await taxonomy.GetTreeAsync(ct);
         var otherGroups = tree.OccupationFields
-            .Where(f => !string.Equals(f.ConceptId, JuniorItListLoader.Load().OccupationFieldConceptId, StringComparison.Ordinal))
+            .Where(f => !string.Equals(f.ConceptId, list.OccupationFieldConceptId, StringComparison.Ordinal))
             .SelectMany(f => f.OccupationGroups).Select(g => g.ConceptId).ToList();
 
         // Built by hand as the sibling measurements build it: the fixture composes persistence only, and no search

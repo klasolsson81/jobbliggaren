@@ -18,7 +18,7 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// <para>
 /// #2261 — it also builds the junior IT list's membership predicate when the criteria ask for it, from
 /// <see cref="JuniorItSetResolver"/>, the one place that list meets the taxonomy (ADR 0186 D2). The filter
-/// carries the predicate, never its ingredients, so a change in how membership is decided stays here.
+/// carries the predicate, never its ingredients.
 /// </para>
 /// </summary>
 internal sealed class JobAdSearchTextResolver(

@@ -361,7 +361,7 @@ The last bullet under *Negative and accepted trade-offs* left two points to PR 2
   predicate says nothing about lifecycle by design (D1), so each caller composes its own gate, and `/jobb`'s is the one it already has. The `/jobb` junior set is therefore junior
   ∧ `Status == Active`, and `/junior`'s is junior ∧ `IsListed(now)`; R4 reads how far they differed on one day.
 - **A5 — PR 2 lands before #2264, with today's predicate at one call site (ruling D5).** #2264 (the stored classification, `JobAdJuniorAssessment` / `JuniorMembership.Of`)
-  repoints the resolver, and only the resolver. Whichever PR merges second rebases.
+  repoints the resolver. Whichever PR merges second rebases.
 
 ### `security-auditor`'s plan read, 2026-11-20 (0 Blocker / 0 Major)
 
@@ -374,7 +374,7 @@ public read, `/junior`, the curated file) does not reach the auth-gated `/jobb`.
 | Reading | What | Recorded |
 |---|---|---|
 | R4 | the two lists' divergence under A4, counts only | 2026-11-20T12:08:03Z, on the production box (CLAUDE.md §9.2 (a)): 146 active junior ads (the `/jobb` set); 0 of them past their `ExpiresAt`; 0 not from Platsbanken. The two classes by which that set can exceed `/junior`'s `IsListed` read (D1) were empty at that time. A dated reading, not a guarantee. No copy claims that the two lists are the same, or names a count. |
-| R5 | the filter's latency against ADR 0045 class (a), p95 300 ms | 2026-11-20, `JuniorItFilterLatencyMeasurement` (`tests/Jobbliggaren.Api.IntegrationTests/JobAds/`) on a developer machine, 40 000 ads: junior list+count p95 51.4 ms; with one Data/IT group 16.1 ms; with `q` 28.0 ms; group facet with junior 40.8 ms. The plan reads the occupation-group index, and the arms run only on the field's rows. It reads the `/jobb` filter, not `/junior`'s read. A dated reading, not a live number: re-run the class to regenerate it (selector: AGENTS.md §7). |
+| R5 | the filter's latency against ADR 0045 class (a), p95 300 ms | 2026-11-20, `JuniorItFilterLatencyMeasurement` (`tests/Jobbliggaren.Api.IntegrationTests/JobAds/`) on a developer machine, 40 000 ads: junior list+count p95 51.4 ms; with one Data/IT group 16.1 ms; with `q` 28.0 ms; group facet with junior 40.8 ms. It reads the `/jobb` filter, not `/junior`'s read. A dated reading, not a live number: re-run the class to regenerate it (selector: AGENTS.md §7). |
 
 ### Named skips
 

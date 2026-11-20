@@ -38,7 +38,6 @@ public sealed class ListJobAdsJuniorItFilterTests(ApiFactory factory)
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    // A letter-only token keeps the title's full-text lexeme and the substring arm both on it.
     private static string NewToken() => "jt" + Guid.NewGuid().ToString("N")[..10];
 
     [Fact]
@@ -133,7 +132,6 @@ public sealed class ListJobAdsJuniorItFilterTests(ApiFactory factory)
         after.ShouldBe(before);
     }
 
-    // The /jobb clause is /junior's own predicate, composed after /jobb's gate: not a copy of it (ADR 0186 D2).
     [Fact]
     public async Task TheClause_IsTheListsOwnPredicate_AfterTheActiveGate()
     {

@@ -193,6 +193,17 @@ public static class JobAdLifecycleReadRegistry
                     + "window does, and only ads the counted hits already named are kept, so a row listed here is "
                     + "one the count beside it counted."),
             ],
+            ["Jobbliggaren.Application.NotificationFeed.Sources.CompanyWatchCriterionAdFeedSource.ReadAsync"] =
+            [
+                Active("join JobAds for the ad columns of the notification bell's Branschbevakning rows (#1663 PR 3, "
+                    + "ADR 0175 D8). NO Status predicate at this site: the gate is INHERITED from "
+                    + "NewCriterionAdSet.NewHits, which the window composes onto, so the bell cannot show an ad the "
+                    + "Översikt pill and the page of new ads beside it did not count."),
+                Active("join JobAds for the ad columns of the newest unread Branschbevakning ads the window left out "
+                    + "because read hits crowded them out (#1663 PR 3). NO Status predicate at this site: the gate is "
+                    + "INHERITED from NewCriterionAdSet.NewHits, which the grouping composes onto exactly as the window "
+                    + "does, so a row listed here is one the count beside it counted."),
+            ],
             ["Jobbliggaren.Application.NotificationFeed.Sources.MatchFeedSource.ReadAsync"] =
             [
                 Active("join JobAds for the ad columns of the notification bell's match rows (#1666). NO "

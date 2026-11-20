@@ -103,6 +103,12 @@ export const EDGE_LOG_VERDICT: EdgeLogVerdicts = {
       "A single sentinel word recording that the remote facet is on. One bit; it describes the " +
       "ads wanted, not the searcher's location.",
   },
+  junior: {
+    verdict: "kept",
+    reason:
+      "A single sentinel word recording that the junior IT filter is on (#2261). One bit; it " +
+      "describes the ads wanted, the same class as distans.",
+  },
   sortBy: {
     verdict: "kept",
     reason: "An ordering enum from a closed set. It carries no user content.",

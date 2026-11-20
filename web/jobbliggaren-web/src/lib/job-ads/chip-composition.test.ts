@@ -42,6 +42,7 @@ const empty: JobbUrlState = {
   region: [],
   municipality: [],
   remote: false,
+  junior: false,
   employmentType: [],
   worktimeExtent: [],
   matchGrades: [],

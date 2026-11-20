@@ -29,6 +29,8 @@ export function buildRecentSearchHref(item: RecentJobSearchDto): string {
     employer: item.employerList,
     matchGrades: [],
     remote: item.remote,
+    // #2261 — a junior search is never stored (the capture gate leaves it out), so a replay carries none.
+    junior: false,
     sortBy: item.sortBy,
   });
 }

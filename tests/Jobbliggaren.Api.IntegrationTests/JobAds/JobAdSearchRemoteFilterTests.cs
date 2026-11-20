@@ -102,7 +102,7 @@ public class JobAdSearchRemoteFilterTests(ApiFactory factory)
             EmploymentType: [],
             WorktimeExtent: [],
             Employer: [],
-            Remote: remote,
+            Remote: remote, JuniorIt: false,
             Q: null);
 
     private async Task<int> CountAsync(JobAdFilterCriteria criteria, CancellationToken ct)

@@ -61,6 +61,8 @@ interface JobbHeroFiltersProps {
    * municipality, region and remote, so it widens the place choice.
    */
   initialRemote: boolean;
+  /** `?junior=on` (#2261): the junior IT list as a filter. Its checkbox is in the "Filter" panel. */
+  initialJunior: boolean;
   // Employment type (several) and working hours (one), shown in the "Filter" panel.
   initialEmploymentType: ReadonlyArray<string>;
   initialWorktimeExtent: ReadonlyArray<string>;
@@ -103,6 +105,7 @@ interface FilterSelection {
   region: string[];
   municipality: string[];
   remote: boolean;
+  junior: boolean;
   employmentType: string[];
   worktimeExtent: string[];
   matchGrades: string[];
@@ -119,6 +122,7 @@ export function JobbHeroFilters({
   initialRegion,
   initialMunicipality,
   initialRemote,
+  initialJunior,
   initialEmploymentType,
   initialWorktimeExtent,
   initialMatchGrades,
@@ -152,6 +156,7 @@ export function JobbHeroFilters({
       region: [...initialRegion],
       municipality: [...initialMunicipality],
       remote: initialRemote,
+      junior: initialJunior,
       employmentType: [...initialEmploymentType],
       worktimeExtent: [...initialWorktimeExtent],
       matchGrades: [...initialMatchGrades],
@@ -166,6 +171,7 @@ export function JobbHeroFilters({
       initialRegion,
       initialMunicipality,
       initialRemote,
+      initialJunior,
       initialEmploymentType,
       initialWorktimeExtent,
       initialMatchGrades,
@@ -248,6 +254,7 @@ export function JobbHeroFilters({
           region: next.region,
           municipality: next.municipality,
           remote: next.remote,
+          junior: next.junior,
           employmentType: next.employmentType,
           worktimeExtent: next.worktimeExtent,
           matchGrades: next.matchGrades,
@@ -285,6 +292,9 @@ export function JobbHeroFilters({
   // ort-selection.ts.
   function toggleRemote() {
     commit({ ...selection, remote: !selection.remote });
+  }
+  function toggleJunior() {
+    commit({ ...selection, junior: !selection.junior });
   }
   function changeEmploymentType(next: string[]) {
     commit({ ...selection, employmentType: next });
@@ -388,8 +398,11 @@ export function JobbHeroFilters({
   // this the filter would be visible nowhere while the popover is closed.
   const ortCount =
     ort.region.length + ort.municipality.length + (selection.remote ? 1 : 0);
+  // The junior filter lives in the same panel, so it counts towards the panel's pill.
   const filterCount =
-    selection.employmentType.length + selection.worktimeExtent.length;
+    selection.employmentType.length +
+    selection.worktimeExtent.length +
+    (selection.junior ? 1 : 0);
 
   // Per-option counts are fetched, debounced, only while their popover or panel is
   // open (ADR 0067 Beslut 4). The place popover needs two dimensions, municipality
@@ -405,6 +418,7 @@ export function JobbHeroFilters({
     employmentType: selection.employmentType,
     worktimeExtent: selection.worktimeExtent,
     remote: selection.remote,
+    junior: selection.junior,
     q,
   };
   const municipalityCounts = useFacetCounts(
@@ -617,6 +631,8 @@ export function JobbHeroFilters({
         worktimeExtentCounts={worktimeExtentCounts}
         onEmploymentTypeChange={changeEmploymentType}
         onWorktimeExtentChange={changeWorktimeExtent}
+        junior={selection.junior}
+        onJuniorToggle={toggleJunior}
         emptyText={t("heroFilters.klass2Empty")}
         footer={showResultsFooter}
         onClose={() => setOpenPop(null)}

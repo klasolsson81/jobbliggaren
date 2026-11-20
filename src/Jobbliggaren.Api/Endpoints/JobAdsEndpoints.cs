@@ -107,6 +107,9 @@ public static class JobAdsEndpoints
             // #2199 — yrkesbenämningar picked in Yrke, OR-ed with ?occupationGroup= (see
             // ListJobAdsQuery.OccupationName). Repeated query-string binds to string[].
             string[]? occupationName = null,
+            // #2261 — the junior IT list as a filter (ADR 0186 D2). Bool binding takes ?junior=true; the FE maps
+            // its own ?junior=on to it, as ?distans=on maps to ?remote=true.
+            bool junior = false,
             CancellationToken ct = default) =>
         {
             var result = await mediator.Send(
@@ -127,7 +130,8 @@ public static class JobAdsEndpoints
                     AppliedOnly: appliedOnly,
                     HideApplied: hideApplied,
                     OnlyMatched: onlyMatched,
-                    OccupationName: occupationName), ct);
+                    OccupationName: occupationName,
+                    JuniorIt: junior), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);
@@ -177,6 +181,8 @@ public static class JobAdsEndpoints
             string? q = null,
             // #2199 — yrkesbenämningar as Yrke filter context, OR-ed with ?occupationGroup=.
             string[]? occupationName = null,
+            // #2261 — an active junior filter as context, so a count for another dimension counts the list's WHERE.
+            bool junior = false,
             CancellationToken ct = default) =>
         {
             http.Response.Headers.CacheControl = "private, no-store";
@@ -190,7 +196,8 @@ public static class JobAdsEndpoints
                     WorktimeExtent: worktimeExtent,
                     Remote: remote,
                     Q: q,
-                    OccupationName: occupationName), ct);
+                    OccupationName: occupationName,
+                    JuniorIt: junior), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.FacetCountsPolicy);

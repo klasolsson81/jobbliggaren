@@ -13,6 +13,7 @@ import {
   MATCHNING_OFF_VALUE,
   RELATERADE_ON_VALUE,
   DISTANS_ON_VALUE,
+  JUNIOR_ON_VALUE,
   STATUS_ON_VALUE,
   parseEmployerParam,
   toStringList,
@@ -53,6 +54,7 @@ type JobbSearchParams = {
   // Each toggle below reacts only to its exact value; any other value is treated
   // as absent.
   distans?: string;
+  junior?: string;
   employmentType?: string | string[];
   worktimeExtent?: string | string[];
   matchGrades?: string | string[];
@@ -126,6 +128,8 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const onlyMatched = params.baraMatchade === STATUS_ON_VALUE;
   // A place facet: the Swedish `?distans=on` becomes the API's `remote: true`.
   const remote = params.distans === DISTANS_ON_VALUE;
+  // #2261 — the junior IT filter: `?junior=on` becomes the API's `junior: true`.
+  const junior = params.junior === JUNIOR_ON_VALUE;
   // buildPageHref uses the same parser, so the parsed page and its pagination
   // links cannot diverge.
   const employer = parseEmployerParam(params.employer);
@@ -186,6 +190,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const statusKey = hideApplied ? "h" : "";
   const onlyMatchedKey = onlyMatched ? "m" : "";
   const remoteKey = remote ? "d" : "";
+  const juniorKey = junior ? "j" : "";
   const employerKey = employer.join(".");
 
   return (
@@ -223,6 +228,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 region={region}
                 municipality={municipality}
                 remote={remote}
+                junior={junior}
                 employmentType={employmentType}
                 worktimeExtent={worktimeExtent}
                 matchGrades={matchGrades}
@@ -241,6 +247,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 initialRegion={region}
                 initialMunicipality={municipality}
                 initialRemote={remote}
+                initialJunior={junior}
                 initialEmploymentType={employmentType}
                 initialWorktimeExtent={worktimeExtent}
                 initialMatchGrades={matchGrades}
@@ -287,7 +294,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
               with two writers. */}
           <Announcer>
           <Suspense
-            key={`${resultsKey}|${occupationGroupKey}|${occupationNameKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${remoteKey}|${employerKey}`}
+            key={`${resultsKey}|${occupationGroupKey}|${occupationNameKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${remoteKey}|${juniorKey}|${employerKey}`}
             fallback={<JobAdListSkeleton />}
           >
             <JobbResults
@@ -299,6 +306,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
               region={region}
               municipality={municipality}
               remote={remote}
+              junior={junior}
               employmentType={employmentType}
               worktimeExtent={worktimeExtent}
               matchGrades={matchGrades}

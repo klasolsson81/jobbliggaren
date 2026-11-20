@@ -169,6 +169,8 @@ export function OversiktPage({
           // GetMyMatchCountQueryHandler filters on the saved remote preference, so the
           // link must carry it too, or the card and the list would disagree.
           remote: profile.data.preferredRemote,
+          // The match count has no junior axis.
+          junior: false,
           employmentType: [...profile.data.preferredEmploymentTypes],
           worktimeExtent: [],
           matchGrades: [],

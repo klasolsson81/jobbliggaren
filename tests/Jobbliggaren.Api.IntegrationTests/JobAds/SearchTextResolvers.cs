@@ -17,5 +17,6 @@ internal static class SearchTextResolvers
             new SearchQueryParser(),
             expander,
             scope.ServiceProvider.GetRequiredService<ITaxonomyLabelMatcher>(),
-            scope.ServiceProvider.GetRequiredService<IOccupationNameLineageProvider>());
+            scope.ServiceProvider.GetRequiredService<IOccupationNameLineageProvider>(),
+            scope.ServiceProvider.GetRequiredService<Jobbliggaren.Infrastructure.JobAds.JuniorIt.JuniorItSetResolver>());
 }

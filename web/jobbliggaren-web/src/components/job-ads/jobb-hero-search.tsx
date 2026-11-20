@@ -23,6 +23,8 @@ import {
   DEFAULT_SORT_BY,
   DISTANS_ON_VALUE,
   DISTANS_PARAM,
+  JUNIOR_ON_VALUE,
+  JUNIOR_PARAM,
   serializeJobbAxis,
   withCommitFlag,
   type JobbUrlState,
@@ -90,6 +92,8 @@ interface JobbHeroSearchProps {
   // a URL without them and silently drop an active filter.
   occupationName: ReadonlyArray<string>;
   remote: boolean;
+  /** `?junior=on` (#2261). */
+  junior: boolean;
   matchGrades: ReadonlyArray<string>;
   employer: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
@@ -123,6 +127,7 @@ export function JobbHeroSearch({
   region,
   municipality,
   remote,
+  junior,
   employmentType,
   worktimeExtent,
   matchGrades,
@@ -170,6 +175,7 @@ export function JobbHeroSearch({
       region: [...region],
       municipality: [...municipality],
       remote,
+      junior,
       employmentType: [...employmentType],
       worktimeExtent: [...worktimeExtent],
       matchGrades: [...matchGrades],
@@ -184,6 +190,7 @@ export function JobbHeroSearch({
       region,
       municipality,
       remote,
+      junior,
       employmentType,
       worktimeExtent,
       matchGrades,
@@ -711,6 +718,10 @@ export function JobbHeroSearch({
           axisInputs. Without it a native GET before hydration would drop `?distans=on`. */}
       {lastCommitted.remote && (
         <input type="hidden" name={DISTANS_PARAM} value={DISTANS_ON_VALUE} />
+      )}
+      {/* #2261 — the junior flag, for the same reason: a native GET would drop `?junior=on`. */}
+      {lastCommitted.junior && (
+        <input type="hidden" name={JUNIOR_PARAM} value={JUNIOR_ON_VALUE} />
       )}
       {sortBy !== DEFAULT_SORT_BY && (
         <input type="hidden" name="sortBy" value={sortBy} />

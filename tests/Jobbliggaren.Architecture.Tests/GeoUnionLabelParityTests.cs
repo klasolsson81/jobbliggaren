@@ -46,6 +46,8 @@ public class GeoUnionLabelParityTests
     private static readonly HashSet<string> Orthogonal = new(StringComparer.Ordinal)
     {
         "EmploymentType", "WorktimeExtent", "Employer", "Q",
+        // #2261 — the junior IT list's membership narrows; it never widens a union.
+        "JuniorIt",
     };
 
     [Fact]

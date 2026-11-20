@@ -50,6 +50,8 @@ interface JobbResultsProps {
   municipality: string[];
   /** A place facet the backend combines with region and municipality. */
   remote: boolean;
+  /** `?junior=on` (#2261): the junior IT list as a filter, AND-ed with every other axis. */
+  junior: boolean;
   employmentType: string[];
   worktimeExtent: string[];
   /** Selected grades, validated in page.tsx. Empty means every grade is shown. */
@@ -99,6 +101,7 @@ export async function JobbResults({
   region,
   municipality,
   remote,
+  junior,
   employmentType,
   worktimeExtent,
   matchGrades,
@@ -167,6 +170,7 @@ export async function JobbResults({
     region,
     municipality,
     remote,
+    junior,
     employmentType,
     worktimeExtent,
     matchGrades,
@@ -199,6 +203,7 @@ export async function JobbResults({
       region,
       municipality,
       remote,
+      junior,
       employmentType,
       worktimeExtent,
       matchGrades,
@@ -327,6 +332,7 @@ export async function JobbResults({
             region={region}
             municipality={municipality}
             remote={remote}
+            junior={junior}
             employmentType={employmentType}
             worktimeExtent={worktimeExtent}
             matchGrades={matchGrades}

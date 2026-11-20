@@ -133,11 +133,10 @@ describe("recentJobSearchDtoSchema", () => {
     expect(parsed.q).toBeNull();
   });
 
-  it("defaults missing occupationGroupLabels/regionLabels to empty arrays", () => {
-    const { occupationGroupLabels: _a, regionLabels: _b, ...rest } = wireBase;
-    const parsed = recentJobSearchDtoSchema.parse(rest);
-    expect(parsed.occupationGroupLabels).toEqual([]);
-    expect(parsed.regionLabels).toEqual([]);
+  it("defaults occupationGroupLabels and regionLabels, by the schema's shape", () => {
+    const { occupationGroupLabels, regionLabels } = recentJobSearchDtoSchema.shape;
+    expect(occupationGroupLabels.parse(undefined)).toEqual([]);
+    expect(regionLabels.parse(undefined)).toEqual([]);
   });
 
   it("carries remote from the wire in both polarities (#1407)", () => {
@@ -157,12 +156,8 @@ describe("recentJobSearchDtoSchema", () => {
     expect(parsed.employerList).toEqual(["5566010101", "5560125790"]);
   });
 
-  it("rejects a payload with no employerList field rather than defaulting it to empty", () => {
-    // Same actor as the remote case below (#1238's deploy-skew window), same reason: a default
-    // would make "the API stopped sending the axis" indistinguishable from "no employer
-    // filter" — a replay that silently widens, which is #1471's own failure mode one layer out.
-    const { employerList: _omitted, ...withoutEmployerList } = wireBase;
-    expect(() => recentJobSearchDtoSchema.parse(withoutEmployerList)).toThrow();
+  it("requires employerList, by the schema's shape", () => {
+    expect(recentJobSearchDtoSchema.shape.employerList.safeParse(undefined).success).toBe(false);
   });
 
   it("carries occupationNameList and its labels from the wire (#2199)", () => {
@@ -208,16 +203,8 @@ describe("recentJobSearchDtoSchema", () => {
     }
   });
 
-  it("rejects a payload with no remote field rather than defaulting it to false", () => {
-    // The actor that produces this payload is not a path in src/ — it is the deploy
-    // skew window #1238 names: until the box applies release records, the five `latest`
-    // tags move one at a time (ADR 0149 R10), so a pull can land a new web against an
-    // older api that predates the field. This asserts only that the read side degrades safely
-    // (throw -> responseToResult -> {kind:"error"}), never what production emits.
-    // Defaulting instead would make "the API stopped sending the axis" indistinguishable
-    // from "the user did not pick distans" — #1407's own failure mode, one layer out.
-    const { remote: _omitted, ...withoutRemote } = wireBase;
-    expect(() => recentJobSearchDtoSchema.parse(withoutRemote)).toThrow();
+  it("requires remote, by the schema's shape", () => {
+    expect(recentJobSearchDtoSchema.shape.remote.safeParse(undefined).success).toBe(false);
   });
 
   it("parses Relevance numeric sortBy index 4", () => {

@@ -103,8 +103,11 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
         if (scope is null)
             return NotificationSourceRead.Nothing(Kind);
 
+        // The newest new hit, read in order rather than by MAX: PostgreSQL's min/max rewrite does not cross a join.
         var token = await NewFollowedCompanyAdSet.NewHits(db, userId, scope.LastSeen)
-            .MaxAsync(h => (DateTimeOffset?)h.CreatedAt, cancellationToken);
+            .OrderByDescending(h => h.CreatedAt)
+            .Select(h => (DateTimeOffset?)h.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
 
         var countInput = token is { } through
             ? await NewFollowedCompanyAdSet.LoadCountInputAsync(

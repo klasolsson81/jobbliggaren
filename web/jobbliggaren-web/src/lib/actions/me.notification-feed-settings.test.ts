@@ -1,19 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ADR 0168 (#2130): the two switches for what reaches the bell. They are delivery choices, never consents
-// (security V3): each action forwards only its own `{ enabled }`, refuses a body carrying anything else
-// (a Server Action is a public endpoint, and a tab on an earlier build can post a combined body), and
-// touches no consent's or mail pause's write. The translator mock returns `namespace.key`.
+// ADR 0168 (#2130), ADR 0175 D8 (#1663): the three switches for what reaches the bell. They are delivery choices,
+// never consents (security V3): each action forwards only its own `{ enabled }`, refuses a body carrying anything
+// else (a Server Action is a public endpoint, and a tab on an earlier build can post a combined body), and touches
+// no consent's or mail pause's write. The translator mock returns `namespace.key`.
 
-const { matchesApiMock, followedApiMock, consentApiMock, followConsentApiMock, mailApiMock, revalidatePathMock } =
-  vi.hoisted(() => ({
-    matchesApiMock: vi.fn(),
-    followedApiMock: vi.fn(),
-    consentApiMock: vi.fn(),
-    followConsentApiMock: vi.fn(),
-    mailApiMock: vi.fn(),
-    revalidatePathMock: vi.fn(),
-  }));
+const {
+  matchesApiMock,
+  followedApiMock,
+  criterionApiMock,
+  consentApiMock,
+  followConsentApiMock,
+  mailApiMock,
+  revalidatePathMock,
+} = vi.hoisted(() => ({
+  matchesApiMock: vi.fn(),
+  followedApiMock: vi.fn(),
+  criterionApiMock: vi.fn(),
+  consentApiMock: vi.fn(),
+  followConsentApiMock: vi.fn(),
+  mailApiMock: vi.fn(),
+  revalidatePathMock: vi.fn(),
+}));
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
@@ -31,6 +39,7 @@ vi.mock("@/lib/http/authed-fetch", () => ({ authedFetch: vi.fn() }));
 vi.mock("@/lib/api/me", () => ({
   updateNotificationFeedMatches: matchesApiMock,
   updateNotificationFeedFollowedAds: followedApiMock,
+  updateNotificationFeedCriterionAds: criterionApiMock,
   updateNotificationConsent: consentApiMock,
   updateFollowedCompanyNotificationConsent: followConsentApiMock,
   updateNotificationMail: mailApiMock,
@@ -39,7 +48,11 @@ vi.mock("@/lib/api/me", () => ({
   updateMatchSummaryMail: vi.fn(),
 }));
 
-import { updateNotificationFeedFollowedAdsAction, updateNotificationFeedMatchesAction } from "./me";
+import {
+  updateNotificationFeedCriterionAdsAction,
+  updateNotificationFeedFollowedAdsAction,
+  updateNotificationFeedMatchesAction,
+} from "./me";
 
 type BellInput = Parameters<typeof updateNotificationFeedMatchesAction>[0];
 
@@ -47,7 +60,7 @@ const OTHER_WRITES = [consentApiMock, followConsentApiMock, mailApiMock];
 
 beforeEach(() => {
   vi.clearAllMocks();
-  for (const api of [matchesApiMock, followedApiMock, ...OTHER_WRITES]) {
+  for (const api of [matchesApiMock, followedApiMock, criterionApiMock, ...OTHER_WRITES]) {
     api.mockResolvedValue({ kind: "ok", data: undefined });
   }
 });
@@ -57,37 +70,45 @@ describe.each([
     "updateNotificationFeedMatchesAction",
     updateNotificationFeedMatchesAction,
     matchesApiMock,
-    followedApiMock,
+    [followedApiMock, criterionApiMock],
     "backgroundMatch",
   ],
   [
     "updateNotificationFeedFollowedAdsAction",
     updateNotificationFeedFollowedAdsAction,
     followedApiMock,
-    matchesApiMock,
+    [matchesApiMock, criterionApiMock],
     "followedCompanyNotifications",
   ],
-])("%s", (_name, action, api, siblingApi, copy) => {
+  // Its failures read as the background-match copy, which names no purpose.
+  [
+    "updateNotificationFeedCriterionAdsAction",
+    updateNotificationFeedCriterionAdsAction,
+    criterionApiMock,
+    [matchesApiMock, followedApiMock],
+    "backgroundMatch",
+  ],
+])("%s", (_name, action, api, siblingApis, copy) => {
   it.each([true, false])(
     "forwards exactly {enabled: %s} through its own write alone and revalidates the page",
     async (enabled) => {
       expect(await action({ enabled })).toEqual({ success: true });
 
       expect(api).toHaveBeenCalledExactlyOnceWith({ enabled });
-      for (const other of [siblingApi, ...OTHER_WRITES]) expect(other).not.toHaveBeenCalled();
+      for (const other of [...siblingApis, ...OTHER_WRITES]) expect(other).not.toHaveBeenCalled();
       expect(revalidatePathMock).toHaveBeenCalledWith("/mina-sidor/notiser");
     },
   );
 
   it.each([
     ["a consent", { enabled: true, backgroundMatchNotificationsEnabled: true }],
-    ["the other bell switch", { enabled: true, followedAdsEnabled: false }],
+    ["another bell switch", { enabled: true, followedAdsEnabled: false }],
     ["a mail pause", { enabled: true, mailEnabled: false }],
   ])("refuses a body that also carries %s, and sends nothing", async (_extra, body) => {
     const result = await action(body as unknown as BellInput);
 
     expect(result).toEqual({ success: false, error: `settings.${copy}.errors.invalidInput` });
-    for (const candidate of [api, siblingApi, ...OTHER_WRITES]) expect(candidate).not.toHaveBeenCalled();
+    for (const candidate of [api, ...siblingApis, ...OTHER_WRITES]) expect(candidate).not.toHaveBeenCalled();
   });
 
   it("refuses a body without enabled, never reading it as false", async () => {

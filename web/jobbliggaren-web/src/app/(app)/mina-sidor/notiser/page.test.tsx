@@ -41,6 +41,9 @@ const MATCH = "Matcha nya annonser åt mig";
 const TOP = "Toppmatchningar via e-post";
 const SUMMARY = "Sammanfattning via e-post";
 const FOLLOW = "Nya annonser via e-post";
+const FEED_MATCHES = "Nya matchningar som notis i appen";
+const FEED_FOLLOWED = "Nya annonser som notis i appen";
+const FEED_CRITERION = "Nya annonser från branschbevakningar som notis i appen";
 
 interface Saved {
   mail?: boolean;
@@ -48,6 +51,9 @@ interface Saved {
   top?: boolean;
   summary?: boolean;
   follow?: boolean;
+  feedMatches?: boolean;
+  feedFollowed?: boolean;
+  feedCriterion?: boolean;
 }
 
 function profile({
@@ -56,6 +62,9 @@ function profile({
   top = true,
   summary = true,
   follow = false,
+  feedMatches = true,
+  feedFollowed = true,
+  feedCriterion = true,
 }: Saved = {}): JobSeekerProfileDto {
   return {
     id: "profile-1",
@@ -66,8 +75,9 @@ function profile({
     notificationMailEnabled: mail,
     topMatchMailEnabled: top,
     matchSummaryMailEnabled: summary,
-    notificationFeedMatchesEnabled: true,
-    notificationFeedFollowedAdsEnabled: true,
+    notificationFeedMatchesEnabled: feedMatches,
+    notificationFeedFollowedAdsEnabled: feedFollowed,
+    notificationFeedCriterionAdsEnabled: feedCriterion,
     createdAt: "2026-05-01T08:00:00Z",
     hasStatedDesiredOccupation: false,
     preferredOccupationGroups: [],
@@ -137,6 +147,24 @@ describe("MinaSidorNotiserPage (/mina-sidor/notiser)", () => {
       "aria-checked",
       String(saved.summary),
     );
+  });
+
+  // The bell switches read their own saved values too (#2130, #1663); the matches one shows while the
+  // match consent is on.
+  it.each([
+    ["feedMatches", FEED_MATCHES],
+    ["feedFollowed", FEED_FOLLOWED],
+    ["feedCriterion", FEED_CRITERION],
+  ] as const)("shows a saved %s off on its own bell switch alone", async (key, name) => {
+    getMyProfile.mockResolvedValue({ kind: "ok", data: profile({ match: true, [key]: false }) });
+    await renderPage();
+
+    for (const bell of [FEED_MATCHES, FEED_FOLLOWED, FEED_CRITERION]) {
+      expect(screen.getByRole("switch", { name: bell })).toHaveAttribute(
+        "aria-checked",
+        String(bell !== name),
+      );
+    }
   });
 
   it("shows the saved pause: the e-mail switch off, the mail switches hidden, the consents on show", async () => {

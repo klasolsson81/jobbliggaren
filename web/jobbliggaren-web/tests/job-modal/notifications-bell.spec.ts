@@ -42,6 +42,7 @@ const UNREAD_FEED = {
   sources: [
     { kind: "Match", unreadCount: 1, acknowledgedThrough: MATCH_TOKEN },
     { kind: "FollowedCompanyAd", unreadCount: 1, acknowledgedThrough: FOLLOW_TOKEN },
+    { kind: "CompanyWatchCriterionAd", unreadCount: 0, acknowledgedThrough: null },
   ],
 };
 

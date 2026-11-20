@@ -15,7 +15,9 @@
     "matchesTitle": "Matches",
     "feedMatchesLabel": "New matches as in-app notifications",
     "followTitle": "Companies you follow",
-    "feedFollowedAdsLabel": "New job ads as in-app notifications"
+    "feedFollowedAdsLabel": "New job ads as in-app notifications",
+    "criterionTitle": "Industry watches",
+    "feedCriterionAdsLabel": "New job ads from industry watches as in-app notifications"
   },
   "backgroundMatch": {
     "toggleLabel": "Match new job ads for me",

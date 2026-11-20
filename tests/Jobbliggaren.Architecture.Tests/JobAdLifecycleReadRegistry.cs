@@ -257,6 +257,12 @@ public static class JobAdLifecycleReadRegistry
                     + ".Select(narrow projection) — the junior classification sweep's selection (ADR 0187): only listed ads are "
                     + "classified, as a narrow projection (id, external id, post-scrub title and text, group, experience mark, "
                     + "input fingerprint); job_ads is never written.")),
+            ["Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds.ClassifyJuniorJobAdsJob.PurgeErasedAsync"] =
+                One(Any("db.JobAds.Where(j.Status == Erased), composed into the load of the assessments to remove — the "
+                        + "sweep's purge of assessments left on erased ads (ADR 0187 D3).",
+                    "Reads ERASED ads only, deliberately: it removes the assessment a sweep wrote while racing an Art. 17 "
+                    + "erasure, so no verdict or text fingerprint outlives the next tick on a tombstone. Only the ad's id "
+                    + "reaches the query; no ad value leaves it.")),
             ["Jobbliggaren.Application.Admin.JuniorJobAds.Queries.ListJuniorJobAds.ListJuniorJobAdsQueryHandler.Handle"] =
                 One(Active(".Where(JobAdPublication.IsListed(now)).Where(group in enabled fields).Join(assessments) — the "
                     + "admin junior queue's three tabs (ADR 0187, security-auditor m2): a closed or erased ad never reaches "

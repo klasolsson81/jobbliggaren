@@ -33,7 +33,7 @@ public sealed class JuniorClassificationWriterGuardTests
     [Fact]
     public void Only_the_decide_command_decides() =>
         // A file that names the assessment and calls a Decide method on something: the one handler.
-        FilesMatching(@"\.\s*Decide\s*\(", alsoMatching: @"\bJuniorAssessment")
+        FilesMatching(@"\.\s*Decide\s*\(", alsoMatching: @"JuniorAssessment")
             .ShouldBe([DecideHandler]);
 
     [Fact]

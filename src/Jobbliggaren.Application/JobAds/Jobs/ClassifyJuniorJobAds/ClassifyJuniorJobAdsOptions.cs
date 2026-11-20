@@ -7,7 +7,7 @@ public sealed class ClassifyJuniorJobAdsOptions
 {
     public const string SectionName = "ClassifyJuniorJobAds";
 
-    /// <summary>The kill-switch. Off, the sweep does nothing and the list keeps the verdicts already stored.</summary>
+    /// <summary>The kill-switch. Off, the sweep classifies nothing and the list keeps the verdicts already stored.</summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>Every two minutes: a new ad from the ten-minute stream reaches the list within one tick.</summary>

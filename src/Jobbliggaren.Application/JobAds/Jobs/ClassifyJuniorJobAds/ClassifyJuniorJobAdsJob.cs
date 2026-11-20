@@ -53,15 +53,17 @@ public sealed partial class ClassifyJuniorJobAdsJob(
 {
     public async Task<ClassifyJuniorJobAdsCounts> RunAsync(CancellationToken cancellationToken)
     {
+        // First, before the kill-switch and the taxonomy: the purge needs neither, and an erased ad's assessment must not
+        // outlive a tick because classification is switched off or a field cannot be resolved.
+        var purged = await PurgeErasedAsync(cancellationToken);
+
         var o = options.Value;
         if (!o.Enabled)
-            return ClassifyJuniorJobAdsCounts.None;
+            return Done(ClassifyJuniorJobAdsCounts.None, purged);
 
         var fields = await catalog.ResolveEnabledAsync(cancellationToken);
         if (fields.Count == 0)
-            return ClassifyJuniorJobAdsCounts.None;
-
-        var purged = await PurgeErasedAsync(cancellationToken);
+            return Done(ClassifyJuniorJobAdsCounts.None, purged);
 
         var groups = JuniorMembership.GroupsOf(fields).ToList();
         var versions = fields.Select(f => f.Rules.Version).ToList();
@@ -78,7 +80,7 @@ public sealed partial class ClassifyJuniorJobAdsJob(
             var candidates = await db.JobAds
                 .AsNoTracking()
                 .Where(JobAdPublication.IsListed(now))
-                .Where(j => j.OccupationGroupConceptId != null && groups.Contains(j.OccupationGroupConceptId))
+                .Where(JuniorMembership.InFields(groups))
                 .Where(j => !assessments.Any(a => a.Id == j.Id
                                                   && a.ClassifiedFingerprint == j.JuniorInputFingerprint
                                                   && versions.Contains(a.RuleSetVersion)))
@@ -142,9 +144,13 @@ public sealed partial class ClassifyJuniorJobAdsJob(
 
         purged += await PurgeErasedAsync(cancellationToken);
 
-        var counts = new ClassifyJuniorJobAdsCounts(junior, notJunior, unclear, refused, failed);
+        return Done(new ClassifyJuniorJobAdsCounts(junior, notJunior, unclear, refused, failed), purged);
+    }
+
+    private ClassifyJuniorJobAdsCounts Done(ClassifyJuniorJobAdsCounts counts, int purged)
+    {
         if (counts.Total > 0 || purged > 0)
-            LogTick(logger, junior, notJunior, unclear, refused, failed, purged);
+            LogTick(logger, counts.Junior, counts.NotJunior, counts.Unclear, counts.Refused, counts.Failed, purged);
         return counts;
     }
 
@@ -152,8 +158,9 @@ public sealed partial class ClassifyJuniorJobAdsJob(
     // through the change tracker, so a tick with nothing to purge writes nothing. A handful of rows at most.
     private async Task<int> PurgeErasedAsync(CancellationToken cancellationToken)
     {
+        var erasedAds = db.JobAds.Where(j => j.Status == JobAdStatus.Erased);
         var onErasedAds = await db.JuniorAssessments
-            .Where(a => db.JobAds.Any(j => j.Id == a.Id && j.Status == JobAdStatus.Erased))
+            .Where(a => erasedAds.Any(j => j.Id == a.Id))
             .ToListAsync(cancellationToken);
         if (onErasedAds.Count == 0)
             return 0;

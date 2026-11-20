@@ -118,6 +118,47 @@ public class JobAdJuniorInputTests
         JuniorInputFingerprint.Of("ab", "c", null, null).ShouldNotBe(JuniorInputFingerprint.Of("a", "bc", null, null));
         JuniorInputFingerprint.Of("a", "b", null, null).Length.ShouldBe(JuniorInputFingerprint.Length);
     }
+
+    // A retired actor (AGENTS.md §5 Tests:). An ad imported before #842 Tier A still holds the recruiter's address in
+    // its stored body, and the migration AddJobAdJuniorAssessments left its fingerprint NULL; an ad written by a release
+    // whose detector caught less carries SetSourcePayload's hash of the body that detector left. EF materialises either
+    // row through the private setters, as Materialise does here. That the current Import scrubs every such body is
+    // pinned by the JobAdContactRedactionTests fact ThePin names.
+    private const string ThePin =
+        nameof(JobAdContactRedactionTests) + "." + nameof(JobAdContactRedactionTests.Import_scrubs_body_and_payload_and_promotes_the_detected_contact);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ApplyContactScrubBackfill_ThatRewritesTheText_StampsTheFingerprintOfTheTextItLeaves(bool hashedBeforeTheScrub)
+    {
+        const string LegacyBody = "Vi söker en utvecklare. Frågor till anna@acme.se.";
+        var jobAd = Import();
+        Materialise(jobAd, nameof(JobAd.Description), LegacyBody);
+        Materialise(jobAd, nameof(JobAd.JuniorInputFingerprint),
+            hashedBeforeTheScrub ? JuniorInputFingerprint.Of(jobAd.Title, LegacyBody, Group, false) : null);
+        var before = jobAd.JuniorInputFingerprint;
+
+        jobAd.ApplyContactScrubBackfill().Value.ShouldBeTrue($"a body only a retired writer leaves ({ThePin})");
+
+        jobAd.Description.ShouldNotContain("anna@acme.se");
+        jobAd.JuniorInputFingerprint.ShouldBe(JuniorInputFingerprint.Of(jobAd.Title, jobAd.Description, Group, false));
+        jobAd.JuniorInputFingerprint.ShouldNotBe(before);
+    }
+
+    [Fact]
+    public void ApplyContactScrubBackfill_ThatFindsNothing_KeepsTheFingerprint()
+    {
+        var jobAd = Import();
+        var before = jobAd.JuniorInputFingerprint;
+
+        jobAd.ApplyContactScrubBackfill().Value.ShouldBeFalse();
+
+        jobAd.JuniorInputFingerprint.ShouldBe(before);
+    }
+
+    private static void Materialise(JobAd jobAd, string property, object? value) =>
+        typeof(JobAd).GetProperty(property)!.SetValue(jobAd, value);
 }
 
 /// <summary>
@@ -156,6 +197,29 @@ public class JobAdJuniorAssessmentTests
     public void Classify_RefusesAFingerprintThatIsNotASha256()
     {
         Should.Throw<ArgumentException>(() => JobAdJuniorAssessment.Classify(AdId, JuniorByTitle, "abc", Clock));
+    }
+
+    // Each is 64 characters, the length of a SHA-256 in hex, and none is lower-case hex.
+    public static TheoryData<string> SixtyFourCharactersThatAreNotLowerCaseHex =>
+    [
+        string.Concat(Enumerable.Repeat("0123456789ABCDEF", 4)),
+        string.Concat(Enumerable.Repeat("0123456789abcdeg", 4)),
+        string.Concat(Enumerable.Repeat("0123456789abcdef", 4))[..63] + " ",
+        new string('٠', 64),
+    ];
+
+    [Theory]
+    [MemberData(nameof(SixtyFourCharactersThatAreNotLowerCaseHex))]
+    public void Reclassify_RefusesASixtyFourCharacterFingerprintThatIsNotLowerCaseHex_AndChangesNothing(string fingerprint)
+    {
+        fingerprint.Length.ShouldBe(JuniorInputFingerprint.Length);
+        var assessment = JobAdJuniorAssessment.Classify(AdId, JuniorByTitle, Fingerprint, Clock);
+
+        Should.Throw<ArgumentException>(() => assessment.Reclassify(UnclearByMentor, fingerprint, Clock));
+
+        assessment.ClassifiedFingerprint.ShouldBe(Fingerprint);
+        assessment.Verdict.ShouldBe(JuniorVerdict.Junior);
+        assessment.RuleSetVersion.ShouldBe(JuniorByTitle.RuleSetVersion);
     }
 
     [Fact]

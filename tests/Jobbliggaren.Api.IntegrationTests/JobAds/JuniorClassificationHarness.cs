@@ -13,8 +13,10 @@ using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds;
 using Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds;
 using Jobbliggaren.Application.JobAds.Junior;
+using Jobbliggaren.Application.JobAds.Queries.GetPublicJuniorItJobAds;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Infrastructure.JobAds;
 using Jobbliggaren.Infrastructure.JobAds.Junior;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
@@ -25,6 +27,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -106,6 +109,8 @@ internal sealed partial class JuniorClassificationHarness
 
     public CommandCapture Commands { get; } = new();
 
+    public SweepSeams Seams { get; } = new();
+
     private string _connectionString = string.Empty;
     private ServiceProvider _provider = default!;
     private TaxonomyReadModel _taxonomy = default!;
@@ -123,7 +128,7 @@ internal sealed partial class JuniorClassificationHarness
             .UseNpgsql(_connectionString,
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention()
-            .AddInterceptors(Commands)
+            .AddInterceptors(Commands, Seams)
             .ConfigureWarnings(warnings => warnings.Log(CoreEventId.ManyServiceProvidersCreatedWarning)));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddRecruiterErasureMatchQuery();
@@ -146,33 +151,83 @@ internal sealed partial class JuniorClassificationHarness
     public JuniorFieldResolver Catalog() => new([Rules], _taxonomy);
 
     /// <summary>
-    /// One tick of the real sweep, as the Worker's two-minute schedule runs it. <paramref name="beforeTheFirstWrite"/>
-    /// is another process committing between the sweep's read of its candidates and its first write, which opens a
-    /// scope of its own per ad: the Worker's sweep and the Api's commands share no transaction.
+    /// One tick of the real sweep, as the Worker's two-minute schedule runs it.
     /// </summary>
-    public async Task<ClassifyJuniorJobAdsCounts> SweepAsync(int batchSize = 200, Func<Task>? beforeTheFirstWrite = null)
+    /// <param name="enabled">The kill-switch, <c>ClassifyJuniorJobAds:Enabled</c>.</param>
+    /// <param name="beforeTheFirstWrite">Another process committing between the sweep's read of its candidates and its
+    /// first write: it runs once, as the first candidate read's reader closes (<see cref="SweepSeams"/>). The Worker's
+    /// sweep and the Api's commands share no transaction.</param>
+    /// <param name="afterTheFirstWrite">Runs once, as the sweep's first per-ad scope ends, its save committed.</param>
+    /// <param name="cancellationToken">The tick's token: Hangfire's, which its shutdown cancels.</param>
+    public async Task<ClassifyJuniorJobAdsCounts> SweepAsync(
+        int batchSize = 200,
+        Func<Task>? beforeTheFirstWrite = null,
+        Action? afterTheFirstWrite = null,
+        bool enabled = true,
+        ILogger<ClassifyJuniorJobAdsJob>? logger = null,
+        CancellationToken? cancellationToken = null)
     {
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
         var scopes = _provider.GetRequiredService<IServiceScopeFactory>();
-        return await new ClassifyJuniorJobAdsJob(
-                beforeTheFirstWrite is null ? scopes : new ScopesAfter(scopes, beforeTheFirstWrite), db, Catalog(), Clock,
-                Options.Create(new ClassifyJuniorJobAdsOptions { BatchSize = batchSize }),
-                NullLogger<ClassifyJuniorJobAdsJob>.Instance)
-            .RunAsync(Ct);
+        Seams.BeforeTheFirstWrite(beforeTheFirstWrite);
+        try
+        {
+            return await new ClassifyJuniorJobAdsJob(
+                    afterTheFirstWrite is null ? scopes : new ScopesThatSignal(scopes, afterTheFirstWrite), db, Catalog(),
+                    Clock,
+                    Options.Create(new ClassifyJuniorJobAdsOptions { BatchSize = batchSize, Enabled = enabled }),
+                    logger ?? NullLogger<ClassifyJuniorJobAdsJob>.Instance)
+                .RunAsync(cancellationToken ?? Ct);
+        }
+        finally
+        {
+            Seams.BeforeTheFirstWrite(null);
+        }
     }
 
-    /// <summary>Runs <paramref name="interleaved"/> to completion once, before the first scope it hands out.</summary>
-    private sealed class ScopesAfter(IServiceScopeFactory inner, Func<Task> interleaved) : IServiceScopeFactory
+    /// <summary>Hands out the inner factory's scopes and runs <paramref name="signal"/> once, as the first one ends.</summary>
+    private sealed class ScopesThatSignal(IServiceScopeFactory inner, Action signal) : IServiceScopeFactory
     {
-        private int _ran;
+        private int _signalled;
 
-        public IServiceScope CreateScope()
+        public IServiceScope CreateScope() => new Signalling(inner.CreateScope(), this);
+
+        private void ScopeEnded()
         {
-            if (Interlocked.Exchange(ref _ran, 1) == 0)
-                Task.Run(interleaved).GetAwaiter().GetResult();
-            return inner.CreateScope();
+            if (Interlocked.Exchange(ref _signalled, 1) == 0)
+                signal();
         }
+
+        private sealed class Signalling(IServiceScope scope, ScopesThatSignal owner) : IServiceScope, IAsyncDisposable
+        {
+            public IServiceProvider ServiceProvider => scope.ServiceProvider;
+
+            public void Dispose()
+            {
+                scope.Dispose();
+                owner.ScopeEnded();
+            }
+
+            public async ValueTask DisposeAsync()
+            {
+                if (scope is IAsyncDisposable asyncScope)
+                    await asyncScope.DisposeAsync();
+                else
+                    scope.Dispose();
+                owner.ScopeEnded();
+            }
+        }
+    }
+
+    /// <summary><c>/junior</c>'s handler over the real port, first page, newest first.</summary>
+    public async Task<PublicJuniorItJobAdsPage.Available> PublicListAsync()
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var page = await new GetPublicJuniorItJobAdsQueryHandler(new JuniorItJobAdQuery(db, Catalog()), _taxonomy, Clock)
+            .Handle(new GetPublicJuniorItJobAdsQuery(null, JobAdSortBy.PublishedAtDesc, 1), Ct);
+        return page.ShouldBeOfType<PublicJuniorItJobAdsPage.Available>();
     }
 
     /// <summary>The admin command's handler, then <c>UnitOfWorkBehavior</c>'s save.</summary>
@@ -446,5 +501,106 @@ internal sealed partial class JuniorClassificationHarness
 
         [GeneratedRegex("""(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+"?(?<table>[a-z_]+)"?""", RegexOptions.CultureInvariant)]
         private static partial Regex Write();
+    }
+
+    /// <summary>
+    /// Where the sweep meets another actor, set per tick. Every hook runs on the sweep's own commands and is awaited
+    /// there, so nothing blocks on a task.
+    /// </summary>
+    internal sealed class SweepSeams : DbCommandInterceptor
+    {
+        private Func<Task>? _beforeTheFirstWrite;
+        private Guid? _sessionEndedFor;
+        private readonly List<string> _failureMessages = [];
+        private int _endedSessions;
+
+        /// <summary>How many sessions the server ended under an INSERT of the targeted ad's assessment.</summary>
+        public int EndedSessions => Volatile.Read(ref _endedSessions);
+
+        /// <summary>The message of every exception the ended sessions raised, for the log's hygiene assertions.</summary>
+        public IReadOnlyList<string> FailureMessages
+        {
+            get { lock (_failureMessages) return [.. _failureMessages]; }
+        }
+
+        public void BeforeTheFirstWrite(Func<Task>? hook) => Volatile.Write(ref _beforeTheFirstWrite, hook);
+
+        /// <summary>
+        /// Every INSERT of <paramref name="jobAdId"/>'s assessment meets the database server ending its session first
+        /// (<c>pg_terminate_backend</c> on its own backend: SQLSTATE 57P01 admin_shutdown, what a Postgres restart or
+        /// failover does to the sessions it holds). The server produces the failure; the seam picks the moment.
+        /// </summary>
+        public void EndTheSessionOfEveryInsertFor(Guid jobAdId) => _sessionEndedFor = jobAdId;
+
+        public void LiftTheFailure() => _sessionEndedFor = null;
+
+        public override async ValueTask<InterceptionResult> DataReaderClosingAsync(
+            DbCommand command, DataReaderClosingEventData eventData, InterceptionResult result)
+        {
+            if (IsTheCandidateRead(command) && Interlocked.Exchange(ref _beforeTheFirstWrite, null) is { } hook)
+                await hook();
+            return result;
+        }
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            await EndTheSessionIfTargetedAsync(command, cancellationToken);
+            return result;
+        }
+
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            await EndTheSessionIfTargetedAsync(command, cancellationToken);
+            return result;
+        }
+
+        public override Task CommandFailedAsync(
+            DbCommand command, CommandErrorEventData eventData, CancellationToken cancellationToken = default)
+        {
+            if (IsAssessmentInsertOf(command, _sessionEndedFor))
+                RecordFailure(eventData.Exception);
+            return Task.CompletedTask;
+        }
+
+        // The sweep's selection: the only read that orders job_ads by an anti-join on the assessments' fingerprints.
+        private static bool IsTheCandidateRead(DbCommand command) =>
+            command.CommandText.Contains("FROM job_ads", StringComparison.Ordinal)
+            && command.CommandText.Contains("job_ad_junior_assessments", StringComparison.Ordinal)
+            && command.CommandText.Contains("junior_input_fingerprint", StringComparison.Ordinal)
+            && command.CommandText.Contains("ORDER BY", StringComparison.Ordinal);
+
+        private static bool IsAssessmentInsertOf(DbCommand command, Guid? jobAdId) =>
+            jobAdId is { } id
+            && command.CommandText.Contains("INSERT INTO job_ad_junior_assessments", StringComparison.Ordinal)
+            && command.Parameters.Cast<DbParameter>().Any(p => p.Value is Guid value && value == id);
+
+        private async Task EndTheSessionIfTargetedAsync(DbCommand command, CancellationToken cancellationToken)
+        {
+            if (!IsAssessmentInsertOf(command, _sessionEndedFor))
+                return;
+
+            Interlocked.Increment(ref _endedSessions);
+            try
+            {
+                await using var end = command.Connection!.CreateCommand();
+                end.Transaction = command.Transaction;
+                end.CommandText = "SELECT pg_terminate_backend(pg_backend_pid())";
+                await end.ExecuteNonQueryAsync(cancellationToken);
+            }
+            catch (DbException ex)
+            {
+                RecordFailure(ex);
+                throw;
+            }
+        }
+
+        private void RecordFailure(Exception exception)
+        {
+            lock (_failureMessages) _failureMessages.Add(exception.Message);
+        }
     }
 }

@@ -27,16 +27,19 @@ public sealed class ListJuniorJobAdsQueryHandler(
         var now = clock.UtcNow;
         var groups = JuniorMembership.GroupsOf(await catalog.ResolveEnabledAsync(cancellationToken)).ToList();
 
-        // Every tab joins a listed ad in an enabled field to its assessment, so a closed or erased ad never appears.
-        var rows = db.JobAds
-            .AsNoTracking()
-            .Where(JobAdPublication.IsListed(now))
-            .Where(j => j.OccupationGroupConceptId != null && groups.Contains(j.OccupationGroupConceptId))
-            .Join(db.JuniorAssessments.AsNoTracking(), j => j.Id, a => a.Id, (j, a) => new { Ad = j, Assessment = a });
+        // Every tab joins a listed ad in an enabled field to its assessment, so a closed or erased ad never appears. The
+        // "Visas" tab composes JuniorMembership, the same definition /junior reads, so the two can never disagree.
+        var listed = db.JobAds.AsNoTracking().Where(JobAdPublication.IsListed(now));
+        var assessments = db.JuniorAssessments.AsNoTracking();
+
+        var rows = listed
+            .Where(JuniorMembership.InFields(groups))
+            .Join(assessments, j => j.Id, a => a.Id, (j, a) => new { Ad = j, Assessment = a });
 
         var unclear = rows.Where(r => r.Assessment.Decision == null && r.Assessment.Verdict == JuniorVerdict.Unclear);
-        var shown = rows.Where(r => r.Assessment.Decision == JuniorDecision.Junior
-                                    || (r.Assessment.Decision == null && r.Assessment.Verdict == JuniorVerdict.Junior));
+        var shown = listed
+            .Where(JuniorMembership.Of(db.JuniorAssessments, groups))
+            .Join(assessments, j => j.Id, a => a.Id, (j, a) => new { Ad = j, Assessment = a });
         var decided = rows.Where(r => r.Assessment.Decision != null);
 
         var counts = new JuniorJobAdQueueCountsDto(

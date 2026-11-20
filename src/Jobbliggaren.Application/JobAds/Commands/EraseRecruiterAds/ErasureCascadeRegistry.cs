@@ -1130,14 +1130,14 @@ public static class ErasureCascadeRegistry
                 + "the ingest funnel, which cannot author free text into any of them.",
 
             ["job_ad_junior_assessments:NotRecruiterData"] =
-                "Closed domain (#2264, ADR 0187), with exactly three writers and none of them free "
-                + "text. The ingest funnel writes only the ad's own experience mark and fingerprint on "
-                + "job_ads. The Worker's classification sweep writes verdict (a JuniorVerdict enum "
+                "Closed domain (#2264, ADR 0187), written by two members and removed by two, none of "
+                + "them free text (the ingest funnel writes only job_ads' own experience mark and "
+                + "fingerprint, never this table). The Worker's classification sweep writes verdict (a JuniorVerdict enum "
                 + "stored by name) and rule_id / rule_set_version, which JuniorClassification admits "
                 + "only as lower-case kebab and as digits, dots, a plus and lower-case hex, drawn from "
                 + "the deploy-versioned rule file. The admin decide command writes decision (a "
                 + "JuniorDecision enum stored by name) and a timestamp. The erasure command deletes "
-                + "the whole row with its ad, and the sweep purges any row left on an erased ad.",
+                + "the whole row with its ad, and the sweep removes any row left on an erased ad.",
 
             ["audit_log:NotRecruiterData"] =
                 "Closed domain: event_type and aggregate_type are constants minted by the command "

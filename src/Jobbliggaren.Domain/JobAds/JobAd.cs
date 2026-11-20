@@ -350,6 +350,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
 
         ApplyContactRedaction(
             Contacts?.Contacts.Where(c => c.Origin == AdContactOrigin.Declared).ToList() ?? []);
+        RefreshJuniorInputFingerprint();
         return Result.Success(true);
     }
 
@@ -519,11 +520,13 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         // #2264 — the experience mark has PRESERVE semantics like Remote; the fingerprint is written last, over the
         // POST-SCRUB title and text, so the junior classification is always about what the row actually holds.
         ExperienceRequired = facets.ExperienceRequired ?? ExperienceRequired;
-        JuniorInputFingerprint = Jobbliggaren.Domain.JobAds.JuniorInputFingerprint.Of(
-            Title, Description, OccupationGroupConceptId, ExperienceRequired);
+        RefreshJuniorInputFingerprint();
     }
 
-
+    // #2264 — the one place the junior fingerprint is computed: every member that rewrites the title or text calls it.
+    private void RefreshJuniorInputFingerprint() =>
+        JuniorInputFingerprint = Jobbliggaren.Domain.JobAds.JuniorInputFingerprint.Of(
+            Title, Description, OccupationGroupConceptId, ExperienceRequired);
 
     /// <summary>
     /// #842 Tier A (ADR 0106 D4, CTO re-bind R1) — THE aggregate invariant: an imported ad never

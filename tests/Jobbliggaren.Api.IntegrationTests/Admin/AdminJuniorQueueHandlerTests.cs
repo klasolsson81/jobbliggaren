@@ -1,6 +1,7 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.JobAds;
 using Jobbliggaren.Application.Admin.JuniorJobAds.Queries.ListJuniorJobAds;
+using Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Shouldly;
@@ -59,6 +60,37 @@ public sealed class AdminJuniorQueueHandlerTests(SharedPostgresFixture postgres)
             queue.Items.Page.ShouldBe(1);
             queue.Items.PageSize.ShouldBe(ListJuniorJobAdsQuery.PageSize);
         }
+    }
+
+    // The admin's "Visas" tab says what is on /junior now: both read through their real handlers, over the same rows.
+    [Fact]
+    public async Task List_TheShownTab_ShouldHoldExactlyTheAdsTheJuniorListShows_ForTheSameData()
+    {
+        var byRule = await _h.ImportAsync("Junior utvecklare", publishedAt: Now.AddHours(-1));
+        var vetoed = await _h.ImportAsync("Trainee inom IT", publishedAt: Now.AddHours(-2));
+        var unclear = await _h.ImportAsync("Junior utvecklare", description: MentorText, publishedAt: Now.AddHours(-3));
+        var raised = await _h.ImportAsync("Junior utvecklare", description: MentorText, publishedAt: Now.AddHours(-4));
+        var overruled = await _h.ImportAsync("Systemutvecklare", publishedAt: Now.AddHours(-5));
+        var read = await _h.ImportAsync("Systemutvecklare", externalId: CuratedInField, publishedAt: Now.AddHours(-6));
+        await _h.ImportAsync("Junior ekonomiassistent", group: NotDataIt, publishedAt: Now.AddHours(-7));
+        await _h.ImportAsync("Systemutvecklare", group: NotDataIt, externalId: CuratedOutsideField, publishedAt: Now.AddHours(-8));
+        var closed = await _h.ImportAsync("Praktikant", publishedAt: Now.AddHours(-9));
+        (await _h.SweepAsync()).ShouldBe(new ClassifyJuniorJobAdsCounts(Junior: 4, NotJunior: 1, Unclear: 2, Refused: 0, Failed: 0));
+        (await _h.DecideAsync(vetoed, JuniorDecision.NotJunior)).IsSuccess.ShouldBeTrue();
+        (await _h.DecideAsync(raised, JuniorDecision.Junior)).IsSuccess.ShouldBeTrue();
+        (await _h.DecideAsync(overruled, JuniorDecision.Junior)).IsSuccess.ShouldBeTrue();
+        await _h.ArchiveThroughTheStreamAsync(closed);
+        // Listed and in the field, but the sweep has not reached it yet.
+        await _h.ImportAsync("Junior utvecklare", publishedAt: Now.AddMinutes(-1));
+
+        var shown = await _h.ListAsync(JuniorQueueView.Shown);
+        var junior = await _h.PublicListAsync();
+
+        shown.Items.Items.Select(i => i.Id).ShouldBe([byRule, raised, overruled, read]);
+        junior.Rows.Items.Select(r => r.Id).ShouldBe(shown.Items.Items.Select(i => i.Id));
+        junior.Rows.TotalCount.ShouldBe(shown.Counts.Shown);
+        shown.Items.TotalCount.ShouldBe(shown.Counts.Shown);
+        shown.Items.Items.Select(i => i.Id).ShouldNotContain(unclear);
     }
 
     [Fact]

@@ -52,7 +52,9 @@ public sealed class JobAdJuniorAssessment : AggregateRoot<JobAdId>
     {
         ArgumentNullException.ThrowIfNull(classification);
         ArgumentNullException.ThrowIfNull(clock);
-        if (classifiedFingerprint is not null && classifiedFingerprint.Length != JuniorInputFingerprint.Length)
+        if (classifiedFingerprint is not null
+            && (classifiedFingerprint.Length != JuniorInputFingerprint.Length
+                || !classifiedFingerprint.All(c => char.IsAsciiDigit(c) || c is >= 'a' and <= 'f')))
             throw new ArgumentException("A junior fingerprint is a SHA-256 in lower-case hex.", nameof(classifiedFingerprint));
 
         Verdict = classification.Verdict;

@@ -26,7 +26,7 @@ public sealed class DecideJuniorJobAdCommandHandler(
         var groups = JuniorMembership.GroupsOf(await catalog.ResolveEnabledAsync(cancellationToken)).ToList();
         var eligibleAds = db.JobAds
             .Where(JobAdPublication.IsListed(clock.UtcNow))
-            .Where(j => j.OccupationGroupConceptId != null && groups.Contains(j.OccupationGroupConceptId));
+            .Where(JuniorMembership.InFields(groups));
 
         var assessment = await db.JuniorAssessments
             .Where(a => a.Id == id && eligibleAds.Any(j => j.Id == a.Id))

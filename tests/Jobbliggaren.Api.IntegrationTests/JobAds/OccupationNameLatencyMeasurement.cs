@@ -78,9 +78,8 @@ public class OccupationNameLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
             new OccupationSynonymExpander(Options.Create(new SearchSynonymsOptions())),
             Substitute.For<ITaxonomyLabelMatcher>(),
             lineageProvider,
-            new Jobbliggaren.Infrastructure.JobAds.JuniorIt.JuniorItSetResolver(
-                Jobbliggaren.Infrastructure.JobAds.JuniorIt.JuniorItListLoader.Load(),
-                Substitute.For<ITaxonomyReadModel>()));
+            db,
+            Substitute.For<Jobbliggaren.Application.JobAds.Junior.IJuniorFieldCatalog>());
         var search = new JobAdSearchQuery(db, resolver);
 
         var (current, deprecated) = ReadNames();

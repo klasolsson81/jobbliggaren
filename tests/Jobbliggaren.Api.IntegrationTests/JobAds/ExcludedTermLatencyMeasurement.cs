@@ -96,7 +96,8 @@ public class ExcludedTermLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
             new OccupationSynonymExpander(Options.Create(new SearchSynonymsOptions())),
             labelMatcher,
             _fixture.Services.GetRequiredService<IOccupationNameLineageProvider>(),
-            _fixture.Services.GetRequiredService<Jobbliggaren.Infrastructure.JobAds.JuniorIt.JuniorItSetResolver>());
+            db,
+            _fixture.Services.GetRequiredService<Jobbliggaren.Application.JobAds.Junior.IJuniorFieldCatalog>());
         var sut = new JobAdSearchQuery(db, resolver);
 
         // Non-vacuity first: an exclusion that removed nothing would time a predicate that never ran.

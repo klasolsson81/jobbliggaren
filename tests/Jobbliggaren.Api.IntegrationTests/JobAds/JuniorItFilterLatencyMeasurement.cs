@@ -2,9 +2,10 @@ using System.Diagnostics;
 using System.Text;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Internal;
+using Jobbliggaren.Application.JobAds.Junior;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.JobAds;
-using Jobbliggaren.Infrastructure.JobAds.JuniorIt;
+using Jobbliggaren.Infrastructure.JobAds.Junior;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Microsoft.EntityFrameworkCore;
@@ -19,15 +20,17 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
-/// #2261 — the latency of the junior IT filter on /jobb's search port against ADR 0045 class (a), read/list:
-/// <b>p95 300 ms</b>. The filter puts the list's case-insensitive regex (<c>~*</c>) on the hot path, in the list, its
-/// count and every facet clone (ADR 0186 "What comes back"; AGENTS.md §2.5).
+/// #2261, #2264 — the latency of the junior IT filter on /jobb's search port against ADR 0045 class (a), read/list:
+/// <b>p95 300 ms</b>. The filter puts a correlated EXISTS on the stored assessment (<see cref="JuniorMembership"/>,
+/// ADR 0187) on the hot path, in the list, its count and every facet clone (AGENTS.md §2.5).
 /// <para>
 /// <b>Why this corpus.</b> About a third of the ads sit in the Data/IT field's groups, from the real taxonomy
-/// snapshot, and a share of their titles match the shipped headline pattern, so the regex runs on every
-/// in-field row the planner reaches. A few rows carry ids from the shipped curated list. The cases dotnet-architect
-/// named are measured: junior alone, junior with one Data/IT group in Yrke (two conditions on one column), and
-/// junior with free text.
+/// snapshot. Each in-field ad carries the assessment the shipped rules give its title and text, computed by the
+/// production <see cref="JuniorClassifier"/> and bulk-written in the shape the Worker's sweep stores: the steady
+/// state after a sweep, one assessment per in-field ad. The titles mix junior and trainee headlines (an automatic
+/// rule, so Junior), student headlines (a rule that is not automatic, so Unclear) and plain ones (no signal). The
+/// cases dotnet-architect named are measured: junior alone, junior with one Data/IT group in Yrke (two conditions on
+/// one column), and junior with free text.
 /// </para>
 /// <para>
 /// ⚠ <b>OBSERVE-ONLY</b> (ADR 0045, as <see cref="OccupationNameLatencyMeasurement"/>): durations are written to the
@@ -35,17 +38,17 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// list is a strict subset of the unfiltered one.
 /// </para>
 /// <para>
-/// <b>Result, measured 2026-11-20 against this class at 40 000 ads (32 000 active), 12 Data/IT groups, 143 curated
-/// ids.</b> A dated reading of a finished run on a developer machine, not a live number: re-run this class to
-/// regenerate it.
+/// <b>Result, measured 2026-11-20 against this class at 40 000 ads (32 000 active), 12 Data/IT groups, and the shipped
+/// rules' assessments on the 13 286 in-field ads (3 301 Junior, 709 Unclear, 9 276 NotJunior).</b> A dated reading of a
+/// finished run on a developer machine, not a live number: re-run this class to regenerate it.
 /// <code>
 /// search                                     ads/keys   p50       p95
-/// list+count (no filter)                     32 000     6.8 ms     8.9 ms
-/// list+count junior                           2 680    34.8 ms    51.4 ms
-/// list+count junior + 1 Data/IT group           227     9.1 ms    16.1 ms
-/// list+count junior, q = "utvecklare"           915    20.1 ms    28.0 ms
-/// group facet, junior                            12    29.8 ms    40.8 ms
-/// group facet, junior, q                         12    17.5 ms    18.7 ms
+/// list+count (no filter)                     32 000     4.0 ms     4.2 ms
+/// list+count junior                           2 619     6.5 ms     9.6 ms
+/// list+count junior + 1 Data/IT group           220     5.5 ms     5.8 ms
+/// list+count junior, q = "utvecklare"           896    15.8 ms    19.3 ms
+/// group facet, junior                            12     5.5 ms     6.1 ms
+/// group facet, junior, q                         12    14.9 ms    17.7 ms
 /// </code>
 /// </para>
 /// </summary>
@@ -54,7 +57,6 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 public class JuniorItFilterLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITestOutputHelper output)
 {
     private const int TotalRows = 40_000;
-    private const int CuratedRows = 100;
     private const int Iterations = 30;
 
     private readonly JobAdBrowsePlanFixture _fixture = fixture;
@@ -73,13 +75,13 @@ public class JuniorItFilterLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
         await using var scope = _fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var taxonomy = new TaxonomyReadModel(scopeFactory);
-        var list = JuniorItListLoader.Load();
-        var juniorIt = new JuniorItSetResolver(list, taxonomy);
-        var set = await juniorIt.ResolveAsync(ct);
+        var catalog = new JuniorFieldResolver([JuniorRuleSetLoader.LoadDataIt()], taxonomy);
+        var fields = await catalog.ResolveEnabledAsync(ct);
+        var itGroups = JuniorMembership.GroupsOf(fields).Order(StringComparer.Ordinal).ToList();
         var tree = await taxonomy.GetTreeAsync(ct);
         var otherGroups = tree.OccupationFields
-            .Where(f => !string.Equals(f.ConceptId, list.OccupationFieldConceptId, StringComparison.Ordinal))
-            .SelectMany(f => f.OccupationGroups).Select(g => g.ConceptId).ToList();
+            .SelectMany(f => f.OccupationGroups).Select(g => g.ConceptId)
+            .Where(g => !itGroups.Contains(g)).ToList();
 
         // Built by hand as the sibling measurements build it: the fixture composes persistence only, and no search
         // here carries a minus-word, so the label matcher is never asked.
@@ -88,15 +90,17 @@ public class JuniorItFilterLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
             new OccupationSynonymExpander(Options.Create(new SearchSynonymsOptions())),
             Substitute.For<ITaxonomyLabelMatcher>(),
             scope.ServiceProvider.GetRequiredService<IOccupationNameLineageProvider>(),
-            juniorIt);
+            db,
+            catalog);
         var search = new JobAdSearchQuery(db, resolver);
 
         var seeding = Stopwatch.StartNew();
-        await SeedAsync(db, set, otherGroups, ct);
-        _output.WriteLine($"Seeded {TotalRows:N0} ads in {seeding.Elapsed.TotalSeconds:F0} s; "
-            + $"{set.OccupationGroups.Count} Data/IT groups, {set.CuratedExternalIds.Count} curated ids.");
+        var verdicts = await SeedAsync(db, new JuniorFieldClassifier(fields), itGroups, otherGroups, ct);
+        _output.WriteLine($"Seeded {TotalRows:N0} ads in {seeding.Elapsed.TotalSeconds:F0} s; {itGroups.Count} Data/IT "
+            + $"groups; assessments: {string.Join(", ", verdicts.Select(v => $"{v.Value} {v.Key}"))}.");
+        verdicts.Keys.ShouldBe([JuniorVerdict.Junior, JuniorVerdict.NotJunior, JuniorVerdict.Unclear], ignoreOrder: true);
 
-        var itGroup = set.OccupationGroups[0];
+        var itGroup = itGroups[0];
         var all = (await search.SearchAsync(Page(Filter()), ct)).TotalCount;
         var scenarios = new (string Label, JobAdFilterCriteria Filter)[]
         {
@@ -200,33 +204,46 @@ public class JuniorItFilterLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
     }
 
     /// <summary>
-    /// TRUNCATE-and-own, bulk-seed, then VACUUM (ANALYZE). A third of the ads draw a Data/IT group; of those, a fifth
-    /// carry a junior headline, a twentieth a trainee one, and the first <see cref="CuratedRows"/> a curated id.
-    /// Every third title carries "utvecklare" for the free-text case.
+    /// TRUNCATE-and-own, bulk-seed, then VACUUM (ANALYZE) both tables. A third of the ads draw a Data/IT group; of
+    /// those, a fifth carry a junior headline, a twentieth a trainee one and a twentieth a student one. Every third
+    /// title carries "utvecklare" for the free-text case. Each in-field ad gets the classifier's verdict for its own
+    /// title and text, stamped with the null fingerprint the sweep reads off a row this insert writes.
     /// </summary>
-    private static async Task SeedAsync(
-        AppDbContext db, JuniorItSet set, List<string> otherGroups, CancellationToken ct)
+    private static async Task<Dictionary<JuniorVerdict, int>> SeedAsync(
+        AppDbContext db,
+        JuniorFieldClassifier classifier,
+        List<string> itGroups,
+        List<string> otherGroups,
+        CancellationToken ct)
     {
         db.Database.SetCommandTimeout(600);
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads;", ct);
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads CASCADE;", ct);
 
         var random = new Random(2261);
+        var ids = new Guid[TotalRows];
         var groups = new string[TotalRows];
         var titles = new string[TotalRows];
+        var descriptions = new string[TotalRows];
         var externalIds = new string[TotalRows];
-        var curated = 0;
+        var assessed = new List<(Guid Id, JuniorClassification Classification)>();
         for (var i = 0; i < TotalRows; i++)
         {
             var inField = random.NextDouble() < 1.0 / 3;
+            ids[i] = Guid.NewGuid();
             groups[i] = inField
-                ? set.OccupationGroups[random.Next(set.OccupationGroups.Count)]
+                ? itGroups[random.Next(itGroups.Count)]
                 : otherGroups[random.Next(otherGroups.Count)];
             var roll = random.NextDouble();
             var noun = i % 3 == 0 ? "utvecklare" : "medarbetare";
-            titles[i] = roll < 0.2 ? $"Junior {noun} {i}" : roll < 0.25 ? $"Trainee {noun} {i}" : $"System{noun} {i}";
-            externalIds[i] = inField && curated < CuratedRows && curated < set.CuratedExternalIds.Count
-                ? set.CuratedExternalIds[curated++]
-                : $"lat-{i}";
+            titles[i] = roll < 0.2 ? $"Junior {noun} {i}"
+                : roll < 0.25 ? $"Trainee {noun} {i}"
+                : roll < 0.3 ? $"Student {noun} {i}"
+                : $"System{noun} {i}";
+            descriptions[i] = $"Beskrivning av tjänsten nummer {i}";
+            externalIds[i] = $"lat-{i}";
+            if (classifier.Classify(groups[i], new JuniorClassificationInput(externalIds[i], titles[i], descriptions[i], null))
+                is { } classification)
+                assessed.Add((ids[i], classification));
         }
 
         await using (var connection = new NpgsqlConnection(db.Database.GetConnectionString()))
@@ -236,23 +253,42 @@ public class JuniorItFilterLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
                 "INSERT INTO job_ads "
                 + "(id, title, description, url, published_at, created_at, status, source, company_name, remote, "
                 + "occupation_group_concept_id, external_source, external_id) "
-                + "SELECT gen_random_uuid(), u.title, "
-                + "'Beskrivning av tjänsten nummer ' || u.i, "
+                + "SELECT u.id, u.title, u.description, "
                 + "'https://example.com/jobb/' || u.i, "
                 + "now() - (((u.i * 7919) % " + TotalRows + ") || ' minutes')::interval, now(), "
                 + "CASE WHEN u.i % 5 = 0 THEN 'Archived' ELSE 'Active' END, 'Platsbanken', "
                 + "'Arbetsgivare ' || (u.i % 997) || ' AB', false, u.grp, 'Platsbanken', u.ext "
-                + "FROM unnest(@groups, @titles, @ids) WITH ORDINALITY AS u(grp, title, ext, i);",
+                + "FROM unnest(@rowIds, @groups, @titles, @descriptions, @ids) WITH ORDINALITY "
+                + "AS u(id, grp, title, description, ext, i);",
                 connection)
             {
                 CommandTimeout = 600,
             };
+            insert.Parameters.AddWithValue("rowIds", ids);
             insert.Parameters.AddWithValue("groups", groups);
             insert.Parameters.AddWithValue("titles", titles);
+            insert.Parameters.AddWithValue("descriptions", descriptions);
             insert.Parameters.AddWithValue("ids", externalIds);
             await insert.ExecuteNonQueryAsync(ct);
+
+            await using var assess = new NpgsqlCommand(
+                "INSERT INTO job_ad_junior_assessments "
+                + "(job_ad_id, verdict, rule_id, rule_set_version, classified_fingerprint, classified_at) "
+                + "SELECT a.id, a.verdict, a.rule, a.version, NULL, now() "
+                + "FROM unnest(@assessedIds, @verdicts, @rules, @versions) AS a(id, verdict, rule, version);",
+                connection)
+            {
+                CommandTimeout = 600,
+            };
+            assess.Parameters.AddWithValue("assessedIds", assessed.Select(a => a.Id).ToArray());
+            assess.Parameters.AddWithValue("verdicts", assessed.Select(a => a.Classification.Verdict.ToString()).ToArray());
+            assess.Parameters.AddWithValue("rules", assessed.Select(a => a.Classification.RuleId).ToArray());
+            assess.Parameters.AddWithValue("versions", assessed.Select(a => a.Classification.RuleSetVersion).ToArray());
+            await assess.ExecuteNonQueryAsync(ct);
         }
 
         await db.Database.ExecuteSqlRawAsync("VACUUM (ANALYZE) job_ads;", ct);
+        await db.Database.ExecuteSqlRawAsync("VACUUM (ANALYZE) job_ad_junior_assessments;", ct);
+        return assessed.GroupBy(a => a.Classification.Verdict).ToDictionary(g => g.Key, g => g.Count());
     }
 }

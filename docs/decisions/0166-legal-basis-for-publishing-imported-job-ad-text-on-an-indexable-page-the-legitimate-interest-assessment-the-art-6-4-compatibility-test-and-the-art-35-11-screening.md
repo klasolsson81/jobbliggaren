@@ -1408,7 +1408,7 @@ The readings recorded with them:
 - **The Amendment 2026-10-11 (Art. 9):** D4 above.
 
 **D11: the readings (W2, W3).**
-- **Before the merge,** on the merge's UTC day and before `agents-done`: S2-P3 with the current blob (`<blob>`), counts only. It must read validated 0 in every field and in both readings of the link. It is recorded here and in `docs/runbooks/public-job-page-publication-count.md`. A validated count above 0 fires trigger 2, and the PR stops. If the merge slips past that UTC day, the reading is taken again.
+- **Before the merge,** on the merge's UTC day and before `agents-done`: S2-P3 with the current blob (`ea21c16`), counts only. It must read validated 0 in every field and in both readings of the link. It is recorded here and in `docs/runbooks/public-job-page-publication-count.md`. A validated count above 0 fires trigger 2, and the PR stops. If the merge slips past that UTC day, the reading is taken again.
 - **After the deploy and before Klas publishes the post,** counts only:
   - listed Data/IT ads without an assessment (must be 0), and with a stale one;
   - listed ads by verdict and rule id, and listed decisions by value;
@@ -1421,7 +1421,7 @@ The readings recorded with them:
   A stale assessment is read against the version the release stores: the declared version, then the first eight hex digits of SHA-256 over the file's blob in the release commit (LF).
 
   A count above 0 in the three organisation-number fields goes back to `security-auditor` before the post.
-- **Readings:** `<M4 (a)>`. `<M4 (c)>`.
+- **Readings:** M4 (a), 2026-11-20 15:00–15:01Z, on release sequence 1679 (source `2565c0275`, `--status` consistent before and after), query blob `ea21c16`: listed 45 007; shaped 828 (222 in the description, 652 in the application link, stored and decoded alike); **validated 0** in every field and in both readings of the link. Recorded in `docs/runbooks/public-job-page-publication-count.md`. `<M4 (c)>`.
 
 **What the signature reads with.** She signs at her scoped re-check of the PR's final head, read with ADR 0187 as delivered and with the sixth addendum as Klas approves its text. The delivered properties are those of D5 above and of ADR 0187.
 

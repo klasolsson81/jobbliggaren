@@ -123,16 +123,21 @@ internal sealed class CompanyWatchCriterionAdFeedSource : INotificationFeedSourc
         // criteria reach the same ads). Name the newest of them from the counted hits.
         if (items.Count(i => i.IsUnread) < Math.Min(unreadCount, context.MaxItems))
         {
+            // The newest unread ads are chosen first and only they are joined to their display columns, so the join
+            // reads MaxItems ads rather than every counted one. One statement still.
+            var newestUnread = (
+                    from h in NotHeld(NewCriterionAdSet.NewHits(db, userId), heldByMatch, heldByFollow)
+                    where h.CreatedAt <= through && !h.ReadInNotificationFeed
+                    group h by h.JobAdId into g
+                    select new { JobAdId = g.Key, At = g.Max(h => h.CreatedAt) })
+                .OrderByDescending(x => x.At)
+                .ThenBy(x => x.JobAdId)
+                .Take(context.MaxItems);
             var unreadAds = await (
-                    from x in (
-                        from h in NotHeld(NewCriterionAdSet.NewHits(db, userId), heldByMatch, heldByFollow)
-                        where h.CreatedAt <= through && !h.ReadInNotificationFeed
-                        group h by h.JobAdId into g
-                        select new { JobAdId = g.Key, At = g.Max(h => h.CreatedAt) })
+                    from x in newestUnread
                     join j in db.JobAds.AsNoTracking() on x.JobAdId equals j.Id
                     orderby x.At descending, x.JobAdId
                     select new { x.JobAdId, x.At, j.Title, Company = j.Company.Name })
-                .Take(context.MaxItems)
                 .ToListAsync(cancellationToken);
 
             // One row per ad (ADR 0162 D2): the unread ad replaces the window's version of it (read, because its newest

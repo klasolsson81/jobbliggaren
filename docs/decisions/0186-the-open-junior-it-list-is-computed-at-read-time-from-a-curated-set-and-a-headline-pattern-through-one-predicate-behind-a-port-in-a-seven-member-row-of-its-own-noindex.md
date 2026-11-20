@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-19
 **Status:** Accepted 2026-11-19 (Klas's three decisions of the same day, below, on the approved plan, and the plan reads of `dotnet-architect` and `security-auditor`). The ADR 0166 amendment of the
-same date, which carries the legal outcome (D8), is Accepted by Klas and awaits `security-auditor`'s signature. The merge waits for that signature, because a merge is a go-live (ADR 0154).
+same date, which carries the legal outcome (D8), is Accepted by Klas and signed by `security-auditor` (2026-11-20).
 **Deciders:** Klas Olsson (controller and product owner). At the plan stage, on 2026-11-19, by AskUserQuestion, he answered, verbatim: "Ny öppen sida /junior (Rek.)"; "noindex (Rek.)"; "Två PR,
 /junior först (Rek.)". His answers to `security-auditor`'s three questions are quoted in the ADR 0166 amendment (D8) and are not repeated here. ·
 `dotnet-architect` (plan read, report-only, `docs/reviews/2026-11-19-2260-plan-dotnet-architect.md`: Viktigt 1–5 and Nice-to-have 1–5, marked "(architect V1)" and so on below) ·

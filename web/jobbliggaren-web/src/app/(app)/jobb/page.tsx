@@ -45,6 +45,9 @@ type JobbSearchParams = {
   pageSize?: string;
   sortBy?: string;
   occupationGroup?: string | string[];
+  // An occupation-name (#2199). The backend ORs it with occupationGroup inside the
+  // Yrke dimension.
+  occupationName?: string | string[];
   region?: string | string[];
   municipality?: string | string[];
   // Each toggle below reacts only to its exact value; any other value is treated
@@ -104,6 +107,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
   );
   const sortBy = parseSortBy(params.sortBy);
   const occupationGroup = toStringList(params.occupationGroup);
+  const occupationName = toStringList(params.occupationName);
   const region = toStringList(params.region);
   const municipality = toStringList(params.municipality);
   const employmentType = toStringList(params.employmentType);
@@ -171,6 +175,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
     })
   ).toString();
   const occupationGroupKey = occupationGroup.join(",");
+  const occupationNameKey = occupationName.join(",");
   const regionKey = region.join(",");
   const municipalityKey = municipality.join(",");
   const employmentTypeKey = employmentType.join(",");
@@ -214,6 +219,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 taxonomy={taxonomy}
                 q={q ?? ""}
                 occupationGroup={occupationGroup}
+                occupationName={occupationName}
                 region={region}
                 municipality={municipality}
                 remote={remote}
@@ -231,6 +237,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
               <JobbHeroFilters
                 taxonomy={taxonomy}
                 initialOccupationGroup={occupationGroup}
+                initialOccupationName={occupationName}
                 initialRegion={region}
                 initialMunicipality={municipality}
                 initialRemote={remote}
@@ -280,7 +287,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
               with two writers. */}
           <Announcer>
           <Suspense
-            key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${remoteKey}|${employerKey}`}
+            key={`${resultsKey}|${occupationGroupKey}|${occupationNameKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${remoteKey}|${employerKey}`}
             fallback={<JobAdListSkeleton />}
           >
             <JobbResults
@@ -288,6 +295,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
               pageSize={pageSize}
               sortBy={sortBy}
               occupationGroup={occupationGroup}
+              occupationName={occupationName}
               region={region}
               municipality={municipality}
               remote={remote}

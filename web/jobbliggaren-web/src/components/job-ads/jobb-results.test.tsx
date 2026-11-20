@@ -88,10 +88,17 @@ vi.mock("@/lib/api/taxonomy", () => ({
 // stubbed rather than mounted. Its own visual rendering is covered by `jobb-results-toolbar.test.tsx`.
 // The stub records `resolvedLabels` because that record is composed HERE, and the shape it hands
 // over is the contract the toolbar's own fallback branch reads (#1540).
-const toolbarProps: { resolvedLabels?: Record<string, string> } = {};
+const toolbarProps: {
+  resolvedLabels?: Record<string, string>;
+  occupationName?: ReadonlyArray<string>;
+} = {};
 vi.mock("@/components/job-ads/jobb-results-toolbar", () => ({
-  JobbResultsToolbar: (props: { resolvedLabels: Record<string, string> }) => {
+  JobbResultsToolbar: (props: {
+    resolvedLabels: Record<string, string>;
+    occupationName: ReadonlyArray<string>;
+  }) => {
     toolbarProps.resolvedLabels = props.resolvedLabels;
+    toolbarProps.occupationName = props.occupationName;
     return null;
   },
 }));
@@ -115,7 +122,9 @@ const sampleAd = (id: string): JobAdDto => ({
 const announced = () =>
   document.querySelector('p[role="status"][aria-live="polite"]');
 
-const renderHosted = async () =>
+const renderHosted = async (
+  over: Partial<Parameters<typeof JobbResults>[0]> = {},
+) =>
   render(
     <Announcer>
       {await JobbResults({
@@ -123,6 +132,7 @@ const renderHosted = async () =>
         pageSize: 20,
         sortBy: "PublishedAtDesc",
         occupationGroup: [],
+        occupationName: [],
         region: [],
         municipality: [],
         remote: false,
@@ -137,6 +147,7 @@ const renderHosted = async () =>
         q: "",
         commit: false,
         rawParams: {},
+        ...over,
       })}
     </Announcer>,
   );
@@ -181,6 +192,23 @@ describe("JobbResults — the load's completion reaches the surface region", () 
     expect(toolbarProps.resolvedLabels).toEqual({
       CifL_Rzy_Mku: "Stockholms län",
     });
+  });
+
+  it("#2199: the occupation-names reach the list query, the label lookup and the toolbar", async () => {
+    getJobAds.mockResolvedValue({
+      kind: "ok",
+      data: { items: [sampleAd("a1")], page: 1, pageSize: 20, totalCount: 1 },
+    });
+
+    await renderHosted({ occupationName: ["z5AM_ayf_WcL"] });
+
+    expect(getJobAds).toHaveBeenCalledWith(
+      expect.objectContaining({ occupationName: ["z5AM_ayf_WcL"] }),
+    );
+    expect(resolveTaxonomyLabels).toHaveBeenCalledWith(
+      expect.arrayContaining(["z5AM_ayf_WcL"]),
+    );
+    expect(toolbarProps.occupationName).toEqual(["z5AM_ayf_WcL"]);
   });
 
   it("a SEARCH announces the count — W3C's '18 results returned'", async () => {
@@ -259,6 +287,7 @@ describe("JobbResults — the save verdict reaches the hero's context", () => {
   const stateFor = (q: string): JobbUrlState => ({
     q,
     occupationGroup: [],
+    occupationName: [],
     region: [],
     municipality: [],
     remote: false,
@@ -288,6 +317,7 @@ describe("JobbResults — the save verdict reaches the hero's context", () => {
             pageSize: 20,
             sortBy: "PublishedAtDesc",
             occupationGroup: [],
+            occupationName: [],
             region: [],
             municipality: [],
             remote: false,

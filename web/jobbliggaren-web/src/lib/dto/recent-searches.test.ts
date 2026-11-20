@@ -8,6 +8,7 @@ const wireBase = {
   id: "33333333-3333-3333-3333-333333333333",
   q: "backend",
   occupationGroupList: ["MVqp_eS8_kDZ"],
+  occupationNameList: [],
   municipalityList: ["zHxw_uJZ_NNh"],
   regionList: ["CifL_Rzy_Mku"],
   employmentTypeList: ["gro4_cWF_6D7"],
@@ -17,6 +18,7 @@ const wireBase = {
   occupationGroupLabels: [
     { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
   ],
+  occupationNameLabels: [],
   municipalityLabels: [{ conceptId: "zHxw_uJZ_NNh", label: "Solna" }],
   regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
   sortBy: 0,
@@ -161,6 +163,24 @@ describe("recentJobSearchDtoSchema", () => {
     // filter" — a replay that silently widens, which is #1471's own failure mode one layer out.
     const { employerList: _omitted, ...withoutEmployerList } = wireBase;
     expect(() => recentJobSearchDtoSchema.parse(withoutEmployerList)).toThrow();
+  });
+
+  it("carries occupationNameList and its labels from the wire (#2199)", () => {
+    const parsed = recentJobSearchDtoSchema.parse({
+      ...wireBase,
+      occupationNameList: ["z5AM_ayf_WcL"],
+      occupationNameLabels: [{ conceptId: "z5AM_ayf_WcL", label: "Projektledare, IT" }],
+    });
+    expect(parsed.occupationNameList).toEqual(["z5AM_ayf_WcL"]);
+    expect(parsed.occupationNameLabels).toEqual([
+      { conceptId: "z5AM_ayf_WcL", label: "Projektledare, IT" },
+    ]);
+  });
+
+  it("requires occupationNameList and defaults occupationNameLabels, by the schema's shape", () => {
+    const { occupationNameList, occupationNameLabels } = recentJobSearchDtoSchema.shape;
+    expect(occupationNameList.safeParse(undefined).success).toBe(false);
+    expect(occupationNameLabels.parse(undefined)).toEqual([]);
   });
 
   it("parses an Employer part, which carries neither text nor code (#1471)", () => {

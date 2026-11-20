@@ -8,13 +8,14 @@ import type {
 } from "@/lib/occupation-search/resolve-occupation-search";
 
 // Real v30 labels and ids: the answer names the word it was given, so a stale answer is visible.
+// The name's id is Backend-utvecklare's for every word: only the label tells two answers apart.
 const answerFor = (word: string): OccupationSearchResult => ({
   rows: [
     {
       kind: "Group",
       groupConceptId: "DJh5_yyF_hEM",
       groupLabel: "Mjukvaru- och systemutvecklare m.fl.",
-      matchedNames: [word],
+      matchedNames: [{ occupationNameConceptId: "7wdX_4rv_33z", nameLabel: word }],
       labelHit: false,
       headWord: null,
       variants: [],

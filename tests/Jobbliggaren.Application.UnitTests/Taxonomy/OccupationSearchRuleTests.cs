@@ -50,36 +50,36 @@ public class OccupationSearchRuleTests
         (Aklagare, "Åklagare"),
     ];
 
-    private static readonly (string Name, string GroupId)[] Names =
+    private static readonly (string Id, string Name, string GroupId)[] Names =
     [
-        ("Projektledare, IT", Mjukvaru),
-        ("Projektledare, el", Elektroteknik),
-        ("Projektledare, telekom", Elektroteknik),
-        ("Projektledare, bygg och anläggning", Bygg),
-        ("Frontend-utvecklare", Mjukvaru),
-        ("Applikationsutvecklare", Mjukvaru),
-        ("Backend-utvecklare", Mjukvaru),
-        ("UX-designer", OvrigaIt),
-        ("Rektor", SkolChefer),
-        ("Grillkock snabbmat", Pizzabagare),
-        ("Kock storhushåll", Kockar),
-        ("Anestesisjuksköterska", Anestesi),
-        ("Sjuksköterska, grundutbildad", Grundutbildade),
-        ("Elingenjör", Elektroteknik),
-        ("Elingenjör, fartyg/Fartygseltekniker", Maskinbefal),
-        ("Florist", Butikssaljare),
-        ("Åklagare", Aklagare),
+        ("z5AM_ayf_WcL", "Projektledare, IT", Mjukvaru),
+        ("1jm3_XFQ_TdJ", "Projektledare, el", Elektroteknik),
+        ("T55e_efV_Eqh", "Projektledare, telekom", Elektroteknik),
+        ("pTTz_5DC_itW", "Projektledare, bygg och anläggning", Bygg),
+        ("GDHs_eoz_uKx", "Frontend-utvecklare", Mjukvaru),
+        ("CZkP_hCz_KM8", "Applikationsutvecklare", Mjukvaru),
+        ("7wdX_4rv_33z", "Backend-utvecklare", Mjukvaru),
+        ("iwJU_gW4_SxT", "UX-designer", OvrigaIt),
+        ("hr5f_dci_NcD", "Rektor", SkolChefer),
+        ("FntA_2Z4_8zD", "Grillkock snabbmat", Pizzabagare),
+        ("Vg3d_Azf_p5Y", "Kock storhushåll", Kockar),
+        ("4qYQ_tWb_QjD", "Anestesisjuksköterska", Anestesi),
+        ("bXNH_MNX_dUR", "Sjuksköterska, grundutbildad", Grundutbildade),
+        ("kx3b_92W_PuD", "Elingenjör", Elektroteknik),
+        ("YEm9_pLR_XoT", "Elingenjör, fartyg/Fartygseltekniker", Maskinbefal),
+        ("EuTa_edS_Add", "Florist", Butikssaljare),
+        ("xrNb_bgJ_bdD", "Åklagare", Aklagare),
     ];
 
     private static readonly OccupationSearchRule.PreparedIndex Index = OccupationSearchRule.Prepare(Contents(Names, Groups));
 
     private static OccupationNameIndexContents Contents(
-        IEnumerable<(string Name, string GroupId)> names, IEnumerable<(string Id, string Label)> groups)
+        IEnumerable<(string Id, string Name, string GroupId)> names, IEnumerable<(string Id, string Label)> groups)
     {
         var groupList = groups.Select(g => new OccupationGroupEntry(g.Id, g.Label)).ToList();
         var labelById = groupList.ToDictionary(g => g.ConceptId, g => g.Label, StringComparer.Ordinal);
         return new OccupationNameIndexContents(
-            names.Select(n => new OccupationNameEntry($"id-{n.Name}", n.Name, n.GroupId, labelById[n.GroupId])).ToList(),
+            names.Select(n => new OccupationNameEntry(n.Id, n.Name, n.GroupId, labelById[n.GroupId])).ToList(),
             groupList);
     }
 
@@ -93,7 +93,7 @@ public class OccupationSearchRuleTests
         var row = result.Rows.ShouldHaveSingleItem();
         row.Kind.ShouldBe(OccupationSearchRowKind.Group);
         row.GroupConceptId.ShouldBe(Mjukvaru);
-        row.MatchedNames.ShouldBe(["Frontend-utvecklare"]);
+        row.MatchedNames.Select(n => n.NameLabel).ShouldBe(["Frontend-utvecklare"]);
         result.TotalRows.ShouldBe(1);
     }
 
@@ -104,7 +104,7 @@ public class OccupationSearchRuleTests
         var row = Search("utvecklare").Rows.ShouldHaveSingleItem();
 
         row.GroupConceptId.ShouldBe(Mjukvaru);
-        row.MatchedNames.ShouldBe(["Backend-utvecklare", "Frontend-utvecklare", "Applikationsutvecklare"]);
+        row.MatchedNames.Select(n => n.NameLabel).ShouldBe(["Backend-utvecklare", "Frontend-utvecklare", "Applikationsutvecklare"]);
         row.LabelHit.ShouldBeTrue();
     }
 
@@ -140,7 +140,7 @@ public class OccupationSearchRuleTests
         var rows = Search("kock").Rows;
 
         rows.Select(r => r.GroupConceptId).ShouldBe([Kockar, Pizzabagare]);
-        rows[1].MatchedNames.ShouldBe(["Grillkock snabbmat"]);
+        rows[1].MatchedNames.Select(n => n.NameLabel).ShouldBe(["Grillkock snabbmat"]);
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public class OccupationSearchRuleTests
         var row = Search("UX").Rows.ShouldHaveSingleItem();
 
         row.GroupConceptId.ShouldBe(OvrigaIt);
-        row.MatchedNames.ShouldBe(["UX-designer"]);
+        row.MatchedNames.Select(n => n.NameLabel).ShouldBe(["UX-designer"]);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public class OccupationSearchRuleTests
 
         row.Kind.ShouldBe(OccupationSearchRowKind.Group);
         row.GroupConceptId.ShouldBe(Mjukvaru);
-        row.MatchedNames.ShouldBe(["Projektledare, IT"]);
+        row.MatchedNames.Select(n => n.NameLabel).ShouldBe(["Projektledare, IT"]);
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public class OccupationSearchRuleTests
         // Reached both by the name and by the label: one row, the label hit flagged.
         row.GroupConceptId.ShouldBe(Bygg);
         row.LabelHit.ShouldBeTrue();
-        row.MatchedNames.ShouldBe(["Projektledare, bygg och anläggning"]);
+        row.MatchedNames.Select(n => n.NameLabel).ShouldBe(["Projektledare, bygg och anläggning"]);
     }
 
     [Fact]
@@ -285,6 +285,34 @@ public class OccupationSearchRuleTests
         var ordered = unordered.Order(OccupationSearchRule.Collation).ToArray();
 
         ordered.ShouldBe(["Z", "Å", "Ä", "Ö"]);
+    }
+
+    [Fact]
+    public void Search_EvidenceNames_CarryTheirOwnOccupationNameIds_InTheRulesOrder()
+    {
+        // #2199 PR 3 — /jobb ticks an evidence name by its own id, so each entry pairs the name's id
+        // with its label; neither is ever the row's group id.
+        var row = Search("utvecklare").Rows.ShouldHaveSingleItem();
+
+        row.MatchedNames.ShouldBe(
+        [
+            new OccupationSearchMatchedName("7wdX_4rv_33z", "Backend-utvecklare"),
+            new OccupationSearchMatchedName("GDHs_eoz_uKx", "Frontend-utvecklare"),
+            new OccupationSearchMatchedName("CZkP_hCz_KM8", "Applikationsutvecklare"),
+        ]);
+        row.MatchedNames.ShouldAllBe(n => n.OccupationNameConceptId != row.GroupConceptId);
+    }
+
+    [Fact]
+    public void Search_TheNameTypedInFull_IsGroupRowEvidenceWithItsOwnId()
+    {
+        // The case the #2199 PR 3 ruling names: "projektledare it" reaches one name in one group, so
+        // the answer is that group's row, and the name must still be tickable by its own id.
+        var row = Search("projektledare it").Rows.ShouldHaveSingleItem();
+
+        row.Kind.ShouldBe(OccupationSearchRowKind.Group);
+        row.GroupConceptId.ShouldBe(Mjukvaru);
+        row.MatchedNames.ShouldBe([new OccupationSearchMatchedName("z5AM_ayf_WcL", "Projektledare, IT")]);
     }
 
     [Fact]
@@ -347,7 +375,7 @@ public class OccupationSearchRuleTests
             var names = fields.SelectMany(f => f.GetProperty("occupations").EnumerateArray())
                 .Select(o => (Id: o.GetProperty("conceptId").GetString()!, Label: o.GetProperty("label").GetString()!))
                 .Where(o => groupByName.TryGetValue(o.Id, out var g) && groupIds.Contains(g))
-                .Select(o => (o.Label, groupByName[o.Id]));
+                .Select(o => (o.Id, o.Label, groupByName[o.Id]));
 
             return Contents(names, groups);
         }

@@ -38,6 +38,7 @@ describe("JobbHeroFilters — the results footer returns focus to its pill (#219
       <JobbHeroFilters
         taxonomy={taxonomy}
         initialOccupationGroup={[]}
+        initialOccupationName={[]}
         initialRegion={[]}
         initialMunicipality={[]}
         initialRemote={false}

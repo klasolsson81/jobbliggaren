@@ -50,6 +50,11 @@ export interface PopoverItem {
 export interface PopoverSearch {
   readonly field: React.ReactElement;
   readonly results: React.ReactElement | null;
+  /**
+   * The host holds a selection the columns cannot show (#2199: occupation-names on /jobb), so the
+   * header's "Rensa" shows even when no column row is ticked. Omitted, nothing changes.
+   */
+  readonly holdsHiddenSelection?: boolean;
 }
 
 /** The boolean row above the columns, and the composed search, are never passed together. */
@@ -302,7 +307,8 @@ export function JobbFilterPopover({
   const anySelectedAnywhere =
     selected.length > 0 ||
     (groupAxis?.selected.length ?? 0) > 0 ||
-    booleanAxis?.checked === true;
+    booleanAxis?.checked === true ||
+    search?.holdsHiddenSelection === true;
 
   // In a sheet the columns show one at a time: the groups first, then the picked group's items.
   // The row that opened a group is hidden at level 2, so focus goes to the group's heading, and

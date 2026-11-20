@@ -823,6 +823,9 @@ export function sameUrlState(a: JobbUrlState, b: JobbUrlState): boolean {
   return (
     a.q === b.q &&
     sameList(a.occupationGroup, b.occupationGroup) &&
+    // #2199 — an occupation-name is picked in the Yrke popover and is not
+    // text-representable; same reason as the Distans line below.
+    sameList(a.occupationName, b.occupationName) &&
     sameList(a.region, b.region) &&
     sameList(a.municipality, b.municipality) &&
     // #2072 — Distans is set in the place popover and is not text-representable; without

@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
 
   const result = await getFacetCounts(dimension.data, {
     occupationGroup: params.getAll("occupationGroup"),
+    occupationName: params.getAll("occupationName"),
     municipality: params.getAll("municipality"),
     region: params.getAll("region"),
     employmentType: params.getAll("employmentType"),

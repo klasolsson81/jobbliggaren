@@ -106,7 +106,12 @@ public class SearchOccupationsEndpointTests(ApiFactory factory)
             .Single(r => r.GetProperty("groupConceptId").GetString() == "DJh5_yyF_hEM");
         row.GetProperty("kind").GetString().ShouldBe("Group");
         row.GetProperty("groupLabel").GetString().ShouldBe("Mjukvaru- och systemutvecklare m.fl.");
-        row.GetProperty("matchedNames").EnumerateArray().Select(n => n.GetString()).ShouldContain("Backend-utvecklare");
+        // #2199 PR 3 — each evidence name is an object with its own occupation-name id.
+        var backend = row.GetProperty("matchedNames").EnumerateArray()
+            .Single(n => n.GetProperty("nameLabel").GetString() == "Backend-utvecklare");
+        backend.GetProperty("occupationNameConceptId").GetString().ShouldBe("7wdX_4rv_33z");
+        backend.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ShouldBe(
+            ["nameLabel", "occupationNameConceptId"]);
         row.GetProperty("headWord").ValueKind.ShouldBe(JsonValueKind.Null);
         row.GetProperty("variants").GetArrayLength().ShouldBe(0);
         row.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ShouldBe(

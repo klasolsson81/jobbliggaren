@@ -26,6 +26,9 @@ export interface ListJobAdsQuery {
   // level-4). Fas E2b: ?municipality= (kommun) — backend unionerar
   // region∪municipality (Ort = en dimension, ADR 0067 impl-notat E2b).
   occupationGroup?: ReadonlyArray<string>;
+  // #2199 — occupation-names, repeated like occupationGroup. The backend ORs them
+  // with the groups inside the Yrke dimension (ADR 0067 Amendment 2026-10-24).
+  occupationName?: ReadonlyArray<string>;
   region?: ReadonlyArray<string>;
   municipality?: ReadonlyArray<string>;
   /**
@@ -82,6 +85,8 @@ function buildQuery(query: ListJobAdsQuery): string {
   // append (ej set) — upprepad nyckel per element (ADR 0042 Beslut B).
   for (const v of query.occupationGroup ?? [])
     params.append("occupationGroup", v);
+  for (const v of query.occupationName ?? [])
+    params.append("occupationName", v);
   for (const v of query.region ?? []) params.append("region", v);
   for (const v of query.municipality ?? []) params.append("municipality", v);
   // Klass 2 — upprepad nyckel per element (samma som dimensionerna ovan).
@@ -222,6 +227,7 @@ export async function suggestJobAdTerms(
 
 export interface FacetCountsFilter {
   occupationGroup?: ReadonlyArray<string>;
+  occupationName?: ReadonlyArray<string>;
   municipality?: ReadonlyArray<string>;
   region?: ReadonlyArray<string>;
   // ADR 0067 PR-3 — Klass 2-filterkontext för facetten (backend exkluderar
@@ -256,6 +262,8 @@ export async function getFacetCounts(
   const params = new URLSearchParams({ dimension });
   for (const v of filter.occupationGroup ?? [])
     params.append("occupationGroup", v);
+  for (const v of filter.occupationName ?? [])
+    params.append("occupationName", v);
   for (const v of filter.municipality ?? []) params.append("municipality", v);
   for (const v of filter.region ?? []) params.append("region", v);
   for (const v of filter.employmentType ?? [])

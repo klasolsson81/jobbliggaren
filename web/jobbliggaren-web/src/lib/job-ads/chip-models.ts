@@ -18,6 +18,8 @@ import { excludedTermOf } from "./search-text-grammar";
 
 export type DimensionAxis =
   | "occupationGroup"
+  // #2199 — the Yrke dimension's finer granularity; removed like any other axis.
+  | "occupationName"
   | "region"
   | "municipality"
   // Klass 2 (2026-06-13) — anställningsform + omfattning. removeChipFromState
@@ -49,8 +51,8 @@ export function splitQWords(q: string): string[] {
 /**
  * Bygger chip-listan ur URL-staten (E2g-principen — chips DERIVERAS, ingen
  * egen lista). Ordning: region → municipality → occupationGroup (geografin
- * samlad, E2b-architect-dom) → employmentType → worktimeExtent (Klass 2) →
- * q-ord sist.
+ * samlad, E2b-architect-dom) → occupationName (#2199, same dimension) →
+ * employmentType → worktimeExtent (Klass 2) → q-ord sist.
  */
 export function buildChipModels(
   state: JobbUrlState,
@@ -72,6 +74,11 @@ export function buildChipModels(
       axis: "occupationGroup",
       value: id,
       label: resolveLabel("occupationGroup", id),
+    })),
+    ...state.occupationName.map<SearchChip>((id) => ({
+      axis: "occupationName",
+      value: id,
+      label: resolveLabel("occupationName", id),
     })),
     ...state.employmentType.map<SearchChip>((id) => ({
       axis: "employmentType",

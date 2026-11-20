@@ -112,6 +112,7 @@ function probeSearch() {
   return {
     q: "backend",
     occupationGroup: [],
+    occupationName: [],
     region: [],
     municipality: [],
     remote: false,

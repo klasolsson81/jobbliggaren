@@ -69,6 +69,7 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroSearch>[0]>) {
       taxonomy={taxonomy}
       q=""
       occupationGroup={[]}
+      occupationName={[]}
       region={[]}
       municipality={[]}
       remote={false}
@@ -336,6 +337,7 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
         taxonomy={taxonomy}
         q=""
         occupationGroup={[]}
+        occupationName={[]}
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
         remote={false}
@@ -395,6 +397,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         taxonomy={taxonomy}
         q=""
         occupationGroup={[]}
+        occupationName={[]}
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
         remote={false}
@@ -414,6 +417,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         taxonomy={taxonomy}
         q="volvo"
         occupationGroup={[]}
+        occupationName={[]}
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
         remote={false}
@@ -438,6 +442,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         taxonomy={taxonomy}
         q="sjuksköterska"
         occupationGroup={[]}
+        occupationName={[]}
         region={["CifL_Rzy_Mku"]}
         municipality={[]}
         remote={false}
@@ -467,6 +472,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         taxonomy={taxonomy}
         q="volvo lastbil"
         occupationGroup={[]}
+        occupationName={[]}
         region={[]}
         municipality={[]}
         remote={false}
@@ -490,6 +496,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         taxonomy={taxonomy}
         q=""
         occupationGroup={[]}
+        occupationName={[]}
         region={[]}
         municipality={[]}
         remote={false}
@@ -513,6 +520,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         taxonomy={taxonomy}
         q=""
         occupationGroup={[]}
+        occupationName={[]}
         region={[]}
         municipality={[]}
         remote={true}
@@ -684,6 +692,7 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
         taxonomy={null}
         q=""
         occupationGroup={[]}
+        occupationName={[]}
         region={[]}
         municipality={[]}
         remote={false}
@@ -756,6 +765,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
         taxonomy={taxonomy}
         q="utvecklare"
         occupationGroup={[]}
+        occupationName={[]}
         region={[]}
         municipality={[]}
         remote={false}
@@ -786,6 +796,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
         taxonomy={taxonomy}
         q="utvecklare"
         occupationGroup={[]}
+        occupationName={[]}
         region={[]}
         municipality={[]}
         remote={false}
@@ -887,6 +898,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
       taxonomy,
       q: "utvecklare",
       occupationGroup: [] as string[],
+      occupationName: [],
       region: [] as string[],
       municipality: [] as string[],
       remote: false,
@@ -907,6 +919,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
       <JobbHeroSearch
         {...props}
         occupationGroup={[]}
+        occupationName={[]}
         region={[]}
         municipality={[]}
         remote={false}
@@ -939,6 +952,60 @@ describe("JobbHeroSearch — no-JS bär Distans (#551 punkt 4)", () => {
   });
 });
 
+describe("JobbHeroSearch — the occupation-name axis (#2199)", () => {
+  // A name is picked in the Yrke popover and is never written as text, so this
+  // component must carry it through every commit and through the no-JS form.
+  const NAME = "z5AM_ayf_WcL";
+
+  it("an external name pick survives the next text commit", async () => {
+    const user = userEvent.setup();
+    const { rerender } = setup();
+    rerender(
+      <JobbHeroSearch
+        taxonomy={taxonomy}
+        q=""
+        occupationGroup={[]}
+        occupationName={[NAME]}
+        region={[]}
+        municipality={[]}
+        remote={false}
+        employmentType={[]}
+        worktimeExtent={[]}
+        matchGrades={[]}
+        employer={[]}
+        sortBy="PublishedAtDesc"
+        initialCommitted={false}
+      />,
+    );
+    await user.type(screen.getByRole("combobox"), "volvo ");
+    expect(replaceMock).toHaveBeenLastCalledWith(
+      `/jobb?occupationName=${NAME}&q=volvo`,
+      { scroll: false },
+    );
+  });
+
+  it("never writes the name into the field", () => {
+    setup({ occupationName: [NAME] });
+    expect(screen.getByRole("combobox")).toHaveValue("");
+  });
+
+  it("carries the names in one joined hidden input for the no-JS form", () => {
+    const { container } = setup({ occupationName: [NAME, "1jm3_XFQ_TdJ"] });
+    const inputs = container.querySelectorAll(
+      'input[type="hidden"][name="occupationName"]',
+    );
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]).toHaveValue(`${NAME}.1jm3_XFQ_TdJ`);
+  });
+
+  it("offers Spara sökningen for a search that carries only a name", () => {
+    setup({ occupationName: [NAME], initialCommitted: false });
+    expect(
+      screen.getByRole("button", { name: "Spara sökningen" }),
+    ).toBeInTheDocument();
+  });
+});
+
 // #1787 — the field is on screen and editable before React attaches to it. These cases
 // start from the server's markup, edit it the way a person does, and then hydrate it, so
 // the text's fate is decided by the component and not by how fast hydration happens.
@@ -950,6 +1017,7 @@ describe("JobbHeroSearch — text typed before hydration (#1787)", () => {
       taxonomy,
       q: "",
       occupationGroup: [],
+      occupationName: [],
       region: [],
       municipality: [],
       remote: false,
@@ -1108,6 +1176,7 @@ describe("JobbHeroSearch — minus-ord (#2143)", () => {
         taxonomy={taxonomy}
         q={q}
         occupationGroup={[]}
+        occupationName={[]}
         region={[]}
         municipality={[]}
         remote={false}

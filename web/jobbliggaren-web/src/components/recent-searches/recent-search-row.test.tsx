@@ -24,6 +24,7 @@ function makeDto(extra?: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     id: "11111111-1111-1111-1111-111111111111",
     q: "backend",
     occupationGroupList: ["MVqp_eS8_kDZ"],
+    occupationNameList: [],
     municipalityList: [],
     regionList: ["CifL_Rzy_Mku"],
     employmentTypeList: ["gro4_cWF_6D7"],
@@ -33,6 +34,7 @@ function makeDto(extra?: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     occupationGroupLabels: [
       { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
     ],
+    occupationNameLabels: [],
     municipalityLabels: [],
     regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
     sortBy: "PublishedAtDesc",

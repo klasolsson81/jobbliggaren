@@ -83,6 +83,7 @@ function renderJobb() {
     <JobbHeroFilters
       taxonomy={taxonomy}
       initialOccupationGroup={[]}
+      initialOccupationName={[]}
       initialRegion={[]}
       initialMunicipality={[]}
       initialRemote={false}

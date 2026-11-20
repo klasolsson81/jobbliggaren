@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationFeedCriterionAds;
 using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationFeedFollowedAds;
 using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationFeedMatches;
 using Jobbliggaren.Application.UnitTests.Common;
@@ -11,7 +12,7 @@ using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.JobSeekers.Commands.SetNotificationFeed;
 
-// ADR 0162 (#2130) - the two bell switches. Same owner-scoped audited shape as the mail pauses (ADR 0164); SaveChanges is
+// ADR 0162 (#2130), ADR 0175 D8 (#1663) - the three bell switches. Same owner-scoped audited shape as the mail pauses (ADR 0164); SaveChanges is
 // UnitOfWorkBehavior's, so assertions read the tracked entity. A bell switch writes its own stamp and nothing else.
 public class SetNotificationFeedCommandHandlerTests
 {
@@ -19,6 +20,7 @@ public class SetNotificationFeedCommandHandlerTests
     {
         Matches,
         FollowedAds,
+        CriterionAds,
     }
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
@@ -51,6 +53,8 @@ public class SetNotificationFeedCommandHandlerTests
                 .Handle(new SetNotificationFeedMatchesCommand(enabled), CancellationToken.None),
             Switch.FollowedAds => new SetNotificationFeedFollowedAdsCommandHandler(db, currentUser, clock)
                 .Handle(new SetNotificationFeedFollowedAdsCommand(enabled), CancellationToken.None),
+            Switch.CriterionAds => new SetNotificationFeedCriterionAdsCommandHandler(db, currentUser, clock)
+                .Handle(new SetNotificationFeedCriterionAdsCommand(enabled), CancellationToken.None),
             _ => throw new ArgumentOutOfRangeException(nameof(which), which, null),
         };
 
@@ -58,6 +62,7 @@ public class SetNotificationFeedCommandHandlerTests
     {
         Switch.Matches => preferences.NotificationFeedMatchesOffAt,
         Switch.FollowedAds => preferences.NotificationFeedFollowedAdsOffAt,
+        Switch.CriterionAds => preferences.NotificationFeedCriterionAdsOffAt,
         _ => throw new ArgumentOutOfRangeException(nameof(which), which, null),
     };
 
@@ -65,8 +70,21 @@ public class SetNotificationFeedCommandHandlerTests
     {
         Switch.Matches => preferences with { NotificationFeedMatchesOffAt = stamp },
         Switch.FollowedAds => preferences with { NotificationFeedFollowedAdsOffAt = stamp },
+        Switch.CriterionAds => preferences with { NotificationFeedCriterionAdsOffAt = stamp },
         _ => throw new ArgumentOutOfRangeException(nameof(which), which, null),
     };
+
+    private static void SetSwitch(JobSeeker seeker, Switch which, bool on, IDateTimeProvider clock)
+    {
+        Action<bool, IDateTimeProvider> set = which switch
+        {
+            Switch.Matches => seeker.SetNotificationFeedMatches,
+            Switch.FollowedAds => seeker.SetNotificationFeedFollowedAds,
+            Switch.CriterionAds => seeker.SetNotificationFeedCriterionAds,
+            _ => throw new ArgumentOutOfRangeException(nameof(which), which, null),
+        };
+        set(on, clock);
+    }
 
     private Preferences StoredPreferences(AppDbContext db) =>
         db.JobSeekers.Single(js => js.UserId == _userId).Preferences;
@@ -74,6 +92,7 @@ public class SetNotificationFeedCommandHandlerTests
     [Theory]
     [InlineData(Switch.Matches)]
     [InlineData(Switch.FollowedAds)]
+    [InlineData(Switch.CriterionAds)]
     public async Task Handle_WhenUserIdIsNull_ReturnsUnauthorizedValidationFailure(Switch which)
     {
         var db = TestAppDbContextFactory.Create();
@@ -89,6 +108,7 @@ public class SetNotificationFeedCommandHandlerTests
     [Theory]
     [InlineData(Switch.Matches)]
     [InlineData(Switch.FollowedAds)]
+    [InlineData(Switch.CriterionAds)]
     public async Task Handle_WhenNoJobSeekerForUser_ReturnsNotFound(Switch which)
     {
         var db = TestAppDbContextFactory.Create();
@@ -99,11 +119,12 @@ public class SetNotificationFeedCommandHandlerTests
         result.Error.Code.ShouldBe("JobSeeker.NotFound");
     }
 
-    // Everything else the user owns is set first (both consents, a mail pause, the other bell switch), so the assertion
+    // Everything else the user owns is set first (both consents, a mail pause, the other bell switches), so the assertion
     // sees that only this switch's stamp moved (security V3).
     [Theory]
     [InlineData(Switch.Matches)]
     [InlineData(Switch.FollowedAds)]
+    [InlineData(Switch.CriterionAds)]
     public async Task Handle_WhenSwitchingOff_StampsOnlyItsOwnSwitch_AndEchoesJobSeekerId(Switch which)
     {
         var db = TestAppDbContextFactory.Create();
@@ -111,10 +132,8 @@ public class SetNotificationFeedCommandHandlerTests
         seeker.UpdateNotificationConsent(enabled: true, ClockT0);
         seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, ClockT0);
         seeker.SetTopMatchMail(on: false, ClockT0);
-        if (which == Switch.Matches)
-            seeker.SetNotificationFeedFollowedAds(on: false, ClockT0);
-        else
-            seeker.SetNotificationFeedMatches(on: false, ClockT0);
+        foreach (var other in Enum.GetValues<Switch>().Where(other => other != which))
+            SetSwitch(seeker, other, on: false, ClockT0);
         await db.SaveChangesAsync(CancellationToken.None);
         var before = StoredPreferences(db);
 
@@ -128,16 +147,14 @@ public class SetNotificationFeedCommandHandlerTests
     [Theory]
     [InlineData(Switch.Matches)]
     [InlineData(Switch.FollowedAds)]
+    [InlineData(Switch.CriterionAds)]
     public async Task Handle_WhenSwitchingOnAfterOff_ClearsOnlyItsOwnSwitch_AndEchoesJobSeekerId(Switch which)
     {
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db, _userId);
         seeker.UpdateNotificationConsent(enabled: true, ClockT0);
         seeker.SetNotificationMail(on: false, ClockT0);
-        if (which == Switch.Matches)
-            seeker.SetNotificationFeedMatches(on: false, ClockT1);
-        else
-            seeker.SetNotificationFeedFollowedAds(on: false, ClockT1);
+        SetSwitch(seeker, which, on: false, ClockT1);
         await db.SaveChangesAsync(CancellationToken.None);
         var before = StoredPreferences(db);
 
@@ -152,6 +169,7 @@ public class SetNotificationFeedCommandHandlerTests
     [Theory]
     [InlineData(Switch.Matches)]
     [InlineData(Switch.FollowedAds)]
+    [InlineData(Switch.CriterionAds)]
     public async Task Handle_NeverChangesAConsentField_InEitherDirection(Switch which)
     {
         var db = TestAppDbContextFactory.Create();
@@ -178,12 +196,19 @@ public class SetNotificationFeedCommandHandlerTests
     [InlineData(Switch.Matches, false, "{\"enabled\":false}")]
     [InlineData(Switch.FollowedAds, true, "{\"enabled\":true}")]
     [InlineData(Switch.FollowedAds, false, "{\"enabled\":false}")]
+    [InlineData(Switch.CriterionAds, true, "{\"enabled\":true}")]
+    [InlineData(Switch.CriterionAds, false, "{\"enabled\":false}")]
     public void BuildAuditPayload_IsExactlyTheRequestedEnabled(Switch which, bool enabled, string expected)
     {
         var pseudonymizer = Substitute.For<IIdentifierPseudonymizer>();
-        var payload = which == Switch.Matches
-            ? new SetNotificationFeedMatchesCommand(enabled).BuildAuditPayload(Result.Success(Guid.NewGuid()), pseudonymizer)
-            : new SetNotificationFeedFollowedAdsCommand(enabled).BuildAuditPayload(Result.Success(Guid.NewGuid()), pseudonymizer);
+        var response = Result.Success(Guid.NewGuid());
+        var payload = which switch
+        {
+            Switch.Matches => new SetNotificationFeedMatchesCommand(enabled).BuildAuditPayload(response, pseudonymizer),
+            Switch.FollowedAds => new SetNotificationFeedFollowedAdsCommand(enabled).BuildAuditPayload(response, pseudonymizer),
+            Switch.CriterionAds => new SetNotificationFeedCriterionAdsCommand(enabled).BuildAuditPayload(response, pseudonymizer),
+            _ => throw new ArgumentOutOfRangeException(nameof(which), which, null),
+        };
 
         payload.ShouldBe(expected);
     }
@@ -193,16 +218,20 @@ public class SetNotificationFeedCommandHandlerTests
     {
         var matches = new SetNotificationFeedMatchesCommand(Enabled: false);
         var followed = new SetNotificationFeedFollowedAdsCommand(Enabled: false);
+        var criterion = new SetNotificationFeedCriterionAdsCommand(Enabled: false);
 
         matches.EventType.ShouldBe("JobSeeker.NotificationFeedMatchesUpdated");
         followed.EventType.ShouldBe("JobSeeker.NotificationFeedFollowedAdsUpdated");
+        criterion.EventType.ShouldBe("JobSeeker.NotificationFeedCriterionAdsUpdated");
         matches.AggregateType.ShouldBe("JobSeeker");
         followed.AggregateType.ShouldBe("JobSeeker");
+        criterion.AggregateType.ShouldBe("JobSeeker");
     }
 
     [Theory]
     [InlineData(Switch.Matches)]
     [InlineData(Switch.FollowedAds)]
+    [InlineData(Switch.CriterionAds)]
     public async Task Handle_IsOwnerScoped_DoesNotTouchOtherUsersSwitch(Switch which)
     {
         var db = TestAppDbContextFactory.Create();

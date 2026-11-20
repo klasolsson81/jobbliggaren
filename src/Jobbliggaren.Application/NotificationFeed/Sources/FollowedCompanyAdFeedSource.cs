@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.Matching.Queries;
 using Jobbliggaren.Application.NotificationFeed.Queries.GetMyNotificationFeed;
@@ -33,6 +34,13 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// fallbacks leave its hits out in SQL, and the token does not. Whether the match gate holds is read in the first
 /// statement, so with it off no statement here reads a match row; the held set checks the gate again inside every
 /// statement that uses it.
+/// </para>
+///
+/// <para>
+/// <b>The ads it holds for a lower source (ADR 0175 D8):</b> <see cref="HeldAdIds"/> is every ad with a live hit under an
+/// active watch while <see cref="NotificationFeedGate.FollowedAds"/> holds, whatever the hit's state, read or graded out
+/// included. The Branschbevakning source leaves those ads out, so a followed company's ad is its notification and not a
+/// Branschbevakning's. Nothing here reads that lower source.
 /// </para>
 ///
 /// <para>
@@ -270,6 +278,20 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
             .ThenBy(x => x.AdId.Value)
             .Take(maxItems)
             .ToList();
+
+    /// <summary>
+    /// The ads this source holds (ADR 0175 D8): every ad the user has a hit for under an active watch, read, dismissed,
+    /// graded out or behind the watermark alike, while <see cref="NotificationFeedGate.FollowedAds"/> holds. The
+    /// Branschbevakning source leaves these ads out, so an ad is one notification. The gate is inside the query, so a
+    /// statement that composes it reads a follow hit only while the gate holds in that statement.
+    /// </summary>
+    internal static IQueryable<JobAdId> HeldAdIds(IAppDbContext db, Guid userId)
+    {
+        var gated = NotificationFeedGate.FollowedAds.Apply(db.JobSeekers);
+        return NewFollowedCompanyAdSet.NewHits(db, userId, lastSeen: null)
+            .Where(h => gated.Any(js => js.UserId == h.UserId))
+            .Select(h => h.JobAdId);
+    }
 
     /// <summary>The hits the bell counts: unread in the bell, and of an ad the match source does not hold.</summary>
     private static Expression<Func<FollowedCompanyAdHit, bool>> CountedInTheBell(IQueryable<JobAdId>? held)

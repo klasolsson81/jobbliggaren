@@ -62,6 +62,13 @@ namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 /// </para>
 ///
 /// <para>
+/// <b>M0 and M1</b> (senior-cto-advisor's measurement ruling of 2026-11-20, registered before either ran). The fixture above is
+/// M0, and its base case carries a control pass: the Branschbevakning type switched off, so the bell is as it was before PR 3.
+/// The control is reported beside p and never counted in it. M1 is the everyday case: the same layers with one criterion,
+/// which is what each user on the box had at S-2's reading.
+/// </para>
+///
+/// <para>
 /// <b>"Markera alla"</b>, under the architect's protocol. Autovacuum is off on the hit table, and ANALYZE runs while the
 /// stock is unread. The first call runs under EXPLAIN (ANALYZE, BUFFERS) in a transaction that is rolled back, then for
 /// real, read against ADR 0045 class (c), 400 ms. Then a timed loop of calls that write nothing, straight away and again
@@ -92,11 +99,48 @@ public class NotificationFeedLatencyMeasurement(JobAdBrowsePlanFixture fixture, 
     private static readonly int FirstMatched = EndOfAds - MatchedAds;
     private static readonly int FirstFollowed = EndOfAds - FollowedAds;
 
+    /// <summary>
+    /// M0, the registered fixture and protocol, which give the official figures, with the control pass that
+    /// senior-cto-advisor's measurement ruling of 2026-11-20 made part of it: the bell without the Branschbevakning source.
+    /// </summary>
     [Fact]
     public async Task The_bell_with_three_sources_and_the_criterion_mark_all_against_Adr0045()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var scope = fixture.Services.CreateAsyncScope();
+        var run = await SetUpAsync(scope, "M0", CompanyWatchCriterion.MaxPerUser, ct);
+
+        var p95s = new List<(string Pass, double P95)>();
+        await MeasureBothCasesAsync(run, p95s, withControl: true, ct);
+        ReportReadRule(run.Label, p95s);
+
+        // ── "Markera alla" on the Branschbevakning source ───────────────────────────────────────
+        await MeasureMarkThroughAsync(run.Db, run.Bell, run.UserId, ct);
+    }
+
+    /// <summary>
+    /// M1, the everyday case (senior-cto-advisor, 2026-11-20, registered before it ran): one Branschbevakning, which is
+    /// what each user on the box has (S-2, 2026-11-20: 4 users, 4 criteria), holding its share of the shared seed
+    /// (2 500 new hits and 500 on Archived ads), with the match and follow layers unchanged.
+    /// </summary>
+    [Fact]
+    public async Task The_bell_with_one_Branschbevakning_the_everyday_case_against_Adr0045()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var run = await SetUpAsync(scope, "M1", criteria: 1, ct);
+
+        var p95s = new List<(string Pass, double P95)>();
+        await MeasureBothCasesAsync(run, p95s, withControl: false, ct);
+        ReportReadRule(run.Label, p95s);
+    }
+
+    private sealed record Run(
+        string Label, int Criteria, AppDbContext Db, Guid UserId, ICurrentUser User, GetMyNotificationFeedQueryHandler Bell,
+        Func<Task> Read);
+
+    private async Task<Run> SetUpAsync(AsyncServiceScope scope, string label, int criteria, CancellationToken ct)
+    {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var userId = Guid.NewGuid();
         var seeding = Stopwatch.StartNew();
@@ -116,10 +160,10 @@ public class NotificationFeedLatencyMeasurement(JobAdBrowsePlanFixture fixture, 
             .Take(CeilingOccupationGroups)
             .ToArray();
 
-        await CriterionHitStockSeed.SeedAsync(db, userId, tree, groups, T0, ct);
+        await CriterionHitStockSeed.SeedAsync(db, userId, tree, groups, T0, criteria, ct);
         await SeedBellLayersAsync(userId, tree, groups, ct);
         output.WriteLine(
-            $"Seeded {CriterionHitStockSeed.TotalAds:N0} ads, {CompanyWatchCriterion.MaxPerUser} criteria × "
+            $"{label}: seeded {CriterionHitStockSeed.TotalAds:N0} ads, {criteria} criteria × "
             + $"({CriterionHitStockSeed.UnseenHitsPerCriterion:N0} unseen + {CriterionHitStockSeed.ArchivedHitsPerCriterion:N0} "
             + $"archived) hits, {MatchedAds:N0} match rows and {FollowedAds:N0} follow hits on the newest ads, in "
             + $"{seeding.Elapsed.TotalSeconds:F0} s.");
@@ -131,7 +175,6 @@ public class NotificationFeedLatencyMeasurement(JobAdBrowsePlanFixture fixture, 
         var grading = new PerUserJobAdSearchQuery(
             db, SearchTextResolvers.For(scope, expander), new JobAdSearchQuery(db, SearchTextResolvers.For(scope, expander)));
         var bell = new GetMyNotificationFeedQueryHandler(db, user, profileBuilder, grading);
-        Func<Task> read = () => bell.Handle(new GetMyNotificationFeedQuery(), ct).AsTask();
 
         var profile = (await profileBuilder.BuildFullForSortAsync(ct)).Fast;
         profile.SsykGroupConceptIds.Count.ShouldBe(CeilingOccupationGroups);
@@ -141,36 +184,84 @@ public class NotificationFeedLatencyMeasurement(JobAdBrowsePlanFixture fixture, 
             $"Profile: {profile.SsykGroupConceptIds.Count} occupation groups, {profile.PreferredRegionConceptIds.Count} "
             + $"regions, {profile.PreferredMunicipalityConceptIds.Count} municipalities.");
 
-        // ── The base case ───────────────────────────────────────────────────────────────────────
-        var unheldCriterionAds = CriterionHitStockSeed.ActiveAds - FollowedAds;
+        return new Run(label, criteria, db, userId, user, bell, () => bell.Handle(new GetMyNotificationFeedQuery(), ct).AsTask());
+    }
+
+    /// <summary>The base case, then (for M0) the control pass, then the shortfall case after the clicks.</summary>
+    private async Task MeasureBothCasesAsync(
+        Run run, List<(string Pass, double P95)> p95s, bool withControl, CancellationToken ct)
+    {
+        // Criterion k holds every 20th Active ad, and the follow source holds the newest 15 000 of them, so each criterion
+        // has 750 held hits and 1 750 the source counts.
+        var heldPerCriterion = FollowedAds / (CriterionHitStockSeed.ActiveAds / CriterionHitStockSeed.UnseenHitsPerCriterion);
+        var unheldCriterionAds = run.Criteria * (CriterionHitStockSeed.UnseenHitsPerCriterion - heldPerCriterion);
         var countedFollowAds = FollowedAds - MatchedAds;
         await AssertStateAsync(
-            db, bell, "base", statements: 13, matches: MatchedAds, follows: countedFollowAds, criteria: unheldCriterionAds, ct);
+            run.Db, run.Bell, $"{run.Label} base", statements: 13, matches: MatchedAds, follows: countedFollowAds,
+            criteria: unheldCriterionAds, ct);
         countedFollowAds.ShouldBe(FollowedCompanyAdFeedSource.MaxCountedHits);
 
-        var p95s = new List<(string Pass, double P95)>();
         output.WriteLine(
             $"ADR 0045 class (a): p95 300 ms. {LatencyMeasurementTools.Iterations} warmed iterations each, nearest-rank p95.");
-        await MeasurePassesAsync(db, userId, bell, read, "base", countedFollowAds, p95s, ct);
+        await MeasurePassesAsync(run.Db, run.UserId, run.Bell, run.Read, $"{run.Label} base", countedFollowAds, p95s, ct);
+
+        if (withControl)
+            await MeasureWithoutTheCriterionSourceAsync(run, countedFollowAds, ct);
 
         // ── The shortfall case: clicks on the newest rows each source shows ────────────────────
-        var clicked = await ClickNewestShownRowsAsync(db, user, ct);
-        output.WriteLine($"Shortfall case: {clicked} ads clicked through MarkNotificationReadCommandHandler.");
+        var clicked = await ClickNewestShownRowsAsync(run.Db, run.User, run.UserId, ct);
+        output.WriteLine($"{run.Label} shortfall case: {clicked} ads clicked through MarkNotificationReadCommandHandler.");
         await AssertStateAsync(
-            db, bell, "shortfall", statements: 16, matches: MatchedAds - ClickedPerSource,
+            run.Db, run.Bell, $"{run.Label} shortfall", statements: 16, matches: MatchedAds - ClickedPerSource,
             follows: countedFollowAds - ClickedPerSource, criteria: unheldCriterionAds - ClickedPerSource, ct);
         await MeasurePassesAsync(
-            db, userId, bell, read, "shortfall", countedFollowAds - ClickedPerSource, p95s, ct);
+            run.Db, run.UserId, run.Bell, run.Read, $"{run.Label} shortfall", countedFollowAds - ClickedPerSource, p95s, ct);
+    }
 
-        var p = p95s.Max(x => x.P95);
-        var perMinute = (int)Math.Floor(1000 / p);
-        output.WriteLine(
-            $"Read bucket, rule (iii): p = {p:F1} ms ({p95s.MaxBy(x => x.P95).Pass}); ⌊1000 ÷ p⌋ = {perMinute} "
-            + $"({(perMinute >= 12 ? "≥" : "<")} 12); 12 × p = {12 * p / 1000:F2} s/min; margin 1000 ÷ (12 × p) = "
-            + $"{1000 / (12 * p):F2}.");
+    /// <summary>
+    /// The control (senior-cto-advisor, 2026-11-20): the bell as it was before PR 3. The Branschbevakning type is switched
+    /// off through the domain on the same fixture, so the source stops at its first statement; its passes are reported
+    /// beside the read bucket's and never count in p. The type is switched back on before the shortfall case.
+    /// </summary>
+    private async Task MeasureWithoutTheCriterionSourceAsync(Run run, int countedFollowAds, CancellationToken ct)
+    {
+        await SetCriterionTypeAsync(run.Db, run.UserId, on: false, ct);
+        using (var capture = new CommandCapture(run.Db))
+        {
+            var off = await run.Bell.Handle(new GetMyNotificationFeedQuery(), ct);
+            capture.Commands.Count.ShouldBe(10, "match 4, follow 5, and the Branschbevakning source's first statement");
+            Count(off, NotificationFeedSourceKind.CompanyWatchCriterionAd).ShouldBe(0);
+            Count(off, NotificationFeedSourceKind.FollowedCompanyAd).ShouldBe(countedFollowAds);
+        }
 
-        // ── "Markera alla" on the Branschbevakning source ───────────────────────────────────────
-        await MeasureMarkThroughAsync(db, bell, userId, ct);
+        await MeasurePassesAsync(
+            run.Db, run.UserId, run.Bell, run.Read, $"{run.Label} control, criterion off, base", countedFollowAds, [], ct);
+        await SetCriterionTypeAsync(run.Db, run.UserId, on: true, ct);
+    }
+
+    private static async Task SetCriterionTypeAsync(AppDbContext db, Guid userId, bool on, CancellationToken ct)
+    {
+        var seeker = await db.JobSeekers.SingleAsync(js => js.UserId == userId, ct);
+        seeker.SetNotificationFeedCriterionAds(on, new CriterionHitStockSeed.FixedClock(DateTimeOffset.UtcNow));
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
+    /// <summary>
+    /// Rule (iii) over every pass (security-auditor's rule (ii)) and over the primary passes (senior-cto-advisor's item 2,
+    /// which uses those only if M3 shows the slow tail is the machine's).
+    /// </summary>
+    private void ReportReadRule(string label, List<(string Pass, double P95)> p95s)
+    {
+        var primary = p95s.Where(x => !x.Pass.Contains("(control)", StringComparison.Ordinal)).ToList();
+        foreach (var (name, passes) in new[] { ("every pass", p95s), ("primary passes", primary) })
+        {
+            var p = passes.Max(x => x.P95);
+            var perMinute = (int)Math.Floor(1000 / p);
+            output.WriteLine(
+                $"{label} read bucket, rule (iii), {name}: p = {p:F1} ms ({passes.MaxBy(x => x.P95).Pass}); "
+                + $"⌊1000 ÷ p⌋ = {perMinute} ({(perMinute >= 12 ? "≥" : "<")} 12); 12 × p = {12 * p / 1000:F2} s/min.");
+        }
     }
 
     /// <summary>
@@ -265,23 +356,35 @@ public class NotificationFeedLatencyMeasurement(JobAdBrowsePlanFixture fixture, 
 
     /// <summary>
     /// The newest <see cref="ClickedPerSource"/> rows each source shows, clicked through the click's own handler and
-    /// committed as the unit of work commits it: the match source's newest ads, the follow source's newest unheld ones
-    /// (below the matched block) and the Branschbevakning source's newest unheld ones (below the followed block).
+    /// committed as the unit of work commits it: the match source's newest ads, the follow source's newest ads no match row
+    /// holds, and the Branschbevakning source's newest Active ads neither a match row nor a follow hit holds.
     /// </summary>
-    private static async Task<int> ClickNewestShownRowsAsync(AppDbContext db, ICurrentUser user, CancellationToken ct)
+    private static async Task<int> ClickNewestShownRowsAsync(
+        AppDbContext db, ICurrentUser user, Guid userId, CancellationToken ct)
     {
-        var shownFirst = new[] { EndOfAds, FirstMatched, FirstFollowed };
-        var ads = await ActiveAdsFromAsync(db, FirstFollowed - ClickedPerSource, ct);
-        var clicks = ads
-            .Where(a => shownFirst.Any(end => a.Index < end && a.Index >= end - ClickedPerSource))
-            .Select(a => a.Id)
-            .ToList();
-        clicks.Count.ShouldBe(3 * ClickedPerSource);
+        const string NoMatch =
+            "NOT EXISTS (SELECT 1 FROM user_job_ad_matches m WHERE m.user_id = @user AND m.job_ad_id = x.job_ad_id)";
+        const string NoFollow =
+            "NOT EXISTS (SELECT 1 FROM followed_company_ad_hits f WHERE f.user_id = @user AND f.job_ad_id = x.job_ad_id)";
+        var clicks = new List<Guid>();
+        clicks.AddRange(await NewestAsync(
+            db, "SELECT x.job_ad_id FROM user_job_ad_matches x WHERE x.user_id = @user ORDER BY x.created_at DESC LIMIT @n",
+            userId, ct));
+        clicks.AddRange(await NewestAsync(
+            db, $"SELECT x.job_ad_id FROM followed_company_ad_hits x WHERE x.user_id = @user AND {NoMatch} "
+                + "ORDER BY x.created_at DESC LIMIT @n",
+            userId, ct));
+        clicks.AddRange(await NewestAsync(
+            db, "SELECT x.job_ad_id FROM company_watch_criterion_ad_hits x JOIN job_ads j ON j.id = x.job_ad_id "
+                + $"WHERE x.user_id = @user AND j.status = 'Active' AND {NoMatch} AND {NoFollow} "
+                + "ORDER BY x.created_at DESC LIMIT @n",
+            userId, ct));
+        clicks.Distinct().Count().ShouldBe(3 * ClickedPerSource);
 
         var click = new MarkNotificationReadCommandHandler(db, user);
         foreach (var adId in clicks)
         {
-            (await click.Handle(new MarkNotificationReadCommand(adId.Value), ct)).IsSuccess.ShouldBeTrue();
+            (await click.Handle(new MarkNotificationReadCommand(adId), ct)).IsSuccess.ShouldBeTrue();
             await db.SaveChangesAsync(ct);
         }
 
@@ -290,6 +393,26 @@ public class NotificationFeedLatencyMeasurement(JobAdBrowsePlanFixture fixture, 
         await db.Database.ExecuteSqlRawAsync("VACUUM (ANALYZE) followed_company_ad_hits;", ct);
         await db.Database.ExecuteSqlRawAsync("VACUUM (ANALYZE) company_watch_criterion_ad_hits;", ct);
         return clicks.Count;
+    }
+
+    private static async Task<List<Guid>> NewestAsync(AppDbContext db, string sql, Guid userId, CancellationToken ct)
+    {
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)db.Database.GetDbConnection());
+            command.Parameters.AddWithValue("user", userId);
+            command.Parameters.AddWithValue("n", ClickedPerSource);
+            var ids = new List<Guid>();
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                ids.Add(reader.GetGuid(0));
+            return ids;
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
     }
 
     /// <summary>

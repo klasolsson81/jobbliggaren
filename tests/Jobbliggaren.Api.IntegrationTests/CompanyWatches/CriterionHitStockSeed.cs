@@ -35,14 +35,23 @@ internal static class CriterionHitStockSeed
     /// statistics and no autovacuum lands mid-measurement. The bulk statements outlast Npgsql's 30 s default at this size,
     /// so the seed runs under its own command timeout and hands the caller's back.
     /// </summary>
+    internal static Task<List<CompanyWatchCriterionId>> SeedAsync(
+        AppDbContext db, Guid userId, TaxonomyTreeDto tree, string[] groups, DateTimeOffset t0, CancellationToken ct) =>
+        SeedAsync(db, userId, tree, groups, t0, CompanyWatchCriterion.MaxPerUser, ct);
+
+    /// <summary>
+    /// The same layer with fewer criteria, each holding its share: criterion k still holds every 20th Active ad from the
+    /// k-th, so one criterion is 2 500 new hits and 500 on Archived ads (the bell harness's everyday case).
+    /// </summary>
     internal static async Task<List<CompanyWatchCriterionId>> SeedAsync(
-        AppDbContext db, Guid userId, TaxonomyTreeDto tree, string[] groups, DateTimeOffset t0, CancellationToken ct)
+        AppDbContext db, Guid userId, TaxonomyTreeDto tree, string[] groups, DateTimeOffset t0, int criteria,
+        CancellationToken ct)
     {
         var callersTimeout = db.Database.GetCommandTimeout();
         db.Database.SetCommandTimeout(TimeSpan.FromMinutes(10));
         try
         {
-            return await SeedUnderTimeoutAsync(db, userId, tree, groups, t0, ct);
+            return await SeedUnderTimeoutAsync(db, userId, tree, groups, t0, criteria, ct);
         }
         finally
         {
@@ -51,7 +60,8 @@ internal static class CriterionHitStockSeed
     }
 
     private static async Task<List<CompanyWatchCriterionId>> SeedUnderTimeoutAsync(
-        AppDbContext db, Guid userId, TaxonomyTreeDto tree, string[] groups, DateTimeOffset t0, CancellationToken ct)
+        AppDbContext db, Guid userId, TaxonomyTreeDto tree, string[] groups, DateTimeOffset t0, int criteria,
+        CancellationToken ct)
     {
         await db.Database.ExecuteSqlRawAsync(
             "TRUNCATE company_watch_criterion_ad_hits, company_watch_criteria CASCADE; TRUNCATE job_ads CASCADE;", ct);
@@ -88,7 +98,7 @@ internal static class CriterionHitStockSeed
             ct);
 
         var clock = new FixedClock(t0);
-        var criteria = Enumerable.Range(0, CompanyWatchCriterion.MaxPerUser)
+        var created = Enumerable.Range(0, criteria)
             .Select(_ =>
             {
                 var c = CompanyWatchCriterion.Create(
@@ -97,7 +107,7 @@ internal static class CriterionHitStockSeed
                 return c;
             })
             .ToList();
-        db.CompanyWatchCriteria.AddRange(criteria);
+        db.CompanyWatchCriteria.AddRange(created);
         await db.SaveChangesAsync(ct);
 
         // Criterion k holds a hit on every stride-th Active ad from the k-th, wrapping, so each criterion's hits
@@ -139,7 +149,7 @@ internal static class CriterionHitStockSeed
         await db.Database.ExecuteSqlRawAsync("VACUUM (ANALYZE) job_ads;", ct);
         await db.Database.ExecuteSqlRawAsync("VACUUM (ANALYZE) company_watch_criteria;", ct);
         await db.Database.ExecuteSqlRawAsync("VACUUM (ANALYZE) company_watch_criterion_ad_hits;", ct);
-        return criteria.Select(c => c.Id).ToList();
+        return created.Select(c => c.Id).ToList();
     }
 
     internal sealed class FixedClock(DateTimeOffset now) : IDateTimeProvider

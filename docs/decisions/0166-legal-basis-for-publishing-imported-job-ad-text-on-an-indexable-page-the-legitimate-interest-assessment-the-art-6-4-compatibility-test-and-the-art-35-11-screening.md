@@ -1206,7 +1206,7 @@ Earlier the same day, at the plan stage (ADR 0186), Klas decided the page itself
 
 ADR 0166 remains **Accepted** for D1–D11 for the page, and for the sitemap, the catalogue, the related section and the application link by their amendments. This amendment is **Accepted** (Klas 2026-11-19; signed by `security-auditor` 2026-11-20).
 
-## Amendment 2026-11-20 (#2264, ADR 0187) — the D10 re-take for the junior list's stored assessment; approved by Klas 2026-11-20, signed by `security-auditor` `<date>`
+## Amendment 2026-11-20 (#2264, ADR 0187) — the D10 re-take for the junior list's stored assessment; approved by Klas 2026-11-20, signed by `security-auditor` 2026-11-20
 
 D1–D11 and the earlier amendments stand, and nothing above is rewritten. D10's triggers 22 and 23, added by the Amendment 2026-11-19, fire for the junior list.
 
@@ -1319,7 +1319,7 @@ This amendment is the single home of the legal outcome for the change: ADR 0187 
 
   **[K]** The file's reading holds junior ids only, so it publishes no verdict the list does not show itself. Erasures to date: `<D11>`. *Left:* the inference at kommun scale, as before.
 - **The rules file.** `junior-rules.data-it.v1.json`, an embedded resource in the public repository, replaces `junior-it-list.v1.json`. It carries:
-  - the keys its loader test pins at `<head>`;
+  - the keys its loader test pins at `a860452fb`;
   - generic patterns, none of which names an employer, a person or a place, or quotes an ad;
   - the rules in their order, with their `auto` flags;
   - a reading block of exactly `ruleId` and `junior`.
@@ -1383,14 +1383,14 @@ The addendum is a local file, written in the main copy by the driving session, a
 
     Narrowing a rule, turning its `auto` off or removing it is not this trigger.
 23. The rules file carrying any of these:
-    - a key, at any level of the file, beyond those the loader maps at `<head>`;
+    - a key, at any level of the file, beyond those the loader maps at `a860452fb`;
     - a pattern that names an employer, a person or a place, or that quotes one ad;
     - a comment about any single ad;
     - a reading that holds anything beyond junior ids: a not-junior id, a direction, a label, a year, a place or a note.
 
     Also ids added other than by a new reading taken by Klas, recorded with its date and with a count like M3's before its first push; or any id removed because of an erasure, a request or a complaint. The remedy for a complaint or an objection is Klas's decision in the admin queue, never the file. A new reading replaces the set as a new version.
 24. Any of these:
-    - a stored junior value beyond the two `job_ads` columns (`experience_required`, `junior_input_fingerprint`) and the columns of `job_ad_junior_assessments` that the migration of `<head>` adds (the ad's id, verdict, rule id, rule-set version, classified fingerprint, classified at, decision, decided at), and above all a matched span;
+    - a stored junior value beyond the two `job_ads` columns (`experience_required`, `junior_input_fingerprint`) and the columns of `job_ad_junior_assessments` that the migration of `a860452fb` adds (the ad's id, verdict, rule id, rule-set version, classified fingerprint, classified at, decision, decided at), and above all a matched span;
     - that table holding membership, a title, an employer, or any value read from the ad's text;
     - the sweep reading anything beyond its projection (id, external id, post-scrub title and description, occupation group, experience mark, input fingerprint), in particular `raw_payload`, the contacts or the organisation number;
     - the sweep writing `job_ads`;
@@ -1401,7 +1401,7 @@ The addendum is a local file, written in the main copy by the driving session, a
 The readings recorded with them:
 - **Trigger 1:** not fired by the change. There is no new public page or read; a signed-in count and the queue are not public surfaces.
 - **Trigger 2:** D11.
-- **Triggers 3 and 4:** no event known on `<date>`.
+- **Triggers 3 and 4:** no event known on 2026-11-20.
 - **Trigger 5:** not fired. Arbetsförmedlingen is read and nothing is pushed. Klas's answer 3 of 2026-11-19 on the LinkedIn post stands unchanged.
 - **Triggers 6–19:** not fired; R1–R6 below.
 - **Triggers 20 and 21:** not fired; R7 below.
@@ -1441,8 +1441,8 @@ Scope:
 - Search Console, 2026-10-19 (#2189).
 
 Read with D10's scope rule, none of the lapses withdraws anything. The pointer amendment of 2026-10-24 (#2216) does not lapse. The Amendment 2026-10-11 is, as always, not covered. She renews the lapsed signatures at the final head on these conditions:
-- **R1–R6:** as in the Amendment 2026-11-19, read against `<base>`.
-- **R7 (the junior list's public side):** against `<base>`, the following are byte-unchanged, together with their tests:
+- **R1–R6:** as in the Amendment 2026-11-19, read against `0a7823d10`.
+- **R7 (the junior list's public side):** against `0a7823d10`, the following are byte-unchanged, together with their tests:
   - `PublicJuniorItJobAdDto`, `PublicJuniorItPlaceDto`, `PublicJuniorItJobAdsPage`, `GetPublicJuniorItJobAdsQuery` and its validator;
   - the `/junior` route and the policy `public-job-ad-junior-it`;
   - `app/(public-job)/junior/`, `public-junior-it-list.tsx`, `public-junior-it-job-ad-list.tsx`, `lib/api/public-junior-it-job-ads.ts`, `lib/dto/public-junior-it-job-ads.ts` and `lib/job-ads/junior-it-params.ts`;
@@ -1517,6 +1517,6 @@ Read with D10's scope rule, none of the lapses withdraws anything. The pointer a
 
    Answer: "Ja, som det står (Rek.)".
 
-**Signature:** `<written by security-auditor at her scoped re-check of the final head>`
+**Signature:** `security-auditor`, 2026-11-20, on her scoped re-check of PR [#2268](https://github.com/klasolsson81/jobbliggaren/pull/2268) at head `a860452fb` against `0a7823d10` (`origin/main`, holding PR #2267): signs this amendment, D1–D11 as re-taken for the junior list, D10 triggers 22 and 23 as replaced and trigger 24 as added, the readings recorded under D10, and the residuals D4 names as *Left*, as residuals, read with Klas's five answers as quoted above and with the sixth addendum to DPIA #456 §8-B as he approved its text on 2026-11-20 (local). The properties signed are those of D5 and of ADR 0187 at that head: membership is `JuniorMembership.Of(db.JuniorAssessments, groups)`, composed under `JobAdPublication.IsListed(now)` into the one base of `/junior`'s rows, total and kommun options, and composed, never copied, by the admin queue's *Visas* tab and, after `Status == Active`, by the `/jobb` junior filter, whose parity with the open list over seven arms `ListJobAdsJuniorItFilterTests.Junior_AdmitsExactlyTheAdsTheOpenJuniorListLists` pins; the rules run only in the sweep, and `JuniorItPredicate`, `JuniorItSetResolver`, `junior-it-list.v1.json` and its loader are gone; `job_ads` gains exactly `experience_required` and `junior_input_fingerprint`, and `job_ad_junior_assessments` holds the id, verdict, rule id, rule-set version, classified fingerprint, classified at, decision and decided at, and nothing else; only the sweep classifies and only the audited decide command decides; the sweep reads its seven-field projection and never `raw_payload`, the contacts or the organisation number, which `ClassifyJuniorJobAdsJobStalenessTests` pins, never writes `job_ads`, logs counts and an exception's type name only, and deletes erased ads' assessments first and last in every tick, before its kill-switch; `Erase()` nulls the input fingerprint and the erasure command deletes the assessment in the same unit of work; the queue is Admin-only and `private, no-store`, with no ad text, Arbetsförmedlingen id or organisation number; the rules file loads under `JsonUnmappedMemberHandling.Disallow` with the top-level `"//"` as its one unread key, is checked out LF, hashes to `d7b3cb36`, and carries 145 junior ids and no other id, label, year, place or note, and no commit of it in the pushed history carries an id the delivered file lacks; exactly one field is enabled. The readings signed are R4 (M3, 2026-11-20 11:02:03Z) and D11's merge-day reading of 2026-11-20 15:00–15:01Z (release sequence 1679, blob `ea21c16`, validated 0). It renews, for the page, sitemap, catalogue, related-section, application-link and Search Console scope, the signatures that lapsed with her signature of 2026-11-20 on the Amendment 2026-11-19 (#2262): of 2026-10-25 (#2239), 2026-10-24 (#2210), 2026-10-18 (#2180, #2168), 2026-10-12 and 2026-10-17 (#2160), and 2026-10-19 (#2189). Her signature of 2026-11-20 on the plan read of #2261 (ADR 0186, Amendment 2026-11-20) has lapsed by its own words, and this re-take replaces it. R1–R7 hold at `a860452fb` against `0a7823d10`: every file R1–R6 and R7 name is byte-unchanged; `PublicJuniorItJobAdsEndpointTests.cs` is the declared +6/−2; `JuniorItJobAdQuery.cs` changes only its membership predicate; and the only removed assertion lines are the declared ones and `admin-routes.spec.ts`'s tab-order assertion, whose expected array moved byte-for-byte into a `const` that the same assertion still reads, which removes nothing. It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override; her Art. 9 Blocker keeps its grade. It lapses with any D10 trigger that fires after it, 5–24 included, and with any change to this amendment's text, to the properties above, to the sixth addendum or to the rules file. A post-deploy reading (M4 (c)) above 0 goes back to her before the post if it is in the junior set's three organisation-number fields, in erased ads' assessment rows on the second reading two ticks later, or in erased ads with an input fingerprint. Writing M4 (c)'s counts into D11, W5 and the addendum does not otherwise reopen it. A merge after 2026-11-20 UTC needs a fresh S2-P3 reading appended to D11, which does not reopen it unless its validated count is above 0 (trigger 2). A pure base merge onto `a860452fb` does not reopen it. Nor does the edit that writes this line, fills this amendment's `<date>`, `<head>` and `<base>` with `2026-11-20`, `a860452fb` and `0a7823d10`, marks the amendment Accepted, and changes ADR 0187's status line and its README row from "Proposed until … signs" to signed.
 
-ADR 0166 remains **Accepted**: for D1–D11 for the page; for the sitemap, the catalogue, the related section and the application link by their amendments; and for the junior list by the Amendment 2026-11-19 as this amendment re-takes it. This amendment is **Proposed** until Klas's approval and her signature.
+ADR 0166 remains **Accepted**: for D1–D11 for the page; for the sitemap, the catalogue, the related section and the application link by their amendments; and for the junior list by the Amendment 2026-11-19 as this amendment re-takes it. This amendment is **Accepted**: approved by Klas 2026-11-20 and signed by `security-auditor` 2026-11-20.

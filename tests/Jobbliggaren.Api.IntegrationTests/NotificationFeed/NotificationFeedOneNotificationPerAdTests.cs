@@ -817,7 +817,8 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         await SeedHitAsync(factory, userId, ad, watch, Base.AddMinutes(10), Ct);
 
         using var scope = factory.Services.CreateScope();
-        var withdraw = new AfterFirstMaxInterceptor(() => GiveConsentAsync(client, false));
+        // The follow source's third statement is its token, after the gate and the watches.
+        var withdraw = new AfterStatementInterceptor(3, () => GiveConsentAsync(client, false));
         await using var db = NewContext(scope, withdraw);
         var read = await new FollowedCompanyAdFeedSource().ReadAsync(
             new NotificationFeedReadContext(db, userId, MaxItems: 20, OccupationProfile(), GradeEverythingAsMatching()), Ct);
@@ -914,8 +915,8 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         var naming = statements.Texts.Where(t => t.Contains("user_job_ad_matches", StringComparison.OrdinalIgnoreCase)).ToList();
         if (state == "gate-on")
         {
-            naming.Count.ShouldBe(2, "the count and the window");
-            naming.ShouldNotContain(t => t.Contains("max(", StringComparison.OrdinalIgnoreCase), "the token is never narrowed");
+            // Gate, watches, token, count, window: only the count and the window name the table; the token is never narrowed.
+            naming.ShouldBe([statements.Texts[3], statements.Texts[4]], "the count and the window");
         }
         else
         {

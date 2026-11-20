@@ -305,8 +305,9 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
         var late = await SeedAdAsync(factory, "Sen", "Bolag AB", ct);
 
         using var scope = factory.Services.CreateScope();
-        var interceptor = new AfterFirstMaxInterceptor(
-            () => SeedHitAsync(factory, userId, late, watch, Base.AddMinutes(2), ct));
+        // The follow source's third statement is its token, after the gate and the watches.
+        var interceptor = new AfterStatementInterceptor(
+            3, () => SeedHitAsync(factory, userId, late, watch, Base.AddMinutes(2), ct));
         await using var db = NewContext(scope, interceptor);
 
         var read = await new FollowedCompanyAdFeedSource().ReadAsync(Context(db, userId), ct);

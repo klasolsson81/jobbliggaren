@@ -330,3 +330,54 @@ Each reading below is dated and has its source. Nothing is estimated. All are th
   (Decision 1) · ADR 0045 · ADR 0154 · AGENTS.md §2.1, §5, §8 · CLAUDE.md §6.5, §9.2, §9.6
 - `docs/reviews/2026-11-19-2260-plan-dotnet-architect.md` · `docs/reviews/2026-11-19-2260-plan-security-auditor.md` (both local, transcribed by the driving session)
 - npgsql/efcore.pg v10.0.3 `NpgsqlRegexTranslator.cs` and the docker-library/postgres 18 Dockerfile, as read by `dotnet-architect` on 2026-11-19 (links may rot)
+
+## Amendment 2026-11-20 (#2261 PR 2) — the junior filter on `/jobb` reuses D2's predicate and resolver, and A1–A5 settle the open point
+
+> **Provenance.** Written by `adr-keeper` for the driving session from its brief; it adds no decision of its own. Additive: nothing above this heading is rewritten. A1–A5
+> record `senior-cto-advisor`'s ruling of 2026-11-20 on the open points of PR 2 (the ruling's D1–D5, relabelled here so as not to collide with D1–D9 above). R4 and R5 continue
+> the numbering of *Measurements*.
+
+### What PR 2 delivers
+
+- **Application.** `JobAdFilterCriteria` gains a required `bool JuniorIt`, AND-ed with every other axis.
+- **Infrastructure.** `JobAdSearchTextResolver` takes `JuniorItSetResolver` and, only when the flag is on, builds the membership expression with `JuniorItPredicate.Matches(set)`;
+  `ResolvedJobAdFilter` carries it as `JuniorItMembership`. `JobAdSearchComposition.ApplyFilter` applies it in one `Where`, after `/jobb`'s own `Status == Active` gate.
+- **Api.** `GET /api/v1/job-ads` and its `/facet-counts` bind `?junior=true`.
+- **Web.** `?junior=on` is a required `junior` field in `JobbUrlState`; a "Juniora IT-jobb" checkbox sits in the Filter panel, with no count.
+- **Flag off.** No condition is emitted and no taxonomy is read; the SQL is pinned identical to before.
+- **Unchanged.** The predicate, the resolver and the curated file, and `/junior` with its read. This is the reuse D2 asked for: "junior IT" is still defined once.
+
+### The rulings (A1–A5)
+
+The last bullet under *Negative and accepted trade-offs* left two points to PR 2: the capture gate and the redirect from `/junior`. A1 settles the first and A2 the second.
+
+- **A1 — A junior search is never stored in recent searches (ruling D1).** `RecentSearchCaptureGate.Admit` returns null for it. It never strips the flag: a stripped search hashes
+  as the broader one and would `Bump()` that row. No migration; the axis is not persisted.
+- **A2 — PR 2 does not change `/junior` (ruling D2).** The redirect a signed-in visitor would have gotten fires ADR 0166 D10 trigger 22 (a selection keyed by sign-in state) and
+  breaks the signed property "the page reads no session". A cross-site arrival carries no Strict session cookie, so the redirect would never reach the post's audience. A link on
+  `/junior` waits for #2264's re-sign of that page, and goes only through `security-auditor`. This departs from the scope written in #2261.
+- **A3 — No count on the toggle (ruling D3).** Distans has none, and a boolean has no concept-id key space (#551 PR-B D7).
+- **A4 — `/jobb` keeps its own lifecycle gate, `Status == Active`, and not `JobAdPublication.IsListed` (ruling D4).** `IsListed` is ADR 0160's publication predicate. The junior
+  predicate says nothing about lifecycle by design (D1), so each caller composes its own gate, and `/jobb`'s is the one it already has. The `/jobb` junior set is therefore junior
+  ∧ `Status == Active`, and `/junior`'s is junior ∧ `IsListed(now)`; R4 reads how far they differed on one day.
+- **A5 — PR 2 lands before #2264, with today's predicate at one call site (ruling D5).** #2264 (the stored classification, `JobAdJuniorAssessment` / `JuniorMembership.Of`)
+  repoints the resolver, and only the resolver. Whichever PR merges second rebases.
+
+### `security-auditor`'s plan read, 2026-11-20 (0 Blocker / 0 Major)
+
+No ADR 0166 D10 trigger fires for the `/jobb` filter. Trigger 22 protects the junior list's own public selection, and the scope of the ADR 0166 amendment of 2026-11-19 (the
+public read, `/junior`, the curated file) does not reach the auth-gated `/jobb`. Her signature of 2026-11-20 stays valid only while the predicate, the resolver, the curated file,
+`/junior` and its read, `robots.ts`, ADR 0166's text and the DPIA addendum are byte-unchanged. A change to any of them is trigger 22/23 and a re-take.
+
+### Two dated readings
+
+| Reading | What | Recorded |
+|---|---|---|
+| R4 | the two lists' divergence under A4, counts only | 2026-11-20T12:08:03Z, on the production box (CLAUDE.md §9.2 (a)): 146 active junior ads (the `/jobb` set); 0 of them past their `ExpiresAt`; 0 not from Platsbanken. The two classes by which that set can exceed `/junior`'s `IsListed` read (D1) were empty at that time. A dated reading, not a guarantee. No copy claims that the two lists are the same, or names a count. |
+| R5 | the filter's latency against ADR 0045 class (a), p95 300 ms | 2026-11-20, `JuniorItFilterLatencyMeasurement` (`tests/Jobbliggaren.Api.IntegrationTests/JobAds/`) on a developer machine, 40 000 ads: junior list+count p95 51.4 ms; with one Data/IT group 16.1 ms; with `q` 28.0 ms; group facet with junior 40.8 ms. The plan reads the occupation-group index, and the arms run only on the field's rows. It reads the `/jobb` filter, not `/junior`'s read. A dated reading, not a live number: re-run the class to regenerate it (selector: AGENTS.md §7). |
+
+### Named skips
+
+- **Not persisted:** a junior search is not stored in recent searches, and the axis is not persisted (A1: a stripped search would `Bump()` the broader row; no migration).
+- **No count on the toggle:** a boolean has no concept-id key space (A3).
+- **No change to `/junior`:** it would key a selection by sign-in state, which is ADR 0166 D10 trigger 22 (A2).

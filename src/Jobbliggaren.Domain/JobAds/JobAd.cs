@@ -105,7 +105,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     public bool? ExperienceRequired { get; private set; }
 
     // #2264 (ADR 0187) — a fingerprint of everything the junior rules read of this ad (post-scrub title and text,
-    // occupation group, experience mark), written by every source write and by nothing else. The verdict and an admin's
+    // occupation group, experience mark), written by every source write. The verdict and an admin's
     // decision live on their own aggregate, JobAdJuniorAssessment, which stamps the fingerprint it classified: unequal
     // fingerprints mean the verdict is about other content. Erase() clears it (a hash of the erased text).
     public string? JuniorInputFingerprint { get; private set; }

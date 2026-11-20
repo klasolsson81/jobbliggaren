@@ -110,6 +110,11 @@ public class JuniorRuleSetLoaderTests
     [InlineData("\"ruleSetVersion\": \"1.2\"", "\"ruleSetVersion\": \"v1\"")] // not major[.minor[.patch]]
     [InlineData("\"timeoutRuleId\": \"match-timeout\"", "\"timeoutRuleId\": \"\"")] // no timeout rule id
     [InlineData("\"occupationFieldConceptId\": \"field-1\"", "\"occupationFieldConceptId\": \" \"")] // no field
+    [InlineData("\"enabled\": true,", "\"enabled\": true, \"note\": \"x\",")] // a key the loader does not map: top level
+    [InlineData("\"ruleId\": \"reading-test\",", "\"ruleId\": \"reading-test\", \"note\": \"x\",")] // in the reading
+    [InlineData("\"plausibleMax\": 15 }", "\"plausibleMax\": 15, \"note\": \"x\" }")] // in the years block
+    [InlineData("\"id\": \"years-3-plus\",", "\"id\": \"years-3-plus\", \"note\": \"x\",")] // in a rule
+    [InlineData("\"on\": \"yearsAtLeast\",", "\"on\": \"yearsAtLeast\", \"note\": \"x\",")] // in a condition
     public void LoadFrom_FailsLoud_OnAMalformedShape(string find, string replaceWith)
     {
         Should.Throw<InvalidOperationException>(() => JuniorRuleSetLoader.LoadFrom(Mutated(find, replaceWith)));

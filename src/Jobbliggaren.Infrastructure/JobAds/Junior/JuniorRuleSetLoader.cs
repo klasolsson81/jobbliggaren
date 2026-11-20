@@ -39,6 +39,7 @@ internal static class JuniorRuleSetLoader
     {
         PropertyNameCaseInsensitive = false,
         ReadCommentHandling = JsonCommentHandling.Disallow,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
 
     internal static JuniorRuleSet LoadDataIt()
@@ -56,8 +57,15 @@ internal static class JuniorRuleSetLoader
         stream.CopyTo(buffer);
         var bytes = buffer.ToArray();
 
-        var file = JsonSerializer.Deserialize<JuniorRuleSetFile>(bytes, JsonOptions)
-            ?? throw Fail("deserialised to null");
+        JuniorRuleSetFile file;
+        try
+        {
+            file = JsonSerializer.Deserialize<JuniorRuleSetFile>(bytes, JsonOptions) ?? throw Fail("deserialised to null");
+        }
+        catch (JsonException e)
+        {
+            throw Fail("is not a rule file: a key it does not map, at any level, or a value of the wrong shape", e);
+        }
 
         Require(!string.IsNullOrWhiteSpace(file.RuleSetVersion) && DeclaredVersionShape.IsMatch(file.RuleSetVersion),
             "has no ruleSetVersion of the form major[.minor[.patch]]");
@@ -199,10 +207,13 @@ internal static class JuniorRuleSetLoader
         new($"The junior rule set {what}.", inner);
 }
 
-/// <summary>Deserialisation form; the JSON member names stay in Infrastructure. The <c>"//"</c> key is maintainer
-/// documentation and is deliberately not mapped.</summary>
+/// <summary>Deserialisation form; the JSON member names stay in Infrastructure. The top-level <c>"//"</c> key is
+/// maintainer documentation: mapped, so that every other unmapped key at any level fails the load, and read by nothing.</summary>
 internal sealed record JuniorRuleSetFile
 {
+    [JsonPropertyName("//")]
+    public string? MaintainerNote { get; init; }
+
     [JsonPropertyName("ruleSetVersion")]
     public string RuleSetVersion { get; init; } = "";
 

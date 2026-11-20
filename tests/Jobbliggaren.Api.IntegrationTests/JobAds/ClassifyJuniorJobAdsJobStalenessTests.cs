@@ -285,6 +285,25 @@ public sealed class ClassifyJuniorJobAdsJobStalenessTests(SharedPostgresFixture 
         (await _h.SweepAsync(batchSize: 1)).ShouldBe(ClassifyJuniorJobAdsCounts.None);
     }
 
+    // security-auditor, #2264 code read, Minor 3: ADR 0166 trigger 24 rests on what the sweep reads of job_ads.
+    [Fact]
+    public async Task RunAsync_ShouldReadANarrowProjection_NeverThePayloadTheContactsOrTheOrganisationNumber()
+    {
+        await _h.ImportAsync("Junior utvecklare", description: NamingTheRecruiter(NeutralText));
+        _h.Commands.Clear();
+
+        (await _h.SweepAsync()).ShouldBe(new ClassifyJuniorJobAdsCounts(1, 0, 0, 0, 0));
+
+        var reads = _h.Commands.Commands.Where(c => c.Contains("job_ads", StringComparison.Ordinal)).ToList();
+        reads.ShouldContain(c => c.Contains("description", StringComparison.Ordinal), "the candidates' projection");
+        foreach (var text in reads)
+        {
+            text.ShouldNotContain("raw_payload", Case.Insensitive);
+            text.ShouldNotContain("organization_number", Case.Insensitive);
+            text.ShouldNotContain("contacts", Case.Insensitive);
+        }
+    }
+
     private static DateTimeOffset? DeadlineFor(string removal) =>
         removal is "past its deadline" or "archived by ExpireJobAdsJob" ? Now.AddMinutes(1) : null;
 

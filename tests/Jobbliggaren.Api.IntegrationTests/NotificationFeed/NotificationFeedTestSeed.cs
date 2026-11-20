@@ -17,14 +17,16 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 
 /// <summary>
 /// What the NotificationFeed integration classes share: the feed's wire shapes, the seeds (each through an aggregate,
-/// in a scope of its own), the read-backs and the statement probes. The background-match consent is not here: each
-/// class sets it on its own path, and <c>NotificationFeedOneNotificationPerAdTests</c> only through its endpoint.
+/// in a scope of its own), the read-backs and the statement probes. The Branschbevakning seeds are also
+/// <c>CriterionNewAdsEndpointTests</c>' own: one copy for both. The background-match consent is not here: each class
+/// sets it on its own path, and <c>NotificationFeedOneNotificationPerAdTests</c> only through its endpoint.
 /// </summary>
 internal static class NotificationFeedTestSeed
 {
@@ -63,12 +65,17 @@ internal static class NotificationFeedTestSeed
     public static Task<JobAdId> SeedAdAsync(WebApplicationFactory<Program> factory, string title, CancellationToken ct) =>
         SeedAdAsync(factory, title, "Bolag AB", ct);
 
+    public static Task<JobAdId> SeedAdAsync(
+        WebApplicationFactory<Program> factory, string title, string company, CancellationToken ct) =>
+        SeedAdAsync(factory, title, company, Base.AddHours(-1), ct);
+
+    /// <summary>An Active ad ingested at <paramref name="ingestedAt"/>, before any hit or match row a scan stamps for it.</summary>
     public static async Task<JobAdId> SeedAdAsync(
-        WebApplicationFactory<Program> factory, string title, string company, CancellationToken ct)
+        WebApplicationFactory<Program> factory, string title, string company, DateTimeOffset ingestedAt, CancellationToken ct)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var clock = new FakeDateTimeProvider(Base.AddHours(-1));
+        var clock = new FakeDateTimeProvider(ingestedAt);
         var externalId = $"ext-{Guid.NewGuid():N}";
         var payload = $"{{\"id\":\"{externalId}\"}}";
         var jobAd = JobAd.Import(
@@ -153,6 +160,84 @@ internal static class NotificationFeedTestSeed
         "55" + (Math.Abs(Guid.NewGuid().GetHashCode()) % 100000000)
             .ToString("D8", System.Globalization.CultureInfo.InvariantCulture);
 
+    /// <summary>When every seeded Branschbevakning was created: a day before <see cref="Base"/>, so a hit stamped at
+    /// <see cref="Base"/> or later is newer than the criterion's last change.</summary>
+    public static readonly DateTimeOffset CriterionCreatedAt = Base.AddDays(-1);
+
+    /// <summary>A Branschbevakning whose nightly scan has answered Scanned.</summary>
+    public static Task<CompanyWatchCriterionId> SeedCriterionAsync(
+        WebApplicationFactory<Program> factory, Guid userId, CancellationToken ct) =>
+        SeedCriterionAsync(factory, userId, CompanyWatchCriterionScanOutcome.Scanned, ct);
+
+    /// <summary>A Branschbevakning; <paramref name="outcome"/> <c>null</c> is one the scan has never reached.</summary>
+    public static Task<CompanyWatchCriterionId> SeedCriterionAsync(
+        WebApplicationFactory<Program> factory, Guid userId, CompanyWatchCriterionScanOutcome? outcome, CancellationToken ct) =>
+        SeedCriterionAsync(factory, userId, outcome, ["63910"], ct);
+
+    /// <summary>
+    /// A Branschbevakning as <see cref="CompanyWatchCriterion.Create"/> makes it, created at
+    /// <see cref="CriterionCreatedAt"/>; with an outcome, the nightly scan has recorded it half an hour later through
+    /// <see cref="CompanyWatchCriterion.RecordScan"/>.
+    /// </summary>
+    public static async Task<CompanyWatchCriterionId> SeedCriterionAsync(
+        WebApplicationFactory<Program> factory,
+        Guid userId,
+        CompanyWatchCriterionScanOutcome? outcome,
+        IReadOnlyList<string> sniCodes,
+        CancellationToken ct)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var criterion = CompanyWatchCriterion.Create(
+            userId, CompanyWatchCriteriaSpec.Create(sniCodes, ["0180"]).Value, null,
+            new FakeDateTimeProvider(CriterionCreatedAt)).Value;
+        var scanned = CriterionCreatedAt.AddMinutes(30);
+        if (outcome == CompanyWatchCriterionScanOutcome.NotMaterialised)
+        {
+            // The scan's read-age guard answers NotMaterialised for a criterion it has scanned before, once its
+            // materialisation is stale (CompanyWatchBrowseQuery); alone it would leave ScannedThrough null.
+            criterion.RecordScan(CompanyWatchCriterionScanOutcome.Scanned, scanned, new FakeDateTimeProvider(scanned));
+            criterion.RecordScan(CompanyWatchCriterionScanOutcome.NotMaterialised, scanned.AddMinutes(30),
+                new FakeDateTimeProvider(scanned.AddMinutes(30)));
+        }
+        else if (outcome is { } answered)
+        {
+            criterion.RecordScan(answered, scanned, new FakeDateTimeProvider(scanned));
+        }
+
+        db.CompanyWatchCriteria.Add(criterion);
+        await db.SaveChangesAsync(ct);
+        return criterion.Id;
+    }
+
+    /// <summary>
+    /// A hit as the criterion scan writes it (<see cref="CompanyWatchCriterionAdHit.Create"/>, owner and criterion taken
+    /// from the criterion itself), stamped at <paramref name="at"/>.
+    /// </summary>
+    public static async Task SeedCriterionHitAsync(
+        WebApplicationFactory<Program> factory, CompanyWatchCriterionId criterionId, JobAdId adId, DateTimeOffset at,
+        CancellationToken ct)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var criterion = await db.CompanyWatchCriteria.AsNoTracking().SingleAsync(c => c.Id == criterionId, ct);
+        db.CompanyWatchCriterionAdHits.Add(
+            CompanyWatchCriterionAdHit.Create(criterion, adId, new FakeDateTimeProvider(at)).Value);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>What the nightly scan records for a criterion it reached at <paramref name="at"/>.</summary>
+    public static async Task RecordScanAsync(
+        WebApplicationFactory<Program> factory, CompanyWatchCriterionId criterionId, CompanyWatchCriterionScanOutcome outcome,
+        DateTimeOffset at, CancellationToken ct)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var criterion = await db.CompanyWatchCriteria.SingleAsync(c => c.Id == criterionId, ct);
+        criterion.RecordScan(outcome, at, new FakeDateTimeProvider(at));
+        await db.SaveChangesAsync(ct);
+    }
+
     // ── reading back ─────────────────────────────────────────────────────────────────────────
 
     public static async Task<UserJobAdMatch> MatchRowAsync(
@@ -169,6 +254,16 @@ internal static class NotificationFeedTestSeed
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return await db.FollowedCompanyAdHits.AsNoTracking().Where(h => h.UserId == userId && h.JobAdId == adId).ToListAsync(ct);
+    }
+
+    public static async Task<List<CompanyWatchCriterionAdHit>> CriterionHitRowsAsync(
+        WebApplicationFactory<Program> factory, Guid userId, JobAdId adId, CancellationToken ct)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.CompanyWatchCriterionAdHits.AsNoTracking()
+            .Where(h => h.UserId == userId && h.JobAdId == adId)
+            .ToListAsync(ct);
     }
 
     public static async Task<FeedBody> GetFeedAsync(HttpClient client, CancellationToken ct)
@@ -255,6 +350,27 @@ internal static class NotificationFeedTestSeed
         {
             Texts.Add(command.CommandText);
             return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
+
+    /// <summary>One statement a context sent without a reader: its text, and a copy of its parameters to replay it.</summary>
+    public sealed record WriteStatement(string Text, IReadOnlyList<NpgsqlParameter> Parameters);
+
+    /// <summary>
+    /// Keeps every statement a context sends without a reader, which is how EF runs <c>ExecuteUpdate</c> and
+    /// <c>ExecuteDelete</c>. The statements still run.
+    /// </summary>
+    public sealed class WriteStatementCapture : DbCommandInterceptor
+    {
+        public List<WriteStatement> Statements { get; } = [];
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            Statements.Add(new WriteStatement(
+                command.CommandText, [.. command.Parameters.OfType<NpgsqlParameter>().Select(p => p.Clone())]));
+            return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
         }
     }
 }

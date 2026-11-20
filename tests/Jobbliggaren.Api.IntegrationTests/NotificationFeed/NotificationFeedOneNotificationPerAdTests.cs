@@ -2,7 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionNewAdCounts;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyAdCount;
+using Jobbliggaren.Application.CompanyWatches.Queries.ListNewCriterionAds;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListNewFollowedCompanyAds;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
@@ -37,6 +40,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
 {
     private const string Match = "Match";
     private const string Followed = "FollowedCompanyAd";
+    private const string Criterion = "CompanyWatchCriterionAd";
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -348,7 +352,13 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
             return shown.Items.Single(i => i.JobAdId == Model.Ads[name].Id.Value);
         }
 
-        private static string Segment(string kind) => kind == Match ? "matches" : "followed-company-ads";
+        private static string Segment(string kind) => kind switch
+        {
+            Match => "matches",
+            Followed => "followed-company-ads",
+            Criterion => "company-watch-criterion-ads",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "A kind the bell does not send."),
+        };
 
         /// <summary>Both rows of every ad, read back, against the model: what each write reached and what it left alone.</summary>
         private async Task AssertRowsAsync()
@@ -821,16 +831,21 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
 
     // ── the SQL itself ───────────────────────────────────────────────────────────────────────
 
-    // The dedup is the bell's alone: Översikt's followed-ads count and its list never read a match row.
+    // The dedup is the bell's alone: Översikt's followed-ads count and its list never read a match row, and the
+    // Branschbevakning pill and its page of new ads read no match row, no follow hit and no bell flag (ADR 0175 D6, D8;
+    // architect Viktigt 2, 2026-11-20). J is a match AND a followed company's ad, so both higher sources hold it from the
+    // bell's third source, and every Översikt number still counts it.
     [Fact]
-    public async Task Oversikts_followed_count_and_the_followed_list_never_read_a_match_row()
+    public async Task Oversikts_counts_and_their_lists_never_read_a_row_that_holds_an_ad_in_the_bell()
     {
         var (client, userId) = await RegisterUserAsync(factory, "held-sql-oversikt", Ct);
         await GiveConsentAsync(client, true);
         var watch = await SeedWatchAsync(factory, userId, Ct);
+        var criterion = await SeedCriterionAsync(factory, userId, Ct);
         var ad = await SeedAdAsync(factory, "J", Ct);
         await SeedMatchAsync(factory, userId, ad, Base.AddMinutes(1), Ct);
         await SeedHitAsync(factory, userId, ad, watch, Base.AddMinutes(10), Ct);
+        await SeedCriterionHitAsync(factory, criterion, ad, Base.AddMinutes(20), Ct);
 
         using var scope = factory.Services.CreateScope();
         var statements = new StatementText();
@@ -842,10 +857,24 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
             .Handle(new GetNewFollowedCompanyAdCountQuery(), Ct);
         await new ListNewFollowedCompanyAdsQueryHandler(db, currentUser, OccupationProfile(), GradeEverythingAsMatching())
             .Handle(new ListNewFollowedCompanyAdsQuery(), Ct);
+        var followStatements = statements.Texts.Count;
+        var pill = await new GetCriterionNewAdCountsQueryHandler(db, currentUser).Handle(new GetCriterionNewAdCountsQuery(), Ct);
+        var page = await new ListNewCriterionAdsQueryHandler(
+                db, currentUser, Substitute.For<IFailedAccessLogger>(), OccupationProfile(), GradeEverythingAsMatching())
+            .Handle(new ListNewCriterionAdsQuery(criterion.Value), Ct);
 
         count.Count.ShouldBe(1, "Översikt still counts the ad the bell shows as a match");
+        pill.Items.ShouldHaveSingleItem().NewAds.ShouldBe(1, "the pill counts the ad both higher sources hold");
+        page.ShouldNotBeNull().Rows.Select(r => r.Ad.Id).ShouldBe([ad.Value]);
         statements.Texts.ShouldNotBeEmpty();
         statements.Texts.ShouldNotContain(t => t.Contains("user_job_ad_matches", StringComparison.OrdinalIgnoreCase));
+        var criterionStatements = statements.Texts.Skip(followStatements).ToList();
+        criterionStatements.ShouldNotBeEmpty();
+        foreach (var name in (string[])
+                 ["user_job_ad_matches", "followed_company_ad_hits", "read_in_notification_feed", "dismissed_from_notification_feed"])
+        {
+            criterionStatements.ShouldNotContain(t => t.Contains(name, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     // Which follow statements read a match row: the count and the window while the gate holds (the control), the token
@@ -894,7 +923,8 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
         }
     }
 
-    // The per-request cost stays nine with a held ad: the narrowing adds no statement.
+    // The per-request cost stays ten with a held ad, the third source's one statement for a user without a
+    // Branschbevakning included: the narrowing adds no statement.
     [Fact]
     public async Task A_held_ad_costs_no_statement()
     {
@@ -916,7 +946,7 @@ public class NotificationFeedOneNotificationPerAdTests(ApiFactory factory)
             .Handle(new GetMyNotificationFeedQuery(), Ct);
 
         feed.Items.Single().JobAdId.ShouldBe(ad.Value);
-        counter.Count.ShouldBe(9);
+        counter.Count.ShouldBe(10);
     }
 
     // security V6, declared unreachable: no request carries a signed-in user without a JobSeeker row (registration makes

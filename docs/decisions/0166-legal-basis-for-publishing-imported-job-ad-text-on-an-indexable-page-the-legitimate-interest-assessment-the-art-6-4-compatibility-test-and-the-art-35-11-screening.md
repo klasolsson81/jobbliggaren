@@ -1206,7 +1206,7 @@ Earlier the same day, at the plan stage (ADR 0186), Klas decided the page itself
 
 ADR 0166 remains **Accepted** for D1–D11 for the page, and for the sitemap, the catalogue, the related section and the application link by their amendments. This amendment is **Accepted** (Klas 2026-11-19; signed by `security-auditor` 2026-11-20).
 
-## Amendment 2026-11-20 (#2264, ADR 0187) — the D10 re-take for the junior list's stored assessment; approved by Klas `<date>`, signed by `security-auditor` `<date>`
+## Amendment 2026-11-20 (#2264, ADR 0187) — the D10 re-take for the junior list's stored assessment; approved by Klas 2026-11-20, signed by `security-auditor` `<date>`
 
 D1–D11 and the earlier amendments stand, and nothing above is rewritten. D10's triggers 22 and 23, added by the Amendment 2026-11-19, fire for the junior list.
 
@@ -1223,7 +1223,7 @@ The conclusion is withdrawn **for the junior list only**:
 
 The page, the sitemap, the catalogue, the Search Console read path, the related section and the application link keep their conclusions. The junior filter on `/jobb` (#2261), a signed-in count or link on `/jobb` (#2265) and the admin queue are not public surfaces, so they lie outside the conclusion. Each composes `JuniorMembership` and never copies it.
 
-**[K]** Klas took the conclusion again for the junior list on `<date>` (sign-off below).
+**[K]** Klas took the conclusion again for the junior list on 2026-11-20 (sign-off below).
 
 This amendment is the single home of the legal outcome for the change: ADR 0187 points here and does not restate it. It follows `security-auditor`'s plan read of 2026-11-20 (`docs/reviews/2026-11-20-2264-plan-security-auditor.md`, local). The merge waits for her signature. Without it the widened list would rest on a withdrawn conclusion, and the notice's "Vi har vägt de intressena mot dina rättigheter" would be untrue for it (Art. 5(1)(a), 12(1), 14(2)(b)).
 
@@ -1365,7 +1365,7 @@ The addendum is a local file, written in the main copy by the driving session, a
 
 **D9: unchanged.**
 
-**D10.** Triggers 22 and 23 fired for the junior list, and Klas took the conclusion again on `<date>`. This withdraws no finding and none of D4's residuals. For the junior list, triggers 22 and 23 are replaced by the wording below, and trigger 24 is added. The wording is `security-auditor`'s:
+**D10.** Triggers 22 and 23 fired for the junior list, and Klas took the conclusion again on 2026-11-20. This withdraws no finding and none of D4's residuals. For the junior list, triggers 22 and 23 are replaced by the wording below, and trigger 24 is added. The wording is `security-auditor`'s:
 
 22. Junior membership, order, count or kommun options not computed at request time from the per-ad assessments, as `JuniorMembership` defines it, under `JobAdPublication.IsListed(now)` and the enabled field's groups. The assessment table holds verdicts and decisions, one row per ad, and never membership. So this trigger covers all of these:
     - membership read instead from a stored membership flag or member list, a snapshot, any process or Next cache, ISR, a static render or a CDN;
@@ -1461,11 +1461,61 @@ Read with D10's scope rule, none of the lapses withdraws anything. The pointer a
 **Sign-off**
 
 **Controller approval:** Klas Olsson, in the session's chat, by AskUserQuestion. The questions are quoted as they were put to him, and his answers without edits:
-1. The criterion, at the phase-0 STOPP, 2026-11-20: `<question, verbatim>`. Answer: "A: ≥95 % och ≥10 fall (Rek.)".
-2. `security-auditor`'s question 1, 2026-11-20: `<question, verbatim>`. Answer: "Bara junior-id:na (Rek.)".
-3. Her question 2, 2026-11-20: `<question, verbatim>`. Answer: "Ja, utanför repot (Rek.)".
-4. Her question on the re-take, `<date>`: `<question, verbatim>`. Answer: `<answer>`.
-5. Her question on the sixth addendum, `<date>`: `<question, verbatim>`. Answer: `<answer>`.
+1. The criterion, at the phase-0 STOPP, 2026-11-20:
+
+   > Vilket kriterium ska avgöra vilka juniorregler som får visa eller utesluta annonser automatiskt? (Mätt mot ditt facit: A slår på fyra regler med 97,6 % rätt bland visade, kö ca 4/dag. B slår inte på någon regel, kö ca 8/dag.)
+
+   Answer: "A: ≥95 % och ≥10 fall (Rek.)".
+2. `security-auditor`'s question 1, 2026-11-20:
+
+   > security-auditor fråga 1: ska dina inte-junior-id:n ligga i det publika repot, med riktning? (Bara junior-id:n: 63 öppna inte-junior-annonser hamnar i kön en gång och 2 visas automatiskt tills du tar bort dem. Båda riktningarna: 0 och 0, id:na räknas på lådan före push.)
+
+   Answer: "Bara junior-id:na (Rek.)".
+3. Her question 2, 2026-11-20:
+
+   > security-auditor fråga 2: får en minimerad kopia av facit (id, etikett, antal år; inga anteckningar eller orter) sparas efter att mappen raderas, till 2027-05-18, för att kunna mäta om reglerna?
+
+   Answer: "Ja, utanför repot (Rek.)".
+4. Her question on the re-take, 2026-11-20, its text shown as the preview of the recommended option:
+
+   > Till Klas (security-auditor, #2264 juniorlistan, omprövningen): Med dina tre svar från i dag kan omprövningen skrivas. Den blir ett daterat tillägg till ADR 0166. PR:en mergas inte förrän du har godkänt tillägget och det sjätte DPIA-tillägget och jag har signerat. 1. Godkänner du omprövningen för juniorlistan?
+   >
+   > 1. Godkänner du omprövningen för juniorlistan? Den säger:
+   > - Syftet är oförändrat: den som söker sitt första IT-jobb hittar de öppna annonserna utan konto.
+   > - Varje öppen Data/IT-annons klassas i förväg i workern som junior, inte junior eller oklar. Utslaget sparas i en egen tabell, en rad per annons, tillsammans med regeln som avgjorde, och ditt beslut sparas på samma rad. Ingen annonstext sparas eller loggas. När en annons raderas, raderas dess rad samtidigt. En rad som workern skrev medan raderingen pågick tas bort senast vid workerns nästa körning.
+   > - Ditt beslut i adminkön går före allt annat, sedan dina junior-id:n och sist reglerna. En regel visar eller utesluter annonser automatiskt bara om den har varit rätt i minst 95 % av fallen, på minst 10 fall, mot din läsning. Annonser som ingen sådan regel avgör hamnar i kön.
+   > - I dag uppfyller fyra regler kravet. I mätningen visade de 82 annonser, och 80 av dem var rätt. Siffrorna är mätta mot samma läsning som reglerna har stämts av mot, så de är något optimistiska. Två av dina inte-junior-annonser visas tills du tar bort dem under fliken "Visas på /junior".
+   > - Om en annons är öppen läses fortfarande vid varje visning. En raderad annons försvinner därför direkt ur listan, ur antalet och ur kommunvalet.
+   > - Regelfilen i det publika repot innehåller bara dina 145 junior-id:n, utan etiketter, år, orter eller anteckningar, och inget mönster nämner en arbetsgivare, en person eller en ort. Id:na räknades på lådan innan de pushades, bara som antal: inget var raderat, inget låg utanför Data/IT och inget hade ett organisationsnummer med personnummerform. Filen ändras aldrig för att en annons har raderats. Klagar en arbetsgivare är ditt beslut i kön lösningen, inte filen.
+   > - Kön syns bara för dig. Den visar rubrik, arbetsgivare, ort, publiceringsdatum, sista dag, reglernas utslag och ditt beslut, men ingen annonstext.
+   > - Reglerna bedömer annonser, inte personer, så det är ingen profilering.
+   > - Bara Data/IT är påslaget. Ett nytt yrkesområde kräver en ny omprövning och en ny bedömning av Art. 9.
+   > - Kopian av ditt facit ligger utanför alla repon och raderas 2027-05-18.
+   > - Notisen och integritetspolicyn stämmer som de står och ändras inte.
+   > - Personnummerräkningen görs om samma dag som mergen, bara som antal, och måste visa 0. Efter driftsättningen, och innan du publicerar inlägget, räknas juniorlistan på lådan, bara som antal. Visar räkningen en enskild firma återkommer jag till dig innan inlägget går ut.
+   > - Triggerna 22 och 23 skrivs om, och en trigger 24 läggs till. Omprövningen måste göras om i fyra fall:
+   >   - Listan räknas fram på något annat sätt än ur bedömningarna vid varje visning, något annat än svepet eller ditt beslut avgör utslaget, eller en regel går före ditt beslut.
+   >   - Urvalet blir bredare: ett nytt yrkesområde, en regel som blir automatisk utan mätning mot ditt krav, en ny parameter eller fritextsökning.
+   >   - Regelfilen får något utöver junior-id:n och allmänna mönster, får id:n på annat sätt än genom en ny läsning av dig, eller ändras för att en annons har raderats eller för att någon har klagat.
+   >   - Något sparas utöver de två nya kolumnerna på annonsen och bedömningstabellen, tabellen börjar bära själva listan eller text ur annonsen, svepet läser mer än rubrik, rensad text, yrkesgrupp och erfarenhetskrav, svepet loggar mer än antal och feltyp, svepet slutar ta bort bedömningar av raderade annonser, eller kön visar annonstext.
+   >
+   > (Rek.: Ja. Svarar du nej mergas inte PR:en.)
+
+   Answer: "Ja (Rek.)".
+5. Her question on the sixth addendum, 2026-11-20, its text shown the same way:
+
+   > 2. Godkänner du det sjätte tillägget till DPIA:ns §8-B, som det står?
+   >
+   > 2. Godkänner du det sjätte tillägget till DPIA:ns §8-B, som det står? Tillägget säger:
+   > - att listan klassas i förväg;
+   > - att utslaget och ditt beslut sparas i en egen tabell, som raderas med annonsen;
+   > - att svepet läser den rensade annonstexten utan att spara eller logga den;
+   > - att kön är din egen behandling;
+   > - att regelfilen bara har junior-id:n.
+   >
+   > Bedömningarna står kvar: Låg × Medel för arbetsgivarens namn och Medel × Medel för risken att en radering kan härledas. Inget förhandssamråd med IMY behövs, och Art. 9-raden berörs inte. (Rek.: Ja, som det står. Utan tillägget signerar jag inte, och då mergas inte PR:en.)
+
+   Answer: "Ja, som det står (Rek.)".
 
 **Signature:** `<written by security-auditor at her scoped re-check of the final head>`
 

@@ -1415,3 +1415,19 @@ ADR 0186 adds two methods that project `JobAd` fields for the open junior IT lis
 - The company name leaves in a row, as on the job page, in the catalogue and in the related section; the organization number is never projected (ADR 0087 D8(c)).
 
 No supersession: ADR 0106 remains **Accepted**.
+
+## Amendment 2026-11-20 (#2264, ADR 0187) — D9 read-path table: the junior list reads a stored assessment, and three new reads
+
+ADR 0187 makes the junior list read a verdict stored per ad (`job_ad_junior_assessments`) instead of classifying each row per request. The two reads above keep their row; what they compose changes. Three new methods project `JobAd` fields. Recorded here, as the amendments above recorded theirs; the table is not restated.
+
+| Site | Surface | Projects | Gated on `Status != Erased`? | Issue |
+|---|---|---|---|---|
+| `JuniorItJobAdQuery.CountByMunicipalityAsync` and `JuniorItJobAdQuery.ReadPageAsync` (unchanged surface) | Anonymous open junior IT list | As above | ✅ Yes — `JobAdPublication.IsListed(now)` at request time on both; membership is now `JuniorMembership.Of(assessments, groups)`, an EXISTS on the assessment, composed under it | — |
+| `ClassifyJuniorJobAdsJob.RunAsync` (the classification sweep's selection) | Worker, no surface | Id, ExternalId, Title, Description (post-scrub), occupation group, experience mark, input fingerprint — in memory only, never logged | ✅ Yes — `IsListed(now)`; an erased ad is never classified, and every tick removes any assessment left on an erased ad | — |
+| `ListJuniorJobAdsQueryHandler.Handle` (the admin junior queue) | Admin (`AdminPolicy`) | Id, Title, Company.Name, kommun id, PublishedAt, ExpiresAt, and the assessment's verdict, rule id and decision | ✅ Yes — `IsListed(now)` | — |
+| `DecideJuniorJobAdCommandHandler.Handle` (the admin decision) | Admin (`AdminPolicy`) | Nothing: an EXISTS inside the assessment's load | ✅ Yes — `IsListed(now)` | — |
+
+- All are registered in `JobAdLifecycleReadRegistry` (ADR 0113) as Active sites.
+- **Tier B is how an erasure is honoured in the junior list.** Liveness is still read per request through `IsListed(now)`, so an erased ad leaves the rows, the total and the kommun options at once. The stored assessment goes with it: the erasure command deletes it in its own unit of work, and the sweep removes any assessment a racing run wrote onto the tombstone at the start and end of every tick. `Erase()` nulls `job_ads.junior_input_fingerprint`. No check step and no removal request is owed (`docs/runbooks/recruiter-pii-erasure.md` §2.4a).
+
+No supersession: ADR 0106 remains **Accepted**.

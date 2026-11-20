@@ -196,6 +196,15 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
                 erasedExternalIds.Add(externalId);
         }
 
+        // #2264 (ADR 0187) — the junior assessment of an erased ad goes with it: a verdict or a decision about a tombstone
+        // answers nothing (security-auditor m1, the tighter tombstone). Through the change tracker, in the same
+        // UnitOfWork SaveChanges as the erasure and the audit row.
+        var erasedIds = jobAds.Where(j => j.Status == JobAdStatus.Erased).Select(j => j.Id).ToList();
+        var assessments = await db.JuniorAssessments
+            .Where(a => erasedIds.Contains(a.Id))
+            .ToListAsync(cancellationToken);
+        db.JuniorAssessments.RemoveRange(assessments);
+
         // Hard-delete, not a null-out: RecentJobSearch's identity is UNIQUE(JobSeekerId, FilterHash)
         // and `q` is a derivative of that hash which "får aldrig divergera" — a row with q = NULL and
         // a hash computed from that q is a row whose identity contradicts its own content. The

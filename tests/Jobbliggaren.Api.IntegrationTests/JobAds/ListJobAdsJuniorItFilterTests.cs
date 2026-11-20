@@ -2,13 +2,17 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Jobbliggaren.Api.IntegrationTests.Admin;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds;
+using Jobbliggaren.Application.JobAds.Junior;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.JobAds;
-using Jobbliggaren.Infrastructure.JobAds.JuniorIt;
+using Jobbliggaren.Infrastructure.JobAds.Junior;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
@@ -19,9 +23,10 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
 /// <summary>
-/// #2261 — the junior IT list as a /jobb filter, through the signed-in endpoints on real Postgres. Every row is
-/// imported through <c>JobAd.Import</c>, as the ingestion stores it. Each test isolates its rows in the shared
-/// database by a token in the title and the same token as <c>q</c>.
+/// #2261, #2264 — the junior IT list as a /jobb filter, through the signed-in endpoints on real Postgres. Every row is
+/// imported through <c>JobAd.Import</c>, as the ingestion stores it, and classified by the host's own
+/// <see cref="ClassifyJuniorJobAdsJob"/> under the shipped rules, as the Worker's two-minute tick would (ADR 0187).
+/// Each test isolates its rows in the shared database by a token in the title and the same token as <c>q</c>.
 /// </summary>
 [Collection("Api")]
 public sealed class ListJobAdsJuniorItFilterTests(ApiFactory factory)
@@ -34,6 +39,11 @@ public sealed class ListJobAdsJuniorItFilterTests(ApiFactory factory)
     private const string Goteborg = "PVZL_BQT_XtL";
     private const string VastraGotalandsLan = "zdoY_6u5_Krt";
 
+    // The shipped hand reading's ids, each imported by one test only: (source, external id) is unique in the shared
+    // database.
+    private static readonly string[] ReadingIds =
+        [.. JuniorRuleSetLoader.LoadDataIt().Reading.JuniorExternalIds.Order(StringComparer.Ordinal)];
+
     private readonly MutableFakeDateTimeProvider _clock = new() { UtcNow = DateTimeOffset.UtcNow };
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -44,7 +54,7 @@ public sealed class ListJobAdsJuniorItFilterTests(ApiFactory factory)
     public async Task Junior_ListsExactlyTheDataItAdsTheHeadlineOrTheCuratedListAdmits()
     {
         var token = NewToken();
-        var curatedId = JuniorItListLoader.Load().CuratedExternalIds[0];
+        var curatedId = ReadingIds[0];
         var titled = await ImportAsync($"Junior utvecklare {token}", DataIt, Stockholm, StockholmsLan);
         var curated = await ImportAsync($"Systemutvecklare {token}", OtherDataIt, Goteborg, VastraGotalandsLan,
             externalId: curatedId);
@@ -132,20 +142,51 @@ public sealed class ListJobAdsJuniorItFilterTests(ApiFactory factory)
         after.ShouldBe(before);
     }
 
+    // #2264 — the /jobb ↔ /junior parity oracle. Over every arm the stored membership has, the /jobb junior filter
+    // admits exactly the ads the open list lists: a rule's Junior, the hand reading's, no signal, an Unclear in the
+    // queue, an Unclear an administrator decided Junior, a rule's Junior an administrator vetoed, and an ad outside
+    // the field. Every ad is listed, so /jobb's own lifecycle gate (Active) and the list's (IsListed) agree on them.
+    [Fact]
+    public async Task Junior_AdmitsExactlyTheAdsTheOpenJuniorListLists()
+    {
+        var token = NewToken();
+        var ruleJunior = await ImportAsync($"Junior utvecklare {token}", DataIt, Stockholm, StockholmsLan);
+        var readingJunior = await ImportAsync($"Systemutvecklare {token}", OtherDataIt, Stockholm, StockholmsLan,
+            externalId: ReadingIds[1]);
+        var noSignal = await ImportAsync($"Systemutvecklare {token}", DataIt, Stockholm, StockholmsLan);
+        var queued = await ImportAsync($"Student utvecklare {token}", DataIt, Stockholm, StockholmsLan);
+        var decidedJunior = await ImportAsync($"Student testare {token}", DataIt, Stockholm, StockholmsLan);
+        var vetoed = await ImportAsync($"Junior testare {token}", DataIt, Stockholm, StockholmsLan);
+        var outsideField = await ImportAsync($"Junior ekonomiassistent {token}", NotDataIt, Stockholm, StockholmsLan);
+        var (admin, _, _) = await AdminAccountsKit.AdminAsync(factory, AdminAccountsKit.NewToken(), Ct);
+        await DecideAsync(admin, decidedJunior, "Junior");
+        await DecideAsync(admin, vetoed, "NotJunior");
+        using var client = await SignedInClientAsync();
+
+        var jobb = await IdsAsync(client, $"/api/v1/job-ads?q={token}&junior=true&pageSize=50");
+        var openList = await OpenJuniorListIdsAsync(Stockholm);
+
+        jobb.ShouldBe([ruleJunior, readingJunior, decidedJunior], ignoreOrder: true);
+        new[] { ruleJunior, readingJunior, noSignal, queued, decidedJunior, vetoed, outsideField }
+            .Where(openList.Contains)
+            .ShouldBe(jobb, ignoreOrder: true);
+    }
+
     [Fact]
     public async Task TheClause_IsTheListsOwnPredicate_AfterTheActiveGate()
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var resolver = SearchTextResolvers.For(scope, Substitute.For<IOccupationSynonymExpander>());
-        var set = await scope.ServiceProvider.GetRequiredService<JuniorItSetResolver>().ResolveAsync(Ct);
+        var groups = JuniorMembership.GroupsOf(
+            await scope.ServiceProvider.GetRequiredService<IJuniorFieldCatalog>().ResolveEnabledAsync(Ct));
 
         var resolved = await resolver.ResolveAsync(Criteria(juniorIt: true), Ct);
         var actual = JobAdSearchComposition.ApplyFilter(db.JobAds.AsNoTracking(), resolved).ToQueryString();
 
         var expected = db.JobAds.AsNoTracking()
             .Where(j => j.Status == JobAdStatus.Active)
-            .Where(JuniorItPredicate.Matches(set))
+            .Where(JuniorMembership.Of(db.JuniorAssessments, groups))
             .ToQueryString();
         actual.ShouldBe(expected);
     }
@@ -182,6 +223,23 @@ public sealed class ListJobAdsJuniorItFilterTests(ApiFactory factory)
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: Ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
+    }
+
+    private static async Task DecideAsync(HttpClient admin, Guid id, string decision)
+    {
+        using var response = await admin.PostAsJsonAsync(
+            $"/api/v1/admin/junior-job-ads/{id}/decision", new { decision }, Ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+    }
+
+    // The open list's own port, read through the host's clock: every ad it lists in the kommun, not one page.
+    private async Task<HashSet<Guid>> OpenJuniorListIdsAsync(string municipality)
+    {
+        using var scope = factory.Services.CreateScope();
+        var now = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>().UtcNow;
+        var rows = await scope.ServiceProvider.GetRequiredService<IJuniorItJobAdQuery>()
+            .ReadPageAsync(now, municipality, JobAdSortBy.PublishedAtDesc, skip: 0, take: 10_000, Ct);
+        return rows.Select(r => r.Id).ToHashSet();
     }
 
     private static async Task<List<Guid>> IdsAsync(HttpClient client, string url)
@@ -230,6 +288,9 @@ public sealed class ListJobAdsJuniorItFilterTests(ApiFactory factory)
             applicationUrl: null, extractTerms: TestKeywordExtraction.None).Value;
         db.JobAds.Add(jobAd);
         await db.SaveChangesAsync(Ct);
+
+        // The Worker's sweep classifies it, as its two-minute tick would (ADR 0187).
+        await scope.ServiceProvider.GetRequiredService<ClassifyJuniorJobAdsJob>().RunAsync(Ct);
         return jobAd.Id.Value;
     }
 }

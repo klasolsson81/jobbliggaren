@@ -105,7 +105,7 @@ public class PnrShapedPrefilterQueryPlanTests(JobAdBrowsePlanFixture fixture)
         db.Database.SetCommandTimeout(300);
 
         // The collection is single-owner and serialised, so this class owns the table at its turn.
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads;", ct);
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads CASCADE;", ct);
 
         // Legal-entity org.nrs: the third digit is forced outside the pnr-shaped superset. Without that
         // the "rare sliver" premise would not hold and the index would not be the obvious pick.

@@ -194,6 +194,10 @@ public class TaxonomyAclLayerTests
             // after the rows are read through the publication predicate. Sorts "GetR" between "GetP" and "GetT".
             nameof(Jobbliggaren.Application.JobAds.Queries.GetRelatedPublicJobAds.GetRelatedPublicJobAdsQueryHandler),
             nameof(Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree.GetTaxonomyTreeQueryHandler),
+            // #2264 / ADR 0187 (2026-11-20) — an admin read-side consumer: the junior queue names its rows' kommun through
+            // the same port, one call per page, after the rows are read through the publication predicate. Sorts "ListJ"
+            // after "GetT" and before "ListR".
+            nameof(Jobbliggaren.Application.Admin.JuniorJobAds.Queries.ListJuniorJobAds.ListJuniorJobAdsQueryHandler),
             // ADR 0060 (2026-05-20) — fjärde legitim konsument: RecentJobSearches-
             // listans label-berikning, identiskt mönster med SavedSearch-listan.
             nameof(Jobbliggaren.Application.RecentJobSearches.Queries.ListRecentSearches.ListRecentSearchesQueryHandler),

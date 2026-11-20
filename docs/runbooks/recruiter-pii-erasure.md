@@ -369,12 +369,15 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
    once (`PublicJobAdCatalogueReadTests`, `PublicJobAdCatalogueEndpointTests`). Nor does
    the related section on other ads' job pages (ADR 0182): it reads and classifies each
    row per request, so an erased ad leaves every section at once
-   (`RelatedPublicJobAdsReadTests`). Nor does the open junior IT list (`/junior`, ADR 0186),
-   which needs neither a search-engine check nor a removal request, because it is `noindex`
-   and classifies each row, the total and the kommun options per request through
-   `JobAdPublication.IsListed`, so an erased ad is absent from every view at once
-   (`JuniorItJobAdQueryReadTests`); its curated file `junior-it-list.v1.json` is never
-   edited because of an erasure.
+   (`RelatedPublicJobAdsReadTests`). Nor does the open junior IT list (`/junior`, ADRs 0186
+   and 0187), which needs neither a search-engine check nor a removal request, because it is
+   `noindex` and reads each row's liveness, the total and the kommun options per request
+   through `JobAdPublication.IsListed`, so an erased ad is absent from every view at once
+   (`JuniorItJobAdQueryReadTests`). Its stored junior assessment goes with the ad: the erase
+   command deletes it, and the classification sweep removes any assessment left on an erased
+   ad (`JuniorAssessmentErasureTests`, `JuniorAssessmentErasureRaceTests`). The rule file's
+   reading ids are never edited because of an erasure; an admin decision is never the
+   remedy for one.
 3. **Search Console** (the Domain property): *Removals → New request → Temporary
    removal → Remove this URL only*, for each address. Per Google it takes effect within
    about a day and lasts about six months; the permanent removal is the 410, which Google

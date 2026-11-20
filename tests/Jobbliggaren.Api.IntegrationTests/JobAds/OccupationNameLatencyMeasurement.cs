@@ -78,9 +78,8 @@ public class OccupationNameLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
             new OccupationSynonymExpander(Options.Create(new SearchSynonymsOptions())),
             Substitute.For<ITaxonomyLabelMatcher>(),
             lineageProvider,
-            new Jobbliggaren.Infrastructure.JobAds.JuniorIt.JuniorItSetResolver(
-                Jobbliggaren.Infrastructure.JobAds.JuniorIt.JuniorItListLoader.Load(),
-                Substitute.For<ITaxonomyReadModel>()));
+            db,
+            Substitute.For<Jobbliggaren.Application.JobAds.Junior.IJuniorFieldCatalog>());
         var search = new JobAdSearchQuery(db, resolver);
 
         var (current, deprecated) = ReadNames();
@@ -226,7 +225,7 @@ public class OccupationNameLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
         AppDbContext db, List<Name> current, List<Name> deprecated, CancellationToken ct)
     {
         db.Database.SetCommandTimeout(600);
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads;", ct);
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads CASCADE;", ct);
 
         var random = new Random(2199);
         var names = new string[TotalRows];

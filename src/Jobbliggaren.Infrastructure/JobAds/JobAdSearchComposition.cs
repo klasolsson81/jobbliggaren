@@ -309,7 +309,7 @@ internal static class JobAdSearchComposition
         return arms.Aggregate(OrElse);
     }
 
-    internal static Expression<Func<JobAd, bool>> OrElse(
+    private static Expression<Func<JobAd, bool>> OrElse(
         Expression<Func<JobAd, bool>> left, Expression<Func<JobAd, bool>> right) =>
         Expression.Lambda<Func<JobAd, bool>>(
             Expression.OrElse(

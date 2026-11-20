@@ -9,6 +9,7 @@ type AdminNavLabelKey =
   | "nav.oversikt"
   | "nav.anvandare"
   | "nav.feedback"
+  | "nav.juniorjobb"
   | "nav.loggar"
   | "nav.epost"
   | "nav.jobb"
@@ -26,6 +27,7 @@ const ADMIN_NAV: ReadonlyArray<AdminNavItem> = [
   { path: "", labelKey: "nav.oversikt", exact: true },
   { path: "/anvandare", labelKey: "nav.anvandare" },
   { path: "/feedback", labelKey: "nav.feedback" },
+  { path: "/juniorjobb", labelKey: "nav.juniorjobb" },
   { path: "/loggar", labelKey: "nav.loggar" },
   { path: "/e-post", labelKey: "nav.epost" },
   { path: "/jobb", labelKey: "nav.jobb" },

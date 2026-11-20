@@ -22,6 +22,8 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 public interface IAppDbContext
 {
     DbSet<JobAd> JobAds { get; }
+    // #2264 (ADR 0187) — what the junior rules said about an ad, and an admin's decision. Keyed by the ad's id.
+    DbSet<JobAdJuniorAssessment> JuniorAssessments { get; }
     DbSet<JobSeeker> JobSeekers { get; }
     DbSet<DomainApplication> Applications { get; }
     DbSet<Resume> Resumes { get; }

@@ -379,7 +379,7 @@ public class FilterToMatchingQueryPlanTests(JobAdBrowsePlanFixture fixture, ITes
         if (seeded == TotalRows)
             return;
 
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads;", ct);
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads CASCADE;", ct);
 
         // The facet columns and the raw_payload they were read from are written TOGETHER and from the
         // same expressions, so each row is the shape SetSourcePayload produces rather than a

@@ -16,6 +16,16 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Infrastructure;
 /// </summary>
 public class JobTechHitDeserializationTests
 {
+    [Theory]
+    [InlineData("""{ "id": "1", "experience_required": false }""", false)]
+    [InlineData("""{ "id": "1", "experience_required": true }""", true)]
+    [InlineData("""{ "id": "1" }""", null)]
+    public void Deserialize_ReadsTheExperienceMark_AndLeavesItNullWhenAbsent(string wireJson, bool? expected)
+    {
+        // #2264 — the wire key behind the junior classification's experience condition.
+        JsonSerializer.Deserialize<JobTechHit>(wireJson)!.ExperienceRequired.ShouldBe(expected);
+    }
+
     [Fact]
     public void Deserialize_PopulatesEmployerOrganizationNumber()
     {

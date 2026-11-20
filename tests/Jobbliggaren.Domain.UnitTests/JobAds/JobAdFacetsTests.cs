@@ -75,6 +75,27 @@ public class JobAdFacetsTests
         JobAdFacets.None.IsEmpty.ShouldBeTrue();
         JobAdFacets.None.OccupationNameConceptId.ShouldBeNull();
         JobAdFacets.None.OrganizationNumber.ShouldBeNull();
+        JobAdFacets.None.ExperienceRequired.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void The_experience_mark_alone_is_a_facet(bool experienceRequired)
+    {
+        // #2264 — a payload that carries only the advertiser's experience mark still carried something.
+        var facets = new JobAdFacets(
+            occupationNameConceptId: null,
+            occupationGroupConceptId: null,
+            municipalityConceptId: null,
+            regionConceptId: null,
+            employmentTypeConceptId: null,
+            worktimeExtentConceptId: null,
+            organizationNumber: null,
+            experienceRequired: experienceRequired);
+
+        facets.ExperienceRequired.ShouldBe(experienceRequired);
+        facets.IsEmpty.ShouldBeFalse();
     }
 
     // ── The atomic write ─────────────────────────────────────────────────────────────────────────

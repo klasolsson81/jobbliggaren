@@ -1,7 +1,8 @@
 using System.Linq.Expressions;
 using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.JobAds.Junior;
 using Jobbliggaren.Domain.JobAds;
-using Jobbliggaren.Infrastructure.JobAds.JuniorIt;
+using Jobbliggaren.Infrastructure.Persistence;
 
 namespace Jobbliggaren.Infrastructure.JobAds;
 
@@ -16,9 +17,9 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// occupation-name counts with the same lineage, so the filter and the counts have one reader.
 /// </para>
 /// <para>
-/// #2261 — it also builds the junior IT list's membership predicate when the criteria ask for it, from
-/// <see cref="JuniorItSetResolver"/>, the one place that list meets the taxonomy (ADR 0186 D2). The filter
-/// carries the predicate, never its ingredients.
+/// #2261, #2264 — it also builds the junior IT list's membership predicate when the criteria ask for it:
+/// <see cref="JuniorMembership.Of"/> over the stored assessments, the one definition <c>/junior</c> reads too
+/// (ADR 0187). The filter carries the predicate, never its ingredients.
 /// </para>
 /// </summary>
 internal sealed class JobAdSearchTextResolver(
@@ -26,7 +27,8 @@ internal sealed class JobAdSearchTextResolver(
     IOccupationSynonymExpander synonymExpander,
     ITaxonomyLabelMatcher labelMatcher,
     IOccupationNameLineageProvider occupationNames,
-    JuniorItSetResolver juniorIt)
+    AppDbContext db,
+    IJuniorFieldCatalog juniorFields)
 {
     public async ValueTask<ResolvedJobAdFilter> ResolveAsync(
         JobAdFilterCriteria criteria, CancellationToken cancellationToken)
@@ -38,7 +40,9 @@ internal sealed class JobAdSearchTextResolver(
             ? TaxonomyLabelMatchDto.Empty
             : await labelMatcher.MatchExactLabelsAsync(parsed.ExcludedTerms, cancellationToken);
         var junior = criteria.JuniorIt
-            ? JuniorItPredicate.Matches(await juniorIt.ResolveAsync(cancellationToken))
+            ? JuniorMembership.Of(
+                db.JuniorAssessments,
+                JuniorMembership.GroupsOf(await juniorFields.ResolveEnabledAsync(cancellationToken)))
             : null;
 
         return new ResolvedJobAdFilter(

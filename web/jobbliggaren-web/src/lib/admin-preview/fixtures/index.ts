@@ -30,6 +30,7 @@ import type {
   AdminTrendDay,
 } from "@/lib/admin/view-models";
 import type { AdminPendingEmailChange } from "@/lib/admin/account-email-change";
+import type { AdminJuniorDecision, AdminJuniorJobRow, AdminJuniorVerdict } from "@/lib/admin/junior-jobs";
 import type { AuditLogEntryDto, FailedJobsResponse, RecurringJobStatusDto } from "@/lib/dto/admin";
 import {
   EMAIL_FAILURES_LIMIT,
@@ -597,6 +598,56 @@ function summaryFor(days: number): ReadonlyArray<AdminFeedbackPageSummary> {
 /** The summary per window, from the submissions above, so the list and the summary agree. */
 export const PREVIEW_FEEDBACK_SUMMARY: Readonly<Record<AdminFeedbackWindow, ReadonlyArray<AdminFeedbackPageSummary>>> =
   marked({ 7: summaryFor(7), 30: summaryFor(30), 90: summaryFor(90) });
+
+/** A junior-queue ad as the preview holds it: listed, or closed after the page was read. */
+export type PreviewJuniorJob = AdminJuniorJobRow & { readonly listed: boolean };
+
+function juniorAd(
+  n: number,
+  title: string,
+  company: string,
+  municipality: string | null,
+  publishedDaysAgo: number,
+  expiresInDays: number | null,
+  verdict: AdminJuniorVerdict,
+  ruleId: string,
+  decision: AdminJuniorDecision | null,
+  listed = true,
+): PreviewJuniorJob {
+  return marked({
+    id: id(n),
+    title,
+    company,
+    municipality,
+    publishedAt: daysAgo(publishedDaysAgo, 8, 15),
+    expiresAt: expiresInDays === null ? null : daysAhead(expiresInDays),
+    verdict,
+    ruleId,
+    decision,
+    listed,
+  });
+}
+
+/**
+ * The junior queue (#2264): listed Data/IT ads in every tab under fictional employers. One ad the rules left
+ * unclear names a rule this web does not know, one has neither a kommun nor a last day, and one closed after the
+ * page was read, so its decision is refused as the live page's would be.
+ */
+export const PREVIEW_JUNIOR_JOBS: ReadonlyArray<PreviewJuniorJob> = [
+  juniorAd(901, "Systemutvecklare, nyexaminerad välkommen", "Arbetsgivare A", "Göteborg", 0, 28, "unclear", "text-new-graduate", null),
+  juniorAd(902, "Utvecklare till kundteamet", "Arbetsgivare B", "Stockholm", 0, 21, "unclear", "candidate-only", null),
+  juniorAd(903, "Examensarbete: testautomatisering", "Arbetsgivare C", "Linköping", 1, 14, "unclear", "title-thesis", null),
+  juniorAd(904, "IT-tekniker till servicedesk", "Arbetsgivare D", null, 1, null, "unclear", "text-early-career", null),
+  juniorAd(905, "Backendutvecklare Java", "Arbetsgivare E", "Malmö", 2, 30, "unclear", "years-3-plus", null, false),
+  juniorAd(906, "Supporttekniker, deltid", "Arbetsgivare F", "Alingsås", 3, 10, "unclear", "title-intern", null),
+  juniorAd(907, "Webbutvecklare, ingen erfarenhet krävs", "Arbetsgivare G", "Uppsala", 4, 25, "unclear", "text-no-experience-needed", null),
+  juniorAd(911, "Junior systemutvecklare .NET", "Arbetsgivare H", "Göteborg", 0, 28, "junior", "title-junior", null),
+  juniorAd(912, "Frontendutvecklare till produktteamet", "Arbetsgivare I", "Stockholm", 2, 20, "junior", "text-seek-junior", null),
+  juniorAd(913, "Trainee inom IT-drift", "Arbetsgivare J", "Borås", 5, 12, "junior", "reading-2026-11-19", null),
+  juniorAd(914, "Applikationsutvecklare", "Arbetsgivare K", "Örebro", 3, 18, "unclear", "candidate-only", "junior"),
+  juniorAd(915, "Systemutvecklare med handledaransvar", "Arbetsgivare L", "Västerås", 6, 8, "notJunior", "text-mentor-only", "notJunior"),
+  juniorAd(916, "Junior testare", "Arbetsgivare M", "Lund", 6, 9, "junior", "title-junior", "notJunior"),
+];
 
 export const PREVIEW_SECURITY_LOG: ReadonlyArray<AdminSecurityLogRow> = [
   marked({ id: id(701), occurredAt: daysAgo(0, 7, 31), kind: "loginFailed" as const, account: mask("konto.d"), ip: "192.0.2.0", count: 3, detail: "Fel kod" }),

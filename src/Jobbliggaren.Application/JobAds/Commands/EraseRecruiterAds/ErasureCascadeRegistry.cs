@@ -343,6 +343,21 @@ public static class ErasureCascadeRegistry
                 "DERIVATION: the STORED shadow of extracted_terms — same source text, same "
                 + "argument, one storage form over. Follows extracted_terms to [] on Erase().",
 
+            ["job_ads.junior_input_fingerprint"] =
+                "DERIVATION: #2264 — SHA-256 over the post-scrub title and description, the "
+                + "occupation group and the experience mark (JuniorInputFingerprint.Of), written by "
+                + "SetSourcePayload on every source write. A hash is one-way and cannot be searched "
+                + "for an identifier; both text inputs are searched channels, so the row is found "
+                + "through them. Erase() nulls it explicitly.",
+
+            ["job_ad_junior_assessments.classified_fingerprint"] =
+                "DERIVATION: #2264 — a copy of job_ads.junior_input_fingerprint, stamped by the "
+                + "junior classification sweep for the content it classified. One-way, its inputs are "
+                + "the ad's searched channels. The erasure command deletes the whole assessment row "
+                + "with the ad it belongs to, and the sweep deletes any assessment of an erased ad at "
+                + "the start and end of every tick, so a row a sweep wrote while racing the erasure "
+                + "does not outlive the next tick.",
+
             ["recent_job_searches.filter_hash"] =
                 "DERIVATION: filter_hash is SHA-256 over the WHOLE criteria - q, the six "
                 + "concept-id lists, employer_list, remote and sort_by (FilterHashCalculator) - "
@@ -381,6 +396,11 @@ public static class ErasureCascadeRegistry
             ["job_ads.extracted_lexemes"] = ErasureColumnDisposition.Erased,
             ["job_ads.search_vector"] = ErasureColumnDisposition.Erased,
             ["job_ads.organization_number"] = ErasureColumnDisposition.Erased,
+
+            // #2264 — the junior fingerprints: hashes of the erased text. Erase() nulls the ad's; the erasure
+            // command deletes the assessment row that carries the stamped copy.
+            ["job_ads.junior_input_fingerprint"] = ErasureColumnDisposition.Erased,
+            ["job_ad_junior_assessments.classified_fingerprint"] = ErasureColumnDisposition.Erased,
 
             // #842 Tier A — the structured contact carrier. Erase() clears it explicitly (the
             // tombstone-shape test derives the requirement from this very entry); retention
@@ -644,6 +664,15 @@ public static class ErasureCascadeRegistry
             // #551 — AF's remote/distans classification: a closed-domain boolean, no user write path,
             // discloses nothing about a recruiter. Kept on the tombstone like the six facet codes.
             ["job_ads.remote"] = ErasureColumnDisposition.NotRecruiterData,
+            // #2264 — the advertiser's experience mark: a closed-domain boolean, kept on the tombstone like
+            // remote.
+            ["job_ads.experience_required"] = ErasureColumnDisposition.NotRecruiterData,
+            // #2264 (ADR 0187) — the junior assessment: enums stored by name and two strings in a closed
+            // shape the Domain record enforces. The erasure command deletes the row with its ad.
+            ["job_ad_junior_assessments.verdict"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ad_junior_assessments.rule_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ad_junior_assessments.rule_set_version"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_ad_junior_assessments.decision"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_finding_statuses.criterion_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_finding_statuses.rubric_version"] = ErasureColumnDisposition.NotRecruiterData,
             ["resume_finding_statuses.target_fingerprint"] = ErasureColumnDisposition.NotRecruiterData,
@@ -1096,10 +1125,19 @@ public static class ErasureCascadeRegistry
                 + "is a JobAdStatus value converter over a fixed set of four strings, "
                 + "ssyk_concept_id / region_concept_id / municipality_concept_id / "
                 + "occupation_group_concept_id / employment_type_concept_id / "
-                + "worktime_extent_concept_id are Arbetsförmedlingen taxonomy codes, and remote is "
-                + "AF's own remote/distans classification (a closed-domain boolean). The only "
-                + "write path is the ingest funnel, which cannot author free text into any of "
-                + "them.",
+                + "worktime_extent_concept_id are Arbetsförmedlingen taxonomy codes, and remote and "
+                + "experience_required are AF's own closed-domain booleans. The only write path is "
+                + "the ingest funnel, which cannot author free text into any of them.",
+
+            ["job_ad_junior_assessments:NotRecruiterData"] =
+                "Closed domain (#2264, ADR 0187), written by two members and removed by two, none of "
+                + "them free text (the ingest funnel writes only job_ads' own experience mark and "
+                + "fingerprint, never this table). The Worker's classification sweep writes verdict (a JuniorVerdict enum "
+                + "stored by name) and rule_id / rule_set_version, which JuniorClassification admits "
+                + "only as lower-case kebab and as digits, dots, a plus and lower-case hex, drawn from "
+                + "the deploy-versioned rule file. The admin decide command writes decision (a "
+                + "JuniorDecision enum stored by name) and a timestamp. The erasure command deletes "
+                + "the whole row with its ad, and the sweep removes any row left on an erased ad.",
 
             ["audit_log:NotRecruiterData"] =
                 "Closed domain: event_type and aggregate_type are constants minted by the command "

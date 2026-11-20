@@ -19,6 +19,18 @@ test.beforeAll(async ({}, testInfo) => {
   harness = await startHarness({ proxy, next: proxy + 1, backend: proxy + 2 });
 });
 test.afterAll(async () => { await harness.stop(); });
+
+// #2264 — the nav's box has a fixed width so the switch never moves (#2058). A link that overruns it is painted under
+// the switch, where a click reaches the wrong control (WCAG 2.5.8), so every shown header link must end before it.
+async function linksOverrunningTheSwitch(page: import("@playwright/test").Page) {
+  return page.evaluate(() => {
+    const switchLeft = document.querySelector(".jp-nav-switch")?.getBoundingClientRect().left ?? Number.NaN;
+    return [...document.querySelectorAll<HTMLElement>("header .jp-nav a")]
+      .filter((link) => link.offsetParent !== null)
+      .map((link) => ({ label: link.textContent?.trim(), overrun: link.getBoundingClientRect().right - switchLeft }))
+      .filter((link) => !(link.overrun <= 0));
+  });
+}
 test.beforeEach(async ({ context }) => {
   harness.reset();
   await context.addCookies([{ name: SESSION_COOKIE, value: SESSION_ID, url: origin, secure: true, httpOnly: true, sameSite: "Strict" }]);
@@ -36,6 +48,7 @@ for (const width of [1280, 1920, 3440, 1024, 768, 375, 320]) {
     expect(controls).not.toBeNull();
     const switchBox = await toggle.boundingBox();
     const statsBox = await page.locator(".jp-header-stats").boundingBox();
+    if (width > 900) expect(await linksOverrunningTheSwitch(page)).toEqual([]);
     expect(await page.locator(".jp-header__inner").evaluate((element) => element.getBoundingClientRect().height)).toBe(88);
     await capture(page, `admin-${width}`);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
@@ -50,6 +63,7 @@ for (const width of [1280, 1920, 3440, 1024, 768, 375, 320]) {
     expect(await page.locator(".jp-header-stats").boundingBox()).toEqual(statsBox);
     if (width > 900) {
       await expect(page.getByRole("navigation", { name: "Huvudnavigation" }).getByRole("link", { name: "CV" })).toBeVisible();
+      expect(await linksOverrunningTheSwitch(page)).toEqual([]);
       if (width >= 1200) await expect(page.getByText("42 000", { exact: true })).toBeVisible();
     } else {
       await page.getByRole("button", { name: "Öppna meny" }).click();

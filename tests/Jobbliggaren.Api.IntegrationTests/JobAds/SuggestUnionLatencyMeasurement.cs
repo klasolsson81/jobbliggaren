@@ -206,7 +206,7 @@ public class SuggestUnionLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
     private static async Task SeedProductionRegimeAsync(AppDbContext db, CancellationToken ct)
     {
         db.Database.SetCommandTimeout(300);
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads;", ct);
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads CASCADE;", ct);
 
         // Every company name carries the high-cardinality token, so the worst case is real rather than
         // hypothetical: one fragment, ~50 000 rows to group. Titles carry a DIFFERENT token so the

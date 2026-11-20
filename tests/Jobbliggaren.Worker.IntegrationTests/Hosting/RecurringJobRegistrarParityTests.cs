@@ -2,6 +2,7 @@ using Hangfire;
 using Jobbliggaren.Application.Admin.ServiceObservations;
 using Jobbliggaren.Application.BackgroundJobs;
 using Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchCriterionScan;
+using Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Worker.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -50,6 +51,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "30 5 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -91,6 +93,7 @@ public class RecurringJobRegistrarParityTests
             }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -126,6 +129,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -151,6 +155,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -190,6 +195,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -223,6 +229,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -260,6 +267,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions { CadenceCron = "44 4 * * *" }),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -271,6 +279,48 @@ public class RecurringJobRegistrarParityTests
         job.Type.ShouldBe(typeof(CompanyWatchCriterionScanWorker));
         job.Method.Name.ShouldBe(nameof(CompanyWatchCriterionScanWorker.RunAsync));
         ((string)call.GetArguments()[2]!).ShouldBe("44 4 * * *");
+    }
+
+    /// <summary>
+    /// #2264 (ADR 0187) — the junior classification sweep reads its cadence from its own section and runs on its own
+    /// wrapper. The cron given here is neither the shipped default nor any sibling's, so a registration bound to another
+    /// value reads as the wrong string.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_FeedsTheJuniorClassificationItsOwnCron_AndItsOwnWorkerType()
+    {
+        var manager = Substitute.For<IRecurringJobManager>();
+        var registrar = new RecurringJobRegistrar(
+            manager,
+            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
+            Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
+            Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
+            Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions { Cron = "*/3 * * * *" }),
+            NullLogger<RecurringJobRegistrar>.Instance);
+
+        await registrar.StartAsync(CancellationToken.None);
+
+        var call = manager.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IRecurringJobManager.AddOrUpdate))
+            .Single(c => (string)c.GetArguments()[0]! == RecurringJobIds.ClassifyJuniorJobAds);
+        RecurringJobIds.ClassifyJuniorJobAds.ShouldBe("classify-junior-job-ads");
+        var job = (Hangfire.Common.Job)call.GetArguments()[1]!;
+        job.Type.ShouldBe(typeof(ClassifyJuniorJobAdsWorker));
+        job.Method.Name.ShouldBe(nameof(ClassifyJuniorJobAdsWorker.RunAsync));
+        ((string)call.GetArguments()[2]!).ShouldBe("*/3 * * * *");
+    }
+
+    [Fact]
+    public void TheJuniorClassificationWrapper_IsNeverRetriedByHangfire_AndNeverRunsBesideARunningOne()
+    {
+        var method = typeof(ClassifyJuniorJobAdsWorker).GetMethod(nameof(ClassifyJuniorJobAdsWorker.RunAsync))!;
+
+        method.GetCustomAttributes(typeof(Hangfire.AutomaticRetryAttribute), inherit: false)
+            .Cast<Hangfire.AutomaticRetryAttribute>().Single().Attempts.ShouldBe(0);
+        method.GetCustomAttributes(typeof(Hangfire.DisableConcurrentExecutionAttribute), inherit: false)
+            .ShouldHaveSingleItem();
+        new ClassifyJuniorJobAdsOptions().Cron.ShouldBe("*/2 * * * *");
     }
 
     [Fact]
@@ -320,6 +370,7 @@ public class RecurringJobRegistrarParityTests
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
             Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "22 22 * * *" }),
             Options.Create(new CompanyWatchCriterionScanOptions()),
+            Options.Create(new ClassifyJuniorJobAdsOptions()),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);

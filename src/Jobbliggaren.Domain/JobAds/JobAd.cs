@@ -99,6 +99,17 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     // columns"; it is "nothing durable may be derived from raw_payload".)
     public ExtractedTerms? ExtractedTerms { get; private set; }
 
+    // #2264 — the advertiser's own "experience required" mark, one input to the junior classification. Written only
+    // through SetSourcePayload, with PRESERVE on null like Remote: a payload that omits the key keeps the last value.
+    // A non-PII closed-domain boolean, kept on the Erase() tombstone like the facets.
+    public bool? ExperienceRequired { get; private set; }
+
+    // #2264 (ADR 0187) — a fingerprint of everything the junior rules read of this ad (post-scrub title and text,
+    // occupation group, experience mark), written by every source write. The verdict and an admin's
+    // decision live on their own aggregate, JobAdJuniorAssessment, which stamps the fingerprint it classified: unequal
+    // fingerprints mean the verdict is about other content. Erase() clears it (a hash of the erased text).
+    public string? JuniorInputFingerprint { get; private set; }
+
     // EF Core constructor
     private JobAd() { }
 
@@ -297,6 +308,10 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         Contacts = null;
 
         ExtractedTerms = ExtractedTerms.Empty;
+
+        // #2264 — a hash of the erased text. The ad's junior assessment is removed by the erasure command.
+        JuniorInputFingerprint = null;
+
         Status = JobAdStatus.Erased;
 
         RaiseDomainEvent(new JobAdErasedDomainEvent(Id, External?.ExternalId, clock.UtcNow));
@@ -335,6 +350,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
 
         ApplyContactRedaction(
             Contacts?.Contacts.Where(c => c.Origin == AdContactOrigin.Declared).ToList() ?? []);
+        RefreshJuniorInputFingerprint();
         return Result.Success(true);
     }
 
@@ -500,7 +516,16 @@ public sealed class JobAd : AggregateRoot<JobAdId>
         // calls that directly and does its OWN Requirement-preserving re-extraction in the job, which
         // this must not double.
         ExtractedTerms = extractTerms(Title, Description);
+
+        // #2264 — the experience mark has PRESERVE semantics like Remote; the fingerprint is written last, over the
+        // POST-SCRUB title and text, so the junior classification is always about what the row actually holds.
+        ExperienceRequired = facets.ExperienceRequired ?? ExperienceRequired;
+        RefreshJuniorInputFingerprint();
     }
+
+    private void RefreshJuniorInputFingerprint() =>
+        JuniorInputFingerprint = Jobbliggaren.Domain.JobAds.JuniorInputFingerprint.Of(
+            Title, Description, OccupationGroupConceptId, ExperienceRequired);
 
     /// <summary>
     /// #842 Tier A (ADR 0106 D4, CTO re-bind R1) — THE aggregate invariant: an imported ad never

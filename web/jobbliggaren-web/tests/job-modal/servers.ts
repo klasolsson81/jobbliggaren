@@ -216,20 +216,22 @@ const application = (applicationId: string, ad: HarnessAd, withContacts = false)
   preservedAd: withContacts ? { jobAdId: ad.id, title: ad.title, company: ad.company, location: null, url: summary(ad).url, source: "Platsbanken", publishedAt: PUBLISHED_AT, expiresAt: EXPIRES_AT, description: DESCRIPTION, contacts: [{ name: "Testkontakt", role: "Rekryterare", email: "contact@example.test", phone: null, isDerived: false }], capturedAt: PUBLISHED_AT } : null,
 });
 
-/** #1666 — the bell with nothing to say: both sources answer, nothing is unread. */
+/** #1666, #1663 — the bell with nothing to say: every source answers, nothing is unread. */
 export const QUIET_NOTIFICATION_FEED = {
   items: [],
   sources: [
     { kind: "Match", unreadCount: 0, acknowledgedThrough: null },
     { kind: "FollowedCompanyAd", unreadCount: 0, acknowledgedThrough: null },
+    { kind: "CompanyWatchCriterionAd", unreadCount: 0, acknowledgedThrough: null },
   ],
 } as const;
 
-/** #2107, #2130 — the eight values /mina-sidor/notiser reads from the profile. */
+/** #2107, #2130, #1663 — the values /mina-sidor/notiser reads from the profile. */
 export type NotificationSettings = {
-  /** #2130 — whether each type reaches the bell. */
+  /** #2130, #1663 — whether each type reaches the bell. */
   notificationFeedMatchesEnabled: boolean;
   notificationFeedFollowedAdsEnabled: boolean;
+  notificationFeedCriterionAdsEnabled: boolean;
   notificationMailEnabled: boolean;
   backgroundMatchNotificationsEnabled: boolean;
   topMatchMailEnabled: boolean;
@@ -242,6 +244,7 @@ export type NotificationSettings = {
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   notificationFeedMatchesEnabled: true,
   notificationFeedFollowedAdsEnabled: true,
+  notificationFeedCriterionAdsEnabled: true,
   notificationMailEnabled: true,
   backgroundMatchNotificationsEnabled: false,
   topMatchMailEnabled: true,
@@ -259,6 +262,7 @@ const SETTINGS_WRITES: Record<string, keyof NotificationSettings> = {
   "PUT /api/v1/me/digest-cadence": "digestCadence",
   "PUT /api/v1/me/notification-feed/matches": "notificationFeedMatchesEnabled",
   "PUT /api/v1/me/notification-feed/followed-company-ads": "notificationFeedFollowedAdsEnabled",
+  "PUT /api/v1/me/notification-feed/company-watch-criterion-ads": "notificationFeedCriterionAdsEnabled",
 };
 
 /** #2130, #2151 — the bell's writes: one row read, everything of a source read through a token, and one row taken out with the X. */

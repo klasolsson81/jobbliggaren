@@ -52,6 +52,7 @@ const baseProfile: JobSeekerProfileDto = {
   matchSummaryMailEnabled: true,
   notificationFeedMatchesEnabled: true,
   notificationFeedFollowedAdsEnabled: true,
+  notificationFeedCriterionAdsEnabled: true,
   juniorQuickLinkEnabled: true,
   createdAt: "2026-05-11T10:00:00Z",
   hasStatedDesiredOccupation: false,

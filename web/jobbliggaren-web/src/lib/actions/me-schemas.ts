@@ -112,6 +112,17 @@ export type UpdateNotificationFeedFollowedAdsInput = z.infer<
   ReturnType<typeof makeUpdateNotificationFeedFollowedAdsSchema>
 >;
 
+/** ADR 0175 D8 (#1663) — `updateNotificationFeedCriterionAdsAction`: whether new ads from Branschbevakningar reach the bell. */
+export function makeUpdateNotificationFeedCriterionAdsSchema(_t: ValidationTranslator) {
+  return z.strictObject({
+    enabled: z.boolean(),
+  });
+}
+
+export type UpdateNotificationFeedCriterionAdsInput = z.infer<
+  ReturnType<typeof makeUpdateNotificationFeedCriterionAdsSchema>
+>;
+
 /** ADR 0164 (#2107) — `updateMatchSummaryMailAction`: the summary mail alone. */
 export function makeUpdateMatchSummaryMailSchema(_t: ValidationTranslator) {
   return z.strictObject({

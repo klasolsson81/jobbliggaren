@@ -103,7 +103,7 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   min-width: 0;
   max-width: 688px;
 }
-/* A group inside a section card (Notiser: the e-mail switch, each consent's section and the
+/* A group inside a section card (Notiser: the e-mail switch, each notification type's section and the
    cadence; Konto: e-postadress, språk; Sekretess och data: export, radera konto): a hairline above
    every group but the first, each group carrying its own receipt or refusal (#1391). */
 .jp-settings-group + .jp-settings-group {

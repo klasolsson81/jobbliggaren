@@ -752,10 +752,18 @@ test("an ordinary account is sent away from the admin surface", async ({ page })
   await expect(adminNav(page)).toHaveCount(0);
 });
 
-test("the header reads in DOM order: skip link, brand, the seven links, then the account", async ({ page }) => {
+test("the header reads in DOM order: skip link, brand, the admin links, then the account", async ({ page }) => {
   await page.goto("/admin");
+  const expected = [
+    "Hoppa till huvudinnehåll",
+    "Jobbliggaren, startsida",
+    ...PAGES.map((p) => p.label),
+    "Adminmeny",
+    "Notiser",
+    "Inställningar",
+  ];
   const order: string[] = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < expected.length; i++) {
     await page.keyboard.press("Tab");
     order.push(
       await page.evaluate(() => {
@@ -764,14 +772,7 @@ test("the header reads in DOM order: skip link, brand, the seven links, then the
       })
     );
   }
-  expect(order).toEqual([
-    "Hoppa till huvudinnehåll",
-    "Jobbliggaren, startsida",
-    ...PAGES.map((p) => p.label),
-    "Adminmeny",
-    "Notiser",
-    "Inställningar",
-  ]);
+  expect(order).toEqual(expected);
 });
 
 for (const width of [320, 375, 768, 1024]) {

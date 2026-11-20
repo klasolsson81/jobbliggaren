@@ -85,9 +85,9 @@ describe("one plain-text line under every green band (#1917)", () => {
   });
 });
 
-// DESIGN.md, the band clause for /jobb only (#2265, ADR 0188): the quick-link row is the one set of links any band
-// carries, and it stays on /jobb's plate. Its markup lives in one component, only /jobb's page renders it, and only
-// /jobb's loading state reserves its row, so the exception cannot spread to another band unnoticed.
+// DESIGN.md, the band clause for /jobb only (#2265, ADR 0188): the quick-link row stays on /jobb's plate. Its markup
+// lives in one component, only /jobb's page renders it, and only /jobb's loading state reserves its row, so the
+// exception cannot spread to another band unnoticed.
 describe("the quick-link row stays on /jobb's plate (#2265)", () => {
   const usersOf = (pattern: RegExp) =>
     sourceFiles(SOURCE_ROOT)

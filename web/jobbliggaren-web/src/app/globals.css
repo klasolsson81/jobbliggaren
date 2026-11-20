@@ -1336,6 +1336,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 a.jp-hero__quicklink {
   font-size: var(--text-body-sm);
+  font-variant-numeric: tabular-nums;
   color: var(--jp-hero-ink-soft);
   text-decoration: underline;
   text-underline-offset: 3px;

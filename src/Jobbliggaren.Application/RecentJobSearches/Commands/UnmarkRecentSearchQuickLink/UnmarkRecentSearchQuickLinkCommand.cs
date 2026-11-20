@@ -1,6 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
-using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Common;
 using Mediator;
 

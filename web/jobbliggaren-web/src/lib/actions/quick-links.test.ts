@@ -70,6 +70,18 @@ describe("setRecentSearchQuickLinkAction", () => {
     [{ kind: "full" }, "jobads.quickLinks.errors.full"],
     [{ kind: "conflict" }, "jobads.quickLinks.errors.conflict"],
     [{ kind: "notFound" }, "jobads.quickLinks.errors.notFound"],
+  ])("says what happened on %o, and revalidates the pages that show a state no longer true", async (result, message) => {
+    searchApiMock.mockResolvedValue(result);
+
+    expect(await setRecentSearchQuickLinkAction(ID, true)).toEqual({ success: false, error: message });
+    expect(revalidatePathMock.mock.calls.map(([path]) => path)).toEqual([
+      "/jobb",
+      "/sokningar",
+      "/mina-sidor/snabblankar",
+    ]);
+  });
+
+  it.each([
     [{ kind: "unauthorized" }, "jobads.quickLinks.errors.notLoggedIn"],
     [{ kind: "rateLimited", retryAfterSeconds: 9 }, "jobads.quickLinks.errors.rateLimited"],
     [{ kind: "error" }, "jobads.quickLinks.errors.failed"],
@@ -78,5 +90,12 @@ describe("setRecentSearchQuickLinkAction", () => {
 
     expect(await setRecentSearchQuickLinkAction(ID, true)).toEqual({ success: false, error: message });
     expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("counts a removal as done when the search is already gone, since its link went with it", async () => {
+    searchApiMock.mockResolvedValue({ kind: "notFound" });
+
+    expect(await setRecentSearchQuickLinkAction(ID, false)).toEqual({ success: true });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/jobb");
   });
 });

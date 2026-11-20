@@ -11,7 +11,7 @@ namespace Jobbliggaren.Api.Endpoints;
 /// ADR 0060 — RecentJobSearches (auto-fångade sökningar per JobSeeker).
 /// Route-prefix <c>/api/v1/me/recent-searches</c> följer "my data"-konvention
 /// från <see cref="MeEndpoints"/>. Auto-capture sker via pipeline-behavior på
-/// ListJobAds-flöden; dessa endpoints exponerar bara läs + radera.
+/// ListJobAds-flöden.
 /// </summary>
 public static class RecentSearchesEndpoints
 {

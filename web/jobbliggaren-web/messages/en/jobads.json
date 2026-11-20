@@ -403,20 +403,21 @@
     "addNamed": "Add as quick link: {label}",
     "unmark": "Remove as quick link",
     "added": "The quick link has been added: {label}",
-    "full": "You have three quick links, which is the most. Remove one to add another.",
+    "full": "You can have at most {max, number} quick links. Remove one to add another.",
     "errors": {
-      "full": "You already have three quick links. Remove one to add another.",
-      "conflict": "Your quick links changed at the same time in another window. Please try again.",
+      "full": "You already have {max, number} quick links. Remove one to add another.",
+      "conflict": "Your quick links changed at the same time. Please try again.",
       "notFound": "The search no longer exists. It may have been removed.",
       "notLoggedIn": "You are not signed in.",
       "rateLimited": "Too many changes in a short time. Try again in {seconds, plural, one {# second} other {# seconds}}.",
       "failed": "The quick link could not be changed. Please try again."
     },
     "settings": {
-      "lede": "Your quick links are shown at the top of Jobs. You can have at most three, and Junior IT jobs counts as one of them.",
+      "lede": "Your quick links are shown at the top of Jobs.",
       "currentHeading": "Your quick links",
       "none": "You have no quick links.",
       "remove": "Remove",
+      "add": "Add",
       "addHeading": "Add a quick link",
       "noSearches": "Run a search under Jobs, and you can add it here.",
       "allSearchesAdded": "All your recent searches are already quick links."

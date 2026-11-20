@@ -283,7 +283,7 @@ describe("RecentSearchList — the quick-link cap", () => {
   it("says the cap is reached once, and offers no add, when the junior link and two marks fill it", () => {
     renderList([marked("a", "one"), marked("b", "two"), makeDto("c", "three")], true);
 
-    expect(screen.getByText(/You have three quick links/)).toBeInTheDocument();
+    expect(screen.getByText(/You can have at most 3 quick links\./)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add as quick link" })).toBeNull();
     expect(screen.getAllByRole("button", { name: "Remove as quick link" })).toHaveLength(2);
   });
@@ -291,7 +291,7 @@ describe("RecentSearchList — the quick-link cap", () => {
   it("offers an add on the unmarked row when the junior link is off and leaves room", () => {
     renderList([marked("a", "one"), marked("b", "two"), makeDto("c", "three")], false);
 
-    expect(screen.queryByText(/You have three quick links/)).toBeNull();
+    expect(screen.queryByText(/You can have at most 3 quick links\./)).toBeNull();
     expect(screen.getAllByRole("button", { name: "Add as quick link" })).toHaveLength(1);
   });
 });

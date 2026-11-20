@@ -20,6 +20,9 @@ public static class QuickLinkCap
 {
     public const int MaxTotal = 3;
 
+    /// <summary>The 409's problem title when the cap is reached; the web tells it from a lost race by this code.</summary>
+    public const string MaxTotalCode = "QuickLink.MaxTotal";
+
     /// <summary>The lowest slot from 1 to <see cref="MaxTotal"/> that no marked search holds, or <c>null</c>.</summary>
     public static int? FreeSlot(IReadOnlyCollection<int> usedSlots)
     {
@@ -41,7 +44,7 @@ public static class QuickLinkCap
         return current < MaxTotal
             ? Result.Success()
             : Result.Failure(DomainError.Conflict(
-                "QuickLink.MaxTotal",
+                MaxTotalCode,
                 $"Du kan ha högst {MaxTotal} snabblänkar. Ta bort en snabblänk för att lägga till en ny."));
     }
 }

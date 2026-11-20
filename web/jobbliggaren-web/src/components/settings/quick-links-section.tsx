@@ -1,11 +1,13 @@
 "use client";
 
+// "use client": the pending write, the error and the focus moves after a removal are state in the browser.
+
 import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { buildRecentSearchLabel, recentSearchLabelCopy } from "@/lib/job-ads/recent-search-label";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
-import { hasQuickLinkRoom } from "@/lib/job-ads/quick-links";
+import { QUICK_LINK_MAX, hasQuickLinkRoom } from "@/lib/job-ads/quick-links";
 import { RemovalStatus, useRowRemoval } from "@/components/common/row-removal";
 import { setJuniorQuickLinkAction, setRecentSearchQuickLinkAction } from "@/lib/actions/quick-links";
 
@@ -16,6 +18,8 @@ const ADD_TITLE_ID = "snabblankar-add-title";
 interface QuickLinksSectionProps {
   juniorEnabled: boolean;
   searches: ReadonlyArray<RecentJobSearchDto>;
+  /** The page's h1, which takes focus when a list empties. It carries `tabIndex={-1}`. */
+  headingId: string;
 }
 
 interface Entry {
@@ -26,10 +30,10 @@ interface Entry {
 /**
  * ADR 0188 (#2265) — the quick-link settings: the links the /jobb hero shows, each with a remove button, then what can
  * be added while there is room, the junior link and the unmarked recent searches. Every change revalidates this page,
- * so a row leaves one list and joins the other; each list follows DESIGN.md's removal rule for focus, with its own
- * heading as the last fallback, and one status region announces both directions.
+ * so a row leaves one list and joins the other; each list follows DESIGN.md's removal rule for focus, and one status
+ * region announces both directions.
  */
-export function QuickLinksSection({ juniorEnabled, searches }: QuickLinksSectionProps) {
+export function QuickLinksSection({ juniorEnabled, searches, headingId }: QuickLinksSectionProps) {
   const t = useTranslations("jobads.quickLinks");
   const tPages = useTranslations("pages");
   const tRecent = useTranslations("jobads.recent");
@@ -53,11 +57,11 @@ export function QuickLinksSection({ juniorEnabled, searches }: QuickLinksSection
 
   const currentRemoval = useRowRemoval(
     current.map((entry) => entry.key),
-    () => document.getElementById(SECTION_TITLE_ID)
+    () => document.getElementById(headingId)
   );
   const addRemoval = useRowRemoval(
     room ? addable.map((entry) => entry.key) : [],
-    () => document.getElementById(ADD_TITLE_ID)
+    () => document.getElementById(headingId)
   );
 
   // Enabled while pending, as the hero's ×: a `disabled` control with focus drops it to <body>.
@@ -82,7 +86,7 @@ export function QuickLinksSection({ juniorEnabled, searches }: QuickLinksSection
 
   return (
     <section className="jp-card" aria-labelledby={SECTION_TITLE_ID}>
-      <h2 id={SECTION_TITLE_ID} tabIndex={-1} className="jp-card__title">
+      <h2 id={SECTION_TITLE_ID} className="jp-card__title">
         {tPages("minaSidor.sections.snabblankar")}
       </h2>
       <p className="text-body text-text-primary">{t("settings.lede")}</p>
@@ -124,11 +128,11 @@ export function QuickLinksSection({ juniorEnabled, searches }: QuickLinksSection
       </section>
 
       <section className="jp-settings-group" aria-labelledby={ADD_TITLE_ID}>
-        <h3 id={ADD_TITLE_ID} tabIndex={-1} className="jp-settings-group__title">
+        <h3 id={ADD_TITLE_ID} className="jp-settings-group__title">
           {t("settings.addHeading")}
         </h3>
         {!room ? (
-          <p className="text-body-sm text-text-primary">{t("full")}</p>
+          <p className="text-body-sm text-text-primary">{t("full", { max: QUICK_LINK_MAX })}</p>
         ) : addable.length === 0 ? (
           <p className="text-body-sm text-text-primary">
             {searches.length === 0 ? t("settings.noSearches") : t("settings.allSearchesAdded")}
@@ -146,7 +150,7 @@ export function QuickLinksSection({ juniorEnabled, searches }: QuickLinksSection
                   onClick={() => change(entry, true)}
                   aria-disabled={pending || undefined}
                 >
-                  {t("add")}
+                  {t("settings.add")}
                 </button>
               </li>
             ))}

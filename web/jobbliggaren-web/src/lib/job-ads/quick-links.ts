@@ -5,6 +5,9 @@
  */
 export const QUICK_LINK_MAX = 3;
 
+/** The 409's problem title when the cap is reached (`QuickLinkCap.MaxTotalCode`, pinned by the same test). */
+export const QUICK_LINK_FULL_CODE = "QuickLink.MaxTotal";
+
 /** Whether one more quick link fits beside the junior link (counted while it is on) and the marked searches. */
 export function hasQuickLinkRoom(juniorLinkOn: boolean, markedSearches: number): boolean {
   return markedSearches + (juniorLinkOn ? 1 : 0) < QUICK_LINK_MAX;

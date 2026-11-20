@@ -310,7 +310,7 @@ test.describe("/sokningar", () => {
     await row(page, UNMARKED).getByRole("button", { name: "Lägg till som snabblänk" }).click();
     await expect(status(page, `Snabblänken har lagts till: ${UNMARKED}`)).toBeAttached();
     await expect(row(page, UNMARKED).getByRole("button", { name: "Ta bort som snabblänk" })).toBeVisible();
-    await expect(page.getByText("Du har tre snabblänkar, vilket är det högsta.", { exact: false })).toBeVisible();
+    await expect(page.getByText("Du kan ha högst 3 snabblänkar.", { exact: false })).toBeVisible();
     await expect(row(page, TESTER).getByRole("button", { name: "Lägg till som snabblänk" })).toHaveCount(0);
     expect(harness.quickLinkWrites.map((write) => write.route)).toEqual([
       `PUT /api/v1/me/recent-searches/${recentSearchId(2)}/quick-link`,
@@ -327,7 +327,7 @@ test.describe("/sokningar", () => {
     await page.goto("/sokningar");
     await row(page, UNMARKED).getByRole("button", { name: "Lägg till som snabblänk" }).click();
     await expect(
-      page.getByRole("alert").filter({ hasText: "Du har redan tre snabblänkar. Ta bort en för att lägga till en ny." })
+      page.getByRole("alert").filter({ hasText: "Du har redan 3 snabblänkar. Ta bort en för att lägga till en ny." })
     ).toBeVisible();
     await shot(page, "sokningar-refused-full-1280");
   });
@@ -358,7 +358,7 @@ test.describe("/mina-sidor/snabblankar", () => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/mina-sidor/snabblankar");
       await expect(current(page).getByRole("listitem")).toHaveCount(3);
-      await expect(addable(page).getByText("Du har tre snabblänkar, vilket är det högsta.", { exact: false })).toBeVisible();
+      await expect(addable(page).getByText("Du kan ha högst 3 snabblänkar.", { exact: false })).toBeVisible();
       await shot(page, `settings-full-${width}`);
     }
   });
@@ -384,6 +384,17 @@ test.describe("/mina-sidor/snabblankar", () => {
     ]);
   });
 
+  test("removing the last link sends focus to the page's h1", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/mina-sidor/snabblankar");
+
+    await current(page).getByRole("button", { name: `Ta bort snabblänken: ${JUNIOR}` }).click();
+    await expect(status(page, `Snabblänken har tagits bort: ${JUNIOR}`)).toBeAttached();
+    await expect(current(page).getByText("Du har inga snabblänkar.")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Mina sidor" })).toBeFocused();
+    await shot(page, "settings-last-removed-1280");
+  });
+
   test("a write that raced another says so and changes nothing", async ({ page }) => {
     harness.recentSearches = [recentSearch(2, UNMARKED, false)];
     harness.refuseNextQuickLinkWrite = { status: 409, body: { title: "QuickLink.SlotTaken", status: 409 } };
@@ -391,7 +402,7 @@ test.describe("/mina-sidor/snabblankar", () => {
     await page.goto("/mina-sidor/snabblankar");
     await addable(page).getByRole("button", { name: `Lägg till som snabblänk: ${UNMARKED}` }).click();
     await expect(
-      page.getByRole("alert").filter({ hasText: "Snabblänkarna ändrades samtidigt i ett annat fönster. Försök igen." })
+      page.getByRole("alert").filter({ hasText: "Snabblänkarna ändrades samtidigt. Försök igen." })
     ).toBeVisible();
     await expect(addable(page).getByRole("button", { name: `Lägg till som snabblänk: ${UNMARKED}` })).toBeFocused();
     await shot(page, "settings-conflict-1280");

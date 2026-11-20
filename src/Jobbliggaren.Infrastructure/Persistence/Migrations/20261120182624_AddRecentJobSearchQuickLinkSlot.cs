@@ -19,8 +19,7 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// <para>
     /// <b>Locks.</b> <c>ADD COLUMN</c> without a default changes the catalog only, but it takes ACCESS EXCLUSIVE, and
     /// every committed search writes this table: <c>SET LOCAL lock_timeout</c> turns a queue behind a long transaction into
-    /// a loud deploy failure that the next reconcile retries. The CHECK validates a column that is all null, and the index
-    /// covers no row yet, so neither needs <c>NOT VALID</c> or <c>CONCURRENTLY</c>.
+    /// a loud deploy failure that the next reconcile retries.
     /// </para>
     ///
     /// <para>
@@ -63,6 +62,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql(BoundTheLockWait);
+
             migrationBuilder.DropIndex(
                 name: "ux_recent_job_searches_seeker_quick_link_slot",
                 table: "recent_job_searches");

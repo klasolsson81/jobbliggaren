@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { useRecentSearchCounts } from "@/lib/hooks/use-recent-search-counts";
 import { RemovalStatus, useRowRemoval } from "@/components/common/row-removal";
-import { hasQuickLinkRoom } from "@/lib/job-ads/quick-links";
+import { QUICK_LINK_MAX, hasQuickLinkRoom } from "@/lib/job-ads/quick-links";
 import { RecentSearchRow } from "./recent-search-row";
 
 interface RecentSearchListProps {
@@ -88,7 +88,7 @@ export function RecentSearchList({ items, headingId, juniorQuickLinkOn }: Recent
             </div>
           )}
           {!canAddQuickLink && visibleItems.some((it) => !it.isQuickLink) && (
-            <p className="mb-3 text-body-sm text-text-primary">{tq("full")}</p>
+            <p className="mb-3 text-body-sm text-text-primary">{tq("full", { max: QUICK_LINK_MAX })}</p>
           )}
           <ul className="jp-jobs" aria-label={t("listLabel")}>
             {visibleItems.map((item) => (

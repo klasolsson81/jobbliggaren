@@ -1,5 +1,8 @@
 "use client";
 
+// "use client": the pending removal, the links removed since the last server render and the focus moves are state in
+// the browser.
+
 import { useMemo, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
@@ -39,6 +42,12 @@ export function JobbQuickLinks({ juniorCount, searches, headingId }: JobbQuickLi
   const tRecent = useTranslations("jobads.recent");
   const coded = useCodedTaxonomyName();
   const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set());
+  // A new server render is the truth again, so a link added back elsewhere (another tab, Inställningar) shows.
+  const [renderedFor, setRenderedFor] = useState({ juniorCount, searches });
+  if (renderedFor.juniorCount !== juniorCount || renderedFor.searches !== searches) {
+    setRenderedFor({ juniorCount, searches });
+    setRemoved(new Set());
+  }
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 

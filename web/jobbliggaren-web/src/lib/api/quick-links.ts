@@ -1,8 +1,9 @@
 import "server-only";
-import { z } from "zod";
 import { getSessionId } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
+import { readProblemTitle } from "@/lib/http/problem";
 import { parseRetryAfter } from "@/lib/dto/_helpers";
+import { QUICK_LINK_FULL_CODE } from "@/lib/job-ads/quick-links";
 import { isValidId } from "@/lib/validation/guid";
 
 /**
@@ -19,8 +20,6 @@ export type QuickLinkWriteResult =
   | { kind: "rateLimited"; retryAfterSeconds: number }
   | { kind: "error" };
 
-const problemTitleSchema = z.object({ title: z.string() });
-
 async function toWriteResult(res: Response): Promise<QuickLinkWriteResult> {
   if (res.status === 204) return { kind: "ok" };
   if (res.status === 401) return { kind: "unauthorized" };
@@ -29,8 +28,7 @@ async function toWriteResult(res: Response): Promise<QuickLinkWriteResult> {
     return { kind: "rateLimited", retryAfterSeconds: parseRetryAfter(res.headers.get("Retry-After")) };
   }
   if (res.status === 409) {
-    const problem = problemTitleSchema.safeParse(await res.json().catch(() => null));
-    return problem.success && problem.data.title === "QuickLink.MaxTotal" ? { kind: "full" } : { kind: "conflict" };
+    return (await readProblemTitle(res)) === QUICK_LINK_FULL_CODE ? { kind: "full" } : { kind: "conflict" };
   }
   return { kind: "error" };
 }

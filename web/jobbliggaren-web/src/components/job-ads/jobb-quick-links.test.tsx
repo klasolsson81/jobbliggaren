@@ -131,6 +131,18 @@ describe("JobbQuickLinks (#2265, ADR 0188)", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Snabblänken har tagits bort: backend");
   });
 
+  it("shows a removed link again once a server render lists it, as after adding it back elsewhere", async () => {
+    searchAction.mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    const { rerender } = render(<Hero juniorCount={null} searches={[BACKEND]} />);
+
+    await user.click(screen.getByRole("button", { name: "Ta bort snabblänken: backend" }));
+    await waitFor(() => expect(screen.queryByRole("link", { name: "backend" })).toBeNull());
+    rerender(<Hero juniorCount={null} searches={[{ ...BACKEND }]} />);
+
+    expect(screen.getByRole("link", { name: "backend" })).toBeInTheDocument();
+  });
+
   it("keeps the link and says why when the removal fails", async () => {
     searchAction.mockResolvedValue({ success: false, error: "Snabblänken kunde inte ändras. Försök igen." });
     const user = userEvent.setup();

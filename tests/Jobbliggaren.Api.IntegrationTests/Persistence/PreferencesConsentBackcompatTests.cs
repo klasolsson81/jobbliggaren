@@ -211,12 +211,14 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
         var beforeTheQuickLinksJson = """
             {"Language":"sv","BackgroundMatchNotificationsEnabled":true,"DigestCadence":1,"NotificationConsentAt":"2026-09-01T08:00:00+00:00","NotificationConsentWithdrawnAt":null,"FollowedCompanyNotificationsEnabled":true,"FollowedCompanyNotificationConsentAt":"2026-09-02T08:00:00+00:00","FollowedCompanyNotificationConsentWithdrawnAt":null,"NotificationMailOffAt":"2026-10-11T08:00:00+00:00","TopMatchMailOffAt":null,"MatchSummaryMailOffAt":"2026-10-12T08:00:00+00:00","NotificationFeedMatchesOffAt":"2026-11-01T08:00:00+00:00","NotificationFeedFollowedAdsOffAt":null}
             """;
-        // The document is the previous writer's shape: every key the current one emits, less the new stamp.
+        // The document is that writer's shape: every key the current one emits, less the two stamps added since, the junior
+        // link's and the third bell switch's (#1663 PR 3, whose migration follows this one).
         using var written = JsonDocument.Parse(beforeTheQuickLinksJson);
         written.RootElement.EnumerateObject().Select(p => p.Name).ShouldBe(
             typeof(Preferences).GetConstructors().Single().GetParameters()
                 .Select(parameter => parameter.Name!)
-                .Where(name => name != nameof(Preferences.JuniorQuickLinkOffAt)),
+                .Where(name => name is not (nameof(Preferences.JuniorQuickLinkOffAt)
+                    or nameof(Preferences.NotificationFeedCriterionAdsOffAt))),
             ignoreOrder: true);
         await SetRawPreferencesAsync(seeker.Id.Value, beforeTheQuickLinksJson, ct);
 
@@ -235,6 +237,39 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
         prefs.FollowedCompanyNotificationsEnabled.ShouldBeTrue();
         prefs.FollowedCompanyNotificationConsentAt.ShouldBe(new DateTimeOffset(2026, 9, 2, 8, 0, 0, TimeSpan.Zero));
         prefs.DigestCadence.ShouldBe(DigestCadence.Weekly);
+    }
+
+    // ADR 0175 D8 (#1663 PR 3) - the actor is every row written before migration AddNotificationFeedCriterionAdsSwitch, which
+    // follows AddRecentJobSearchQuickLinkSlot: its writer's Preferences had every key but the third bell switch's stamp,
+    // which the current writer emits (CurrentWriter_EmitsEveryPreferencesParameterAsAKey). The stamp must read as null,
+    // which is "on", so Branschbevakning notifications reach the bell from the start for every existing user (DPIA 560
+    // §D9, ruling (2)), and the switches beside it keep their values.
+    [Fact]
+    public async Task LegacyRow_WrittenBeforeAddNotificationFeedCriterionAdsSwitch_ReadsTheThirdBellSwitchOn()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedSeekerAsync(ct);
+        (await StoredKeysAsync(seeker.Id.Value, ct)).ShouldContain(nameof(Preferences.NotificationFeedCriterionAdsOffAt));
+
+        var beforeTheThirdSwitchJson = """
+            {"Language":"sv","BackgroundMatchNotificationsEnabled":true,"DigestCadence":1,"NotificationConsentAt":"2026-09-01T08:00:00+00:00","NotificationConsentWithdrawnAt":null,"FollowedCompanyNotificationsEnabled":false,"FollowedCompanyNotificationConsentAt":null,"FollowedCompanyNotificationConsentWithdrawnAt":null,"NotificationMailOffAt":null,"TopMatchMailOffAt":null,"MatchSummaryMailOffAt":null,"NotificationFeedMatchesOffAt":"2026-11-01T08:00:00+00:00","NotificationFeedFollowedAdsOffAt":null,"JuniorQuickLinkOffAt":null}
+            """;
+        // The document is that writer's shape: every key the current one emits, less the third bell switch's stamp.
+        using var written = JsonDocument.Parse(beforeTheThirdSwitchJson);
+        written.RootElement.EnumerateObject().Select(p => p.Name).ShouldBe(
+            typeof(Preferences).GetConstructors().Single().GetParameters()
+                .Select(parameter => parameter.Name!)
+                .Where(name => name != nameof(Preferences.NotificationFeedCriterionAdsOffAt)),
+            ignoreOrder: true);
+        await SetRawPreferencesAsync(seeker.Id.Value, beforeTheThirdSwitchJson, ct);
+
+        var prefs = await ReloadPreferencesAsync(seeker.Id, ct);
+
+        prefs.NotificationFeedCriterionAdsOffAt.ShouldBeNull();
+        prefs.NotificationFeedMatchesOffAt.ShouldNotBeNull();
+        prefs.NotificationFeedFollowedAdsOffAt.ShouldBeNull();
+        prefs.JuniorQuickLinkOffAt.ShouldBeNull();
+        prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
     }
 
     // architect Nice-to-have 2 (#2107): a missing key reads as its type's CLR default, never as the

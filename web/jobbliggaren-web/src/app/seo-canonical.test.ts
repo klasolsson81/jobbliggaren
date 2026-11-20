@@ -24,6 +24,13 @@ vi.mock("next-intl/server", () => ({
   getLocale: async () => "sv",
 }));
 
+vi.mock("@/lib/api/public-junior-it-job-ads", () => ({
+  getPublicJuniorItJobAds: async () => ({
+    kind: "ok",
+    page: { rows: { items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0 }, places: [] },
+  }),
+}));
+
 // The catalogue's metadata reads its page through the cached reader; an empty page 1 is a real answer (a measured zero).
 vi.mock("@/lib/api/public-job-ad-catalogue", () => ({
   getPublicJobAdCatalogue: async () => ({
@@ -38,6 +45,8 @@ const pages = import.meta.glob("./**/page.tsx");
 
 const PUBLIC_GROUPS = new Set(["(marketing)", "(marketing-inner)"]);
 const LOGIN_PAGE = "./(auth)/logga-in/page.tsx";
+/** Own public URLs that are noindex by decision, so no sitemap lists them (ADR 0186: the junior list). */
+const NOINDEX_PUBLIC_PAGES = new Set(["./(public-job)/junior/page.tsx"]);
 
 /** `./(marketing-inner)/om/page.tsx` is `/om`: a route group adds no URL segment. */
 function routeOf(key: string): string {
@@ -48,6 +57,7 @@ const isOwnPublicJobUrl = (key: string) => key.split("/")[1] === "(public-job)" 
 
 const publicPages = Object.keys(pages)
   .filter((key) => PUBLIC_GROUPS.has(key.split("/")[1] ?? "") || isOwnPublicJobUrl(key))
+  .filter((key) => !NOINDEX_PUBLIC_PAGES.has(key))
   .sort((a, b) => routeOf(a).localeCompare(routeOf(b)));
 
 const metadataByKey = new Map<string, Metadata | undefined>();
@@ -55,7 +65,7 @@ const metadataByKey = new Map<string, Metadata | undefined>();
 beforeAll(async () => {
   // Importing a page module is slow on a cold transform, so every import happens here,
   // under one generous timeout, and the cases below only read the results.
-  for (const key of [...publicPages, LOGIN_PAGE]) {
+  for (const key of [...publicPages, ...NOINDEX_PUBLIC_PAGES, LOGIN_PAGE]) {
     const load = pages[key];
     if (load === undefined) throw new Error(`no page module at ${key}`);
     const { generateMetadata } = (await load()) as PageModule;
@@ -98,6 +108,14 @@ describe("self-canonicals on the indexable public pages (#2092)", () => {
       const block = metadataBlock(readFileSync(file, "utf8")) ?? "";
       expect(block, relative(app, file)).not.toMatch(/\b(alternates|canonical)\b/);
     }
+  });
+});
+
+describe("the noindex public pages left out of the derivation", () => {
+  it.each([...NOINDEX_PUBLIC_PAGES])("%s is noindex and names no canonical", (key) => {
+    expect(pages[key]).toBeDefined();
+    expect(metadataByKey.get(key)?.robots).toMatchObject({ index: false });
+    expect(metadataByKey.get(key)?.alternates?.canonical).toBeUndefined();
   });
 });
 

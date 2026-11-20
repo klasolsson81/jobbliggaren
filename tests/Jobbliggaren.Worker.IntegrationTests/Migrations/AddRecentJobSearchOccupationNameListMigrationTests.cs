@@ -80,11 +80,15 @@ public sealed class AddRecentJobSearchOccupationNameListMigrationTests : IAsyncL
         (await OccupationNameValuesAsync(lateRowId)).ShouldBe(["{}"]);
 
         // Through the current model the existing row is the same search: no name, and the hash the
-        // current calculator computes for it, so an identical new search bumps it.
+        // current calculator computes for it, so an identical new search bumps it. Projected rather than
+        // materialised: the current model also maps columns that later migrations add (#2265's
+        // quick_link_slot), and this schema does not have them yet.
         await using (var read = NewAppContext())
         {
             var row = await read.RecentJobSearches.AsNoTracking()
-                .SingleAsync(r => r.Id == new RecentJobSearchId(rowId), Ct);
+                .Where(r => r.Id == new RecentJobSearchId(rowId))
+                .Select(r => new { OccupationName = EF.Property<List<string>>(r, "_occupationName"), r.FilterHash })
+                .SingleAsync(Ct);
             row.OccupationName.ShouldBeEmpty();
             row.FilterHash.ShouldBe(FilterHashCalculator.Compute(criteria));
         }

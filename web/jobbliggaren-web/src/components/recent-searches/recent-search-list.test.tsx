@@ -15,6 +15,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+vi.mock("@/lib/actions/quick-links", () => ({
+  setRecentSearchQuickLinkAction: vi.fn(),
+}));
+
 vi.mock("@/lib/actions/recent-searches", () => ({
   deleteRecentSearchAction: (...args: unknown[]) => deleteActionMock(...args),
 }));
@@ -45,6 +49,7 @@ function makeDto(id: string, label: string, newCount = 0): RecentJobSearchDto {
     currentCount: 10,
     newCount,
     lastViewedAt: "2026-05-20T19:00:00Z",
+    isQuickLink: false,
   };
 }
 
@@ -57,7 +62,7 @@ function Page({ items }: { items: ReadonlyArray<RecentJobSearchDto> }) {
       <h1 id={HEADING_ID} tabIndex={-1}>
         Senaste sökningar
       </h1>
-      <RecentSearchList items={items} headingId={HEADING_ID} />
+      <RecentSearchList items={items} headingId={HEADING_ID} juniorQuickLinkOn />
     </main>
   );
 }
@@ -85,7 +90,7 @@ beforeEach(() => {
 
 describe("RecentSearchList", () => {
   it("renders the empty-state when items is empty", () => {
-    render(<RecentSearchList headingId={HEADING_ID} items={[]} />);
+    render(<RecentSearchList headingId={HEADING_ID} juniorQuickLinkOn items={[]} />);
     expect(screen.getByText("Inga senaste sökningar")).toBeInTheDocument();
     expect(screen.getByText(/sparas här automatiskt/)).toBeInTheDocument();
   });
@@ -93,7 +98,7 @@ describe("RecentSearchList", () => {
   it("renders one row per item with civic-utility list semantics", () => {
     render(
       <RecentSearchList
-        headingId={HEADING_ID}
+        headingId={HEADING_ID} juniorQuickLinkOn
         items={[
           makeDto("a1", "backend Stockholm"),
           makeDto("a2", "designer Göteborg"),
@@ -117,7 +122,7 @@ describe("RecentSearchList", () => {
     );
     render(
       <RecentSearchList
-        headingId={HEADING_ID}
+        headingId={HEADING_ID} juniorQuickLinkOn
         items={[
           makeDto("a1", "backend Stockholm"),
           makeDto("a2", "designer Göteborg"),
@@ -134,7 +139,7 @@ describe("RecentSearchList", () => {
     countsMock.mockReturnValue(undefined);
     const { container } = render(
       <RecentSearchList
-        headingId={HEADING_ID}
+        headingId={HEADING_ID} juniorQuickLinkOn
         items={[
           makeDto("a1", "backend Stockholm"),
           makeDto("a2", "designer Göteborg"),
@@ -150,7 +155,7 @@ describe("RecentSearchList", () => {
     deleteActionMock.mockResolvedValue({ success: true });
     render(
       <RecentSearchList
-        headingId={HEADING_ID}
+        headingId={HEADING_ID} juniorQuickLinkOn
         items={[
           makeDto("a1", "backend Stockholm"),
           makeDto("a2", "designer Göteborg"),
@@ -174,7 +179,7 @@ describe("RecentSearchList", () => {
       success: false,
       error: "Kunde inte ta bort sökningen. Försök igen.",
     });
-    render(<RecentSearchList headingId={HEADING_ID} items={[makeDto("a1", "backend Stockholm")]} />);
+    render(<RecentSearchList headingId={HEADING_ID} juniorQuickLinkOn items={[makeDto("a1", "backend Stockholm")]} />);
     await user.click(screen.getByRole("button", { name: /Ta bort/ }));
     expect(screen.getByRole("alert")).toHaveTextContent(/Kunde inte ta bort/);
     expect(
@@ -185,7 +190,7 @@ describe("RecentSearchList", () => {
   it("collapses to empty-state once all items are deleted optimistically", async () => {
     const user = userEvent.setup();
     deleteActionMock.mockResolvedValue({ success: true });
-    render(<RecentSearchList headingId={HEADING_ID} items={[makeDto("a1", "ensam rad")]} />);
+    render(<RecentSearchList headingId={HEADING_ID} juniorQuickLinkOn items={[makeDto("a1", "ensam rad")]} />);
     await user.click(screen.getByRole("button", { name: /Ta bort/ }));
     expect(screen.getByText("Inga senaste sökningar")).toBeInTheDocument();
   });
@@ -259,5 +264,34 @@ describe("focus and status after a removal (#2029)", () => {
     );
 
     expect(region()).toHaveTextContent("The search has been removed: backend Stockholm");
+  });
+});
+
+// ADR 0188 (#2265) — the cap of three counts the junior link while it is on; when it is reached, the list says so once
+// instead of offering an add on every row.
+describe("RecentSearchList — the quick-link cap", () => {
+  const marked = (id: string, label: string) => ({ ...makeDto(id, label), isQuickLink: true });
+
+  function renderList(items: RecentJobSearchDto[], juniorQuickLinkOn: boolean) {
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <RecentSearchList items={items} headingId={HEADING_ID} juniorQuickLinkOn={juniorQuickLinkOn} />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  it("says the cap is reached once, and offers no add, when the junior link and two marks fill it", () => {
+    renderList([marked("a", "one"), marked("b", "two"), makeDto("c", "three")], true);
+
+    expect(screen.getByText(/You have three quick links/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add as quick link" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Remove as quick link" })).toHaveLength(2);
+  });
+
+  it("offers an add on the unmarked row when the junior link is off and leaves room", () => {
+    renderList([marked("a", "one"), marked("b", "two"), makeDto("c", "three")], false);
+
+    expect(screen.queryByText(/You have three quick links/)).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Add as quick link" })).toHaveLength(1);
   });
 });

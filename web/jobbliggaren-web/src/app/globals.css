@@ -1317,6 +1317,58 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-gold);
 }
 
+/* #2265 (ADR 0188; DESIGN.md, the band clause for /jobb only) — the quick-link row under the line: quiet, underlined
+   text links in the plate's soft ink (the tone of "Spara sökningen"), each with an × of its own. `a.` beats the global
+   `a:not(…)` link colour by source order at equal specificity, as the footer's links do. The row is the × button's
+   box, 32 px and 44 px at ≤768 px (the touch floor), which /jobb's loading.tsx reserves. */
+.jp-hero__quicklinks-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+}
+.jp-hero__quicklink-item {
+  display: inline-flex;
+  align-items: center;
+}
+a.jp-hero__quicklink {
+  font-size: var(--text-body-sm);
+  color: var(--jp-hero-ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+a.jp-hero__quicklink:hover {
+  color: var(--jp-hero-ink);
+}
+.jp-hero__quicklink-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--jp-r-md);
+  background: transparent;
+  color: var(--jp-hero-ink-soft);
+  cursor: pointer;
+}
+.jp-hero__quicklink-remove:hover {
+  color: var(--jp-hero-ink);
+}
+.jp-hero__quicklinks-reserve {
+  margin: 14px 0 0;
+  height: 32px;
+}
+.jp-hero__quicklinks-error {
+  margin: 8px 0 0;
+  font-size: var(--text-caption);
+  color: var(--jp-hero-ink);
+}
+
 /* Höger-panel: actions-rad + sök-block + filter-pills (stack, gap 14) */
 .jp-hero__panel {
   display: flex;
@@ -1627,6 +1679,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
     gap: 28px;
   }
   .jp-hero__title { font-size: var(--jp-fs-hero-title-sm); }
+  a.jp-hero__quicklink { display: inline-flex; align-items: center; min-height: 44px; }
+  .jp-hero__quicklink-remove { width: 44px; height: 44px; }
+  .jp-hero__quicklinks-reserve { height: 44px; }
   /* #419 pt4 — .jp-hero__actions är nu flex-start i bas-regeln (redundant override borttagen). */
   .jp-hero-chip,
   .jp-hero-pill { min-height: 44px; }

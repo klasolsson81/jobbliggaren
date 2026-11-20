@@ -32,6 +32,7 @@ const wireBase = {
   currentCount: 42,
   newCount: 7,
   lastViewedAt: "2026-05-20T19:00:00Z",
+  isQuickLink: false,
 };
 
 describe("recentJobSearchDtoSchema", () => {

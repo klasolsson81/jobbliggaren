@@ -1,16 +1,17 @@
 import Link from "next/link";
-import { Bell, LogOut, Shield, Target, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, Link2, LogOut, Shield, Target, UserRound, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LogoutForm } from "@/components/auth/logout-form";
 import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 
 export type MinaSidorSection = keyof typeof MINA_SIDOR_HREF;
 
-const SECTIONS: ReadonlyArray<MinaSidorSection> = ["matchning", "notiser", "konto", "sekretess"];
+const SECTIONS: ReadonlyArray<MinaSidorSection> = ["matchning", "snabblankar", "notiser", "konto", "sekretess"];
 
 /** One fixed glyph per section (ADR 0145, Amendment 2026-09-28). */
 const SECTION_ICON: Record<MinaSidorSection, LucideIcon> = {
   matchning: Target,
+  snabblankar: Link2,
   notiser: Bell,
   konto: UserRound,
   sekretess: Shield,

@@ -20,7 +20,9 @@ import {
   profile,
   type FixtureAnswer,
   type HarnessAd,
+  type RecentSearchFixture,
 } from "./fixtures";
+import { hasQuickLinkRoom } from "../../src/lib/job-ads/quick-links";
 
 /**
  * The servers around the app for the job modal's navigation harness (#1963): a fixture backend the
@@ -110,6 +112,18 @@ export type Harness = {
   /** #1663 PR 2 — Översikt's Bevakade företag: the followed companies, and the new-ad count its follow pill shows. */
   companyWatches: unknown[];
   followedCompanyAdNewCount: number;
+  /** ADR 0188 (#2265) — the recent searches; none by default, so every other page renders without them. */
+  recentSearches: RecentSearchFixture[];
+  /** ADR 0188 (#2265) — whether the junior quick link is on; the profile reports it and its PUT writes it. */
+  juniorQuickLinkEnabled: boolean;
+  /** ADR 0188 (#2265) — what the junior count answers; 0 by default, which keeps the junior link hidden. */
+  juniorItCount: FixtureAnswer;
+  /** ADR 0188 (#2265) — `GET /api/v1/me/profile` answers 500. */
+  refuseProfileRead: boolean;
+  /** ADR 0188 (#2265) — the next quick-link write answers this instead and changes nothing. */
+  refuseNextQuickLinkWrite: FixtureAnswer | null;
+  /** ADR 0188 (#2265) — the quick-link writes received, in order. */
+  readonly quickLinkWrites: { route: string; body: Record<string, unknown> }[];
   reset(): void;
   stop(): Promise<void>;
 };
@@ -262,6 +276,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
   const seenReceipts: { route: string; body: Record<string, unknown> }[] = [];
   const settingsWrites: { route: string; body: Record<string, unknown> }[] = [];
   const readReceipts: { route: string; body: Record<string, unknown> }[] = [];
+  const quickLinkWrites: { route: string; body: Record<string, unknown> }[] = [];
   const ads = [...ALL_ADS, ...Array.from({ length: applicationCopies }, (_, index) => ({
     ...ALL_ADS[1]!,
     id: `19860000-0000-4000-8000-${String(index + 1000).padStart(12, "0")}`,
@@ -300,7 +315,19 @@ export async function startHarness(informationFlows = false, applicationCopies =
     criterionNewAds: newCriterionAdsAnswers(),
     companyWatches: [],
     followedCompanyAdNewCount: 0,
+    recentSearches: [],
+    juniorQuickLinkEnabled: true,
+    juniorItCount: { status: 200, body: { count: 0 } },
+    refuseProfileRead: false,
+    refuseNextQuickLinkWrite: null,
+    quickLinkWrites,
     reset() {
+      harness.recentSearches = [];
+      harness.juniorQuickLinkEnabled = true;
+      harness.juniorItCount = { status: 200, body: { count: 0 } };
+      harness.refuseProfileRead = false;
+      harness.refuseNextQuickLinkWrite = null;
+      quickLinkWrites.length = 0;
       harness.criteria = [];
       harness.criterionNewAdCounts = { status: 200, body: { items: [] } };
       harness.criterionNewAds.clear();
@@ -442,6 +469,33 @@ export async function startHarness(informationFlows = false, applicationCopies =
     if (route === "GET /api/v1/me/company-watches") return json(200, harness.companyWatches);
     if (route === "GET /api/v1/me/followed-company-ads/new-count") return json(200, { count: harness.followedCompanyAdNewCount });
     if (route === "GET /api/v1/me/match-count") return json(200, { count: harness.occupationStated ? ads.length : 0 });
+    // ADR 0188 (#2265) — the quick-link writes, refused past the cap as the API refuses them (`QuickLinkCap`).
+    const quickLinkSearch = route.match(/^(PUT|DELETE) \/api\/v1\/me\/recent-searches\/([0-9a-f-]{36})\/quick-link$/);
+    if (route === "PUT /api/v1/me/junior-quick-link" || quickLinkSearch) {
+      const body = await bodyOf(request);
+      quickLinkWrites.push({ route, body });
+      const refusal = harness.refuseNextQuickLinkWrite;
+      if (refusal) {
+        harness.refuseNextQuickLinkWrite = null;
+        return answer(refusal);
+      }
+      const marked = harness.recentSearches.filter((search) => search.isQuickLink).length;
+      const room = hasQuickLinkRoom(harness.juniorQuickLinkEnabled, marked);
+      const full = () => json(409, { title: "QuickLink.MaxTotal", status: 409 });
+      if (!quickLinkSearch) {
+        if (body.enabled === true && !harness.juniorQuickLinkEnabled && !room) return full();
+        harness.juniorQuickLinkEnabled = body.enabled === true;
+        return json(204);
+      }
+      const [, method, searchId] = quickLinkSearch;
+      const search = harness.recentSearches.find((candidate) => candidate.id === searchId);
+      if (!search) return json(404, { title: "RecentJobSearch.NotFound", status: 404 });
+      if (method === "PUT" && !search.isQuickLink && !room) return full();
+      harness.recentSearches = harness.recentSearches.map((candidate) =>
+        candidate.id === searchId ? { ...candidate, isQuickLink: method === "PUT" } : candidate
+      );
+      return json(204);
+    }
     const setting = SETTINGS_WRITES[route];
     if (setting) {
       const body = await bodyOf(request);
@@ -472,7 +526,9 @@ export async function startHarness(informationFlows = false, applicationCopies =
       case "POST /api/v1/me/jobs/seen":
         return json(204);
       case "GET /api/v1/me/recent-searches":
-        return json(200, []);
+        return json(200, harness.recentSearches);
+      case "GET /api/v1/job-ads/junior-it-count":
+        return answer(harness.juniorItCount);
       case "GET /api/v1/job-ads/taxonomy":
         return json(200, TAXONOMY);
       case "GET /api/v1/job-ads/taxonomy/skills/labels":
@@ -480,7 +536,12 @@ export async function startHarness(informationFlows = false, applicationCopies =
       case "GET /api/v1/job-ads/suggest":
         return json(200, []);
       case "GET /api/v1/me/profile":
-        return json(200, { ...profile(harness.occupationStated), ...harness.notificationSettings });
+        if (harness.refuseProfileRead) return json(500, { title: "Internal Server Error", status: 500 });
+        return json(200, {
+          ...profile(harness.occupationStated),
+          ...harness.notificationSettings,
+          juniorQuickLinkEnabled: harness.juniorQuickLinkEnabled,
+        });
       case "GET /api/v1/job-ads": {
         const items = ads.map(summary);
         return json(200, { items, totalCount: items.length, page: 1, pageSize: 20 });

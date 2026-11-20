@@ -8,6 +8,7 @@
  */
 export const MINA_SIDOR_HREF = {
   matchning: "/mina-sidor",
+  snabblankar: "/mina-sidor/snabblankar",
   notiser: "/mina-sidor/notiser",
   konto: "/mina-sidor/konto",
   sekretess: "/mina-sidor/sekretess",

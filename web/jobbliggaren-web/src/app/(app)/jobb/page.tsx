@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
+import { getJuniorItCount } from "@/lib/api/junior-it-count";
 import { getMyProfile } from "@/lib/api/me";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
@@ -21,6 +22,7 @@ import {
 import { Announcer } from "@/components/common/announcer";
 import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
 import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
+import { JobbQuickLinks } from "@/components/job-ads/jobb-quick-links";
 import { JobbResults } from "@/components/job-ads/jobb-results";
 import { JobAdListSkeleton } from "@/components/job-ads/job-ad-list-skeleton";
 import { StripCommitParam } from "@/components/job-ads/strip-commit-param";
@@ -83,18 +85,22 @@ interface PageProps {
 
 const DEFAULT_PAGE_SIZE = 20;
 
+const HERO_HEADING_ID = "jobb-hero-title";
+
 export default async function JobbPage({ searchParams }: PageProps) {
   // Start the hero's reads before awaiting the session, so they overlap the /me
   // round-trip instead of following it. None of them needs the session object:
   // each fetcher reads the session id itself and returns an error Result for a
   // guest, which the redirect below discards. The promise cannot reject, since
   // every fetcher returns a Result. getMyProfile is cache()-wrapped, so
-  // JobbResults reuses this read within the request.
+  // JobbResults reuses this read within the request. The fifth read is the
+  // junior quick link's count (ADR 0188), with a timeout of its own.
   const heroDataPromise = Promise.all([
     getTaxonomyTree(),
     getRecentSearches(),
     getSavedJobAds(),
     getMyProfile(),
+    getJuniorItCount(),
   ]);
 
   const user = await getServerSession();
@@ -148,8 +154,13 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // profile read means the user has a job-seeker profile:
   // hasStatedDesiredOccupation gates the matching control and hasSeeker gates
   // "Dölj ansökta", as the backend does. An error hides both controls.
-  const [taxonomyResult, recentSearchesResult, savedJobAdsResult, profileResult] =
-    await heroDataPromise;
+  const [
+    taxonomyResult,
+    recentSearchesResult,
+    savedJobAdsResult,
+    profileResult,
+    juniorCountResult,
+  ] = await heroDataPromise;
   const hasStatedDesiredOccupation =
     profileResult.kind === "ok" && profileResult.data.hasStatedDesiredOccupation;
   const hasSeeker = profileResult.kind === "ok";
@@ -161,6 +172,17 @@ export default async function JobbPage({ searchParams }: PageProps) {
 
   const savedJobAds =
     savedJobAdsResult.kind === "ok" ? savedJobAdsResult.data : [];
+
+  // ADR 0188 — the quick links. The junior link shows when the profile says it is on and the count was read and is
+  // above 0; a failed read of either hides it (security-auditor m3). The searches come from the read above.
+  const juniorCount =
+    profileResult.kind === "ok" &&
+    profileResult.data.juniorQuickLinkEnabled &&
+    juniorCountResult.kind === "ok" &&
+    juniorCountResult.data.count > 0
+      ? juniorCountResult.data.count
+      : null;
+  const quickLinkSearches = recentSearches.filter((search) => search.isQuickLink);
 
   // A failed taxonomy read must not block search: the filter popover then shows
   // an empty list with an explanatory line (ADR 0043 Beslut B).
@@ -205,8 +227,17 @@ export default async function JobbPage({ searchParams }: PageProps) {
         <div className="jp-hero__inner">
           <div className="jp-hero__plate">
             <div>
-              <h1 className="jp-hero__title">{t("jobb.title")}</h1>
+              <h1 id={HERO_HEADING_ID} tabIndex={-1} className="jp-hero__title">
+                {t("jobb.title")}
+              </h1>
               <p className="jp-hero__lede">{t("jobb.lede")}</p>
+              {/* Mounted with no link to show too: its status must outlive the last link, which the re-render after
+                  that removal takes away. */}
+              <JobbQuickLinks
+                juniorCount={juniorCount}
+                searches={quickLinkSearches}
+                headingId={HERO_HEADING_ID}
+              />
             </div>
 
             <div className="jp-hero__panel">

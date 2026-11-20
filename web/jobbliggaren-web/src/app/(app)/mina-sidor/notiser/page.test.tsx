@@ -68,6 +68,7 @@ function profile({
     matchSummaryMailEnabled: summary,
     notificationFeedMatchesEnabled: true,
     notificationFeedFollowedAdsEnabled: true,
+    juniorQuickLinkEnabled: true,
     createdAt: "2026-05-01T08:00:00Z",
     hasStatedDesiredOccupation: false,
     preferredOccupationGroups: [],

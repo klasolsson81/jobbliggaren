@@ -72,6 +72,7 @@ export function profile(occupationStated: boolean) {
     matchSummaryMailEnabled: true,
     notificationFeedMatchesEnabled: true,
     notificationFeedFollowedAdsEnabled: true,
+    juniorQuickLinkEnabled: true,
     createdAt: "2026-05-12T09:30:00+02:00",
     hasStatedDesiredOccupation: occupationStated,
     preferredOccupationGroups: occupationStated ? [OCCUPATION.conceptId] : [],
@@ -93,6 +94,38 @@ export const TAXONOMY = {
   employmentTypes: [{ conceptId: PERMANENT, label: "Vanlig anställning" }],
   worktimeExtents: [{ conceptId: "6YE1_gAC_R2G", label: "Heltid" }],
 };
+
+/**
+ * ADR 0188 (#2265) — a free-text recent search as `GET /api/v1/me/recent-searches` lists it. A free-text search's
+ * label is its `q` (`DeriveLabel`'s q branch), so the hero and the settings name it by `q`; sort 0 is PublishedAtDesc.
+ */
+export const recentSearchId = (n: number) => `22650000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+export function recentSearch(n: number, q: string, isQuickLink: boolean) {
+  return {
+    id: recentSearchId(n),
+    q,
+    occupationGroupList: [],
+    occupationNameList: [],
+    municipalityList: [],
+    regionList: [],
+    employmentTypeList: [],
+    worktimeExtentList: [],
+    employerList: [],
+    remote: false,
+    occupationGroupLabels: [],
+    occupationNameLabels: [],
+    municipalityLabels: [],
+    regionLabels: [],
+    sortBy: 0,
+    label: { kind: "Query", join: "None", parts: [{ kind: "Named", text: q, conceptId: null, moreCount: 0 }] },
+    currentCount: 12,
+    newCount: 0,
+    lastViewedAt: PUBLISHED_AT,
+    isQuickLink,
+  };
+}
+export type RecentSearchFixture = ReturnType<typeof recentSearch>;
 
 export const DESCRIPTION = "Du utvecklar och förvaltar en tjänst som många använder varje dag.";
 export const PUBLISHED_AT = "2026-10-01T08:00:00Z";

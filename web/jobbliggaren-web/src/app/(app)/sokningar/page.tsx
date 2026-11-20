@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
+import { getMyProfile } from "@/lib/api/me";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { assertNever } from "@/lib/dto/_helpers";
 import { RecentSearchList } from "@/components/recent-searches/recent-search-list";
@@ -31,7 +32,10 @@ export default async function SokningarPage() {
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages");
-  const result = await getRecentSearches();
+  const [result, profileResult] = await Promise.all([getRecentSearches(), getMyProfile()]);
+  // ADR 0188 — the junior quick link counts toward the cap while it is on. When the profile cannot be read, the default
+  // (on) is assumed, so no add is offered that the API would refuse; the API decides either way.
+  const juniorQuickLinkOn = profileResult.kind !== "ok" || profileResult.data.juniorQuickLinkEnabled;
 
   return (
     <>
@@ -43,7 +47,7 @@ export default async function SokningarPage() {
           <p className="jp-lede">{t("sokningar.lede")}</p>
         </div>
 
-        <div className="mt-7">{renderResult(result, t)}</div>
+        <div className="mt-7">{renderResult(result, t, juniorQuickLinkOn)}</div>
       </div>
       <PageFeedback pageKey="saved-searches" />
     </>
@@ -52,11 +56,18 @@ export default async function SokningarPage() {
 
 function renderResult(
   result: Awaited<ReturnType<typeof getRecentSearches>>,
-  t: PagesTranslator
+  t: PagesTranslator,
+  juniorQuickLinkOn: boolean
 ) {
   switch (result.kind) {
     case "ok":
-      return <RecentSearchList items={result.data} headingId={HEADING_ID} />;
+      return (
+        <RecentSearchList
+          items={result.data}
+          headingId={HEADING_ID}
+          juniorQuickLinkOn={juniorQuickLinkOn}
+        />
+      );
     case "unauthorized":
       redirect("/logga-in");
     case "rateLimited":

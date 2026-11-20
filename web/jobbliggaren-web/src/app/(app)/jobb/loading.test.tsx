@@ -99,3 +99,17 @@ describe("/jobb loading.tsx — the skeleton has a region to announce through", 
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
 });
+
+// ADR 0188 (#2265), DESIGN.md's band clause for /jobb: the left column reserves one quick-link row under the line, so
+// the band keeps its height on desktop when the links arrive. It sits in the decorative shell, after the one line.
+describe("/jobb loading.tsx — the quick-link row is reserved under the line", () => {
+  it("reserves one row after the lede, inside the hidden hero", () => {
+    const { container } = render(<Loading />);
+
+    const lede = container.querySelector(".jp-hero__lede");
+    const reserve = container.querySelector(".jp-hero__quicklinks-reserve");
+    expect(reserve).not.toBeNull();
+    expect(lede?.nextElementSibling).toBe(reserve);
+    expect(reserve?.closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+});

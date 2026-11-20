@@ -38,6 +38,7 @@ const getMyProfile = vi.fn();
 const getRecentSearches = vi.fn();
 const getSavedJobAds = vi.fn();
 const getTaxonomyTree = vi.fn();
+const getJuniorItCount = vi.fn();
 
 vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace?: string) =>
@@ -68,6 +69,10 @@ vi.mock("@/lib/api/saved-job-ads", () => ({
 vi.mock("@/lib/api/taxonomy", () => ({
   getTaxonomyTree: () => getTaxonomyTree(),
 }));
+// ADR 0188 — the hero's fifth read, the junior quick link's count. Its own behaviour is pinned beside the reader.
+vi.mock("@/lib/api/junior-it-count", () => ({
+  getJuniorItCount: () => getJuniorItCount(),
+}));
 
 // Hero furniture: client islands with router/context needs, no heading of their own.
 // #2199 PR 2b — the hero stand-in reads the save verdict the way the real hero does, so the provider pin
@@ -91,6 +96,16 @@ vi.mock("@/components/saved-job-ads/saved-job-ads-hero-chip", () => ({
 }));
 vi.mock("@/components/job-ads/strip-commit-param", () => ({
   StripCommitParam: () => null,
+}));
+// ADR 0188 — the stand-in shows what the page decided to pass, which is what the block at the bottom pins.
+vi.mock("@/components/job-ads/jobb-quick-links", () => ({
+  JobbQuickLinks: (props: { juniorCount: number | null; searches: ReadonlyArray<{ id: string }> }) => (
+    <span
+      data-testid="quick-links"
+      data-junior={String(props.juniorCount)}
+      data-searches={props.searches.map((search) => search.id).join(",")}
+    />
+  ),
 }));
 
 // The async-RSC seam described above. `ads` is set per test.
@@ -184,6 +199,7 @@ describe("/jobb — the heading outline skips no level (WCAG 1.3.1, #1395)", () 
     getRecentSearches.mockResolvedValue({ kind: "ok", data: [] });
     getSavedJobAds.mockResolvedValue({ kind: "ok", data: [] });
     getTaxonomyTree.mockResolvedValue({ kind: "ok", data: null });
+    getJuniorItCount.mockResolvedValue({ kind: "error" });
   });
 
   it("goes h1 -> h2 -> h3 when result cards render, and the h2 is the region's own", async () => {
@@ -307,5 +323,62 @@ describe("/jobb — the page carries the results' save verdict to the hero", () 
     await renderPage();
 
     expect(screen.getByTestId("hero-storable")).toHaveTextContent("true");
+  });
+});
+
+/**
+ * ADR 0188 (#2265) — what the page hands the quick-link row. The junior link shows only when the profile says it is
+ * on AND the count was read AND it is above 0 (security-auditor m3: hidden at 0 and on error); the searches are the
+ * recent searches marked as quick links, in the list's order. The row itself is pinned in jobb-quick-links.test.tsx.
+ */
+describe("/jobb — the quick links the hero shows", () => {
+  const marked = { id: "m1", isQuickLink: true };
+  const unmarked = { id: "u1", isQuickLink: false };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    ads = [];
+    getServerSession.mockResolvedValue({ id: "u1", email: "u@example.test" });
+    getMyProfile.mockResolvedValue({
+      kind: "ok",
+      data: { hasStatedDesiredOccupation: false, juniorQuickLinkEnabled: true },
+    });
+    getRecentSearches.mockResolvedValue({ kind: "ok", data: [unmarked, marked] });
+    getSavedJobAds.mockResolvedValue({ kind: "ok", data: [] });
+    getTaxonomyTree.mockResolvedValue({ kind: "ok", data: null });
+    getJuniorItCount.mockResolvedValue({ kind: "ok", data: { count: 152 } });
+  });
+
+  it("passes the count and the marked searches when everything was read", async () => {
+    await renderPage();
+
+    const row = screen.getByTestId("quick-links");
+    expect(row).toHaveAttribute("data-junior", "152");
+    expect(row).toHaveAttribute("data-searches", "m1");
+  });
+
+  it.each([
+    ["the user switched the link off", () =>
+      getMyProfile.mockResolvedValue({ kind: "ok", data: { hasStatedDesiredOccupation: false, juniorQuickLinkEnabled: false } })],
+    ["the profile could not be read", () => getMyProfile.mockResolvedValue({ kind: "error" })],
+    ["the count could not be read", () => getJuniorItCount.mockResolvedValue({ kind: "error" })],
+    ["the count was rate limited", () => getJuniorItCount.mockResolvedValue({ kind: "rateLimited", retryAfterSeconds: 5 })],
+    ["the count is 0", () => getJuniorItCount.mockResolvedValue({ kind: "ok", data: { count: 0 } })],
+  ])("hides the junior link when %s", async (_case, arrange) => {
+    arrange();
+    await renderPage();
+
+    expect(screen.getByTestId("quick-links")).toHaveAttribute("data-junior", "null");
+  });
+
+  it("keeps the row mounted with nothing to show, so a removal's status outlives the last link", async () => {
+    getJuniorItCount.mockResolvedValue({ kind: "ok", data: { count: 0 } });
+    getRecentSearches.mockResolvedValue({ kind: "ok", data: [unmarked] });
+
+    await renderPage();
+
+    const row = screen.getByTestId("quick-links");
+    expect(row).toHaveAttribute("data-junior", "null");
+    expect(row).toHaveAttribute("data-searches", "");
   });
 });

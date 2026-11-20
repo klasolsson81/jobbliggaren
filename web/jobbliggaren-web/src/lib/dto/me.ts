@@ -81,6 +81,9 @@ export const jobSeekerProfileSchema = z.object({
   // lists show. The backend always projects them → required keys.
   notificationFeedMatchesEnabled: z.boolean(),
   notificationFeedFollowedAdsEnabled: z.boolean(),
+  // ADR 0188 (#2265): whether the junior quick link shows in the /jobb hero, `true` = shown (the default for every
+  // user). The backend always projects it → required key.
+  juniorQuickLinkEnabled: z.boolean(),
   createdAt: z.string(),
   hasStatedDesiredOccupation: z.boolean(),
   preferredOccupationGroups: z.array(z.string()).readonly(),

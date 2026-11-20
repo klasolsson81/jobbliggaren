@@ -59,6 +59,7 @@ describe("jobSeekerProfileSchema", () => {
     // ADR 0168 (#2130) — what reaches the bell, `true` = on.
     notificationFeedMatchesEnabled: true,
     notificationFeedFollowedAdsEnabled: true,
+    juniorQuickLinkEnabled: true,
     createdAt: "2026-05-11T10:00:00Z",
     // F4-12 PR-B (ADR 0076) — matchnings-önskemål + härlett nudge-flagg.
     hasStatedDesiredOccupation: false,

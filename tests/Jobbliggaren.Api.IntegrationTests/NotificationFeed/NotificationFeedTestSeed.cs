@@ -325,6 +325,30 @@ internal static class NotificationFeedTestSeed
         }
     }
 
+    /// <summary>
+    /// Runs <paramref name="action"/> right after the context's <paramref name="statement"/>-th statement returns (1-based),
+    /// for a source whose token is not a <c>MAX</c>: the Branschbevakning source reads its newest hit in order.
+    /// </summary>
+    public sealed class AfterStatementInterceptor(int statement, Func<Task> action) : DbCommandInterceptor
+    {
+        private int _returned;
+
+        public bool Fired { get; private set; }
+
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!Fired && ++_returned == statement)
+            {
+                Fired = true;
+                await action();
+            }
+
+            return result;
+        }
+    }
+
     /// <summary>Counts the statements a context sends. EF runs every query here through a reader.</summary>
     public sealed class StatementCounter : DbCommandInterceptor
     {

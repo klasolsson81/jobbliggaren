@@ -140,12 +140,6 @@ export const recentJobSearchDtoSchema = z.object({
   // `*Labels` defaultar), och högljutt-före-tyst-fel är ratificerat (ADR 0067
   // rad 41; CTO 2026-06-13 "hellre ingen siffra än falsk (0)"). En default hade gjort
   // ett saknat wire-fält oskiljbart från ett falskt — det här felet, ett lager ut.
-  //
-  // Det ger ett verkligt skew-fönster, och det är #1238:s: tills lådan applicerar
-  // release-records flyttas de fem `latest`-taggarna en i taget, så en dragning kan få
-  // nytt `web` mot gammalt `api` (ADR 0149 R10). Kostnaden är mätt och avgränsad:
-  // `responseToResult` fångar parse-felet, ytan degraderar till `{kind:"error"}`, och
-  // nästa reconcile läker det.
   remote: z.boolean(),
   occupationGroupLabels: z.array(taxonomyLabelSchema).default([]),
   occupationNameLabels: z.array(taxonomyLabelSchema).default([]),

@@ -1221,7 +1221,7 @@ The conclusion is withdrawn **for the junior list only**:
 - the page at `/junior`, with every combination of its three parameters;
 - the rules file `junior-rules.data-it.v1.json` in the public repository.
 
-The page, the sitemap, the catalogue, the Search Console read path, the related section and the application link keep their conclusions. A signed-in count or link on `/jobb` (#2265) and the admin queue are not public surfaces, so they lie outside the conclusion. Each composes `JuniorMembership` under `IsListed(now)` and never copies it.
+The page, the sitemap, the catalogue, the Search Console read path, the related section and the application link keep their conclusions. The junior filter on `/jobb` (#2261), a signed-in count or link on `/jobb` (#2265) and the admin queue are not public surfaces, so they lie outside the conclusion. Each composes `JuniorMembership` and never copies it.
 
 **[K]** Klas took the conclusion again for the junior list on `<date>` (sign-off below).
 
@@ -1230,16 +1230,16 @@ This amendment is the single home of the legal outcome for the change: ADR 0187 
 **D1: unchanged.** A person who looks for a first job in IT finds the open ads that fit that search, without an account.
 
 **D2, necessity: re-taken.**
-- *Why the change is needed.* The headline rule finds about half of the junior ads (ADR 0186, R1), and the curated set ages as its ads close. The driving session's harness measured this against Klas's reading on 2026-11-20, counts only (rule set `1.0.0+a6bab50a`):
+- *Why the change is needed.* The headline rule finds about half of the junior ads (ADR 0186, R1), and the curated set ages as its ads close. The driving session's harness measured this against Klas's reading on 2026-11-20 at 10:00Z, counts only, over the rule file of commit `1be6f9976`. Its version is `1.0.0+a6bab50a` when a CRLF checkout hashes it and `1.0.0+0d07bb80` as LF. The delivered file has the same patterns, conditions, rule order and years block. It differs only in the `//` text, in the reading's ids, and in the four `auto` flags the criterion admits, and the harness sets those flags per criterion itself (`security-auditor`, measured at head `5b96cb60b`):
   - 250 of the reading's 254 ads were retrievable.
   - Under the criterion below, the automatic rules show 82 ads, 80 of them right; both wrong ones are labelled not junior. They exclude 48, 47 of them right. 120 go to the queue.
-  - Of 2 850 listed Data/IT ads, 256 are candidates. The rules alone show 84 and leave 130 unclear. With the reading, the list holds 144.
+  - Over the 2 850 Data/IT ads listed in the snapshot, 256 are candidates. Under the criterion and without the reading, the rules give 84 a Junior verdict and 130 Unclear, and every other ad NotJunior. With the reading's ids as the first step, the list would hold 144, before any decision in the queue.
   - The queue for new ads: a mean of 4.0 a day over the last seven days, at most 9.
   - Arbetsförmedlingen's experience mark is present on 43 860 of 43 860 snapshot ads and on 894 of 894 stream upserts.
 
   *Not measured:* the precision is measured against the same reading the rules were tuned on, so it is optimistic. The no-signal outcome cannot be measured, because ads without a candidate signal were never read.
 - *What is stored.*
-  - **On `job_ads`, two nullable columns,** both written only by the ingest funnel (`SetSourcePayload`):
+  - **On `job_ads`, two nullable columns.** The ingest funnel (`SetSourcePayload`) writes both. The contact-scrub backfill (`ApplyContactScrubBackfill`) recomputes the fingerprint when it rewrites the text. No bulk write reaches either (`JobAdRawPayloadDerivationGuardTests`):
     - `experience_required`, Arbetsförmedlingen's boolean;
     - `junior_input_fingerprint`, a SHA-256 over the post-scrub title and description, the occupation group and the mark.
   - **In `job_ad_junior_assessments`, one row per classified ad,** keyed by the ad's id, with a foreign key to `job_ads` (`ON DELETE CASCADE`). The row holds:
@@ -1253,18 +1253,28 @@ This amendment is the single home of the legal outcome for the change: ADR 0187 
   - **Art. 17.**
     - `Erase()` nulls the input fingerprint.
     - In the same unit of work, the erasure command deletes the erased ad's assessment row.
+    - A sweep that read the ad before the erasure committed can write a row after it (`JuniorAssessmentErasureRaceTests`). So every tick of the sweep first deletes the assessments of erased ads, before its kill-switch and its field resolution, and does so again last. Such a row lasts until the next tick at most.
     - In `ErasureCascadeRegistry`, both fingerprints are classified `Erased`, with derivation grounds.
     - The experience mark, and the assessment's verdict, rule id, version and decision, are `NotRecruiterData`, under a ground that names the three writers.
 - *Who writes them:*
-  - **The ingest funnel** writes the mark and the input fingerprint, and classifies nothing.
+  - **The ingest funnel** writes the mark and the input fingerprint, and classifies nothing. The contact-scrub backfill recomputes the fingerprint when it rewrites the text.
   - **The sweep,** `ClassifyJuniorJobAdsJob`, runs every two minutes. It takes the listed ads in the enabled field that either have no assessment, or have a stamped fingerprint that differs from the input fingerprint, or carry a rule-set version that is not current.
     - It reads an `AsNoTracking` projection of seven fields: id, external id, post-scrub title, description, occupation group, mark and input fingerprint. It never reads `raw_payload`, the contacts or the organisation number, and it never writes `job_ads`.
     - It creates or reclassifies the assessment through `JobAdJuniorAssessment.Classify` and `Reclassify`.
     - A match timeout yields Unclear under `match-timeout` and stamps the fingerprint, so the ad is not retried in a loop.
+    - It deletes the assessments of erased ads at the start and at the end of every tick, whatever its kill-switch says.
   - **The decision** is written only by `DecideJuniorJobAdCommand`, through `JobAdJuniorAssessment.Decide`, under the Admin policy, audited as `Admin.JuniorDecisionRecorded` with the ad's id.
-  - **An architecture test pins the callers:** the classification methods are called only from the sweep, `Decide` only from the decide handler, and `JuniorClassifier` only from the sweep and the measurement.
+  - **An architecture test pins the callers** (`JuniorClassificationWriterGuardTests`, a source scan of `src/`). Only the sweep calls `JobAdJuniorAssessment.Classify` and `Reclassify` and builds a `JuniorFieldClassifier`. Only the decide handler calls `Decide`. In `src/`, the rules run only through `JuniorFieldClassifier`. The phase-0 measurement lives under `tests/`, outside the scan.
 - *What stays per request.* Membership is `JuniorMembership.Of(assessments, groups)`: the ad's occupation group is among the enabled field's groups, and it has an assessment whose decision is `Junior`, or whose decision is absent and whose verdict is `Junior`. It is composed under `JobAdPublication.IsListed(now)` in every read of the list. The read does not filter by rule-set version. Content, order, count and kommun options come from that one base, per request.
-- *The order of decision.* First Klas's decision; then the reading's junior ids; then the rules in file order; then Unclear for a candidate no rule decides; then NotJunior for an ad with no junior signal.
+- *The order of decision.* An ad in the enabled field is classified in this order:
+  1. The reading's junior ids, as Junior under the reading's rule id.
+  2. NotJunior under `no-signal`, for an ad that is not a candidate.
+  3. For a candidate, the rules in file order. The first rule whose conditions all hold decides, and a rule that is not automatic yields Unclear under its own id.
+  4. Unclear under `candidate-only`.
+
+  A match timeout yields Unclear under `match-timeout`.
+
+  Klas's decision is not a step of the classification. It is stored beside the verdict, and the read puts it first: `JuniorMembership` admits an ad whose decision is `Junior`, or whose decision is absent and whose verdict is `Junior`.
 
   **[K]** A rule is automatic only when its point precision against Klas's reading is at least 95 % on at least 10 cases. On 2026-11-20 four rules meet it:
   - `title-junior`, 70 of 70, shows;
@@ -1274,8 +1284,9 @@ This amendment is the single home of the legal outcome for the change: ADR 0187 
 
   Every other rule yields Unclear under its own id, which puts the ad in the queue.
 - *The queue.* `/admin/juniorjobb`, behind the Admin policy: internal processing by the controller himself, with no recipient.
-  - A row carries the title, the employer, the kommun, the publication date and the rule's label, and links to the ad's signed-in page.
+  - A row carries the title, the employer, the kommun, the publication date, the last application day, the rules' verdict with its rule's label, and Klas's decision. It links to the ad's page, `/jobb/<id>`, by the ad's internal id.
   - It carries no ad text, no Arbetsförmedlingen id and no organisation number.
+  - The tab *Visas på /junior* composes `JuniorMembership`. A test reads that tab and `/junior` through their real handlers over the same rows, and finds the same ads (`AdminJuniorQueueHandlerTests`).
   - Every tab composes `IsListed(now)`.
 - *Alternatives:*
   - **The headline rule and the curated set alone** (ADR 0186): finds about half, and ages.
@@ -1291,7 +1302,7 @@ This amendment is the single home of the legal outcome for the change: ADR 0187 
 **D4, the weights:**
 - **W1: unchanged.** The list carries no free text. The sweep reads the post-scrub description to reach a verdict and stores none of it.
 - **W2 at the widened size.** As in the Amendment 2026-11-19, the employer name is the list's main personal datum, and a kommun view can hold a single row.
-  - *Stock before the merge.* The harness ran over Arbetsförmedlingen's live snapshot on 2026-11-20 10:00Z (rule set `1.0.0+a6bab50a`), over the ads that the criterion's rules and the reading would show:
+  - *Stock before the merge.* From the harness's M4 (b) line under the criterion, over Arbetsförmedlingen's snapshot on 2026-11-20 at 10:00Z (the rule file of commit `1be6f9976`; see D2), over the ads the criterion's automatic rules and the reading would show:
     - an organisation number of personnummer shape: 0;
     - without one: 0;
     - not ten characters: 0;
@@ -1304,7 +1315,7 @@ This amendment is the single home of the legal outcome for the change: ADR 0187 
 - **W5 at the widened size.** What the change adds:
   1. Klas's decision is a second reason, besides closing, for an ad to leave `/junior` while it is still listed elsewhere. That makes a drop from the list a weaker erasure signal, not a stronger one.
   2. His decision is the remedy for a recruiter's complaint or objection about the list, and it never edits the file (trigger 23).
-  3. An assessment is kept per ad, but every read composes `IsListed(now)`, so an erased ad still leaves the rows, the total and the kommun options in the same request. Its assessment row is deleted with the erasure, and its input fingerprint is nulled.
+  3. An assessment is kept per ad, but every read composes `IsListed(now)`, so an erased ad still leaves the rows, the total and the kommun options in the same request. `Erase()` nulls its input fingerprint. The erasure command deletes its assessment row, and the next tick at the latest deletes a row that a racing sweep wrote.
 
   **[K]** The file's reading holds junior ids only, so it publishes no verdict the list does not show itself. Erasures to date: `<D11>`. *Left:* the inference at kommun scale, as before.
 - **The rules file.** `junior-rules.data-it.v1.json`, an embedded resource in the public repository, replaces `junior-it-list.v1.json`. It carries:
@@ -1313,7 +1324,7 @@ This amendment is the single home of the legal outcome for the change: ADR 0187 
   - the rules in their order, with their `auto` flags;
   - a reading block of exactly `ruleId` and `junior`.
 
-  The reading holds 145 Platsbanken ids: v1's 143, and 2 junior-labelled ids from the reading's later additions. The one id left out on 2026-11-20 stays out. The driving session's check against JobTech on 2026-11-20 printed counts only: outside the Data/IT field 1, kept 2.
+  The reading holds 145 Platsbanken ids: all 143 of v1's, and 2 junior-labelled ids from the reading's later additions. Beyond v1, the reading has 3 junior-labelled ids. The driving session checked them against JobTech on 2026-11-20, counts only: 1 is outside the Data/IT field, and the file does not carry it; 2 were kept. Every v1 id is in the file (`v1_missing 0`, measured locally by `security-auditor` at head `5b96cb60b`), so no id has left the set, erased or not.
 
   By the record an external id is not personal data (ADR 0106). But the repository and its history are public and permanent from the first push. And for a sole trader's ad, the id leads through Arbetsförmedlingen's open API to an organisation number that is a personnummer.
 
@@ -1323,14 +1334,14 @@ This amendment is the single home of the legal outcome for the change: ADR 0187 
 - **The reading's working copy.** **[K]** A minimised copy of Klas's reading is kept outside every repository, at `C:\DOTNET-UTB\Jobbliggaren-junior-facit\junior-facit.json`. It holds the id, the label and the minimum and maximum years, and nothing else, and it exists to re-measure the rules. It is deleted on 2027-05-18, when the reading's last ad closes. It is not personal data on the record, and the processing register states it.
 
 **D5 gains the change's safeguards:**
-- Only two nullable columns are added to `job_ads`, written by the ingest funnel alone. The per-ad assessment table holds verdicts and decisions, and never membership, text or a matched span.
-- Only the sweep writes a verdict, from the versioned file. Only the audited admin command writes a decision. Klas's decision comes first, and an architecture test pins the callers.
+- Only two nullable columns are added to `job_ads`: the experience mark, which the ingest funnel alone writes, and the input fingerprint, which the ingest funnel writes and the contact-scrub backfill recomputes. No bulk write reaches either. The per-ad assessment table holds verdicts and decisions, and never membership, text or a matched span.
+- Only the sweep writes a verdict, from the versioned file. Only the audited admin command writes a decision, and every read puts the decision ahead of the verdict. An architecture test pins the callers.
 - Membership is `JuniorMembership`, composed per request under `IsListed(now)` with the enabled field's groups, in one base for the rows, the total and the options. It is never copied.
 - The sweep reads a seven-field `AsNoTracking` projection, never `raw_payload`, the contacts or the organisation number, and never writes `job_ads`.
 - A match timeout is recorded as Unclear and never retried in a loop.
-- The sweep logs counts, rule ids and verdicts only.
+- The sweep logs counts and an exception's type name only.
 - The Domain enforces kebab rule ids and a closed version alphabet.
-- An erasure nulls the input fingerprint and deletes the assessment row in one unit of work.
+- An erasure nulls the input fingerprint and deletes the assessment row in one unit of work. Every tick of the sweep deletes, first and last, any assessment left on an erased ad.
 - Exactly one field is enabled, and a test pins it.
 - The reading block holds junior ids only.
 - The queue is Admin-only and `private, no-store`, with no ad text.
@@ -1372,7 +1383,7 @@ The addendum is a local file, written in the main copy by the driving session, a
 
     Narrowing a rule, turning its `auto` off or removing it is not this trigger.
 23. The rules file carrying any of these:
-    - a key beyond those its loader test pins at `<head>`;
+    - a key, at any level of the file, beyond those the loader maps at `<head>`;
     - a pattern that names an employer, a person or a place, or that quotes one ad;
     - a comment about any single ad;
     - a reading that holds anything beyond junior ids: a not-junior id, a direction, a label, a year, a place or a note.
@@ -1383,8 +1394,8 @@ The addendum is a local file, written in the main copy by the driving session, a
     - that table holding membership, a title, an employer, or any value read from the ad's text;
     - the sweep reading anything beyond its projection (id, external id, post-scrub title and description, occupation group, experience mark, input fingerprint), in particular `raw_payload`, the contacts or the organisation number;
     - the sweep writing `job_ads`;
-    - an erased ad keeping its assessment row or its input fingerprint;
-    - a log line of the sweep or the queue carrying more than counts, rule ids and verdicts;
+    - the purge of erased ads' assessments removed, made conditional, or moved after the sweep's kill-switch or field resolution; an erased ad keeping its input fingerprint;
+    - a log line of the sweep carrying more than counts and an exception's type name, or a log line of the queue's handlers carrying more than the request's type name, its duration and, on failure, its exception;
     - ad text, an Arbetsförmedlingen id or an organisation number in the queue's rows.
 
 The readings recorded with them:
@@ -1403,9 +1414,11 @@ The readings recorded with them:
   - listed ads by verdict and rule id, and listed decisions by value;
   - the listed juniors as `JuniorMembership` defines them, and of those: an organisation number of personnummer shape, without one, and not ten characters;
   - kommuner; kommuner with exactly one ad; ads without a kommun;
-  - assessment rows of erased ads (must be 0), and erased ads with an input fingerprint (must be 0);
+  - assessment rows of erased ads (must be 0). A row that a sweep wrote while racing an erasure lasts until the next tick, so a count above 0 is read again two ticks later. Also erased ads with an input fingerprint (must be 0);
   - `job_ads` erased, all time;
   - the list's own total, which must equal the listed juniors.
+
+  A stale assessment is read against the version the release stores: the declared version, then the first eight hex digits of SHA-256 over the file's blob in the release commit (LF).
 
   A count above 0 in the three organisation-number fields goes back to `security-auditor` before the post.
 - **Readings:** `<M4 (a)>`. `<M4 (c)>`.
@@ -1436,10 +1449,14 @@ Read with D10's scope rule, none of the lapses withdraws anything. The pointer a
   - the `junior` block of `messages/{sv,en}/publicjob.json`;
   - `robots.ts` and `seo-canonical.test.ts`.
 
+  The one exception is `PublicJuniorItJobAdsEndpointTests.cs`. Its seed helper now runs the real `ClassifyJuniorJobAdsJob`, so the seeded ad is classified (+6/−2: a `using`, two doc lines and the call). No assertion line changes.
+
   The handler is byte-unchanged, or carries a stated delta that changes no member of the wire. `IJuniorItJobAdQuery` keeps its two members, and only its implementation's membership predicate changes, to `JuniorMembership`.
 - In every suite, `git diff -U0` removes no assertion line beyond the declared ones:
   - `JuniorItHeadlinePatternAgreementTests`, and the list-loader, predicate and resolver tests, retired with their subjects;
   - in `JuniorItJobAdQueryReadTests`, the curated- and headline-arm assertions, replaced by verdict- and decision-arm assertions. Its four exits (removal from the stream, a passed deadline, `ExpireJobAdsJob`, `Erase()`) are kept for the rows, the total and the options.
+
+  Three assertions change a count and remove nothing: `RecurringJobIdsTests` (25 to 26, three lines) and `app-shell.test.tsx` (seven links to eight).
 
 **Sign-off**
 

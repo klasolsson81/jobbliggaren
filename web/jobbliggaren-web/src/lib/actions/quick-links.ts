@@ -25,9 +25,7 @@ export async function setJuniorQuickLinkAction(enabled: boolean): Promise<Action
  */
 export async function setRecentSearchQuickLinkAction(id: string, on: boolean): Promise<ActionResult> {
   if (typeof id !== "string" || typeof on !== "boolean") return outcome({ kind: "error" }, await errors());
-  const result = await setRecentSearchQuickLink(id, on);
-  // A link goes with its search (ADR 0188 D2), so removing one whose search is already gone is done.
-  return outcome(!on && result.kind === "notFound" ? { kind: "ok" } : result, await errors());
+  return outcome(await setRecentSearchQuickLink(id, on), await errors());
 }
 
 async function errors() {
@@ -44,12 +42,9 @@ function outcome(
   result: QuickLinkWriteResult,
   t: Awaited<ReturnType<typeof getTranslations<"jobads.quickLinks.errors">>>,
 ): ActionResult {
-  // A full, conflicting or missing answer means the page shows a state that no longer holds.
-  if (result.kind === "ok" || result.kind === "full" || result.kind === "conflict" || result.kind === "notFound") {
-    revalidateQuickLinkPages();
-  }
   switch (result.kind) {
     case "ok":
+      revalidateQuickLinkPages();
       return { success: true };
     case "full":
       return { success: false, error: t("full", { max: QUICK_LINK_MAX }) };

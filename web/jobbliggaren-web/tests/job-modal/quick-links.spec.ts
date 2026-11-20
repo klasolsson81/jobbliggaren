@@ -66,6 +66,23 @@ async function heroShot(page: Page, name: string) {
   await hero(page).screenshot({ path: join(dir, `${name}.png`) });
 }
 
+/** Another tab marks a search after this page rendered, so the backend's count no longer matches the page's. */
+function markElsewhere(n: number) {
+  const id = recentSearchId(n);
+  harness.recentSearches = [
+    ...harness.recentSearches.filter((search) => search.id !== id),
+    { ...recentSearch(n, `Markerad i en annan flik ${n}`, true), id },
+  ];
+}
+
+/** Another tab deletes a search after this page rendered. */
+function deleteElsewhere(n: number) {
+  harness.recentSearches = harness.recentSearches.filter((search) => search.id !== recentSearchId(n));
+}
+
+const NOT_FOUND = "Sökningen finns inte längre. Den kan ha tagits bort.";
+const FULL = "Du har redan 3 snabblänkar. Ta bort en för att lägga till en ny.";
+
 async function noSidewaysScroll(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
@@ -320,17 +337,36 @@ test.describe("/sokningar", () => {
     await shot(page, "sokningar-full-390");
   });
 
-  test("an add the API refuses as full says so", async ({ page }) => {
-    harness.recentSearches = [recentSearch(1, BACKEND, true), recentSearch(2, UNMARKED, false)];
-    harness.refuseNextQuickLinkWrite = { status: 409, body: { title: "QuickLink.MaxTotal", status: 409 } };
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/sokningar");
-    await row(page, UNMARKED).getByRole("button", { name: "Lägg till som snabblänk" }).click();
-    await expect(
-      page.getByRole("alert").filter({ hasText: "Du har redan 3 snabblänkar. Ta bort en för att lägga till en ny." })
-    ).toBeVisible();
-    await shot(page, "sokningar-refused-full-1280");
-  });
+  // A refusal keeps the control and its focus: the page is not refreshed under the keyboard (design-reviewer's
+  // re-check of the first fix round).
+  const refusals: ReadonlyArray<{
+    name: string;
+    marked: boolean;
+    elsewhere: () => void;
+    button: string;
+    alert: string;
+  }> = [
+    { name: "an add refused because another tab filled the cap", marked: false, elsewhere: () => markElsewhere(9), button: "Lägg till som snabblänk", alert: FULL },
+    { name: "an add of a search another tab deleted", marked: false, elsewhere: () => deleteElsewhere(2), button: "Lägg till som snabblänk", alert: NOT_FOUND },
+    { name: "a removal of a search another tab deleted", marked: true, elsewhere: () => deleteElsewhere(2), button: "Ta bort som snabblänk", alert: NOT_FOUND },
+  ];
+
+  for (const refusal of refusals) {
+    test(`${refusal.name} says why and leaves focus on the control`, async ({ page }) => {
+      harness.recentSearches = [recentSearch(1, BACKEND, true), recentSearch(2, UNMARKED, refusal.marked)];
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.goto("/sokningar");
+      const control = row(page, UNMARKED).getByRole("button", { name: refusal.button });
+      refusal.elsewhere();
+
+      await control.focus();
+      await page.keyboard.press("Enter");
+
+      await expect(page.getByRole("alert").filter({ hasText: refusal.alert })).toBeVisible();
+      await expect(control).toBeFocused();
+      await shot(page, `sokningar-refused-${refusal.button === "Ta bort som snabblänk" ? "remove" : "add"}-${refusal.alert === FULL ? "full" : "gone"}-1280`);
+    });
+  }
 });
 
 test.describe("/mina-sidor/snabblankar", () => {
@@ -394,6 +430,25 @@ test.describe("/mina-sidor/snabblankar", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Mina sidor" })).toBeFocused();
     await shot(page, "settings-last-removed-1280");
   });
+
+  for (const refusal of [
+    { name: "an add refused because another tab filled the cap", elsewhere: () => markElsewhere(9), alert: FULL },
+    { name: "an add of a search another tab deleted", elsewhere: () => deleteElsewhere(2), alert: NOT_FOUND },
+  ]) {
+    test(`${refusal.name} says why and leaves focus on the button`, async ({ page }) => {
+      harness.recentSearches = [recentSearch(1, BACKEND, true), recentSearch(2, UNMARKED, false)];
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.goto("/mina-sidor/snabblankar");
+      const button = addable(page).getByRole("button", { name: `Lägg till som snabblänk: ${UNMARKED}` });
+      refusal.elsewhere();
+
+      await button.focus();
+      await page.keyboard.press("Enter");
+
+      await expect(page.getByRole("alert").filter({ hasText: refusal.alert })).toBeVisible();
+      await expect(button).toBeFocused();
+    });
+  }
 
   test("a write that raced another says so and changes nothing", async ({ page }) => {
     harness.recentSearches = [recentSearch(2, UNMARKED, false)];

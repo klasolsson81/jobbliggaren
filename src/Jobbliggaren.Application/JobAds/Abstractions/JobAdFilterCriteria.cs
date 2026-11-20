@@ -54,6 +54,13 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// USER-VALDA facetten; annonsens flagga driver grad-override:n separat (F1 —
 /// scorern läser ALDRIG användarens remote-preferens; ADR 0079 never-grade-coupled).
 /// </para>
+/// <para>
+/// <b>#2261 (ADR 0186 D2's second consumer):</b> <see cref="JuniorIt"/> narrows the search to the junior IT
+/// list's membership, the same rule the open <c>/junior</c> page reads. It is an orthogonal dimension, AND-ed
+/// with everything else, and it is required for the same reason as <see cref="Remote"/>. <c>false</c> emits no
+/// condition and reads no taxonomy. Only the /jobb list and its facet counts carry it; every persisted path
+/// passes <c>false</c>.
+/// </para>
 /// </summary>
 public sealed record JobAdFilterCriteria(
     IReadOnlyList<string> OccupationGroup,
@@ -64,4 +71,5 @@ public sealed record JobAdFilterCriteria(
     IReadOnlyList<string> WorktimeExtent,
     IReadOnlyList<string> Employer,
     bool Remote,
+    bool JuniorIt,
     string? Q);

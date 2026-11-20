@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, act } from "@testing-library/react";
+import { render, screen, within, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JobbHeroFilters } from "./jobb-hero-filters";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
@@ -60,6 +60,7 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroFilters>[0]>) {
       initialRegion={[]}
       initialMunicipality={[]}
       initialRemote={false}
+      initialJunior={false}
       initialEmploymentType={[]}
       initialWorktimeExtent={[]}
       initialMatchGrades={[]}
@@ -234,6 +235,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         initialRegion={["CifL_Rzy_Mku"]}
         initialMunicipality={[]}
         initialRemote={false}
+        initialJunior={false}
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}
@@ -262,6 +264,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         initialRegion={[]}
         initialMunicipality={[]}
         initialRemote={false}
+        initialJunior={false}
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}
@@ -411,6 +414,27 @@ describe("JobbHeroFilters — facet-counts + Visa N annonser (E2c)", () => {
     }
   });
 
+  it("#2261: an active junior filter reaches the facet-count fetch", async () => {
+    const user = userEvent.setup();
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      setup({ initialJunior: true });
+      await user.click(screen.getByRole("button", { name: /^Ort/ }));
+      await waitFor(() => expect(urls.length).toBeGreaterThan(0));
+      const url = new URL(urls[0]!, "http://localhost");
+      expect(url.pathname).toBe("/api/jobb/facet-counts");
+      expect(url.searchParams.get("junior")).toBe("true");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("visar inga counts vid degradering (fetch saknas) — popovern användbar", async () => {
     const user = userEvent.setup();
     setup();
@@ -488,6 +512,7 @@ describe("JobbHeroFilters — degraderad taxonomi", () => {
         initialRegion={[]}
         initialMunicipality={[]}
         initialRemote={false}
+        initialJunior={false}
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}
@@ -660,6 +685,45 @@ describe("Distans i ort-popovern (#551 punkt 4)", () => {
   });
 });
 
+
+// #2261 — the junior IT filter: one checkbox in the Filter panel, carried as ?junior=on.
+describe("Juniora IT-jobb in the Filter panel (#2261)", () => {
+  it("a click (off → on) navigates with ?junior=on", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole("button", { name: /^Filter/ }));
+    await user.click(screen.getByRole("checkbox", { name: "Juniora IT-jobb" }));
+    expect(pushMock).toHaveBeenCalledWith("/jobb?junior=on", { scroll: false });
+  });
+
+  it("a click (on → off) navigates to a clean /jobb", async () => {
+    const user = userEvent.setup();
+    setup({ initialJunior: true });
+    await user.click(screen.getByRole("button", { name: /^Filter/ }));
+    await user.click(screen.getByRole("checkbox", { name: "Juniora IT-jobb" }));
+    expect(pushMock).toHaveBeenCalledWith("/jobb", { scroll: false });
+  });
+
+  it("keeps every other axis when it is turned on", async () => {
+    const user = userEvent.setup();
+    setup({ q: "java", initialMunicipality: ["zHxw_uJZ_NNh"], initialRemote: true });
+    await user.click(screen.getByRole("button", { name: /^Filter/ }));
+    await user.click(screen.getByRole("checkbox", { name: "Juniora IT-jobb" }));
+    const url = new URL(pushMock.mock.calls.at(-1)![0] as string, "http://localhost");
+    expect(url.searchParams.get("junior")).toBe("on");
+    expect(url.searchParams.get("q")).toBe("java");
+    expect(url.searchParams.get("municipality")).toBe("zHxw_uJZ_NNh");
+    expect(url.searchParams.get("distans")).toBe("on");
+  });
+
+  // It has no chip, so the Filter pill is where an active junior filter shows while the panel is closed.
+  it("the Filter pill counts it, so the filter shows without opening the panel", () => {
+    setup({ initialJunior: true });
+    const pill = screen.getByRole("button", { name: /^Filter/ });
+    expect(pill).toHaveAttribute("data-active", "true");
+    expect(pill).toHaveTextContent("1");
+  });
+});
 
 describe("HideApplied keyboard navigation", () => {
   it.each([" ", "{Enter}"])("preserves the search axes when activated with %s", async (key) => {

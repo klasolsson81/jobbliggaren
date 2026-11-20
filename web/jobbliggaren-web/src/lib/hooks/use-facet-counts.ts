@@ -34,6 +34,8 @@ export interface FacetCountsFilterState {
   worktimeExtent: ReadonlyArray<string>;
   // #551 punkt 4 — distans i samma filterkontext, av samma skäl som Klass 2.
   remote: boolean;
+  // #2261 — the junior filter, for the same reason: a count must count the list's own WHERE.
+  junior: boolean;
   q: string;
 }
 
@@ -56,6 +58,7 @@ export function useFacetCounts(
     filter.employmentType,
     filter.worktimeExtent,
     filter.remote,
+    filter.junior,
     filter.q,
   ]);
   const filterRef = useRef(filter);
@@ -89,6 +92,7 @@ export function useFacetCounts(
       for (const v of current.region) params.append("region", v);
       // Wire-formen är ?remote=true (bool-bindning), aldrig rutt-flaggans "on".
       if (current.remote) params.append("remote", "true");
+      if (current.junior) params.append("junior", "true");
       for (const v of current.employmentType)
         params.append("employmentType", v);
       for (const v of current.worktimeExtent)

@@ -104,6 +104,12 @@ public sealed class RecentSearchCaptureGate(ISearchQueryParser parser, IReligiou
             ? JobAdSortBy.PublishedAtDesc
             : search.SortBy;
 
+        // #2261 (senior-cto-advisor D1a). The junior axis is not stored, so a junior search is skipped whole. Storing
+        // the rest would hash identically to the broader non-junior search and Bump() that row, the employer guard's
+        // reason below, and the hero would confirm a save of a search the replay cannot run.
+        if (search.JuniorIt)
+            return null;
+
         if (string.IsNullOrWhiteSpace(effectiveQ) && occupationGroupCount == 0
             && occupationNameCount == 0 && municipalityCount == 0 && regionCount == 0
             && employmentTypeCount == 0 && worktimeExtentCount == 0

@@ -832,6 +832,10 @@ export function sameUrlState(a: JobbUrlState, b: JobbUrlState): boolean {
     // this line an external Distans change is classed as a no-op and the next text commit
     // builds on a stale `remote`.
     a.remote === b.remote &&
+    // #2261 — the junior filter is set in the Filter panel and is not text-representable, the
+    // same reason as Distans above. Without it the storability verdict and the hero's divergence
+    // detector would read a junior search as the same state as the search without it.
+    a.junior === b.junior &&
     // Klass 2 (ADR 0067 B2) — panel-dimensionerna ingår i "samma filter-state".
     // Since #2148 the field can claim them (a word equal to a label).
     sameList(a.employmentType, b.employmentType) &&

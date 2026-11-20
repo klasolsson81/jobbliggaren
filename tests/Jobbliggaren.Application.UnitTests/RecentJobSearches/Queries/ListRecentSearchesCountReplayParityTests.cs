@@ -69,8 +69,9 @@ public class ListRecentSearchesCountReplayParityTests
     // Axes a recent search cannot store yet, so the count must run them empty: a replay that
     // reproduces nothing and a count that filters on something would disagree. Each entry leaves
     // this set when it gains a ReplayProjection row; #2199's occupation-name left it in PR 2, and
-    // the set is kept, empty, so the next axis has somewhere to be declared rather than defaulted.
-    private static readonly HashSet<string> NotYetPersisted = new(StringComparer.Ordinal);
+    // the set is kept so the next axis has somewhere to be declared rather than defaulted. #2261's
+    // junior flag is here for good, not yet: a junior search is never stored (senior-cto-advisor D1a).
+    private static readonly HashSet<string> NotYetPersisted = new(StringComparer.Ordinal) { "JuniorIt" };
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly ITaxonomyReadModel _taxonomy = Substitute.For<ITaxonomyReadModel>();
@@ -195,8 +196,12 @@ public class ListRecentSearchesCountReplayParityTests
 
         foreach (var axis in axes.Where(a => NotYetPersisted.Contains(a.Name)))
         {
-            ((IEnumerable)axis.GetValue(counted)!).Cast<object>().ShouldBeEmpty(
-                $"axis {axis.Name} is not persisted yet, so the count must not filter on it");
+            var value = axis.GetValue(counted);
+            if (value is bool flag)
+                flag.ShouldBeFalse($"axis {axis.Name} is not persisted, so the count must not filter on it");
+            else
+                ((IEnumerable)value!).Cast<object>().ShouldBeEmpty(
+                    $"axis {axis.Name} is not persisted yet, so the count must not filter on it");
         }
 
         foreach (var axis in axes.Where(a => !NotYetPersisted.Contains(a.Name)))

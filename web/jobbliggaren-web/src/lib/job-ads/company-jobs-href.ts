@@ -78,6 +78,7 @@ export function buildCompanyJobsHref(
     worktimeExtent: [],
     matchGrades: scope === "matching" ? WATCH_MATCHING_GRADES : [],
     remote: false,
+    junior: false,
     employer: organizationNumbers,
     sortBy: DEFAULT_SORT_BY,
   });

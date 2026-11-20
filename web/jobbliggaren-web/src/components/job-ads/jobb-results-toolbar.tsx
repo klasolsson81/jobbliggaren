@@ -87,6 +87,11 @@ interface JobbResultsToolbarProps {
    * ADR 0042 Beslut B).
    */
   remote: boolean;
+  /**
+   * #2261 — the junior filter. Like Distans, the toolbar never edits it (its checkbox is in the
+   * Filter panel), but carries it in every href and clears it with the rest.
+   */
+  junior: boolean;
   // Klass 2 (2026-06-13) — anställningsform + omfattning. Renderas som
   // borttagbara chips i samma rad (server-resolverade labels via
   // /taxonomy/labels, kind-agnostisk sedan PR-1).
@@ -216,6 +221,7 @@ export function JobbResultsToolbar({
   region,
   municipality,
   remote,
+  junior,
   employmentType,
   worktimeExtent,
   matchGrades,
@@ -263,6 +269,7 @@ export function JobbResultsToolbar({
       region: [...region],
       municipality: [...municipality],
       remote,
+      junior,
       employmentType: [...employmentType],
       worktimeExtent: [...worktimeExtent],
       matchGrades: [...matchGrades],
@@ -291,6 +298,7 @@ export function JobbResultsToolbar({
       region,
       municipality,
       remote,
+      junior,
       employmentType,
       worktimeExtent,
       matchGrades,
@@ -405,6 +413,9 @@ export function JobbResultsToolbar({
       // borttagna" nedan); kontrollen är kryssrutan i Ort-popovern. "Rensa
       // sökord och filter" ska ändå tömma hela ort-dimensionen, inte två av tre.
       remote: false,
+      // #2261 — the junior filter has no chip either (the boolean-filter line above), and is
+      // cleared with the rest for the same reason.
+      junior: false,
       // Klass 2 — "Rensa sökord och filter" nollar ALLA axlar inkl.
       // anställningsform/omfattning (least surprise — allt med × försvinner).
       employmentType: [],

@@ -116,6 +116,7 @@ function probeSearch() {
     region: [],
     municipality: [],
     remote: false,
+    junior: false,
     employmentType: [],
     worktimeExtent: [],
     matchGrades: [],

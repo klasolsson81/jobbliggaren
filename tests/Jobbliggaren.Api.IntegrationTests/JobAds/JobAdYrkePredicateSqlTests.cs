@@ -65,6 +65,6 @@ public class JobAdYrkePredicateSqlTests(ApiFactory factory)
         EmploymentType: [],
         WorktimeExtent: [],
         Employer: [],
-        Remote: false,
+        Remote: false, JuniorIt: false,
         Q: null);
 }

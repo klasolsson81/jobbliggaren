@@ -80,6 +80,7 @@ function hero(
       initialRegion={[]}
       initialMunicipality={[]}
       initialRemote={false}
+      initialJunior={false}
       initialEmploymentType={[]}
       initialWorktimeExtent={[]}
       initialMatchGrades={[]}
@@ -127,6 +128,7 @@ function hrefWith({
     region: [],
     municipality: [],
     remote: false,
+    junior: false,
     employmentType: [],
     worktimeExtent: [],
     matchGrades: [],

@@ -37,6 +37,7 @@ public sealed class GetRemoteAdCountQueryHandler(IJobAdSearchQuery search)
             Employer: [],
             // The count predicate: "how many REMOTE ads match the rest".
             Remote: true,
+            JuniorIt: false,
             Q: query.Q);
 
         var count = await search.CountAsync(filter, cancellationToken);

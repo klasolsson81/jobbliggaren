@@ -25,5 +25,6 @@ internal static class SearchCriteriaMapping
             WorktimeExtent: criteria.WorktimeExtent,
             Employer: criteria.Employer,
             Remote: criteria.Remote,
+            JuniorIt: false,
             Q: criteria.Q);
 }

@@ -86,6 +86,7 @@ public sealed class ListRecentSearchesQueryHandler(
                 WorktimeExtent: r.WorktimeExtent,
                 Employer: EmployerAxisGate.Surfaceable(r.Employer),
                 Remote: r.Remote,
+                JuniorIt: false,
                 Q: r.Q);
 
             var occupationGroupLabels = await taxonomy.ResolveLabelsAsync(

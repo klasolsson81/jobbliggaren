@@ -64,6 +64,7 @@ const FULL_STATE: Required<JobbUrlState> = {
   region: ["r1"],
   municipality: ["m1"],
   remote: true,
+  junior: true,
   employmentType: ["et1"],
   worktimeExtent: ["wt1"],
   matchGrades: ["Strong"],
@@ -93,6 +94,7 @@ const FULL_RAW_PARAMS: Required<JobbRawSearchParams> = {
   doljAnsokta: "on",
   baraMatchade: "on",
   distans: "on",
+  junior: "on",
   employer: ["5560125790"],
   q: "backend",
 };
@@ -165,9 +167,9 @@ describe("/jobb axis inventory — an edge-log verdict per emitted query key", (
     // verdict map are emptied together. The numbers are meant to change when an axis is added:
     // re-derive the union, then give the new key a verdict.
     expect(EMITTED.size).toBeGreaterThan(0);
-    expect(JOBB_HREF_KEYS.size).toBe(16);
-    expect(PAGE_HREF_KEYS.size).toBe(16);
-    expect(EMITTED.size).toBe(18);
+    expect(JOBB_HREF_KEYS.size).toBe(17);
+    expect(PAGE_HREF_KEYS.size).toBe(17);
+    expect(EMITTED.size).toBe(19);
     expect(keysJudged("must-not-reach-a-stored-log-post").length).toBeGreaterThan(0);
   });
 

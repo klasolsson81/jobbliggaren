@@ -69,6 +69,7 @@ const empty: JobbUrlState = {
   region: [],
   municipality: [],
   remote: false,
+  junior: false,
   employmentType: [],
   worktimeExtent: [],
   matchGrades: [],
@@ -590,6 +591,22 @@ describe("the occupation-name axis in the text mirror (#2199)", () => {
         index,
       ),
     ).toBe("Stockholms län sjuksköterska");
+  });
+});
+
+describe("sameUrlState #2261 (junior in the comparator)", () => {
+  // senior-cto-advisor: without it a stale storability verdict for the non-junior search offers
+  // "Spara sökningen" for a junior search the gate refuses, and the hero's divergence detector
+  // drops the toggle on the next text commit.
+  it("a different junior flag is NOT the same filter state", () => {
+    expect(sameUrlState({ ...empty, junior: true }, { ...empty })).toBe(false);
+    expect(sameUrlState({ ...empty }, { ...empty, junior: true })).toBe(false);
+  });
+
+  it("the same junior flag is the same filter state", () => {
+    expect(
+      sameUrlState({ ...empty, junior: true }, { ...empty, junior: true }),
+    ).toBe(true);
   });
 });
 

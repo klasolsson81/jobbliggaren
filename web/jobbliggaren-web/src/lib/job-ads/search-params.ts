@@ -52,6 +52,10 @@ export interface JobbUrlState {
   // axeln. Två optionaliteter som ser lika ut på anropsplatsen är precis hur den
   // här buggen uppstod.)
   remote: boolean;
+  // #2261 — the junior IT list as a filter (ADR 0186 D2): the same membership the open /junior page
+  // lists, AND-ed with every other axis. REQUIRED for the same reason as `remote`: it is a facet that
+  // reaches the backend, so a builder that omits it would drop it silently.
+  junior: boolean;
   // Klass 2 (ADR 0067 Fas E, 2026-06-13) — Klass-2-filterpanelens dimensioner.
   // `employmentType` = anställningsform (JobTech `employment-type`, ~8,
   // checkbox-multi). `worktimeExtent` = omfattning (JobTech `worktime-extent`,
@@ -180,6 +184,14 @@ export const BARA_MATCHADE_PARAM = "baraMatchade";
  */
 export const DISTANS_PARAM = "distans";
 export const DISTANS_ON_VALUE = "on";
+
+/**
+ * #2261 — the junior IT filter's URL param. The route value is the sentinel `on`, like `distans`; the
+ * API binds a `bool`, so the wire form is `?junior=true`. Only `on` is written; off is the param's
+ * absence, so the default URL stays clean.
+ */
+export const JUNIOR_PARAM = "junior";
+export const JUNIOR_ON_VALUE = "on";
 
 export const DEFAULT_SORT_BY: JobAdSortBy = "PublishedAtDesc";
 
@@ -438,6 +450,7 @@ export function buildJobbHref(state: JobbUrlState): string {
   // URL). Placeras efter "Dölj ansökta", före q (stabil URL-form, intill status-paramen).
   if (state.onlyMatched) params.set(BARA_MATCHADE_PARAM, STATUS_ON_VALUE);
   if (state.remote) params.set(DISTANS_PARAM, DISTANS_ON_VALUE);
+  if (state.junior) params.set(JUNIOR_PARAM, JUNIOR_ON_VALUE);
   const q = state.q.trim();
   if (q.length > 0) params.set("q", q);
   if (state.sortBy !== DEFAULT_SORT_BY) params.set("sortBy", state.sortBy);
@@ -493,6 +506,8 @@ export interface JobbRawSearchParams {
   // #551 punkt 4 — bärs i paginerings-href:en så sida-2-klicket inte tappar
   // Distans-facetten (samma felklass som ovan).
   distans?: string;
+  // #2261 — carried in the page href so a page-2 click keeps the junior filter.
+  junior?: string;
   // #454 PR-0 — bärs i paginerings-href:en så sida-2-klicket inte tappar
   // arbetsgivar-filtret (samma felklass som ovan).
   employer?: string | string[];
@@ -604,6 +619,9 @@ export function buildPageHref(
   // felklass som baraMatchade ovan). Bevaras BARA när on (paritet buildJobbHref).
   if (params.distans === DISTANS_ON_VALUE)
     url.set(DISTANS_PARAM, DISTANS_ON_VALUE);
+  // #2261 — without this a page-2 click drops the junior filter. Kept only when on, as buildJobbHref.
+  if (params.junior === JUNIOR_ON_VALUE)
+    url.set(JUNIOR_PARAM, JUNIOR_ON_VALUE);
   // #454 PR-0 — utan denna rad tappar sida-2-klicket arbetsgivar-filtret
   // (samma felklass som ovan; buildPageHref är en andra URL-builder vid sidan
   // av buildJobbHref). SPOT-gaten (parseEmployerParam) delas med page-parsern.

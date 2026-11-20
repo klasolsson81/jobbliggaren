@@ -20,6 +20,7 @@ const empty: JobbUrlState = {
   region: [],
   municipality: [],
   remote: false,
+  junior: false,
   employmentType: [],
   worktimeExtent: [],
   matchGrades: [],
@@ -641,6 +642,48 @@ describe("#551 punkt 4 — Distans som ort-axel i URL:en", () => {
     );
     expect(buildPageHref({ ...params, distans: "1" }, 2, 20)).not.toContain(
       "distans",
+    );
+  });
+});
+
+describe("#2261 — the junior IT filter in the URL", () => {
+  const params: JobbRawSearchParams = {};
+
+  it("junior=true writes ?junior=on, the sentinel value", () => {
+    expect(buildJobbHref({ ...empty, junior: true })).toBe("/jobb?junior=on");
+  });
+
+  it("junior=false writes no param (off is absence, a clean URL)", () => {
+    expect(buildJobbHref({ ...empty, junior: false })).toBe("/jobb");
+  });
+
+  it("travels beside every other axis, never instead of one", () => {
+    const href = buildJobbHref({
+      ...empty,
+      q: "java",
+      municipality: ["AvNB_uwa_6n6"],
+      remote: true,
+      junior: true,
+    });
+    expect(href).toContain("q=java");
+    expect(href).toContain("municipality=AvNB_uwa_6n6");
+    expect(href).toContain("distans=on");
+    expect(href).toContain("junior=on");
+  });
+
+  it("the page-2 link KEEPS junior", () => {
+    expect(buildPageHref({ ...params, junior: "on" }, 2, 20)).toContain(
+      "junior=on",
+    );
+  });
+
+  it("the page-2 link carries no junior when the filter is off", () => {
+    expect(buildPageHref(params, 2, 20)).not.toContain("junior");
+  });
+
+  it("a value other than 'on' is not kept (drop-unknown)", () => {
+    expect(buildPageHref({ ...params, junior: "true" }, 2, 20)).not.toContain(
+      "junior",
     );
   });
 });

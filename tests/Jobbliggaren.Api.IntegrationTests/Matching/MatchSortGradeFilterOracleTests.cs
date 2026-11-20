@@ -148,7 +148,7 @@ public class MatchSortGradeFilterOracleTests(ApiFactory factory)
         EmploymentType: [],
         WorktimeExtent: [runWorktimeExtent],
         Employer: [],
-        Remote: false,
+        Remote: false, JuniorIt: false,
         Q: null);
 
     // ---------------------------------------------------------------

@@ -52,6 +52,8 @@ export async function GET(request: NextRequest) {
     // #551 punkt 4 — endast "true" räknas som på (klienten skriver bara den
     // formen); allt annat är av. Drop-unknown, paritet med dimensionslistorna.
     remote: params.get("remote") === "true",
+    // #2261 — only "true" is on, as for remote.
+    junior: params.get("junior") === "true",
     q: params.get("q") ?? undefined,
   });
 

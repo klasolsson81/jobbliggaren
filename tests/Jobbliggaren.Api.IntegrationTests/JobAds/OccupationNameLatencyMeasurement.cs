@@ -77,7 +77,10 @@ public class OccupationNameLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
             new SearchQueryParser(),
             new OccupationSynonymExpander(Options.Create(new SearchSynonymsOptions())),
             Substitute.For<ITaxonomyLabelMatcher>(),
-            lineageProvider);
+            lineageProvider,
+            new Jobbliggaren.Infrastructure.JobAds.JuniorIt.JuniorItSetResolver(
+                Jobbliggaren.Infrastructure.JobAds.JuniorIt.JuniorItListLoader.Load(),
+                Substitute.For<ITaxonomyReadModel>()));
         var search = new JobAdSearchQuery(db, resolver);
 
         var (current, deprecated) = ReadNames();
@@ -151,7 +154,7 @@ public class OccupationNameLatencyMeasurement(JobAdBrowsePlanFixture fixture, IT
         EmploymentType: [],
         WorktimeExtent: [],
         Employer: [],
-        Remote: false,
+        Remote: false, JuniorIt: false,
         Q: q);
 
     private static JobAdSearchCriteria Page(JobAdFilterCriteria filter) =>

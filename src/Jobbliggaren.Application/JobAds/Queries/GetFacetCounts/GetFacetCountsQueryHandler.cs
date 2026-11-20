@@ -38,6 +38,7 @@ public sealed class GetFacetCountsQueryHandler(IJobAdSearchQuery search)
                 // #551 PR-B D5/D7 — remote-filterkontexten (aktivt Distans-val) trådas in
                 // så en facett-count för en annan dimension räknar mot samma WHERE som listan.
                 Remote: query.Remote,
+                JuniorIt: query.JuniorIt,
                 Q: query.Q),
             query.Dimension,
             cancellationToken);

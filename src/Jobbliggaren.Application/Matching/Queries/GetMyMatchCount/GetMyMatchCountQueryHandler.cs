@@ -62,6 +62,7 @@ public sealed class GetMyMatchCountQueryHandler(
             // #551 PR-B F3 — den sparade remote-preferensen som location-axel (unionas med
             // ort i ApplyFilter). Ur den dedikerade builder-metoden, ALDRIG ur profile.Fast.
             Remote: preferredRemote,
+            JuniorIt: false,
             Q: null);
 
         var count = await search.CountAsync(filter, cancellationToken);

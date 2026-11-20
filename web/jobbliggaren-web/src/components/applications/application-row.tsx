@@ -12,6 +12,7 @@ import { daysInStatus, urgencyTagFor } from "@/lib/applications/urgency";
 import { latestEventLabelKey, latestEventOf } from "@/lib/applications/latest-event";
 import { formatDate } from "@/lib/i18n/format";
 import { adIdentityOf } from "./ad-identity";
+import { AdSourceFields } from "./ad-source-fields";
 import { useRowActions } from "./use-row-actions";
 import { useUrgencyLabel } from "./use-urgency-label";
 import { StatusMenu } from "./status-menu";
@@ -91,6 +92,12 @@ export const ApplicationRow = memo(function ApplicationRow({
     eventDate != null
       ? tUi("row.latestEvent", { event: eventLabel, date: eventDate })
       : eventLabel;
+  // #2248: the "Sökt" field below carries the applied date, so a latest event that IS the
+  // submission would only repeat it. Any later event (an interview, a follow-up) still shows.
+  const eventRepeatsApplied =
+    application.appliedAt != null &&
+    event.kind === "StatusReached" &&
+    event.toStatus === "Submitted";
 
   // Radens default-primär härleds i den delade `useRowActions`-hooken (DRY,
   // #630 PR 10 / senior-cto-advisor Fork 4) så Tabell-vyns "Nästa steg" delar
@@ -142,7 +149,10 @@ export const ApplicationRow = memo(function ApplicationRow({
             </span>
           )}
         </div>
-        <div className="jp-app__eventline">{eventLine}</div>
+        {!eventRepeatsApplied && (
+          <div className="jp-app__eventline">{eventLine}</div>
+        )}
+        <AdSourceFields application={application} title={title} />
       </div>
 
       <div className="jp-app__actions jp-app__actions--row">

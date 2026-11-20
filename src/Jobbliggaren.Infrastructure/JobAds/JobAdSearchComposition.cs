@@ -186,6 +186,11 @@ internal static class JobAdSearchComposition
                 employerValues.Contains(j.OrganizationNumber));
         }
 
+        // #2261 — the junior IT list's membership (ADR 0186), an orthogonal AND like Klass 2. The predicate is the
+        // one /junior reads; only the lifecycle gate above is this surface's own.
+        if (filter.JuniorItMembership is { } junior)
+            source = source.Where(junior);
+
         if (text.Positive is { } positive)
             source = source.Where(MatchesText(positive));
 

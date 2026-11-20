@@ -66,6 +66,8 @@ public sealed class ListJobAdsQueryHandler(
             // #551 PR-B D5 — den boolska distans-facetten (?remote=on) unionas med
             // kommun/län i ApplyFilter. Persistensen deferrad (se ListJobAdsQuery.Remote).
             Remote: query.Remote,
+            // #2261 — the junior IT list as a /jobb filter (ADR 0186 D2).
+            JuniorIt: query.JuniorIt,
             Q: query.Q);
 
         // #383 — resolvera seekern EN gång, ENDAST när status-filtret är aktivt (status

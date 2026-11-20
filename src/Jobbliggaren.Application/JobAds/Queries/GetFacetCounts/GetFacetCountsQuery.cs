@@ -34,4 +34,5 @@ public sealed record GetFacetCountsQuery(
     string? Q = null,
     // #2199 — the occupation-name picks, part of the Yrke filter context like OccupationGroup.
     // Appended last so no positional argument above can shift into it.
-    IReadOnlyList<string>? OccupationName = null) : IQuery<IReadOnlyDictionary<string, int>>;
+    IReadOnlyList<string>? OccupationName = null,
+    bool JuniorIt = false) : IQuery<IReadOnlyDictionary<string, int>>;

@@ -50,6 +50,9 @@ public interface ICapturesRecentSearch
     // them (occupation_name_list), so a committed ?occupationName= search is captured whole.
     IReadOnlyList<string>? OccupationName { get; }
 
+    // #2261 — the junior IT list as a filter. Read by the capture gate so a junior search's verdict is the gate's own.
+    bool JuniorIt { get; }
+
     JobAdSortBy SortBy { get; }
 
     /// <summary>

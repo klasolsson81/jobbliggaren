@@ -54,6 +54,25 @@ public sealed class RecentSearchCaptureGateTests
     public void Admit_AReligiousName_ReturnsNull() =>
         Gate.Admit(new ListJobAdsQuery(OccupationName: ["5avt_87C_rXE"])).ShouldBeNull();
 
+    // #2261 (senior-cto-advisor D1a): a junior search is never stored, and the flag is never stripped to store the
+    // rest, since the stripped search hashes as the broader one and would Bump() that row instead.
+    [Fact]
+    public void Admit_AJuniorSearch_ReturnsNull() =>
+        Gate.Admit(new ListJobAdsQuery(Q: "java", JuniorIt: true)).ShouldBeNull();
+
+    [Fact]
+    public void Admit_AJuniorSearchWithEveryOtherAxisStorable_ReturnsNull() =>
+        Gate.Admit(new ListJobAdsQuery(
+            Q: "backend", OccupationGroup: ["DJh5_yyF_hEM"], Municipality: ["AvNB_uwa_6n6"], Remote: true,
+            JuniorIt: true)).ShouldBeNull();
+
+    // The counterfactual: the same search with the flag off is admitted, so the null above is the junior arm's.
+    [Fact]
+    public void Admit_TheSameSearchWithoutJunior_IsAdmitted() =>
+        Gate.Admit(new ListJobAdsQuery(
+            Q: "backend", OccupationGroup: ["DJh5_yyF_hEM"], Municipality: ["AvNB_uwa_6n6"], Remote: true,
+            JuniorIt: false)).ShouldNotBeNull();
+
     // Create refuses Relevance without terms, so the gate stores the sort the search fell back to.
     [Fact]
     public void Admit_ARelevanceSortWithoutTerms_StoresTheSortThatRan()

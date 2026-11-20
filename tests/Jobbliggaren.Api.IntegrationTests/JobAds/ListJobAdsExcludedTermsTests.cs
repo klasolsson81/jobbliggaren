@@ -111,7 +111,7 @@ public class ListJobAdsExcludedTermsTests(ApiFactory factory)
             EmploymentType: [],
             WorktimeExtent: [],
             Employer: [],
-            Remote: false,
+            Remote: false, JuniorIt: false,
             Q: q);
 
     private static async Task<HashSet<Guid>> IdsAsync(JobAdSearchQuery sut, JobAdFilterCriteria filter, CancellationToken ct)

@@ -100,6 +100,24 @@ public class PlatsbankenJobSourceFacetMappingTests
             "nothing, with no error anywhere.");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [InlineData(null)]
+    public async Task RefetchByExternalIdAsync_CarriesTheExperienceMark_AsTheWireStatesIt(bool? experienceRequired)
+    {
+        // #2264 — the advertiser's own "experience required" mark, one input to the junior classification. Null when
+        // the wire omits the key, never coerced to false.
+        var hit = FullyFacetedHit("ext-facets-exp");
+        hit.ExperienceRequired = experienceRequired;
+
+        var item = await CreateSut(hit).RefetchByExternalIdAsync(
+            "ext-facets-exp", TestContext.Current.CancellationToken);
+
+        item.ShouldNotBeNull();
+        item.Facets.ExperienceRequired.ShouldBe(experienceRequired);
+    }
+
     [Fact]
     public async Task RefetchByExternalIdAsync_DoesNotReadSsykFromTheOccupationGroup()
     {

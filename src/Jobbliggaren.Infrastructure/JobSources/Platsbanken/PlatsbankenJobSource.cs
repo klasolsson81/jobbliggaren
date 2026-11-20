@@ -380,7 +380,8 @@ internal sealed partial class PlatsbankenJobSource(
             employmentTypeConceptId: hit.EmploymentType?.ConceptId,
             worktimeExtentConceptId: hit.WorkingHoursType?.ConceptId,
             organizationNumber: hit.Employer?.OrganizationNumber,
-            remote: remoteIds is null ? null : remoteIds.Contains(hit.Id));
+            remote: remoteIds is null ? null : remoteIds.Contains(hit.Id),
+            experienceRequired: hit.ExperienceRequired);
 
     // #551 — the remote/distans harvest (D1 option i, ACL-internal). Paginates
     // jobsearch.api.jobtechdev.se/search?remote=true once per snapshot run and returns the set of

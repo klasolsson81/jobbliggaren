@@ -131,6 +131,10 @@
     <EmbeddedResource Include="JobAds\JuniorIt\junior-it-list.v1.json">
       <LogicalName>Jobbliggaren.Infrastructure.JobAds.JuniorIt.junior-it-list.v1.json</LogicalName>
     </EmbeddedResource>
+    <!-- #2264 — the junior rules for the Data/IT occupation field, read by the Worker's classification sweep. -->
+    <EmbeddedResource Include="JobAds\Junior\junior-rules.data-it.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.JobAds.Junior.junior-rules.data-it.v1.json</LogicalName>
+    </EmbeddedResource>
     <!-- ADR 0067 Fas C2 — FRUSEN migration-ägd reverse-lookup-resurs
          (occupation-name → ssyk-level-4). Läses ENDAST av C2-migrationen;
          regenereras aldrig (CTO-dom (c) 2026-06-09, migrations-immutabilitet). -->

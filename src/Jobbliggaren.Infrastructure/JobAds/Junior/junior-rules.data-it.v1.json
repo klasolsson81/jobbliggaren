@@ -1,0 +1,83 @@
+{
+  "//": "Junior rules for the Data/IT occupation field (#2264). Edited only by a reviewed PR; a change to any rule, pattern or threshold is a new ruleSetVersion, which re-classifies every open ad in the field and never touches an admin's decision. Rules are read in order and the first whose conditions all hold decides; a rule with auto=false records its id with the verdict Unclear, so the admin queue shows why. A rule may be auto only after it has been measured against Klas's reading. The reading block holds Platsbanken ids and their direction only.",
+  "ruleSetVersion": "1.0.0",
+  "occupationFieldConceptId": "apaJ_2ja_LuF",
+  "enabled": true,
+  "reading": {
+    "ruleId": "reading-2026-11-19",
+    "junior": [],
+    "notJunior": []
+  },
+  "patterns": {
+    "candidate": "\\b(junior|trainee|graduate|nyexam|nyutexam|nyexad\\b|entry[- ]level|internship|praktik\\b|praktikant\\b|praktikplats\\b|early career|början av karriären|början av din karriär|första jobb|student)",
+    "juniorTitle": "\\bjunior|trainee|graduate|nyexam|nyutexam|nyexad|entry[- ]level|early career|praktikant|internship|\\bintern\\b|första jobb",
+    "seniorTitle": "\\bsenior|\\blead\\b|\\bprincipal|\\bchef\\b|\\bmanager\\b|arkitekt|architect",
+    "thesisTitle": "examensarbete|exjobb|master'?s? thesis|thesis work",
+    "studentTitle": "\\bstudent",
+    "mentor": "(mentor|coach|handled|stötta|stödja|support|vägled|train|lära upp|guida|upplärning av|leda)\\w*\\W+([\\wåäö-]+\\W+){0,4}(mer |more )?junior|(mer|more) junior\\w* (kollegor|utvecklare|medarbetare|colleagues|developers|engineers|team ?members)|mix of junior and senior",
+    "seekJunior": "(söker|looking for|hiring|rekryterar|anställer|letar efter|as an?|som|en|vår nya?|our new)\\s+(en\\s+|a\\s+|flera\\s+)?junior|du som (är )?junior",
+    "juniorAndSenior": "(både|both)\\s+junior\\w*\\s+(och|and|som|eller|or)|junior\\w*\\s+(och|and|som|eller|or|/)\\s*(mer\\s+|more\\s+)?(senior|erfar|experienced)",
+    "newGraduate": "nyexaminerad|nyutexaminerad|recent graduate|new graduate",
+    "earlyCareer": "början av (din )?karriär|early in your career|start of your career|early career|entry[- ]level|första jobb",
+    "noExperienceNeeded": "ingen (tidigare )?(arbetslivs)?erfarenhet (krävs|behövs)|no (prior |previous )?experience (is )?(required|needed)|inga förkunskaper",
+    "yearsBefore": "\\b(?<from>\\d{1,2}|ett|en|två|tre|fyra|fem|sex|sju|åtta|nio|tio|one|two|three|four|five|six|seven|eight|nine|ten)\\s*(\\+|(-|–|—|till|to)\\s*(?<to>\\d{1,2}|ett|en|två|tre|fyra|fem|sex|sju|åtta|nio|tio|one|two|three|four|five|six|seven|eight|nine|ten))?\\s*\\+?\\s*(års?|ars|years?|yrs?)[^.\\n]{0,45}(erfarenhet|experience)",
+    "yearsAfter": "(erfarenhet|experience)[^.\\n]{0,40}\\b(?<from>\\d{1,2}|ett|en|två|tre|fyra|fem|sex|sju|åtta|nio|tio|one|two|three|four|five|six|seven|eight|nine|ten)\\s*(\\+|(-|–|—|till|to)\\s*(?<to>\\d{1,2}|ett|en|två|tre|fyra|fem|sex|sju|åtta|nio|tio|one|two|three|four|five|six|seven|eight|nine|ten))?\\s*\\+?\\s*(års?|years?)"
+  },
+  "candidatePatterns": ["candidate"],
+  "candidateWhenNoExperienceRequired": true,
+  "years": {
+    "patterns": ["yearsBefore", "yearsAfter"],
+    "numberWords": {
+      "ett": 1, "en": 1, "one": 1,
+      "två": 2, "two": 2,
+      "tre": 3, "three": 3,
+      "fyra": 4, "four": 4,
+      "fem": 5, "five": 5,
+      "sex": 6, "six": 6,
+      "sju": 7, "seven": 7,
+      "åtta": 8, "eight": 8,
+      "nio": 9, "nine": 9,
+      "tio": 10, "ten": 10
+    },
+    "plausibleMin": 1,
+    "plausibleMax": 15
+  },
+  "rules": [
+    { "id": "title-thesis", "verdict": "NotJunior", "auto": false,
+      "all": [ { "on": "title", "pattern": "thesisTitle" } ] },
+    { "id": "title-senior", "verdict": "NotJunior", "auto": false,
+      "all": [ { "on": "title", "pattern": "seniorTitle" }, { "on": "title", "pattern": "juniorTitle", "not": true } ] },
+    { "id": "title-junior", "verdict": "Junior", "auto": false,
+      "all": [ { "on": "title", "pattern": "juniorTitle" } ] },
+    { "id": "years-3-plus", "verdict": "NotJunior", "auto": false,
+      "all": [ { "on": "yearsAtLeast", "years": 3 } ] },
+    { "id": "text-mentor-only", "verdict": "NotJunior", "auto": false,
+      "all": [
+        { "on": "text", "pattern": "mentor" },
+        { "on": "text", "pattern": "seekJunior", "not": true },
+        { "on": "text", "pattern": "newGraduate", "not": true },
+        { "on": "text", "pattern": "earlyCareer", "not": true }
+      ] },
+    { "id": "text-junior-and-senior", "verdict": "Junior", "auto": false,
+      "all": [ { "on": "text", "pattern": "juniorAndSenior" } ] },
+    { "id": "text-new-graduate", "verdict": "Junior", "auto": false,
+      "all": [ { "on": "text", "pattern": "newGraduate" } ] },
+    { "id": "text-early-career", "verdict": "Junior", "auto": false,
+      "all": [ { "on": "text", "pattern": "earlyCareer" } ] },
+    { "id": "text-no-experience-needed", "verdict": "Junior", "auto": false,
+      "all": [ { "on": "text", "pattern": "noExperienceNeeded" } ] },
+    { "id": "text-seek-junior", "verdict": "Junior", "auto": false,
+      "all": [ { "on": "text", "pattern": "seekJunior" }, { "on": "text", "pattern": "mentor", "not": true } ] },
+    { "id": "title-student", "verdict": "Junior", "auto": false,
+      "all": [ { "on": "title", "pattern": "studentTitle" } ] },
+    { "id": "flag-no-experience", "verdict": "Junior", "auto": false,
+      "all": [
+        { "on": "experienceRequired", "flag": false },
+        { "on": "yearsStated", "not": true },
+        { "on": "text", "pattern": "mentor", "not": true }
+      ] }
+  ],
+  "candidateFallbackRuleId": "candidate-only",
+  "noSignalRuleId": "no-signal",
+  "timeoutRuleId": "match-timeout"
+}

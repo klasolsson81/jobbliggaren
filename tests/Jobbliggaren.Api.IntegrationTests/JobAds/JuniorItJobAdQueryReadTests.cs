@@ -35,7 +35,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// <remarks>
 /// Every row is produced the way production produces it: imported through <c>JobAd.Import</c>, created as
 /// <c>POST /api/v1/job-ads</c> stores it, classified by the real <c>ClassifyJuniorJobAdsJob</c> (which runs before every
-/// read, as the Worker's two-minute sweep does), decided through <c>JobAd.DecideJunior</c> (the admin command's
+/// read, as the Worker's two-minute sweep does), decided through <c>JobAdJuniorAssessment.Decide</c> (the admin command's
 /// aggregate call), archived through <c>ArchiveExternalJobAdCommand</c> and <c>ExpireJobAdsJob</c>, erased through the
 /// aggregate, and past its deadline by the clock. Instants are whole seconds; ties are ordered by the uuid, whose order
 /// on Postgres is the ordinal order of its lower-case <c>"D"</c> string.
@@ -507,7 +507,11 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
             .RunAsync(Ct);
     }
 
-    /// <summary>Erases an ad the way <c>EraseRecruiterAdsCommand</c> does: loaded, erased through the aggregate, saved.</summary>
+    /// <summary>
+    /// Erases an ad through the aggregate, as <c>EraseRecruiterAdsCommand</c> does. The command also deletes the ad's
+    /// assessment; here the sweep that runs before every read purges it, as it purges any assessment left on an erased
+    /// ad (<c>ClassifyJuniorJobAdsJob</c>).
+    /// </summary>
     private async Task EraseAsync(Guid id)
     {
         using var scope = _provider.CreateScope();

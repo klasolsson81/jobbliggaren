@@ -2714,6 +2714,9 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         // #2191 — the employer-chosen application address; its path can carry a name.
         ["application_url"] = null,
+
+        // #2264 — a SHA-256 over the erased title and text; Erase() nulls it.
+        ["junior_input_fingerprint"] = null,
     };
 
     /// <summary>
@@ -2779,6 +2782,13 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                 .SingleAsync(ct);
             held.ShouldNotBeNull("ingest must have stored the sole trader's application address.");
             held.Value.ShouldBe(SoleTraderApplicationUrl);
+
+            // The same counterfactual for the junior fingerprint: every source write stamps one.
+            (await beforeDb.JobAds.AsNoTracking()
+                    .Where(j => j.External!.ExternalId == SoleTraderExternalId)
+                    .Select(j => j.JuniorInputFingerprint)
+                    .SingleAsync(ct))
+                .ShouldNotBeNull("ingest must have stamped the ad's junior fingerprint.");
         }
 
         // The sole trader: her company name IS her name, and her org.nr IS a personnummer.

@@ -34,6 +34,12 @@ public sealed record ClassifyJuniorJobAdsCounts(int Junior, int NotJunior, int U
 /// stall the sweep nor spin it.
 /// </para>
 /// <para>
+/// <b>An erased ad never keeps an assessment.</b> The erasure command deletes the ad's assessment in its own unit of
+/// work, but a sweep that read the ad before the erasure committed can write one after it. So every tick begins and
+/// ends by deleting the assessments of erased ads: such a row lives at most until the end of the tick that wrote it,
+/// or of the next one, and never longer.
+/// </para>
+/// <para>
 /// <b>Logs counts only</b>, and only for a tick that did something; never an id, a title, an employer or a matched span.
 /// </para>
 /// </remarks>
@@ -54,6 +60,8 @@ public sealed partial class ClassifyJuniorJobAdsJob(
         var fields = await catalog.ResolveEnabledAsync(cancellationToken);
         if (fields.Count == 0)
             return ClassifyJuniorJobAdsCounts.None;
+
+        var purged = await PurgeErasedAsync(cancellationToken);
 
         var groups = JuniorMembership.GroupsOf(fields).ToList();
         var versions = fields.Select(f => f.Rules.Version).ToList();
@@ -132,10 +140,27 @@ public sealed partial class ClassifyJuniorJobAdsJob(
             }
         }
 
+        purged += await PurgeErasedAsync(cancellationToken);
+
         var counts = new ClassifyJuniorJobAdsCounts(junior, notJunior, unclear, refused, failed);
-        if (counts.Total > 0)
-            LogTick(logger, junior, notJunior, unclear, refused, failed);
+        if (counts.Total > 0 || purged > 0)
+            LogTick(logger, junior, notJunior, unclear, refused, failed, purged);
         return counts;
+    }
+
+    // The assessments of erased ads: rows a sweep wrote after the erasure committed (see the remarks). Loaded and removed
+    // through the change tracker, so a tick with nothing to purge writes nothing. A handful of rows at most.
+    private async Task<int> PurgeErasedAsync(CancellationToken cancellationToken)
+    {
+        var onErasedAds = await db.JuniorAssessments
+            .Where(a => db.JobAds.Any(j => j.Id == a.Id && j.Status == JobAdStatus.Erased))
+            .ToListAsync(cancellationToken);
+        if (onErasedAds.Count == 0)
+            return 0;
+
+        db.JuniorAssessments.RemoveRange(onErasedAds);
+        await db.SaveChangesAsync(cancellationToken);
+        return onErasedAds.Count;
     }
 
     private sealed record AdToClassify(
@@ -148,8 +173,9 @@ public sealed partial class ClassifyJuniorJobAdsJob(
         string? Fingerprint);
 
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "Junior classification: {Junior} junior, {NotJunior} not junior, {Unclear} unclear, {Refused} refused, {Failed} failed.")]
-    private static partial void LogTick(ILogger logger, int junior, int notJunior, int unclear, int refused, int failed);
+        Message = "Junior classification: {Junior} junior, {NotJunior} not junior, {Unclear} unclear, {Refused} refused, {Failed} failed, {Purged} purged from erased ads.")]
+    private static partial void LogTick(
+        ILogger logger, int junior, int notJunior, int unclear, int refused, int failed, int purged);
 
     // The exception's type only: a message or a stack could carry a fragment of the ad's text.
     [LoggerMessage(Level = LogLevel.Warning, Message = "Junior classification of one ad failed ({ExceptionType}).")]

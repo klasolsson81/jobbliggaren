@@ -353,8 +353,10 @@ public static class ErasureCascadeRegistry
             ["job_ad_junior_assessments.classified_fingerprint"] =
                 "DERIVATION: #2264 — a copy of job_ads.junior_input_fingerprint, stamped by the "
                 + "junior classification sweep for the content it classified. One-way, its inputs are "
-                + "the ad's searched channels, and the erasure command deletes the whole assessment "
-                + "row with the ad it belongs to.",
+                + "the ad's searched channels. The erasure command deletes the whole assessment row "
+                + "with the ad it belongs to, and the sweep deletes any assessment of an erased ad at "
+                + "the start and end of every tick, so a row a sweep wrote while racing the erasure "
+                + "does not outlive the next tick.",
 
             ["recent_job_searches.filter_hash"] =
                 "DERIVATION: filter_hash is SHA-256 over the WHOLE criteria - q, the six "
@@ -1135,7 +1137,7 @@ public static class ErasureCascadeRegistry
                 + "only as lower-case kebab and as digits, dots, a plus and lower-case hex, drawn from "
                 + "the deploy-versioned rule file. The admin decide command writes decision (a "
                 + "JuniorDecision enum stored by name) and a timestamp. The erasure command deletes "
-                + "the whole row with its ad.",
+                + "the whole row with its ad, and the sweep purges any row left on an erased ad.",
 
             ["audit_log:NotRecruiterData"] =
                 "Closed domain: event_type and aggregate_type are constants minted by the command "

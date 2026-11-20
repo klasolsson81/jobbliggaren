@@ -221,7 +221,7 @@ public class ExcludedTermLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
     private static async Task SeedAsync(AppDbContext db, CancellationToken ct)
     {
         db.Database.SetCommandTimeout(600);
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads;", ct);
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads CASCADE;", ct);
 
         var bulk =
             "INSERT INTO job_ads "

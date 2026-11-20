@@ -12,9 +12,7 @@ import robots from "./robots";
  * #2092: every indexable public page names itself as its canonical, absolutely, and no
  * layout names one that other routes would inherit.
  *
- * The indexable surface is DERIVED from the filesystem (every page in the two marketing
- * route groups, and every page of `(public-job)` that is a URL of its own, which is the
- * catalogue: its internal `publik/` pages are reached by a rewrite and are no address)
+ * The indexable surface is DERIVED from the filesystem
  * and must equal the set the sitemap lists, so a new public page fails here until it is
  * both listed and self-canonical.
  */

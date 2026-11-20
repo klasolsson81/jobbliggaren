@@ -209,7 +209,7 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
         // and `q` is a derivative of that hash which "får aldrig divergera" — a row with q = NULL and
         // a hash computed from that q is a row whose identity contradicts its own content. The
         // aggregate also states the disposal semantics outright (auto-captured cache, no audit-trail
-        // dignity, cap 20 with evict-oldest → the list self-rebuilds on her next search).
+        // dignity).
         var recentIds = recentMatches.Select(m => new RecentJobSearchId(m.Id)).ToList();
         var recentSearches = await db.RecentJobSearches
             .Where(r => recentIds.Contains(r.Id))

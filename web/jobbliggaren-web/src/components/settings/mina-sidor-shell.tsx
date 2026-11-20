@@ -2,6 +2,9 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { MinaSidorNav, type MinaSidorSection } from "./mina-sidor-nav";
 
+/** The page's h1, where DESIGN.md's removal rule sends focus when a section's list empties. */
+export const MINA_SIDOR_HEADING_ID = "mina-sidor-title";
+
 /**
  * The frame every /mina-sidor section renders (#1891): the pagehero band with the page title and
  * its static line (#1917), then the section menu beside the one section on show. Each page and
@@ -22,7 +25,9 @@ export function MinaSidorShell({
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <h1 className="jp-pagehero__title">{t("minaSidor.title")}</h1>
+            <h1 id={MINA_SIDOR_HEADING_ID} tabIndex={-1} className="jp-pagehero__title">
+              {t("minaSidor.title")}
+            </h1>
             <p className="jp-pagehero__lede">{t("minaSidor.lede")}</p>
           </div>
         </div>
@@ -40,6 +45,7 @@ export function MinaSidorShell({
 /** Skeleton rows per section, roughly the rows the loaded card renders. */
 const SKELETON_ROWS: Record<MinaSidorSection, number> = {
   matchning: 5,
+  snabblankar: 4,
   notiser: 5,
   konto: 2,
   sekretess: 2,

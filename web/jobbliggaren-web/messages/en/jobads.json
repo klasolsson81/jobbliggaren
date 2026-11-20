@@ -391,5 +391,36 @@
     "heroChip": {
       "showAll": "Show all"
     }
+  },
+  "quickLinks": {
+    "navLabel": "Quick links",
+    "junior": "Junior IT jobs",
+    "juniorCount": "{count, number} right now",
+    "juniorName": "Junior IT jobs, {count, number} right now",
+    "remove": "Remove the quick link: {label}",
+    "removed": "The quick link has been removed: {label}",
+    "add": "Add as quick link",
+    "addNamed": "Add as quick link: {label}",
+    "unmark": "Remove as quick link",
+    "added": "The quick link has been added: {label}",
+    "full": "You can have at most {max, number} quick links. Remove one to add another.",
+    "errors": {
+      "full": "You already have {max, number} quick links. Remove one to add another.",
+      "conflict": "Your quick links changed at the same time. Please try again.",
+      "notFound": "The search no longer exists. It may have been removed.",
+      "notLoggedIn": "You are not signed in.",
+      "rateLimited": "Too many changes in a short time. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+      "failed": "The quick link could not be changed. Please try again."
+    },
+    "settings": {
+      "lede": "Your quick links are shown at the top of Jobs.",
+      "currentHeading": "Your quick links",
+      "none": "You have no quick links.",
+      "remove": "Remove",
+      "add": "Add",
+      "addHeading": "Add a quick link",
+      "noSearches": "Run a search under Jobs, and you can add it here.",
+      "allSearchesAdded": "All your recent searches are already quick links."
+    }
   }
 }

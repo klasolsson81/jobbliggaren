@@ -1,20 +1,22 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { Bell, Shield, Target, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, Link2, Shield, Target, UserRound, type LucideIcon } from "lucide-react";
 import { LOGOUT_PATH } from "@/lib/auth/login-paths";
 import { MinaSidorNav, type MinaSidorSection } from "./mina-sidor-nav";
 
 const SECTIONS: ReadonlyArray<[MinaSidorSection, string, string]> = [
   ["matchning", "Matchning", "/mina-sidor"],
+  ["snabblankar", "Snabblänkar", "/mina-sidor/snabblankar"],
   ["notiser", "Notiser", "/mina-sidor/notiser"],
   ["konto", "Konto", "/mina-sidor/konto"],
   ["sekretess", "Sekretess och data", "/mina-sidor/sekretess"],
 ];
 
 // Klas 2026-09-28 (#1916): Target, Bell, a person and Shield; the person is UserRound, the
-// header's profile glyph.
+// header's profile glyph. #2265 adds Snabblänkar with Link2, after Matchning.
 const GLYPHS: ReadonlyArray<[string, LucideIcon]> = [
   ["Matchning", Target],
+  ["Snabblänkar", Link2],
   ["Notiser", Bell],
   ["Konto", UserRound],
   ["Sekretess och data", Shield],

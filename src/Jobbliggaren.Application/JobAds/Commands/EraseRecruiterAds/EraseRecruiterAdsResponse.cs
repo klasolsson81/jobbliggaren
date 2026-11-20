@@ -301,7 +301,7 @@ public sealed record UnsearchableSurfaces
 /// for an employer hit, and <c>sökfilter: &lt;value&gt;</c> for a concept-id axis hit (#1425). The
 /// latter two are suffixed <c>(personnummer-format)</c> when personnummer-shaped — ADR 0087 D8(c),
 /// never surfaced un-flagged. These rows are hard-deleted with no per-id confirmation
-/// ceremony (they are an auto-captured, self-rebuilding cache — cap 20, evict oldest), so the
+/// ceremony, so the
 /// operator must at least SEE what will go, and WHY it matched. <b>A count cannot be reviewed</b> —
 /// this PR's own doctrine, applied to the one surface where it had been forgotten.
 /// </param>

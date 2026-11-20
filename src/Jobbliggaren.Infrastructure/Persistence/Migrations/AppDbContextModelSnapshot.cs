@@ -1144,6 +1144,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("q");
 
+                    b.Property<short?>("QuickLinkSlot")
+                        .HasColumnType("smallint")
+                        .HasColumnName("quick_link_slot");
+
                     b.Property<bool>("Remote")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -1200,7 +1204,15 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .IsDescending(false, true)
                         .HasDatabaseName("ix_recent_job_searches_seeker_viewed_at");
 
-                    b.ToTable("recent_job_searches", (string)null);
+                    b.HasIndex("JobSeekerId", "QuickLinkSlot")
+                        .IsUnique()
+                        .HasDatabaseName("ux_recent_job_searches_seeker_quick_link_slot")
+                        .HasFilter("\"quick_link_slot\" IS NOT NULL");
+
+                    b.ToTable("recent_job_searches", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_recent_job_searches_quick_link_slot", "\"quick_link_slot\" BETWEEN 1 AND 3");
+                        });
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.Resumes.Files.ResumeFile", b =>
@@ -2507,6 +2519,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                             b1.Property<DateTimeOffset?>("FollowedCompanyNotificationConsentWithdrawnAt");
 
                             b1.Property<bool>("FollowedCompanyNotificationsEnabled");
+
+                            b1.Property<DateTimeOffset?>("JuniorQuickLinkOffAt");
 
                             b1.Property<string>("Language")
                                 .IsRequired();

@@ -150,6 +150,8 @@ export const recentJobSearchDtoSchema = z.object({
   currentCount: z.number().int().nonnegative(),
   newCount: z.number().int().nonnegative(),
   lastViewedAt: z.string(),
+  // ADR 0188 (#2265): whether the search is a quick link in the /jobb hero. Always projected → required.
+  isQuickLink: z.boolean(),
 });
 export type RecentJobSearchDto = z.infer<typeof recentJobSearchDtoSchema>;
 

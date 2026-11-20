@@ -391,5 +391,36 @@
     "heroChip": {
       "showAll": "Visa alla"
     }
+  },
+  "quickLinks": {
+    "navLabel": "Snabblänkar",
+    "junior": "Juniora IT-jobb",
+    "juniorCount": "{count, number} just nu",
+    "juniorName": "Juniora IT-jobb, {count, number} just nu",
+    "remove": "Ta bort snabblänken: {label}",
+    "removed": "Snabblänken har tagits bort: {label}",
+    "add": "Lägg till som snabblänk",
+    "addNamed": "Lägg till som snabblänk: {label}",
+    "unmark": "Ta bort som snabblänk",
+    "added": "Snabblänken har lagts till: {label}",
+    "full": "Du kan ha högst {max, number} snabblänkar. Ta bort en för att lägga till en ny.",
+    "errors": {
+      "full": "Du har redan {max, number} snabblänkar. Ta bort en för att lägga till en ny.",
+      "conflict": "Snabblänkarna ändrades samtidigt. Försök igen.",
+      "notFound": "Sökningen finns inte längre. Den kan ha tagits bort.",
+      "notLoggedIn": "Du är inte inloggad.",
+      "rateLimited": "För många ändringar på kort tid. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
+      "failed": "Snabblänken kunde inte ändras. Försök igen."
+    },
+    "settings": {
+      "lede": "Snabblänkarna visas överst under Jobb.",
+      "currentHeading": "Dina snabblänkar",
+      "none": "Du har inga snabblänkar.",
+      "remove": "Ta bort",
+      "add": "Lägg till",
+      "addHeading": "Lägg till en snabblänk",
+      "noSearches": "Gör en sökning under Jobb, så kan du lägga till den här.",
+      "allSearchesAdded": "Alla dina senaste sökningar är redan snabblänkar."
+    }
   }
 }

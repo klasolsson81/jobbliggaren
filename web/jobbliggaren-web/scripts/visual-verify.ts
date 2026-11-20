@@ -600,6 +600,7 @@ async function main(): Promise<void> {
         { path: "/ansokningar", name: "ansokningar-lista", auth: true },
         { path: "/ansokningar/ny", name: "ansokningar-ny", auth: true },
         { path: "/mina-sidor", name: "mina-sidor-matchning", auth: true },
+        { path: "/mina-sidor/snabblankar", name: "mina-sidor-snabblankar", auth: true },
         { path: "/mina-sidor/notiser", name: "mina-sidor-notiser", auth: true },
         { path: "/mina-sidor/konto", name: "mina-sidor-konto", auth: true },
         { path: "/mina-sidor/sekretess", name: "mina-sidor-sekretess", auth: true },

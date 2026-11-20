@@ -84,4 +84,5 @@ export const FEEDBACK_ROUTES: ReadonlyArray<FeedbackRoute> = [
   { pattern: "/mina-sidor/konto", key: "my-pages" },
   { pattern: "/mina-sidor/notiser", key: "my-pages" },
   { pattern: "/mina-sidor/sekretess", key: "my-pages" },
+  { pattern: "/mina-sidor/snabblankar", key: "my-pages" },
 ];

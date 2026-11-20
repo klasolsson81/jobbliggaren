@@ -56,6 +56,7 @@ public static partial class RateLimitingExtensions
     public const string FeedbackPromptStatePolicy = "feedback-prompt-state";
     public const string NotificationFeedReadPolicy = "notification-feed-read";
     public const string NotificationFeedMarkPolicy = "notification-feed-mark";
+    public const string JobAdJuniorItCountPolicy = "job-ad-junior-it-count";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -868,6 +869,12 @@ public static partial class RateLimitingExtensions
                 PerUserTokenBucket(ctx, "anonymous-criterion-new-ads", rateLimitOpts.CriterionNewAds));
             options.AddPolicy(CriterionNewAdsSeenPolicy, ctx =>
                 PerUserTokenBucket(ctx, "anonymous-criterion-new-ads-seen", rateLimitOpts.CriterionNewAdsSeen));
+
+            // ADR 0188 (#2265) — the junior quick link's count in the /jobb hero. Its own bucket, partitioned by
+            // UserId (claim "sub"); anonymous → NoLimiter, the group answers 401 first. The numbers and their
+            // derivation live in RateLimitingOptions, and only there.
+            options.AddPolicy(JobAdJuniorItCountPolicy, ctx =>
+                PerUserTokenBucket(ctx, "anonymous-job-ad-junior-it-count", rateLimitOpts.JobAdJuniorItCount));
         });
 
         return services;

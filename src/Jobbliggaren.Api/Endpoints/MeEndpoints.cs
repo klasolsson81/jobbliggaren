@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Auth.Queries.GetCurrentUser;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobSeekers.Commands.SetDigestCadence;
+using Jobbliggaren.Application.JobSeekers.Commands.SetJuniorQuickLink;
 using Jobbliggaren.Application.JobSeekers.Commands.SetMatchSummaryMail;
 using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationMail;
 using Jobbliggaren.Application.JobSeekers.Commands.SetTopMatchMail;
@@ -130,6 +131,19 @@ public static class MeEndpoints
 
         group.MapPut("/match-summary-mail", async (
             SetMatchSummaryMailCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // ADR 0188 (#2265) — shows or hides the junior quick link in the /jobb hero: an idempotent set of {enabled}.
+        // Turning it on over the cap of three quick links is a 409. READ via GET /profile. The route carries its own
+        // RequireAuthorization: this group authorizes per route, and MeWritePolicy gives an anonymous caller no limiter.
+        group.MapPut("/junior-quick-link", async (
+            SetJuniorQuickLinkCommand command, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(command, ct);
             return result.IsSuccess

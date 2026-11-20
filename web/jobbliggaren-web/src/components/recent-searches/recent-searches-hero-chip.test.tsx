@@ -33,6 +33,7 @@ function makeDto(extra: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     currentCount: 0,
     newCount: 0,
     lastViewedAt: "2026-05-20T19:00:00Z",
+    isQuickLink: false,
     ...extra,
   };
 }

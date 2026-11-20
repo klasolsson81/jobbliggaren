@@ -14,6 +14,7 @@ import {
 } from "@/lib/job-ads/recent-search-label";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
 import { deleteRecentSearchAction } from "@/lib/actions/recent-searches";
+import { setRecentSearchQuickLinkAction } from "@/lib/actions/quick-links";
 import type { RecentSearchCount } from "@/lib/hooks/use-recent-search-counts";
 
 interface RecentSearchRowProps {
@@ -31,6 +32,11 @@ interface RecentSearchRowProps {
   /** `receipt` is the sentence the list announces once the row is gone. */
   onDeleted: (id: string, receipt: string) => void;
   onDeleteFailed: (id: string, error: string) => void;
+  /** ADR 0188 (#2265): whether one more quick link fits; a row that already is one can always stop being one. */
+  canAddQuickLink: boolean;
+  /** `receipt` is the sentence the list announces once the quick link is added or removed. */
+  onQuickLinkChanged: (receipt: string) => void;
+  onQuickLinkFailed: (id: string, error: string) => void;
 }
 
 // Klas-direktiv 2026-05-20 (anti-AI-trope): INGEN "NY"-pill på raden.
@@ -82,9 +88,14 @@ export function RecentSearchRow({
   onDeleteStart,
   onDeleted,
   onDeleteFailed,
+  canAddQuickLink,
+  onQuickLinkChanged,
+  onQuickLinkFailed,
 }: RecentSearchRowProps) {
   const router = useRouter();
   const t = useTranslations("jobads.recent");
+  const tq = useTranslations("jobads.quickLinks");
+  const [isQuickLinkPending, startQuickLinkTransition] = useTransition();
   const coded = useCodedTaxonomyName();
   const [isPending, startTransition] = useTransition();
   const href = buildRecentSearchHref(item);
@@ -119,6 +130,21 @@ export function RecentSearchRow({
     });
   }
 
+  // ADR 0188 — adds the search to the /jobb hero's quick links, or removes it; the search itself stays. Enabled while
+  // pending for the same reason as the remove button, with the same guard.
+  function handleQuickLink() {
+    if (isQuickLinkPending) return;
+    const on = !item.isQuickLink;
+    startQuickLinkTransition(async () => {
+      const result = await setRecentSearchQuickLinkAction(item.id, on);
+      if (result.success) {
+        onQuickLinkChanged(tq(on ? "added" : "removed", { label }));
+      } else {
+        onQuickLinkFailed(item.id, result.error);
+      }
+    });
+  }
+
   return (
     <li>
       <article className="jp-job" onClick={handleRowClick}>
@@ -137,6 +163,17 @@ export function RecentSearchRow({
           >
             <Search size={14} aria-hidden="true" /> {t("runAgain")}
           </Link>
+          {(item.isQuickLink || canAddQuickLink) && (
+            <button
+              type="button"
+              className="jp-btn jp-btn--sm jp-btn--ghost"
+              aria-describedby={labelId}
+              onClick={handleQuickLink}
+              aria-disabled={isQuickLinkPending || undefined}
+            >
+              {item.isQuickLink ? tq("unmark") : tq("add")}
+            </button>
+          )}
           <button
             type="button"
             className="jp-icon-btn"

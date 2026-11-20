@@ -27,6 +27,7 @@ function makeRecent(
     currentCount: 0,
     newCount: 0,
     lastViewedAt: "2026-06-27T10:00:00Z",
+    isQuickLink: false,
     ...overrides,
   };
 }
@@ -100,6 +101,7 @@ describe("buildRecentSearchHref (#294 — shared replay href)", () => {
     currentCount: null,
     newCount: null,
     lastViewedAt: null,
+    isQuickLink: null,
   };
   const AXIS_SAMPLE: Partial<RecentJobSearchDto> = {
     q: "backend",

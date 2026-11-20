@@ -120,6 +120,25 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_JobAdJuniorItCount_Is60Per60sIn6Segments_APerUserTokenBucket()
+    {
+        // ADR 0188 (#2265) — the /jobb hero's junior count, one call per /jobb render, so the list read's numbers.
+        // RateLimitingOptions.JobAdJuniorItCount carries both halves of the derivation; security-auditor verifies them.
+        var sut = new RateLimitingOptions();
+
+        sut.JobAdJuniorItCount.PermitLimit.ShouldBe(60);
+        sut.JobAdJuniorItCount.WindowSeconds.ShouldBe(60);
+        sut.JobAdJuniorItCount.SegmentsPerWindow.ShouldBe(6);
+
+        var limiter = RateLimitingExtensions.PerUserTokenBucketOptions(sut.JobAdJuniorItCount);
+
+        limiter.TokenLimit.ShouldBe(60);
+        limiter.TokensPerPeriod.ShouldBe(10);
+        limiter.ReplenishmentPeriod.ShouldBe(TimeSpan.FromSeconds(10));
+        limiter.QueueLimit.ShouldBe(0);
+    }
+
+    [Fact]
     public void Defaults_AuthLoose_Is30Per60s()
     {
         var sut = new RateLimitingOptions();
@@ -470,5 +489,12 @@ public class RateLimitingOptionsTests
         RateLimitingExtensions.CriterionNewAdCountsPolicy.ShouldBe("criterion-new-ad-counts");
         RateLimitingExtensions.CriterionNewAdsPolicy.ShouldBe("criterion-new-ads");
         RateLimitingExtensions.CriterionNewAdsSeenPolicy.ShouldBe("criterion-new-ads-seen");
+    }
+
+    [Fact]
+    public void PolicyKeys_JobAdJuniorItCount_IsStable()
+    {
+        // ADR 0188 (#2265) — the hero count's own key, referenced by name at the registration and on the route.
+        RateLimitingExtensions.JobAdJuniorItCountPolicy.ShouldBe("job-ad-junior-it-count");
     }
 }

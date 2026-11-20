@@ -1,5 +1,7 @@
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.RecentJobSearches.Commands.DeleteRecentSearch;
+using Jobbliggaren.Application.RecentJobSearches.Commands.MarkRecentSearchQuickLink;
+using Jobbliggaren.Application.RecentJobSearches.Commands.UnmarkRecentSearchQuickLink;
 using Jobbliggaren.Application.RecentJobSearches.Queries.ListRecentSearches;
 using Mediator;
 
@@ -9,7 +11,7 @@ namespace Jobbliggaren.Api.Endpoints;
 /// ADR 0060 — RecentJobSearches (auto-fångade sökningar per JobSeeker).
 /// Route-prefix <c>/api/v1/me/recent-searches</c> följer "my data"-konvention
 /// från <see cref="MeEndpoints"/>. Auto-capture sker via pipeline-behavior på
-/// ListJobAds-flöden; dessa endpoints exponerar bara läs + radera.
+/// ListJobAds-flöden.
 /// </summary>
 public static class RecentSearchesEndpoints
 {
@@ -35,6 +37,25 @@ public static class RecentSearchesEndpoints
         group.MapDelete("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new DeleteRecentSearchCommand(id), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // ADR 0188 (#2265) — a recent search as a quick link in the /jobb hero. The id only, never a body, so the capture
+        // gate stays the only way a search reaches the table. PUT marks (409 over the cap of three, or when a racing
+        // mark took the slot); DELETE unmarks and keeps the search. Both idempotent.
+        group.MapPut("/{id:guid}/quick-link", async (Guid id, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new MarkRecentSearchQuickLinkCommand(id), ct);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : result.Error.ToProblemResult();
+        }).RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        group.MapDelete("/{id:guid}/quick-link", async (Guid id, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new UnmarkRecentSearchQuickLinkCommand(id), ct);
             return result.IsSuccess
                 ? Results.NoContent()
                 : result.Error.ToProblemResult();

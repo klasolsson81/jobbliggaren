@@ -13,6 +13,7 @@ using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds;
 using Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds;
 using Jobbliggaren.Application.JobAds.Junior;
+using Jobbliggaren.Application.JobAds.Queries.GetJuniorItJobAdCount;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJuniorItJobAds;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -230,6 +231,18 @@ internal sealed partial class JuniorClassificationHarness
         return page.ShouldBeOfType<PublicJuniorItJobAdsPage.Available>();
     }
 
+    /// <summary>
+    /// ADR 0188 (#2265) — the /jobb hero's count over the same real port, as <c>GET /api/v1/job-ads/junior-it-count</c>
+    /// reads it: <see cref="GetJuniorItJobAdCountQueryHandler"/> at the harness's clock.
+    /// </summary>
+    public async Task<JuniorItJobAdCountDto> SignedInCountAsync()
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await new GetJuniorItJobAdCountQueryHandler(new JuniorItJobAdQuery(db, Catalog()), Clock)
+            .Handle(new GetJuniorItJobAdCountQuery(), Ct);
+    }
+
     /// <summary>The admin command's handler, then <c>UnitOfWorkBehavior</c>'s save.</summary>
     public async Task<Result> DecideAsync(Guid id, JuniorDecision? decision)
     {
@@ -250,13 +263,18 @@ internal sealed partial class JuniorClassificationHarness
             .Handle(new ListJuniorJobAdsQuery(view, page), Ct);
     }
 
+    /// <param name="municipality">The kommun the source carries; <c>null</c> is an ad without one
+    /// (<c>PlatsbankenJobSourceFacetMappingTests.RefetchByExternalIdAsync_YieldsEmptyFacets_WhenTheSourceCarriesNone</c>).</param>
+    /// <param name="region">The län the source carries, independent of the kommun (#839).</param>
     public JobAd Imported(
         string title,
         string? group = DataIt,
         string description = NeutralText,
         DateTimeOffset? publishedAt = null,
         DateTimeOffset? expiresAt = null,
-        string? externalId = null)
+        string? externalId = null,
+        string? municipality = Stockholm,
+        string? region = StockholmsLan)
     {
         externalId ??= $"8{Interlocked.Increment(ref _externalIds):D7}";
         return JobAd.Import(
@@ -266,7 +284,7 @@ internal sealed partial class JuniorClassificationHarness
             url: $"https://arbetsformedlingen.se/platsbanken/annonser/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: $"{{\"id\":\"{externalId}\"}}",
-            facets: TestFacets.From(occupationGroup: group, municipality: Stockholm, region: StockholmsLan),
+            facets: TestFacets.From(occupationGroup: group, municipality: municipality, region: region),
             declaredContacts: [],
             publishedAt: publishedAt ?? Now.AddDays(-1),
             expiresAt: expiresAt,
@@ -281,9 +299,11 @@ internal sealed partial class JuniorClassificationHarness
         string description = NeutralText,
         DateTimeOffset? publishedAt = null,
         DateTimeOffset? expiresAt = null,
-        string? externalId = null)
+        string? externalId = null,
+        string? municipality = Stockholm,
+        string? region = StockholmsLan)
     {
-        var ad = Imported(title, group, description, publishedAt, expiresAt, externalId);
+        var ad = Imported(title, group, description, publishedAt, expiresAt, externalId, municipality, region);
         await AddAsync(ad);
         return ad.Id.Value;
     }

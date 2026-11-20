@@ -152,7 +152,8 @@ public sealed class ListRecentSearchesQueryHandler(
                 Label: label,
                 CurrentCount: currentCount,
                 NewCount: newCount,
-                LastViewedAt: r.LastViewedAt));
+                LastViewedAt: r.LastViewedAt,
+                IsQuickLink: r.QuickLinkSlot is not null));
         }
 
         return dtos;

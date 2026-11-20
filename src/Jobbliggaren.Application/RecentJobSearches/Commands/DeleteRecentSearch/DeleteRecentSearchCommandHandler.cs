@@ -11,7 +11,8 @@ namespace Jobbliggaren.Application.RecentJobSearches.Commands.DeleteRecentSearch
 /// ADR 0060 — hard-delete av en RecentJobSearch (auto-fångad sökning saknar
 /// audit-trail-värdighet; soft-delete ej använd, jfr SavedSearch). Cross-tenant-
 /// check per ADR 0031: skilj okänt id från forbidden, logga cross-user-attempt
-/// men returnera samma NotFound-response.
+/// men returnera samma NotFound-response. A row marked as a quick link (ADR 0188) is deleted the
+/// same way, and its link with it.
 /// </summary>
 public sealed class DeleteRecentSearchCommandHandler(
     IAppDbContext db,

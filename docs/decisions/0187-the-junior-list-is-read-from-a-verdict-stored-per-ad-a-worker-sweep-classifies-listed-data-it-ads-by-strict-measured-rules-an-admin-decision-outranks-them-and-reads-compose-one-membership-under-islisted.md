@@ -152,7 +152,7 @@ The other eight (`title-thesis`, `years-3-plus`, `text-junior-and-senior`, `text
 
 ### D6 — The cutover: the first deploy's gap is accepted, the fallback arm is rejected, and a later storage change is expand, migrate, contract (senior-cto-advisor (B))
 
-- **The gap.** After the deploy the table is empty, so `/junior` reads nothing until the sweep has run: one tick, plus the drain of the field's backlog. The backlog is the 2 850 listed Data/IT ads of R2, which is at least 15 rounds of 200 across as many ticks as the 90 s budget needs; the time is unmeasured. The gap is accepted because the post is not out yet and nobody is linked to the page. Klas can start the job from admin/jobb right after the deploy (it is in `RecurringJobIds.All`), and the amendment's D11 (security-auditor M4 (c)) reads "listed Data/IT ads without an assessment" as 0 before he publishes.
+- **The gap.** After the deploy the table is empty, so `/junior` reads nothing until the sweep has run: one tick, plus the drain of the field's backlog. The backlog is the 2 850 listed Data/IT ads of R2, which is at least 15 rounds of 200 across as many ticks as the 90 s budget needs. The gap is accepted because the post is not out yet and nobody is linked to the page. Klas can start the job from admin/jobb right after the deploy (it is in `RecurringJobIds.All`), and the amendment's D11 (security-auditor M4 (c)) reads "listed Data/IT ads without an assessment" as 0 before he publishes.
 - **The fallback regex arm is rejected.** An arm that lists unclassified rows by the old headline pattern, to keep the list populated during the window, would keep two definitions of "junior IT" alive, which is what this change retires. "Not yet classified" cannot be told apart from "the sweep fails on this ad forever", so it would hide a broken sweep. During the window the list would mix two definitions, since the rules can judge an ad Unclear or NotJunior even when its headline matches. And it is code for two minutes of one deploy, with no removal trigger. A backfill inside the migration is impossible, because the rules are C#.
 - **A later rule deploy leaves no gap,** because reads ignore the version (D4).
 - **The rule once the post is out.** Any later change to how membership is stored ships as expand, migrate, contract (Sato, "ParallelChange", martinfowler.com, 2014). It was considered and rejected for this one deploy: it would take two deploys, or a read flag, to save about two minutes on a page with no audience.
@@ -176,9 +176,7 @@ AGENTS.md §3.6: the table's first drain bulk-loads an empty table, and then it 
 
 - **The precision of `no-signal`.** Klas's reading covers only the ads he read. The candidate filter caught 242 of the 250 measured reading ads, all 135 shown labels included (R1), but the listed ads outside the filter and outside the reading were never read, so what `no-signal` excludes among them is unmeasured.
 - **The precision out of sample.** It is measured against the same reading the rules were shaped on, so it is optimistic. The ongoing check is the queue's decisions: every Unclear ad, and every automatic one Klas vetoes on the *Visas på /junior* tab, is a data point.
-- **The cost of the EXISTS read** (D4). ADR 0045 is observe-only here.
-- **The first deploy's drain time** (D6). This ADR records it after the deploy.
-- **`last_autoanalyze` of the assessments table on the box** (D8).
+- **The cost of the EXISTS read in `/junior`'s own read** (D4). The `/jobb` filter's is R5 and the quick links' count's is ADR 0188's R1. ADR 0045 is observe-only here.
 
 **Owed by this PR's own tests, named here ahead of the panel (the PR holds them):** the Domain's `JobAdJuniorAssessmentTests`; the classifier's and the loader's tests, including the pins of the thirteen top-level keys, of exactly one rule file and of a reading of junior ids only; `ClassifyJuniorJobAdsJobStalenessTests` (Testcontainers; the staleness expression, an ad written before the migration included); `JuniorAssessmentErasureTests` and `JuniorAssessmentErasureRaceTests`; `JuniorItJobAdQueryReadTests`, rewritten, whose four exits (removal from the stream, a passed deadline, `ExpireJobAdsJob` and `Erase()`) are kept for the rows, the total and the options, and whose curated- and headline-arm assertions are replaced by verdict- and decision-arm assertions (declared in the PR body, security-auditor R7); the admin queue's endpoint, handler and rate-limit wiring tests; and the registry rows. Their premises come from production paths (AGENTS.md §5, Tests): rule sets are loaded through `JuniorRuleSetLoader.LoadFrom` and ads imported through `JobAd.Import`, and an assessment arises only through the sweep or the domain methods.
 
@@ -233,8 +231,7 @@ Nothing detects these automatically. Each is read when the event is proposed or 
 - **A second occupation field switched on.** A new rule file, ADR 0166 amendment trigger 22 and an Art. 9 re-read for that field. The test that pins exactly one rule file turns red first.
 - **A rule set to `auto`, or an automatic rule's pattern loosened, without a new measurement** against Klas's criterion (point precision of at least 95 % on at least 10 cases), recorded with its date. Narrowing a rule or turning its `auto` off is not this.
 - **Any change to how membership is stored:** expand, migrate, contract (D6), and `senior-cto-advisor` reads it.
-- **The banner link, #2265:** a fifth read in the `/jobb` hero's `Promise.all` is a plan on ADR 0045's hot path, so `senior-cto-advisor` reads #2265's plan before it is built, and `security-auditor`'s m3 holds for it (a per-user rate-limit policy with a wiring test, `private, no-store`, no Next cache, and the link hidden at 0 and on error).
-- **The first deploy's drain time and `last_autoanalyze`,** which this ADR records once read (D6, D8).
+- **The banner link, #2265:** decided in ADR 0188, which carries `security-auditor`'s m3 in full.
 - The legal triggers are ADR 0166 D10's and have their home in that amendment.
 
 ## Implementation
@@ -254,7 +251,7 @@ One PR on `feat/junior-live-classification`, lane BE+FE, #2264. It adds one migr
 
 ## Measurements
 
-Each reading below is dated and has its source. Nothing is estimated. All are the driving session's of 2026-11-20, given in the brief, and none was re-run for this ADR.
+Each reading below is dated and has its source. Nothing is estimated. R1–R5 are the driving session's of 2026-11-20, given in the brief, and none was re-run for this ADR.
 
 | Reading | What | Recorded |
 |---|---|---|
@@ -263,6 +260,7 @@ Each reading below is dated and has its source. Nothing is estimated. All are th
 | R3 | the reading's not-junior ads, with junior ids only in the file | 2026-11-20, the same run. 111 of the reading's not-junior ads are listed. Under the criterion, 63 go to the queue once, 46 are excluded, and 2 are shown until Klas vetoes them. |
 | R4 | M3, the reading's ids counted before the first push | 2026-11-20 11:02:03Z, on the box, counts only, over the file's 145 ids and the Data/IT field's 12 occupation groups: found 145 (not found 0); listed 143; outside the Data/IT groups 0; erased 0; an organisation number of personnummer shape 0, not ten digits 0, without an organisation number 0. |
 | R5 | the `/jobb` junior filter on the stored membership, against ADR 0045 class (a), p95 300 ms | 2026-11-20, `JuniorItFilterLatencyMeasurement` on a developer machine: 40 000 ads (32 000 active), and the shipped rules' assessments on the 13 286 in-field ads (3 301 Junior, 709 Unclear, 9 276 NotJunior), computed by `JuniorClassifier`. List+count junior p95 9.6 ms, against 51.4 ms with ADR 0186's regex predicate (ADR 0186 R5); with one Data/IT group 5.8 ms; with `q` 19.3 ms; group facet with junior 6.1 ms. A dated reading, not a live number: re-run the class to regenerate it. |
+| R6 | the first deploy's drain (D6) and the new table's statistics (D8) | Read on the box after the deploy (release 1681), counts and timestamps only (CLAUDE.md §9.2 (a)). The first deploy's drain: the backlog of 2 957 drained in the first tick, 16:52:14–16:52:23Z on 2026-11-20 (release 1681); `last_autoanalyze` read 16:52:42Z. |
 
 **R1, per rule, standalone:**
 

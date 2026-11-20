@@ -321,3 +321,17 @@ Per [ADR 0067 Amendment 2026-10-26](./0067-platsbanken-search-parity.md) (#2199 
 `RecentSearchCaptureGate`, which also refuses a search that singles out a religious office. The list page answers its verdict. The
 mechanism this ADR decides is unchanged: the post-handler behaviour, its markers, best-effort capture and the commit gate. That
 amendment is the operative text for the gate.
+
+---
+
+# Amendment 2026-11-20 — Beslut 5 and 6 (#2265, ADR 0188): a marked row is never evicted, and a delete still takes its quick link with it
+
+**Status:** Accepted. **Beslutsunderlag:** `senior-cto-advisor` (plan read of #2265, B8, 2026-11-20) and `dotnet-architect` (follow-up on the slot and the eviction, 2026-11-20), on Klas's scoping of the same day ("Egen PR efter denna (Rek.)", "Ja, 3 totalt (Rek.)"). Additive: Beslut 5's and Beslut 6's text above is untouched, and for a marked row this note is the operative text. The decision, its reasons, its alternatives and the two routes that set and clear a mark are [ADR 0188](./0188-quick-links-in-the-jobb-hero-at-most-three-a-stamp-for-the-junior-link-a-store-bounded-slot-on-a-recent-search-row-for-a-search-no-eviction-of-a-marked-row-and-the-count-a-signed-in-read-on-its-own-bucket.md); this note records only what it changes here.
+
+**What a marked row is.** A recent search that the user has made a quick link in the `/jobb` hero carries a slot, 1 to 3, in `recent_job_searches.quick_link_slot`. The store admits each slot once per user, so at most three rows are marked.
+
+**Beslut 5, for a marked row.** `RecentJobSearchCapturer.EnforceCapAsync` evicts the oldest UNMARKED rows by `LastViewedAt`, the whole surplus (`count − 20 + 1`) and not one row, in a delete that re-checks the slot in its own statement, and inserts the new search only if every picked row was deleted. A marked row is never evicted. A row marked between the read and the delete survives, and that capture goes unstored. The bound of 20 holds whatever the slots are, and an overshoot from two concurrent captures shrinks back.
+
+**Beslut 6, for a marked row.** A delete is still a hard delete, and a marked row is deleted the same way, with its link. The user's own delete, the account hard-delete (Mekanik-not 5) and the Art. 17 recruiter erasure take the link with the row; eviction never deletes a marked row. "No audit-trail dignity" stands for the rows themselves. Marking and unmarking a row are audit events, `RecentJobSearch.QuickLinkMarked` and `RecentJobSearch.QuickLinkUnmarked`, with no payload: the aggregate type and the row id, never a criterion, a label or a count.
+
+**What a future change must state.** Marked rows are no longer cleaned up by eviction: they stay for as long as they are quick links. Any future reset of recent searches (as the C2 migration deleted the rows when the FilterHash format changed, ADR 0067) and any change to the FilterHash format must state what it does to quick links.

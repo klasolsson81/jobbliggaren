@@ -1317,7 +1317,7 @@ This amendment is the single home of the legal outcome for the change: ADR 0187 
   2. His decision is the remedy for a recruiter's complaint or objection about the list, and it never edits the file (trigger 23).
   3. An assessment is kept per ad, but every read composes `IsListed(now)`, so an erased ad still leaves the rows, the total and the kommun options in the same request. `Erase()` nulls its input fingerprint. The erasure command deletes its assessment row, and the next tick at the latest deletes a row that a racing sweep wrote.
 
-  **[K]** The file's reading holds junior ids only, so it publishes no verdict the list does not show itself. Erasures to date: `<D11>`. *Left:* the inference at kommun scale, as before.
+  **[K]** The file's reading holds junior ids only, so it publishes no verdict the list does not show itself. Erasures to date: 0 (on the box, 2026-11-20 16:53Z and 16:58Z, release sequence 1681). *Left:* the inference at kommun scale, as before.
 - **The rules file.** `junior-rules.data-it.v1.json`, an embedded resource in the public repository, replaces `junior-it-list.v1.json`. It carries:
   - the keys its loader test pins at `a860452fb`;
   - generic patterns, none of which names an employer, a person or a place, or quotes an ad;
@@ -1421,7 +1421,7 @@ The readings recorded with them:
   A stale assessment is read against the version the release stores: the declared version, then the first eight hex digits of SHA-256 over the file's blob in the release commit (LF).
 
   A count above 0 in the three organisation-number fields goes back to `security-auditor` before the post.
-- **Readings:** M4 (a), 2026-11-20 15:00–15:01Z, on release sequence 1679 (source `2565c0275`, `--status` consistent before and after), query blob `ea21c16`: listed 45 007; shaped 828 (222 in the description, 652 in the application link, stored and decoded alike); **validated 0** in every field and in both readings of the link. Recorded in `docs/runbooks/public-job-page-publication-count.md`. `<M4 (c)>`.
+- **Readings:** M4 (a), 2026-11-20 15:00–15:01Z, on release sequence 1679 (source `2565c0275`, `--status` consistent before and after), query blob `ea21c16`: listed 45 007; shaped 828 (222 in the description, 652 in the application link, stored and decoded alike); **validated 0** in every field and in both readings of the link. Recorded in `docs/runbooks/public-job-page-publication-count.md`. M4 (c), 2026-11-20 16:53Z, on release sequence 1681 (source `bc2235aba`, `--status` consistent): listed Data/IT ads without an assessment 0 of 2 957; the 152 effective juniors listed have an organisation number of personnummer shape 0, without one 0, not ten characters 0; 35 kommuner, 21 with exactly one ad; `job_ads` erased, all time, 0. Second reading 16:58Z: assessments of erased ads 0; erased ads with an input fingerprint 0.
 
 **What the signature reads with.** She signs at her scoped re-check of the PR's final head, read with ADR 0187 as delivered and with the sixth addendum as Klas approves its text. The delivered properties are those of D5 above and of ADR 0187.
 

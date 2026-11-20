@@ -221,7 +221,8 @@ public class NotificationFeedCriterionSourceTests(ApiFactory factory)
                 .UnreadCount.ShouldBe(1, "both higher gates hold before the race");
         }
 
-        var lift = new AfterFirstMaxInterceptor(async () =>
+        // The gate is the first statement and the token the second.
+        var lift = new AfterStatementInterceptor(2, async () =>
         {
             if (gate == "consent")
                 await GiveConsentAsync(client, false);
@@ -685,7 +686,6 @@ public class NotificationFeedCriterionSourceTests(ApiFactory factory)
             naming.ShouldBe([texts[2], texts[3]], $"the count and the window name {table}, and nothing else does");
         else
             naming.ShouldBeEmpty($"no statement names {table} while its source's gate is off");
-        naming.ShouldNotContain(t => t.Contains("max(", StringComparison.OrdinalIgnoreCase), "the token is never narrowed");
     }
 
     /// <summary>

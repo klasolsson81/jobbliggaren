@@ -74,9 +74,12 @@ internal sealed class CompanyWatchCriterionAdFeedSource : INotificationFeedSourc
         var heldByFollow = seeker.FollowsReachBell ? FollowedCompanyAdFeedSource.HeldAdIds(db, userId) : null;
 
         // Token first, over every new hit, read or held alike: a hit committed between these statements is neither
-        // counted nor listed, so it stays unread for the next poll. No token means the new set is empty.
+        // counted nor listed, so it stays unread for the next poll. No token means the new set is empty. The newest hit
+        // is read in order rather than by MAX: PostgreSQL's min/max rewrite does not cross a join, so MAX reads every hit.
         var token = await NewCriterionAdSet.NewHits(db, userId)
-            .MaxAsync(h => (DateTimeOffset?)h.CreatedAt, cancellationToken);
+            .OrderByDescending(h => h.CreatedAt)
+            .Select(h => (DateTimeOffset?)h.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
         if (token is not { } through)
             return NotificationSourceRead.Nothing(Kind);
 
@@ -202,8 +205,10 @@ internal sealed class CompanyWatchCriterionAdFeedSource : INotificationFeedSourc
         var userId = context.UserId;
         // The counted set up to the token, held hits included: every new hit (each criterion's own watermark, through
         // NewHits, read and never moved), not yet read. Correlated on the hit's own key, so the definition is composed
-        // and not restated.
-        var counted = NewCriterionAdSet.NewHits(db, userId);
+        // and not restated. The bound and the flag stand inside it too: the planner does not carry the target's filter
+        // across the key, and without them a call that marks nothing would compute all of NewHits.
+        var counted = NewCriterionAdSet.NewHits(db, userId)
+            .Where(n => n.CreatedAt <= through && !n.ReadInNotificationFeed);
         return db.CompanyWatchCriterionAdHits
             .Where(h => h.UserId == userId
                         && h.CreatedAt <= through

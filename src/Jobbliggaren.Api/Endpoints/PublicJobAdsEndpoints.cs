@@ -3,14 +3,17 @@ using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.JobAds.Queries.GetListedJobAdIds;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAd;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
+using Jobbliggaren.Application.JobAds.Queries.GetPublicJuniorItJobAds;
 using Jobbliggaren.Application.JobAds.Queries.GetRelatedPublicJobAds;
+using Jobbliggaren.Domain.JobAds;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
 
 /// <summary>
 /// The anonymous reads of job ads: one ad (ADR 0160), the ids of one job-sitemap part (ADR 0174), one page of the
-/// public catalogue (ADR 0176) and the related ads under one ad's page (ADR 0182). Their own group, outside the
+/// public catalogue (ADR 0176), the related ads under one ad's page (ADR 0182) and one page of the open junior IT list
+/// (ADR 0186). Their own group, outside the
 /// authenticated <c>/api/v1/job-ads</c>: anonymous by omitting <c>RequireAuthorization</c>, each with its own
 /// IP-partitioned policy.
 /// </summary>
@@ -76,5 +79,21 @@ public static class PublicJobAdsEndpoints
                 }
             })
             .RequireRateLimiting(RateLimitingExtensions.PublicJobAdCataloguePolicy);
+
+        // A page past the end is a 404, as in the catalogue. There is no 503: the list is read per request, never from
+        // the snapshot. A kommun, sort or page the validator refuses is the pipeline's 400.
+        group.MapGet("/junior", async (
+                string? municipality, IMediator mediator, CancellationToken ct,
+                JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc, int page = 1) =>
+            {
+                var answer = await mediator.Send(new GetPublicJuniorItJobAdsQuery(municipality, sortBy, page), ct);
+                return answer switch
+                {
+                    PublicJuniorItJobAdsPage.Available available => Results.Ok(available),
+                    PublicJuniorItJobAdsPage.NoSuchPage => Results.NotFound(),
+                    _ => throw new UnreachableException($"Unmapped junior IT answer {answer.GetType().Name}."),
+                };
+            })
+            .RequireRateLimiting(RateLimitingExtensions.PublicJobAdJuniorItPolicy);
     }
 }

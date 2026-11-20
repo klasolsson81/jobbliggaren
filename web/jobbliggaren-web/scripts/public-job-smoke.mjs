@@ -1,6 +1,7 @@
 /**
- * The public job page's, its related section's, the sitemap's and the public catalogue's HTTP contract, measured against a
- * production build (ADR 0165, ADR 0182, ADR 0174 and ADR 0176, SEO epic #2090 S2, S6b, S4 and S5).
+ * The public job page's, its related section's, the sitemap's, the public catalogue's and the open junior IT list's HTTP
+ * contract, measured against a production build (ADR 0165, ADR 0182, ADR 0174, ADR 0176 and ADR 0186, SEO epic #2090
+ * S2, S6b, S4 and S5, and #2260).
  *
  * Why this is a script and not a unit test: the statuses are the contract a crawler reads (a 410 drops the URL from an
  * index, a 503 does not), and the page's are produced by a Next feature with no documented status contract:
@@ -26,6 +27,9 @@ import {
   catalogue,
   catalogueRow,
   freePort,
+  JUNIOR_PLACES,
+  junior,
+  juniorRow,
   listedIds,
   related,
   relatedRow,
@@ -69,6 +73,7 @@ const publicCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/
 const callsFor = (id) => publicCalls().filter((r) => r.path.endsWith(`/${id}`));
 const listedIdsCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/listed-ids"));
 const catalogueCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/catalogue"));
+const juniorCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/junior"));
 const relatedCalls = () => seen.filter((r) => r.path?.startsWith("/api/v1/public/job-ads/") && r.path.endsWith("/related"));
 const RELATED = [1, 2, 3, 4, 5].map(relatedRow);
 
@@ -630,6 +635,99 @@ try {
       assert.ok(inHead(res.body, /<link rel="canonical"/), "canonical in the head");
     });
   }
+
+  await check("the junior list is a 200, uncacheable, noindex and follow, with no canonical, read per request for the visitor with no credential", async () => {
+    junior.mode = "ok";
+    seen.length = 0;
+    const res = await get(origin, "/junior?utm_source=linkedin&trk=x", { headers: { cookie: `${SESSION_COOKIE}=s; other=1`, authorization: "Bearer x" } });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+    assert.match(res.body, /<meta name="robots" content="noindex, follow"/);
+    assert.equal(res.headers.get("set-cookie"), null, "the campaign page sets no cookie");
+    assert.doesNotMatch(res.body, /<link rel="canonical"/);
+    assert.doesNotMatch(res.body, /application\/ld\+json/);
+    const calls = juniorCalls();
+    assert.equal(calls.length, 1);
+    assert.equal(new URL(calls[0].path, "http://stub").searchParams.toString(), "sortBy=PublishedAtDesc&page=1");
+    assert.equal(calls[0].headers["x-forwarded-for"], CLIENT_IP);
+    assert.equal(calls[0].headers.cookie, undefined);
+    assert.equal(calls[0].headers.authorization, undefined);
+  });
+
+  await check("the junior list keeps the count, the list and the pager in one data-nosnippet block, with plain row anchors and a GET form", async () => {
+    junior.mode = "ok";
+    const res = await get(origin, "/junior");
+    const block = /<div data-nosnippet="">([\s\S]*?)<\/main>/.exec(res.body);
+    assert.ok(block, "the nosnippet block");
+    assert.match(block[1], new RegExp(`<a href="/jobb/${juniorRow(1).id}" class="jp-job__rowlink"`));
+    const form = /<form[^>]*>/.exec(res.body)?.[0] ?? "";
+    assert.match(form, /action="\/junior"/);
+    assert.match(form, /method="get"/);
+    for (const place of JUNIOR_PLACES) assert.match(res.body, new RegExp(`value="${place.municipalityConceptId}"`));
+  });
+
+  await check("the junior list passes the chosen kommun, order and page to the API and nothing else", async () => {
+    junior.mode = "ok";
+    seen.length = 0;
+    const res = await get(origin, `/junior?municipality=${JUNIOR_PLACES[1].municipalityConceptId}&sortBy=ExpiresAtAsc&q=x`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(
+      juniorCalls().map((c) => new URL(c.path, "http://stub").searchParams.toString()),
+      [`sortBy=ExpiresAtAsc&page=1&municipality=${JUNIOR_PLACES[1].municipalityConceptId}`]
+    );
+  });
+
+  for (const query of ["?page=0", "?sortBy=Relevance", "?municipality=G%C3%B6teborg", "?page=1&page=2"]) {
+    await check(`a junior list address with ${query} is a real 404, noindexed, with no read`, async () => {
+      seen.length = 0;
+      const res = await get(origin, `/junior${query}`);
+      assert.equal(res.status, 404);
+      assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+      assert.match(res.body, /<meta name="robots" content="noindex"/);
+      assert.equal(juniorCalls().length, 0);
+    });
+  }
+
+  await check("a junior list page past the end is a real 404", async () => {
+    junior.mode = "ok";
+    const res = await get(origin, "/junior?page=9");
+    assert.equal(res.status, 404);
+    assert.match(res.body, /<meta name="robots" content="noindex"/);
+  });
+
+  await check("an empty junior list is a 200 with the empty state and still noindex", async () => {
+    junior.mode = "empty";
+    try {
+      const res = await get(origin, "/junior");
+      assert.equal(res.status, 200);
+      assert.match(res.body, /<meta name="robots" content="noindex, follow"/);
+      assert.doesNotMatch(res.body, /data-nosnippet/);
+    } finally {
+      junior.mode = "ok";
+    }
+  });
+
+  for (const mode of ["outage", "budget"]) {
+    await check(`a junior list the backend cannot give (${mode}) is a 5xx, never a 404`, async () => {
+      junior.mode = mode;
+      try {
+        const res = await get(origin, "/junior");
+        assert.ok(res.status >= 500 && res.status < 600, `expected a 5xx, got ${res.status}`);
+        assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+      } finally {
+        junior.mode = "ok";
+      }
+    });
+  }
+
+  await check("the junior list's title, description and preview carry no row value and no count", async () => {
+    junior.mode = "ok";
+    const res = await get(origin, `/junior?municipality=${JUNIOR_PLACES[0].municipalityConceptId}`);
+    const head = /<head>([\s\S]*?)<\/head>/.exec(res.body)?.[1] ?? "";
+    for (const tag of head.match(/<(title|meta)[^>]*>/g) ?? []) {
+      assert.doesNotMatch(tag, /IT-bolag|Junior utvecklare \d|Göteborg/, tag);
+    }
+  });
 
   await check("the job parts list every listed id once, at its page's canonical path, read per request with the crawler's address and no credential", async () => {
     listedIds.mode = "ok";

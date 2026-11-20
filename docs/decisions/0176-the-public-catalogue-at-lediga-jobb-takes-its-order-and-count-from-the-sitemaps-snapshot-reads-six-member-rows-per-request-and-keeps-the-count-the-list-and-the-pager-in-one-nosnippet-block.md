@@ -697,3 +697,13 @@ markup is byte-unchanged (a render hashed the same before and after the change).
 component is still typed to the summary row, and the plain-anchor pin in `public-job-group.test.ts` covers both consumers.
 
 ADR 0176 remains **Accepted**.
+
+## Amendment 2026-11-19 (#2260, ADR 0186) — D5 and F4: the open junior IT list at `/junior` has a row of its own
+
+D1–D14 and the earlier amendments stand and nothing above is rewritten. ADR 0186 records the decision; this is the pointer in the ADR it amends.
+
+**1. D5 and F4 are amended for `/junior` only.** The junior list's row is `PublicJuniorItJobAdDto`, a flat type of its own: this ADR's six members and the ad's last publication day, which the list shows and sorts on. `PublicJobAdSummaryDto` and `PublicJobAdList` are unchanged, so the catalogue's and the related section's rows still carry six members and no deadline, and D5 and F4 still hold for them as written.
+
+**2. The catalogue keeps no filter, sort, search or place parameter.** The junior list is a page of its own at `/junior`, not a parameter of `/lediga-jobb`.
+
+ADR 0176 remains **Accepted**.

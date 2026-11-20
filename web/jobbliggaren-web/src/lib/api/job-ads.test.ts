@@ -124,6 +124,31 @@ describe("getJobAds — the distans/remote wire mapping (#551 punkt 4)", () => {
   });
 });
 
+describe("getJobAds — the junior wire mapping (#2261)", () => {
+  async function urlFor(over: Partial<Parameters<typeof getJobAds>[0]> = {}) {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ items: [], totalCount: 0, page: 1, pageSize: 20 }),
+    } as unknown as Response);
+    global.fetch = fetchMock;
+    await getJobAds({ page: 1, pageSize: 20, sortBy: "PublishedAtDesc", ...over });
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    return new URL(url).searchParams;
+  }
+
+  // The endpoint binds a C# bool, so the route's sentinel "on" would leave it unfiltered.
+  it("junior=true emits ?junior=true, the bool value, never 'on'", async () => {
+    const params = await urlFor({ junior: true });
+    expect(params.get("junior")).toBe("true");
+  });
+
+  it("junior=false or omitted writes no param", async () => {
+    expect((await urlFor({ junior: false })).has("junior")).toBe(false);
+    expect((await urlFor()).has("junior")).toBe(false);
+  });
+});
+
 describe("the occupation-name axis on the wire (#2199)", () => {
   function okJson(body: unknown) {
     return {

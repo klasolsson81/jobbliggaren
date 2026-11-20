@@ -37,6 +37,7 @@ const state: JobbUrlState = {
   region: ["CifL_Rzy_Mku"],
   municipality: ["zHxw_uJZ_NNh"],
   remote: false,
+  junior: false,
   employmentType: ["et_vikariat"],
   worktimeExtent: ["wt_heltid"],
   matchGrades: [],

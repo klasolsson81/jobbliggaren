@@ -36,6 +36,7 @@ function renderPage() {
         initialRegion={[]}
         initialMunicipality={[]}
         initialRemote={false}
+        initialJunior={false}
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}

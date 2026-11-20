@@ -42,6 +42,7 @@ const MORE_MATCHES_HREF = buildJobbHref({
   region: [],
   municipality: [],
   remote: false,
+  junior: false,
   employmentType: [],
   worktimeExtent: [],
   matchGrades: ["Good", "Strong"],

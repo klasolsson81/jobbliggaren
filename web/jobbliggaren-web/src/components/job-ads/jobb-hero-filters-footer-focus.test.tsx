@@ -42,6 +42,7 @@ describe("JobbHeroFilters — the results footer returns focus to its pill (#219
         initialRegion={[]}
         initialMunicipality={[]}
         initialRemote={false}
+        initialJunior={false}
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}

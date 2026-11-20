@@ -45,3 +45,25 @@ describe("GET /api/jobb/facet-counts — the occupation-name axis (#2199)", () =
     );
   });
 });
+
+describe("GET /api/jobb/facet-counts — the junior filter (#2261)", () => {
+  // The hook writes junior=true, and the other dimensions' counts must count the list's own WHERE.
+  it("forwards junior=true as on", async () => {
+    await GET(request("dimension=Municipality&junior=true"));
+    expect(getFacetCounts).toHaveBeenCalledWith(
+      "Municipality",
+      expect.objectContaining({ junior: true }),
+    );
+  });
+
+  it.each(["", "junior=on", "junior=1", "junior=false"])(
+    "treats anything but 'true' as off (%s)",
+    async (query) => {
+      await GET(request(`dimension=Municipality&${query}`));
+      expect(getFacetCounts).toHaveBeenCalledWith(
+        "Municipality",
+        expect.objectContaining({ junior: false }),
+      );
+    },
+  );
+});

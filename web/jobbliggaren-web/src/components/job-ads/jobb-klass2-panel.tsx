@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import type { TaxonomyOption } from "@/lib/dto/taxonomy";
@@ -32,6 +33,10 @@ import { PopoverShell } from "@/components/popover/popover-shell";
  * pre-fetch); panelen är fullt funktionell utan dem. "Alla"-radion bär INGET tal
  * (summan ägs av list-svarets totalCount, SPOT — samma som Yrkes "Välj alla").
  *
+ * #2261 — the junior IT filter sits first, as one checkbox with a hint. It needs no taxonomy, so it
+ * renders even when the two sections below could not be loaded. It has no count (senior-cto-advisor
+ * D3: a boolean has no concept-id key space, and Distans has none either).
+ *
  * Shell-infrastruktur (DRY, CLAUDE.md §9.1): `PopoverShell`, samma skal som
  * `JobbFilterPopover`, så position, fokus, outside-click och Esc beter sig
  * konsekvent (jobbliggaren-design-a11y / ADR 0047).
@@ -58,6 +63,9 @@ interface JobbKlass2PanelProps {
   onEmploymentTypeChange: (next: string[]) => void;
   /** Live-commit: 0 eller 1 omfattning-conceptId (radio). */
   onWorktimeExtentChange: (next: string[]) => void;
+  /** `?junior=on` (#2261): the junior IT filter. */
+  junior: boolean;
+  onJuniorToggle: () => void;
   onClose: () => void;
   /** Triggerns ref — fokus-retur vid Esc/utanför-klick (a11y). */
   triggerRef: React.RefObject<HTMLButtonElement | null>;
@@ -89,12 +97,15 @@ export function JobbKlass2Panel({
   worktimeExtentCounts,
   onEmploymentTypeChange,
   onWorktimeExtentChange,
+  junior,
+  onJuniorToggle,
   onClose,
   triggerRef,
   footer,
   emptyText,
 }: JobbKlass2PanelProps) {
   const t = useTranslations("jobads.ui");
+  const juniorHintId = `jp-panel-junior-hint-${useId()}`;
   const tEnum = useTranslations("jobads.enums");
   const collator = new Intl.Collator(useLocale());
   const format = useFormatter();
@@ -131,12 +142,40 @@ export function JobbKlass2Panel({
       label={t("klass2.dialogLabel")}
       className="jp-panel"
     >
+      <div className="jp-panel__body">
+        {/* ── Juniora IT-jobb (#2261, one checkbox) ── */}
+        <div className="jp-panel__section">
+          <div
+            className="jp-checkitem"
+            role="checkbox"
+            aria-checked={junior}
+            aria-describedby={juniorHintId}
+            tabIndex={0}
+            onClick={onJuniorToggle}
+            onKeyDown={(e) => {
+              if (e.key === " " || e.key === "Enter") {
+                e.preventDefault();
+                onJuniorToggle();
+              }
+            }}
+          >
+            <span className="jp-checkitem__box">
+              {junior && <Check size={14} aria-hidden="true" />}
+            </span>
+            {t("klass2.junior")}
+          </div>
+          <p id={juniorHintId} className="text-body-sm text-text-primary px-4 pt-2 pb-2">
+            {t("klass2.juniorHint")}
+          </p>
+        </div>
       {noOptions ? (
-        <div className="jp-popover__empty p-4">
-          {emptyText}
+        // A section of its own, so the divider separates it from the junior checkbox above; the padding
+        // sits on the inner element because the section rule sets its own.
+        <div className="jp-panel__section">
+          <div className="jp-popover__empty p-4">{emptyText}</div>
         </div>
       ) : (
-        <div className="jp-panel__body">
+        <>
           {/* ── Omfattning (radio single-select) ── */}
           <div className="jp-panel__section">
             <div className="jp-panel__sectionhead">
@@ -278,8 +317,9 @@ export function JobbKlass2Panel({
               })}
             </div>
           </div>
-        </div>
+        </>
       )}
+      </div>
       {footer && <div className="jp-popover__foot">{footer}</div>}
     </PopoverShell>
   );

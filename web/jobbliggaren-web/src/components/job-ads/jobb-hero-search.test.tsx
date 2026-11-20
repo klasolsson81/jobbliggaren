@@ -73,6 +73,7 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroSearch>[0]>) {
       region={[]}
       municipality={[]}
       remote={false}
+      junior={false}
       employmentType={[]}
       worktimeExtent={[]}
       matchGrades={[]}
@@ -341,6 +342,7 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -401,6 +403,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -421,6 +424,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -446,6 +450,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         region={["CifL_Rzy_Mku"]}
         municipality={[]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -476,6 +481,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         region={[]}
         municipality={[]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -500,6 +506,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         region={[]}
         municipality={[]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -524,6 +531,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         region={[]}
         municipality={[]}
         remote={true}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -696,6 +704,7 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
         region={[]}
         municipality={[]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -769,6 +778,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
         region={[]}
         municipality={[]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -800,6 +810,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
         region={[]}
         municipality={[]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -902,6 +913,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
       region: [] as string[],
       municipality: [] as string[],
       remote: false,
+      junior: false,
       employmentType: [] as string[],
       worktimeExtent: [] as string[],
       matchGrades: [] as string[],
@@ -923,6 +935,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
         region={[]}
         municipality={[]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -969,6 +982,7 @@ describe("JobbHeroSearch — the occupation-name axis (#2199)", () => {
         region={[]}
         municipality={[]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -1021,6 +1035,7 @@ describe("JobbHeroSearch — text typed before hydration (#1787)", () => {
       region: [],
       municipality: [],
       remote: false,
+      junior: false,
       employmentType: [],
       worktimeExtent: [],
       matchGrades: [],
@@ -1180,6 +1195,7 @@ describe("JobbHeroSearch — minus-ord (#2143)", () => {
         region={[]}
         municipality={[]}
         remote={false}
+        junior={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}

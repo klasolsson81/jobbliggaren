@@ -367,7 +367,7 @@
       "yrkeNameHint": "Kryssar du i ett yrke visas annonser där arbetsgivaren angett just det yrket. Sök på yrkesgruppen för fler.",
       "yrkeGroupNameHint": "Kryssar du i ett yrke visas annonser där arbetsgivaren angett just det yrket.",
       "yrkeNamesSelected": "{count, plural, one {# valt yrke visas bland de aktiva filtren, inte här.} other {# valda yrken visas bland de aktiva filtren, inte här.}}",
-      "klass2Empty": "Filter kunde inte laddas just nu. Du kan söka på sökord ändå."
+      "klass2Empty": "Omfattning och anställningsform kunde inte laddas just nu. Du kan söka på sökord ändå."
     },
     "typeahead": {
       "loading": "Hämtar förslag…",
@@ -384,7 +384,9 @@
       "worktimeAll": "Alla",
       "worktimeHeading": "Omfattning",
       "employmentHeading": "Anställningsform",
-      "clear": "Rensa"
+      "clear": "Rensa",
+      "junior": "Juniora IT-jobb",
+      "juniorHint": "Jobb inom data och IT för dig som är ny i yrket."
     },
     "heroChip": {
       "showAll": "Visa alla"

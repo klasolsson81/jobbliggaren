@@ -19,6 +19,7 @@ const search = (overrides: Partial<JobbUrlState> = {}): JobbUrlState => ({
   region: [],
   municipality: [],
   remote: false,
+  junior: false,
   employmentType: [],
   worktimeExtent: [],
   matchGrades: [],

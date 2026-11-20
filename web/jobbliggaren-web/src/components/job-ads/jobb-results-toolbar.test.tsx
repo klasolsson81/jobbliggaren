@@ -36,6 +36,7 @@ function toolbar(over: ToolbarOverrides = {}) {
       occupationName={[]}
       region={[]}
       remote={false}
+      junior={false}
       municipality={[]}
       employmentType={[]}
       worktimeExtent={[]}

@@ -86,7 +86,7 @@ ADR 0187 (the junior membership the count composes; its "What comes back" points
 
 - **22:** the sum composes `IsListed(now)` and `JuniorMembership.Of` on every request and is uncached; sign-in decides who may read the number, not which ads are counted. **24:** every column it names is about the ad, and the stamp holds no ad id, verdict, count or matched span. **1 and 21:** the count is not public and is one total. ADR 0166's Amendment 2026-11-20 already places "a signed-in count or link on `/jobb` (#2265)" outside the public conclusion.
 - **Her signature on that amendment stands on three conditions:** the handler reads only through the port, which keeps its two members (her R7); the ADR 0166 diff in this PR is exactly the parked `<D11>` and `<M4 (c)>` lines, because any other change to the amendment's text lapses the signature, and #2265's own reasoning therefore lives here; and the parked readings are 0 in the three organisation-number fields and both erased-ad counts (2026-11-20, 16:58Z), so nothing comes back to her before the post.
-- **The junior preference needs no policy line** (Q3): ADR 0164's mail pauses and ADR 0168's bell switches have none, and the policy's "anpassa tjänsten efter dina val" covers it. Showing the link by default is not an Art. 25(2) opt-out default, since the "on" state stores nothing and reads a global number. There is no DPIA consequence (no profiling, no new data category, no new recipient) and no Art. 5(1)(e) concern once the store bound holds (Q4). A mark can exist only on a row the capture gate admitted, so nothing the gate blocks can be pinned (Q4).
+- **The junior preference needs no policy line** (Q3): ADR 0164's mail pauses and ADR 0168's bell switches have none, and the policy's "anpassa tjänsten efter dina val" covers it. Showing the link by default is not an Art. 25(2) opt-out default, since the "on" state stores nothing and reads a global number. There is no DPIA consequence (no profiling, no new data category, no new recipient) and no Art. 5(1)(e) concern once the store bound holds (Q4).
 
 ### D8 — DESIGN.md (CTO B5)
 
@@ -94,19 +94,19 @@ All three are written before the web build.
 
 - **A `/jobb`-only clause in the band rule.** The line stays one plain sentence; the links are a `<nav>` beside it. Its scope is pinned in `band-lines.test.ts`, or nothing stops the exception from spreading to other bands. Putting the links outside the band was rejected, because the issue fixes the placement; Klas set the band rule in #1917, and #2265 is his later, specific instruction for this surface.
 - **A fourth named direct-removal exception** to the destructive-action rule, under the criterion that rule already uses (WCAG 3.3.4): removing a quick link is undone where it came from, the junior link in Inställningar › Snabblänkar and a search link from its row in Senaste sökningar while the search exists. The rule's focus and status text applies as written. A confirmation dialog was rejected (friction on a reversible act Klas specified as ×), and so was "Ångra" (a timed control in a status region, duplicating two ways to restore).
-- **`loading.tsx` reserves one row,** with its height derived from tokens. The link row changes the band's height only at ≤768 px, where the links can wrap onto more rows (R2). The "4-way `Promise.all`" comment in `loading.tsx` is wrong after this PR and is fixed in it.
+- **`loading.tsx` reserves one row.** The link row changes the band's height only at ≤768 px, where the links can wrap onto more rows (R2). The "4-way `Promise.all`" comment in `loading.tsx` is wrong after this PR and is fixed in it.
 
 ### D9 — Legal text and register (CTO B2 binds; security-auditor Major 2, Minor 4, Minor 6)
 
 - **`content-legal.json`, sv and en.** The sentence on where searches are shown gains the hero and the settings section. The list of what is kept about each search gains "Om du har gjort sökningen till snabblänk." / "Whether you have made the search a quick link." (her draft ended "och i så fall när" / "and if so when", dropped with Minor 1, since no timestamp is stored). The eviction sentences in the section and in the retention list gain the quick-link exception. The CTO: this is not Klas's question (same purpose, the user controls it, bounded), and security-auditor reviews the wording.
-- **The version.** The policy version moves to the merge day in all three places: `TermsAcceptance.CurrentPrivacyPolicyVersion` and both "Senast uppdaterad" lines. It was already `2026-11-20`, set by #2241 (security-auditor Minor 4). If this PR merges on that UTC day, two texts sit under one Art. 13 notice version (ADR 0142 D6), and which release carried which text is recorded, so `terms_accepted_at` can tell them apart. Release 1681 (source `bc2235aba`) carries the text without the quick-link sentences; the release that carries this PR's text is known only after the merge (*What is not measured*).
+- **The version.** The policy version moves in all three places: `TermsAcceptance.CurrentPrivacyPolicyVersion` and both "Senast uppdaterad" lines. It was already `2026-11-20`, set by #2241 (security-auditor Minor 4). Release 1681 (source `bc2235aba`) carries the text without the quick-link sentences; the release that carries this PR's text is known only after the merge (*What is not measured*).
 - **The processing register's "Senaste sökningar" row** (the main copy, gitignored) records `quick_link_slot`, the eviction exception, and that both new stored values, the slot and the junior-link stamp, go into the manual Art. 15 extract, since there is no self-service export (security-auditor Minor 6).
 
 ## What is not measured
 
 - **The count's p95 on the production box,** and **the hero's added wall-clock in production.** R1 times the handler alone on a developer machine.
 - **How often a junior toggle racing a mark shows four links** (D3).
-- **How often a capture goes unstored** because a picked row was marked in between (D5).
+- **How often a capture goes unstored** (D5).
 - **Which release carries the new policy text,** known only after the merge (D9).
 
 ## Alternatives considered
@@ -130,7 +130,7 @@ All three are written before the web build.
 ## Consequences
 
 ### Positive
-- A link lives on the user's own row and goes with it on every delete path, and a mark can exist only on a row the capture gate admitted. There is no copy of the criteria, no new erasure sink and no registry row (CTO B2; architect Q8).
+- A link lives on the user's own row and goes with it on every delete path. There is no copy of the criteria, no new erasure sink and no registry row (CTO B2; architect Q8).
 - The store bounds the marked searches at three, and the capture keeps the 20-row bound whatever the slots are. An overshoot from concurrent captures shrinks back.
 - The junior link needs no backfill: a profile with no key shows it.
 - The count costs 7.9 ms p95 on a developer machine (R1), well inside the per-account anchor at 60 a minute, and a read that fails or times out hides the link and delays nothing beyond 2 s.
@@ -139,7 +139,7 @@ All three are written before the web build.
 ### Negative and accepted trade-offs
 - **A fifth read on the hot path,** with a bucket of its own and a wiring test to keep right. The 2 s timeout bounds its worst case, not its added time in production (unmeasured).
 - **"Three in all" is checked per request,** so a junior toggle racing a mark can show four links (D3). Unmeasured.
-- **A capture can go unstored** when a row it picked is marked in between (D5). Unmeasured.
+- **A capture can go unstored** (D5). Unmeasured.
 - **A mark's audit row commits in a second transaction,** the unit of work's save after the handler's own (D4).
 - **The cap's number lives in three places:** `QuickLinkCap.MaxTotal`, which the model's CHECK interpolates; the literal `3` in the migration, which records what ran; and the web's `QUICK_LINK_MAX`, pinned to the first by `QuickLinkCapWireContractTests`.
 - **A marked row is no longer cleaned up by eviction.** Any future reset of recent searches or change to the FilterHash format must say what it does to quick links (ADR 0060, Amendment 2026-11-20).
@@ -163,13 +163,13 @@ One PR on `feat/jobb-quick-links`, lane BE+FE, #2265. It adds one migration and 
 
 - **Domain:** `QuickLinkCap`; `Preferences.JuniorQuickLinkOffAt` and `JobSeeker.SetJuniorQuickLink`; `RecentJobSearch.QuickLinkSlot`, `MarkAsQuickLink` and `UnmarkQuickLink`, which raise `RecentJobSearchQuickLinkMarkedDomainEvent` and `RecentJobSearchQuickLinkUnmarkedDomainEvent` on actual transitions only (architect N3).
 - **Application:** `SetJuniorQuickLinkCommand`, `MarkRecentSearchQuickLinkCommand` and `UnmarkRecentSearchQuickLinkCommand` with their handlers; `GetJuniorItJobAdCountQuery`; `JuniorQuickLinkEnabled` on the profile DTO and `IsQuickLink` on `RecentJobSearchDto`.
-- **Infrastructure:** `RecentJobSearchConfiguration` (the CHECK and the index), `RecentJobSearchCapturer`, and the migration `20261120182624_AddRecentJobSearchQuickLinkSlot`, under `SET LOCAL lock_timeout = '3s'`: `ADD COLUMN` without a default changes the catalog only, but it takes ACCESS EXCLUSIVE and every committed search writes this table; the CHECK validates a column that is all NULL and the index covers no row yet, so neither needs `NOT VALID` or `CONCURRENTLY` (architect follow-up Q4). No registry needs a row: a smallint is not text-bearing, `job_seekers.preferences` is classified and `RecentJobSearch` is in the cascade map.
+- **Infrastructure:** `RecentJobSearchConfiguration` (the CHECK and the index), `RecentJobSearchCapturer`, and the migration `20261120182624_AddRecentJobSearchQuickLinkSlot`, under `SET LOCAL lock_timeout = '3s'`: `ADD COLUMN` without a default changes the catalog only, but it takes ACCESS EXCLUSIVE and every committed search writes this table. No registry needs a row: a smallint is not text-bearing, `job_seekers.preferences` is classified and `RecentJobSearch` is in the cascade map.
 - **Api:** the three routes of D4 and D6, `JobAdJuniorItCountPolicy` and `RateLimitingOptions.JobAdJuniorItCount`.
 - **Web:** the hero's `jobb-quick-links` component and the fifth read in `jobb/page.tsx`; `loading.tsx`; `lib/api/junior-it-count.ts`, `lib/api/quick-links.ts` and `lib/actions/quick-links.ts`; the section `/mina-sidor/snabblankar` and its entry in the navigation; the mark control in Senaste sökningar; the DTO mirrors; `messages/{sv,en}`.
 - **Tests, in the PR:** `QuickLinkCapTests` and `JobSeekerJuniorQuickLinkTests`; `RecentSearchQuickLinkStoreBoundTests` (a racing mark that takes the free slot is refused, and the store admits each slot once per seeker); `RecentJobSearchCapturerEvictionTests` (the oldest unmarked row goes and every mark stays, a mark committed between the eviction's read and its delete survives and the capture stores nothing, and an overshoot trims back to the cap); the quick-link endpoint and cross-user tests; the two rate-limit wiring tests; `JuniorItJobAdCountEndpointTests` (401 without a session, the total uncacheable, and a 429 with `Retry-After` and no count) and `JuniorItJobAdCountTests` (the count equals `/junior`'s total over every arm of the listed membership); `JuniorItJobAdCountLoggingSurfaceTests`; `QuickLinkCapWireContractTests`; the pre-migration stamp in `PreferencesConsentBackcompatTests`; `band-lines.test.ts`; `JuniorItCountLatencyMeasurement` (R1); and `tests/job-modal/quick-links.spec.ts`, the hero, `/sokningar` and the settings section in a real browser against the job-modal harness's fixture backend (R2). Their premises come from production paths (AGENTS.md §5, Tests).
 - **Then the docs:** DESIGN.md (D8); `content-legal.json`; this ADR and its README row; the ADR 0060 amendment; ADR 0187's pointer to this ADR, its R6 and its narrowed lines, and ADR 0166's two parked lines (D7); the session docs per ADR 0065. Then the panel.
 
-**Outside the diff, owed by the driving session:** the processing register's "Senaste sökningar" row (D9, security-auditor Minor 6), and the record of which release carried which policy text if this PR merges on 2026-11-20 UTC (D9, security-auditor Minor 4).
+**Outside the diff, owed by the driving session:** the processing register's "Senaste sökningar" row (D9, security-auditor Minor 6).
 
 ## Measurements
 

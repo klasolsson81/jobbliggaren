@@ -20,9 +20,10 @@ const STRINGS: Readonly<Record<Locale, { readonly heading: string; readonly cont
 
 /**
  * The 200 that answers a top-level navigation another site started without the `SameSite=Strict` session cookie
- * (ADR 0018, Amendment 2026-10-10): the continuation document, whose refresh starts on this origin and so carries the
- * cookie if the browser holds one. The caller decides when to answer with it (`strict-cookie-bounce.ts`) and writes
- * neither the document nor its headers itself.
+ * (ADR 0018, Amendments 2026-10-10 and 2026-11-21): the continuation document, whose refresh starts on this origin and
+ * so carries the cookie if the browser holds one. Its two callers, the bounce for gated pages (`strict-cookie-bounce.ts`)
+ * and the junior list's branch (`junior-it-signed-in-route.ts`), each decide when to answer with it; neither writes the
+ * document or its headers itself.
  *
  * The refresh goes to {@link hopTarget}`(target)`, so the hop always carries {@link BOUNCE_MARKER}: a request that
  * carries it is never answered with this document again. Null when `target` is not a path on this site, so no caller

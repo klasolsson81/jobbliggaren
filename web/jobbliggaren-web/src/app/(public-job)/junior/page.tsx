@@ -11,8 +11,9 @@ interface PageProps {
 }
 
 /**
- * The open junior IT list, `/junior` (ADR 0186): listed Data/IT ads that are curated or carry a junior headline, for
- * everyone, signed in or not. It reads no cookie and no session, and only `municipality`, `sortBy` and `page`; a value
+ * The open junior IT list, `/junior` (ADR 0186): listed Data/IT ads the junior assessment admits (ADR 0187), the same
+ * answer for every request that reaches it. A request that carries the session cookie never does: the proxy sends it on
+ * to `/jobb?junior=on` (#2284). It reads no cookie and no session, and only `municipality`, `sortBy` and `page`; a value
  * that cannot be one of those is a 404 without asking the API.
  *
  * `noindex, follow` on every answer, and in no sitemap (ADR 0166, the amendment for the junior list). The title,

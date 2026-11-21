@@ -419,22 +419,7 @@ public static partial class RateLimitingExtensions
             // bucket (RateLimitingOptions.NotificationFeedRead carries the derivation). Auth-gated →
             // anonymous is caught by RequireAuthorization (NoLimiter bypass). TokenBucket, QueueLimit=0.
             options.AddPolicy(NotificationFeedReadPolicy, ctx =>
-            {
-                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-                if (string.IsNullOrEmpty(userId))
-                    return RateLimitPartition.GetNoLimiter("anonymous-notification-feed-read");
-
-                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
-                    new TokenBucketRateLimiterOptions
-                    {
-                        TokenLimit = rateLimitOpts.NotificationFeedRead.PermitLimit,
-                        TokensPerPeriod = Math.Max(1, rateLimitOpts.NotificationFeedRead.PermitLimit / rateLimitOpts.NotificationFeedRead.SegmentsPerWindow),
-                        ReplenishmentPeriod = TimeSpan.FromSeconds(
-                            rateLimitOpts.NotificationFeedRead.WindowSeconds / (double)rateLimitOpts.NotificationFeedRead.SegmentsPerWindow),
-                        QueueLimit = 0,
-                        AutoReplenishment = true,
-                    });
-            });
+                PerUserTokenBucket(ctx, "anonymous-notification-feed-read", rateLimitOpts.NotificationFeedRead));
 
             // Partition: UserId (claim "sub"). #2130 - the notification bell's per-row marks (a click on a row, and its X),
             // their own bucket (RateLimitingOptions.NotificationFeedMark carries the derivation); "Markera alla som lästa"

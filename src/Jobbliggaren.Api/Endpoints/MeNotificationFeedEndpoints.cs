@@ -24,7 +24,7 @@ namespace Jobbliggaren.Api.Endpoints;
 /// <item>Three POST marks: one notification read, and everything read through a token (#2130), and one notification
 ///   taken out of the bell with its X (#2151). They set the source rows' own bell flags (<c>read_in_notification_feed</c>; the X also
 ///   <c>dismissed_from_notification_feed</c>) and move no watermark. 204 for every request from a signed-in owner,
-///   whether or not the row exists, is theirs, or is still listed; they share their own bucket.</item>
+///   whether or not the row exists, is theirs, or is still listed.</item>
 /// <item>Three PUT switches (#2130; the third, Branschbevakning, #1663): whether a type reaches the bell. Delivery choices,
 ///   never consents; each carries only <c>{enabled}</c>. Switching ON first marks what arrived while the type was off as
 ///   read, then clears the stamp.</item>

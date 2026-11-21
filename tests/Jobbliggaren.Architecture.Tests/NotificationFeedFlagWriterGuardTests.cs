@@ -9,8 +9,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <c>ReadInNotificationFeed</c> and <c>DismissedFromNotificationFeed</c>, on any of the three source tables. They are written
 /// only by the source classes, each write triggered by the user in the bell or by their own switch (ADR 0168 D1, ADR 0169
 /// V20, DPIA 560 §D9 C-D9 point 3): a system writer, such as a job, the scan, the purge or a criterion edit, is Blocker class.
-/// A set-based write passes a <c>private set</c>, so this is what makes a second writer, or a job that calls a source's
-/// marker, a red build instead of a review comment. A source scan over <c>src/</c>, comments stripped, in the form of
+/// A set-based write passes a <c>private set</c>. A source scan over <c>src/</c>, comments stripped, in the form of
 /// <c>JuniorClassificationWriterGuardTests</c>.
 /// </summary>
 public sealed class NotificationFeedFlagWriterGuardTests
@@ -69,6 +68,22 @@ public sealed class NotificationFeedFlagWriterGuardTests
                 @"\bnew\s+(MarkNotificationReadCommand|DismissNotificationCommand|MarkNotificationsReadThroughCommand"
                 + @"|MarkNotificationFeedBacklogReadCommand)\s*\(")
             .ShouldBe([Endpoints]);
+
+    // (g) The change tracker's spelling of a write, Property(x => x.Flag), stands in the schema's mapping and nowhere else.
+    [Fact]
+    public void Only_the_mapping_reaches_a_bell_flag_through_the_change_tracker() =>
+        FilesMatching($@"\.\s*Property\s*(<[^>]*>)?\s*\(\s*\w+\s*=>\s*\w+\s*\.\s*{Flag}\b")
+            .Where(path => !path.StartsWith("Jobbliggaren.Infrastructure/Persistence/Configurations/", StringComparison.Ordinal))
+            .ShouldBeEmpty();
+
+    // (h) Neither flag is named as a string, as EF.Property and the string overloads take it, outside the mapping and the
+    // migrations, whose model snapshots spell both out.
+    [Fact]
+    public void Only_the_mapping_and_the_migrations_name_a_bell_flag_as_a_string() =>
+        FilesMatching($@"""{Flag}""")
+            .Where(path => !path.StartsWith("Jobbliggaren.Infrastructure/Persistence/Migrations/", StringComparison.Ordinal)
+                           && !path.StartsWith("Jobbliggaren.Infrastructure/Persistence/Configurations/", StringComparison.Ordinal))
+            .ShouldBeEmpty();
 
     private static List<string> FilesMatching(string pattern)
     {

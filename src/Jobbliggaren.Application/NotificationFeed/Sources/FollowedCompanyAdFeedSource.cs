@@ -64,9 +64,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
     /// The grade path's load bound. The common path is a SQL <c>COUNT(DISTINCT)</c> and needs none, but
     /// with an "endast matchade" watch every unacknowledged hit is loaded and its ad graded on every
     /// poll, and nothing limits how many companies a user follows. Past this many hits the source
-    /// refuses to count (ADR 0120 clause 5) rather than show a floor. Derived, not measured: at the
-    /// bell's 12 requests per minute it caps graded ids at 120 000 per user and minute, the order
-    /// <c>CompanyWatchCriteriaList</c> already accepts. The bell's own constant, deliberately not tied to
+    /// refuses to count (ADR 0120 clause 5) rather than show a floor. The bell's own constant, deliberately not tied to
     /// <c>ListNewFollowedCompanyAdsQueryHandler.MaxRows</c> or any other cap.
     /// </summary>
     internal const int MaxCountedHits = 10_000;

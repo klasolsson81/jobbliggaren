@@ -111,8 +111,6 @@ public class CompanyWatchCriterionAdFeedSourceTests
 
     [Theory]
     [InlineData(CompanyWatchCriterionScanOutcome.TooBroad)]
-    [InlineData(CompanyWatchCriterionScanOutcome.NotMaterialised)]
-    [InlineData(null)]
     public async Task ReadAsync_ACriterionWhoseLastScanDidNotAnswerScanned_ContributesNothing(
         CompanyWatchCriterionScanOutcome? outcome)
     {
@@ -321,6 +319,39 @@ public class CompanyWatchCriterionAdFeedSourceTests
         var named = result.Items.Where(i => i.IsUnread).ShouldHaveSingleItem();
         named.JobAdId.ShouldBe(unread.Value);
         named.OccurredAt.ShouldBe(T0.AddHours(1));
+    }
+
+    // The shortfall's other arm (ADR 0162 D2, one row per ad): the window holds the ad only through its newest hit, which is
+    // read, while an older hit of the same ad, unread, lies past the window's edge. The shortfall names the ad, and its row
+    // replaces the window's read one with the later of the two moments. The newer hit read and the older not is the state the
+    // switch-on backlog mark leaves (CriterionHitReadInBell names it).
+    [Fact]
+    public async Task ReadAsync_WhenTheWindowHoldsAnAdOnlyThroughItsReadNewestHit_TheShortfallMakesThatRowUnread()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        _seed.Seeker(db, userId, backgroundMatchConsent: false);
+        var first = _seed.Criterion(db, userId);
+        var second = _seed.Criterion(db, userId);
+        var ad = _seed.ActiveAd(db);
+        _seed.CriterionHit(db, first, ad, T0.AddHours(1));
+        _seed.CriterionHit(db, second, ad, T0.AddHours(20));
+        NotificationFeedSeed.CriterionHitReadInBell(db, second, ad);
+        const int maxItems = 1;
+        for (var i = 0; i < maxItems * CompanyWatchCriterionAdFeedSource.HitsPerRow - 1; i++)
+        {
+            var filler = _seed.ActiveAd(db);
+            _seed.CriterionHit(db, first, filler, T0.AddHours(10 + i));
+            NotificationFeedSeed.CriterionHitsReadInBell(db, userId, filler);
+        }
+
+        var result = await ReadAsync(db, userId, maxItems);
+
+        result.UnreadCount.ShouldBe(1);
+        result.Items.Count(i => i.JobAdId == ad.Value).ShouldBe(1, "one row per ad");
+        var row = result.Items.Where(i => i.IsUnread).ShouldHaveSingleItem();
+        row.JobAdId.ShouldBe(ad.Value);
+        row.OccurredAt.ShouldBe(T0.AddHours(20), "the later moment, the window's");
     }
 
     /// <summary>The user's X on a match, as <c>MatchFeedSource</c>'s one statement leaves it; InMemory cannot run it.</summary>

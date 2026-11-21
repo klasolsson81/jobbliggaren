@@ -2,7 +2,6 @@ using System.Collections;
 using System.Reflection;
 using Jobbliggaren.Application.Common.Abstractions;
 using Mono.Cecil;
-using Mono.Cecil.Cil;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -35,7 +34,6 @@ public sealed class NotificationFeedSourcePrecedenceTests
             var held = MethodsIncludingNestedTypes(source)
                 .Where(method => method.HasBody)
                 .SelectMany(method => method.Body.Instructions)
-                .Where(instruction => instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt)
                 .Select(instruction => instruction.Operand)
                 .OfType<MethodReference>()
                 .Where(target => target.Name == HeldAdIds && rank.ContainsKey(target.DeclaringType.FullName))

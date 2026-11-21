@@ -210,7 +210,7 @@ public class RateLimitingOptionsTests
     public void Defaults_NotificationFeedRead_IsABurstOf12_RefilledOneAMinute()
     {
         // #1663 PR 3 — the burst from #1666's demand (twelve tabs reloading at once), the sustained rate from the measured
-        // cost at the ceiling (⌊1 000 ÷ 591,0 ms⌋ = 1 a minute). RateLimitingOptions.NotificationFeedRead carries the
+        // cost (⌊1 000 ÷ 595,2 ms⌋ = 1 a minute). RateLimitingOptions.NotificationFeedRead carries the
         // derivation; the derived quantities are asserted because the sustained rate is what the cost bounds.
         var options = new RateLimitingOptions().NotificationFeedRead;
 

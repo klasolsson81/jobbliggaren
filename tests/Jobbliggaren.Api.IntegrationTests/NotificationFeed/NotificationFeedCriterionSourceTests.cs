@@ -170,6 +170,9 @@ public class NotificationFeedCriterionSourceTests(ApiFactory factory)
     {
         var (client, userId) = await RegisterUserAsync(factory, $"criterion-b5-{state}", Ct);
         await GiveConsentAsync(client, true);
+        // A second user whose gates all hold: a gate check that lost its correlation would read their gate as this user's.
+        var (other, _) = await RegisterUserAsync(factory, $"criterion-b5-{state}-other", Ct);
+        await GiveConsentAsync(other, true);
         var watch = await SeedWatchAsync(factory, userId, Ct);
         await SeedHeldTrioAsync(userId, watch, await SeedCriterionAsync(factory, userId, Ct), Base.AddMinutes(1));
         switch (state)
@@ -235,6 +238,82 @@ public class NotificationFeedCriterionSourceTests(ApiFactory factory)
         lift.Fired.ShouldBeTrue();
         read.UnreadCount.ShouldBe(2);
         read.Items.Where(i => i.IsUnread).Select(i => i.JobAdId).ShouldBe([released.Value, own.Value], ignoreOrder: true);
+    }
+
+    // ── the token bounds the read, and an ad is one row (ADR 0162 I4 and D2) ──────────────────
+
+    // Token first, then the count, the window and the shortfall bounded by it (I4, as the match and follow sources pin it): a
+    // hit committed between the token and the rest is neither counted, listed nor named, so it stays unread for the next
+    // poll. Read rows crowd the older unread hit out of a one-row window, so the shortfall statement runs as well.
+    [Fact]
+    public async Task A_criterion_hit_committed_after_the_token_is_neither_counted_listed_nor_named()
+    {
+        var (client, userId) = await RegisterUserAsync(factory, "criterion-race-token", Ct);
+        var criterion = await SeedCriterionAsync(factory, userId, Ct);
+        var unread = await SeedAdAsync(factory, "Oläst", Ct);
+        await SeedCriterionHitAsync(factory, criterion, unread, Base.AddMinutes(1), Ct);
+        for (var i = 0; i < CompanyWatchCriterionAdFeedSource.HitsPerRow; i++)
+        {
+            var crowd = await SeedAdAsync(factory, $"Läst {i}", Ct);
+            await SeedCriterionHitAsync(factory, criterion, crowd, Base.AddMinutes(10 + i), Ct);
+            (await ClickAsync(client, Segment, crowd)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
+
+        var late = await SeedAdAsync(factory, "Sen", Ct);
+
+        using var scope = factory.Services.CreateScope();
+        // The gate is the first statement and the token the second.
+        var interceptor = new AfterStatementInterceptor(
+            2, () => SeedCriterionHitAsync(factory, criterion, late, Base.AddMinutes(30), Ct));
+        await using var db = NewContext(scope, interceptor);
+        var read = await new CompanyWatchCriterionAdFeedSource().ReadAsync(Context(db, userId, maxItems: 1), Ct);
+
+        interceptor.Fired.ShouldBeTrue();
+        read.UnreadCount.ShouldBe(1);
+        read.AcknowledgedThrough.ShouldBe(Base.AddMinutes(10 + CompanyWatchCriterionAdFeedSource.HitsPerRow - 1));
+        read.Items.Select(i => i.JobAdId).ShouldNotContain(late.Value);
+        read.Items.Where(i => i.IsUnread).Select(i => i.JobAdId).ShouldBe([unread.Value]);
+
+        await using var fresh = NewContext(scope);
+        (await new CompanyWatchCriterionAdFeedSource().ReadAsync(Context(fresh, userId, maxItems: 1), Ct))
+            .UnreadCount.ShouldBe(2);
+    }
+
+    // On Postgres: the count is of distinct ads, the shortfall's grouping names the ad once at its newest hit, and the click
+    // and the X each reach both hits. Read rows crowd the ad out of a one-row window, so the shortfall statement runs.
+    [Fact]
+    public async Task An_ad_two_criteria_reach_is_counted_once_named_once_and_marked_through_both_hits()
+    {
+        var (client, userId) = await RegisterUserAsync(factory, "criterion-two-reach", Ct);
+        var first = await SeedCriterionAsync(factory, userId, Ct);
+        var second = await SeedCriterionAsync(factory, userId, Ct);
+        var shared = await SeedAdAsync(factory, "Två bevakningar", Ct);
+        await SeedCriterionHitAsync(factory, first, shared, Base.AddMinutes(1), Ct);
+        await SeedCriterionHitAsync(factory, second, shared, Base.AddMinutes(2), Ct);
+        for (var i = 0; i < CompanyWatchCriterionAdFeedSource.HitsPerRow; i++)
+        {
+            var crowd = await SeedAdAsync(factory, $"Läst {i}", Ct);
+            await SeedCriterionHitAsync(factory, first, crowd, Base.AddMinutes(10 + i), Ct);
+            (await ClickAsync(client, Segment, crowd)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
+
+        using (var scope = factory.Services.CreateScope())
+        await using (var db = NewContext(scope))
+        {
+            var read = await new CompanyWatchCriterionAdFeedSource().ReadAsync(Context(db, userId, maxItems: 1), Ct);
+            read.UnreadCount.ShouldBe(1);
+            read.Items.Count(i => i.JobAdId == shared.Value).ShouldBe(1, "one row per ad");
+            var named = read.Items.Where(i => i.IsUnread).ShouldHaveSingleItem();
+            named.JobAdId.ShouldBe(shared.Value);
+            named.OccurredAt.ShouldBe(Base.AddMinutes(2), "the ad's moment is its newest hit");
+        }
+
+        (await ClickAsync(client, Segment, shared)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await CriterionHitRowsAsync(factory, userId, shared, Ct)).Select(h => h.ReadInNotificationFeed)
+            .ShouldBe([true, true]);
+        (await DismissAsync(client, Segment, shared)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await CriterionHitRowsAsync(factory, userId, shared, Ct)).Select(h => h.DismissedFromNotificationFeed)
+            .ShouldBe([true, true]);
     }
 
     // ── F-A: the bell lists the new set and nothing else (CTO ruling 1) ──────────────────────
@@ -392,6 +471,8 @@ public class NotificationFeedCriterionSourceTests(ApiFactory factory)
         (await ClickAsync(me, Segment, clicked)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await DismissAsync(me, Segment, dismissed)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await MarkAllAsync(me, Segment, token)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        // Off again first, so the switch-on's backlog statement runs over the hit it already read.
+        (await SwitchAsync(me, Segment, false)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await SwitchAsync(me, Segment, true)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         (await TupleVersionsAsync(myId)).ShouldBe(mineAfterFirst, "a repeated request writes no tuple");

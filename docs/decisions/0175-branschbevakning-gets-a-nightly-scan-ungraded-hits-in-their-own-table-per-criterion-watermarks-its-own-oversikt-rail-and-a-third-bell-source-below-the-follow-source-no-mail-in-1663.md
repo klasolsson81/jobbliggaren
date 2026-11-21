@@ -283,7 +283,7 @@ follow source. #1663 sends no mail. It ships as three PRs, one session each.**
   materialisation. A required key triggers CLAUDE.md §11's dev-boot contract. The cadence is configurable so #1664 does not need a second scan.
 - **The due set** is DISTINCT `UserId` over criteria with the `JobSeeker` existence checked through its query filter, so an account under deletion produces no hits (Minor 8; parity
   `CompanyWatchScanJob.cs:140-143`). There is no per-user Hangfire fan-out (Minor 9; `0161:246-247`, V7).
-- Org.nr, a criterion label or code, and a `JobAdId` together with a `UserId` appear in no log, no bell DTO and no mail (B9; `0161:244-247`, V5 and V6; M-D10's scope).
+- Org.nr, a criterion label or code appear in no log, no bell DTO and no mail (B9; `0161:244-247`, V5 and V6; M-D10's scope).
   The owner's own `/nya` response carries the ads and the criterion's codes by design, and the count carries criterion ids and numbers only.
   The new scan and port files go in `RawOrgNrReadingSourcePaths` (`OrganizationNumberSurfacingGuardTests.cs:58`).
 - **Worker wiring.** `AddCompanyWatchCriterionScan` registers the options (`CompanyWatchCriterionScan:CadenceCron`, default `55 3 * * *`), the job and its wrapper; both
@@ -572,9 +572,7 @@ D1–D13 stand as the record; where this section differs, it governs.
   writer guard below and the aggregate's docblock.
 
 **Who writes the flags.** Only the four writers the user triggers (C-D9 point 3): a click, the X, "Markera alla", and the backlog mark when the switch goes back
-on. The scan and the purge write neither flag. `NotificationFeedFlagWriterGuardTests` is a source scan over `src/` with comments stripped (clauses (a)–(f)). It
-makes any other writer of either flag on any of the three tables, any clearing of a flag, and any other caller of a marker or builder of a mark command a red
-build.
+on. The scan and the purge write neither flag. `NotificationFeedFlagWriterGuardTests` is a source scan over `src/` with comments stripped.
 
 **The precedence as a fitness function.** `NotificationFeedSourcePrecedenceTests` reads the IL of each source and its compiler-generated types (Cecil). It pins
 that source k calls `HeldAdIds` on exactly the sources above it and on none below. ADR 0173 D7 is now carried by this test as well as by text.
@@ -615,7 +613,7 @@ plan.
   each, a match row on the newest 5 000 ads and a follow hit on the newest 15 000, so every lower source's window walks past every held hit (the costliest
   arrangement an account can produce), and the ceiling profile of 391 occupation groups, 21 regions and 290 municipalities.
 - **The bell on the final code (M0):** handler p95 330,1 ms (base case, the follow source's common path) to 591,0 ms (shortfall case, its grade path).
-  Without the Branschbevakning source the same bell measures 81,4–198,2 ms on the same fixture, so **ADR 0045 class (a) is exceeded at the ceiling,
+  Without the Branschbevakning source the same bell measures at most 198,2 ms on the same fixture, so **ADR 0045 class (a) is exceeded at the ceiling,
   and the overrun is this source's.** EXPLAIN (ANALYZE, BUFFERS) of every statement, 2026-11-20: both tokens 0,04 ms or less; the Branschbevakning
   count 152,9 ms and window 129,1 ms. This answers ADR 0173 lapse 9 for both lower sources.
 - **The everyday case (M1, one criterion, the box's shape at S-2):** at most 289,9 ms on every pass, inside class (a).
@@ -649,7 +647,7 @@ background job and batching stay rejected, and `fillfactor` is not recommended. 
 
 **The buckets** (`RateLimitingOptions`; `security-auditor` signs every number in her review of this PR):
 - `NotificationFeedRead`: a burst of 12 from the demand (twelve tabs reloading at once) and one token back a minute from the cost
-  (⌊1 000 ÷ 591,0⌋ = 1). Her rule (iii) failed, and the docblock says so.
+  (⌊1 000 ÷ 595,2⌋ = 1). Her rule (iii) failed, and the docblock says so.
 - `NotificationFeedMarkThrough`, new, on `POST …/{source}/read`: a burst of 6 (two presses of three calls) and 36 a minute, under the ceiling of
   ⌊1 000 ÷ 23,8⌋ = 42. `NotificationFeedMark` keeps 60/60 for the click and the X, whose panel burst is now 20 + 20 = 40.
 - `CriterionNewAdCounts`: 8 a minute with a burst of 8 on the PK branch's 113,6 ms; its one consumer is already held to 3 a minute by

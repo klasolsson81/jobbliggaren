@@ -883,6 +883,26 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         Source(feed, "FollowedCompanyAd").UnreadCount.ShouldBe(0);
     }
 
+    // The same trap in the third source: its X filters on the dismissed flag, so a Branschbevakning row the user already
+    // opened in the bell is taken out too.
+    [Fact]
+    public async Task The_X_works_on_a_Branschbevakning_row_already_read_in_the_bell()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, userId) = await RegisterUserAsync(factory, "dismiss-read-criterion", ct);
+        var ad = await SeedAdAsync(factory, "Läst bransch", ct);
+        await SeedRowAsync(await ProducerAsync(Criterion, userId, ct), userId, ad, Base.AddMinutes(1), ct);
+        (await MarkRowAsync(client, Criterion, ad.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await ReadFlagsAsync(userId, Criterion, ad, ct)).ShouldHaveSingleItem().ShouldBeTrue();
+
+        (await DismissAsync(client, Criterion, ad.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        (await DismissedFlagsAsync(userId, Criterion, ad, ct)).ShouldHaveSingleItem().ShouldBeTrue();
+        var feed = await GetFeedAsync(client, ct);
+        feed.Items.ShouldNotContain(i => i.JobAdId == ad.Value);
+        Source(feed, KindOf(Criterion)).UnreadCount.ShouldBe(0);
+    }
+
     [Fact]
     public async Task A_dismissal_is_idempotent()
     {

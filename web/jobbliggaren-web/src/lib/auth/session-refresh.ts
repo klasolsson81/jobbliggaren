@@ -141,6 +141,10 @@ export function writeRefreshCookies(
       response.cookies.set(SESSION_COOKIE_NAME, "", { ...HOST_COOKIE_ATTRS, maxAge: 0 });
       response.cookies.set(REFRESH_AFTER_COOKIE_NAME, "", { ...HOST_COOKIE_ATTRS, maxAge: 0 });
       break;
+    default: {
+      const unhandled: never = outcome;
+      return unhandled;
+    }
   }
   // A Set-Cookie must never be cached.
   response.headers.set("Cache-Control", "no-store");

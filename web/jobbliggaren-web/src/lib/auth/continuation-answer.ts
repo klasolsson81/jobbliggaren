@@ -55,7 +55,8 @@ export function continuationAnswer(request: NextRequest, target: string): NextRe
 export function isSameSitePath(target: string): boolean {
   if (target.length > MAX_TARGET_LENGTH || !target.startsWith("/") || target.startsWith("//")) return false;
   if (hasControlCharacterOrBackslash(target)) return false;
-  return new URL(target, PARSE_BASE).origin === PARSE_BASE.origin;
+  const url = new URL(target, PARSE_BASE);
+  return url.origin === PARSE_BASE.origin && !url.pathname.startsWith("//");
 }
 
 /** The hop's URL: `target` with {@link BOUNCE_MARKER}. Exported for the edge-log inventory. */

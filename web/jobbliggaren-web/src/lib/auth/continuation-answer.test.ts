@@ -29,6 +29,11 @@ describe("continuationAnswer", () => {
     "/\\evil.example",
     "matchningar",
     `/jobb/${"a".repeat(2050)}`,
+    "/.//evil.example",
+    "/..//evil.example",
+    "/%2e//evil.example",
+    "/a/..//evil.example",
+    "/.//jobbliggaren.invalid//evil.example",
   ])("refuses %j, which is no path on this site: no document, so no refresh to another host", (target) => {
     expect(continuationAnswer(request(), target)).toBeNull();
   });

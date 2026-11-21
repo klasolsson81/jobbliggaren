@@ -1,8 +1,8 @@
 "use client";
 
-// "use client": reads the trigger's rect and the viewport in an effect, and listens to `resize`.
+// "use client": reads the trigger's rect and the viewport in effects, and listens to `resize`.
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { FOCUSABLE_SELECTOR } from "@/lib/popover/focusable";
 import { PANEL_GAP, placePanel, type PanelPlacement } from "@/lib/popover/placement";
 
@@ -16,7 +16,8 @@ import { PANEL_GAP, placePanel, type PanelPlacement } from "@/lib/popover/placem
  * container sits between the trigger and the document; as a fixed box, a sheet's containing block
  * is the viewport only while no ancestor establishes a containing block for fixed-position
  * descendants (CSS Positioned Layout 3). Under it a page scroll moves the trigger and
- * the page offset by the same amount, so only a `resize` re-measures.
+ * the page offset by the same amount, so a scroll needs no re-measure. A `resize` does, and so does
+ * every commit while the panel is open, since a re-render can move the trigger (#2275).
  *
  * Once per opening, before the first anchored placement: when the panel's first focusable element
  * would end below the viewport, the page scrolls the trigger to the top of the scroll padding, so
@@ -35,6 +36,7 @@ export function usePanelPosition(
   ready: boolean;
 } {
   const [placement, setPlacement] = useState<PanelPlacement | null>(null);
+  const measureRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const trigger = triggerRef.current;
@@ -64,9 +66,17 @@ export function usePanelPosition(
       trigger.scrollIntoView?.({ block: "start" });
     }
     measure();
+    measureRef.current = measure;
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    return () => {
+      measureRef.current = null;
+      window.removeEventListener("resize", measure);
+    };
   }, [open, triggerRef, panelRef, preferredWidth]);
+
+  useLayoutEffect(() => {
+    measureRef.current?.();
+  });
 
   const style: React.CSSProperties =
     placement === null

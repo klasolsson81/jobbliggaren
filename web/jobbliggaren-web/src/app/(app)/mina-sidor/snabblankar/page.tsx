@@ -4,7 +4,7 @@ import { getServerSession } from "@/lib/auth/session";
 import { getMyProfile } from "@/lib/api/me";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { QuickLinksSection } from "@/components/settings/quick-links-section";
-import { MINA_SIDOR_HEADING_ID, MinaSidorShell, ProfileUnavailable } from "@/components/settings/mina-sidor-shell";
+import { MinaSidorShell, ProfileUnavailable } from "@/components/settings/mina-sidor-shell";
 import type { Metadata } from "next";
 import { PageFeedback } from "@/components/feedback/page-feedback";
 
@@ -39,7 +39,6 @@ export default async function MinaSidorSnabblankarPage() {
           <QuickLinksSection
             juniorEnabled={profileResult.data.juniorQuickLinkEnabled}
             searches={searchesResult.data}
-            headingId={MINA_SIDOR_HEADING_ID}
           />
         ) : (
           <ProfileUnavailable

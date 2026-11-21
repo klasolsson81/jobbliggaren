@@ -1,26 +1,34 @@
 "use client";
 
-// "use client": the pending removal, the links removed since the last server render and the focus moves are state in
-// the browser.
+// "use client": the pending removal, the links removed since the last server render, the open settings list and the
+// focus moves are state in the browser.
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { X } from "lucide-react";
+import { Settings, X } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
 import { buildRecentSearchLabel, recentSearchLabelCopy } from "@/lib/job-ads/recent-search-label";
+import { JUNIOR_ON_VALUE } from "@/lib/job-ads/search-params";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
 import { RemovalStatus, useRowRemoval } from "@/components/common/row-removal";
+import { PopoverBand, PopoverShell } from "@/components/popover/popover-shell";
+import { QuickLinkPicker } from "@/components/job-ads/quick-link-picker";
 import { setJuniorQuickLinkAction, setRecentSearchQuickLinkAction } from "@/lib/actions/quick-links";
 
 const JUNIOR_KEY = "junior";
+const JUNIOR_HREF = `/jobb?junior=${JUNIOR_ON_VALUE}`;
+const PICKER_UNMARKED_LIMIT = 6;
 
 interface JobbQuickLinksProps {
   /** The junior link's count, or null when the link is hidden: switched off, at 0, or after a failed read. */
   juniorCount: number | null;
-  /** The recent searches marked as quick links, in the list's order. */
-  searches: ReadonlyArray<RecentJobSearchDto>;
-  /** The hero's h1, which takes focus when the last link is removed. It carries `tabIndex={-1}`. */
+  /** Whether the junior link is on, or null when the profile could not be read; then no settings list is offered. */
+  juniorEnabled: boolean | null;
+  /** The user's recent searches, in the list's order; the marked ones are the links. Null when the read failed. */
+  searches: ReadonlyArray<RecentJobSearchDto> | null;
+  /** The hero's h1, the last fallback for focus after a removal. It carries `tabIndex={-1}`. */
   headingId: string;
 }
 
@@ -32,12 +40,12 @@ interface QuickLink {
 }
 
 /**
- * ADR 0188 (#2265) — the quick links under the line in the /jobb plate (DESIGN.md, the band clause for /jobb): the
- * junior IT link first, then the marked recent searches, each with an × that removes it at once (DESIGN.md's fourth
- * direct-removal exception: it comes back from Inställningar or from the search's row). Plain anchors, never
- * `next/link`, so nothing is prefetched: a prefetched `/junior` would spend the visitor's own budget there.
+ * ADR 0188 (#2265, amended for #2275) — the quick links under the line in the /jobb plate (DESIGN.md, the band clause
+ * for /jobb): the junior IT link first, then the marked recent searches, each with an × that removes it at once, and
+ * last the "Anpassa" button that opens the list to pick them from. Every link stays on /jobb, the junior one as its
+ * junior filter, so they navigate softly and are never prefetched.
  */
-export function JobbQuickLinks({ juniorCount, searches, headingId }: JobbQuickLinksProps) {
+export function JobbQuickLinks({ juniorCount, juniorEnabled, searches, headingId }: JobbQuickLinksProps) {
   const t = useTranslations("jobads.quickLinks");
   const tRecent = useTranslations("jobads.recent");
   const coded = useCodedTaxonomyName();
@@ -50,26 +58,31 @@ export function JobbQuickLinks({ juniorCount, searches, headingId }: JobbQuickLi
   }
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLButtonElement>(null);
 
   const links = useMemo(() => {
     const labelCopy = recentSearchLabelCopy(tRecent, coded);
     const all: QuickLink[] = [
       ...(juniorCount === null
         ? []
-        : [{ key: JUNIOR_KEY, name: t("junior"), href: "/junior", count: juniorCount }]),
-      ...searches.map((search) => ({
-        key: search.id,
-        name: buildRecentSearchLabel(search.label, labelCopy),
-        href: buildRecentSearchHref(search),
-        count: null,
-      })),
+        : [{ key: JUNIOR_KEY, name: t("junior"), href: JUNIOR_HREF, count: juniorCount }]),
+      ...(searches ?? [])
+        .filter((search) => search.isQuickLink)
+        .map((search) => ({
+          key: search.id,
+          name: buildRecentSearchLabel(search.label, labelCopy),
+          href: buildRecentSearchHref(search),
+          count: null,
+        })),
     ];
     return all.filter((link) => !removed.has(link.key));
   }, [juniorCount, searches, removed, t, tRecent, coded]);
 
+  // After the last link, focus goes to the control that adds them (DESIGN.md's removal rule, as for Matchning's chips).
   const removal = useRowRemoval(
     links.map((link) => link.key),
-    () => document.getElementById(headingId)
+    () => settingsRef.current ?? document.getElementById(headingId)
   );
 
   // The × stays enabled while the action runs: a `disabled` control with focus drops it to <body> (DESIGN.md, the
@@ -96,14 +109,15 @@ export function JobbQuickLinks({ juniorCount, searches, headingId }: JobbQuickLi
   return (
     <div>
       <RemovalStatus receipt={removal.receipt} />
-      {links.length > 0 && (
+      {(links.length > 0 || (juniorEnabled !== null && searches !== null)) && (
         <nav aria-label={t("navLabel")}>
           <ul className="jp-hero__quicklinks-list">
             {links.map((link) => (
               <li key={link.key} className="jp-hero__quicklink-item">
-                <a
+                <Link
                   ref={removal.firstStopRef(link.key)}
                   href={link.href}
+                  prefetch={false}
                   className="jp-hero__quicklink"
                   // Named in full, since a browser spaces a visually hidden comma apart from the text before it.
                   aria-label={link.count === null ? undefined : t("juniorName", { count: link.count })}
@@ -118,7 +132,7 @@ export function JobbQuickLinks({ juniorCount, searches, headingId }: JobbQuickLi
                       </>
                     )}
                   </span>
-                </a>
+                </Link>
                 <button
                   type="button"
                   className="jp-hero__quicklink-remove"
@@ -130,6 +144,46 @@ export function JobbQuickLinks({ juniorCount, searches, headingId }: JobbQuickLi
                 </button>
               </li>
             ))}
+            {juniorEnabled !== null && searches !== null && (
+              <li className="jp-hero__quicklink-item">
+                <button
+                  ref={settingsRef}
+                  type="button"
+                  className="jp-hero__quicklinks-settings"
+                  aria-label={links.length > 0 ? t("settings.openName") : undefined}
+                  aria-haspopup="dialog"
+                  aria-expanded={settingsOpen}
+                  onClick={() => setSettingsOpen((open) => !open)}
+                >
+                  <Settings size={16} aria-hidden="true" />
+                  {links.length > 0 ? t("settings.open") : t("settings.openEmpty")}
+                </button>
+                <PopoverShell
+                  open={settingsOpen}
+                  onClose={() => setSettingsOpen(false)}
+                  triggerRef={settingsRef}
+                  preferredWidth={320}
+                  label={t("navLabel")}
+                  band={({ titleId, closeButton }) => (
+                    <PopoverBand titleId={titleId} label={t("navLabel")} closeButton={closeButton} />
+                  )}
+                >
+                  <QuickLinkPicker
+                    juniorEnabled={juniorEnabled}
+                    searches={searches}
+                    unmarkedLimit={PICKER_UNMARKED_LIMIT}
+                    emptyNote={t("picker.noSearches")}
+                    more={
+                      <div className="jp-popover__foot">
+                        <Link href="/mina-sidor/snabblankar" prefetch={false} className="jp-popover__footlink">
+                          {t("picker.all")}
+                        </Link>
+                      </div>
+                    }
+                  />
+                </PopoverShell>
+              </li>
+            )}
           </ul>
         </nav>
       )}

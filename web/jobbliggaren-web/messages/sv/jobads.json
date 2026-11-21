@@ -400,7 +400,6 @@
     "remove": "Ta bort snabblänken: {label}",
     "removed": "Snabblänken har tagits bort: {label}",
     "add": "Lägg till som snabblänk",
-    "addNamed": "Lägg till som snabblänk: {label}",
     "unmark": "Ta bort som snabblänk",
     "added": "Snabblänken har lagts till: {label}",
     "full": "Du kan ha högst {max, number} snabblänkar. Ta bort en för att lägga till en ny.",
@@ -414,13 +413,16 @@
     },
     "settings": {
       "lede": "Snabblänkarna visas överst under Jobb.",
-      "currentHeading": "Dina snabblänkar",
-      "none": "Du har inga snabblänkar.",
-      "remove": "Ta bort",
-      "add": "Lägg till",
-      "addHeading": "Lägg till en snabblänk",
-      "noSearches": "Gör en sökning under Jobb, så kan du lägga till den här.",
-      "allSearchesAdded": "Alla dina senaste sökningar är redan snabblänkar."
+      "open": "Anpassa",
+      "openName": "Anpassa snabblänkar",
+      "openEmpty": "Välj snabblänkar",
+      "noSearches": "Gör en sökning under Jobb, så kan du lägga till den här."
+    },
+    "picker": {
+      "legend": "Välj upp till {max, number} snabblänkar",
+      "full": "Du kan ha högst {max, number} snabblänkar. Kryssa ur en för att välja en annan.",
+      "all": "Alla sökningar",
+      "noSearches": "Gör en sökning, så kan du lägga till den här."
     }
   }
 }

@@ -667,9 +667,10 @@ The reading fired the recompute trigger of PR 2's three buckets (45 260 > the 42
 ads before any harness ran.
 
 **Art. 9.** "Art. 9(1) does not apply to Branschbevakning (security-auditor, 2026-11-20): every axis of a criterion is employer-side, and an interest in a
-sector's job ads is not a statement of belief; not reached: a criterion whose members are one political party or union, and the free-text label". Its reasons,
-its limits and its re-examination triggers are in the processing register's Branschbevakning entry and in DPIA 560 §D9 (both local). Klas had the cases the
-ruling does not reach tested on their own, outside #1663 (#2270, 2026-11-20).
+sector's job ads is not a statement of belief; not reached: the free-text label". Its reasons, its limits and its re-examination triggers are in the
+processing register's Branschbevakning entry and in DPIA 560 §D9 (both local). The sentence first also left out a criterion whose members are one political
+party's or one union's organisations; #2270 assessed that case the same day, Art. 9(1) does not apply to it either, and security-auditor removed the clause
+(her T1). The other case #2270 took on, an application against a post that requires belief or membership, is ADR 0189's (local).
 
 **R-d is narrowed, never closed.** PR 2's gate keeps the old membership's hits out only until the criterion's next Scanned. After that, a hit the in-flight scan
 wrote after the edit passes every condition until its ad leaves Active (derived by `security-auditor` in her PR 2 re-check, not measured). The bell reads the

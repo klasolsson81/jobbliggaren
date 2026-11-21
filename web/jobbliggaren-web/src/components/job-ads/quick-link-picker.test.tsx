@@ -41,13 +41,17 @@ function search(id: string, q: string, isQuickLink: boolean): RecentJobSearchDto
   };
 }
 
+const EMPTY_NOTE = "Gör en sökning, så kan du lägga till den här.";
+
 function Picker(props: { juniorEnabled: boolean; searches: ReadonlyArray<RecentJobSearchDto>; unmarkedLimit?: number }) {
   return (
     <NextIntlClientProvider locale="sv" messages={svMessages}>
-      <QuickLinkPicker {...props} />
+      <QuickLinkPicker {...props} emptyNote={EMPTY_NOTE} />
     </NextIntlClientProvider>
   );
 }
+
+const FULL_NOTE = "Du kan ha högst 3 snabblänkar. Kryssa ur en för att välja en annan.";
 
 const box = (name: string) => screen.getByRole("checkbox", { name });
 
@@ -119,7 +123,54 @@ describe("QuickLinkPicker (#2275)", () => {
 
     expect(box("three")).toBeDisabled();
     expect(box("one")).toBeEnabled();
-    expect(screen.getByText("Du kan ha högst 3 snabblänkar. Kryssa ur en för att välja en annan.")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(FULL_NOTE);
+    expect(box("three")).toHaveAccessibleDescription(FULL_NOTE);
+    expect(box("one")).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("announces the cap in its status region the moment a tick fills it", async () => {
+    let answer: (value: { success: true }) => void = () => {};
+    searchAction.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const user = userEvent.setup();
+    render(
+      <Picker
+        juniorEnabled
+        searches={[search("a", "one", true), search("b", "two", false), search("c", "three", false)]}
+      />,
+    );
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+
+    await user.click(box("two"));
+
+    expect(screen.getByRole("status")).toHaveTextContent(FULL_NOTE);
+    expect(box("three")).toHaveAccessibleDescription(FULL_NOTE);
+
+    // React entangles every pending async transition, across roots too, so each test settles its own.
+    answer({ success: true });
+    await waitFor(() => expect(screen.getByRole("status")).toBeEmptyDOMElement());
+  });
+
+  it("keeps a second tick made while the first write runs, and writes the two in order", async () => {
+    let answerFirst: (value: { success: true }) => void = () => {};
+    let answerSecond: (value: { success: true }) => void = () => {};
+    searchAction
+      .mockReturnValueOnce(new Promise((resolve) => (answerFirst = resolve)))
+      .mockReturnValueOnce(new Promise((resolve) => (answerSecond = resolve)));
+    const user = userEvent.setup();
+    render(<Picker juniorEnabled={false} searches={[search("a", "frontend", false), search("b", "backend", false)]} />);
+
+    await user.click(box("frontend"));
+    await user.click(box("backend"));
+
+    expect(box("frontend")).toBeChecked();
+    expect(box("backend")).toBeChecked();
+    expect(searchAction.mock.calls).toEqual([["a", true]]);
+
+    answerFirst({ success: true });
+
+    await waitFor(() => expect(searchAction.mock.calls).toEqual([["a", true], ["b", true]]));
+    answerSecond({ success: true });
+    await waitFor(() => expect(box("backend")).not.toBeChecked());
   });
 
   it("unticks a refused add again, says why and keeps focus on the box", async () => {
@@ -175,9 +226,9 @@ describe("QuickLinkPicker (#2275)", () => {
     expect(box("two")).toBeDisabled();
   });
 
-  it("says how to get searches to pick when there are none", () => {
+  it("says what its caller asks when there is no search to pick", () => {
     render(<Picker juniorEnabled searches={[]} />);
 
-    expect(screen.getByText("Gör en sökning under Jobb, så kan du lägga till den här.")).toBeInTheDocument();
+    expect(screen.getByText(EMPTY_NOTE)).toBeInTheDocument();
   });
 });

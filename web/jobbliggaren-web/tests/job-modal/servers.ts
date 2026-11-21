@@ -122,6 +122,8 @@ export type Harness = {
   refuseProfileRead: boolean;
   /** ADR 0188 (#2265) — the next quick-link write answers this instead and changes nothing. */
   refuseNextQuickLinkWrite: FixtureAnswer | null;
+  /** #2275 — how long a quick-link write waits before it answers, so a test can tick while one is pending. */
+  quickLinkWriteDelayMs: number;
   /** ADR 0188 (#2265) — the quick-link writes received, in order. */
   readonly quickLinkWrites: { route: string; body: Record<string, unknown> }[];
   reset(): void;
@@ -320,6 +322,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
     juniorItCount: { status: 200, body: { count: 0 } },
     refuseProfileRead: false,
     refuseNextQuickLinkWrite: null,
+    quickLinkWriteDelayMs: 0,
     quickLinkWrites,
     reset() {
       harness.recentSearches = [];
@@ -327,6 +330,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
       harness.juniorItCount = { status: 200, body: { count: 0 } };
       harness.refuseProfileRead = false;
       harness.refuseNextQuickLinkWrite = null;
+      harness.quickLinkWriteDelayMs = 0;
       quickLinkWrites.length = 0;
       harness.criteria = [];
       harness.criterionNewAdCounts = { status: 200, body: { items: [] } };
@@ -474,6 +478,8 @@ export async function startHarness(informationFlows = false, applicationCopies =
     if (route === "PUT /api/v1/me/junior-quick-link" || quickLinkSearch) {
       const body = await bodyOf(request);
       quickLinkWrites.push({ route, body });
+      if (harness.quickLinkWriteDelayMs > 0)
+        await new Promise((resolve) => setTimeout(resolve, harness.quickLinkWriteDelayMs));
       const refusal = harness.refuseNextQuickLinkWrite;
       if (refusal) {
         harness.refuseNextQuickLinkWrite = null;

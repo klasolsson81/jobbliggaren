@@ -6,7 +6,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Settings2, X } from "lucide-react";
+import { Settings, X } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
 import { buildRecentSearchLabel, recentSearchLabelCopy } from "@/lib/job-ads/recent-search-label";
@@ -26,8 +26,8 @@ interface JobbQuickLinksProps {
   juniorCount: number | null;
   /** Whether the junior link is on, or null when the profile could not be read; then no settings list is offered. */
   juniorEnabled: boolean | null;
-  /** The user's recent searches, in the list's order; the marked ones are the links. */
-  searches: ReadonlyArray<RecentJobSearchDto>;
+  /** The user's recent searches, in the list's order; the marked ones are the links. Null when the read failed. */
+  searches: ReadonlyArray<RecentJobSearchDto> | null;
   /** The hero's h1, the last fallback for focus after a removal. It carries `tabIndex={-1}`. */
   headingId: string;
 }
@@ -60,6 +60,7 @@ export function JobbQuickLinks({ juniorCount, juniorEnabled, searches, headingId
   const [pending, startTransition] = useTransition();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLButtonElement>(null);
+  const truncated = (searches ?? []).filter((search) => !search.isQuickLink).length > PICKER_UNMARKED_LIMIT;
 
   const links = useMemo(() => {
     const labelCopy = recentSearchLabelCopy(tRecent, coded);
@@ -67,7 +68,7 @@ export function JobbQuickLinks({ juniorCount, juniorEnabled, searches, headingId
       ...(juniorCount === null
         ? []
         : [{ key: JUNIOR_KEY, name: t("junior"), href: JUNIOR_HREF, count: juniorCount }]),
-      ...searches
+      ...(searches ?? [])
         .filter((search) => search.isQuickLink)
         .map((search) => ({
           key: search.id,
@@ -109,7 +110,7 @@ export function JobbQuickLinks({ juniorCount, juniorEnabled, searches, headingId
   return (
     <div>
       <RemovalStatus receipt={removal.receipt} />
-      {(links.length > 0 || juniorEnabled !== null) && (
+      {(links.length > 0 || (juniorEnabled !== null && searches !== null)) && (
         <nav aria-label={t("navLabel")}>
           <ul className="jp-hero__quicklinks-list">
             {links.map((link) => (
@@ -144,7 +145,7 @@ export function JobbQuickLinks({ juniorCount, juniorEnabled, searches, headingId
                 </button>
               </li>
             ))}
-            {juniorEnabled !== null && (
+            {juniorEnabled !== null && searches !== null && (
               <li className="jp-hero__quicklink-item">
                 <button
                   ref={settingsRef}
@@ -155,7 +156,7 @@ export function JobbQuickLinks({ juniorCount, juniorEnabled, searches, headingId
                   aria-expanded={settingsOpen}
                   onClick={() => setSettingsOpen((open) => !open)}
                 >
-                  <Settings2 size={16} aria-hidden="true" />
+                  <Settings size={16} aria-hidden="true" />
                   {links.length > 0 ? t("settings.open") : t("settings.openEmpty")}
                 </button>
                 <PopoverShell
@@ -172,12 +173,15 @@ export function JobbQuickLinks({ juniorCount, juniorEnabled, searches, headingId
                     juniorEnabled={juniorEnabled}
                     searches={searches}
                     unmarkedLimit={PICKER_UNMARKED_LIMIT}
+                    emptyNote={t("picker.noSearches")}
                   />
-                  <div className="jp-popover__foot">
-                    <Link href="/mina-sidor/snabblankar" prefetch={false} className="jp-popover__footlink">
-                      {t("picker.all")}
-                    </Link>
-                  </div>
+                  {truncated && (
+                    <div className="jp-popover__foot">
+                      <Link href="/mina-sidor/snabblankar" prefetch={false} className="jp-popover__footlink">
+                        {t("picker.all")}
+                      </Link>
+                    </div>
+                  )}
                 </PopoverShell>
               </li>
             )}

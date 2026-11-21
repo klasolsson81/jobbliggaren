@@ -66,6 +66,18 @@ describe("QuickLinksSection (#2265, amended for #2275)", () => {
     expect(screen.getAllByRole("checkbox").map((box) => (box as HTMLInputElement).checked)).toEqual([true, true, false]);
   });
 
+  it("pulls the list out to the card's text line", () => {
+    render(<Section juniorEnabled searches={[]} />);
+
+    expect(screen.getByRole("group")).toHaveClass("jp-quicklink-picker--flush");
+  });
+
+  it("tells a user with no search to make one under Jobb", () => {
+    render(<Section juniorEnabled searches={[]} />);
+
+    expect(screen.getByText("Gör en sökning under Jobb, så kan du lägga till den här.")).toBeInTheDocument();
+  });
+
   it("offers every recent search, not only the six the hero's list shows", () => {
     const searches = Array.from({ length: 8 }, (_, i) => search(`s${i}`, `sökning ${i}`, false));
     render(<Section juniorEnabled={false} searches={searches} />);

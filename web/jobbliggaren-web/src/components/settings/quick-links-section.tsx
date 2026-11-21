@@ -23,7 +23,7 @@ export function QuickLinksSection({ juniorEnabled, searches }: QuickLinksSection
         {tPages("minaSidor.sections.snabblankar")}
       </h2>
       <p className="text-body text-text-primary">{t("settings.lede")}</p>
-      <QuickLinkPicker juniorEnabled={juniorEnabled} searches={searches} />
+      <QuickLinkPicker juniorEnabled={juniorEnabled} searches={searches} emptyNote={t("settings.noSearches")} flush />
     </section>
   );
 }

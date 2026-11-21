@@ -421,7 +421,8 @@
     "picker": {
       "legend": "Choose up to {max, number} quick links",
       "full": "You can have at most {max, number} quick links. Untick one to choose another.",
-      "all": "All searches"
+      "all": "All searches",
+      "noSearches": "Run a search, and you can add it here."
     }
   }
 }

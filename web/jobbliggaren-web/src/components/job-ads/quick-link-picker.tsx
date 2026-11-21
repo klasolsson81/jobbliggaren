@@ -1,10 +1,11 @@
 "use client";
 
-// "use client": the ticks shown before the server answers, the pending write and the error are state in the browser.
+// "use client": the ticks shown before the server answers, the pending writes and the error are state in the browser.
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useId, useOptimistic, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
+import type { ActionResult } from "@/lib/actions/_action-result";
 import { buildRecentSearchLabel, recentSearchLabelCopy } from "@/lib/job-ads/recent-search-label";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
 import { QUICK_LINK_MAX, hasQuickLinkRoom } from "@/lib/job-ads/quick-links";
@@ -18,6 +19,10 @@ interface QuickLinkPickerProps {
   searches: ReadonlyArray<RecentJobSearchDto>;
   /** How many of the searches that are not quick links to offer; all when omitted. Marked ones are always listed. */
   unmarkedLimit?: number;
+  /** What the list says when there is no search to pick. */
+  emptyNote: string;
+  /** Pulls the rows out to the text line of the card around the list. */
+  flush?: boolean;
 }
 
 interface Row {
@@ -27,16 +32,18 @@ interface Row {
 
 /**
  * ADR 0188 amendment (#2275) — one tick-box per possible quick link: the junior link, then the searches that are
- * quick links, then the others. A tick adds a link and an untick removes it, at once. The rows are laid out once, as
- * the list mounts: a tick re-renders the page, and a row that moved or left the list would take the focus with it. A
- * refused write unticks the box again and says why. At the cap the unticked boxes are unavailable.
+ * quick links, then the others. A tick adds a link and an untick removes it. The rows are laid out once, as the list
+ * mounts: a tick re-renders the page, and a row that moved or left the list would take the focus with it. A refused
+ * write unticks the box again and says why. At the cap the unticked boxes are unavailable.
  */
-export function QuickLinkPicker({ juniorEnabled, searches, unmarkedLimit }: QuickLinkPickerProps) {
+export function QuickLinkPicker({ juniorEnabled, searches, unmarkedLimit, emptyNote, flush }: QuickLinkPickerProps) {
   const t = useTranslations("jobads.quickLinks");
   const tRecent = useTranslations("jobads.recent");
   const coded = useCodedTaxonomyName();
+  const fullId = useId();
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+  const writes = useRef<Promise<ActionResult>>(Promise.resolve({ success: true }));
 
   const [rows] = useState<ReadonlyArray<Row>>(() => {
     const marked = searches.filter((search) => search.isQuickLink);
@@ -64,31 +71,46 @@ export function QuickLinkPicker({ juniorEnabled, searches, unmarkedLimit }: Quic
   const room = hasQuickLinkRoom(ticked.get(JUNIOR_KEY) === true, markedCount);
 
   function toggle(row: Row) {
-    if (pending) return;
     const on = !ticked.get(row.key);
     setError(null);
     startTransition(async () => {
       tick({ key: row.key, on });
-      const result =
-        row.key === JUNIOR_KEY ? await setJuniorQuickLinkAction(on) : await setRecentSearchQuickLinkAction(row.key, on);
-      if (!result.success) setError(result.error);
+      const write = () =>
+        row.key === JUNIOR_KEY ? setJuniorQuickLinkAction(on) : setRecentSearchQuickLinkAction(row.key, on);
+      const result = writes.current.then(write, write);
+      writes.current = result;
+      const answer = await result;
+      if (!answer.success) setError(answer.error);
     });
   }
 
   return (
-    <fieldset className="jp-quicklink-picker">
+    <fieldset className={flush ? "jp-quicklink-picker jp-quicklink-picker--flush" : "jp-quicklink-picker"}>
       <legend className="sr-only">{t("picker.legend", { max: QUICK_LINK_MAX })}</legend>
       {rows.map((row) => {
         const checked = ticked.get(row.key) === true;
+        const unavailable = !checked && !room;
         return (
           <label key={row.key} className="jp-quicklink-picker__row">
-            <input type="checkbox" checked={checked} disabled={!checked && !room} onChange={() => toggle(row)} />
+            <input
+              type="checkbox"
+              checked={checked}
+              disabled={unavailable}
+              aria-describedby={unavailable ? fullId : undefined}
+              onChange={() => toggle(row)}
+            />
             <span>{row.name}</span>
           </label>
         );
       })}
-      {rows.length === 1 && <p className="jp-quicklink-picker__note">{t("settings.noSearches")}</p>}
-      {!room && <p className="jp-quicklink-picker__note">{t("picker.full", { max: QUICK_LINK_MAX })}</p>}
+      {rows.length === 1 && <p className="jp-quicklink-picker__note">{emptyNote}</p>}
+      <div role="status">
+        {!room && (
+          <p id={fullId} className="jp-quicklink-picker__note">
+            {t("picker.full", { max: QUICK_LINK_MAX })}
+          </p>
+        )}
+      </div>
       {error && (
         <p role="alert" className="jp-quicklink-picker__error">
           {error}

@@ -1387,28 +1387,31 @@ a.jp-hero__quicklink:hover {
 .jp-hero__quicklinks-settings:hover {
   color: var(--jp-hero-ink);
 }
-/* The tick-box list, in the hero's popover and on the settings page: the rows of `.jp-notice-prefs__row`. */
+/* The tick-box list, in the hero's popover and on the settings page: the rows of `.jp-checkitem`. */
 .jp-quicklink-picker {
   margin: 0;
   padding: 6px 0;
   border: 0;
   min-width: 0;
 }
+.jp-quicklink-picker--flush {
+  margin-inline: -16px;
+}
 .jp-quicklink-picker__row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
+  gap: 12px;
+  padding: 11px 16px;
   cursor: pointer;
-  font-size: var(--text-body-sm);
+  font-size: var(--text-ui);
   color: var(--jp-ink-1);
 }
-.jp-quicklink-picker__row:hover {
-  background: var(--jp-surface-2);
+.jp-quicklink-picker__row:hover:not(:has(input:disabled)) {
+  background: var(--jp-surface-3);
 }
 .jp-quicklink-picker__row input {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   accent-color: var(--jp-accent-800);
   cursor: pointer;
   flex: 0 0 auto;
@@ -1423,8 +1426,8 @@ a.jp-hero__quicklink:hover {
 .jp-quicklink-picker__note,
 .jp-quicklink-picker__error {
   margin: 6px 16px;
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
 }
 .jp-quicklink-picker__error {
   color: var(--jp-danger-700);

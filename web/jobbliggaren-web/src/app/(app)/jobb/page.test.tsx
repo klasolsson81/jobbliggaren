@@ -102,13 +102,13 @@ vi.mock("@/components/job-ads/jobb-quick-links", () => ({
   JobbQuickLinks: (props: {
     juniorCount: number | null;
     juniorEnabled: boolean | null;
-    searches: ReadonlyArray<{ id: string }>;
+    searches: ReadonlyArray<{ id: string }> | null;
   }) => (
     <span
       data-testid="quick-links"
       data-junior={String(props.juniorCount)}
       data-junior-enabled={String(props.juniorEnabled)}
-      data-searches={props.searches.map((search) => search.id).join(",")}
+      data-searches={props.searches === null ? "null" : props.searches.map((search) => search.id).join(",")}
     />
   ),
 }));
@@ -370,6 +370,17 @@ describe("/jobb — the quick links the hero shows", () => {
     await renderPage();
 
     expect(screen.getByTestId("quick-links")).toHaveAttribute("data-junior-enabled", "false");
+  });
+
+  it.each([
+    ["could not be read", { kind: "error" }],
+    ["was rate limited", { kind: "rateLimited", retryAfterSeconds: 5 }],
+  ])("passes no searches when the recent searches %s, so the row offers no Anpassa", async (_case, answer) => {
+    getRecentSearches.mockResolvedValue(answer);
+
+    await renderPage();
+
+    expect(screen.getByTestId("quick-links")).toHaveAttribute("data-searches", "null");
   });
 
   it("passes no junior switch when the profile could not be read, so the row offers no Anpassa", async () => {

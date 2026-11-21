@@ -421,7 +421,8 @@
     "picker": {
       "legend": "Välj upp till {max, number} snabblänkar",
       "full": "Du kan ha högst {max, number} snabblänkar. Kryssa ur en för att välja en annan.",
-      "all": "Alla sökningar"
+      "all": "Alla sökningar",
+      "noSearches": "Gör en sökning, så kan du lägga till den här."
     }
   }
 }

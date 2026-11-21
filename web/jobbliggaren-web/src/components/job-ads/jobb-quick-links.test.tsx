@@ -45,21 +45,28 @@ function search(id: string, q: string, isQuickLink = true): RecentJobSearchDto {
 
 const BACKEND = search("11111111-1111-1111-1111-111111111111", "backend");
 
-/** The hero as the page renders it. `juniorEnabled` defaults to null, a failed profile read: no "Anpassa". */
+/**
+ * The hero as the page renders it. `juniorEnabled` defaults to a state the page produces: on beside a count, and
+ * null (a failed profile read, so no "Anpassa") without one.
+ */
 function Hero(props: {
   juniorCount: number | null;
-  searches: ReadonlyArray<RecentJobSearchDto>;
+  searches: ReadonlyArray<RecentJobSearchDto> | null;
   juniorEnabled?: boolean | null;
 }) {
+  const juniorEnabled = props.juniorEnabled === undefined ? (props.juniorCount === null ? null : true) : props.juniorEnabled;
   return (
     <NextIntlClientProvider locale="sv" messages={svMessages}>
       <h1 id={HEADING_ID} tabIndex={-1}>
         Sök jobb
       </h1>
-      <JobbQuickLinks {...props} juniorEnabled={props.juniorEnabled ?? null} headingId={HEADING_ID} />
+      <JobbQuickLinks {...props} juniorEnabled={juniorEnabled} headingId={HEADING_ID} />
     </NextIntlClientProvider>
   );
 }
+
+const unmarked = (n: number) =>
+  Array.from({ length: n }, (_, i) => search(`2222222${i}-2222-2222-2222-222222222222`, `sökning ${i}`, false));
 
 beforeEach(() => {
   juniorAction.mockReset();
@@ -168,7 +175,34 @@ describe("JobbQuickLinks (#2265, ADR 0188)", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Snabblänkar" });
     expect(within(dialog).getAllByRole("checkbox").map((b) => (b as HTMLInputElement).checked)).toEqual([true, true, false]);
+    expect(within(dialog).queryByRole("link", { name: "Alla sökningar" })).toBeNull();
+  });
+
+  it("offers Alla sökningar only when the list leaves searches out", async () => {
+    const user = userEvent.setup();
+    render(<Hero juniorCount={152} searches={[BACKEND, ...unmarked(7)]} />);
+
+    await user.click(screen.getByRole("button", { name: "Anpassa snabblänkar" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Snabblänkar" });
+    expect(within(dialog).getAllByRole("checkbox")).toHaveLength(1 + 1 + 6);
     expect(within(dialog).getByRole("link", { name: "Alla sökningar" })).toHaveAttribute("href", "/mina-sidor/snabblankar");
+  });
+
+  it("says in the list how to get a search to pick, without sending the user to Jobb", async () => {
+    const user = userEvent.setup();
+    render(<Hero juniorCount={null} juniorEnabled={false} searches={[]} />);
+
+    await user.click(screen.getByRole("button", { name: "Välj snabblänkar" }));
+
+    expect(screen.getByText("Gör en sökning, så kan du lägga till den här.")).toBeInTheDocument();
+  });
+
+  it("offers no Anpassa when the recent searches could not be read, and still shows the junior link", () => {
+    render(<Hero juniorCount={152} juniorEnabled searches={null} />);
+
+    expect(screen.getByRole("link", { name: "Juniora IT-jobb, 152 just nu" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /snabblänkar$/ })).toBeNull();
   });
 
   it("offers Välj snabblänkar on its own when there is no link", () => {

@@ -357,11 +357,9 @@ test.describe("the hero's Anpassa list", () => {
       await expect(box(page, TESTER)).toBeChecked();
       await expect(box(page, UNMARKED)).not.toBeChecked();
       await expect(box(page, UNMARKED)).toBeDisabled();
-      await expect(picker(page).getByText(PICKER_FULL)).toBeVisible();
-      await expect(picker(page).getByRole("link", { name: "Alla sökningar" })).toHaveAttribute(
-        "href",
-        "/mina-sidor/snabblankar"
-      );
+      await expect(picker(page).getByRole("status")).toHaveText(PICKER_FULL);
+      await expect(box(page, UNMARKED)).toHaveAccessibleDescription(PICKER_FULL);
+      await expect(picker(page).getByRole("link", { name: "Alla sökningar" })).toHaveCount(0);
       await noSidewaysScroll(page);
       if (width !== 390) await expectListUnderItsButton(page);
       await viewShot(page, `hero-picker-full-${width}`);
@@ -487,8 +485,14 @@ test.describe("the hero's Anpassa list", () => {
     await viewShot(page, "hero-picker-conflict-390");
   });
 
-  test("Alla sökningar opens the settings page with the same list", async ({ page }) => {
+  test("Alla sökningar, shown when the list leaves searches out, opens the settings page with all of them", async ({
+    page,
+  }) => {
     threeLinks();
+    harness.recentSearches = [
+      ...harness.recentSearches,
+      ...[4, 5, 6, 7, 8, 9].map((n) => recentSearch(n, `Sökning ${n}`, false)),
+    ];
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/jobb");
     await anpassa(page).click();
@@ -496,7 +500,31 @@ test.describe("the hero's Anpassa list", () => {
     await picker(page).getByRole("link", { name: "Alla sökningar" }).click();
 
     await expect(page).toHaveURL(/\/mina-sidor\/snabblankar$/);
-    await expect(page.getByRole("region", { name: "Snabblänkar" }).getByRole("checkbox")).toHaveCount(4);
+    await expect(page.getByRole("region", { name: "Snabblänkar" }).getByRole("checkbox")).toHaveCount(1 + 2 + 7);
+  });
+
+  test("a second tick made while the first write runs is kept, and the two are written in order", async ({ page }) => {
+    harness.juniorItCount = { status: 200, body: { count: 152 } };
+    harness.juniorQuickLinkEnabled = false;
+    harness.recentSearches = [recentSearch(1, BACKEND, false), recentSearch(2, UNMARKED, false)];
+    harness.quickLinkWriteDelayMs = 1200;
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/jobb");
+    await choose(page).click();
+
+    await box(page, BACKEND).click();
+    await page.waitForTimeout(200);
+    await box(page, UNMARKED).click();
+
+    await expect(box(page, BACKEND)).toBeChecked();
+    await expect(box(page, UNMARKED)).toBeChecked();
+    await viewShot(page, "hero-picker-two-ticks-pending-1280");
+    await expect(heroLinks(page)).toHaveCount(2, { timeout: 10_000 });
+    await expect(box(page, UNMARKED)).toBeFocused();
+    expect(harness.quickLinkWrites.map((write) => write.route)).toEqual([
+      `PUT /api/v1/me/recent-searches/${recentSearchId(1)}/quick-link`,
+      `PUT /api/v1/me/recent-searches/${recentSearchId(2)}/quick-link`,
+    ]);
   });
 });
 

@@ -48,10 +48,10 @@ for such a page is no longer evidence of what the logged user meant to do.
 
 The bounce now also answers one public path, `/junior` (ADR 0018 Amendment
 2026-11-21, #2284), through `web/jobbliggaren-web/src/lib/auth/junior-it-signed-in-route.ts`.
-A cross-site top-level GET without the cookie gets the same continuation
-document, and its target is the list's own address with at most three validated
-keys and the marker. A GET or HEAD that carries the cookie goes through the
-shared refresh driver (`lib/auth/session-refresh.ts`) and gets a 307 to `/jobb`,
+For a query the page accepts, a cross-site top-level GET without the cookie gets
+the same continuation document, and its target is the list's own address with at
+most three validated keys and the marker. A GET or HEAD that carries the cookie
+goes through the shared refresh driver (`lib/auth/session-refresh.ts`) and gets a 307 to `/jobb`,
 so `/junior` with the cookie is the one public path on which the proxy calls the
 backend. That 307's
 target carries two validated keys, `municipality` and `sortBy`, onto a signed-in

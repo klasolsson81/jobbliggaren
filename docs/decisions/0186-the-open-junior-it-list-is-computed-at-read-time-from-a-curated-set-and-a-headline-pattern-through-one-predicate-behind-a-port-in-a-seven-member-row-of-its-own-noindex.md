@@ -177,8 +177,7 @@ policies' tests are to stay byte-unchanged (security-auditor S10).
 **The page.** `web/jobbliggaren-web/src/app/(public-job)/junior/page.tsx`, a Server Component in the public group, outside `PROTECTED_PREFIXES`.
 - **It reads three parameters and nothing else.** `municipality`, `sortBy` and `page`, named and valued as on `/jobb`, so PR 2's hand-over is a pure passthrough. A repeated key, an id with other
   characters, `page=0` or an unknown order is a 404 decided in `parseJuniorItParams` without asking the API; every other query key is ignored. It reads no cookie and no session: a signed-in and an
-  anonymous visitor get the same answer. (Superseded for `/junior` by the Amendment 2026-11-21, #2284: the page itself still
-  reads no session, but a request that carries the session cookie no longer reaches it.)
+  anonymous visitor get the same answer. (Superseded for `/junior` by the Amendment 2026-11-21, #2284.)
 - **`noindex, follow` on every 200,** `robots: { index: false, follow: true }`; in no sitemap; and `robots.ts` is unchanged, because a disallow would hide the `noindex` from a crawler. The title,
   description and link preview are fixed text from `messages/{sv,en}/publicjob.json`, never a row or a count. There is no JSON-LD.
 - **The form.** A plain GET `<form>`, so it works without JavaScript: `<select name="municipality">` ("Alla orter" and each kommun with its count), `<select name="sortBy">` (newest first, or the
@@ -386,7 +385,7 @@ public read, `/junior`, the curated file) does not reach the auth-gated `/jobb`.
 
 ## Amendment 2026-11-21 (#2284) — a signed-in visitor of `/junior` is sent on to `/jobb?junior=on` at the edge
 
-> **Provenance.** Written by `adr-keeper` for the driving session from its brief; it adds no decision of its own. Additive: nothing above this heading is rewritten except three sentences marked in place (D8's "same answer", the open point under *Negative and accepted trade-offs*, and A2). It records `senior-cto-advisor`'s ruling of 2026-11-21 (`docs/reviews/2026-11-21-2284-plan-senior-cto-advisor.md`, local, transcribed by the driving session). The legal outcome is ADR 0166's Amendment 2026-11-21: this amendment points there and restates none of it (D8, one decision, one home). The mechanics are ADR 0018's Amendment 2026-11-21.
+> **Provenance.** Written by `adr-keeper` for the driving session from its brief; it adds no decision of its own. Additive: nothing above this heading is rewritten except four sentences marked in place (D8's "same answer", the open point under *Negative and accepted trade-offs*, A2, and A2's named skip). It records `senior-cto-advisor`'s ruling of 2026-11-21 (`docs/reviews/2026-11-21-2284-plan-senior-cto-advisor.md`, local, transcribed by the driving session). The legal outcome is ADR 0166's Amendment 2026-11-21: this amendment points there and restates none of it (D8, one decision, one home). The mechanics are ADR 0018's Amendment 2026-11-21.
 
 **The directive.** Klas-direktiv 2026-11-21: "inloggad besökare på /junior → /jobb?junior=on, också när länken öppnas från LinkedIn/Discord/FB".
 

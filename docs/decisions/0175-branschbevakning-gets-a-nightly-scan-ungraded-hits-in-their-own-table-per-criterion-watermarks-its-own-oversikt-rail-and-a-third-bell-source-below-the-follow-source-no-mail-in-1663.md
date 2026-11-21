@@ -4,7 +4,8 @@
 **Status:** Accepted 2026-10-18 (the form decided by `senior-cto-advisor` under CLAUDE.md §9.2, and Klas's six answers of the same day, quoted under "Klas's decisions, verbatim").
 The two privacy-policy texts (D12) are **not** decided by it: each is signed with its PR. The DPIA Part D addendum (§D9; D12) was signed by `security-auditor` and
 approved by Klas on 2026-10-18, and its ruling (2) settles the third switch's default (D8). PR 1 of three shipped with it (#2173). PR 2 builds D2–D7 and D10–D12
-and changes D7's count to its own route (see D7).
+and changes D7's count to its own route (see D7). PR 3 (the source, the switch, the marks, the measurement and Klas's grant of 2026-11-21) is
+recorded in the amendment of 2026-11-20 at the end.
 **Deciders:** Klas Olsson (six answers in chat on 2026-10-18) · `senior-cto-advisor`, "the CTO" below (decision-maker under §9.2; ruling on forks F1–F12 and an addendum that
 answers an adversarial check of it, report-only; `docs/reviews/2026-10-18-1663-plan-cto.md` and `…-plan-cto-addendum.md`; **where the two differ, the addendum governs**) ·
 `security-auditor` (plan read, report-only; `…-plan-security.md`: Blocker-class conditions B1–B9, Major M1–M12, Minor 1–9 and the escalations E1 and E2) · `dotnet-architect`
@@ -406,7 +407,10 @@ Each fork's reasoning is in the D-section named; the line gives the verdict.
 4. Klas's "prompt 2" (background matching without consent) is decided, or #2138 is answered, in either direction: P3 and P4 of `security-auditor`'s S2 are re-reviewed (D4);
 5. a review trigger of the DPIA addendum §D9 fires (a hit graded, or filtered by grade, at scan time; hit rows produced under a consent, Klas's undecided "prompt 2" included;
    a hit gaining an org.nr, a grade or a score; a criterion notice leaving the account), which reopens the third switch's default (D8);
-6. the measured cost of the per-(user, criterion) statement demands the global one (D2).
+6. the measured cost of the per-(user, criterion) statement demands the global one (D2);
+7. (added by the PR 3 amendment, re-opening Klas's grant of 2026-11-21 and the acceptance of the first "Markera alla" over class (c)) S-2's
+   `every_user_within_50000` reads false; the box's `active_ads` exceeds 50 000; a bell source is added; a source's statements, `MaxItems`,
+   `HitsPerRow` or `MaxCountedHits` change; or the bell is measured again.
 
 The lapse triggers of 0162, 0168, 0169 and 0173 stand except where "Amendments to other ADRs" says one is answered here.
 
@@ -492,3 +496,185 @@ reproduced here. E1 and E2 are `security-auditor`'s own text, put to Klas unedit
 - ADR 0009, 0018, 0045, 0080, 0087, 0105, 0113, 0117, 0120, 0125, 0139, 0140, 0144, 0146, 0149, 0154, 0161, 0162, 0164, 0168, 0169, 0173 · AGENTS.md §2.1, §5, §8 ·
   CLAUDE.md §9.2, §9.6, §11, §13
 - Martin, *Clean Architecture* (2017), ch. 14 (ADP) · Fowler, ParallelChange · Winters, Manshreck and Wright, *Software Engineering at Google* (2020), ch. 9
+
+## Amendment 2026-11-20 (#1663 PR 3) — the third bell source as built: the window reads `NewHits` (F-A), "Markera alla" marks the counted set and D6's sentence is narrowed (F-B), the marks are set-based, and the cost and the buckets are measured
+
+Decided by `senior-cto-advisor` under CLAUDE.md §9.2 on 2026-11-20, on the form-round reads of `security-auditor` and `dotnet-architect` of the same day
+(`docs/reviews/2026-11-20-1663-pr3-plan-{cto,security,architect}.md`, local). Klas's GO for the migration and his answer on #2270 are quoted where they apply.
+D1–D13 stand as the record; where this section differs, it governs.
+
+**The source as built (D8).**
+- `CompanyWatchCriterionAdFeedSource` is appended last to `NotificationFeedSourceKind`, `NotificationFeedSources.All` and `Markers`. The three orders are the
+  precedence and the tie-break, and `NotificationFeedSourcesTests` pins them equal.
+- **Its first statement** applies its own gate (`NotificationFeedGate.CriterionAds`), projects both higher gates and checks, as a pure owner `EXISTS` over
+  `company_watch_criteria`, that the user has a criterion. That check reads no outcome, scan or watermark column. With the switch off, or with no criterion, the
+  source stops after that one statement (Art. 5(1)(c)).
+- **Then the token, the count and the window.**
+  - The token is the newest `created_at` in `NewCriterionAdSet.NewHits`, held hits included. It is read in order
+    (`ORDER BY created_at DESC LIMIT 1`), not as `MAX`: PostgreSQL's min/max rewrite does not cross a join, so `MAX` read every
+    hit (`dotnet-architect`'s form check after the measurement, Viktigt 2).
+  - The count is an exact `COUNT(DISTINCT job_ad_id)` over the unread hits up to the token that no higher source holds.
+  - The window reads newest first up to the token, leaves out dismissed and held hits, and takes `MaxItems × HitsPerRow + 1` hits. It groups them per ad in
+    memory and reports a horizon when it is full.
+  - A fifth statement, which names the newest unread ads, runs only on a shortfall. It chooses the newest `MaxItems` ads
+    first and joins only those to their display columns, in the same statement (senior-cto-advisor's routing after the
+    measurement, item 7(a)).
+- **Statements per read:** 1 with the switch off or no criterion, 2 with nothing new, 4 in the base case and 5 on a shortfall. The whole bell sends 13 in the
+  base case and 16 when every source is short. A user without a criterion costs 10 (9 before PR 3). The pins are in the Api integration tests.
+- **Held ads.** `MatchFeedSource.HeldAdIds` and the new `FollowedCompanyAdFeedSource.HeldAdIds` (the superset of D8). Each is its own `NOT EXISTS` with its
+  gate inside, in the count, the window and the shortfall, never in the token.
+- **The third switch.**
+  - The stamp `Preferences.NotificationFeedCriterionAdsOffAt` (null = on), written by `JobSeeker.SetNotificationFeedCriterionAds`.
+  - `NotificationFeedGate.CriterionAds`, with consent `null`.
+  - `SetNotificationFeedCriterionAdsCommand`: audited as `JobSeeker.NotificationFeedCriterionAdsUpdated`, payload `{"enabled":bool}`, replay-marked.
+  - `PUT /api/v1/me/notification-feed/company-watch-criterion-ads`, the profile field `NotificationFeedCriterionAdsEnabled`, and its own group on
+    `/mina-sidor/notiser`.
+- **The migration** `20261121061746_AddNotificationFeedCriterionAdsSwitch` is zero DDL: `Up` and `Down` are empty, and the model snapshot gains the one
+  `Preferences` key. The read state needed no DDL, because PR 2's migration created both flags and the CHECK. It was first scaffolded on 2026-11-20 and
+  recreated with `dotnet ef` on 2026-11-21 on top of `AddRecentJobSearchQuickLinkSlot` (#2272), whose session held the migration token first (CLAUDE.md
+  §6.5; the overlap is recorded on #1662). Klas's GO, 2026-11-20, given for exactly that name:
+
+  > **A:** "GO (Rek.)"
+
+**F-A: the window reads `NewHits` and nothing wider** (ruling 1).
+- One definition stands behind the count, the pill, `/nya` and the bell (D6, D8). A window past the acknowledgement would have needed either a mode flag on
+  `NewHits` or a sibling query, a second definition either way.
+- **The consequence, decided.** An acknowledgement on `/nya` now also takes that criterion's rows out of the bell. A read row leaves the bell and the count
+  stays the same; an unread row leaves it and the count drops by one. Unlike the match and follow sources, this source shows no read rows behind an
+  acknowledgement.
+- It is no new write: `/nya`'s seen write is unchanged, and ADR 0018 (its `after()` residual) is not reopened.
+- `IsUnread` is `!Read`, and the list bound is the token, with no watermark fallback.
+
+**F-B: "Markera alla" marks the counted set, and D6's sentence is narrowed** (ruling 2).
+- **The statement** marks the unread hits up to the token whose id is in `NewHits`, correlated on the primary key. It carries no held anti-join, so no match
+  or follow table enters a write. Held hits are included, for parity with the follow source (ADR 0173 D4). The correlated side carries the target's
+  bound and flag as well (`NewHits(...).Where(n => n.CreatedAt <= through && !n.ReadInNotificationFeed)`): the planner does not carry the target's filter
+  across the key, so without them a call that marks nothing computed all of `NewHits` (`dotnet-architect`'s form check, Viktigt 1).
+- **Why `NewHits` gates it.** ADR 0162 D5 lets the explicit "Markera alla" acknowledge what the header counted. A hit of a criterion whose last outcome is not
+  Scanned was in no header. If it were marked read, it would come back read after a later Scanned with no edit.
+- **D6's sentence "Marks are not gated by it" is amended, not clarified.** It still holds for the click, the X and the backlog mark: they act on the ad the
+  user chose, or honour a period when the switch was off. It no longer holds for "Markera alla", which acknowledges a number the header printed. The sentence
+  was written on 2026-10-18 by analogy with ADR 0168 D3, before the mark-through had a form (`2026-10-18-1663-plan-cto-addendum.md` §8(b)). It did not mean
+  this narrowing then.
+- **Residual.** The statement evaluates `NewHits` when it writes, not when the feed was read. A criterion can turn Scanned again at the nightly scan without an
+  edit, which brings back hits stamped before the token. A "Markera alla" sent with a token read before that scan committed then marks those hits although no
+  header counted them. This is ADR 0162 D3's older-residual class, and its window is one poll after the scan commits. It is written here and not pinned.
+- The Testcontainers oracle runs in both directions. It marks every unread `NewHits` hit up to the token, held ones included. It leaves three hits unread: a
+  hit of a criterion that `RecordScan` moved to NotMaterialised (it comes back unread after a later `RecordScan(Scanned)`), a hit created after the token, and
+  another user's hit on the same ad.
+
+**The click and the X are `ExecuteUpdate`, and the hit gains no method** (ruling 3).
+- The mark commands are not replay-marked, and a hit can be deleted between a load and a save, by the nightly purge, the criterion cascade or an Art. 17
+  erasure. `UnitOfWorkBehavior` saves the follow source's tracked marks in the same `SaveChanges`. A tracked criterion mark would then turn a 204 into a 500
+  and roll the follow marks back with it. An `ExecuteUpdate` that reaches no row is not an error.
+- A click reaches every hit of the ad across the user's criteria, so a set-based statement is the honest form of a flag write across several aggregates.
+- The departure from AGENTS.md §2.2 is the one ADR 0169 D1' accepted for `UserJobAdMatch`. Its compensations are the CHECK (in the table since PR 2), the
+  writer guard below and the aggregate's docblock.
+
+**Who writes the flags.** Only the four writers the user triggers (C-D9 point 3): a click, the X, "Markera alla", and the backlog mark when the switch goes back
+on. The scan and the purge write neither flag. `NotificationFeedFlagWriterGuardTests` is a source scan over `src/` with comments stripped (clauses (a)–(f)). It
+makes any other writer of either flag on any of the three tables, any clearing of a flag, and any other caller of a marker or builder of a mark command a red
+build.
+
+**The precedence as a fitness function.** `NotificationFeedSourcePrecedenceTests` reads the IL of each source and its compiler-generated types (Cecil). It pins
+that source k calls `HeldAdIds` on exactly the sources above it and on none below. ADR 0173 D7 is now carried by this test as well as by text.
+
+**Five consequences, decided or inherited** (the first four `dotnet-architect`'s, the fifth senior-cto-advisor's item 6; re-examined under lapse 1):
+1. An ad that two criteria reach stays unread until every such criterion is acknowledged on its `/nya`, or until the ad is marked in the bell. This follows
+   from per-criterion watermarks and one notification per ad, and it agrees with the pills.
+2. After a night's volume, the criterion window can set the newest horizon (`GetMyNotificationFeedQueryHandler.Merge`). Older read rows of every source then
+   leave the panel. Unread rows never do.
+3. ADR 0173 R5 now spans three commits per click: the match update, the criterion update and the follow unit of work.
+4. ADR 0162 D3's single-writer assumption holds. A user's hits from one run commit in one `SaveChanges` (`CompanyWatchCriterionScanJob.cs:213`) under
+   `[DisableConcurrentExecution]` (`CompanyWatchCriterionScanWorker.cs:18`).
+5. A hit acknowledged on its criterion's `/nya` without being read in the bell stays unread while its ad is Active. F-A takes it out of `NewHits`, `/nya`
+   writes only the watermark, and F-B's mark-through reaches only `NewHits`, so every "Markera alla" checks it again; the purge removes it with its ad (D10).
+   It appears on no surface and its flag is true. Its cost is derived from the plan's shape, not measured: such hits drop out at the criteria join, before
+   `job_ads` is read (senior-cto-advisor, item 6; letting `/nya` write the flag, a new write at render time, and a mark-through beyond `NewHits` are
+   rejected).
+
+**The two tokens are read the same way.** The follow source's token is also read in order now (`ORDER BY created_at DESC LIMIT 1` instead of `MAX`, item
+7(b)): PR 3 had made the two sibling tokens differ, and one rule is written one way. The tests that found either token by its `max(` text key on its
+statement position instead.
+
+**`NOT IN` for the held sets is rejected** (item 7): it departs from ADR 0173's `NOT EXISTS` form for a derived ~70 ms, `!held.Contains` over a query of
+`JobAdId` is untested against Npgsql in this repository, a SubPlan that is not hashed would be a silent slowdown, it moves cost into every normal poll, and
+PostgreSQL 19 removes the gain.
+
+**`NewHits`' Active gate is plan-unstable, and `NewHits` does not change here** (`dotnet-architect`, Viktigt 3; item 4). The planner reaches `job_ads`
+either by hashing an index-only scan of `ix_job_ads_status_published_at_id` or by one `pk_job_ads` probe per hit, and which it picks follows an estimate the
+cross-table filters of `NewHits` make about 8,6 times too low. Every statement that computes all of `NewHits` (the count, the shortfall, the mark-through and
+PR 2's count route) can flip between the two. The figures below were measured on the PK branch on 2026-11-20, and drifting statistics can move the planner to
+the other branch. No EXPLAIN pin holds either branch: a pin on the PK branch fails when the planner improves, and a pin on the hash branch is a forced
+plan.
+
+**Measured** (official runs on an idle machine, 2026-11-20; `docs/reviews/2026-11-20-1663-pr3-latency.md`, promoted with this PR and regenerated by
+`NotificationFeedLatencyMeasurement` and `CriterionNewAdsLatencyMeasurement`; senior-cto-advisor's measurement ruling,
+`docs/reviews/2026-11-20-1663-pr3-cto-measurement.md`, local).
+- **The fixture, registered before the first run:** 50 000 Active ads (S-2 read 45 260, below), 20 criteria × 2 500 new hits plus 500 on Archived ads
+  each, a match row on the newest 5 000 ads and a follow hit on the newest 15 000, so every lower source's window walks past every held hit (the costliest
+  arrangement an account can produce), and the ceiling profile of 391 occupation groups, 21 regions and 290 municipalities.
+- **The bell on the final code (M0):** handler p95 330,1 ms (base case, the follow source's common path) to 591,0 ms (shortfall case, its grade path).
+  Without the Branschbevakning source the same bell measures 81,4–198,2 ms on the same fixture, so **ADR 0045 class (a) is exceeded at the ceiling,
+  and the overrun is this source's.** EXPLAIN (ANALYZE, BUFFERS) of every statement, 2026-11-20: both tokens 0,04 ms or less; the Branschbevakning
+  count 152,9 ms and window 129,1 ms. This answers ADR 0173 lapse 9 for both lower sources.
+- **The everyday case (M1, one criterion, the box's shape at S-2):** at most 289,9 ms on every pass, inside class (a).
+- **The DDL alternative (M2, a partial index `job_ads (id) WHERE status = 'Active'`, in the test container only):** 283,3 ms on the base case's common
+  path but 431,1 ms on its grade path; PR 2's count route 30,1 ms instead of 113,6. **The order effect (M3):** none on the final code.
+- **"Markera alla":** the first call over the unread stock takes 968,7 ms for 49 400 hits (class (c), 400 ms: exceeded); a call that writes nothing
+  takes 23,8 ms at p95, and its plan has the re-registered shape.
+- **PR 2's reads on the raised fixture:** the count route 113,6 ms on the PK branch (PR 2 priced 33,2 ms on the hash branch); `/nya` 13,1 ms.
+
+**Klas's grant, 2026-11-21.** senior-cto-advisor's registered rule decided the recommendation before the figures existed: M3 showed no order effect,
+M1 stayed inside 300 ms, and M2 did not bring both of the base case's primary passes inside 300 ms, so he recommended (A). The question, as put to Klas
+(AskUserQuestion), and his answer:
+
+> **Q:** "Klockan (Notiser) går över ADR 0045:s 300 ms vid taket med PR 3:s källa: p95 330–591 ms, mot högst 198 ms utan Branschbevakning. Taket är 20
+> bevakningar med 50 000 nya, aldrig kvitterade träffar. En användare med en bevakning, som alla fyra på lådan i dag, ligger på högst 290 ms. Ett
+> partiellt index på job_ads ger 283–538 ms (och PR 2:s räknerutt 30 ms i stället för 114). CTO:n rekommenderar (A) enligt sin förregistrerade regel,
+> eftersom indexet inte får graderingsvägen under 300 ms. Hur vill du gå vidare?"
+>
+> **A:** "Bevilja vid taket (Rek.)"
+
+**The grant (A), on the pattern of ADR 0139's grant 4.** The bell's overrun of ADR 0045 class (a) at the ceiling is granted. The everyday case is
+inside the budget, the alternative was measured (M2), and four conditions bind it:
+- (c1) the figures name the plan branch they were measured on (the PK branch of the Active gate, 2026-11-20), here and in each bucket docblock;
+- (c2) the grant lapses under lapse trigger 7;
+- (c3) it covers latency only: database time is the read bucket's question, and raising `PermitLimit` is never a remedy;
+- (c4) Klas's answer stands verbatim above.
+
+**The first "Markera alla" over ADR 0045 class (c)** (968,7 ms to 2 281,8 ms across the runs, against 400 ms) is accepted by senior-cto-advisor, who
+sets class (c) (ADR 0045 Beslut 1). The cost is the write itself, 49 400 updates that cannot use HOT, paid once per backlog when the user presses. A
+background job and batching stay rejected, and `fillfactor` is not recommended. Lapse trigger 7 covers this too.
+
+**The buckets** (`RateLimitingOptions`; `security-auditor` signs every number in her review of this PR):
+- `NotificationFeedRead`: a burst of 12 from the demand (twelve tabs reloading at once) and one token back a minute from the cost
+  (⌊1 000 ÷ 591,0⌋ = 1). Her rule (iii) failed, and the docblock says so.
+- `NotificationFeedMarkThrough`, new, on `POST …/{source}/read`: a burst of 6 (two presses of three calls) and 36 a minute, under the ceiling of
+  ⌊1 000 ÷ 23,8⌋ = 42. `NotificationFeedMark` keeps 60/60 for the click and the X, whose panel burst is now 20 + 20 = 40.
+- `CriterionNewAdCounts`: 8 a minute with a burst of 8 on the PK branch's 113,6 ms; its one consumer is already held to 3 a minute by
+  `CompanyWatchCriteriaList`. `CriterionNewAds` and `CriterionNewAdsSeen` keep 20/60/20, half 2 re-derived at 13,1 ms. The count's trigger names the
+  50 000 Active ads the raised fixture seeds.
+
+**S-2, re-read on the box** (CLAUDE.md §9.2 (a); `security-auditor`'s statement and M-D9's printing rule, unchanged). Read 2026-11-20T20:18:45Z on release
+`sha256:aa2e73f81c51bfb9d2d7260d8b0dcbeeb4b912a183ca8aa65b94173bf7981b97` (source `bc2235aba`, sequence 1681):
+- `active_ads` 45 260;
+- the ceiling is 20 × 45 260 = 905 200 hit rows per user;
+- the per-user stock is not stated, because fewer than 5 users contribute;
+- `every_user_within_50000` reads true.
+
+The reading fired the recompute trigger of PR 2's three buckets (45 260 > the 42 500 Active ads half 2 seeded). The shared fixture was raised to 50 000 Active
+ads before any harness ran.
+
+**Art. 9.** "Art. 9(1) does not apply to Branschbevakning (security-auditor, 2026-11-20): every axis of a criterion is employer-side, and an interest in a
+sector's job ads is not a statement of belief; not reached: a criterion whose members are one political party or union, and the free-text label". Its reasons,
+its limits and its re-examination triggers are in the processing register's Branschbevakning entry and in DPIA 560 §D9 (both local). Klas had the cases the
+ruling does not reach tested on their own, outside #1663 (#2270, 2026-11-20).
+
+**R-d is narrowed, never closed.** PR 2's gate keeps the old membership's hits out only until the criterion's next Scanned. After that, a hit the in-flight scan
+wrote after the edit passes every condition until its ad leaves Active (derived by `security-auditor` in her PR 2 re-check, not measured). The bell reads the
+same `NewHits`, so such a hit now also shows as a bell row. PR 3 does not close R-d.
+
+**R-a, R-b and R-c** have their read-state halves pinned in PR 3's Api integration tests, beside PR 2's pins of the same risks.
+
+**"Visa alla" is still not built** (D8; Klas, 2026-10-12). #1663 closes with PR 3.

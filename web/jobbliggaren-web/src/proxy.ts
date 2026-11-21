@@ -4,6 +4,7 @@ import { ADMIN_RETURN_HEADER, adminReturnPath } from "@/lib/auth/admin-return";
 import { returnPathFor } from "@/lib/auth/return-path";
 import { strictCookieBounce } from "@/lib/auth/strict-cookie-bounce";
 import { publicJobAdRoute } from "@/lib/auth/public-job-ad-route";
+import { juniorItSignedInRoute } from "@/lib/auth/junior-it-signed-in-route";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/cookie-names";
 import {
   FAILED_REFRESH,
@@ -39,7 +40,7 @@ import {
 // authenticated request on a protected path, through `lib/auth/session-refresh.ts`: at most
 // one POST /auth/refresh per throttle window, a rotated id re-set as a persistent cookie AND
 // forwarded to the downstream render, and every failure but a GET's 401 swallowed so
-// navigation never breaks.
+// navigation never breaks. The open junior list's branch (#2284) is its one other caller.
 //
 // It is ALSO the one writer of the page Content-Security-Policy (ADR 0163): a fresh nonce per
 // request goes into the CSP and into an `x-nonce` request header, on the REQUEST so Next stamps the
@@ -83,6 +84,16 @@ async function route(
   const bounce = strictCookieBounce(request, Boolean(sessionId));
   if (bounce !== null) return bounce;
 
+  // #2284: the open junior list. With the session cookie a request is sent on to /jobb with the junior filter, after the
+  // refresh driver when it is due; without it, a cross-site arrival is handed the cookie first. Disjoint from the bounce
+  // by path; `junior-it-signed-in-route.ts` carries the rule.
+  const junior = await juniorItSignedInRoute(
+    request,
+    forwarded,
+    sessionId ? (nowSeconds) => refreshSession(request, sessionId, nowSeconds) : null
+  );
+  if (junior !== null) return junior;
+
   // ADR 0165: the anonymous twin of `/jobb/<uuid>`. After the bounce, so a cross-site arrival is still handed to the
   // cookie first; before the login redirect below, which a cookieless request to it would otherwise meet.
   const publicJobAd = await publicJobAdRoute(request, forwarded, Boolean(sessionId));
@@ -99,7 +110,8 @@ async function route(
   }
 
   // Gated: the refresh driver only runs on protected paths. Public/non-protected
-  // paths pass straight through, never touching the backend.
+  // paths pass straight through, never touching the backend — with one exception, `/junior`
+  // with the session cookie, answered above (#2284).
   if (!isProtectedPath(pathname)) {
     return next(forwarded);
   }

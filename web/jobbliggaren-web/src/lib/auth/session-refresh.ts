@@ -159,6 +159,20 @@ export function forwardedWithSession(forwarded: Headers, cookieHeader: string | 
   return headers;
 }
 
+/**
+ * The request headers for a render after an exact 401: the cookie header without the session cookie, so the render
+ * never carries an id the driver has just found dead. Every other header stays, the nonce pair included.
+ */
+export function forwardedWithoutSession(forwarded: Headers): Headers {
+  const headers = new Headers(forwarded);
+  const kept = (forwarded.get("cookie") ?? "")
+    .split(/;\s*/)
+    .filter((part) => part !== "" && cookieNameOf(part) !== SESSION_COOKIE_NAME);
+  if (kept.length === 0) headers.delete("cookie");
+  else headers.set("cookie", kept.join("; "));
+  return headers;
+}
+
 // Writes the throttle companion cookie: its VALUE is the epoch second the next refresh is
 // due, and its own Max-Age matches that window so it expires exactly when it becomes due.
 function setThrottleCookie(response: NextResponse, dueAtEpochSeconds: number, maxAgeSeconds: number): void {
@@ -204,9 +218,7 @@ function rewriteCookieHeader(cookieHeader: string | null, name: string, value: s
   // Split on ';' with optional whitespace — browsers always send "; ", but tolerate a
   // non-standard separator so the old value is replaced (not appended alongside).
   const rewritten = cookieHeader.split(/;\s*/).map((part) => {
-    const eq = part.indexOf("=");
-    const key = (eq === -1 ? part : part.slice(0, eq)).trim();
-    if (key === name) {
+    if (cookieNameOf(part) === name) {
       found = true;
       return pair;
     }
@@ -216,4 +228,10 @@ function rewriteCookieHeader(cookieHeader: string | null, name: string, value: s
     rewritten.push(pair);
   }
   return rewritten.join("; ");
+}
+
+/** The name of one `name=value` pair from a Cookie header. */
+function cookieNameOf(part: string): string {
+  const eq = part.indexOf("=");
+  return (eq === -1 ? part : part.slice(0, eq)).trim();
 }

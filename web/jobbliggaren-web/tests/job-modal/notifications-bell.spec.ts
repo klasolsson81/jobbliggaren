@@ -295,7 +295,7 @@ const THREE_KIND_FEED = {
     },
   ],
   sources: [
-    ...UNREAD_FEED.sources,
+    ...UNREAD_FEED.sources.filter((source) => source.kind !== "CompanyWatchCriterionAd"),
     { kind: "CompanyWatchCriterionAd", unreadCount: 1, acknowledgedThrough: CRITERION_TOKEN },
   ],
 };

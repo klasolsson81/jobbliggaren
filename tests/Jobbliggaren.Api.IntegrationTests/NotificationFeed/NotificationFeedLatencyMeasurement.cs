@@ -81,6 +81,10 @@ namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 /// that the measured state is the seeded one: each source's count, the statement count of the base case and the shortfall
 /// case, and that the grade path counts rather than refuses.
 /// </para>
+///
+/// <para>
+/// <b>Run on request:</b> the command is the Regenerate section of <c>docs/reviews/2026-11-20-1663-pr3-latency.md</c>.
+/// </para>
 /// </summary>
 [Collection("JobAdBrowsePlan")]
 [Trait("Category", "SmokeTest")]
@@ -103,7 +107,7 @@ public class NotificationFeedLatencyMeasurement(JobAdBrowsePlanFixture fixture, 
     /// M0, the registered fixture and protocol, which give the official figures, with the control pass that
     /// senior-cto-advisor's measurement ruling of 2026-11-20 made part of it: the bell without the Branschbevakning source.
     /// </summary>
-    [Fact]
+    [Fact(Explicit = true)]
     public async Task The_bell_with_three_sources_and_the_criterion_mark_all_against_Adr0045()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -123,7 +127,7 @@ public class NotificationFeedLatencyMeasurement(JobAdBrowsePlanFixture fixture, 
     /// what each user on the box has (S-2, 2026-11-20: 4 users, 4 criteria), holding its share of the shared seed
     /// (2 500 new hits and 500 on Archived ads), with the match and follow layers unchanged.
     /// </summary>
-    [Fact]
+    [Fact(Explicit = true)]
     public async Task The_bell_with_one_Branschbevakning_the_everyday_case_against_Adr0045()
     {
         var ct = TestContext.Current.CancellationToken;

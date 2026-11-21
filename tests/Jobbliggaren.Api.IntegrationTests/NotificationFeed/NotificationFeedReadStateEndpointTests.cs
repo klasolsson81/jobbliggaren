@@ -188,7 +188,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
 
     [Theory]
     [InlineData("POST", "/api/v1/me/notification-feed/{source}/{jobAdId:guid}/read", RateLimitingExtensions.NotificationFeedMarkPolicy)]
-    [InlineData("POST", "/api/v1/me/notification-feed/{source}/read", RateLimitingExtensions.NotificationFeedMarkPolicy)]
+    [InlineData("POST", "/api/v1/me/notification-feed/{source}/read", RateLimitingExtensions.NotificationFeedMarkThroughPolicy)]
     [InlineData("PUT", "/api/v1/me/notification-feed/matches", RateLimitingExtensions.MeWritePolicy)]
     [InlineData("PUT", "/api/v1/me/notification-feed/followed-company-ads", RateLimitingExtensions.MeWritePolicy)]
     [InlineData("PUT", "/api/v1/me/notification-feed/company-watch-criterion-ads", RateLimitingExtensions.MeWritePolicy)]

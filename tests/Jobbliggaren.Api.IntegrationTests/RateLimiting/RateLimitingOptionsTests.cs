@@ -196,9 +196,9 @@ public class RateLimitingOptionsTests
     [Fact]
     public void Defaults_NotificationFeedMark_Is60Per60s_TokenBucket()
     {
-        // #2130 (security-auditor, PR 2 consult) - the bell's read marks: burst 60, ten tokens per 10 s. One bucket for
-        // the row mark and "Markera alla", never MeWrite and never FollowSeenMark.
-        // RateLimitingOptions.NotificationFeedMark carries the derivation.
+        // #2130 (security-auditor, PR 2 consult) - the bell's per-row marks: burst 60, ten tokens per 10 s. One bucket for
+        // the row mark and the X (#2151), never MeWrite and never FollowSeenMark; "Markera alla" has its own since #1663
+        // PR 3. RateLimitingOptions.NotificationFeedMark carries the derivation.
         var sut = new RateLimitingOptions();
 
         sut.NotificationFeedMark.PermitLimit.ShouldBe(60);
@@ -207,15 +207,41 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
-    public void Defaults_NotificationFeedRead_Is12Per60s_TokenBucket()
+    public void Defaults_NotificationFeedRead_IsABurstOf12_RefilledOneAMinute()
     {
-        // #1666 (security-auditor, form round) — the bell's own bucket: burst 12, two tokens per
-        // 10 s. RateLimitingOptions.NotificationFeedRead carries the derivation.
-        var sut = new RateLimitingOptions();
+        // #1663 PR 3 — the burst from #1666's demand (twelve tabs reloading at once), the sustained rate from the measured
+        // cost at the ceiling (⌊1 000 ÷ 591,0 ms⌋ = 1 a minute). RateLimitingOptions.NotificationFeedRead carries the
+        // derivation; the derived quantities are asserted because the sustained rate is what the cost bounds.
+        var options = new RateLimitingOptions().NotificationFeedRead;
 
-        sut.NotificationFeedRead.PermitLimit.ShouldBe(12);
-        sut.NotificationFeedRead.WindowSeconds.ShouldBe(60);
-        sut.NotificationFeedRead.SegmentsPerWindow.ShouldBe(6);
+        options.PermitLimit.ShouldBe(12);
+        options.WindowSeconds.ShouldBe(720);
+        options.SegmentsPerWindow.ShouldBe(12);
+
+        var limiter = RateLimitingExtensions.PerUserTokenBucketOptions(options);
+        limiter.TokenLimit.ShouldBe(12);
+        limiter.TokensPerPeriod.ShouldBe(1);
+        limiter.ReplenishmentPeriod.ShouldBe(TimeSpan.FromSeconds(60));
+        limiter.QueueLimit.ShouldBe(0);
+    }
+
+    [Fact]
+    public void Defaults_NotificationFeedMarkThrough_IsABurstOf6_Refilled36AMinute()
+    {
+        // #1663 PR 3 — "Markera alla" gets its own bucket: a burst of two presses (three calls each) and a sustained rate
+        // under the measured ceiling (⌊1 000 ÷ 23,8 ms⌋ = 42 a minute). RateLimitingOptions.NotificationFeedMarkThrough
+        // carries the derivation.
+        var options = new RateLimitingOptions().NotificationFeedMarkThrough;
+
+        options.PermitLimit.ShouldBe(6);
+        options.WindowSeconds.ShouldBe(10);
+        options.SegmentsPerWindow.ShouldBe(6);
+
+        var limiter = RateLimitingExtensions.PerUserTokenBucketOptions(options);
+        limiter.TokenLimit.ShouldBe(6);
+        limiter.TokensPerPeriod.ShouldBe(1);
+        limiter.ReplenishmentPeriod.TotalMilliseconds.ShouldBe(10_000d / 6, 0.01);
+        limiter.QueueLimit.ShouldBe(0);
     }
 
     [Fact]
@@ -312,7 +338,7 @@ public class RateLimitingOptionsTests
     }
 
     [Theory]
-    [InlineData(nameof(RateLimitingOptions.CriterionNewAdCounts), 20, 3_000d)]
+    [InlineData(nameof(RateLimitingOptions.CriterionNewAdCounts), 8, 7_500d)]
     [InlineData(nameof(RateLimitingOptions.CriterionNewAds), 20, 3_000d)]
     [InlineData(nameof(RateLimitingOptions.CriterionNewAdsSeen), 20, 3_000d)]
     public void Defaults_TheBranschbevakningNewAdPolicies_BuildTheirDerivedTokenBucket(
@@ -479,6 +505,7 @@ public class RateLimitingOptionsTests
         RateLimitingExtensions.MeWritePolicy.ShouldBe("me-write");
         RateLimitingExtensions.FollowSeenMarkPolicy.ShouldBe("follow-seen-mark");
         RateLimitingExtensions.NotificationFeedMarkPolicy.ShouldBe("notification-feed-mark");
+        RateLimitingExtensions.NotificationFeedMarkThroughPolicy.ShouldBe("notification-feed-mark-through");
         RateLimitingExtensions.ResumeImportPolicy.ShouldBe("resume-import");
         RateLimitingExtensions.ResumeRenderPolicy.ShouldBe("resume-render");
         // #1681 part 2 — the criteria list's own key. Drift between this constant and the endpoint's

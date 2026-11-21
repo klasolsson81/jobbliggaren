@@ -93,7 +93,7 @@ public static class MeNotificationFeedEndpoints
 
             var result = await mediator.Send(new MarkNotificationsReadThroughCommand(kind, request.ThroughToken), ct);
             return result.IsSuccess ? Results.NoContent() : result.Error.ToProblemResult();
-        }).RequireRateLimiting(RateLimitingExtensions.NotificationFeedMarkPolicy);
+        }).RequireRateLimiting(RateLimitingExtensions.NotificationFeedMarkThroughPolicy);
 
         // #2130 - whether a type reaches the bell. MeWritePolicy: a switch is a user-owned mutation like the consents
         // and the mail pauses, and a switch-on is ONE request on this bucket, backlog mark included.

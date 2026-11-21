@@ -33,7 +33,7 @@ namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 /// #1663 PR 3 (ADR 0175 D8) — the bell with its three sources against ADR 0045 class (a), read/list: <b>p95 300 ms</b>,
 /// as handler latency, and the cost halves the bell's two buckets are re-derived from: the read
 /// (<c>RateLimitingOptions.NotificationFeedRead</c>, security-auditor's rule (b)6 (i)–(v) of 2026-11-20) and the
-/// Branschbevakning source's "Markera alla" (<c>RateLimitingOptions.NotificationFeedMark</c>, her Major 1, measured under
+/// Branschbevakning source's "Markera alla" (<c>RateLimitingOptions.NotificationFeedMarkThrough</c>, her Major 1, measured under
 /// dotnet-architect's protocol). senior-cto-advisor's ruling of the same day orders both.
 ///
 /// <para>

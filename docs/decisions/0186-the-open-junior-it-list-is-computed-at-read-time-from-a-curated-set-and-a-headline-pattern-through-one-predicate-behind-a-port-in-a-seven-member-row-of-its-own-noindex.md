@@ -177,7 +177,7 @@ policies' tests are to stay byte-unchanged (security-auditor S10).
 **The page.** `web/jobbliggaren-web/src/app/(public-job)/junior/page.tsx`, a Server Component in the public group, outside `PROTECTED_PREFIXES`.
 - **It reads three parameters and nothing else.** `municipality`, `sortBy` and `page`, named and valued as on `/jobb`, so PR 2's hand-over is a pure passthrough. A repeated key, an id with other
   characters, `page=0` or an unknown order is a 404 decided in `parseJuniorItParams` without asking the API; every other query key is ignored. It reads no cookie and no session: a signed-in and an
-  anonymous visitor get the same answer.
+  anonymous visitor get the same answer. (Superseded for `/junior` by the Amendment 2026-11-21, #2284.)
 - **`noindex, follow` on every 200,** `robots: { index: false, follow: true }`; in no sitemap; and `robots.ts` is unchanged, because a disallow would hide the `noindex` from a crawler. The title,
   description and link preview are fixed text from `messages/{sv,en}/publicjob.json`, never a row or a count. There is no JSON-LD.
 - **The form.** A plain GET `<form>`, so it works without JavaScript: `<select name="municipality">` ("Alla orter" and each kommun with its count), `<select name="sortBy">` (newest first, or the
@@ -272,7 +272,7 @@ Infrastructure; the curated ids and the pattern have one versioned home; the row
 - **A fourth anonymous consumer of the taxonomy port** (`TaxonomyAclLayerTests`), and one more anonymous bucket.
 - **Two statements per request,** at one `now` and not one snapshot (*What is not measured*).
 - **PR 2 inherits an open point.** The plan has the `/jobb` PR redirect a signed-in visitor from `/junior`, and has the capture gate leave junior searches out of saved and recent searches;
-  `/junior` today answers every visitor alike and reads no session. Both are PR 2's to decide, and the redirect is to go through the ADR 0166 amendment of 2026-11-19 first.
+  `/junior` today answers every visitor alike and reads no session. Both are PR 2's to decide, and the redirect is to go through the ADR 0166 amendment of 2026-11-19 first. (The redirect is built by #2284, at the edge and not in the page, and went through ADR 0166's Amendment 2026-11-21; see the Amendment 2026-11-21 below.)
 
 ## What comes back
 
@@ -356,7 +356,7 @@ The last bullet under *Negative and accepted trade-offs* left two points to PR 2
   as the broader one and would `Bump()` that row. No migration; the axis is not persisted.
 - **A2 — PR 2 does not change `/junior` (ruling D2).** The redirect a signed-in visitor would have gotten fires ADR 0166 D10 trigger 22 (a selection keyed by sign-in state) and
   breaks the signed property "the page reads no session". A cross-site arrival carries no Strict session cookie, so the redirect would never reach the post's audience. A link on
-  `/junior` waits for #2264's re-sign of that page, and goes only through `security-auditor`. This departs from the scope written in #2261.
+  `/junior` waits for #2264's re-sign of that page, and goes only through `security-auditor`. This departs from the scope written in #2261. (Overridden by Klas's directive of 2026-11-21, #2284; see the Amendment 2026-11-21 below.)
 - **A3 — No count on the toggle (ruling D3).** Distans has none, and a boolean has no concept-id key space (#551 PR-B D7).
 - **A4 — `/jobb` keeps its own lifecycle gate, `Status == Active`, and not `JobAdPublication.IsListed` (ruling D4).** `IsListed` is ADR 0160's publication predicate. The junior
   predicate says nothing about lifecycle by design (D1), so each caller composes its own gate, and `/jobb`'s is the one it already has. The `/jobb` junior set is therefore junior
@@ -381,4 +381,29 @@ public read, `/junior`, the curated file) does not reach the auth-gated `/jobb`.
 
 - **Not persisted:** a junior search is not stored in recent searches, and the axis is not persisted (A1: a stripped search would `Bump()` the broader row; no migration).
 - **No count on the toggle:** a boolean has no concept-id key space (A3).
-- **No change to `/junior`:** it would key a selection by sign-in state, which is ADR 0166 D10 trigger 22 (A2).
+- **No change to `/junior`:** it would key a selection by sign-in state, which is ADR 0166 D10 trigger 22 (A2). (Overridden by Klas's directive of 2026-11-21 and built by #2284; `security-auditor` ruled that trigger 22 does not fire. See the Amendment 2026-11-21 below and ADR 0166's.)
+
+## Amendment 2026-11-21 (#2284) — a signed-in visitor of `/junior` is sent on to `/jobb?junior=on` at the edge
+
+> **Provenance.** Written by `adr-keeper` for the driving session from its brief; it adds no decision of its own. Additive: nothing above this heading is rewritten except four sentences marked in place (D8's "same answer", the open point under *Negative and accepted trade-offs*, A2, and A2's named skip). It records `senior-cto-advisor`'s ruling of 2026-11-21 (`docs/reviews/2026-11-21-2284-plan-senior-cto-advisor.md`, local, transcribed by the driving session). The legal outcome is ADR 0166's Amendment 2026-11-21: this amendment points there and restates none of it (D8, one decision, one home). The mechanics are ADR 0018's Amendment 2026-11-21.
+
+**The directive.** Klas-direktiv 2026-11-21: "inloggad besökare på /junior → /jobb?junior=on, också när länken öppnas från LinkedIn/Discord/FB".
+
+**The mapping.** A request for exactly `/junior`, with a query the page accepts, that carries the session cookie and is a GET or a HEAD, is answered with a `307`, `no-store`, to `/jobb?[municipality=…&]junior=on[&sortBy=…]`: the list's kommun and order, and the junior filter of #2261. `page` and every other key are dropped, because the two lists are different sets (A4). Code: `web/jobbliggaren-web/src/lib/auth/junior-it-signed-in-route.ts` and `src/lib/job-ads/junior-it-handover.ts`, called from `proxy.ts`. The page, its list, params, reader, metadata and copy are unchanged, except one comment-only edit of the page's docblock, which ADR 0166's amendment declares.
+
+**The rulings D-A to D-E** (`senior-cto-advisor`, in brief; reasons, rejected alternatives and trade-offs are in the report and in ADR 0018's Amendment 2026-11-21):
+- **D-A, structure:** a sibling branch beside `publicJobAdRoute`, not a case in the bounce. The continuation answer and `hopTarget` move into a module both branches import. `strictCookieBounce`'s decisions are unchanged.
+- **D-B, the marker:** the `vidare=1` that the hop leaves is removed at the edge, by a strip whose condition is the exact complement of the bounce's. It cannot loop. ADR 0165 D5's client island stays for `/jobb/<uuid>`.
+- **D-C, methods:** the signed-in 307 answers GET and HEAD.
+- **D-D, what travels:** validated keys only. The hop carries the list's own validated address, and the 307 carries `municipality`, `junior=on` and `sortBy`.
+- **D-E, the signed-in test:** the session is validated when due, through the refresh driver, moved out of `route()` with a typed outcome, and is not only looked for. A session idle for more than 30 days leaves a cookie the server no longer knows, and a presence check would send that visitor to `/logga-in?next=/jobb`, and after signing in to `/jobb` without the filter.
+
+**A2 is overridden by Klas's directive.** A2 was `senior-cto-advisor`'s own ruling of 2026-11-20 ("PR 2 does not change `/junior`"), and the directive of 2026-11-21 sends a signed-in visitor of `/junior` to `/jobb?junior=on`, including arrivals from other sites (CTO, Rule 5). A2 rested on two grounds:
+- **The cookie ground,** that a cross-site arrival carries no Strict session cookie, so the redirect would never reach the post's audience, is answered by the bounce (ADR 0018, Amendment 2026-11-21).
+- **The trigger-22 ground** is `security-auditor`'s ruling of 2026-11-21. Its home is ADR 0166's Amendment 2026-11-21, and it is not restated here. A2's own condition, that the redirect goes only through `security-auditor`, is kept: the ruling is hers (plan read of 2026-11-21), and the renewal waits for her signature in ADR 0166.
+
+No later CTO session raises A2 again.
+
+**The hop that most visitors pay.** Until now a signed-out visitor who followed the post from another site got the list in one request. Now every cross-site document navigation to `/junior` without a cookie first gets the continuation document, then the strip's 307, then the list. That is most of the post's audience. The directive requires it: the cookie is the only signal that a visitor is signed in, and browsers withhold it on a navigation another site starts. A link that a desktop app hands to the browser arrives with `Sec-Fetch-Site: none` and pays nothing. This is information for Klas, not an escalation.
+
+**Residuals by pointer.** ADR 0018's Amendment 2026-11-21 holds R-a to R-f. Two of them bear on this page: **R-a,** a signed-in visitor who holds a stale cookie meets the redirect for at most 15 minutes after a revocation on the server, and **R-e,** a signed-in visitor sees the public list only in a private window, which is also where a recruiter complaint about the list is read.

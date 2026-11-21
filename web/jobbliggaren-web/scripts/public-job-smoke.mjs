@@ -40,6 +40,7 @@ import {
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const SESSION_COOKIE = "__Host-jobbliggaren_session";
+const REFRESH_AFTER_COOKIE = "__Host-jobbliggaren_refresh_after";
 const CLIENT_IP = "203.0.113.7";
 
 async function waitUntilReady(origin, child) {
@@ -639,7 +640,7 @@ try {
   await check("the junior list is a 200, uncacheable, noindex and follow, with no canonical, read per request for the visitor with no credential", async () => {
     junior.mode = "ok";
     seen.length = 0;
-    const res = await get(origin, "/junior?utm_source=linkedin&trk=x", { headers: { cookie: `${SESSION_COOKIE}=s; other=1`, authorization: "Bearer x" } });
+    const res = await get(origin, "/junior?utm_source=linkedin&trk=x", { headers: { cookie: "other=1", authorization: "Bearer x" } });
     assert.equal(res.status, 200);
     assert.match(res.headers.get("cache-control") ?? "", /no-store/);
     assert.match(res.body, /<meta name="robots" content="noindex, follow"/);
@@ -650,6 +651,36 @@ try {
     assert.equal(calls.length, 1);
     assert.equal(new URL(calls[0].path, "http://stub").searchParams.toString(), "sortBy=PublishedAtDesc&page=1");
     assert.equal(calls[0].headers["x-forwarded-for"], CLIENT_IP);
+    assert.equal(calls[0].headers.cookie, undefined);
+    assert.equal(calls[0].headers.authorization, undefined);
+  });
+
+  await check("the junior list sends a signed-in request on to /jobb with the junior filter, and reads nothing (#2284)", async () => {
+    junior.mode = "ok";
+    seen.length = 0;
+    const notDue = Math.floor(Date.now() / 1000) + 600;
+    const res = await get(origin, "/junior?sortBy=ExpiresAtAsc&page=2&utm_source=linkedin", {
+      headers: { cookie: `${SESSION_COOKIE}=s; ${REFRESH_AFTER_COOKIE}=${notDue}` },
+    });
+    assert.equal(res.status, 307);
+    assert.match(res.headers.get("location") ?? "", /\/jobb\?junior=on&sortBy=ExpiresAtAsc$/);
+    assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+    assert.equal(res.headers.get("set-cookie"), null, "a refresh that is not due writes no cookie");
+    assert.equal(seen.length, 0, "no backend call: the refresh is not due, and the list is not read");
+  });
+
+  await check("the junior list answers a session the server no longer knows as no session: the list, both cookies cleared (#2284)", async () => {
+    junior.mode = "ok";
+    seen.length = 0;
+    const res = await get(origin, "/junior", { headers: { cookie: `${SESSION_COOKIE}=gone` } });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+    assert.match(res.body, /<meta name="robots" content="noindex, follow"/);
+    const cleared = res.headers.get("set-cookie") ?? "";
+    for (const name of [SESSION_COOKIE, REFRESH_AFTER_COOKIE]) assert.match(cleared, new RegExp(`${name}=; Path=/; Max-Age=0`));
+    assert.ok(seen.some((r) => r.path === "/api/v1/auth/refresh"), "the refresh driver asked the session endpoint");
+    const calls = juniorCalls();
+    assert.equal(calls.length, 1);
     assert.equal(calls[0].headers.cookie, undefined);
     assert.equal(calls[0].headers.authorization, undefined);
   });

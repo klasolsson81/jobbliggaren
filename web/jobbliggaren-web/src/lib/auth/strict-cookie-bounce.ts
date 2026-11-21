@@ -1,24 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import enMetadata from "../../../messages/en/metadata.json";
-import enPages from "../../../messages/en/pages.json";
-import svMetadata from "../../../messages/sv/metadata.json";
-import svPages from "../../../messages/sv/pages.json";
-import { defaultLocale, isLocale, LOCALE_COOKIE, type Locale } from "@/i18n/routing";
 import { isCrossSiteDocumentNavigation } from "@/lib/http/fetch-metadata";
-import { buildContinuationDocument } from "./continuation-document";
-import { hasControlCharacterOrBackslash } from "./safe-redirect";
+import { continuationAnswer, isSameSitePath } from "./continuation-answer";
 import { returnPathFor } from "./return-path";
 import { BOUNCE_MARKER } from "./bounce-marker";
-
-const PARSE_BASE = new URL("https://jobbliggaren.invalid");
-
-const MAX_TARGET_LENGTH = 2048;
-
-// Read from the catalogues directly: the proxy has no request scope for next-intl.
-const STRINGS: Readonly<Record<Locale, { readonly heading: string; readonly continueLabel: string }>> = {
-  sv: { heading: svMetadata.applicationName, continueLabel: svPages.auth.passwordless.external.continue },
-  en: { heading: enMetadata.applicationName, continueLabel: enPages.auth.passwordless.external.continue },
-};
 
 /**
  * The answer to a link into a gated page that another site opened, a notification mail's link in webmail above
@@ -52,41 +36,5 @@ export function strictCookieBounce(request: NextRequest, hasSession: boolean): N
 
   if (hasSession || !isCrossSiteDocumentNavigation(request.headers)) return null;
 
-  const locale = localeOf(request);
-  const { heading, continueLabel } = STRINGS[locale];
-  return new NextResponse(
-    buildContinuationDocument({ lang: locale, title: heading, heading, continueLabel, target: hopTarget(target) }),
-    {
-      status: 200,
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-store",
-        "Referrer-Policy": "no-referrer",
-        "X-Robots-Tag": "noindex",
-        // The page this hop leads to now depends on the session. The opener's handle on the window would read
-        // that difference; as the window's first document, this one moves it into a group of its own first.
-        "Cross-Origin-Opener-Policy": "same-origin",
-      },
-    }
-  );
-}
-
-/** One slash, then a path on this origin; no backslash or control character, and nothing a browser reads as a host. */
-function isSameSitePath(target: string): boolean {
-  if (target.length > MAX_TARGET_LENGTH || !target.startsWith("/") || target.startsWith("//")) return false;
-  if (hasControlCharacterOrBackslash(target)) return false;
-  return new URL(target, PARSE_BASE).origin === PARSE_BASE.origin;
-}
-
-/** The hop's URL: the return path with {@link BOUNCE_MARKER}. Exported for the edge-log inventory. */
-export function hopTarget(target: string): string {
-  const url = new URL(target, PARSE_BASE);
-  url.searchParams.set(BOUNCE_MARKER, "1");
-  return `${url.pathname}${url.search}`;
-}
-
-/** `NEXT_LOCALE` is `SameSite=Lax`, so it rides the cross-site navigation the session cookie does not. */
-function localeOf(request: NextRequest): Locale {
-  const value = request.cookies.get(LOCALE_COOKIE)?.value;
-  return isLocale(value) ? value : defaultLocale;
+  return continuationAnswer(request, target);
 }

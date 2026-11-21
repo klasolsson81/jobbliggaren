@@ -4,12 +4,15 @@ import { ADMIN_RETURN_HEADER, adminReturnPath } from "@/lib/auth/admin-return";
 import { returnPathFor } from "@/lib/auth/return-path";
 import { strictCookieBounce } from "@/lib/auth/strict-cookie-bounce";
 import { publicJobAdRoute } from "@/lib/auth/public-job-ad-route";
+import { juniorItSignedInRoute } from "@/lib/auth/junior-it-signed-in-route";
+import { SESSION_COOKIE_NAME } from "@/lib/auth/cookie-names";
 import {
-  PERSISTENT_MAX_AGE_SECONDS,
-  REFRESH_AFTER_COOKIE_NAME,
-  SESSION_COOKIE_NAME,
-} from "@/lib/auth/cookie-names";
-import { env } from "@/lib/env";
+  FAILED_REFRESH,
+  UNKNOWN_SESSION,
+  forwardedWithSession,
+  refreshSession,
+  writeRefreshCookies,
+} from "@/lib/auth/session-refresh";
 import {
   parseNamn,
   buildOrgNrRefusedHref,
@@ -19,8 +22,6 @@ import {
   MAX_SNI_CODES,
   MAX_MUNICIPALITY_CODES,
 } from "@/lib/company-search/search-params";
-import { isPrefetch } from "@/lib/http/fetch-metadata";
-import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 import {
   NONCE_REQUEST_HEADER,
   buildContentSecurityPolicy,
@@ -35,50 +36,16 @@ import {
 // an authed prefix never swallows a public sibling (`/cv` must not gate
 // `/cv-granskning`).
 //
-// It ALSO drives the persistent-session refresh/rotation (PR2b-3b, epic #481): for
-// an authenticated request on a protected path it calls POST /auth/refresh at most
-// once per REFRESH_THROTTLE_SECONDS. A Persistent session (id rotates every 24h)
-// returns `rotated:true` + a new id, which we re-set as a persistent cookie AND
-// forward to the downstream render; a Session-scoped one only slides. The refresh
-// is best-effort: a failure other than a GET's 401 is swallowed so navigation never
-// breaks.
+// It ALSO drives the persistent-session refresh/rotation (PR2b-3b, epic #481) for an
+// authenticated request on a protected path, through `lib/auth/session-refresh.ts`: at most
+// one POST /auth/refresh per throttle window, a rotated id re-set as a persistent cookie AND
+// forwarded to the downstream render, and every failure but a GET's 401 swallowed so
+// navigation never breaks. The open junior list's branch (#2284) is its one other caller.
 //
 // It is ALSO the one writer of the page Content-Security-Policy (ADR 0163): a fresh nonce per
 // request goes into the CSP and into an `x-nonce` request header, on the REQUEST so Next stamps the
 // nonce on its inline scripts while rendering, and on the RESPONSE so the browser enforces it.
 // `proxy()` below does that around `route()`, so no branch of the routing logic can forget it.
-
-// Throttle: drive a refresh at most once per 15 min. Chosen well below the backend's
-// 24h rotation interval (so a rotation window is never missed) and well above
-// per-request (so ordinary browsing does not hammer /auth/refresh). The sliding
-// touch this drives is cheap; 15 min keeps the session fresh without amplifying load.
-const REFRESH_THROTTLE_SECONDS = 15 * 60;
-
-// On a failed/slow refresh, back off only briefly (not the full window) before the next
-// attempt, so a degraded backend is not re-hit on every navigation while recovery stays
-// prompt.
-const REFRESH_ERROR_BACKOFF_SECONDS = 30;
-
-// Bound the refresh round-trip: a stalled (accepted-but-not-answering) backend must never
-// hang a protected navigation. undici's default headersTimeout is ~300s, far too long for a
-// hot-path nav; on timeout the fetch rejects with AbortError, which the catch below swallows
-// into a plain passthrough (§2.5 hot-path; navigation must never break here).
-const REFRESH_TIMEOUT_MS = 2500;
-
-// The __Host- attribute set shared by every cookie this proxy writes. Never weaken
-// these: __Host- requires Secure + Path=/ + no Domain, and the session/companion
-// cookies stay HttpOnly + SameSite=Strict.
-const HOST_COOKIE_ATTRS = {
-  httpOnly: true,
-  secure: true,
-  sameSite: "strict",
-  path: "/",
-} as const;
-
-interface RefreshResult {
-  rotated: boolean;
-  sessionId: string | null;
-}
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const nonce = generateNonce();
@@ -117,6 +84,16 @@ async function route(
   const bounce = strictCookieBounce(request, Boolean(sessionId));
   if (bounce !== null) return bounce;
 
+  // #2284: the open junior list. With the session cookie a request is sent on to /jobb with the junior filter, after the
+  // refresh driver when it is due; without it, a cross-site arrival is handed the cookie first. Disjoint from the bounce
+  // by path; `junior-it-signed-in-route.ts` carries the rule.
+  const junior = await juniorItSignedInRoute(
+    request,
+    forwarded,
+    sessionId ? (nowSeconds) => refreshSession(request, sessionId, nowSeconds) : null
+  );
+  if (junior !== null) return junior;
+
   // ADR 0165: the anonymous twin of `/jobb/<uuid>`. After the bounce, so a cross-site arrival is still handed to the
   // cookie first; before the login redirect below, which a cookieless request to it would otherwise meet.
   const publicJobAd = await publicJobAdRoute(request, forwarded, Boolean(sessionId));
@@ -133,7 +110,8 @@ async function route(
   }
 
   // Gated: the refresh driver only runs on protected paths. Public/non-protected
-  // paths pass straight through, never touching the backend.
+  // paths pass straight through, never touching the backend — with one exception, `/junior`
+  // with the session cookie, answered above (#2284).
   if (!isProtectedPath(pathname)) {
     return next(forwarded);
   }
@@ -189,102 +167,29 @@ async function route(
     }
   }
 
-  // Never rotate on a speculative prefetch: it is not a real navigation, and
-  // rotating the id for a page the user may never open would churn the session.
-  if (isPrefetch(request.headers)) {
-    return next(forwarded);
-  }
-
-  // Throttle via the non-secret companion cookie (epoch seconds after which the next
-  // refresh is due). Absent or elapsed → due; otherwise skip without hitting the BE.
+  // The refresh driver (`lib/auth/session-refresh.ts`): a prefetch or a refresh not yet due
+  // passes straight through; anything else calls the backend at most once per window.
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const refreshAfterRaw = request.cookies.get(REFRESH_AFTER_COOKIE_NAME)?.value;
-  const refreshAfter = refreshAfterRaw
-    ? Number.parseInt(refreshAfterRaw, 10)
-    : Number.NaN;
-  const refreshDue = !Number.isFinite(refreshAfter) || nowSeconds >= refreshAfter;
-  if (!refreshDue) {
-    return next(forwarded);
+  const refresh = await refreshSession(request, sessionId, nowSeconds);
+  switch (refresh.kind) {
+    case "notDue":
+      return next(forwarded);
+    case "unknownSession":
+      // A GET answered 401 goes to the login page with its path (#1893, `expiredSessionRedirect`).
+      // A Server Action POST must never be answered with a redirect, so every other method is
+      // treated as any other failure: the Server Component re-verifies auth via getServerSession().
+      if (request.method === "GET") return expiredSessionRedirect(request, nowSeconds);
+      return writeRefreshCookies(next(forwarded), FAILED_REFRESH, nowSeconds);
+    case "rotated":
+      return writeRefreshCookies(
+        next(forwardedWithSession(forwarded, request.headers.get("cookie"), refresh.sessionId)),
+        refresh,
+        nowSeconds
+      );
+    case "failed":
+    case "slid":
+      return writeRefreshCookies(next(forwarded), refresh, nowSeconds);
   }
-
-  // Best-effort refresh/rotation. A GET answered 401 goes to the login page with its
-  // path (#1893, `expiredSessionRedirect`). Any other failure — a network error, a
-  // timeout, another status — is swallowed: navigation must never break here, and the
-  // Server Component re-verifies auth via getServerSession(). On failure we do NOT
-  // advance the throttle, so the next real navigation retries and the session
-  // recovers promptly.
-  let refresh: RefreshResult | null = null;
-  try {
-    const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/refresh`, {
-      method: "POST",
-      // pickForwardedHeaders, not forwardedHeaders(): middleware has no `next/headers`
-      // request scope, but it does have the NextRequest, which carries the same inbound
-      // headers. Refresh is rate-limited per client IP like every other auth route (#1202).
-      headers: {
-        ...pickForwardedHeaders(request.headers),
-        Authorization: `Bearer ${sessionId}`,
-      },
-      cache: "no-store",
-      signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
-    });
-    if (res.ok) {
-      refresh = parseRefresh(await res.json());
-    } else if (res.status === 401 && request.method === "GET") {
-      return expiredSessionRedirect(request);
-    }
-  } catch {
-    // Swallow — see comment above.
-  }
-
-  if (!refresh) {
-    // Refresh failed (timeout / network error / non-OK / malformed body). Advance the
-    // throttle by a short backoff so a degraded backend is not re-hit on every navigation,
-    // while recovery stays prompt. The session cookie is left untouched.
-    const response = next(forwarded);
-    setThrottleCookie(
-      response,
-      nowSeconds + REFRESH_ERROR_BACKOFF_SECONDS,
-      REFRESH_ERROR_BACKOFF_SECONDS
-    );
-    response.headers.set("Cache-Control", "no-store");
-    return response;
-  }
-
-  const nextRefreshAfter = nowSeconds + REFRESH_THROTTLE_SECONDS;
-
-  if (refresh.rotated && refresh.sessionId) {
-    const newId = refresh.sessionId;
-
-    // Rewrite the REQUEST cookie so the downstream Server-Component render
-    // (getServerSession → /me) reads the NEW id, not the retired one. Per Next
-    // issue #57655 the modified headers MUST be forwarded explicitly via
-    // NextResponse.next({ request: { headers } }) or the SC sees a stale value.
-    // (The backend keeps the old id valid for a 60s grace window, so this is
-    // belt-and-suspenders — but it must be correct.)
-    const requestHeaders = new Headers(forwarded);
-    requestHeaders.set(
-      "cookie",
-      rewriteCookieHeader(request.headers.get("cookie"), SESSION_COOKIE_NAME, newId)
-    );
-    const response = next(requestHeaders);
-
-    // rotated ⟹ the session was Persistent ⟹ always a persistent cookie.
-    response.cookies.set(SESSION_COOKIE_NAME, newId, {
-      ...HOST_COOKIE_ATTRS,
-      maxAge: PERSISTENT_MAX_AGE_SECONDS,
-    });
-    setThrottleCookie(response, nextRefreshAfter, REFRESH_THROTTLE_SECONDS);
-    // A rotated Set-Cookie must never be cached.
-    response.headers.set("Cache-Control", "no-store");
-    return response;
-  }
-
-  // rotated:false — the session only slid (or was Session-scoped). Advance the
-  // throttle and leave the session cookie untouched.
-  const response = next(forwarded);
-  setThrottleCookie(response, nextRefreshAfter, REFRESH_THROTTLE_SECONDS);
-  response.headers.set("Cache-Control", "no-store");
-  return response;
 }
 
 function loginUrlFor(request: NextRequest): URL {
@@ -299,74 +204,8 @@ function loginUrlFor(request: NextRequest): URL {
  * 503 or a timeout says nothing about the session, and a Server Action POST must never be answered with a
  * redirect. The cookie goes on the way, so the next request does not ask again, and the login returns to the page.
  */
-function expiredSessionRedirect(request: NextRequest): NextResponse {
-  const response = NextResponse.redirect(loginUrlFor(request));
-  response.cookies.set(SESSION_COOKIE_NAME, "", { ...HOST_COOKIE_ATTRS, maxAge: 0 });
-  response.cookies.set(REFRESH_AFTER_COOKIE_NAME, "", { ...HOST_COOKIE_ATTRS, maxAge: 0 });
-  response.headers.set("Cache-Control", "no-store");
-  return response;
-}
-
-// Writes the throttle companion cookie: its VALUE is the epoch second the next refresh is
-// due, and its own Max-Age matches that window so it expires exactly when it becomes due.
-function setThrottleCookie(
-  response: NextResponse,
-  dueAtEpochSeconds: number,
-  maxAgeSeconds: number
-): void {
-  response.cookies.set(REFRESH_AFTER_COOKIE_NAME, String(dueAtEpochSeconds), {
-    ...HOST_COOKIE_ATTRS,
-    maxAge: maxAgeSeconds,
-  });
-}
-
-/**
- * Narrows the untyped /auth/refresh JSON body to a RefreshResult, or null if the
- * shape is unexpected (treated as a failed refresh — no rotation, no throttle).
- */
-function parseRefresh(body: unknown): RefreshResult | null {
-  if (typeof body !== "object" || body === null) {
-    return null;
-  }
-  const record = body as Record<string, unknown>;
-  if (typeof record.rotated !== "boolean") {
-    return null;
-  }
-  return {
-    rotated: record.rotated,
-    sessionId: typeof record.sessionId === "string" ? record.sessionId : null,
-  };
-}
-
-/**
- * Replaces just the session cookie's value inside a raw Cookie header string,
- * leaving every other cookie intact. Appends the pair if the cookie is absent.
- */
-function rewriteCookieHeader(
-  cookieHeader: string | null,
-  name: string,
-  value: string
-): string {
-  const pair = `${name}=${value}`;
-  if (!cookieHeader) {
-    return pair;
-  }
-  let found = false;
-  // Split on ';' with optional whitespace — browsers always send "; ", but tolerate a
-  // non-standard separator so the old value is replaced (not appended alongside).
-  const rewritten = cookieHeader.split(/;\s*/).map((part) => {
-    const eq = part.indexOf("=");
-    const key = (eq === -1 ? part : part.slice(0, eq)).trim();
-    if (key === name) {
-      found = true;
-      return pair;
-    }
-    return part;
-  });
-  if (!found) {
-    rewritten.push(pair);
-  }
-  return rewritten.join("; ");
+function expiredSessionRedirect(request: NextRequest, nowSeconds: number): NextResponse {
+  return writeRefreshCookies(NextResponse.redirect(loginUrlFor(request)), UNKNOWN_SESSION, nowSeconds);
 }
 
 // Only Next's own static assets are excluded, anchored so that a look-alike (`/favicon.icoX`,

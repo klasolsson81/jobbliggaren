@@ -201,7 +201,7 @@ Each reading below is dated and has its source. Nothing is estimated. R1 is the 
   - The rows are laid out once, when the list mounts. A tick re-renders the page, and a row that moved to another group or fell outside the six would take the focus with it.
   - Rejected: #2272's two lists, links and searches to add, inside the popover, where every change moves a row from one list to the other.
 - **A3 — The settings page uses the same list,** in a card titled Snabblänkar. Its two lists, and their focus fallback to Mina sidor's h1, are removed.
-- **A4 — The junior link opens `/jobb?junior=on`**, the junior filter from #2261, instead of `/junior`, whose public header looks signed out. The user keeps the whole search page: filters, sorting and matching. The count is still `/junior`'s total (D6). `/junior` is unchanged and reads no session (ADR 0186).
+- **A4 — The junior link opens `/jobb?junior=on`**, the junior filter from #2261, instead of `/junior`, whose public header looks signed out. The user keeps the whole search page: filters, sorting and matching. The count is still `/junior`'s total (D6). `/junior` is unchanged and reads no session (ADR 0186). (See ADR 0186, Amendment 2026-11-21, #2284.)
 - **A5 — Every quick link is a `next/link` with `prefetch={false}`.** All of them now stay on `/jobb`. They navigate softly, and a link in view never reads the list in advance. #2272 used plain anchors so that a prefetch would not spend `/junior`'s own budget; with A4 that reason is gone, and so are the anchors.
 - **A6 — An anchored panel follows its trigger.** `usePanelPosition`, which every popover shares, measures again after each commit while the panel is open; an unchanged placement keeps its state. At 1280 px, three links wrap the row onto two lines, so a tick moves the button from one line to the other. A panel left where it opened would cover the new line and its own button.
 - **Docs in the same PR.**
@@ -216,6 +216,6 @@ Each reading below is dated and has its source. Nothing is estimated. R1 is the 
 
   At 390 px, the band with no link now carries the row with Välj snabblänkar.
 - **Not built, on purpose.**
-  - Sending a signed-in visitor of `/junior` to `/jobb`, since that page reads no session.
+  - Sending a signed-in visitor of `/junior` to `/jobb`, since that page reads no session. (Built by #2284 as a branch of the proxy, not in the page; see ADR 0186, Amendment 2026-11-21, and ADR 0018, Amendment 2026-11-21.)
   - Quick links of any kind other than the junior link and a search.
   - Reordering.

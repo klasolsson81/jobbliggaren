@@ -1,14 +1,16 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { recentSearch, recentSearchId } from "./fixtures";
 import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
 
 /**
- * The quick links in a real browser (#2265, ADR 0188): the /jobb hero shows the junior link first and then the marked
- * searches, hides the junior link at 0, after a failed count and after a failed profile read, and removes a link with
- * its × the way DESIGN.md's removal rule says (focus to the next link, else the previous, else the h1, and a status).
- * /sokningar and /mina-sidor/snabblankar add and remove through the same writes, and say so when the three are taken.
+ * The quick links in a real browser (#2265, ADR 0188 and its #2275 amendment): the /jobb hero shows the junior link
+ * first and then the marked searches, hides the junior link at 0, after a failed count and after a failed profile
+ * read, and removes a link with its × the way DESIGN.md's removal rule says (focus to the next link, else the
+ * previous, else Anpassa, and a status). Anpassa at the end of the row opens a tick-box list, and
+ * /mina-sidor/snabblankar shows the same list; /sokningar adds and removes from each row. All of them write through
+ * the same endpoints and say so when the three are taken.
  *
  * With VISUAL_SHOTS_DIR set, every state is also saved as a screenshot for the design verdict.
  */
@@ -42,6 +44,24 @@ const LONG =
   "Systemutvecklare med erfarenhet av .NET, Azure och PostgreSQL i offentlig sektor eller hos en kommun";
 
 const nav = (page: Page) => page.getByRole("navigation", { name: "Snabblänkar" });
+/** The hero's own links, without the list's "Alla sökningar" while it is open. */
+const heroLinks = (page: Page) => nav(page).locator("a.jp-hero__quicklink");
+const anpassa = (page: Page) => nav(page).getByRole("button", { name: "Anpassa snabblänkar", exact: true });
+const choose = (page: Page) => nav(page).getByRole("button", { name: "Välj snabblänkar", exact: true });
+const picker = (page: Page) => page.getByRole("dialog", { name: "Snabblänkar" });
+/** The anchored list sits right under its button, wherever a change to the row has moved the button. */
+async function expectListUnderItsButton(page: Page) {
+  const button = nav(page).getByRole("button", { name: /^(Anpassa|Välj) snabblänkar$/ });
+  await expect(async () => {
+    const list = await picker(page).boundingBox();
+    const trigger = await button.boundingBox();
+    if (!list || !trigger) throw new Error("the list or its button has no box");
+    expect(Math.abs(list.x - trigger.x)).toBeLessThan(1.5);
+    expect(Math.abs(list.y - (trigger.y + trigger.height + 8))).toBeLessThan(1.5);
+  }).toPass();
+}
+const rowNames = (list: Locator) =>
+  list.getByRole("checkbox").evaluateAll((boxes) => boxes.map((box) => box.closest("label")?.textContent ?? ""));
 const removeButton = (page: Page, label: string) =>
   page.getByRole("button", { name: `Ta bort snabblänken: ${label}`, exact: true });
 const status = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });
@@ -51,6 +71,14 @@ async function shot(page: Page, name: string) {
   if (!dir) return;
   mkdirSync(dir, { recursive: true });
   await page.screenshot({ path: join(dir, `${name}.png`), fullPage: true });
+}
+
+/** A viewport shot: a full-page one resizes the viewport, which measures an open list again and would hide a miss. */
+async function viewShot(page: Page, name: string) {
+  const dir = process.env.VISUAL_SHOTS_DIR;
+  if (!dir) return;
+  mkdirSync(dir, { recursive: true });
+  await page.screenshot({ path: join(dir, `${name}.png`) });
 }
 
 /**
@@ -109,11 +137,12 @@ test.describe("the /jobb hero", () => {
       const links = nav(page).getByRole("link");
       await expect(links).toHaveCount(3);
       await expect(links.nth(0)).toHaveAccessibleName(`${JUNIOR}, 152 just nu`);
-      await expect(links.nth(0)).toHaveAttribute("href", "/junior");
+      await expect(links.nth(0)).toHaveAttribute("href", "/jobb?junior=on");
       await expect(links.nth(1)).toHaveAccessibleName(BACKEND);
       await expect(links.nth(1)).toHaveAttribute("href", /\/jobb\?.*q=Backendutvecklare/);
       await expect(links.nth(2)).toHaveAccessibleName(TESTER);
       await expect(removeButton(page, JUNIOR)).toBeVisible();
+      await expect(anpassa(page)).toHaveText("Anpassa");
       await noSidewaysScroll(page);
       await heroShot(page, `hero-three-links-${width}`);
     });
@@ -179,12 +208,19 @@ test.describe("the /jobb hero", () => {
       await heroShot(page, `hero-${state.name}-1280`);
     });
 
-    test(`${state.name} and no marked search: the hero has no quick links at all`, async ({ page }) => {
+    test(`${state.name} and no marked search: no link, and Välj snabblänkar unless the profile failed`, async ({
+      page,
+    }) => {
       state.arrange();
       await page.setViewportSize({ width: 1280, height: 900 });
       await page.goto("/jobb");
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-      await expect(nav(page)).toHaveCount(0);
+      if (state.name === "profile-error") {
+        await expect(nav(page)).toHaveCount(0);
+      } else {
+        await expect(heroLinks(page)).toHaveCount(0);
+        await expect(choose(page)).toBeVisible();
+      }
       await heroShot(page, `hero-${state.name}-no-links-1280`);
     });
   }
@@ -246,7 +282,7 @@ test.describe("the /jobb hero", () => {
     await expect(removeButton(page, JUNIOR)).toHaveCount(0);
   });
 
-  test("× removes a link at once: focus to the next link, then the previous, then the h1, each with a status", async ({
+  test("× removes a link at once: focus to the next link, then the previous, then Välj snabblänkar, each with a status", async ({
     page,
   }) => {
     threeLinks();
@@ -270,8 +306,8 @@ test.describe("the /jobb hero", () => {
     await expect(status(page, `Snabblänken har tagits bort: ${TESTER}`)).toBeAttached();
 
     await removeButton(page, JUNIOR).click();
-    await expect(nav(page)).toHaveCount(0);
-    await expect(page.locator("#jobb-hero-title")).toBeFocused();
+    await expect(heroLinks(page)).toHaveCount(0);
+    await expect(choose(page)).toBeFocused();
     await expect(status(page, `Snabblänken har tagits bort: ${JUNIOR}`)).toBeAttached();
     expect(harness.quickLinkWrites.at(-1)).toEqual({
       route: "PUT /api/v1/me/junior-quick-link",
@@ -283,7 +319,8 @@ test.describe("the /jobb hero", () => {
 
     await page.reload();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(nav(page)).toHaveCount(0);
+    await expect(heroLinks(page)).toHaveCount(0);
+    await expect(choose(page)).toBeVisible();
   });
 
   test("a refused removal keeps the link, says why and leaves focus on its ×", async ({ page }) => {
@@ -299,6 +336,167 @@ test.describe("the /jobb hero", () => {
     await heroShot(page, "hero-remove-refused-1280");
     await page.setViewportSize({ width: 390, height: 900 });
     await heroShot(page, "hero-remove-refused-390");
+  });
+});
+
+test.describe("the hero's Anpassa list", () => {
+  const box = (page: Page, name: string) => picker(page).getByRole("checkbox", { name, exact: true });
+  const PICKER_FULL = "Du kan ha högst 3 snabblänkar. Kryssa ur en för att välja en annan.";
+
+  for (const width of [1280, 800, 390] as const) {
+    test(`at ${width} px: a box per link, ticked as the row is, and the others unavailable at three`, async ({ page }) => {
+      threeLinks();
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/jobb");
+
+      await anpassa(page).click();
+      await expect(picker(page)).toBeVisible();
+      await expect(picker(page).getByRole("checkbox")).toHaveCount(4);
+      await expect(box(page, JUNIOR)).toBeChecked();
+      await expect(box(page, BACKEND)).toBeChecked();
+      await expect(box(page, TESTER)).toBeChecked();
+      await expect(box(page, UNMARKED)).not.toBeChecked();
+      await expect(box(page, UNMARKED)).toBeDisabled();
+      await expect(picker(page).getByText(PICKER_FULL)).toBeVisible();
+      await expect(picker(page).getByRole("link", { name: "Alla sökningar" })).toHaveAttribute(
+        "href",
+        "/mina-sidor/snabblankar"
+      );
+      await noSidewaysScroll(page);
+      if (width !== 390) await expectListUnderItsButton(page);
+      await viewShot(page, `hero-picker-full-${width}`);
+    });
+  }
+
+  test("an untick and a tick change the row at once, and focus stays on the box", async ({ page }) => {
+    threeLinks();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/jobb");
+    await anpassa(page).click();
+
+    await box(page, BACKEND).click();
+    await expect(heroLinks(page)).toHaveCount(2);
+    await expect(box(page, BACKEND)).not.toBeChecked();
+    await expect(box(page, BACKEND)).toBeFocused();
+    await expect(box(page, UNMARKED)).toBeEnabled();
+    // Two links fit on one line, so the button moved up and to the left, and the list with it.
+    await expectListUnderItsButton(page);
+    await viewShot(page, "hero-picker-after-untick-1280");
+
+    await box(page, UNMARKED).click();
+    await expect(heroLinks(page)).toHaveCount(3);
+    await expect(heroLinks(page).nth(1)).toHaveAccessibleName(UNMARKED);
+    await expect(box(page, UNMARKED)).toBeChecked();
+    await expect(box(page, UNMARKED)).toBeFocused();
+    // Three links wrap the row again: the list moves down with the button instead of covering the new line.
+    await expectListUnderItsButton(page);
+    await viewShot(page, "hero-picker-after-tick-1280");
+    expect(harness.quickLinkWrites.map((write) => write.route)).toEqual([
+      `DELETE /api/v1/me/recent-searches/${recentSearchId(1)}/quick-link`,
+      `PUT /api/v1/me/recent-searches/${recentSearchId(2)}/quick-link`,
+    ]);
+    // The rows stay where the list put them when it opened.
+    expect(await rowNames(picker(page))).toEqual([JUNIOR, BACKEND, TESTER, UNMARKED]);
+  });
+
+  test("Välj snabblänkar with no link: a tick on the junior box shows the junior link, and the button becomes Anpassa", async ({
+    page,
+  }) => {
+    harness.juniorItCount = { status: 200, body: { count: 152 } };
+    harness.juniorQuickLinkEnabled = false;
+    harness.recentSearches = [recentSearch(2, UNMARKED, false)];
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/jobb");
+    await expect(heroLinks(page)).toHaveCount(0);
+    await heroShot(page, "hero-choose-empty-1280");
+
+    await choose(page).click();
+    await box(page, JUNIOR).click();
+
+    await expect(heroLinks(page)).toHaveCount(1);
+    await expect(heroLinks(page).first()).toHaveAccessibleName(`${JUNIOR}, 152 just nu`);
+    await expect(anpassa(page)).toBeVisible();
+    await expect(box(page, JUNIOR)).toBeFocused();
+    expect(harness.quickLinkWrites).toEqual([{ route: "PUT /api/v1/me/junior-quick-link", body: { enabled: true } }]);
+  });
+
+  test("the keyboard: Enter opens the list, Space ticks, Escape closes it and focus returns to the button", async ({
+    page,
+  }) => {
+    threeLinks();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/jobb");
+
+    await anpassa(page).focus();
+    await page.keyboard.press("Enter");
+    await expect(picker(page)).toBeVisible();
+    await expect(anpassa(page)).toHaveAttribute("aria-expanded", "true");
+    await box(page, TESTER).focus();
+    await page.keyboard.press("Space");
+    await expect(box(page, TESTER)).not.toBeChecked();
+    await expect(heroLinks(page)).toHaveCount(2);
+    await expect(box(page, TESTER)).toBeFocused();
+    await viewShot(page, "hero-picker-focus-1280");
+
+    await page.keyboard.press("Escape");
+    await expect(picker(page)).toHaveCount(0);
+    await expect(anpassa(page)).toBeFocused();
+    await expect(anpassa(page)).toHaveAttribute("aria-expanded", "false");
+  });
+
+  const refusals: ReadonlyArray<{ name: string; marked: boolean; elsewhere: () => void; alert: string }> = [
+    { name: "a tick refused because another tab filled the cap", marked: false, elsewhere: () => markElsewhere(9), alert: FULL },
+    { name: "a tick on a search another tab deleted", marked: false, elsewhere: () => deleteElsewhere(2), alert: NOT_FOUND },
+    { name: "an untick of a search another tab deleted", marked: true, elsewhere: () => deleteElsewhere(2), alert: NOT_FOUND },
+  ];
+
+  for (const refusal of refusals) {
+    test(`${refusal.name} says why, puts the box back and leaves focus on it`, async ({ page }) => {
+      harness.juniorItCount = { status: 200, body: { count: 152 } };
+      harness.recentSearches = [recentSearch(1, BACKEND, true), recentSearch(2, UNMARKED, refusal.marked)];
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.goto("/jobb");
+      await anpassa(page).click();
+      refusal.elsewhere();
+
+      await box(page, UNMARKED).focus();
+      await page.keyboard.press("Space");
+
+      await expect(picker(page).getByRole("alert").filter({ hasText: refusal.alert })).toBeVisible();
+      if (refusal.marked) await expect(box(page, UNMARKED)).toBeChecked();
+      else await expect(box(page, UNMARKED)).not.toBeChecked();
+      await expect(box(page, UNMARKED)).toBeFocused();
+      await viewShot(page, `hero-picker-refused-${refusal.marked ? "untick" : "tick"}-${refusal.alert === FULL ? "full" : "gone"}-1280`);
+    });
+  }
+
+  test("a write that raced another says so and changes nothing", async ({ page }) => {
+    harness.recentSearches = [recentSearch(2, UNMARKED, false)];
+    harness.refuseNextQuickLinkWrite = { status: 409, body: { title: "QuickLink.SlotTaken", status: 409 } };
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto("/jobb");
+    await choose(page).click();
+
+    await box(page, UNMARKED).click();
+
+    await expect(
+      picker(page).getByRole("alert").filter({ hasText: "Snabblänkarna ändrades samtidigt. Försök igen." })
+    ).toBeVisible();
+    await expect(box(page, UNMARKED)).not.toBeChecked();
+    await expect(box(page, UNMARKED)).toBeFocused();
+    await viewShot(page, "hero-picker-conflict-390");
+  });
+
+  test("Alla sökningar opens the settings page with the same list", async ({ page }) => {
+    threeLinks();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/jobb");
+    await anpassa(page).click();
+
+    await picker(page).getByRole("link", { name: "Alla sökningar" }).click();
+
+    await expect(page).toHaveURL(/\/mina-sidor\/snabblankar$/);
+    await expect(page.getByRole("region", { name: "Snabblänkar" }).getByRole("checkbox")).toHaveCount(4);
   });
 });
 
@@ -370,83 +568,83 @@ test.describe("/sokningar", () => {
 });
 
 test.describe("/mina-sidor/snabblankar", () => {
-  const current = (page: Page) => page.getByRole("region", { name: "Dina snabblänkar" });
-  const addable = (page: Page) => page.getByRole("region", { name: "Lägg till en snabblänk" });
+  const card = (page: Page) => page.getByRole("region", { name: "Snabblänkar" });
+  const box = (page: Page, name: string) => card(page).getByRole("checkbox", { name, exact: true });
 
-  test("a new account: the junior link, and no search to add yet", async ({ page }) => {
+  test("a new account: the junior box ticked, and no search to tick yet", async ({ page }) => {
     for (const width of [1280, 390] as const) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/mina-sidor/snabblankar");
-      await expect(current(page).getByRole("button", { name: `Ta bort snabblänken: ${JUNIOR}` })).toBeVisible();
-      await expect(addable(page).getByText("Gör en sökning under Jobb, så kan du lägga till den här.")).toBeVisible();
+      await expect(box(page, JUNIOR)).toBeChecked();
+      await expect(card(page).getByText("Gör en sökning under Jobb, så kan du lägga till den här.")).toBeVisible();
       await noSidewaysScroll(page);
       await shot(page, `settings-new-account-${width}`);
     }
   });
 
-  test("three links: each can be removed, and the add list says the three are taken", async ({ page }) => {
+  test("every recent search is offered, and at three the others are unavailable and the list says why", async ({
+    page,
+  }) => {
     harness.recentSearches = [
       recentSearch(1, BACKEND, true),
       recentSearch(2, UNMARKED, false),
       recentSearch(3, TESTER, true),
+      ...[4, 5, 6, 7, 8, 9, 10].map((n) => recentSearch(n, `Sökning ${n}`, false)),
     ];
     for (const width of [1280, 390] as const) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/mina-sidor/snabblankar");
-      await expect(current(page).getByRole("listitem")).toHaveCount(3);
-      await expect(addable(page).getByText("Du kan ha högst 3 snabblänkar.", { exact: false })).toBeVisible();
+      await expect(card(page).getByRole("checkbox")).toHaveCount(11);
+      expect(await rowNames(card(page))).toEqual([
+        JUNIOR,
+        BACKEND,
+        TESTER,
+        UNMARKED,
+        ...[4, 5, 6, 7, 8, 9, 10].map((n) => `Sökning ${n}`),
+      ]);
+      await expect(box(page, UNMARKED)).toBeDisabled();
+      await expect(card(page).getByText("Du kan ha högst 3 snabblänkar. Kryssa ur en för att välja en annan.")).toBeVisible();
+      await noSidewaysScroll(page);
       await shot(page, `settings-full-${width}`);
     }
   });
 
-  test("the junior link moves between the lists, and focus and the status follow", async ({ page }) => {
+  test("the junior box: an untick and a tick write at once, and focus stays on the box", async ({ page }) => {
     harness.recentSearches = [recentSearch(1, BACKEND, true), recentSearch(2, UNMARKED, false)];
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/mina-sidor/snabblankar");
 
-    await current(page).getByRole("button", { name: `Ta bort snabblänken: ${JUNIOR}` }).click();
-    await expect(status(page, `Snabblänken har tagits bort: ${JUNIOR}`)).toBeAttached();
-    await expect(addable(page).getByRole("button", { name: `Lägg till som snabblänk: ${JUNIOR}` })).toBeVisible();
-    await expect(current(page).getByRole("button", { name: `Ta bort snabblänken: ${BACKEND}` })).toBeFocused();
-    await shot(page, "settings-junior-removed-1280");
+    await box(page, JUNIOR).click();
+    await expect(box(page, JUNIOR)).not.toBeChecked();
+    await expect(box(page, JUNIOR)).toBeFocused();
+    await shot(page, "settings-junior-unticked-1280");
 
-    await addable(page).getByRole("button", { name: `Lägg till som snabblänk: ${JUNIOR}` }).click();
-    await expect(status(page, `Snabblänken har lagts till: ${JUNIOR}`)).toBeAttached();
-    await expect(current(page).getByRole("button", { name: `Ta bort snabblänken: ${JUNIOR}` })).toBeVisible();
-    await expect(addable(page).getByRole("button", { name: `Lägg till som snabblänk: ${UNMARKED}` })).toBeFocused();
+    await box(page, JUNIOR).click();
+    await expect(box(page, JUNIOR)).toBeChecked();
+    await expect(box(page, JUNIOR)).toBeFocused();
     expect(harness.quickLinkWrites).toEqual([
       { route: "PUT /api/v1/me/junior-quick-link", body: { enabled: false } },
       { route: "PUT /api/v1/me/junior-quick-link", body: { enabled: true } },
     ]);
-  });
-
-  test("removing the last link sends focus to the page's h1", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/mina-sidor/snabblankar");
-
-    await current(page).getByRole("button", { name: `Ta bort snabblänken: ${JUNIOR}` }).click();
-    await expect(status(page, `Snabblänken har tagits bort: ${JUNIOR}`)).toBeAttached();
-    await expect(current(page).getByText("Du har inga snabblänkar.")).toBeVisible();
-    await expect(page.getByRole("heading", { level: 1, name: "Mina sidor" })).toBeFocused();
-    await shot(page, "settings-last-removed-1280");
+    expect(harness.juniorQuickLinkEnabled).toBe(true);
   });
 
   for (const refusal of [
-    { name: "an add refused because another tab filled the cap", elsewhere: () => markElsewhere(9), alert: FULL },
-    { name: "an add of a search another tab deleted", elsewhere: () => deleteElsewhere(2), alert: NOT_FOUND },
+    { name: "a tick refused because another tab filled the cap", elsewhere: () => markElsewhere(9), alert: FULL },
+    { name: "a tick on a search another tab deleted", elsewhere: () => deleteElsewhere(2), alert: NOT_FOUND },
   ]) {
-    test(`${refusal.name} says why and leaves focus on the button`, async ({ page }) => {
+    test(`${refusal.name} says why, puts the box back and leaves focus on it`, async ({ page }) => {
       harness.recentSearches = [recentSearch(1, BACKEND, true), recentSearch(2, UNMARKED, false)];
       await page.setViewportSize({ width: 1280, height: 900 });
       await page.goto("/mina-sidor/snabblankar");
-      const button = addable(page).getByRole("button", { name: `Lägg till som snabblänk: ${UNMARKED}` });
       refusal.elsewhere();
 
-      await button.focus();
-      await page.keyboard.press("Enter");
+      await box(page, UNMARKED).focus();
+      await page.keyboard.press("Space");
 
       await expect(page.getByRole("alert").filter({ hasText: refusal.alert })).toBeVisible();
-      await expect(button).toBeFocused();
+      await expect(box(page, UNMARKED)).not.toBeChecked();
+      await expect(box(page, UNMARKED)).toBeFocused();
     });
   }
 
@@ -455,11 +653,14 @@ test.describe("/mina-sidor/snabblankar", () => {
     harness.refuseNextQuickLinkWrite = { status: 409, body: { title: "QuickLink.SlotTaken", status: 409 } };
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/mina-sidor/snabblankar");
-    await addable(page).getByRole("button", { name: `Lägg till som snabblänk: ${UNMARKED}` }).click();
+
+    await box(page, UNMARKED).click();
+
     await expect(
       page.getByRole("alert").filter({ hasText: "Snabblänkarna ändrades samtidigt. Försök igen." })
     ).toBeVisible();
-    await expect(addable(page).getByRole("button", { name: `Lägg till som snabblänk: ${UNMARKED}` })).toBeFocused();
+    await expect(box(page, UNMARKED)).not.toBeChecked();
+    await expect(box(page, UNMARKED)).toBeFocused();
     await shot(page, "settings-conflict-1280");
     await page.setViewportSize({ width: 390, height: 900 });
     await shot(page, "settings-conflict-390");

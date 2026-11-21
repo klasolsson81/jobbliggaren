@@ -99,10 +99,15 @@ vi.mock("@/components/job-ads/strip-commit-param", () => ({
 }));
 // ADR 0188 — the stand-in shows what the page decided to pass, which is what the block at the bottom pins.
 vi.mock("@/components/job-ads/jobb-quick-links", () => ({
-  JobbQuickLinks: (props: { juniorCount: number | null; searches: ReadonlyArray<{ id: string }> }) => (
+  JobbQuickLinks: (props: {
+    juniorCount: number | null;
+    juniorEnabled: boolean | null;
+    searches: ReadonlyArray<{ id: string }>;
+  }) => (
     <span
       data-testid="quick-links"
       data-junior={String(props.juniorCount)}
+      data-junior-enabled={String(props.juniorEnabled)}
       data-searches={props.searches.map((search) => search.id).join(",")}
     />
   ),
@@ -327,9 +332,10 @@ describe("/jobb — the page carries the results' save verdict to the hero", () 
 });
 
 /**
- * ADR 0188 (#2265) — what the page hands the quick-link row. The junior link shows only when the profile says it is
- * on AND the count was read AND it is above 0 (security-auditor m3: hidden at 0 and on error); the searches are the
- * recent searches marked as quick links, in the list's order. The row itself is pinned in jobb-quick-links.test.tsx.
+ * ADR 0188 (#2265, amended for #2275) — what the page hands the quick-link row. The junior link shows only when the
+ * profile says it is on AND the count was read AND it is above 0 (security-auditor m3: hidden at 0 and on error). The
+ * row gets every recent search, in the list's order, and the junior switch for its Anpassa list. The row itself is
+ * pinned in jobb-quick-links.test.tsx.
  */
 describe("/jobb — the quick links the hero shows", () => {
   const marked = { id: "m1", isQuickLink: true };
@@ -349,12 +355,29 @@ describe("/jobb — the quick links the hero shows", () => {
     getJuniorItCount.mockResolvedValue({ kind: "ok", data: { count: 152 } });
   });
 
-  it("passes the count and the marked searches when everything was read", async () => {
+  it("passes the count, every recent search and the junior switch when everything was read", async () => {
     await renderPage();
 
     const row = screen.getByTestId("quick-links");
     expect(row).toHaveAttribute("data-junior", "152");
-    expect(row).toHaveAttribute("data-searches", "m1");
+    expect(row).toHaveAttribute("data-junior-enabled", "true");
+    expect(row).toHaveAttribute("data-searches", "u1,m1");
+  });
+
+  it("passes the junior switch as off when the user switched it off", async () => {
+    getMyProfile.mockResolvedValue({ kind: "ok", data: { hasStatedDesiredOccupation: false, juniorQuickLinkEnabled: false } });
+
+    await renderPage();
+
+    expect(screen.getByTestId("quick-links")).toHaveAttribute("data-junior-enabled", "false");
+  });
+
+  it("passes no junior switch when the profile could not be read, so the row offers no Anpassa", async () => {
+    getMyProfile.mockResolvedValue({ kind: "error" });
+
+    await renderPage();
+
+    expect(screen.getByTestId("quick-links")).toHaveAttribute("data-junior-enabled", "null");
   });
 
   it.each([
@@ -371,7 +394,7 @@ describe("/jobb — the quick links the hero shows", () => {
     expect(screen.getByTestId("quick-links")).toHaveAttribute("data-junior", "null");
   });
 
-  it("keeps the row mounted with nothing to show, so a removal's status outlives the last link", async () => {
+  it("keeps the row mounted with no link to show, so a removal's status outlives the last link", async () => {
     getJuniorItCount.mockResolvedValue({ kind: "ok", data: { count: 0 } });
     getRecentSearches.mockResolvedValue({ kind: "ok", data: [unmarked] });
 
@@ -379,6 +402,6 @@ describe("/jobb — the quick links the hero shows", () => {
 
     const row = screen.getByTestId("quick-links");
     expect(row).toHaveAttribute("data-junior", "null");
-    expect(row).toHaveAttribute("data-searches", "");
+    expect(row).toHaveAttribute("data-searches", "u1");
   });
 });

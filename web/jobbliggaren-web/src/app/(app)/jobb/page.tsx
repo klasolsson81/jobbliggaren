@@ -182,7 +182,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
     juniorCountResult.data.count > 0
       ? juniorCountResult.data.count
       : null;
-  const quickLinkSearches = recentSearches.filter((search) => search.isQuickLink);
+  const juniorQuickLinkEnabled = profileResult.kind === "ok" ? profileResult.data.juniorQuickLinkEnabled : null;
 
   // A failed taxonomy read must not block search: the filter popover then shows
   // an empty list with an explanatory line (ADR 0043 Beslut B).
@@ -235,7 +235,8 @@ export default async function JobbPage({ searchParams }: PageProps) {
                   that removal takes away. */}
               <JobbQuickLinks
                 juniorCount={juniorCount}
-                searches={quickLinkSearches}
+                juniorEnabled={juniorQuickLinkEnabled}
+                searches={recentSearches}
                 headingId={HERO_HEADING_ID}
               />
             </div>

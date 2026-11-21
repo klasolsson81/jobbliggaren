@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import svMessages from "../../../messages/sv";
@@ -18,7 +18,7 @@ vi.mock("@/lib/actions/quick-links", () => ({
 
 const HEADING_ID = "jobb-hero-title";
 
-function search(id: string, q: string): RecentJobSearchDto {
+function search(id: string, q: string, isQuickLink = true): RecentJobSearchDto {
   return {
     id,
     q,
@@ -39,19 +39,24 @@ function search(id: string, q: string): RecentJobSearchDto {
     currentCount: 0,
     newCount: 0,
     lastViewedAt: "2026-11-20T10:00:00Z",
-    isQuickLink: true,
+    isQuickLink,
   };
 }
 
 const BACKEND = search("11111111-1111-1111-1111-111111111111", "backend");
 
-function Hero(props: { juniorCount: number | null; searches: ReadonlyArray<RecentJobSearchDto> }) {
+/** The hero as the page renders it. `juniorEnabled` defaults to null, a failed profile read: no "Anpassa". */
+function Hero(props: {
+  juniorCount: number | null;
+  searches: ReadonlyArray<RecentJobSearchDto>;
+  juniorEnabled?: boolean | null;
+}) {
   return (
     <NextIntlClientProvider locale="sv" messages={svMessages}>
       <h1 id={HEADING_ID} tabIndex={-1}>
         Sök jobb
       </h1>
-      <JobbQuickLinks {...props} headingId={HEADING_ID} />
+      <JobbQuickLinks {...props} juniorEnabled={props.juniorEnabled ?? null} headingId={HEADING_ID} />
     </NextIntlClientProvider>
   );
 }
@@ -62,12 +67,12 @@ beforeEach(() => {
 });
 
 describe("JobbQuickLinks (#2265, ADR 0188)", () => {
-  it("shows the junior link first, with its count, as a plain anchor to /junior", () => {
+  it("shows the junior link first, with its count, as a link to /jobb with the junior filter", () => {
     render(<Hero juniorCount={1234} searches={[BACKEND]} />);
 
     const nav = screen.getByRole("navigation", { name: "Snabblänkar" });
     const links = Array.from(nav.querySelectorAll("a"));
-    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/junior", expect.stringMatching(/^\/jobb\?/)]);
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/jobb?junior=on", expect.stringMatching(/^\/jobb\?/)]);
     expect(links[0]?.textContent?.replace(/\u00a0/g, " ")).toBe("Juniora IT-jobb · 1 234 just nu");
     expect(screen.getByRole("link", { name: /Juniora IT-jobb/ })).toBe(links[0]);
     expect(screen.getByRole("link", { name: "backend" })).toBe(links[1]);
@@ -87,7 +92,7 @@ describe("JobbQuickLinks (#2265, ADR 0188)", () => {
     expect(screen.getByRole("button", { name: "Ta bort snabblänken: backend" })).toBeInTheDocument();
   });
 
-  it("renders no navigation when there is no link to show", () => {
+  it("renders no navigation when there is no link and no Anpassa, as after a failed profile read", () => {
     render(<Hero juniorCount={null} searches={[]} />);
 
     expect(screen.queryByRole("navigation")).toBeNull();
@@ -106,7 +111,7 @@ describe("JobbQuickLinks (#2265, ADR 0188)", () => {
     expect(screen.getByRole("link", { name: "backend" })).toHaveFocus();
   });
 
-  it("sends focus to the hero's h1 when the last link goes", async () => {
+  it("sends focus to the hero's h1 when the last link goes and there is no Anpassa", async () => {
     searchAction.mockResolvedValue({ success: true });
     const user = userEvent.setup();
     render(<Hero juniorCount={null} searches={[BACKEND]} />);
@@ -141,6 +146,37 @@ describe("JobbQuickLinks (#2265, ADR 0188)", () => {
     rerender(<Hero juniorCount={null} searches={[{ ...BACKEND }]} />);
 
     expect(screen.getByRole("link", { name: "backend" })).toBeInTheDocument();
+  });
+
+  it("sends focus to Anpassa when the last link goes, the control that adds them", async () => {
+    searchAction.mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    render(<Hero juniorCount={null} juniorEnabled={false} searches={[BACKEND]} />);
+
+    await user.click(screen.getByRole("button", { name: "Ta bort snabblänken: backend" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Välj snabblänkar" })).toHaveFocus());
+  });
+
+  it("ends the row with Anpassa, which opens the list to pick links from", async () => {
+    const user = userEvent.setup();
+    render(<Hero juniorCount={152} juniorEnabled searches={[BACKEND, search("22222222-2222-2222-2222-222222222222", "frontend", false)]} />);
+
+    const settings = screen.getByRole("button", { name: "Anpassa snabblänkar" });
+    expect(settings).toHaveTextContent("Anpassa");
+    await user.click(settings);
+
+    const dialog = screen.getByRole("dialog", { name: "Snabblänkar" });
+    expect(within(dialog).getAllByRole("checkbox").map((b) => (b as HTMLInputElement).checked)).toEqual([true, true, false]);
+    expect(within(dialog).getByRole("link", { name: "Alla sökningar" })).toHaveAttribute("href", "/mina-sidor/snabblankar");
+  });
+
+  it("offers Välj snabblänkar on its own when there is no link", () => {
+    render(<Hero juniorCount={null} juniorEnabled={false} searches={[]} />);
+
+    expect(screen.getByRole("navigation", { name: "Snabblänkar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Välj snabblänkar" })).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("keeps the link and says why when the removal fails", async () => {

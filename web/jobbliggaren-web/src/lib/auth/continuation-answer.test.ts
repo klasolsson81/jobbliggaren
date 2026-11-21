@@ -20,6 +20,8 @@ describe("continuationAnswer", () => {
     expect(await continuationAnswer(request("NEXT_LOCALE=en"), "/matchningar")?.text()).toContain('<html lang="en">');
   });
 
+  // Declared unreachable: both callers pass a path of this site, the bounce after its own isSameSitePath and the junior
+  // branch from juniorItHref. Only safe degradation is asserted.
   it.each([
     "//evil.example",
     "https://evil.example",

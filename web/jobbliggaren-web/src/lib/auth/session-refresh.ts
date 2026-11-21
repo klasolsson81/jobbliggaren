@@ -32,7 +32,7 @@ const REFRESH_ERROR_BACKOFF_SECONDS = 30;
 
 // Bound the refresh round-trip: a stalled (accepted-but-not-answering) backend must never
 // hang a navigation. undici's default headersTimeout is ~300s, far too long for a
-// hot-path nav; on timeout the fetch rejects with AbortError, which the catch below swallows
+// hot-path nav; on timeout the fetch rejects, which the catch below swallows
 // into a failed outcome (§2.5 hot-path; navigation must never break here).
 const REFRESH_TIMEOUT_MS = 2500;
 
@@ -189,7 +189,7 @@ interface RefreshResult {
 
 /**
  * Narrows the untyped /auth/refresh JSON body to a RefreshResult, or null if the
- * shape is unexpected (treated as a failed refresh — no rotation, no throttle).
+ * shape is unexpected (treated as a failed refresh — no rotation).
  */
 function parseRefresh(body: unknown): RefreshResult | null {
   if (typeof body !== "object" || body === null) {

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { juniorItHandover, type JuniorItHandover } from "@/lib/job-ads/junior-it-handover";
-import { isCrossSiteDocumentNavigation, isPrefetch } from "@/lib/http/fetch-metadata";
+import { isCrossSiteDocumentNavigation, isNonCrossSiteDocumentNavigation } from "@/lib/http/fetch-metadata";
 import { continuationAnswer } from "./continuation-answer";
 import { BOUNCE_MARKER } from "./bounce-marker";
 import { forwardedWithoutSession, writeRefreshCookies, type SessionRefresh } from "./session-refresh";
@@ -63,11 +63,7 @@ function answerWithoutSession(request: NextRequest, handover: JuniorItHandover):
 /** The hop back without a session, as a browser navigation that is not cross-site: on to the list's clean address. */
 function stripMarker(request: NextRequest, handover: JuniorItHandover): NextResponse | null {
   if (request.method !== "GET" || !request.nextUrl.searchParams.has(BOUNCE_MARKER)) return null;
-  const { headers } = request;
-  const site = headers.get("sec-fetch-site");
-  const notCrossSite = site === "same-origin" || site === "same-site" || site === "none";
-  const navigation = headers.get("sec-fetch-mode") === "navigate" && headers.get("sec-fetch-dest") === "document";
-  return notCrossSite && navigation && !isPrefetch(headers) ? redirectTo(handover.junior, request) : null;
+  return isNonCrossSiteDocumentNavigation(request.headers) ? redirectTo(handover.junior, request) : null;
 }
 
 /** A same-origin `307` that no cache may keep: where it leads depends on the session. */

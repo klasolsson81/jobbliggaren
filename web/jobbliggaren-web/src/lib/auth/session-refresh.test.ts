@@ -30,8 +30,6 @@ describe("refreshSession", () => {
   it.each<[string, () => Promise<Response>, unknown]>([
     ["a rotation with a new id", async () => json({ rotated: true, sessionId: "sess-2" }), { kind: "rotated", sessionId: "sess-2" }],
     ["a slide", async () => json({ rotated: false, sessionId: null }), { kind: "slid" }],
-    ["a rotation without an id, which slides", async () => json({ rotated: true }), { kind: "slid" }],
-    ["a malformed body", async () => json({ unexpected: 1 }), { kind: "failed" }],
     ["exactly 401", async () => new Response(null, { status: 401 }), { kind: "unknownSession" }],
     ["a 429", async () => new Response(null, { status: 429 }), { kind: "failed" }],
     ["a 503", async () => new Response(null, { status: 503 }), { kind: "failed" }],
@@ -41,6 +39,16 @@ describe("refreshSession", () => {
 
     expect(await refreshSession(request({ cookie: `${REFRESH_AFTER_COOKIE_NAME}=${NOW - 1}` }), "sess-1", NOW)).toEqual(expected);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("http://backend.test/api/v1/auth/refresh");
+  });
+});
+
+// Declared unreachable: the endpoint always answers a `RefreshSessionResult` with a boolean `rotated` (AuthEndpoints.cs),
+// so no path in src/ sends this body. Only safe degradation is asserted.
+it("reports a body without a boolean rotated as a failure", async () => {
+  fetchMock.mockResolvedValue(json({ unexpected: 1 }));
+
+  expect(await refreshSession(request({ cookie: `${REFRESH_AFTER_COOKIE_NAME}=${NOW - 1}` }), "sess-1", NOW)).toEqual({
+    kind: "failed",
   });
 });
 

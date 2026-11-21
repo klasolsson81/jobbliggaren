@@ -10,7 +10,7 @@ import {
 } from "@/test/edge-log-pin";
 import { returnPathFor } from "./return-path";
 import { BOUNCE_MARKER } from "./bounce-marker";
-import { hopTarget } from "./strict-cookie-bounce";
+import { hopTarget } from "./continuation-answer";
 import { EDGE_LOG_VERDICT } from "./strict-cookie-bounce-edge-log-verdicts";
 
 /**

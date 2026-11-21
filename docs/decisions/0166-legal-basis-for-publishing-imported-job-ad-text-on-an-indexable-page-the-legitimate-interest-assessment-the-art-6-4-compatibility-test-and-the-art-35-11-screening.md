@@ -1560,6 +1560,7 @@ The property she signs, verbatim:
   - Her Minor 4, an R7 exception: `app/(public-job)/junior/page.tsx` changes only inside its docblock, which said "for everyone, signed in or not" (no longer true after this change) and "curated or carry a junior headline" (no longer true since #2264's stored assessment). `git diff` shows no code line.
   - `content-legal.json`, read as "`content-legal-signed-copy.test.ts` byte-unchanged and green", also if #2276 lands first.
   - `public-job-group.test.ts` gains lines only (the branch and the hand-over join its `PUBLIC_SURFACE`), and `seo-canonical.test.ts` is untouched.
+  - `scripts/public-job-smoke.mjs` (the `frontend` job's HTTP contract): the junior check "for the visitor with no credential" now sends no session cookie, a one-line change to its request that removes no assertion. Its premise, that a request with the session cookie gets the same answer, is the one this amendment's second lapse ground makes false. Two checks are added: the signed-in 307, and a session the server no longer knows answered as none, with the list and both cookies cleared.
   - The edge-log inventory's first assertion, whose expected set grows to `id`, `municipality`, `page`, `sortBy` and `vidare`. The growth is declared (her answer 4), on her condition that none of the three added keys is entered on `AppSurfaceScrubbedParameters`.
 - In every other suite, `git diff -U0` removes no assertion line.
 

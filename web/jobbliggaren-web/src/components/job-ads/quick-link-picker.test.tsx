@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import svMessages from "../../../messages/sv";
@@ -132,7 +132,7 @@ describe("QuickLinkPicker (#2275)", () => {
     let answer: (value: { success: true }) => void = () => {};
     searchAction.mockReturnValue(new Promise((resolve) => (answer = resolve)));
     const user = userEvent.setup();
-    render(
+    const { rerender } = render(
       <Picker
         juniorEnabled
         searches={[search("a", "one", true), search("b", "two", false), search("c", "three", false)]}
@@ -145,9 +145,18 @@ describe("QuickLinkPicker (#2275)", () => {
     expect(screen.getByRole("status")).toHaveTextContent(FULL_NOTE);
     expect(box("three")).toHaveAccessibleDescription(FULL_NOTE);
 
-    // React entangles every pending async transition, across roots too, so each test settles its own.
-    answer({ success: true });
-    await waitFor(() => expect(screen.getByRole("status")).toBeEmptyDOMElement());
+    // The server's answer in production's order: the revalidation re-renders the page with "two" marked, then the
+    // write settles.
+    rerender(
+      <Picker
+        juniorEnabled
+        searches={[search("a", "one", true), search("b", "two", true), search("c", "three", false)]}
+      />,
+    );
+    await act(async () => answer({ success: true }));
+
+    expect(box("two")).toBeChecked();
+    expect(screen.getByRole("status")).toHaveTextContent(FULL_NOTE);
   });
 
   it("keeps a second tick made while the first write runs, and writes the two in order", async () => {
@@ -157,7 +166,9 @@ describe("QuickLinkPicker (#2275)", () => {
       .mockReturnValueOnce(new Promise((resolve) => (answerFirst = resolve)))
       .mockReturnValueOnce(new Promise((resolve) => (answerSecond = resolve)));
     const user = userEvent.setup();
-    render(<Picker juniorEnabled={false} searches={[search("a", "frontend", false), search("b", "backend", false)]} />);
+    const { rerender } = render(
+      <Picker juniorEnabled={false} searches={[search("a", "frontend", false), search("b", "backend", false)]} />,
+    );
 
     await user.click(box("frontend"));
     await user.click(box("backend"));
@@ -166,11 +177,15 @@ describe("QuickLinkPicker (#2275)", () => {
     expect(box("backend")).toBeChecked();
     expect(searchAction.mock.calls).toEqual([["a", true]]);
 
-    answerFirst({ success: true });
-
+    // Each answer in production's order: the revalidation re-renders the page, then the write settles.
+    rerender(<Picker juniorEnabled={false} searches={[search("a", "frontend", true), search("b", "backend", false)]} />);
+    await act(async () => answerFirst({ success: true }));
     await waitFor(() => expect(searchAction.mock.calls).toEqual([["a", true], ["b", true]]));
-    answerSecond({ success: true });
-    await waitFor(() => expect(box("backend")).not.toBeChecked());
+    rerender(<Picker juniorEnabled={false} searches={[search("a", "frontend", true), search("b", "backend", true)]} />);
+    await act(async () => answerSecond({ success: true }));
+
+    expect(box("frontend")).toBeChecked();
+    expect(box("backend")).toBeChecked();
   });
 
   it("unticks a refused add again, says why and keeps focus on the box", async () => {

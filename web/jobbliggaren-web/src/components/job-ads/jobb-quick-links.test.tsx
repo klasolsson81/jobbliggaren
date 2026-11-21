@@ -189,6 +189,23 @@ describe("JobbQuickLinks (#2265, ADR 0188)", () => {
     expect(within(dialog).getByRole("link", { name: "Alla sökningar" })).toHaveAttribute("href", "/mina-sidor/snabblankar");
   });
 
+  it.each([
+    ["opened with searches left out keeps Alla sökningar after a tick", [BACKEND, ...unmarked(7)], 0, true, true],
+    ["opened with every search keeps no Alla sökningar after an untick", [BACKEND, ...unmarked(7)].map((s, i) => (i === 1 ? { ...s, isQuickLink: true } : s)), 0, false, false],
+  ])("a list %s, while the page re-renders under it", async (_case, before, changed, foot, footAfter) => {
+    const user = userEvent.setup();
+    const { rerender } = render(<Hero juniorCount={null} juniorEnabled={false} searches={before} />);
+    await user.click(screen.getByRole("button", { name: "Anpassa snabblänkar" }));
+    const dialog = () => screen.getByRole("dialog", { name: "Snabblänkar" });
+    expect(within(dialog()).queryByRole("link", { name: "Alla sökningar" }) !== null).toBe(foot);
+
+    // The server's answer to a tick or an untick on one more search: the revalidation re-renders the page.
+    const after = before.map((s, i) => (i === changed + 1 ? { ...s, isQuickLink: !s.isQuickLink } : s));
+    rerender(<Hero juniorCount={null} juniorEnabled={false} searches={after} />);
+
+    expect(within(dialog()).queryByRole("link", { name: "Alla sökningar" }) !== null).toBe(footAfter);
+  });
+
   it("says in the list how to get a search to pick, without sending the user to Jobb", async () => {
     const user = userEvent.setup();
     render(<Hero juniorCount={null} juniorEnabled={false} searches={[]} />);

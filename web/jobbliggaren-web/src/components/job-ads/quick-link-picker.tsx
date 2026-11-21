@@ -2,7 +2,7 @@
 
 // "use client": the ticks shown before the server answers, the pending writes and the error are state in the browser.
 
-import { useId, useOptimistic, useRef, useState, useTransition } from "react";
+import { useId, useOptimistic, useRef, useState, useTransition, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import type { ActionResult } from "@/lib/actions/_action-result";
@@ -23,6 +23,8 @@ interface QuickLinkPickerProps {
   emptyNote: string;
   /** Pulls the rows out to the text line of the card around the list. */
   flush?: boolean;
+  /** What follows the list when it opened with searches left out, such as a link to all of them. */
+  more?: ReactNode;
 }
 
 interface Row {
@@ -36,7 +38,14 @@ interface Row {
  * mounts: a tick re-renders the page, and a row that moved or left the list would take the focus with it. A refused
  * write unticks the box again and says why. At the cap the unticked boxes are unavailable.
  */
-export function QuickLinkPicker({ juniorEnabled, searches, unmarkedLimit, emptyNote, flush }: QuickLinkPickerProps) {
+export function QuickLinkPicker({
+  juniorEnabled,
+  searches,
+  unmarkedLimit,
+  emptyNote,
+  flush,
+  more,
+}: QuickLinkPickerProps) {
   const t = useTranslations("jobads.quickLinks");
   const tRecent = useTranslations("jobads.recent");
   const coded = useCodedTaxonomyName();
@@ -45,18 +54,21 @@ export function QuickLinkPicker({ juniorEnabled, searches, unmarkedLimit, emptyN
   const [, startTransition] = useTransition();
   const writes = useRef<Promise<ActionResult>>(Promise.resolve({ success: true }));
 
-  const [rows] = useState<ReadonlyArray<Row>>(() => {
+  const [{ rows, leftOut }] = useState<{ rows: ReadonlyArray<Row>; leftOut: boolean }>(() => {
     const marked = searches.filter((search) => search.isQuickLink);
     const unmarked = searches.filter((search) => !search.isQuickLink);
     const offered = unmarkedLimit === undefined ? unmarked : unmarked.slice(0, unmarkedLimit);
     const labelCopy = recentSearchLabelCopy(tRecent, coded);
-    return [
-      { key: JUNIOR_KEY, name: t("junior") },
-      ...[...marked, ...offered].map((search) => ({
-        key: search.id,
-        name: buildRecentSearchLabel(search.label, labelCopy),
-      })),
-    ];
+    return {
+      rows: [
+        { key: JUNIOR_KEY, name: t("junior") },
+        ...[...marked, ...offered].map((search) => ({
+          key: search.id,
+          name: buildRecentSearchLabel(search.label, labelCopy),
+        })),
+      ],
+      leftOut: offered.length < unmarked.length,
+    };
   });
 
   // What the server last said, for every search and not only the rows: the cap counts a link marked in another tab.
@@ -85,37 +97,40 @@ export function QuickLinkPicker({ juniorEnabled, searches, unmarkedLimit, emptyN
   }
 
   return (
-    <fieldset className={flush ? "jp-quicklink-picker jp-quicklink-picker--flush" : "jp-quicklink-picker"}>
-      <legend className="sr-only">{t("picker.legend", { max: QUICK_LINK_MAX })}</legend>
-      {rows.map((row) => {
-        const checked = ticked.get(row.key) === true;
-        const unavailable = !checked && !room;
-        return (
-          <label key={row.key} className="jp-quicklink-picker__row">
-            <input
-              type="checkbox"
-              checked={checked}
-              disabled={unavailable}
-              aria-describedby={unavailable ? fullId : undefined}
-              onChange={() => toggle(row)}
-            />
-            <span>{row.name}</span>
-          </label>
-        );
-      })}
-      {rows.length === 1 && <p className="jp-quicklink-picker__note">{emptyNote}</p>}
-      <div role="status">
-        {!room && (
-          <p id={fullId} className="jp-quicklink-picker__note">
-            {t("picker.full", { max: QUICK_LINK_MAX })}
+    <>
+      <fieldset className={flush ? "jp-quicklink-picker jp-quicklink-picker--flush" : "jp-quicklink-picker"}>
+        <legend className="sr-only">{t("picker.legend", { max: QUICK_LINK_MAX })}</legend>
+        {rows.map((row) => {
+          const checked = ticked.get(row.key) === true;
+          const unavailable = !checked && !room;
+          return (
+            <label key={row.key} className="jp-quicklink-picker__row">
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={unavailable}
+                aria-describedby={unavailable ? fullId : undefined}
+                onChange={() => toggle(row)}
+              />
+              <span>{row.name}</span>
+            </label>
+          );
+        })}
+        {rows.length === 1 && <p className="jp-quicklink-picker__note">{emptyNote}</p>}
+        <div role="status">
+          {!room && (
+            <p id={fullId} className="jp-quicklink-picker__note">
+              {t("picker.full", { max: QUICK_LINK_MAX })}
+            </p>
+          )}
+        </div>
+        {error && (
+          <p role="alert" className="jp-quicklink-picker__error">
+            {error}
           </p>
         )}
-      </div>
-      {error && (
-        <p role="alert" className="jp-quicklink-picker__error">
-          {error}
-        </p>
-      )}
-    </fieldset>
+      </fieldset>
+      {leftOut && more}
+    </>
   );
 }

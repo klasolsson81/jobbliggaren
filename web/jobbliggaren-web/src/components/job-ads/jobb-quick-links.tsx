@@ -60,7 +60,6 @@ export function JobbQuickLinks({ juniorCount, juniorEnabled, searches, headingId
   const [pending, startTransition] = useTransition();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLButtonElement>(null);
-  const truncated = (searches ?? []).filter((search) => !search.isQuickLink).length > PICKER_UNMARKED_LIMIT;
 
   const links = useMemo(() => {
     const labelCopy = recentSearchLabelCopy(tRecent, coded);
@@ -174,14 +173,14 @@ export function JobbQuickLinks({ juniorCount, juniorEnabled, searches, headingId
                     searches={searches}
                     unmarkedLimit={PICKER_UNMARKED_LIMIT}
                     emptyNote={t("picker.noSearches")}
+                    more={
+                      <div className="jp-popover__foot">
+                        <Link href="/mina-sidor/snabblankar" prefetch={false} className="jp-popover__footlink">
+                          {t("picker.all")}
+                        </Link>
+                      </div>
+                    }
                   />
-                  {truncated && (
-                    <div className="jp-popover__foot">
-                      <Link href="/mina-sidor/snabblankar" prefetch={false} className="jp-popover__footlink">
-                        {t("picker.all")}
-                      </Link>
-                    </div>
-                  )}
                 </PopoverShell>
               </li>
             )}

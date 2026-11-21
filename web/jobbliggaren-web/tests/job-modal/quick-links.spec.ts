@@ -405,6 +405,7 @@ test.describe("the hero's Anpassa list", () => {
     harness.recentSearches = [recentSearch(2, UNMARKED, false)];
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/jobb");
+    await expect(choose(page)).toBeVisible();
     await expect(heroLinks(page)).toHaveCount(0);
     await heroShot(page, "hero-choose-empty-1280");
 
@@ -501,6 +502,26 @@ test.describe("the hero's Anpassa list", () => {
 
     await expect(page).toHaveURL(/\/mina-sidor\/snabblankar$/);
     await expect(page.getByRole("region", { name: "Snabblänkar" }).getByRole("checkbox")).toHaveCount(1 + 2 + 7);
+  });
+
+  test("Alla sökningar stays as the list opened while a tick changes the row under it", async ({ page }) => {
+    harness.juniorItCount = { status: 200, body: { count: 152 } };
+    harness.juniorQuickLinkEnabled = false;
+    harness.recentSearches = [
+      recentSearch(1, BACKEND, true),
+      ...[2, 3, 4, 5, 6, 7, 8].map((n) => recentSearch(n, `Sökning ${n}`, false)),
+    ];
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/jobb");
+    await anpassa(page).click();
+    const all = picker(page).getByRole("link", { name: "Alla sökningar" });
+    await expect(all).toBeVisible();
+
+    await box(page, "Sökning 2").click();
+    await expect(heroLinks(page)).toHaveCount(2);
+
+    await expect(all).toBeVisible();
+    await expect(box(page, "Sökning 2")).toBeFocused();
   });
 
   test("a second tick made while the first write runs is kept, and the two are written in order", async ({ page }) => {
@@ -650,7 +671,7 @@ test.describe("/mina-sidor/snabblankar", () => {
     await box(page, JUNIOR).click();
     await expect(box(page, JUNIOR)).toBeChecked();
     await expect(box(page, JUNIOR)).toBeFocused();
-    expect(harness.quickLinkWrites).toEqual([
+    await expect.poll(() => harness.quickLinkWrites).toEqual([
       { route: "PUT /api/v1/me/junior-quick-link", body: { enabled: false } },
       { route: "PUT /api/v1/me/junior-quick-link", body: { enabled: true } },
     ]);

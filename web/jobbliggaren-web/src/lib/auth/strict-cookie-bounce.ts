@@ -1,13 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isCrossSiteDocumentNavigation } from "@/lib/http/fetch-metadata";
-import { continuationAnswer } from "./continuation-answer";
-import { hasControlCharacterOrBackslash } from "./safe-redirect";
+import { continuationAnswer, isSameSitePath } from "./continuation-answer";
 import { returnPathFor } from "./return-path";
 import { BOUNCE_MARKER } from "./bounce-marker";
-
-const PARSE_BASE = new URL("https://jobbliggaren.invalid");
-
-const MAX_TARGET_LENGTH = 2048;
 
 /**
  * The answer to a link into a gated page that another site opened, a notification mail's link in webmail above
@@ -42,11 +37,4 @@ export function strictCookieBounce(request: NextRequest, hasSession: boolean): N
   if (hasSession || !isCrossSiteDocumentNavigation(request.headers)) return null;
 
   return continuationAnswer(request, target);
-}
-
-/** One slash, then a path on this origin; no backslash or control character, and nothing a browser reads as a host. */
-function isSameSitePath(target: string): boolean {
-  if (target.length > MAX_TARGET_LENGTH || !target.startsWith("/") || target.startsWith("//")) return false;
-  if (hasControlCharacterOrBackslash(target)) return false;
-  return new URL(target, PARSE_BASE).origin === PARSE_BASE.origin;
 }

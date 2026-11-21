@@ -5,9 +5,12 @@ import svMetadata from "../../../messages/sv/metadata.json";
 import svPages from "../../../messages/sv/pages.json";
 import { defaultLocale, isLocale, LOCALE_COOKIE, type Locale } from "@/i18n/routing";
 import { buildContinuationDocument } from "./continuation-document";
+import { hasControlCharacterOrBackslash } from "./safe-redirect";
 import { BOUNCE_MARKER } from "./bounce-marker";
 
 const PARSE_BASE = new URL("https://jobbliggaren.invalid");
+
+const MAX_TARGET_LENGTH = 2048;
 
 // Read from the catalogues directly: the proxy has no request scope for next-intl.
 const STRINGS: Readonly<Record<Locale, { readonly heading: string; readonly continueLabel: string }>> = {
@@ -21,10 +24,13 @@ const STRINGS: Readonly<Record<Locale, { readonly heading: string; readonly cont
  * cookie if the browser holds one. The caller decides when to answer with it (`strict-cookie-bounce.ts`) and writes
  * neither the document nor its headers itself.
  *
- * `target` is a same-site path the caller built. The refresh goes to {@link hopTarget}`(target)`, so the hop always
- * carries {@link BOUNCE_MARKER}: a request that carries it is never answered with this document again.
+ * The refresh goes to {@link hopTarget}`(target)`, so the hop always carries {@link BOUNCE_MARKER}: a request that
+ * carries it is never answered with this document again. Null when `target` is not a path on this site, so no caller
+ * can turn the refresh into a redirect to another host.
  */
-export function continuationAnswer(request: NextRequest, target: string): NextResponse {
+export function continuationAnswer(request: NextRequest, target: string): NextResponse | null {
+  if (!isSameSitePath(target)) return null;
+
   const locale = localeOf(request);
   const { heading, continueLabel } = STRINGS[locale];
   return new NextResponse(
@@ -42,6 +48,13 @@ export function continuationAnswer(request: NextRequest, target: string): NextRe
       },
     }
   );
+}
+
+/** One slash, then a path on this origin; no backslash or control character, and nothing a browser reads as a host. */
+export function isSameSitePath(target: string): boolean {
+  if (target.length > MAX_TARGET_LENGTH || !target.startsWith("/") || target.startsWith("//")) return false;
+  if (hasControlCharacterOrBackslash(target)) return false;
+  return new URL(target, PARSE_BASE).origin === PARSE_BASE.origin;
 }
 
 /** The hop's URL: `target` with {@link BOUNCE_MARKER}. Exported for the edge-log inventory. */

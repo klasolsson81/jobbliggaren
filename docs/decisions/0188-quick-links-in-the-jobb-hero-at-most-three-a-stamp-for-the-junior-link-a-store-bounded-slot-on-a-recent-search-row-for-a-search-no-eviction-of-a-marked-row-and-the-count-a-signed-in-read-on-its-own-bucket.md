@@ -187,3 +187,35 @@ Each reading below is dated and has its source. Nothing is estimated. R1 is the 
 - ADR 0187 · ADR 0186 · ADR 0166 (Amendment 2026-11-20, D10) · ADR 0060 (Beslut 4–6, Amendment 2026-11-20) · ADR 0045 (Beslut 1 and 5) · ADR 0164 · ADR 0168 · ADR 0146 · ADR 0142 D6 · ADR 0039 · ADR 0031 · ADR 0022 · ADR 0154 · ADR 0065 · AGENTS.md §2.1–2.3, §3, §5, §8 · CLAUDE.md §6.5, §9.2, §9.6 · DESIGN.md §6
 - `docs/reviews/2026-11-20-2265-plan-senior-cto-advisor.md` · `docs/reviews/2026-11-20-2265-plan-dotnet-architect.md` · `docs/reviews/2026-11-20-2265-plan-security-auditor.md` · `docs/reviews/2026-11-20-2265-latency.md` · `docs/reviews/2026-11-20-2264-plan-security-auditor.md` (her m3) (all local, transcribed by the driving session)
 - Vaughn Vernon, *Implementing Domain-Driven Design* (2013), ch. 10 · Eric Evans, *Domain-Driven Design* (2003) (Aggregates, Domain Services) · Robert C. Martin, *Clean Architecture* (2017), ch. 7 and 13 · Michael Nygard, *Release It!* (bulkhead) · RFC 6585 §4 · RFC 9110 §15.1 · WCAG 2.1, 3.3.4 · Npgsql issue #3129 (links may rot)
+
+---
+
+## Amendment 2026-11-21 — Anpassa in the hero, one tick-box list, and the junior link on `/jobb` (#2275)
+
+**Why.** Klas tried release 1682 on 2026-11-21. He found the settings hard to find, and the junior link took him out of the app. Verbatim, in part: "det måste finnas en settings-knapp inne i bannern, där man kan lägga till snabblänkar lätt … super enkelt och bra UI/UX, utan brus" and "snabblänkarna, som inloggad, ska fortfarande vara på den kompletta jobb-sidan, men bara att t ex. juniorlistan då är 'filtret'-chippet". He approved the plan the same day. D1–D9 stand. This amendment changes the web only: no migration, endpoint, action or package.
+
+- **A1 — Anpassa.** The hero's link row ends with a quiet button with a gear. It reads "Anpassa", with the name "Anpassa snabblänkar", or "Välj snabblänkar" when no link shows. It opens the list in the shared popover shell, anchored under the button, or as a sheet at ≤640 px. When the profile read fails there is no button, since the junior box's state is unknown. With no link as well, there is no row. D6's rules for hiding the junior link are unchanged.
+- **A2 — One tick-box per possible link.**
+  - The junior link comes first, then the searches that are links, then up to six of the others in the list's order. The settings page lists every search.
+  - A tick or an untick writes through D4's endpoints, with no Save. At three, the unticked boxes are unavailable and a line says why. A refused write puts the box back and says why in the list. Only a successful write refreshes the page, as in #2272.
+  - The rows are laid out once, when the list mounts. A tick re-renders the page, and a row that moved to another group or fell outside the six would take the focus with it.
+  - Rejected: #2272's two lists, links and searches to add, inside the popover, where every change moves a row from one list to the other.
+- **A3 — The settings page uses the same list,** in a card titled Snabblänkar. Its two lists, and their focus fallback to Mina sidor's h1, are removed.
+- **A4 — The junior link opens `/jobb?junior=on`**, the junior filter from #2261, instead of `/junior`, whose public header looks signed out. The user keeps the whole search page: filters, sorting and matching. The count is still `/junior`'s total (D6). `/junior` is unchanged and reads no session (ADR 0186).
+- **A5 — Every quick link is a `next/link` with `prefetch={false}`.** All of them now stay on `/jobb`. They navigate softly, and a link in view never reads the list in advance. #2272 used plain anchors so that a prefetch would not spend `/junior`'s own budget; with A4 that reason is gone, and so are the anchors.
+- **A6 — An anchored panel follows its trigger.** `usePanelPosition`, which every popover shares, measures again after each commit while the panel is open; an unchanged placement keeps its state. At 1280 px, three links wrap the row onto two lines, so a tick moves the button from one line to the other. A panel left where it opened would cover the new line and its own button.
+- **Docs in the same PR.**
+  - DESIGN.md: the band clause now includes the button.
+  - The fourth direct removal names the list behind Anpassa as a place where a link comes back.
+  - The removal rule sends focus after the last link to Anpassa, as Matchning's chips do.
+  - `content-legal.json`, sv and en: the sentence on where searches are shown names the list under Jobb as well as under Settings. The policy version names the day its text goes live. The file is shared with #1663 PR 3 on Klas's "Dela filen (Rek.)" of 2026-11-21, and the PR that merges last sets the date.
+- **R3, the band's height** (2026-11-21, `tests/job-modal/quick-links.spec.ts`, the same harness as R2), with no link, three links and a long label:
+  - 1280 px: 394.4, 394.4 and 394.4 px.
+  - 800 px: 482.7, 482.7 and 482.7 px.
+  - 390 px: 621.9, 717.9 and 739.0 px.
+
+  At 390 px, the band with no link now carries the row with Välj snabblänkar.
+- **Not built, on purpose.**
+  - Sending a signed-in visitor of `/junior` to `/jobb`, since that page reads no session.
+  - Quick links of any kind other than the junior link and a search.
+  - Reordering.

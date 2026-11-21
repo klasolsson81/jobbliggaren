@@ -400,7 +400,6 @@
     "remove": "Remove the quick link: {label}",
     "removed": "The quick link has been removed: {label}",
     "add": "Add as quick link",
-    "addNamed": "Add as quick link: {label}",
     "unmark": "Remove as quick link",
     "added": "The quick link has been added: {label}",
     "full": "You can have at most {max, number} quick links. Remove one to add another.",
@@ -414,13 +413,16 @@
     },
     "settings": {
       "lede": "Your quick links are shown at the top of Jobs.",
-      "currentHeading": "Your quick links",
-      "none": "You have no quick links.",
-      "remove": "Remove",
-      "add": "Add",
-      "addHeading": "Add a quick link",
-      "noSearches": "Run a search under Jobs, and you can add it here.",
-      "allSearchesAdded": "All your recent searches are already quick links."
+      "open": "Customise",
+      "openName": "Customise quick links",
+      "openEmpty": "Choose quick links",
+      "noSearches": "Run a search under Jobs, and you can add it here."
+    },
+    "picker": {
+      "legend": "Choose up to {max, number} quick links",
+      "full": "You can have at most {max, number} quick links. Untick one to choose another.",
+      "all": "All searches",
+      "noSearches": "Run a search, and you can add it here."
     }
   }
 }

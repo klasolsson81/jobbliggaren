@@ -1369,6 +1369,69 @@ a.jp-hero__quicklink:hover {
   font-size: var(--text-caption);
   color: var(--jp-hero-ink);
 }
+/* #2275 — "Anpassa" at the end of the row: the links' soft ink without their underline, so it reads as the control
+   that picks them rather than as one more link. It opens `.jp-quicklink-picker` in a `.jp-popover`. */
+.jp-hero__quicklinks-settings {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  color: var(--jp-hero-ink-soft);
+  cursor: pointer;
+}
+.jp-hero__quicklinks-settings:hover {
+  color: var(--jp-hero-ink);
+}
+/* The tick-box list, in the hero's popover and on the settings page: the rows of `.jp-checkitem`. */
+.jp-quicklink-picker {
+  margin: 0;
+  padding: 6px 0;
+  border: 0;
+  min-width: 0;
+}
+.jp-quicklink-picker--flush {
+  margin-inline: -16px;
+}
+.jp-quicklink-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  cursor: pointer;
+  font-size: var(--text-ui);
+  color: var(--jp-ink-1);
+}
+.jp-quicklink-picker__row:hover:not(:has(input:disabled)) {
+  background: var(--jp-surface-3);
+}
+.jp-quicklink-picker__row input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--jp-accent-800);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.jp-quicklink-picker__row:has(input:disabled) {
+  color: var(--jp-ink-3);
+  cursor: default;
+}
+.jp-quicklink-picker__row input:disabled {
+  cursor: default;
+}
+.jp-quicklink-picker__note,
+.jp-quicklink-picker__error {
+  margin: 6px 16px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-quicklink-picker__error {
+  color: var(--jp-danger-700);
+}
 
 /* Höger-panel: actions-rad + sök-block + filter-pills (stack, gap 14) */
 .jp-hero__panel {
@@ -1683,6 +1746,8 @@ a.jp-hero__quicklink:hover {
   a.jp-hero__quicklink { display: inline-flex; align-items: center; min-height: 44px; }
   .jp-hero__quicklink-remove { width: 44px; height: 44px; }
   .jp-hero__quicklinks-reserve { height: 44px; }
+  .jp-hero__quicklinks-settings { min-height: 44px; }
+  .jp-quicklink-picker__row { min-height: 44px; }
   /* #419 pt4 — .jp-hero__actions är nu flex-start i bas-regeln (redundant override borttagen). */
   .jp-hero-chip,
   .jp-hero-pill { min-height: 44px; }

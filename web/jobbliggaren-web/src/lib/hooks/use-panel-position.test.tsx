@@ -115,6 +115,19 @@ describe("usePanelPosition (#2212)", () => {
     expect(screen.getByRole("dialog").style.left).toBe("428px");
   });
 
+  it("follows the trigger when a re-render moves it, as when the row around it changes (#2275)", () => {
+    stubLayout();
+    const { rerender } = render(<Harness open />);
+    rerender(<Harness open />);
+    expect(screen.getByRole("dialog").style.left).toBe("684px");
+
+    layout.trigger = { left: 500, bottom: 300, depth: 77 };
+    rerender(<Harness open />);
+
+    expect(screen.getByRole("dialog").style.left).toBe("500px");
+    expect(screen.getByRole("dialog").style.top).toBe("308px");
+  });
+
   it("renders nothing more when the page or a column scrolls", () => {
     stubLayout();
     render(<Harness open />);

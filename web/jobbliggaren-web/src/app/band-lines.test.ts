@@ -97,6 +97,7 @@ describe("the quick-link row stays on /jobb's plate (#2265)", () => {
 
   it("renders the row's markup in one component, rendered by /jobb's page alone", () => {
     expect(usersOf(/className="jp-hero__quicklinks-list"/)).toEqual(["components/job-ads/jobb-quick-links.tsx"]);
+    expect(usersOf(/className="jp-hero__quicklinks-settings"/)).toEqual(["components/job-ads/jobb-quick-links.tsx"]);
     expect(usersOf(/from "@\/components\/job-ads\/jobb-quick-links"/)).toEqual(["app/(app)/jobb/page.tsx"]);
   });
 

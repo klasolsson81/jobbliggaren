@@ -56,9 +56,10 @@ describe("jobSeekerProfileSchema", () => {
     notificationMailEnabled: true,
     topMatchMailEnabled: true,
     matchSummaryMailEnabled: true,
-    // ADR 0168 (#2130) — what reaches the bell, `true` = on.
+    // ADR 0168 (#2130), ADR 0175 D8 (#1663) — what reaches the bell, `true` = on.
     notificationFeedMatchesEnabled: true,
     notificationFeedFollowedAdsEnabled: true,
+    notificationFeedCriterionAdsEnabled: true,
     juniorQuickLinkEnabled: true,
     createdAt: "2026-05-11T10:00:00Z",
     // F4-12 PR-B (ADR 0076) — matchnings-önskemål + härlett nudge-flagg.
@@ -167,8 +168,9 @@ describe("jobSeekerProfileSchema", () => {
     "matchSummaryMailEnabled",
     "notificationFeedMatchesEnabled",
     "notificationFeedFollowedAdsEnabled",
+    "notificationFeedCriterionAdsEnabled",
   ] as const)(
-    "rejects when %s is missing (contract drift, ADR 0164, ADR 0162)",
+    "rejects when %s is missing (contract drift, ADR 0164, ADR 0162, ADR 0175)",
     (key) => {
       const without: Partial<typeof valid> = { ...valid };
       delete without[key];

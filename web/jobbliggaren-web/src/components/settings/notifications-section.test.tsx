@@ -3,7 +3,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ActionResult } from "@/lib/actions/_action-result";
 
-// Server Actions never run in jsdom: mock the eight the section imports.
+// Server Actions never run in jsdom: mock every one the section imports.
 const {
   mailMock,
   consentMock,
@@ -13,6 +13,7 @@ const {
   cadenceMock,
   feedMatchesMock,
   feedFollowedMock,
+  feedCriterionMock,
   refreshBellMock,
 } = vi.hoisted(() => ({
   mailMock: vi.fn(),
@@ -23,6 +24,7 @@ const {
   cadenceMock: vi.fn(),
   feedMatchesMock: vi.fn(),
   feedFollowedMock: vi.fn(),
+  feedCriterionMock: vi.fn(),
   refreshBellMock: vi.fn(),
 }));
 vi.mock("@/lib/actions/me", () => ({
@@ -34,6 +36,7 @@ vi.mock("@/lib/actions/me", () => ({
   updateDigestCadenceAction: cadenceMock,
   updateNotificationFeedMatchesAction: feedMatchesMock,
   updateNotificationFeedFollowedAdsAction: feedFollowedMock,
+  updateNotificationFeedCriterionAdsAction: feedCriterionMock,
 }));
 // The shell's bell is not rendered here: what the section owes it is one forced read after a confirmed save.
 vi.mock("@/components/shell/notification-feed-provider", () => ({
@@ -71,10 +74,11 @@ interface Saved {
   follow?: boolean;
   feedMatches?: boolean;
   feedFollowed?: boolean;
+  feedCriterion?: boolean;
   cadence?: DigestCadence;
 }
 
-/** Defaults to a new user: every mail switch on, both consents off, both bell switches on. */
+/** Defaults to a new user: every mail switch on, both consents off, every bell switch on. */
 function renderSection({
   mail = true,
   match = false,
@@ -83,6 +87,7 @@ function renderSection({
   follow = false,
   feedMatches = true,
   feedFollowed = true,
+  feedCriterion = true,
   cadence = "Weekly",
 }: Saved = {}) {
   return render(
@@ -94,6 +99,7 @@ function renderSection({
       initialFollowEnabled={follow}
       initialFeedMatchesEnabled={feedMatches}
       initialFeedFollowedAdsEnabled={feedFollowed}
+      initialFeedCriterionAdsEnabled={feedCriterion}
       initialCadence={cadence}
     />,
   );
@@ -140,6 +146,7 @@ const ALL_MOCKS = [
   cadenceMock,
   feedMatchesMock,
   feedFollowedMock,
+  feedCriterionMock,
 ];
 
 beforeEach(() => {
@@ -173,13 +180,14 @@ describe("NotificationsSection — the card", () => {
 
   it("a new user meets the e-mail switch on, both consents off, and no mail switch or cadence", () => {
     renderSection();
-    // E-mail, the match consent, then the followed ads' bell switch (on) and the follow consent. The matches' bell
-    // switch waits for the match consent (#2130).
+    // E-mail, the match consent, then the followed ads' bell switch (on) and the follow consent, then the
+    // Branschbevakningar's bell switch (on, #1663). The matches' bell switch waits for the match consent (#2130).
     expect(screen.getAllByRole("switch").map((s) => s.getAttribute("aria-checked"))).toEqual([
       "true",
       "false",
       "true",
       "false",
+      "true",
     ]);
     expect(maybeToggle(TOP)).not.toBeInTheDocument();
     expect(maybeToggle(SUMMARY)).not.toBeInTheDocument();

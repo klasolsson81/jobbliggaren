@@ -168,9 +168,10 @@ public class GetMyProfileQueryHandlerTests
         result.MatchSummaryMailEnabled.ShouldBeTrue();
     }
 
-    // ADR 0162 (#2130) - the two bell switches project as on/off, derived from their off-stamps, and never as the stamps.
+    // ADR 0162 (#2130), ADR 0175 D8 (#1663) - the three bell switches project as on/off, derived from their off-stamps,
+    // and never as the stamps.
     [Fact]
-    public async Task Handle_WhenNoBellSwitchWasEverSet_ProjectsBothOn()
+    public async Task Handle_WhenNoBellSwitchWasEverSet_ProjectsEveryOneOn()
     {
         var userId = Guid.NewGuid();
         var db = TestAppDbContextFactory.Create();
@@ -183,21 +184,33 @@ public class GetMyProfileQueryHandlerTests
         result.ShouldNotBeNull();
         result.NotificationFeedMatchesEnabled.ShouldBeTrue();
         result.NotificationFeedFollowedAdsEnabled.ShouldBeTrue();
+        result.NotificationFeedCriterionAdsEnabled.ShouldBeTrue();
     }
 
+    public enum BellSwitch { Matches, FollowedAds, CriterionAds }
+
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Handle_AfterABellSwitchIsTurnedOff_ProjectsThatSwitchOffAndTheOtherOn(bool matches)
+    [InlineData(BellSwitch.Matches)]
+    [InlineData(BellSwitch.FollowedAds)]
+    [InlineData(BellSwitch.CriterionAds)]
+    public async Task Handle_AfterABellSwitchIsTurnedOff_ProjectsThatSwitchOffAndTheOthersOn(BellSwitch off)
     {
         var userId = Guid.NewGuid();
         var db = TestAppDbContextFactory.Create();
         var clock = FakeDateTimeProvider.Default;
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
-        if (matches)
-            seeker.SetNotificationFeedMatches(on: false, clock);
-        else
-            seeker.SetNotificationFeedFollowedAds(on: false, clock);
+        switch (off)
+        {
+            case BellSwitch.Matches:
+                seeker.SetNotificationFeedMatches(on: false, clock);
+                break;
+            case BellSwitch.FollowedAds:
+                seeker.SetNotificationFeedFollowedAds(on: false, clock);
+                break;
+            case BellSwitch.CriterionAds:
+                seeker.SetNotificationFeedCriterionAds(on: false, clock);
+                break;
+        }
         seeker.SetNotificationMail(on: false, clock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
@@ -205,8 +218,9 @@ public class GetMyProfileQueryHandlerTests
         var result = await HandlerFor(db, userId).Handle(new GetMyProfileQuery(), CancellationToken.None);
 
         result.ShouldNotBeNull();
-        result.NotificationFeedMatchesEnabled.ShouldBe(!matches);
-        result.NotificationFeedFollowedAdsEnabled.ShouldBe(matches);
+        result.NotificationFeedMatchesEnabled.ShouldBe(off != BellSwitch.Matches);
+        result.NotificationFeedFollowedAdsEnabled.ShouldBe(off != BellSwitch.FollowedAds);
+        result.NotificationFeedCriterionAdsEnabled.ShouldBe(off != BellSwitch.CriterionAds);
         // The bell ignores the mail pauses (ADR 0164 D1), and so does the projection of its own switches.
         result.NotificationMailEnabled.ShouldBeFalse();
     }

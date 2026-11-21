@@ -11,8 +11,8 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// <para>
 /// <b>What a mark is.</b> It sets the source row's own bell flags (<c>ReadInNotificationFeed</c>, and for a dismissal
 /// <c>DismissedFromNotificationFeed</c> with it) and nothing else: never a
-/// watermark (<c>LastSeenMatchesAt</c>, <c>LastSeenFollowedAdsAt</c>), never <c>SeenAt</c>, <c>NotificationStatus</c>
-/// or <c>SentAt</c>, never <c>job_seekers</c>. No member ever clears either flag. So a mark cannot change what Översikt or the list pages show, and the
+/// watermark (<c>LastSeenMatchesAt</c>, <c>LastSeenFollowedAdsAt</c>, a criterion's <c>NewAdsSeenThrough</c>), never
+/// <c>SeenAt</c>, <c>NotificationStatus</c> or <c>SentAt</c>, never <c>job_seekers</c> or a criterion. No member ever clears either flag. So a mark cannot change what Översikt or the list pages show, and the
 /// writer-replay guard (<c>JobSeekerWriterReplayGuardTests</c>) holds: no handler that calls a mark ever calls a
 /// <c>JobSeeker</c> mutator. Every member is owner-scoped by <see cref="NotificationFeedMarkContext.UserId"/> and
 /// idempotent: a row already in the state the member writes, missing or foreign changes nothing, and the caller answers 204 for all of them
@@ -35,7 +35,8 @@ internal interface INotificationFeedReadMarker
     /// ONE notification read: the row of <paramref name="jobAdId"/>, which for a source with several rows per ad is
     /// every row of that ad. A click calls this on every source, because the ad is the notification (#2158). The follow
     /// source loads its few rows and marks them through the aggregate, committed by the unit of work; the match source
-    /// writes in one statement that carries the consent.
+    /// writes in one statement that carries the consent; the Branschbevakning source writes in one statement with no
+    /// consent, because its rows can be purged between a load and the save (ADR 0175 D8).
     /// </summary>
     Task MarkRowAsync(NotificationFeedMarkContext context, JobAdId jobAdId, CancellationToken cancellationToken);
 
@@ -53,7 +54,8 @@ internal interface INotificationFeedReadMarker
     /// "Markera alla som lästa": every row that is new since the source's watermark, not yet read, and no newer than
     /// <paramref name="through"/>, the token the source returned. A row that arrived after the token is neither
     /// counted nor marked, so it stays unread for the next read (I4). Set-based, because the counted set is not
-    /// bounded by the 20 rows on screen. Reads the watermark; never moves it.
+    /// bounded by the 20 rows on screen. Reads the watermark; never moves it. For a Branschbevakning the watermark is each
+    /// criterion's own, read through <c>NewCriterionAdSet.NewHits</c>.
     /// </summary>
     Task MarkThroughAsync(NotificationFeedMarkContext context, DateTimeOffset through, CancellationToken cancellationToken);
 

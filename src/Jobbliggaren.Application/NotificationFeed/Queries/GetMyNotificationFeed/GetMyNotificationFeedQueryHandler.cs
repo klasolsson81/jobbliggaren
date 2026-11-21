@@ -26,7 +26,10 @@ public sealed class GetMyNotificationFeedQueryHandler(
     IPerUserJobAdSearchQuery perUserSearch)
     : IQueryHandler<GetMyNotificationFeedQuery, NotificationFeedDto>
 {
-    /// <summary>The rows the panel shows. The full lists live on <c>/matchningar</c> and <c>/foretag/bevakade/nya</c>.</summary>
+    /// <summary>
+    /// The rows the panel shows. The full lists live on <c>/matchningar</c>, <c>/foretag/bevakade/nya</c> and each
+    /// Branschbevakning's <c>/foretag/branschbevakningar/[id]/nya</c>.
+    /// </summary>
     public const int MaxItems = 20;
 
     public async ValueTask<NotificationFeedDto> Handle(

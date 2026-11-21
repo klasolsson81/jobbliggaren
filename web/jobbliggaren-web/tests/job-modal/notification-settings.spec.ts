@@ -17,8 +17,9 @@ import {
  * values survive a reload, a refused write reverts and leaves focus on the switch that caused it
  * (design-reviewer B2), and the card never scrolls sideways at phone widths.
  *
- * #2130: the two bell switches ("som notis i appen") sit beside the e-mail ones and answer to neither the
- * e-mail switch nor the e-mail types; the matches one exists only while the match consent is on.
+ * #2130: the bell switches ("som notis i appen") sit beside the e-mail ones and answer to neither the
+ * e-mail switch nor the e-mail types; the matches one exists only while the match consent is on. #1663: the
+ * Branschbevakningar one has a group of its own and is always there.
  *
  * With VISUAL_SHOTS_DIR set, every state is also saved as a screenshot for the design verdict.
  */
@@ -53,8 +54,10 @@ const PAUSED = "Skickas inte medan e-postnotiser är av.";
 const CADENCE = "Hur ofta";
 const FEED_MATCH = "Nya matchningar som notis i appen";
 const FEED_FOLLOW = "Nya annonser som notis i appen";
+const FEED_CRITERION = "Nya annonser från branschbevakningar som notis i appen";
 const FEED_MATCH_ROUTE = "PUT /api/v1/me/notification-feed/matches";
 const FEED_FOLLOW_ROUTE = "PUT /api/v1/me/notification-feed/followed-company-ads";
+const FEED_CRITERION_ROUTE = "PUT /api/v1/me/notification-feed/company-watch-criterion-ads";
 
 const switchNamed = (page: Page, name: string) => page.getByRole("switch", { name, exact: true });
 const refusal = (page: Page) =>
@@ -129,6 +132,7 @@ for (const width of [1280, 375] as const) {
         state.settings.backgroundMatchNotificationsEnabled ? 1 : 0,
       );
       await expect(switchNamed(page, FEED_FOLLOW)).toHaveCount(1);
+      await expect(switchNamed(page, FEED_CRITERION)).toHaveCount(1);
       await expect(page.getByRole("radiogroup", { name: CADENCE })).toHaveCount(state.cadence ? 1 : 0);
       await expect(page.getByText(PAUSED, { exact: true })).toHaveCount(state.paused ? 1 : 0);
       await shot(page, `${state.name}-${width}`);
@@ -305,6 +309,30 @@ test("a refused bell switch reverts and says so under it", async ({ page }) => {
   await expect(switchNamed(page, FEED_FOLLOW)).toHaveAttribute("aria-checked", "true");
   expect(harness.notificationSettings.notificationFeedFollowedAdsEnabled).toBe(true);
   await shot(page, "feed-refused-1280");
+});
+
+test("the Branschbevakningar switch stands alone in its group, reverts a refusal and survives a reload, writing only its own route", async ({ page }) => {
+  await open(page, {});
+  await expect(page.getByRole("region", { name: "Branschbevakningar" }).getByRole("switch")).toHaveCount(1);
+  await expect(switchNamed(page, FEED_CRITERION)).toHaveAttribute("aria-checked", "true");
+
+  harness.refuseNextSettingsWrite = true;
+  await switchNamed(page, FEED_CRITERION).click();
+  await expect(refusal(page)).toBeVisible();
+  await expect(switchNamed(page, FEED_CRITERION)).toHaveAttribute("aria-checked", "true");
+  expect(harness.notificationSettings.notificationFeedCriterionAdsEnabled).toBe(true);
+  await shot(page, "feed-criterion-refused-1280");
+
+  await switchNamed(page, FEED_CRITERION).click();
+  await expect(page.getByText(/^Sparat \d{2}:\d{2}$/)).toBeVisible();
+  await page.reload();
+
+  await expect(switchNamed(page, FEED_CRITERION)).toHaveAttribute("aria-checked", "false");
+  await expect(switchNamed(page, FEED_FOLLOW)).toHaveAttribute("aria-checked", "true");
+  expect(harness.settingsWrites).toEqual([
+    { route: FEED_CRITERION_ROUTE, body: { enabled: false } },
+    { route: FEED_CRITERION_ROUTE, body: { enabled: false } },
+  ]);
 });
 
 test("captures the card in the dark theme, with a background other than the light theme's", async ({ page }) => {

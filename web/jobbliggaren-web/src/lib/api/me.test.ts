@@ -16,6 +16,9 @@ import {
   updateFollowedCompanyNotificationConsent,
   updateMatchSummaryMail,
   updateNotificationConsent,
+  updateNotificationFeedCriterionAds,
+  updateNotificationFeedFollowedAds,
+  updateNotificationFeedMatches,
   updateNotificationMail,
   updateTopMatchMail,
 } from "./me";
@@ -210,6 +213,58 @@ describe.each([
   it("network-fail → error (kastar aldrig)", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("ENETUNREACH"));
     expect(await update({ enabled: true })).toEqual({ kind: "error" });
+  });
+});
+
+// ADR 0168 (#2130), ADR 0175 D8 (#1663): the bell switches. Each has its own route under the bell's, and the
+// statuses map through the same helper as the e-mail switches above.
+describe.each([
+  ["updateNotificationFeedMatches", updateNotificationFeedMatches, "/api/v1/me/notification-feed/matches"],
+  [
+    "updateNotificationFeedFollowedAds",
+    updateNotificationFeedFollowedAds,
+    "/api/v1/me/notification-feed/followed-company-ads",
+  ],
+  [
+    "updateNotificationFeedCriterionAds",
+    updateNotificationFeedCriterionAds,
+    "/api/v1/me/notification-feed/company-watch-criterion-ads",
+  ],
+])("%s (ADR 0168, ADR 0175)", (_name, update, path) => {
+  it("utan session → unauthorized utan backend-rundtur", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await update({ enabled: false })).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])(
+    "PUT mot sin egen route med Bearer och bodyn {enabled: %s}, inget annat",
+    async (enabled) => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+      global.fetch = fetchMock;
+
+      expect(await update({ enabled })).toEqual({ kind: "ok", data: undefined });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(`http://test-backend${path}`);
+      expect(init.method).toBe("PUT");
+      expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sess-1");
+      expect(JSON.parse(init.body as string)).toEqual({ enabled });
+    },
+  );
+
+  it("bygger bodyn av det namngivna fältet: en extra nyckel i indata följer aldrig med", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    global.fetch = fetchMock;
+
+    await update({ enabled: true, backgroundMatchNotificationsEnabled: true } as unknown as { enabled: boolean });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ enabled: true });
   });
 });
 

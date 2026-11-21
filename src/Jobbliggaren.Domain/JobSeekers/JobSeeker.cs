@@ -248,6 +248,22 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     }
 
     /// <summary>
+    /// ADR 0175 D8 (#1663) — turns "new ads from a Branschbevakning reach the bell" on or off, with
+    /// <see cref="SetNotificationFeedMatches"/>'s semantics, on <see cref="Preferences.NotificationFeedCriterionAdsOffAt"/>
+    /// only. Branschbevakning has no consent of its own (its hits are produced under Art. 6(1)(b)), so there is none for
+    /// it to touch.
+    /// </summary>
+    public void SetNotificationFeedCriterionAds(bool on, IDateTimeProvider clock)
+    {
+        var now = clock.UtcNow;
+        var offAt = PauseStamp(Preferences.NotificationFeedCriterionAdsOffAt, on, now);
+        if (offAt == Preferences.NotificationFeedCriterionAdsOffAt)
+            return;
+        Preferences = Preferences with { NotificationFeedCriterionAdsOffAt = offAt };
+        UpdatedAt = now;
+    }
+
+    /// <summary>
     /// ADR 0188 (#2265) — shows or hides the default "Juniora IT-jobb" quick link in the /jobb hero, with
     /// <see cref="SetNotificationMail"/>'s semantics, on <see cref="Preferences.JuniorQuickLinkOffAt"/> only. The cap
     /// of three quick links spans this stamp and the marked recent searches, two aggregates, so it is not checked

@@ -20,11 +20,14 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// <item>the token is the newest row of the WATERMARK-NEW set, read FIRST, whether or not a row is read in the bell;
 ///   the count and the list are bounded by it;</item>
 /// <item>the rows are its NEWEST UNREAD rows, up to the cap, on every path, plus its newest rows to fill, each row
-///   once; the merge never has to guess whether an unread row was left out;</item>
+///   once; the merge never has to guess whether an unread row was left out. Its rows are the rows its own definition
+///   lists: a match or a followed ad behind its watermark is a read row, while a Branschbevakning lists only its new set,
+///   so a hit acknowledged on its criterion's page leaves the bell (ADR 0175 D6);</item>
 /// <item>an ad is ONE notification (#2158, ADR 0173): where two sources can name one ad, the source without precedence
 ///   leaves out every ad the other holds, under the other's gate, inside its own count and list statements and before
-///   any <c>Take</c>, never in its token. A match outranks a followed company's ad; a new source's place in that order
-///   is its ADR's decision;</item>
+///   any <c>Take</c>, never in its token. A match outranks a followed company's ad, which outranks a Branschbevakning's
+///   (ADR 0175 D8); <see cref="NotificationFeedSourceKind"/>'s order is that precedence, and no source reads a lower
+///   one;</item>
 /// <item>it is read under the legal ground its rows were produced under (a consent-produced source is
 ///   gated on that consent at read time), and only while the user's own switch for the type is on;</item>
 /// <item>it is stateless: one instance serves every request, and anything per request travels in

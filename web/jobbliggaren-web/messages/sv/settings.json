@@ -15,7 +15,9 @@
     "matchesTitle": "Matchningar",
     "feedMatchesLabel": "Nya matchningar som notis i appen",
     "followTitle": "Företag du följer",
-    "feedFollowedAdsLabel": "Nya annonser som notis i appen"
+    "feedFollowedAdsLabel": "Nya annonser som notis i appen",
+    "criterionTitle": "Branschbevakningar",
+    "feedCriterionAdsLabel": "Nya annonser från branschbevakningar som notis i appen"
   },
   "backgroundMatch": {
     "toggleLabel": "Matcha nya annonser åt mig",

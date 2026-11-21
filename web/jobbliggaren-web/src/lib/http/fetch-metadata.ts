@@ -40,8 +40,7 @@ export function isCrossSiteDocumentNavigation(headers: Headers): boolean {
 
 /**
  * A top-level document navigation that is not cross-site: started on this site or a sibling on it, or by the browser
- * itself (`none`). For a client that sends Fetch Metadata, the exact complement of {@link isCrossSiteDocumentNavigation};
- * a client that sends none is neither.
+ * itself (`none`).
  */
 export function isNonCrossSiteDocumentNavigation(headers: Headers): boolean {
   const site = headers.get("sec-fetch-site");

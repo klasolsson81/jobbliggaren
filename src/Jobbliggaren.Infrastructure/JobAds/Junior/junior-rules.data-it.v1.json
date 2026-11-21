@@ -1,6 +1,6 @@
 {
   "//": "Junior rules for the Data/IT occupation field (#2264). Edited only by a reviewed PR; a change to any rule, pattern or threshold is a new ruleSetVersion, which re-classifies every open ad in the field and never touches an admin's decision. Rules are read in order and the first whose conditions all hold decides; a rule with auto=false records its id with the verdict Unclear, so the admin queue shows why. A rule may be auto only when it is right in at least 95 of 100 cases on at least 10 cases of Klas's reading (Klas, 2026-11-20). The reading block holds the Platsbanken ids of the ads Klas read as junior jobs, and nothing else (Klas, 2026-11-20).",
-  "ruleSetVersion": "1.0.0",
+  "ruleSetVersion": "1.1.0",
   "occupationFieldConceptId": "apaJ_2ja_LuF",
   "enabled": true,
   "reading": {
@@ -32,6 +32,7 @@
     "studentTitle": "\\bstudent",
     "mentor": "(mentor|coach|handled|stötta|stödja|support|vägled|train|lära upp|guida|upplärning av|leda)\\w*\\W+([\\wåäö-]+\\W+){0,4}(mer |more )?junior|(mer|more) junior\\w* (kollegor|utvecklare|medarbetare|colleagues|developers|engineers|team ?members)|mix of junior and senior",
     "seekJunior": "(söker|looking for|hiring|rekryterar|anställer|letar efter|as an?|som|en|vår nya?|our new)\\s+(en\\s+|a\\s+|flera\\s+)?junior|du som (är )?junior",
+    "notJunior": "\\b(inte|ej|icke|ingen|inget|not|no)\\s+(looking\\s+for\\s+|hiring\\s+|seeking\\s+|recruiting\\s+|söker\\s+|letar\\s+efter\\s+|rekryterar\\s+)?(en\\s+|ett\\s+|a\\s+|any\\s+|någon\\s+)?junior|n['’´]t\\s+(looking\\s+for\\s+|hiring\\s+|seeking\\s+|recruiting\\s+)?(a\\s+|any\\s+)?junior",
     "juniorAndSenior": "(både|both)\\s+junior\\w*\\s+(och|and|som|eller|or)|junior\\w*\\s+(och|and|som|eller|or|/)\\s*(mer\\s+|more\\s+)?(senior|erfar|experienced)",
     "newGraduate": "nyexaminerad|nyutexaminerad|recent graduate|new graduate",
     "earlyCareer": "början av (din )?karriär|early in your career|start of your career|early career|entry[- ]level|första jobb",
@@ -83,7 +84,11 @@
     { "id": "text-no-experience-needed", "verdict": "Junior", "auto": false,
       "all": [ { "on": "text", "pattern": "noExperienceNeeded" } ] },
     { "id": "text-seek-junior", "verdict": "Junior", "auto": true,
-      "all": [ { "on": "text", "pattern": "seekJunior" }, { "on": "text", "pattern": "mentor", "not": true } ] },
+      "all": [
+        { "on": "text", "pattern": "seekJunior" },
+        { "on": "text", "pattern": "mentor", "not": true },
+        { "on": "text", "pattern": "notJunior", "not": true }
+      ] },
     { "id": "title-student", "verdict": "Junior", "auto": false,
       "all": [ { "on": "title", "pattern": "studentTitle" } ] },
     { "id": "flag-no-experience", "verdict": "Junior", "auto": false,

@@ -286,3 +286,32 @@ Each reading below is dated and has its source. Nothing is estimated. R1–R5 ar
 - ADR 0186 (D1–D4 superseded, D9 decided, D5–D8 stand) · ADR 0166 (the amendment of 2026-11-20, the single home of the legal outcome) · ADR 0071 (Decision 1) · ADR 0160 · ADR 0113 · ADR 0106 · ADR 0045 · ADR 0154 · ADR 0065 · ADR 0009 · AGENTS.md §2.1, §2.2, §3.6, §5, §8 · CLAUDE.md §6.5, §9.2, §9.6
 - `docs/reviews/2026-11-20-2264-plan-dotnet-architect.md` · `docs/reviews/2026-11-20-2264-plan-security-auditor.md` · `docs/reviews/2026-11-20-2264-plan-senior-cto-advisor.md` (all local, transcribed by the driving session) · the approved plan, `C:/Users/zebac/.claude/plans/pasted-content-id-f745-g-r-juniorlistan-playful-starfish.md` (local)
 - Vaughn Vernon, *Implementing Domain-Driven Design* (2013), ch. 10 · Robert C. Martin, *Clean Architecture* (2017), ch. 7 and 13 · Danilo Sato, "ParallelChange", martinfowler.com (2014) · PostgreSQL docs, `ALTER TABLE`: `ADD COLUMN` without a default (links may rot)
+
+## Amendment 2026-11-21 (#2278): a negation guard, `notJunior`, on `text-seek-junior`
+
+> **Provenance.** Written by the driving session. It is additive: nothing above this heading is rewritten. R7 continues the numbering of *Measurements*.
+> Klas answered, on 2026-11-21, the question whether #2278 should be fixed here in its own PR: "Ja, fixa här".
+
+**What was found.** The junior-list precision review of 2026-11-21, a local report, read the two ads that `text-seek-junior` showed that day.
+- **One of them says in its own text that the post is not a junior one,** and it asks for at least two years.
+- **The match was inside the negation.** `seekJunior`'s alternative `en\s+junior` matched inside the negated sentence, and nothing in the rule excludes a negation, so the rule showed the ad automatically.
+- **The word boundary is not the cause.** A word boundary in front of every alternative of `seekJunior` and `juniorTitle` changes 0 of 2 904 verdicts on the same day.
+
+**The change.**
+- **A fourteenth named pattern, `notJunior`,** recognises a negation in front of the word `junior`. It is read in this order:
+  - a negation word (`inte`, `ej`, `icke`, `ingen`, `inget`, `not`, `no`) or an English contraction ending in `n't`;
+  - optionally a seeking verb (`söker`, `letar efter`, `rekryterar`, `looking for`, `hiring`, `seeking`, `recruiting`);
+  - optionally an article, or `någon`/`any`;
+  - then `junior`.
+- **`text-seek-junior` gains it as a third, negated condition:** `seekJunior` ∧ ¬`mentor` ∧ ¬`notJunior`. The rule stays automatic. It is narrowed, not loosened.
+- **An ad the rule no longer decides falls through** to the next rule that holds, or to `candidate-only`. It reaches the queue instead of the list: "Hellre oklar än fel".
+- **The version changes.** The declared `ruleSetVersion` goes from 1.0.0 to 1.1.0. The stored version (the declared version plus a content hash, D2) changes with it, so after the deploy the sweep re-classifies the field once. No decision is touched (D4).
+- **`JuniorDataItRulesTests` pins the shipped file's behaviour.**
+  - Five texts that seek a junior stay Junior under `text-seek-junior`. Two of them also carry a negation that is not about the word `junior`.
+  - Eight negated texts are Unclear under `candidate-only`.
+
+**Not a trigger.** Narrowing an automatic rule is not what *What comes back* describes ("a rule set to auto, or an automatic rule's pattern loosened"). It is not trigger 22 of the ADR 0166 amendment either. It was measured anyway (R7).
+
+| Reading | What | Recorded |
+|---|---|---|
+| R7 | the narrowed rule, against the reading and against the listed population | 2026-11-21 08:15Z, rule set `1.1.0+2a7891ba`. Counts only, through the QA.Corpus harness reading JobTech through the app's own client, `PlatsbankenJobSource` and `JobAd.Import`. **Against the reading:** 246 of its 254 ads were measurable (8 are no longer retrievable). `text-seek-junior` alone fires on 42, of which 41 are right (97.6 %), so it still meets the criterion; its one wrong ad is not a negation. Under the criterion as shipped, 80 ads are shown automatically and 79 of them are right (98.8 %); 47 are excluded automatically and 46 of them are right; 119 of the 246 go to the queue. R1 (2026-11-20, 250 ads, the earlier rule) had 44 fires and 42 right; the two readings differ by the narrowed rule and by four ads that are no longer retrievable. **Against the listed population:** a temporary local diagnostic, never committed, compared the file on `origin/main` (`1.0.0+d7b3cb36`) with this one over 2 905 listed Data/IT ads. Exactly one verdict changes, from Junior under `text-seek-junior` to Unclear under `candidate-only`, both with and without the reading. `/junior` would show 150 instead of 151. M4 (b), over the shown set: an organisation number of personnummer shape 0, without one 0, not ten characters 0. |

@@ -32,7 +32,7 @@
     "studentTitle": "\\bstudent",
     "mentor": "(mentor|coach|handled|stötta|stödja|support|vägled|train|lära upp|guida|upplärning av|leda)\\w*\\W+([\\wåäö-]+\\W+){0,4}(mer |more )?junior|(mer|more) junior\\w* (kollegor|utvecklare|medarbetare|colleagues|developers|engineers|team ?members)|mix of junior and senior",
     "seekJunior": "(söker|looking for|hiring|rekryterar|anställer|letar efter|as an?|som|en|vår nya?|our new)\\s+(en\\s+|a\\s+|flera\\s+)?junior|du som (är )?junior",
-    "notJunior": "\\b(inte|ej|icke|ingen|inget|not|no)\\s+(looking\\s+for\\s+|hiring\\s+|seeking\\s+|recruiting\\s+|söker\\s+|letar\\s+efter\\s+|rekryterar\\s+)?(en\\s+|ett\\s+|a\\s+|any\\s+|någon\\s+)?junior|n['’]t\\s+(looking\\s+for\\s+|hiring\\s+|seeking\\s+|recruiting\\s+)?(a\\s+|any\\s+)?junior",
+    "notJunior": "\\b(inte|ej|icke|ingen|inget|not|no)\\s+(looking\\s+for\\s+|hiring\\s+|seeking\\s+|recruiting\\s+|söker\\s+|letar\\s+efter\\s+|rekryterar\\s+)?(en\\s+|ett\\s+|a\\s+|any\\s+|någon\\s+)?junior|n['’´]t\\s+(looking\\s+for\\s+|hiring\\s+|seeking\\s+|recruiting\\s+)?(a\\s+|any\\s+)?junior",
     "juniorAndSenior": "(både|both)\\s+junior\\w*\\s+(och|and|som|eller|or)|junior\\w*\\s+(och|and|som|eller|or|/)\\s*(mer\\s+|more\\s+)?(senior|erfar|experienced)",
     "newGraduate": "nyexaminerad|nyutexaminerad|recent graduate|new graduate",
     "earlyCareer": "början av (din )?karriär|early in your career|start of your career|early career|entry[- ]level|första jobb",

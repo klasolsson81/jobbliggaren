@@ -6,8 +6,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.JobAds.Junior;
 
 /// <summary>
-/// #2278 — the shipped Data/IT rules, not the loader test's synthetic file: <c>text-seek-junior</c> shows an ad
-/// automatically when its text seeks a junior, and never when the text says the post is not a junior one. The title
+/// #2278 — the shipped Data/IT rules, not the loader test's synthetic file: <c>text-seek-junior</c>. The title
 /// carries no junior, senior or student word, the ad has no reading id and no experience mark, so only the text
 /// decides. Every text is synthetic.
 /// </summary>
@@ -33,10 +32,11 @@ public class JuniorDataItRulesTests
     [InlineData("Detta är inte en junior tjänst.")]
     [InlineData("Detta är ingen juniortjänst.")]
     [InlineData("Vi söker inte en junior.")]
-    [InlineData("Rollen passar inte någon junior.")]
+    [InlineData("Tjänsten passar inte någon junior; du som är junior kan söka vårt traineeprogram i stället.")]
     [InlineData("We are not looking for a junior.")]
     [InlineData("We aren't looking for a junior.")]
     [InlineData("We aren’t hiring a junior this time.")]
+    [InlineData("We aren´t looking for a junior.")]
     public void Classify_ATextThatSaysThePostIsNotJunior_IsQueuedAndNeverShownByTextSeekJunior(string text)
     {
         // The word "junior" still makes the ad a candidate, so it reaches the queue instead of the list.

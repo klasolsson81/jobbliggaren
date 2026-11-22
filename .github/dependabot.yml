@@ -431,7 +431,7 @@ updates:
   # NO postgres-major `ignore`, and the reason is written down so it is not re-proposed:
   # dependabot-automerge.yml already sets `eligible=false` on any major, so a postgres
   # major CANNOT auto-merge today. Such an ignore would duplicate a live control, and
-  # unlike every ignore in this file it would carry no LIFT WHEN condition beyond "when
+  # it would carry no LIFT WHEN condition beyond "when
   # we feel like upgrading" — a permanent suppression in a gate's clothing. (The
   # CodeCoverage pin above records what re-proposing a rejected rule costs: a CI run and
   # a review, twice.)

@@ -139,6 +139,15 @@ export type Harness = {
   quickLinkWriteDelayMs: number;
   /** ADR 0188 (#2265) — the quick-link writes received, in order. */
   readonly quickLinkWrites: { route: string; body: Record<string, unknown> }[];
+  /**
+   * #2285 — every request that would store a recent search, in order: a list read carrying `commit=true` (how a search
+   * was stored before #2285) or the capture POST, with its body. A GET must never appear here.
+   */
+  readonly captures: { route: string; body: Record<string, unknown> | null }[];
+  /** #2285 — what the capture POST answers for `stored`; true by default. */
+  captureStored: boolean;
+  /** #2285 — whether the list answers that its search may be stored, which is what offers "Spara sökningen"; off by default. */
+  listStorable: boolean;
   reset(): void;
   stop(): Promise<void>;
 };
@@ -297,6 +306,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
   const settingsWrites: { route: string; body: Record<string, unknown> }[] = [];
   const readReceipts: { route: string; body: Record<string, unknown> }[] = [];
   const quickLinkWrites: { route: string; body: Record<string, unknown> }[] = [];
+  const captures: { route: string; body: Record<string, unknown> | null }[] = [];
   const ads = [...ALL_ADS, ...Array.from({ length: applicationCopies }, (_, index) => ({
     ...ALL_ADS[1]!,
     id: `19860000-0000-4000-8000-${String(index + 1000).padStart(12, "0")}`,
@@ -343,7 +353,13 @@ export async function startHarness(informationFlows = false, applicationCopies =
     refuseNextQuickLinkWrite: null,
     quickLinkWriteDelayMs: 0,
     quickLinkWrites,
+    captures,
+    captureStored: true,
+    listStorable: false,
     reset() {
+      captures.length = 0;
+      harness.captureStored = true;
+      harness.listStorable = false;
       harness.recentSearches = [];
       harness.juniorQuickLinkEnabled = true;
       harness.juniorItCount = { status: 200, body: { count: 0 } };
@@ -397,6 +413,8 @@ export async function startHarness(informationFlows = false, applicationCopies =
     const url = new URL(request.url ?? "/", `http://localhost:${ports.backend}`);
     const route = `${request.method} ${url.pathname}`;
     requests.push(route);
+    if (route === "GET /api/v1/job-ads" && url.searchParams.get("commit") === "true")
+      captures.push({ route: `${route}?commit=true`, body: null });
     const pathId = url.pathname.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] ?? "";
     const ad = adById(pathId);
 
@@ -553,6 +571,10 @@ export async function startHarness(informationFlows = false, applicationCopies =
         return json(204);
       case "GET /api/v1/me/recent-searches":
         return json(200, harness.recentSearches);
+      case "POST /api/v1/me/recent-searches": {
+        captures.push({ route, body: await bodyOf(request) });
+        return json(200, { stored: harness.captureStored });
+      }
       case "GET /api/v1/job-ads/junior-it-count":
         return answer(harness.juniorItCount);
       case "GET /api/v1/public/job-ads/junior":
@@ -572,7 +594,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
         });
       case "GET /api/v1/job-ads": {
         const items = ads.map(summary);
-        return json(200, { items, totalCount: items.length, page: 1, pageSize: 20 });
+        return json(200, { items, totalCount: items.length, page: 1, pageSize: 20, isStorableAsRecentSearch: harness.listStorable });
       }
       case "POST /api/v1/me/job-ad-match-tags": {
         const { jobAdIds = [] } = (await bodyOf(request)) as { jobAdIds?: string[] };

@@ -80,6 +80,21 @@ public class RecentSearchesTests(ApiFactory factory)
         parts[0].GetProperty("moreCount").GetInt32().ShouldBe(0);
     }
 
+    // #2285 — a GET never stores a search, whatever it carries. Before the fix `commit=true` on the list
+    // GET stored one, so a link opened outside the browser could store a search the user never wrote.
+    [Fact]
+    public async Task A_list_GET_carrying_commit_true_stores_no_search()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var searchResponse = await _client.GetAsync(
+            "/api/v1/job-ads?q=backend&commit=true&page=1&pageSize=20", ct);
+        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        (await StoredSearchesAsync(ct)).ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task Live_search_without_commit_flag_does_not_capture()
     {

@@ -20,8 +20,8 @@ interface PageProps {
  * the API does not have is a real 404; every other outcome throws and is a 5xx, so an outage never reads as a page
  * that does not exist. The title, description and preview carry no row and no count.
  */
-export async function generateMetadata(props?: PageProps): Promise<Metadata> {
-  const param = parseCataloguePageParam((await props?.searchParams)?.sida);
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  const param = parseCataloguePageParam((await searchParams).sida);
   if (param.kind !== "page") return notFoundMetadata();
 
   const result = await getPublicJobAdCatalogue(param.page);

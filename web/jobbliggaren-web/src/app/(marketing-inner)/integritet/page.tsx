@@ -21,10 +21,10 @@ type Section = {
 };
 
 
-export default async function IntegritetPage({ searchParams }: { searchParams?: Promise<{ context?: string }> } = {}) {
+export default async function IntegritetPage({ searchParams }: { searchParams: Promise<{ context?: string }> }) {
   const t = await getTranslations("content-legal");
   const navigation = await getTranslations("information");
-  const context = (await searchParams)?.context;
+  const context = (await searchParams).context;
   const sections = t.raw("privacy.sections") as Section[];
 
   return (

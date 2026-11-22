@@ -47,6 +47,7 @@ public class CaptureRecentSearchCommandHandlerTests
     private readonly IRecentJobSearchCapturer _capturer = Substitute.For<IRecentJobSearchCapturer>();
     private readonly IJobAdSearchQuery _search = Substitute.For<IJobAdSearchQuery>();
     private readonly IAppDbContext _db = Substitute.For<IAppDbContext>();
+    private readonly CapturingLogger<CaptureRecentSearchCommandHandler> _logger = new();
     private readonly Guid _userId = Guid.NewGuid();
 
     public CaptureRecentSearchCommandHandlerTests()
@@ -59,8 +60,7 @@ public class CaptureRecentSearchCommandHandlerTests
         // handler under test is precisely "capture what the parser decided the search was".
         // A fake here would let the test agree with itself instead of with production. #2199 PR 2b:
         // the gate that holds it is the real one too, religious occupations included.
-        new(_currentUser, RealRecentSearchCaptureGate.Instance, _search, _capturer, _db,
-            Substitute.For<ILogger<CaptureRecentSearchCommandHandler>>());
+        new(_currentUser, RealRecentSearchCaptureGate.Instance, _search, _capturer, _db, _logger);
 
     private static CaptureRecentSearchCommand CommandFor(Search search) => new(
         Q: search.Q,
@@ -878,6 +878,35 @@ public class CaptureRecentSearchCommandHandlerTests
         await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_WhenTheCountOrTheStoreThrows_LogsTheExceptionTypeAlone(bool countThrows)
+    {
+        var thrown = new InvalidOperationException("detail: hemligsokning");
+        if (countThrows)
+            _search.CountAsync(Arg.Any<JobAdFilterCriteria>(), Arg.Any<CancellationToken>())
+                .Returns<ValueTask<int>>(_ => throw thrown);
+        else
+            _search.CountAsync(Arg.Any<JobAdFilterCriteria>(), Arg.Any<CancellationToken>())
+                .Returns(new ValueTask<int>(7));
+        _capturer.CaptureAsync(
+                Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns<Task<bool>>(_ => throw thrown);
+
+        await CreateHandler().Handle(
+            CommandFor(new Search(Q: "hemligsokning", OccupationGroup: null, Municipality: null, Region: null)),
+            TestContext.Current.CancellationToken);
+
+        var record = _logger.Records.ShouldHaveSingleItem();
+        record.Level.ShouldBe(LogLevel.Warning);
+        record.EventId.ShouldBe(6001);
+        record.Message.ShouldContain(typeof(InvalidOperationException).FullName!);
+        record.Message.ShouldNotContain("hemligsokning");
+        _logger.Exceptions.ShouldHaveSingleItem().ShouldBeNull();
+    }
+
     [Fact]
     public async Task Handle_WhenCancelled_Propagates()
     {
@@ -896,7 +925,6 @@ public class CaptureRecentSearchCommandHandlerTests
     [InlineData(false)]
     public async Task Handle_AnswersWhatTheCapturerAnswers(bool stored)
     {
-        // false: no job-seeker profile, a list full of marked rows (ADR 0188), or a racing write removed the row.
         _capturer.CaptureAsync(
                 Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
                 Arg.Any<CancellationToken>())

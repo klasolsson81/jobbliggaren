@@ -83,14 +83,14 @@ internal sealed class RecentSearchQuickLinkHarness
     }
 
     /// <summary>A committed /jobb search for <paramref name="q"/>, at the clock's now, through the real capturer.</summary>
-    public async Task CaptureAsync(string q, int currentCount = 0)
+    public async Task<bool> CaptureAsync(string q, int currentCount = 0)
     {
         await using var scope = _provider.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
         var criteria = SearchCriteria.Create(
             occupationGroup: null, occupationName: null, municipality: null, region: null, employmentType: null,
             worktimeExtent: null, employer: null, remote: false, q: q, sortBy: JobAdSortBy.PublishedAtDesc).Value;
-        await new RecentJobSearchCapturer(
+        return await new RecentJobSearchCapturer(
                 db, Clock, new DbExceptionInspector(), NullLogger<RecentJobSearchCapturer>.Instance)
             .CaptureAsync(UserId, criteria, currentCount, Ct);
     }

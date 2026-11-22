@@ -81,7 +81,7 @@ public class WorkerLayerTests
             typeof(FieldEncryptionKeyPrefetchBehavior<,>),
             typeof(UnitOfWorkBehavior<,>),
             // ADR 0060 tillagd 2026-05-20 — auto-capture post-handler för
-            // ICapturesRecentSearch-queries. Efter UoW (capture sker bara vid
+            // IRecentSearchCandidate-queries. Efter UoW (capture sker bara vid
             // lyckad query), före Audit (queries audit:as inte).
             typeof(Jobbliggaren.Application.RecentJobSearches.Behaviors.RecentJobSearchCaptureBehavior<,>),
             typeof(AuditBehavior<,>),

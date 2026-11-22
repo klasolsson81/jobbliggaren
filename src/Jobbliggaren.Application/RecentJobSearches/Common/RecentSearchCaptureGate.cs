@@ -22,7 +22,7 @@ namespace Jobbliggaren.Application.RecentJobSearches.Common;
 public sealed class RecentSearchCaptureGate(ISearchQueryParser parser, IReligiousOccupations religiousOccupations)
 {
     /// <summary>The criteria to store for <paramref name="search"/>, or <see langword="null"/> when it may not be stored.</summary>
-    public SearchCriteria? Admit(ICapturesRecentSearch search)
+    public SearchCriteria? Admit(IRecentSearchCandidate search)
     {
         ArgumentNullException.ThrowIfNull(search);
 

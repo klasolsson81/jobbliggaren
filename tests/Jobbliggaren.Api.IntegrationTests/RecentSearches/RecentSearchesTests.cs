@@ -15,7 +15,7 @@ namespace Jobbliggaren.Api.IntegrationTests.RecentSearches;
 
 // ADR 0060 — RecentJobSearches auto-capture + list/delete end-to-end mot
 // Testcontainers Postgres. Auto-capture sker via RecentJobSearchCaptureBehavior
-// när authenticated user kör GET /api/v1/job-ads med ICapturesRecentSearch-
+// när authenticated user kör GET /api/v1/job-ads med IRecentSearchCandidate-
 // query-shape (q/occupationGroup/municipality/region/sortBy — C2-form).
 //
 // C2 (ADR 0067, CTO-dom (d) + architect F5/F6): yrkesgrupp-only- och

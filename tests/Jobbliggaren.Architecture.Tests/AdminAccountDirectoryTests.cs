@@ -45,7 +45,7 @@ public class AdminAccountDirectoryTests
     public void No_admin_message_records_a_recent_search()
     {
         AdminMessages()
-            .Where(type => typeof(ICapturesRecentSearch).IsAssignableFrom(type))
+            .Where(type => typeof(IRecentSearchCandidate).IsAssignableFrom(type))
             .Select(type => type.FullName)
             .ShouldBeEmpty();
     }

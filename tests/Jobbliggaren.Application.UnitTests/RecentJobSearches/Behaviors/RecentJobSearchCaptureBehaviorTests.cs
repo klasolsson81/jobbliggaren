@@ -15,7 +15,7 @@ namespace Jobbliggaren.Application.UnitTests.RecentJobSearches.Behaviors;
 
 // C2 (ADR 0067, CTO-dom (d)/(e) + architect F6) — RecentJobSearchCaptureBehavior:
 //
-//   1. ICapturesRecentSearch-shape är nu Q + OccupationGroup + Municipality +
+//   1. IRecentSearchCandidate-shape är nu Q + OccupationGroup + Municipality +
 //      Region + SortBy (Ssyk borta).
 //   2. Default-browse-guarden räknar ALLA fyra dimensioner — en yrkesgrupp-only
 //      eller kommun-only-sökning ska captureras (stänger C1:s LIVE capture-gap:
@@ -28,7 +28,7 @@ namespace Jobbliggaren.Application.UnitTests.RecentJobSearches.Behaviors;
 // (Mediator.SourceGenerator — pipeline-behaviors är vanliga klasser).
 public class RecentJobSearchCaptureBehaviorTests
 {
-    // Fake-message som matchar nya ICapturesRecentSearch-shapen.
+    // Fake-message som matchar nya IRecentSearchCandidate-shapen.
     // E2j (ADR 0060 amend 2026-06-12): Commit-markören gatar capturen —
     // default = true här så de befintliga capture-väntande testerna
     // (commit-intent) består; commit-guarden testas explicit nedan.
@@ -39,9 +39,9 @@ public class RecentJobSearchCaptureBehaviorTests
         IReadOnlyList<string>? Region,
         IReadOnlyList<string>? EmploymentType = null,
         IReadOnlyList<string>? WorktimeExtent = null,
-        // #311 PR-2b C1 (ADR 0087 D6) — Employer i ICapturesRecentSearch-shapen.
+        // #311 PR-2b C1 (ADR 0087 D6) — Employer i IRecentSearchCandidate-shapen.
         IReadOnlyList<string>? Employer = null,
-        // #551 PR-D — Remote (distans, bool) i ICapturesRecentSearch-shapen. Default false så de
+        // #551 PR-D — Remote (distans, bool) i IRecentSearchCandidate-shapen. Default false så de
         // befintliga (remote-agnostiska) capture-testerna består; remote-guarden testas explicit nedan.
         bool Remote = false,
         JobAdSortBy SortBy = JobAdSortBy.PublishedAtDesc,
@@ -50,7 +50,7 @@ public class RecentJobSearchCaptureBehaviorTests
         IReadOnlyList<string>? OccupationName = null,
         // #2261 — the junior IT filter.
         bool JuniorIt = false)
-        : IQuery<FakeCaptureResponse>, ICapturesRecentSearch;
+        : IQuery<FakeCaptureResponse>, IRecentSearchCandidate;
 
     // Message UTAN markören — behaviorn ska vara no-op.
     public sealed record FakePlainQuery : IQuery<FakeCaptureResponse>;
@@ -948,23 +948,23 @@ public class RecentJobSearchCaptureBehaviorTests
     }
 
     // ---------------------------------------------------------------
-    // Interface-shape-grind — Ssyk borta ur ICapturesRecentSearch
+    // Interface-shape-grind — Ssyk borta ur IRecentSearchCandidate
     // ---------------------------------------------------------------
 
     [Fact]
-    public void ICapturesRecentSearch_HasNoSsykProperty_AfterC2()
+    public void IRecentSearchCandidate_HasNoSsykProperty_AfterC2()
     {
-        typeof(ICapturesRecentSearch).GetProperty("Ssyk").ShouldBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("OccupationGroup").ShouldNotBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("Municipality").ShouldNotBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("Region").ShouldNotBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("Q").ShouldNotBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("SortBy").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("Ssyk").ShouldBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("OccupationGroup").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("Municipality").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("Region").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("Q").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("SortBy").ShouldNotBeNull();
         // E2j (ADR 0060 amend 2026-06-12): commit-intent-markören.
-        typeof(ICapturesRecentSearch).GetProperty("Commit").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("Commit").ShouldNotBeNull();
         // B2 (ADR 0067 Beslut 6/7): de två nya filter-dimensionerna.
-        typeof(ICapturesRecentSearch).GetProperty("EmploymentType").ShouldNotBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("WorktimeExtent").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("EmploymentType").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("WorktimeExtent").ShouldNotBeNull();
     }
 
     // ---------------------------------------------------------------
@@ -1087,15 +1087,15 @@ public class RecentJobSearchCaptureBehaviorTests
     // in #2199 PR 2). Remote, JuniorIt, SortBy and Commit are bool/enum and carry no text; JuniorIt also
     // skips the capture whole (#2261, senior-cto-advisor D1a).
     [Fact]
-    public void ICapturesRecentSearch_HasExactlyTheseMembers_SoANewDimensionCannotArriveUnguarded()
+    public void IRecentSearchCandidate_HasExactlyTheseMembers_SoANewDimensionCannotArriveUnguarded()
     {
         // GetProperties() on an interface does NOT walk base interfaces (measured with a probe:
-        // an IDerived : IBase reports only IDerived's own). ICapturesRecentSearch has no base
+        // an IDerived : IBase reports only IDerived's own). IRecentSearchCandidate has no base
         // today, so without this the hole would be closed by absence rather than by construction
         // — and "inclusion cannot see growth" is the exact failure this gate exists to close, so
         // leaving it one level up would be the same defect wearing a hat.
-        var actual = typeof(ICapturesRecentSearch).GetProperties()
-            .Concat(typeof(ICapturesRecentSearch).GetInterfaces().SelectMany(i => i.GetProperties()))
+        var actual = typeof(IRecentSearchCandidate).GetProperties()
+            .Concat(typeof(IRecentSearchCandidate).GetInterfaces().SelectMany(i => i.GetProperties()))
             .Select(p => p.Name)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(n => n, StringComparer.Ordinal)
@@ -1104,7 +1104,7 @@ public class RecentJobSearchCaptureBehaviorTests
         actual.ShouldBe(
             ["Commit", "Employer", "EmploymentType", "JuniorIt", "Municipality", "OccupationGroup",
              "OccupationName", "Q", "Region", "Remote", "SortBy", "WorktimeExtent"],
-            "a member arrived on or left ICapturesRecentSearch. If it is a NEW string-bearing " +
+            "a member arrived on or left IRecentSearchCandidate. If it is a NEW string-bearing " +
             "dimension it reaches recent_job_searches in plaintext, and it must be added to the " +
             "BearsPersonnummer chain in RecentSearchCaptureGate AND to the default-browse " +
             "guard — neither of which fails on its own when a dimension is merely missing. " +

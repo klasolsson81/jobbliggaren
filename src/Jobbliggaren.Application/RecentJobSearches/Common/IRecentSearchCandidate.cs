@@ -20,12 +20,12 @@ namespace Jobbliggaren.Application.RecentJobSearches.Common;
 /// <c>.RequireAuthorization()</c> på endpoint-/route-nivå. Behavior kör no-op
 /// vid anonym request (<c>ICurrentUser.UserId == null</c>) — det är defense-in-
 /// depth, inte primär auth. Att markera en <c>[AllowAnonymous]</c>-query med
-/// <c>ICapturesRecentSearch</c> är **felaktig** användning: capturen tystnar
+/// <c>IRecentSearchCandidate</c> är **felaktig** användning: capturen tystnar
 /// men gör att framtida läsare antar att opt-in betyder "capture sker". Om en
 /// ny query behöver auto-capture på anonyma flöden krävs separat
 /// behavior-mekanik + ADR-amend.</para>
 /// </summary>
-public interface ICapturesRecentSearch
+public interface IRecentSearchCandidate
 {
     string? Q { get; }
     IReadOnlyList<string>? OccupationGroup { get; }

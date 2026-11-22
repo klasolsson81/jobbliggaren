@@ -73,6 +73,6 @@ public class PublicJuniorItJobAdDtoContractTests
     public void GetPublicJuniorItJobAdsQuery_IsAnsweredForAnyone_AndNeverRecordsASearch()
     {
         typeof(GetPublicJuniorItJobAdsQuery).IsAssignableTo(typeof(IAuthenticatedRequest)).ShouldBeFalse();
-        typeof(GetPublicJuniorItJobAdsQuery).IsAssignableTo(typeof(ICapturesRecentSearch)).ShouldBeFalse();
+        typeof(GetPublicJuniorItJobAdsQuery).IsAssignableTo(typeof(IRecentSearchCandidate)).ShouldBeFalse();
     }
 }

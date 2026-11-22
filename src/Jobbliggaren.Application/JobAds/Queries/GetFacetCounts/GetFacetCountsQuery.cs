@@ -11,7 +11,7 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetFacetCounts;
 /// "Visa N annonser"-talet ägs av <c>PagedResult.TotalCount</c> (SPOT,
 /// E2c-architect §1).
 /// <para>
-/// Implementerar MEDVETET INTE <c>ICapturesRecentSearch</c> — en
+/// Implementerar MEDVETET INTE <c>IRecentSearchCandidate</c> — en
 /// facett-räkning är ingen sökhändelse; auto-capture hade skrivit en
 /// recent-search-rad per popover-toggle (E2c-architect §2).
 /// </para>

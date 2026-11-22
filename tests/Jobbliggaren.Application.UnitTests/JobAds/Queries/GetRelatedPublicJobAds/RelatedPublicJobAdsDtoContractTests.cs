@@ -41,6 +41,6 @@ public class RelatedPublicJobAdsDtoContractTests
     public void GetRelatedPublicJobAdsQuery_IsAnsweredForAnyone_AndNeverRecordsASearch()
     {
         typeof(GetRelatedPublicJobAdsQuery).IsAssignableTo(typeof(IAuthenticatedRequest)).ShouldBeFalse();
-        typeof(GetRelatedPublicJobAdsQuery).IsAssignableTo(typeof(ICapturesRecentSearch)).ShouldBeFalse();
+        typeof(GetRelatedPublicJobAdsQuery).IsAssignableTo(typeof(IRecentSearchCandidate)).ShouldBeFalse();
     }
 }

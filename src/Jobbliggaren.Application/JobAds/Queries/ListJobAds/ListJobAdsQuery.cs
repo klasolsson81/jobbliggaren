@@ -10,7 +10,7 @@ namespace Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 // ADR 0042 Beslut B — multi-värde-listor (IReadOnlyList). Nullable behålls
 // för "ej angivet" (handler översätter null → tom lista innan filter-SPOT:en).
 // Page/PageSize/SortBy/Q oförändrade.
-// ADR 0060 — ICapturesRecentSearch markerar queryn för auto-capture-behavior
+// ADR 0060 — IRecentSearchCandidate markerar queryn för auto-capture-behavior
 // (record-properties matchar interface-shape automatiskt).
 //
 // ADR 0067 Beslut 1 (Platsbanken sök-paritet Fas C2, CTO-dom (e) 2026-06-09):
@@ -21,7 +21,7 @@ namespace Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 // ADR 0076 Decision 4/5 (F4-14) — Sort är read-side sort-ytan (ListJobAdsSort):
 // de fem rena JobAdSortBy-värdena + MatchDesc ("Sortera efter matchning").
 // Domän-enumen JobAdSortBy hålls match-ren (CTO-bind D2=Y); SortBy/SortByMatch
-// härleds nedan så ICapturesRecentSearch/FilterHash bara ser rena värden.
+// härleds nedan så IRecentSearchCandidate/FilterHash bara ser rena värden.
 public sealed record ListJobAdsQuery(
     int Page = 1,
     int PageSize = 20,
@@ -31,7 +31,7 @@ public sealed record ListJobAdsQuery(
     IReadOnlyList<string>? Region = null,
     // ADR 0067 Beslut 6 (Fas B2, 2026-06-12) — Klass 2 anställningsform +
     // omfattning. Bunds från ?employmentType=/?worktimeExtent=; ortogonala
-    // IN-filter (ej geo-union). Matchar ICapturesRecentSearch automatiskt.
+    // IN-filter (ej geo-union). Matchar IRecentSearchCandidate automatiskt.
     IReadOnlyList<string>? EmploymentType = null,
     IReadOnlyList<string>? WorktimeExtent = null,
     // #311 D6 (följ arbetsgivare, ADR 0087) — arbetsgivar-facet på org.nr (den
@@ -39,7 +39,7 @@ public sealed record ListJobAdsQuery(
     // (speglar EmploymentType/WorktimeExtent). Bunds från ?employer=; upprepad
     // query-string binds till string[].
     // PERSISTERAD sök-identitets-dimension (ADR 0087 D6, PR-2b C1 2026-07-01): Employer
-    // ingår nu i ICapturesRecentSearch → en committad ?employer=-sökning fångas till
+    // ingår nu i IRecentSearchCandidate → en committad ?employer=-sökning fångas till
     // RecentJobSearch, trådas via SearchCriteria-VO:t in i FilterHash + SavedSearch jsonb,
     // och reproduceras vid RunSavedSearch/ListRecentSearches (PR-2:s CONTAINED-seam ersatt).
     // Detta skiljer Employer (SKA persisteras, paritet EmploymentType/WorktimeExtent) från
@@ -49,7 +49,7 @@ public sealed record ListJobAdsQuery(
     // #551 PR-B D5 — den boolska distans/remote-facetten (?remote=true). En ANON
     // sök-facett (annons-kolumn, ingen per-användar-data) som unionas med kommun/län
     // i ApplyFilter. PERSISTERAD sök-identitets-dimension (ADR 0087 D6-paritet, PR-D 2026-07-18):
-    // Remote ingår nu i ICapturesRecentSearch → en committad ?remote=-sökning fångas till
+    // Remote ingår nu i IRecentSearchCandidate → en committad ?remote=-sökning fångas till
     // RecentJobSearch, trådas via SearchCriteria-VO:t in i FilterHash + SavedSearch jsonb, och
     // reproduceras vid RunSavedSearch/ListRecentSearches (PR-B:s CONTAINED-seam ersatt). Detta
     // skiljer Remote (SKA persisteras, paritet Employer/EmploymentType/WorktimeExtent) från
@@ -61,13 +61,13 @@ public sealed record ListJobAdsQuery(
     // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate för
     // auto-capture. Default false: live-förhandsvisning (router.replace per
     // ord) fångas ej; FE sätter ?commit=1 vid Enter/Sök/förslags-val/toolbar.
-    // record-property matchar ICapturesRecentSearch.Commit automatiskt
+    // record-property matchar IRecentSearchCandidate.Commit automatiskt
     // (paritet Since/Page). Påverkar ENDAST capture-behaviorns no-op-gate —
     // ingår inte i SearchCriteria/filter-identiteten.
     bool Commit = false,
     // ADR 0079 STEG 5 (grad-filter, 2026-06-23) — den per-användar-grad-filtreringen
     // ("Matchning"-toggeln). RUNTIME-KONTEXT (analog Since/Commit): den ingår ALDRIG
-    // i ICapturesRecentSearch / SearchCriteria / FilterHashCalculator (de läser bara
+    // i IRecentSearchCandidate / SearchCriteria / FilterHashCalculator (de läser bara
     // de namngivna fälten ovan) — en per-användar-grad får aldrig förorena den anonyma
     // sök-identiteten (ADR 0039 Beslut 1 / ADR 0062-isolering). En icke-tom lista
     // betyder "Matchning PÅ, visa endast dessa grader"; tom/null = Matchning AV
@@ -77,7 +77,7 @@ public sealed record ListJobAdsQuery(
     // #300 PR-5a (ADR 0084 §A — "Visa relaterade också"-toggeln, off by default) — när true
     // breddar profil-byggaren yrkes-gaten exakt → exakt ∪ related så related-annonser kan tagga
     // MatchGrade.Related (rank 2). RUNTIME-KONTEXT (paritet MatchGrades/Commit): ingår
-    // ALDRIG i ICapturesRecentSearch / SearchCriteria / FilterHashCalculator (de läser bara de
+    // ALDRIG i IRecentSearchCandidate / SearchCriteria / FilterHashCalculator (de läser bara de
     // namngivna sök-identitets-fälten ovan) — en per-användar-breddning får aldrig förorena den
     // anonyma sök-identiteten (ADR 0039 Beslut 1 / ADR 0062). Default false = beteende-inert
     // (exakt-only, dagens beteende). Det publika /jobb-rutt-värdet ?relaterade=on mappas hit av
@@ -85,7 +85,7 @@ public sealed record ListJobAdsQuery(
     bool IncludeRelated = false,
     // #383 (CTO-bind cto-7f3a9c2e1b4d8a6f, Approach B) — den per-användar-status-
     // filtreringen ("Sparade"/"Ansökta"/"Dölj ansökta"-facetterna). RUNTIME-KONTEXT
-    // (paritet MatchGrades/IncludeRelated): de ingår ALDRIG i ICapturesRecentSearch /
+    // (paritet MatchGrades/IncludeRelated): de ingår ALDRIG i IRecentSearchCandidate /
     // SearchCriteria / FilterHashCalculator (de läser bara de namngivna sök-identitets-
     // fälten ovan — de tre nya bool:arna exkluderas automatiskt) — en personlig
     // status-vy får aldrig förorena den anonyma, cachebara sök-identiteten. Bunds från
@@ -99,7 +99,7 @@ public sealed record ListJobAdsQuery(
     // #419 punkt 1 (CTO Approach A, 2026-06-30) — "Visa bara matchade": visa ENDAST
     // annonser med en positiv matchningsgrad för användaren (rank > 0 = SSYK ∈ exakt ∪
     // related), oavsett vilken specifik grad. RUNTIME-KONTEXT (paritet MatchGrades/
-    // IncludeRelated/status): ingår ALDRIG i ICapturesRecentSearch / SearchCriteria /
+    // IncludeRelated/status): ingår ALDRIG i IRecentSearchCandidate / SearchCriteria /
     // FilterHashCalculator (de läser bara de namngivna sök-identitets-fälten) — en
     // per-användar-vy får aldrig förorena den anonyma, cachebara sök-identiteten (ADR
     // 0039 Beslut 1 / 0062). Bunds från ?onlyMatched=; FE mappar den svenska sentinel-
@@ -114,9 +114,9 @@ public sealed record ListJobAdsQuery(
     // ?occupationName=. A committed search carrying it is captured with it (#2199 PR 2).
     IReadOnlyList<string>? OccupationName = null,
     bool JuniorIt = false)
-    : IQuery<JobAdListPage>, ICapturesRecentSearch
+    : IQuery<JobAdListPage>, IRecentSearchCandidate
 {
-    // ICapturesRecentSearch + default/fallback-väg ser ALLTID ett rent
+    // IRecentSearchCandidate + default/fallback-väg ser ALLTID ett rent
     // Domain-värde (MatchDesc → PublishedAtDesc). Match-sorten persisteras aldrig
     // som en anonym recent-search-/SavedSearch-sort (ADR 0076 Decision 5).
     public JobAdSortBy SortBy => Sort.ToDomainSort();

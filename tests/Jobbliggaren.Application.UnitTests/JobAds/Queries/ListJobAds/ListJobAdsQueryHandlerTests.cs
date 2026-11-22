@@ -755,7 +755,7 @@ public class ListJobAdsQueryHandlerTests
     // --- #300 PR-5a: ListJobAdsQuery.IncludeRelated threads into BuildFullForSortAsync ----
     // The per-user path builds the FULL profile via BuildFullForSortAsync; PR-5a adds the
     // includeRelated arg that the FE toggle flips (ADR 0084 question A, off by default). The
-    // flag is RUNTIME-CONTEXT (like MatchGrades) — it NEVER enters ICapturesRecentSearch /
+    // flag is RUNTIME-CONTEXT (like MatchGrades) — it NEVER enters IRecentSearchCandidate /
     // SearchCriteria / FilterHash. These tests stub with Arg.Any<bool>() and capture the
     // threaded arg via Arg.Do<bool>. RED until ListJobAdsQuery carries IncludeRelated AND the
     // handler passes includeRelated: query.IncludeRelated into BuildFullForSortAsync (per-user
@@ -869,13 +869,13 @@ public class ListJobAdsQueryHandlerTests
     [Fact]
     public void ListJobAdsQuery_IncludeRelated_IsNotPersistedSearchIdentity()
     {
-        // Defence-in-depth: IncludeRelated is NOT part of ICapturesRecentSearch (the captured
+        // Defence-in-depth: IncludeRelated is NOT part of IRecentSearchCandidate (the captured
         // anonymous search identity). The capture interface exposes only the named filter
         // fields + Commit/Since-style runtime context, never IncludeRelated.
-        typeof(Jobbliggaren.Application.RecentJobSearches.Common.ICapturesRecentSearch)
+        typeof(Jobbliggaren.Application.RecentJobSearches.Common.IRecentSearchCandidate)
             .GetProperty("IncludeRelated").ShouldBeNull(
                 "IncludeRelated är runtime-kontext (analogt MatchGrades) och får aldrig " +
-                "ingå i ICapturesRecentSearch / sök-identiteten (ADR 0084 / ADR 0079 STEG 5).");
+                "ingå i IRecentSearchCandidate / sök-identiteten (ADR 0084 / ADR 0079 STEG 5).");
     }
 
     // --- #383 (CTO-bind cto-7f3a9c2e1b4d8a6f): status-filter-grenen ----------

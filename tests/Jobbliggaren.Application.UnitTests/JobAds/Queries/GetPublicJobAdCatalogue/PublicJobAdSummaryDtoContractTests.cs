@@ -35,8 +35,8 @@ public class PublicJobAdSummaryDtoContractTests
     public void GetPublicJobAdCatalogueQuery_IsAnsweredForAnyone_AndNeverRecordsASearch()
     {
         // The union exists for its 404 and 503 arms. What keeps an anonymous read from capturing a search is that the
-        // message is not ICapturesRecentSearch (the capture behaviour's first gate), not the response type.
+        // message is not IRecentSearchCandidate (the capture behaviour's first gate), not the response type.
         typeof(GetPublicJobAdCatalogueQuery).IsAssignableTo(typeof(IAuthenticatedRequest)).ShouldBeFalse();
-        typeof(GetPublicJobAdCatalogueQuery).IsAssignableTo(typeof(ICapturesRecentSearch)).ShouldBeFalse();
+        typeof(GetPublicJobAdCatalogueQuery).IsAssignableTo(typeof(IRecentSearchCandidate)).ShouldBeFalse();
     }
 }

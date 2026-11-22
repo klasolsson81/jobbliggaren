@@ -8,7 +8,7 @@ namespace Jobbliggaren.Application.RecentJobSearches.Behaviors;
 
 /// <summary>
 /// ADR 0060 — auto-capture-pipeline-behavior. CTO 2026-05-20 Variant A:
-/// post-handler-side-effect som fångar varje lyckad <c>ICapturesRecentSearch</c>-
+/// post-handler-side-effect som fångar varje lyckad <c>IRecentSearchCandidate</c>-
 /// query för authenticated user. Pipeline-ordning: efter UnitOfWork (capture
 /// sker bara om huvud-query lyckats), före Audit (queries audit:as inte).
 ///
@@ -16,7 +16,7 @@ namespace Jobbliggaren.Application.RecentJobSearches.Behaviors;
 /// wrappas i try/catch + log. Capture-fel bryter ALDRIG queryn (defensive —
 /// fall här skulle ge 500 på söksidan, oacceptabelt).</para>
 ///
-/// <para>No-op när: (1) meddelandet inte bär <see cref="ICapturesRecentSearch"/>,
+/// <para>No-op när: (1) meddelandet inte bär <see cref="IRecentSearchCandidate"/>,
 /// (2) respons inte bär <see cref="IRecentSearchCaptureResponse"/>, (3) anonym
 /// användare, (4) <see cref="RecentSearchCaptureGate"/> vägrar sökningen (tom/invalid filter,
 /// personnummer, religiöst yrke — #2199 PR 2b).</para>
@@ -36,7 +36,7 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
     {
         var response = await next(message, cancellationToken).ConfigureAwait(false);
 
-        if (message is not ICapturesRecentSearch capt)
+        if (message is not IRecentSearchCandidate capt)
             return response;
 
         // Commit-intent-guard (Fas E2j, ADR 0060 amendment 2026-06-12):

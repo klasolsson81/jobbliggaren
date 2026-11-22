@@ -27,7 +27,7 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetMatchCountPreview;
 /// talen är per konstruktion identiska för samma val (Klas "samma siffra", ADR 0089).
 /// </para>
 /// <para>
-/// INTE <c>ICapturesRecentSearch</c> — en live-räkning är ingen sökhändelse; auto-capture hade
+/// INTE <c>IRecentSearchCandidate</c> — en live-räkning är ingen sökhändelse; auto-capture hade
 /// skrivit en recent-search-rad per tangenttryckning (parity <c>GetFacetCountsQuery</c>).
 /// </para>
 /// </summary>

@@ -24,7 +24,7 @@ public class DmarcMailboxImapCallTests
     [
         "MailKit.FetchRequest::.ctor(MailKit.MessageSummaryItems)",
         "MailKit.IMailFolder::FetchAsync(System.Int32,System.Int32,MailKit.IFetchRequest,System.Threading.CancellationToken)",
-        "MailKit.IMailFolder::GetStreamAsync(MailKit.UniqueId,System.String,System.Int32,System.Int32,System.Threading.CancellationToken,MailKit.ITransferProgress)",
+        "MailKit.IMailFolder::GetStreamAsync(MailKit.UniqueId,System.String,System.Int64,System.Int64,System.Threading.CancellationToken,MailKit.ITransferProgress)",
         "MailKit.IMailFolder::OpenAsync(MailKit.FolderAccess,System.Threading.CancellationToken)",
         "MailKit.IMailFolder::get_Count()",
         "MailKit.IMailFolder::get_UidValidity()",
@@ -101,7 +101,7 @@ public class DmarcMailboxImapCallTests
         ["GetHeaders, which parses with MimeKit"] = member => On(member, FolderTypes) && member.Name.StartsWith("GetHeaders", StringComparison.Ordinal),
         ["A stream that is not a partial range of one section"] = member => On(member, FolderTypes)
             && member.Name.StartsWith("GetStream", StringComparison.Ordinal)
-            && !HasParameters(member, "MailKit.UniqueId", "System.String", "System.Int32", "System.Int32"),
+            && !HasParameters(member, "MailKit.UniqueId", "System.String", "System.Int64", "System.Int64"),
         ["A fetch by UID set or index list"] = member => On(member, FolderTypes)
             && member.Name.StartsWith("Fetch", StringComparison.Ordinal)
             && !HasParameters(member, "System.Int32", "System.Int32", "MailKit.IFetchRequest", "System.Threading.CancellationToken"),
@@ -294,7 +294,7 @@ public class DmarcMailboxImapCallTests
     private static List<MemberReference> LibraryMembers()
     {
         var members = new List<MemberReference>();
-        foreach (var library in new[] { "MailKit.dll", "MimeKit.dll" })
+        foreach (var library in new[] { "MailKit.dll", "MimeKit.Core.dll" })
         {
             using var assembly = AssemblyDefinition.ReadAssembly(Path.Combine(Path.GetDirectoryName(MailboxAssemblyPath)!, library));
             foreach (var type in assembly.MainModule.GetTypes().Where(type => type.IsPublic || type.IsNestedPublic))

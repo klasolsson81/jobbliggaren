@@ -14,7 +14,7 @@ import {
  * #2285 (dotnet-architect, #2285 plan read) — the list and the capture read one state through two mappers: the list
  * through the URL (`buildJobbHref`, then the page's parse), the capture through `recentSearchCaptureBody`. They must
  * agree on every axis the capture gate reads, `junior` included: a capture without it would store the broader search
- * and bump its row (#2261, senior-cto-advisor D1a). The parse below is the page's own helpers in the page's order.
+ * and bump its row (#2261, senior-cto-advisor D1a).
  */
 function listQueryFor(state: JobbUrlState) {
   const params = new URL(buildJobbHref(state), "https://jobbliggaren.test").searchParams;

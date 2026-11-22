@@ -323,6 +323,15 @@ describe("/jobb — the page mounts the live region itself", () => {
  * around both the verdict never reaches it, so "Spara sökningen" would never be offered with every
  * other test green.
  */
+describe("/jobb — the page carries the results' save verdict to the hero", () => {
+  it("lets the hero read the verdict the results report", async () => {
+    ads = [sampleAd("a1", "Backend-utvecklare")];
+    await renderPage();
+
+    expect(screen.getByTestId("hero-storable")).toHaveTextContent("true");
+  });
+});
+
 // #2285 — /jobb no longer reads `commit`: a planted link carries it to the page and the page passes
 // nothing on, so the list query stores nothing whatever the link said.
 describe("/jobb — a planted commit flag reaches nothing", () => {
@@ -334,15 +343,6 @@ describe("/jobb — a planted commit flag reaches nothing", () => {
     expect(resultsProps).not.toBeNull();
     expect(resultsProps).not.toHaveProperty("commit");
     expect(resultsProps).toHaveProperty("q", "planterad");
-  });
-});
-
-describe("/jobb — the page carries the results' save verdict to the hero", () => {
-  it("lets the hero read the verdict the results report", async () => {
-    ads = [sampleAd("a1", "Backend-utvecklare")];
-    await renderPage();
-
-    expect(screen.getByTestId("hero-storable")).toHaveTextContent("true");
   });
 });
 

@@ -1588,7 +1588,7 @@ Sentences marked **[K]** are controller decisions, which Klas approved in the si
   - **Only the default view may be `index, follow`:** no kommun, newest first, page 1. It is indexable only while the floor holds (*The floor*, below).
   - **Every other answer stays `noindex, follow`:** a kommun view (0 of 33 kommuner meet the floor), the deadline order, page 2 and later, the empty kommun, the 404 and the 5xx, and the continuation document.
   - **Why page 1 only.** D1's "a place such a search lands" is met by one URL. Indexing seven more pages puts the other 129 rows into index associations for no purpose that the sitemap and the catalogue do not already serve (Art. 5(1)(c), 25(1)). Every page in the default order is acceptable on the catalogue's precedent and was not recommended.
-  - **The canonical.** The default view names itself as its canonical, absolutely, built from `juniorItHref` over the validated parse, so `vidare` and any unvalidated key can never reach it. A duplicate spelling (an ignored key, `page=1`, the default `sortBy`) carries the same canonical or gets a 308 to it. A `noindex` answer names no canonical, as today: `noindex` beside a canonical to another address is a conflicting signal (ADR 0176 D1).
+  - **The canonical.** The default view names itself as its canonical, absolutely, so `vidare` and any unvalidated key can never reach it. A duplicate spelling (an ignored key, `page=1`, the default `sortBy`) carries the same canonical. A `noindex` answer names no canonical, as today: `noindex` beside a canonical to another address is a conflicting signal (ADR 0176 D1).
   - **The sitemap.** One entry in the pages part: `loc` only, equal to that canonical, so trigger 8 does not fire. No parameter address is ever listed, and the job parts are untouched.
   - **`robots.txt`** is unchanged. No rule for `/junior` or `/junior?`: a rule would hide the variants' `noindex`, and a blocked URL can be indexed from links alone.
   - **Kept.** The title, description and image stay fixed, with no row and no count (trigger 21). No JSON-LD of any kind (trigger 21; Google forbids `JobPosting` on list pages). The count line, the rows and the pager stay in the one `data-nosnippet` block, and the kommun form is inside it (her m2: an option's count goes false in a quoted snippet, ADR 0120).
@@ -1598,7 +1598,7 @@ Sentences marked **[K]** are controller decisions, which Klas approved in the si
 
 **D4, the weights:**
 - **W1: unchanged.** The list carries no free text, and the view adds none.
-- **W2 at index scale.** Each of the 20 names on page 1 is already on its own indexed job page, in the job sitemap and on an indexed catalogue page. What indexing adds is an association between a name and "junior IT jobs" on one high-ranking URL, until the engine recrawls it. Google and Bing do not quote these rows in snippets or AI answers (`data-nosnippet`). *Stock:* 0 of 149 listed juniors without an organisation number (2026-11-22). The personnummer-shaped count was not taken on 2026-11-22 (it read 0 on 2026-11-21) and is owed on the merge day (D11). *Left:* a burst of ads from one employer can fill page 1 while S still holds over the whole set; and engines other than Google and Bing may quote rows (not measured).
+- **W2 at index scale.** Each of the 20 names on page 1 is already on its own indexed job page, in the job sitemap and on an indexed catalogue page. What indexing adds is an association between a name and "junior IT jobs" on one high-ranking URL, until the engine recrawls it. Google and Bing do not quote these rows in snippets or AI answers (`data-nosnippet`). *Stock:* 0 of 149 listed juniors without an organisation number (2026-11-22). *Left:* a burst of ads from one employer can fill page 1 while S still holds over the whole set; and engines other than Google and Bing may quote rows (not measured).
 - **W3:** handled by D11.
 - **W4.** Link previews stay static: the title, description and shared image carry no row and no count. *Left:* the index copy until recrawl, and more third-party copies (aggregators, archives, crawlers), all out of reach.
 - **W5: unchanged in kind.** The kommun views stay `noindex`, so the kommun-scale inference stands as already rated (the Amendment 2026-11-19). The floor closing is a coarse aggregate change and not a per-person signal. Erasures to date: 0 (2026-11-21). R-842-9 stays Med × Med.
@@ -1630,16 +1630,16 @@ The addendum is owed. It is a local file, written in the main copy by the drivin
 
 **D10.** Trigger 20 fired for the junior list, and Klas took the conclusion again for the default view on 2026-11-22. This withdraws no finding and none of D4's residuals. **Trigger 20 is replaced and trigger 21 is extended**, as her M1 requires; triggers 22–24 and the earlier ones are unchanged. The wording is built from her M1 and S1 and is hers at signing:
 
-20. The junior list made findable through a search engine other than as follows. The default view (all kommuner, newest first, page 1, no other parameter) may be `index, follow`, with its own absolute canonical and as `/junior`'s one entry in the sitemap's pages part, and only while the floor holds. Everything else fires:
-    - `noindex` removed from or weakened on any other answer of `/junior`, with any combination of its parameters;
-    - any other `/junior` address in any sitemap, or an entry with any element besides `loc`;
-    - a canonical on an answer that is `noindex`, or from any answer to another address;
-    - a `robots.txt` rule that hides the `noindex` of a variant from a crawler;
-    - `index` on any answer while the floor fails or was not read, a failed read included;
-    - the floor weakened (a threshold lowered, the share rule loosened, or the definition of an employer in *The employer, for the floor* changed so that it splits where it merges), moved out of the rows' own base, stored, cached, banded or made configurable.
+20. The junior list made findable through a search engine in any way but this one. **The default view** is every answer of `/junior` whose validated parse is every kommun, newest first and page 1, whatever other key the request carries (an ignored key, `page=1`, the default `sortBy` or an empty `municipality` included). It alone may be `index, follow`, only while the floor holds at that request's own `now`, and it then names the bare absolute `/junior` as its canonical. The sitemap's pages part lists `/junior` once, `loc` only and equal to that canonical, whether or not the floor holds: while it fails, the entry stays and the page answers `noindex, follow`. Everything else fires:
+    - `noindex` removed from or weakened on any other answer of `/junior` (a kommun, the deadline order, a later page, the empty kommun, a 404, a 5xx, the continuation document), with any combination of its parameters;
+    - `index` on the default view while the floor fails or was not read, a failed read included;
+    - a canonical on a `noindex` answer, or a canonical to any address but the bare absolute `/junior`;
+    - any other `/junior` address in any sitemap, or the entry with any element besides `loc`;
+    - a `robots.txt` rule that keeps a search engine's crawler from fetching any `/junior` address, since it must fetch a variant to read its `noindex`;
+    - the floor weakened (a threshold lowered, the share rule loosened, or the definition of an employer in *The employer, for the floor* changed so that it splits where it merges), read over anything but the rows' own base at the request's `now`, stored, cached, banded or made configurable.
 
     A place or another facet as a path (`/junior/<kommun>`) is a new public page, which is trigger 1.
-21. A junior row member outside the seven (`id`, `title`, `companyName`, `municipalityName`, `regionName`, `publishedAt`, `expiresAt`), or any other ad value anywhere on the page; a row value or a count in the page's title, meta, OpenGraph or Twitter tags; any JSON-LD on the page; any count or option keyed by employer; **or any floor value other than its one boolean, `floorHolds`**, whether N, E, S, a threshold or a per-employer value, on the wire, in the page's tags, in a log line or in a stored value.
+21. A junior row member outside the seven (`id`, `title`, `companyName`, `municipalityName`, `regionName`, `publishedAt`, `expiresAt`), or any other ad value anywhere on the page; a row value or a count in the page's title, meta, OpenGraph or Twitter tags; any JSON-LD on the page; any count or option keyed by employer; or a value of the floor other than its outcome, the one boolean `floorHolds` — E, S, a threshold, the largest employer's count or share, a separate term of E, or any value per employer — on the wire, on the page or in its tags, in a log line, or in a column, cache or file the application writes. N is the list's own total and stays where it already is, in the count line and `rows.totalCount`. A printed reading under *E in a printed reading* is not this trigger.
 
 The readings recorded with them, for triggers 1–24:
 - **Trigger 1:** not fired by the change. There is no new public page, read or recipient: the page and its read are the Amendment 2026-11-19's, and what changes is whether one view of the page is findable, which is trigger 20. The one added link on `/lediga-jobb`, in a paragraph under its band, carries no ad text. Each later PR of the line is a re-take of its own trigger (her M4): the junior list's filters trigger 22, the catalogue's trigger 12, an employer profile or any page at a path trigger 1.
@@ -1679,6 +1679,9 @@ The readings recorded with them, for triggers 1–24:
 | Junior set: organisation number of personnummer shape (must be 0) | **0** |
 | Junior set: without an organisation number (must be 0) | **0** |
 | Junior set: not ten characters (must be 0) | **0** |
+| Junior set: verdicts by rule | Junior 148 (`reading-2026-11-19` 138, `title-junior` 9, `text-seek-junior` 1); NotJunior 2 645 (`no-signal` 2 605, `title-senior` 31, `text-mentor-only` 9); Unclear 77 (`candidate-only` 25, `years-3-plus` 16, `text-early-career` 13, `flag-no-experience` 10, `text-junior-and-senior` 8, `text-new-graduate` 4, `title-thesis` 1) |
+| Junior set: decisions | none on 2 870 of 2 870 |
+| Junior set: kommuner, those with exactly one ad, members without a kommun | 33, 19, 2 |
 | Stale assessments, by version and by fingerprint (must be 0) | **0** by version (`1.1.0+2a7891ba`), **0** by fingerprint; listed Data/IT ads without an assessment 0 of 2 870 |
 | Assessments of erased ads (must be 0; read again two ticks later if above 0) | **0** |
 | Erased ads with an input fingerprint (must be 0) | **0** |
@@ -1724,7 +1727,7 @@ The last two scale with an indexed list's size, not with its subject, so they ap
 
 **Ground.**
 - A safeguard should merge when the key is unsure. Merging can only close the floor (`noindex`); splitting can only open it.
-- The E formula never counts too many employers. Treat each number and each name as a node and each row as an edge between them. One employer is then one connected piece, and a graph has at least as many pieces as nodes minus edges. E can count too few only when one employer uses two numbers and two names in all four combinations, which closes the floor.
+- The E formula never counts too many employers. Treat each number and each name as a node and each row as an edge between them. One employer is then one connected piece, and a graph has at least as many pieces as nodes minus edges.
 - The S rule: each key's group lies inside one employer, so taking the larger of the two is never laxer than either key alone.
 - A row without a number counts in N but proves nothing. D1 can leave such an ad out because it chooses rows for a section; `/junior` shows the row. So the row adds no employer, and it cannot be ruled out as the largest employer's. If the source stops sending numbers, the floor closes rather than quietly comparing spellings.
 - Reading the number is proportionate. It stays inside the statement and only the boolean leaves, as in D1 (Art. 5(1)(c), 25(1)). A name-only key would split one number across names, and for a sole trader that splits one person's share in two.
@@ -1774,10 +1777,20 @@ She signs at her scoped re-check of the PR's final head, read with ADR 0190 as d
 
 **The declared deltas, as the worktree's `git diff -U0` shows them on 2026-11-22; she reads the list again at the final head:**
 - R3, the catalogue: one plain `<a href="/junior">` in a paragraph of its own under the band, outside the `data-nosnippet` block and not in the empty state (`catalogue.juniorLink`; `public-job-ad-catalogue.tsx`). DESIGN.md §6 keeps the band's line free of links. ADR 0176's Amendment 2026-11-22 records it.
-- R7, the junior list's public side, beyond the four exceptions above: the kommun form moved inside the `data-nosnippet` block (m2); the copy, `publicjob.junior.metaTitle` (new), `metaDescription` and the band's line `lede` (Klas, ADR 0190 D6 rows 7 and 10); and the page component's docblock.
+- R7, the junior list's public side, beyond the four exceptions above: the kommun form moved inside the `data-nosnippet` block (m2); the copy, `publicjob.junior.metaTitle` (new), `metaDescription` and the band's line `lede` (Klas, ADR 0190 D6 rows 7 and 10); and the docblock of `public-junior-it-list.tsx`, whose sentence on signed-in visitors has been false since 2026-11-21.
+- The junior list's backend, beyond the port's floor member:
+  - `IJuniorItJobAdQuery`'s docblock, with its false regex reason deleted;
+  - the handler's comment on the one instant;
+  - `ListedJuniors` in `JuniorItJobAdQuery.cs`, the base the count, the page and the floor share, with the count's and the page's SQL pinned equal to their inline form by `TheCountAndThePage_SendTheStatementsOfTheirOwnInlineBase_SoTheSharedBaseChangesNoSql`;
+  - `PublicListFloor`'s public surface, which ends in `Outcome`, one row or none, while the spread, the rule, the thresholds and `EmployerSpread` are internal; its private pair row's member is `OrganizationNumber`, and the row is on `OrganizationNumberSurfacingGuardTests.RawOrgNrCarriers` (`dotnet-architect`);
+  - the `JobAdLifecycleReadRegistry` note for `MeetsFloorAsync`.
+- The web, beyond the page's metadata and the envelope's boolean: `isIndexableJuniorItView` and `publicJuniorUrl` in `junior-it-params.ts`, with their tests; the sitemap's 16th `loc` and its docblock; `lighthouserc.json` and `lighthouse-server.mjs`, which now waits for `/junior` too; `public-catalogue-page.test.tsx` (tests added, no assertion removed); the stub's floor modes and the smoke's added checks; `fixtures.ts`.
+- Test-only refactors: `JuniorItCountLatencyMeasurement` on the shared `JuniorLatencyCorpus`.
 - `RateLimitingOptions.cs`: the `PublicJobAdJuniorIt` docblock, in `security-auditor`'s words; its numbers and the policy's tests byte-unchanged.
 - The assertion lines removed, each replaced by an assertion of the new property:
-  - `JuniorItJobAdQueryReadTests`: the statement count "2, the grouped count and the page", now three;
+  - `JuniorItJobAdQueryReadTests`: the statement count "2, the grouped count and the page", now three; the floor statement's `EXISTS` anywhere in its text, now at its start; and the floor reading's E and `s_ok` checked one at a time, now N equal to the list's total, `s_ok` masked whenever E is, and `s_ok` equal to the outcome from 100 ads up;
+  - `PublicListFloorTests`: a row with no ads, a spread `SpreadOf` never yields, deleted (`code-reviewer`);
+  - `JuniorItFloorLatencyMeasurement`: the plan pin over a statement the test composed, now over the statement `MeetsFloorAsync` sends, node by node;
   - `PublicJuniorItJobAdsEndpointTests`: the envelope's keys `rows` and `places`, now with `floorHolds`;
   - `PublicJuniorItJobAdDtoContractTests`: the envelope's properties `Places` and `Rows`, now with `FloorHolds`;
   - `public-job-smoke.mjs`: the pages part's 15 paths, now 16, and "no catalogue page beyond the first", now no address with a query string;

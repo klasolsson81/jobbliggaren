@@ -99,8 +99,8 @@
     <!-- Jobbliggaren.Migrate — DDL-init console-app (STEG 14b). Behöver Npgsql direkt
          (Application använder bara DbSet<T>-abstraktionen via EF Core).
          Microsoft.Extensions.Logging.Console för stdout (+ Seq-sink, TD-104). -->
-    <!-- Direkt-referens från Jobbliggaren.Migrate. Pinnen får inte ligga under den Npgsql-version som
-         Npgsql.EntityFrameworkCore.PostgreSQL:s nuspec kräver; då faller restore på en nedgradering (NU1109). -->
+    <!-- The pin may not sit below the Npgsql version that
+         Npgsql.EntityFrameworkCore.PostgreSQL's nuspec requires; restore then fails on a downgrade. -->
     <PackageVersion Include="Npgsql" Version="10.0.4" />
     <!-- AWSSDK-ytan är TOM och är återigen ett förbud, inte en allow-list (#183, 2026-08-15).
          Bannade: SecretsManager (TD-105 / #199 / ADR 0050), KeyManagementService +
@@ -123,7 +123,7 @@
          unifieras UPPÅT till 10.x som redan finns i projektet (ingen downgrade/NU1605).
          Web-verifierad 2026-06-14 (nuget.org). Config-gated via Seq:ServerUrl. -->
     <PackageVersion Include="Seq.Extensions.Logging" Version="9.0.0" />
-    <!-- Transitiv CVE-pinning. Hangfire (och NetArchTest.Rules) drar in Newtonsoft.Json 11.0.1
+    <!-- Transitiv CVE-pinning. Hangfire drar in Newtonsoft.Json 11.0.1
          vilket är sårbar mot CVE-2024-21907 (GHSA-5crp-9r3c-p9vr — DoS via StackOverflow vid
          djupt nestade JSON). Vi använder inte Newtonsoft direkt — pinningen sker bara via
          CentralPackageTransitivePinningEnabled (Directory.Build.props) för att eliminera

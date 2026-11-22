@@ -511,15 +511,16 @@ try {
     assert.equal(res.status, 200);
   });
 
-  await check("the pages part lists the 14 marketing pages and the catalogue's first page, a loc each and nothing else", async () => {
+  await check("the pages part lists the 14 marketing pages, the catalogue's first page and the junior list, a loc each and nothing else", async () => {
     const res = await get(origin, "/sitemap-sidor.xml");
     assert.equal(res.status, 200);
     assert.match(res.headers.get("cache-control") ?? "", /no-store/);
     const paths = locsOf(res.body).map(pathOf);
-    assert.equal(paths.length, 15);
+    assert.equal(paths.length, 16);
     assert.equal(paths[0], "/");
     assert.equal(paths[14], "/lediga-jobb");
-    assert.ok(locsOf(res.body).every((loc) => !loc.includes("sida=")), "no catalogue page beyond the first");
+    assert.equal(paths[15], "/junior");
+    assert.ok(locsOf(res.body).every((loc) => !loc.includes("?")), "no later page and no parameter address of either list");
     assert.doesNotMatch(res.body, /<(lastmod|changefreq|priority)>/);
   });
 
@@ -637,7 +638,7 @@ try {
     });
   }
 
-  await check("the junior list is a 200, uncacheable, noindex and follow, with no canonical, read per request for the visitor with no credential", async () => {
+  await check("the junior list whose floor fails is a 200, uncacheable, noindex and follow, with no canonical, read per request for the visitor with no credential", async () => {
     junior.mode = "ok";
     seen.length = 0;
     const res = await get(origin, "/junior?utm_source=linkedin&trk=x", { headers: { cookie: "other=1", authorization: "Bearer x" } });
@@ -654,6 +655,51 @@ try {
     assert.equal(calls[0].headers.cookie, undefined);
     assert.equal(calls[0].headers.authorization, undefined);
   });
+
+  await check("the junior list at the floor is index and follow on its default view, with its own canonical and preview address", async () => {
+    junior.mode = "atFloor";
+    try {
+      for (const path of ["/junior", "/junior?page=1&utm_source=linkedin", "/junior?sortBy=PublishedAtDesc&municipality="]) {
+        const res = await get(origin, path);
+        assert.equal(res.status, 200, path);
+        assert.match(res.body, /<meta name="robots" content="index, follow"/, path);
+        assert.match(res.body, /<link rel="canonical" href="[^"?]*\/junior"/, path);
+        assert.match(res.body, /<meta property="og:url" content="[^"?]*\/junior"/, path);
+        assert.doesNotMatch(res.body, /application\/ld\+json/, path);
+      }
+    } finally {
+      junior.mode = "ok";
+    }
+  });
+
+  await check("the junior list at the floor keeps every other view noindex and follow, with no canonical", async () => {
+    junior.mode = "atFloor";
+    try {
+      for (const query of [`?municipality=${JUNIOR_PLACES[1].municipalityConceptId}`, "?sortBy=ExpiresAtAsc", "?page=2"]) {
+        const res = await get(origin, `/junior${query}`);
+        assert.equal(res.status, 200, query);
+        assert.match(res.body, /<meta name="robots" content="noindex, follow"/, query);
+        assert.doesNotMatch(res.body, /<link rel="canonical"/, query);
+      }
+    } finally {
+      junior.mode = "ok";
+    }
+  });
+
+  for (const [agent, ua] of [["a browser", BROWSER], ["Googlebot, with no Fetch Metadata", GOOGLEBOT]]) {
+    await check(`the junior list at the floor gives ${agent} the list itself, with its robots and canonical in the head`, async () => {
+      junior.mode = "atFloor";
+      try {
+        const res = await get(origin, "/junior", { headers: { "user-agent": ua } });
+        assert.equal(res.status, 200);
+        assert.match(res.body, new RegExp(`<a href="/jobb/${juniorRow(1).id}"`), "the rows, not the continuation document");
+        assert.ok(inHead(res.body, /<meta name="robots" content="index, follow"/), "robots in the head");
+        assert.ok(inHead(res.body, /<link rel="canonical"/), "canonical in the head");
+      } finally {
+        junior.mode = "ok";
+      }
+    });
+  }
 
   await check("the junior list sends a signed-in request on to /jobb with the junior filter, and reads nothing (#2284)", async () => {
     junior.mode = "ok";
@@ -685,12 +731,13 @@ try {
     assert.equal(calls[0].headers.authorization, undefined);
   });
 
-  await check("the junior list keeps the count, the list and the pager in one data-nosnippet block, with plain row anchors and a GET form", async () => {
+  await check("the junior list keeps the form, the count, the list and the pager in one data-nosnippet block, with plain row anchors and a GET form", async () => {
     junior.mode = "ok";
     const res = await get(origin, "/junior");
     const block = /<div data-nosnippet="">([\s\S]*?)<\/main>/.exec(res.body);
     assert.ok(block, "the nosnippet block");
     assert.match(block[1], new RegExp(`<a href="/jobb/${juniorRow(1).id}" class="jp-job__rowlink"`));
+    assert.match(block[1], /<form[^>]*action="\/junior"/, "the kommun options' counts sit inside the block");
     const form = /<form[^>]*>/.exec(res.body)?.[0] ?? "";
     assert.match(form, /action="\/junior"/);
     assert.match(form, /method="get"/);

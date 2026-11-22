@@ -28,6 +28,7 @@ const ROW = {
 const ANSWER = {
   rows: { items: [ROW], totalCount: 41, page: 2, pageSize: 20, totalPages: 3 },
   places: [{ municipalityConceptId: "PVZL_BQT_XtL", name: "Göteborg", count: 41 }],
+  floorHolds: false,
 };
 
 function json(body: unknown, status = 200): Response {
@@ -120,6 +121,17 @@ describe("getPublicJuniorItJobAds", () => {
     ["a page key", { ...ANSWER, rows: { ...ANSWER.rows, asOf: "x" } }],
     ["an option key keyed by employer", { ...ANSWER, places: [{ ...ANSWER.places[0], employer: SENTINEL_NAME }] }],
   ])("reads %s beyond the delivered set as unavailable", async (_label, answer) => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    fetchMock.mockResolvedValue(json(answer));
+
+    expect(await getPublicJuniorItJobAds(null, "PublishedAtDesc", 1)).toEqual({ kind: "unavailable" });
+  });
+
+  it.each([
+    ["without the floor's outcome", Object.fromEntries(Object.entries(ANSWER).filter(([key]) => key !== "floorHolds"))],
+    ["with a floor that is not a boolean", { ...ANSWER, floorHolds: "true" }],
+    ["with a count where the floor's outcome belongs", { ...ANSWER, floorHolds: 71 }],
+  ])("reads an answer %s as unavailable, so it is never indexed", async (_label, answer) => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     fetchMock.mockResolvedValue(json(answer));
 

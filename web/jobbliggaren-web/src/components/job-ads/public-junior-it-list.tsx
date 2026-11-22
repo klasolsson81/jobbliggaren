@@ -17,11 +17,11 @@ const SORT_ID = "junior-sort";
 
 /**
  * The open junior IT list at `/junior` (ADR 0186). The heading and the lede carry no number. The place and order are a
- * plain GET form, so the list works without JavaScript; changing either starts again from page 1. The count line, the
- * list and the pager sit in one `data-nosnippet` block, as in the catalogue: a quoted count or row goes stale, and a row
- * can carry a sole trader's name.
+ * plain GET form, so the list works without JavaScript; changing either starts again from page 1. The form, the count
+ * line, the list and the pager sit in one `data-nosnippet` block, as in the catalogue: a quoted count or row goes stale,
+ * and a row can carry a sole trader's name.
  *
- * Signed-in and anonymous visitors get the same page: nothing here reads a session.
+ * Nothing here reads a session.
  */
 export function PublicJuniorItList({ page, query }: { page: PublicJuniorItJobAdsPage; query: JuniorItQuery }) {
   const t = useTranslations("publicjob.junior");
@@ -45,39 +45,6 @@ export function PublicJuniorItList({ page, query }: { page: PublicJuniorItJobAds
       </section>
 
       <div className="jp-container jp-page">
-        {hasList && (
-          <form method="get" action={JUNIOR_IT_PATH} className="mb-6">
-            <fieldset className="flex flex-wrap items-end gap-4">
-              <legend className="sr-only">{t("filters.heading")}</legend>
-              <div className="jp-sortfield">
-                <label htmlFor={PLACE_ID} className="jp-sortfield__label">
-                  {t("filters.place")}
-                </label>
-                <select id={PLACE_ID} name="municipality" className="jp-sortfield__select" defaultValue={chosen?.municipalityConceptId ?? ""}>
-                  <option value="">{t("filters.allPlaces")}</option>
-                  {places.map((p) => (
-                    <option key={p.municipalityConceptId} value={p.municipalityConceptId}>
-                      {t("filters.placeOption", { name: p.name, count: p.count })}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="jp-sortfield">
-                <label htmlFor={SORT_ID} className="jp-sortfield__label">
-                  {tToolbar("sortLabel")}
-                </label>
-                <select id={SORT_ID} name="sortBy" className="jp-sortfield__select" defaultValue={query.sortBy}>
-                  <option value={DEFAULT_JUNIOR_IT_ORDER}>{tToolbar("sortPublishedDesc")}</option>
-                  <option value="ExpiresAtAsc">{tToolbar("sortExpiresAsc")}</option>
-                </select>
-              </div>
-              <button type="submit" className="jp-btn jp-btn--secondary">
-                {t("filters.submit")}
-              </button>
-            </fieldset>
-          </form>
-        )}
-
         {!hasList && query.municipality === null && (
           <div className="jp-empty">
             <h2 className="jp-empty__title">{t("empty.title")}</h2>
@@ -98,6 +65,36 @@ export function PublicJuniorItList({ page, query }: { page: PublicJuniorItJobAds
 
         {hasList && (
           <div data-nosnippet="">
+            <form method="get" action={JUNIOR_IT_PATH} className="mb-6">
+              <fieldset className="flex flex-wrap items-end gap-4">
+                <legend className="sr-only">{t("filters.heading")}</legend>
+                <div className="jp-sortfield">
+                  <label htmlFor={PLACE_ID} className="jp-sortfield__label">
+                    {t("filters.place")}
+                  </label>
+                  <select id={PLACE_ID} name="municipality" className="jp-sortfield__select" defaultValue={chosen?.municipalityConceptId ?? ""}>
+                    <option value="">{t("filters.allPlaces")}</option>
+                    {places.map((p) => (
+                      <option key={p.municipalityConceptId} value={p.municipalityConceptId}>
+                        {t("filters.placeOption", { name: p.name, count: p.count })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="jp-sortfield">
+                  <label htmlFor={SORT_ID} className="jp-sortfield__label">
+                    {tToolbar("sortLabel")}
+                  </label>
+                  <select id={SORT_ID} name="sortBy" className="jp-sortfield__select" defaultValue={query.sortBy}>
+                    <option value={DEFAULT_JUNIOR_IT_ORDER}>{tToolbar("sortPublishedDesc")}</option>
+                    <option value="ExpiresAtAsc">{tToolbar("sortExpiresAsc")}</option>
+                  </select>
+                </div>
+                <button type="submit" className="jp-btn jp-btn--secondary">
+                  {t("filters.submit")}
+                </button>
+              </fieldset>
+            </form>
             <p id={COUNT_ID} className="jp-results-count">
               <b>{formatNumber(format, rows.totalCount)}</b>{" "}
               {chosen === null

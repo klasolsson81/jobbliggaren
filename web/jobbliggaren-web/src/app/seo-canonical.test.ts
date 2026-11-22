@@ -22,10 +22,16 @@ vi.mock("next-intl/server", () => ({
   getLocale: async () => "sv",
 }));
 
+// The junior list's default view is indexable only while the floor holds, which takes a whole list of at least 100 ads.
+const juniorFloor = vi.hoisted(() => ({ holds: true }));
 vi.mock("@/lib/api/public-junior-it-job-ads", () => ({
   getPublicJuniorItJobAds: async () => ({
     kind: "ok",
-    page: { rows: { items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0 }, places: [] },
+    page: {
+      rows: { items: [], totalCount: juniorFloor.holds ? 101 : 23, page: 1, pageSize: 20, totalPages: juniorFloor.holds ? 6 : 2 },
+      places: [],
+      floorHolds: juniorFloor.holds,
+    },
   }),
 }));
 
@@ -37,14 +43,15 @@ vi.mock("@/lib/api/public-job-ad-catalogue", () => ({
   }),
 }));
 
-type PageModule = { generateMetadata?: () => Promise<Metadata> };
+type PageModule = {
+  generateMetadata?: (props?: { searchParams: Promise<Record<string, string>> }) => Promise<Metadata>;
+};
 
 const pages = import.meta.glob("./**/page.tsx");
 
 const PUBLIC_GROUPS = new Set(["(marketing)", "(marketing-inner)"]);
 const LOGIN_PAGE = "./(auth)/logga-in/page.tsx";
-/** Own public URLs that are noindex by decision, so no sitemap lists them (ADR 0186: the junior list). */
-const NOINDEX_PUBLIC_PAGES = new Set(["./(public-job)/junior/page.tsx"]);
+const JUNIOR_PAGE = "./(public-job)/junior/page.tsx";
 
 /** `./(marketing-inner)/om/page.tsx` is `/om`: a route group adds no URL segment. */
 function routeOf(key: string): string {
@@ -55,20 +62,21 @@ const isOwnPublicJobUrl = (key: string) => key.split("/")[1] === "(public-job)" 
 
 const publicPages = Object.keys(pages)
   .filter((key) => PUBLIC_GROUPS.has(key.split("/")[1] ?? "") || isOwnPublicJobUrl(key))
-  .filter((key) => !NOINDEX_PUBLIC_PAGES.has(key))
   .sort((a, b) => routeOf(a).localeCompare(routeOf(b)));
 
 const metadataByKey = new Map<string, Metadata | undefined>();
+let juniorMetadata: NonNullable<PageModule["generateMetadata"]> | undefined;
 
 beforeAll(async () => {
   // Importing a page module is slow on a cold transform, so every import happens here,
   // under one generous timeout, and the cases below only read the results.
-  for (const key of [...publicPages, ...NOINDEX_PUBLIC_PAGES, LOGIN_PAGE]) {
+  for (const key of [...publicPages, LOGIN_PAGE]) {
     const load = pages[key];
     if (load === undefined) throw new Error(`no page module at ${key}`);
     const { generateMetadata } = (await load()) as PageModule;
     if (generateMetadata === undefined) throw new Error(`${key} exports no generateMetadata`);
     metadataByKey.set(key, await generateMetadata());
+    if (key === JUNIOR_PAGE) juniorMetadata = generateMetadata;
   }
 }, 120_000);
 
@@ -109,11 +117,27 @@ describe("self-canonicals on the indexable public pages (#2092)", () => {
   });
 });
 
-describe("the noindex public pages left out of the derivation", () => {
-  it.each([...NOINDEX_PUBLIC_PAGES])("%s is noindex and names no canonical", (key) => {
-    expect(pages[key]).toBeDefined();
-    expect(metadataByKey.get(key)?.robots).toMatchObject({ index: false });
-    expect(metadataByKey.get(key)?.alternates?.canonical).toBeUndefined();
+describe("the junior list's answers beyond its indexable view (ADR 0166, the Amendment 2026-11-22)", () => {
+  const view = (searchParams: Record<string, string>) => juniorMetadata!({ searchParams: Promise.resolve(searchParams) });
+
+  it.each([[{ municipality: "PVZL_BQT_XtL" }], [{ sortBy: "ExpiresAtAsc" }], [{ page: "2" }]])(
+    "keeps %j noindex with no canonical while the floor holds",
+    async (searchParams) => {
+      const metadata = await view(searchParams);
+      expect(metadata.robots).toMatchObject({ index: false });
+      expect(metadata.alternates?.canonical).toBeUndefined();
+    }
+  );
+
+  it("keeps the default view noindex with no canonical while the floor fails", async () => {
+    juniorFloor.holds = false;
+    try {
+      const metadata = await view({});
+      expect(metadata.robots).toMatchObject({ index: false });
+      expect(metadata.alternates?.canonical).toBeUndefined();
+    } finally {
+      juniorFloor.holds = true;
+    }
   });
 });
 

@@ -4,16 +4,17 @@ import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { PublicJobAdList } from "@/components/job-ads/public-job-ad-list";
 import type { PublicJobAdCataloguePage } from "@/lib/dto/public-job-ad-catalogue";
 import { formatNumber } from "@/lib/i18n/format";
+import { JUNIOR_IT_PATH } from "@/lib/job-ads/junior-it-params";
 import { publicCatalogueHref } from "@/lib/job-ads/public-catalogue-url";
 
 const COUNT_ID = "catalogue-count";
 
 /**
- * One page of the public catalogue at `/lediga-jobb` (ADR 0176). The heading and the lede carry no number and stay
- * true at every tick, so they may be quoted in a search result. The count line, the list and the pager sit in ONE
- * `data-nosnippet` block: a quoted count or row goes stale within minutes in a copy we cannot update, and a row can
- * carry a sole trader's name (ADR 0166 W2, W4). On a count of 0 the page is the empty state, with no count line, no
- * list and no pager.
+ * One page of the public catalogue at `/lediga-jobb` (ADR 0176). The heading, the lede and the sentence that links to
+ * the junior list carry no number and stay true at every tick, so they may be quoted in a search result. The count
+ * line, the list and the pager sit in ONE `data-nosnippet` block: a quoted count or row goes stale within minutes in a
+ * copy we cannot update, and a row can carry a sole trader's name (ADR 0166 W2, W4). On a count of 0 the page is the
+ * empty state, with no link, no count line, no list and no pager (ADR 0190 D5).
  */
 export function PublicJobAdCatalogue({ page }: { page: PublicJobAdCataloguePage }) {
   const t = useTranslations("publicjob.catalogue");
@@ -39,22 +40,33 @@ export function PublicJobAdCatalogue({ page }: { page: PublicJobAdCataloguePage 
             <p className="jp-empty__body">{t("empty.body")}</p>
           </div>
         ) : (
-          <div data-nosnippet="">
-            <p id={COUNT_ID} className="jp-results-count">
-              <b>{formatNumber(format, page.totalCount)}</b> {t("count", { count: page.totalCount })}
+          <>
+            <p className="mb-6">
+              {t.rich("juniorLink", {
+                link: (chunks) => (
+                  <a href={JUNIOR_IT_PATH} className="underline">
+                    {chunks}
+                  </a>
+                ),
+              })}
             </p>
-            <PublicJobAdList rows={page.items} labelledBy={COUNT_ID} headingLevel={2} idPrefix="catalogue" />
-            <div className="mt-6">
-              <JobAdPagination
-                page={page.page}
-                pageSize={page.pageSize}
-                totalCount={page.totalCount}
-                buildHref={publicCatalogueHref}
-                showTotalCount={false}
-                prefetch={false}
-              />
+            <div data-nosnippet="">
+              <p id={COUNT_ID} className="jp-results-count">
+                <b>{formatNumber(format, page.totalCount)}</b> {t("count", { count: page.totalCount })}
+              </p>
+              <PublicJobAdList rows={page.items} labelledBy={COUNT_ID} headingLevel={2} idPrefix="catalogue" />
+              <div className="mt-6">
+                <JobAdPagination
+                  page={page.page}
+                  pageSize={page.pageSize}
+                  totalCount={page.totalCount}
+                  buildHref={publicCatalogueHref}
+                  showTotalCount={false}
+                  prefetch={false}
+                />
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </main>

@@ -31,11 +31,16 @@ export const publicJuniorItPlaceSchema = z
   .strict();
 export type PublicJuniorItPlace = z.infer<typeof publicJuniorItPlaceSchema>;
 
-/** One page of the list, and every kommun in the whole list. */
+/**
+ * One page of the list, every kommun in the whole list, and whether the whole list meets the floor for indexing (ADR
+ * 0166, the Amendment 2026-11-22). The floor's outcome is required: an answer without it is unreadable, so the page is
+ * an outage and never `index`.
+ */
 export const publicJuniorItJobAdsPageSchema = z
   .object({
     rows: pagedResultWithTotalPages(publicJuniorItJobAdSchema).strict(),
     places: z.array(publicJuniorItPlaceSchema),
+    floorHolds: z.boolean(),
   })
   .strict();
 export type PublicJuniorItJobAdsPage = z.infer<typeof publicJuniorItJobAdsPageSchema>;

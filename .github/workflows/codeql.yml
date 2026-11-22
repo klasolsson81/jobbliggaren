@@ -92,7 +92,7 @@ jobs:
       # build.yml så CodeQL bygger exakt samma produkt som grön CI.
       - name: Setup .NET
         if: matrix.language == 'csharp'
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -133,7 +133,7 @@ jobs:
       # `grep -rhoE 'uses:\s*\S+' .github/workflows/ | grep -vE 'uses: [^@]+@[0-9a-f]{40}$'`,
       # which returns only prose; do not maintain a count here.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -152,7 +152,7 @@ jobs:
 
       # --- CodeQL analyze ----------------------------------------------------
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           category: '/language:${{ matrix.language }}'
 

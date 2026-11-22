@@ -121,7 +121,7 @@ export interface JobbUrlState {
   // `aca39970` (`company-lookup.tsx` raderad, #997/#1030) och #1547, som gör
   // `company-jobs-href.ts` till producent igen. Grinden ligger hos ANROPAREN
   // (`company-watch-row.tsx`), inte i byggaren, och vaktar en verklig mängd.
-  // Persistens-grinden i `RecentJobSearchCaptureBehavior` (A2) är fortfarande det andra
+  // Persistens-grinden i `RecentSearchCaptureGate` (A2) är fortfarande det andra
   // ledet; se `parseEmployerParam` nedan för hela mätningen.
   employer?: ReadonlyArray<string>;
   sortBy: JobAdSortBy;

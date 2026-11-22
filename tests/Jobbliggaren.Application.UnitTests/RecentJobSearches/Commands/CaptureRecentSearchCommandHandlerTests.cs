@@ -289,7 +289,7 @@ public class CaptureRecentSearchCommandHandlerTests
     // ---- The ?q= axis stops persisting a personnummer (Klas-beslut 2026-08-19) ----
     //
     // Same class as the employer block above, different detector. `q` has no FORMAT gate -
-    // ListJobAdsQueryValidator bounds its length and requires it non-empty when sorting by
+    // CaptureRecentSearchCommandValidator bounds its length and requires it non-empty when sorting by
     // relevance, and nothing else - so it carries hyphenated, 12-digit and space-gapped forms
     // the ten-digit employer axis structurally cannot. Detection is therefore the validating
     // flag chain (Normalize -> Scan -> Personnummer.TryParse date+Luhn), not a shape predicate.
@@ -341,7 +341,7 @@ public class CaptureRecentSearchCommandHandlerTests
     // collides far more often (PersonnummerBridgeCollisionRateTests measures both rates).
     //
     // These vectors reach ?q= end to end: percent-encoding carries every one of them through
-    // the wire, ListJobAdsQueryValidator constrains q only by MaximumLength and a NotEmpty that
+    // the wire, CaptureRecentSearchCommandValidator constrains q only by MaximumLength and a NotEmpty that
     // applies when sorting by relevance (neither reached here - every vector is non-empty and
     // none sorts by relevance), and SearchCriteria's NormalizeString only trims - so each of
     // these persisted verbatim before this change.
@@ -523,7 +523,7 @@ public class CaptureRecentSearchCommandHandlerTests
         // year, a near-miss - still capture, and the stored q is byte-identical to the input.
         //
         // The org.nr vector is deliberately the Luhn-VALID fixture from
-        // ListJobAdsQueryValidator's own doc (5592804784, Luhn sum 50). A Luhn-invalid org.nr
+        // RecentSearchCandidateValidator's own doc (5592804784, Luhn sum 50). A Luhn-invalid org.nr
         // would pass this test for the wrong reason - the check digit, not the discriminator
         // under test. What actually rejects it is the date gate reached first: significant[2..4]
         // is "92", and a Swedish org.nr always carries >= 20 in the month position.

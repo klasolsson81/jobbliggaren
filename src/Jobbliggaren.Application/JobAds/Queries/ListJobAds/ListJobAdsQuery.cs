@@ -57,7 +57,7 @@ public sealed record ListJobAdsQuery(
     // = ingen remote-facett.
     bool Remote = false,
     // ADR 0079 STEG 5 (grad-filter, 2026-06-23) — den per-användar-grad-filtreringen
-    // ("Matchning"-toggeln). RUNTIME-KONTEXT (analog Since): den ingår ALDRIG
+    // ("Matchning"-toggeln). RUNTIME-KONTEXT: den ingår ALDRIG
     // i IRecentSearchCandidate / SearchCriteria / FilterHashCalculator (de läser bara
     // de namngivna fälten ovan) — en per-användar-grad får aldrig förorena den anonyma
     // sök-identiteten (ADR 0039 Beslut 1 / ADR 0062-isolering). En icke-tom lista

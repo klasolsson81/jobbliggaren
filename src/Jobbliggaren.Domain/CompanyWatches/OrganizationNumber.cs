@@ -13,7 +13,7 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// <para>
 /// <b>FORK A1 (senior-cto-advisor 2026-06-30) — CONTAINED:</b> this VO is consumed by
 /// <see cref="CompanyWatch"/> only. The PR-2 live-search filter path
-/// (<c>ListJobAdsQueryValidator.OrganizationNumberPattern</c>) is NOT refactored onto
+/// (<c>RecentSearchCandidateValidator.OrganizationNumberPattern</c>) is NOT refactored onto
 /// it here — that consolidation belongs to PR-2b (#415), which already owns the
 /// SearchCriteria-VO threading. The transient format duplication is a planned
 /// consolidation seam, not a DRY violation.

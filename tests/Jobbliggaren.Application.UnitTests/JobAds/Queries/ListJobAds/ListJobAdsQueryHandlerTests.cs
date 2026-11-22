@@ -869,7 +869,7 @@ public class ListJobAdsQueryHandlerTests
     {
         // Defence-in-depth: IncludeRelated is NOT part of IRecentSearchCandidate (the captured
         // anonymous search identity). The capture interface exposes only the named filter
-        // fields + Commit/Since-style runtime context, never IncludeRelated.
+        // fields, never IncludeRelated.
         typeof(Jobbliggaren.Application.RecentJobSearches.Common.IRecentSearchCandidate)
             .GetProperty("IncludeRelated").ShouldBeNull(
                 "IncludeRelated är runtime-kontext (analogt MatchGrades) och får aldrig " +

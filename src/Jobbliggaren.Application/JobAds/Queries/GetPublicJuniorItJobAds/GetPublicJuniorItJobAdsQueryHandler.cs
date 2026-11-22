@@ -20,7 +20,7 @@ public sealed class GetPublicJuniorItJobAdsQueryHandler(
     public async ValueTask<PublicJuniorItJobAdsPage> Handle(
         GetPublicJuniorItJobAdsQuery query, CancellationToken cancellationToken)
     {
-        // One instant for both reads, so the count and the page describe the same list.
+        // One instant for every read, so the count, the page and the floor describe the same list.
         var now = clock.UtcNow;
         var counts = await juniorIt.CountByMunicipalityAsync(now, cancellationToken);
 
@@ -64,7 +64,9 @@ public sealed class GetPublicJuniorItJobAdsQueryHandler(
             .OrderBy(p => p.Name, SwedishOrder)
             .ToList();
 
+        var floorHolds = await juniorIt.MeetsFloorAsync(now, cancellationToken);
+
         return new PublicJuniorItJobAdsPage.Available(
-            new PagedResult<PublicJuniorItJobAdDto>(items, total, query.Page, pageSize), places);
+            new PagedResult<PublicJuniorItJobAdDto>(items, total, query.Page, pageSize), places, floorHolds);
     }
 }

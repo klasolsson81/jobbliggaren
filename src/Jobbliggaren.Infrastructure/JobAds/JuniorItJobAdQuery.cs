@@ -21,10 +21,7 @@ internal sealed class JuniorItJobAdQuery(AppDbContext db, IJuniorFieldCatalog ca
     {
         var groups = JuniorMembership.GroupsOf(await catalog.ResolveEnabledAsync(cancellationToken));
 
-        return await db.JobAds
-            .AsNoTracking()
-            .Where(JobAdPublication.IsListed(now))
-            .Where(JuniorMembership.Of(db.JuniorAssessments, groups))
+        return await ListedJuniors(db.JobAds.AsNoTracking(), now, groups)
             .GroupBy(j => j.MunicipalityConceptId)
             .Select(g => new JuniorItMunicipalityCount(g.Key, g.Count()))
             .ToListAsync(cancellationToken);
@@ -40,10 +37,7 @@ internal sealed class JuniorItJobAdQuery(AppDbContext db, IJuniorFieldCatalog ca
     {
         var groups = JuniorMembership.GroupsOf(await catalog.ResolveEnabledAsync(cancellationToken));
 
-        var source = db.JobAds
-            .AsNoTracking()
-            .Where(JobAdPublication.IsListed(now))
-            .Where(JuniorMembership.Of(db.JuniorAssessments, groups));
+        var source = ListedJuniors(db.JobAds.AsNoTracking(), now, groups);
 
         if (municipalityConceptId is { } kommun)
             source = source.Where(j => j.MunicipalityConceptId == kommun);
@@ -61,4 +55,17 @@ internal sealed class JuniorItJobAdQuery(AppDbContext db, IJuniorFieldCatalog ca
                 j.ExpiresAt))
             .ToListAsync(cancellationToken);
     }
+
+    public async ValueTask<bool> MeetsFloorAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var groups = JuniorMembership.GroupsOf(await catalog.ResolveEnabledAsync(cancellationToken));
+
+        return await PublicListFloor.SpreadOf(ListedJuniors(db.JobAds.AsNoTracking(), now, groups))
+            .Where(PublicListFloor.Holds)
+            .AnyAsync(cancellationToken);
+    }
+
+    // The list's one base, which every member composes over its own read of db.JobAds.
+    private IQueryable<JobAd> ListedJuniors(IQueryable<JobAd> ads, DateTimeOffset now, IReadOnlyCollection<string> groups) =>
+        ads.Where(JobAdPublication.IsListed(now)).Where(JuniorMembership.Of(db.JuniorAssessments, groups));
 }

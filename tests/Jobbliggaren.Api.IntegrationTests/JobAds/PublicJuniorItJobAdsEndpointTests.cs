@@ -35,7 +35,7 @@ public sealed class PublicJuniorItJobAdsEndpointTests(ApiFactory factory)
     [Theory]
     [InlineData("PublishedAtDesc")]
     [InlineData("ExpiresAtAsc")]
-    public async Task A_page_is_two_keys_rows_and_places_of_seven_member_rows_and_is_not_stored(string sortBy)
+    public async Task A_page_is_three_keys_rows_places_and_the_floors_outcome_of_seven_member_rows_and_is_not_stored(string sortBy)
     {
         var ad = await ImportJuniorAsync();
         using var client = factory.CreateClient();
@@ -45,7 +45,9 @@ public sealed class PublicJuniorItJobAdsEndpointTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Headers.CacheControl.ShouldNotBeNull().NoStore.ShouldBeTrue();
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
-        body.RootElement.EnumerateObject().Select(p => p.Name).ShouldBe(["rows", "places"], ignoreOrder: true);
+        body.RootElement.EnumerateObject().Select(p => p.Name).ShouldBe(["rows", "places", "floorHolds"], ignoreOrder: true);
+        // The kind, never the value: the shared database's size is not this class's to know.
+        body.RootElement.GetProperty("floorHolds").ValueKind.ShouldBeOneOf(JsonValueKind.True, JsonValueKind.False);
 
         var rows = body.RootElement.GetProperty("rows");
         rows.EnumerateObject().Select(p => p.Name)

@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
@@ -21,6 +22,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using NSubstitute;
 using Shouldly;
 
@@ -382,7 +384,7 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
     }
 
     [Fact]
-    public async Task Read_BothQueries_ReadTheStoredClassification_UnderTheListedGate_AndReadANarrowRow()
+    public async Task Read_EveryQuery_ReadsTheStoredClassification_UnderTheListedGate_AndReadsANarrowRow()
     {
         await AddAsync(Imported("Junior utvecklare", DataIt, Stockholm, StockholmsLan, Now.AddDays(-1)));
         await ClassifyAsync();
@@ -390,7 +392,7 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
 
         await HandleWithoutSweepAsync();
 
-        _commands.Commands.Count.ShouldBe(2, "the grouped count and the page");
+        _commands.Commands.Count.ShouldBe(3, "the grouped count, the page and the floor");
         foreach (var (text, _) in _commands.Commands)
         {
             text.ShouldNotContain("~*", Case.Sensitive, "no regex runs on the request path");
@@ -406,7 +408,322 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
 
         _commands.Commands[0].Text.ShouldContain("GROUP BY");
         _commands.Commands[1].Text.ShouldContain("LIMIT");
+        _commands.Commands[2].Text.ShouldContain("EXISTS");
+        _commands.Commands[2].Text.ShouldContain("organization_number");
+        _commands.Results[2].ShouldBe((1, typeof(bool)), "only the floor's outcome leaves the database, never a count per employer");
     }
+
+    [Fact]
+    public async Task TheCountAndThePage_SendTheStatementsOfTheirOwnInlineBase_SoTheSharedBaseChangesNoSql()
+    {
+        await AddAsync(Imported("Junior utvecklare", DataIt, Stockholm, StockholmsLan, Now.AddDays(-1)));
+        await ClassifyAsync();
+        _commands.Clear();
+
+        await HandleWithoutSweepAsync(Stockholm, JobAdSortBy.ExpiresAtAsc);
+
+        // The chains the two members composed inline before the floor shared their base (#2293), as they were written.
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var groups = JuniorMembership.GroupsOf(await Catalog().ResolveEnabledAsync(Ct));
+        var count = db.JobAds
+            .AsNoTracking()
+            .Where(Jobbliggaren.Application.JobAds.Publication.JobAdPublication.IsListed(Now))
+            .Where(JuniorMembership.Of(db.JuniorAssessments, groups))
+            .GroupBy(j => j.MunicipalityConceptId)
+            .Select(g => new Jobbliggaren.Application.JobAds.Abstractions.JuniorItMunicipalityCount(g.Key, g.Count()));
+        IQueryable<Jobbliggaren.Application.JobAds.Abstractions.JuniorItJobAdRow> Page(
+            DateTimeOffset now, string? municipalityConceptId, JobAdSortBy sortBy, int skip, int take)
+        {
+            var source = db.JobAds
+                .AsNoTracking()
+                .Where(Jobbliggaren.Application.JobAds.Publication.JobAdPublication.IsListed(now))
+                .Where(JuniorMembership.Of(db.JuniorAssessments, groups));
+
+            if (municipalityConceptId is { } kommun)
+                source = source.Where(j => j.MunicipalityConceptId == kommun);
+
+            return JobAdSearchComposition
+                .ApplySort(source, sortBy,
+                    new ResolvedSearchText(null, [], Jobbliggaren.Application.JobAds.Abstractions.TaxonomyLabelMatchDto.Empty))
+                .Skip(skip)
+                .Take(take)
+                .Select(j => new Jobbliggaren.Application.JobAds.Abstractions.JuniorItJobAdRow(
+                    j.Id.Value, j.Title, j.Company.Name, j.MunicipalityConceptId, j.RegionConceptId, j.PublishedAt, j.ExpiresAt));
+        }
+
+        StatementOf(_commands.Commands[0].Text).ShouldBe(StatementOf(count.ToQueryString()));
+        StatementOf(_commands.Commands[1].Text).ShouldBe(StatementOf(
+            Page(Now, Stockholm, JobAdSortBy.ExpiresAtAsc, 0, PublicJuniorItJobAdLimits.PageSize).ToQueryString()));
+    }
+
+    // ToQueryString leads with one comment line per parameter, which the command as sent does not carry; the line breaks
+    // are the platform's in one and not the other.
+    private static string StatementOf(string sql) =>
+        string.Join("\n", sql.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n')
+            .SkipWhile(line => line.StartsWith("--", StringComparison.Ordinal)));
+
+    // ---- The floor for indexing (ADR 0166, the Amendment 2026-11-22). Each list is seeded at the real thresholds through
+    // the importer in one save, never through a hook on the thresholds: a configurable floor is trigger 20.
+
+    [Fact]
+    public async Task Floor_Holds_AtAHundredAdsFromTwentyFiveEmployers()
+    {
+        await SeedAsync(AtTheThresholds());
+
+        (await FloorAsync()).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Floor_Fails_OneAdBelowAHundred()
+    {
+        var seed = AtTheThresholds();
+        seed.RemoveAt(seed.Count - 1);
+        await SeedAsync(seed);
+
+        (await FloorAsync()).ShouldBeFalse();
+    }
+
+    public static TheoryData<string> MergesTheTwentyFifthEmployer =>
+    [
+        "a number it shares with another employer, under its own name",
+        "a name it shares with another employer, under its own number",
+        "a name that differs from another employer's only in case",
+        "no number on any of its ads",
+    ];
+
+    [Theory]
+    [MemberData(nameof(MergesTheTwentyFifthEmployer))]
+    public async Task Floor_Fails_WhenTheDefinitionCountsTheTwentyFifthEmployerAsNoNewOne(string merge)
+    {
+        Employer twentyFifth = merge switch
+        {
+            "a number it shares with another employer, under its own name" => new(NumberOf(24), "Bolag 25 AB"),
+            "a name it shares with another employer, under its own number" => new(NumberOf(25), "Bolag 24 AB"),
+            "a name that differs from another employer's only in case" => new(NumberOf(25), "BOLAG 24 AB"),
+            _ => new(null, "Bolag 25 AB"),
+        };
+        await SeedAsync(AtTheThresholds().Select(e => e == EmployerNo(25) ? twentyFifth : e));
+
+        (await FloorAsync()).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Floor_Fails_ForTwentyFourEmployers_WhenOneUsesTwoNumbersAndAnotherTwoNames()
+    {
+        // Employer 1 also files under a second number, employer 2 also under a second name: each key alone reads 25.
+        List<Employer> seed = [.. TwentyFourWithFourAdsEach()];
+        seed.AddRange([new(NumberOf(91), "Bolag 1 AB"), new(NumberOf(91), "Bolag 1 AB")]);
+        seed.AddRange([new(NumberOf(2), "Bolag 92 AB"), new(NumberOf(2), "Bolag 92 AB")]);
+        await SeedAsync(seed);
+
+        (await FloorAsync()).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Floor_Fails_ForTwentyFourEmployers_WhenOneIsChainedAcrossBothKeys()
+    {
+        // One employer as A–X, A–Y and B–Y: two numbers and two names.
+        List<Employer> seed = [.. Enumerable.Range(2, 23).SelectMany(i => Enumerable.Repeat(EmployerNo(i), 4))];
+        seed.AddRange(Enumerable.Repeat(new Employer(NumberOf(81), "Kedjan X AB"), 3));
+        seed.AddRange(Enumerable.Repeat(new Employer(NumberOf(81), "Kedjan Y AB"), 3));
+        seed.AddRange(Enumerable.Repeat(new Employer(NumberOf(82), "Kedjan Y AB"), 2));
+        await SeedAsync(seed);
+
+        (await FloorAsync()).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Floor_Holds_WhenTheLargestEmployerHasExactlyHalf()
+    {
+        await SeedAsync(HalfFromOneEmployer());
+
+        (await FloorAsync()).ShouldBeTrue();
+    }
+
+    public static TheoryData<string> OneMoreForTheLargestEmployer =>
+    [
+        "under a second name, with its number",
+        "under a second number, with its name",
+        "with no number, under any name",
+    ];
+
+    [Theory]
+    [MemberData(nameof(OneMoreForTheLargestEmployer))]
+    public async Task Floor_Fails_WhenTheLargestEmployerHasOneAdMoreThanHalf(string extra)
+    {
+        var seed = HalfFromOneEmployer();
+        seed.Add(extra switch
+        {
+            "under a second name, with its number" => new(NumberOf(1), "Annat namn AB"),
+            "under a second number, with its name" => new(NumberOf(99), "Bolag 1 AB"),
+            _ => new(null, "Helt annat AB"),
+        });
+        await SeedAsync(seed);
+
+        (await FloorAsync()).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Floor_Fails_WhenNoAdCarriesANumber()
+    {
+        await SeedAsync(Enumerable.Range(1, 100).Select(i => new Employer(null, $"Bolag {i} AB")));
+
+        (await FloorAsync()).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Floor_Fails_OnAnEmptyList()
+    {
+        (await FloorAsync()).ShouldBeFalse();
+    }
+
+    public static TheoryData<string> LeavesTheList =>
+    [
+        "archived by the stream's removal event",
+        "past its deadline",
+        "archived by ExpireJobAdsJob",
+        "erased",
+        "decided not a junior job",
+    ];
+
+    [Theory]
+    [MemberData(nameof(LeavesTheList))]
+    public async Task Floor_AnAdThatLeavesTheList_ClosesAFloorThatHeldAtTheThreshold(string removal)
+    {
+        var seed = AtTheThresholds();
+        seed.RemoveAt(seed.Count - 1);
+        await SeedAsync(seed);
+        var deadline = removal is "past its deadline" or "archived by ExpireJobAdsJob" ? Now.AddMinutes(1) : (DateTimeOffset?)null;
+        var leaving = Imported("Junior utvecklare sist", DataIt, Stockholm, StockholmsLan, Now.AddDays(-1), deadline,
+            company: EmployerNo(25).Name, organizationNumber: EmployerNo(25).Number);
+        await AddAsync(leaving);
+        (await FloorAsync()).ShouldBeTrue();
+
+        switch (removal)
+        {
+            case "archived by the stream's removal event":
+                await ArchiveThroughTheStreamAsync(leaving.External!.ExternalId);
+                break;
+            case "past its deadline":
+                _clock.UtcNow = Now.AddMinutes(2);
+                break;
+            case "archived by ExpireJobAdsJob":
+                _clock.UtcNow = Now.AddMinutes(2);
+                await RunExpireJobAdsJobAsync();
+                break;
+            case "erased":
+                await EraseAsync(leaving.Id.Value);
+                break;
+            default:
+                await DecideAsync(leaving.Id.Value, JuniorDecision.NotJunior);
+                break;
+        }
+
+        (await FloorAsync()).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Floor_IsTheWholeListsOutcome_ForAKommunTheDeadlineOrderAndALaterPage()
+    {
+        var seed = AtTheThresholds();
+        await SeedAsync(seed.Take(60), Stockholm, StockholmsLan);
+        await SeedAsync(seed.Skip(60), Goteborg, VastraGotalandsLan);
+
+        (await PageAsync()).FloorHolds.ShouldBeTrue();
+        (await PageAsync(Goteborg)).FloorHolds.ShouldBeTrue();
+        (await PageAsync(sortBy: JobAdSortBy.ExpiresAtAsc)).FloorHolds.ShouldBeTrue();
+        (await PageAsync(page: 2)).FloorHolds.ShouldBeTrue();
+    }
+
+    /// <summary>One ad's employer: its organisation number, or none, and its company name.</summary>
+    private readonly record struct Employer(string? Number, string Name);
+
+    private static string NumberOf(int employer) => $"556{employer:D7}";
+
+    private static Employer EmployerNo(int employer) => new(NumberOf(employer), $"Bolag {employer} AB");
+
+    private static IEnumerable<Employer> TwentyFourWithFourAdsEach() =>
+        Enumerable.Range(1, 24).SelectMany(i => Enumerable.Repeat(EmployerNo(i), 4));
+
+    /// <summary>Twenty-five employers with four ads each: a hundred ads, the floor's thresholds exactly.</summary>
+    private static List<Employer> AtTheThresholds() =>
+        [.. TwentyFourWithFourAdsEach(), .. Enumerable.Repeat(EmployerNo(25), 4)];
+
+    /// <summary>Fifty ads from one employer and two each from twenty-five others: the largest employer has exactly half.</summary>
+    private static List<Employer> HalfFromOneEmployer() =>
+        [.. Enumerable.Repeat(EmployerNo(1), 50), .. Enumerable.Range(2, 25).SelectMany(i => Enumerable.Repeat(EmployerNo(i), 2))];
+
+    /// <summary>Imports one junior Data/IT ad per employer entry in one save, as a sync batch lands.</summary>
+    private async Task SeedAsync(IEnumerable<Employer> employers, string? kommun = Stockholm, string? lan = StockholmsLan)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var hours = 0;
+        foreach (var employer in employers)
+        {
+            hours++;
+            db.JobAds.Add(Imported($"Junior utvecklare {hours}", DataIt, kommun, lan, Now.AddHours(-hours),
+                company: employer.Name, organizationNumber: employer.Number));
+        }
+
+        await db.SaveChangesAsync(Ct);
+    }
+
+    private static readonly string[] FloorReadingLabels =
+    [
+        "junior members (N)",
+        "distinct employers (E)",
+        "s_ok (no employer above half)",
+        "floor holds",
+        "kommuner meeting the floor",
+    ];
+
+    /// <summary>
+    /// The port's answer, checked against the committed merge-day reading over the same seed: the reading computes the same
+    /// definition, and prints the labelled totals only (security-auditor's floor-key ruling, pin 3).
+    /// </summary>
+    private async Task<bool> FloorAsync()
+    {
+        var holds = (await PageAsync()).FloorHolds;
+
+        var reading = await FloorReadingAsync();
+        reading.Select(r => r.Label).ShouldBe(FloorReadingLabels);
+        reading[3].Value.ShouldBe(holds ? "true" : "false", "the merge-day reading computes the port's definition");
+        var employers = reading[1].Value;
+        (employers == "E under 25" || int.Parse(employers, System.Globalization.CultureInfo.InvariantCulture) >= 25)
+            .ShouldBeTrue("E prints as a total from 25 up, and as \"E under 25\" below");
+        reading[2].Value.ShouldBeOneOf("E under 25", "true", "false");
+        return holds;
+    }
+
+    /// <summary>
+    /// Runs <c>docs/runbooks/junior-list-floor-count.sql</c> as committed. It reads the database's clock and this class
+    /// reads its own, so the class's instant stands in for <c>now()</c>.
+    /// </summary>
+    private async Task<IReadOnlyList<(string Label, string Value)>> FloorReadingAsync()
+    {
+        var sql = (await File.ReadAllTextAsync(FloorReadingPath(), Ct))
+            .Replace("now()", $"'{_clock.UtcNow:O}'::timestamptz", StringComparison.Ordinal);
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(Ct);
+        await using var command = new NpgsqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync(Ct);
+        var rows = new List<(string Label, string Value)>();
+        do
+        {
+            while (await reader.ReadAsync(Ct))
+                rows.Add((reader.GetString(0), reader.GetString(1)));
+        }
+        while (await reader.NextResultAsync(Ct));
+
+        return rows;
+    }
+
+    // thisFile = <repo>/tests/Jobbliggaren.Api.IntegrationTests/JobAds/JuniorItJobAdQueryReadTests.cs → up three = repo root.
+    private static string FloorReadingPath([CallerFilePath] string thisFile = "") =>
+        Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(thisFile)!, "..", "..", "..", "docs", "runbooks", "junior-list-floor-count.sql"));
 
     private async Task<PublicJuniorItJobAdsPage.Available> PageAsync(
         string? kommun = null, JobAdSortBy sortBy = JobAdSortBy.PublishedAtDesc, int page = 1) =>
@@ -530,17 +847,19 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
 
     private JobAd Imported(
         string title, string? group, string? kommun, string? lan, DateTimeOffset publishedAt,
-        DateTimeOffset? expiresAt = null, string? externalId = null, string description = "Vi söker en utvecklare.")
+        DateTimeOffset? expiresAt = null, string? externalId = null, string description = "Vi söker en utvecklare.",
+        string company = "Exempelbolaget AB", string? organizationNumber = null)
     {
         externalId ??= $"8{Interlocked.Increment(ref _externalIds):D7}";
         return JobAd.Import(
             title: title,
-            company: Company.Create("Exempelbolaget AB").Value,
+            company: Company.Create(company).Value,
             description: description,
             url: $"https://arbetsformedlingen.se/platsbanken/annonser/{externalId}",
             external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
             rawPayload: $"{{\"id\":\"{externalId}\"}}",
-            facets: TestFacets.From(occupationGroup: group, municipality: kommun, region: lan),
+            facets: TestFacets.From(
+                occupationGroup: group, municipality: kommun, region: lan, organizationNumber: organizationNumber),
             declaredContacts: [],
             publishedAt: publishedAt,
             expiresAt: expiresAt,
@@ -554,19 +873,44 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
             title, Company.Create("Exempelbolaget AB").Value, "Text som någon skrev själv.",
             "https://example.com/jobb/1", JobSource.Platsbanken, Now.AddHours(-1), null, _clock).Value;
 
-    /// <summary>The text and the string parameter values of every command that reads <c>job_ads</c>, in order.</summary>
+    /// <summary>
+    /// The text and the string parameter values of every command that reads <c>job_ads</c>, in order, and the shape of
+    /// each one's result: its number of columns and the type of the first.
+    /// </summary>
     private sealed class CommandCapture : DbCommandInterceptor
     {
         private readonly List<(string Text, IReadOnlyList<string> Parameters)> _commands = [];
+        private readonly List<(int Columns, Type? FirstColumn)> _results = [];
 
         public IReadOnlyList<(string Text, IReadOnlyList<string> Parameters)> Commands
         {
             get { lock (_commands) return [.. _commands]; }
         }
 
+        public IReadOnlyList<(int Columns, Type? FirstColumn)> Results
+        {
+            get { lock (_commands) return [.. _results]; }
+        }
+
         public void Clear()
         {
-            lock (_commands) _commands.Clear();
+            lock (_commands)
+            {
+                _commands.Clear();
+                _results.Clear();
+            }
+        }
+
+        public override ValueTask<DbDataReader> ReaderExecutedAsync(
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("job_ads", StringComparison.Ordinal))
+            {
+                lock (_commands) _results.Add((result.FieldCount, result.FieldCount > 0 ? result.GetFieldType(0) : null));
+            }
+
+            return ValueTask.FromResult(result);
         }
 
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(

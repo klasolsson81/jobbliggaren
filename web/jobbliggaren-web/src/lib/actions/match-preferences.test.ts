@@ -4,6 +4,7 @@ import type { ResumeListItemDto } from "@/lib/dto/resumes";
 import svSettings from "../../../messages/sv/settings.json";
 import svErrors from "../../../messages/sv/errors.json";
 import svValidation from "../../../messages/sv/validation.json";
+import svJobads from "../../../messages/sv/jobads.json";
 
 // getResumes + deriveOccupations är server-only-BFF:er; mocka dem så vi kan
 // driva alla diskriminerade grenar utan backend/Bearer-session.
@@ -42,7 +43,7 @@ vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace: string) =>
     createTranslator({
       locale: "sv",
-      messages: { settings: svSettings, errors: svErrors, validation: svValidation },
+      messages: { settings: svSettings, errors: svErrors, validation: svValidation, jobads: svJobads },
       // The namespace arrives as a string at runtime; the cast only spares createTranslator a
       // literal NamespaceKey, and the catalogue resolves it per call.
       namespace: namespace as never,
@@ -50,12 +51,14 @@ vi.mock("next-intl/server", () => ({
 }));
 
 import {
+  addPreferredSkillsAction,
   updateMatchPreferencesAction,
   suggestOccupationsFromCvAction,
   suggestOccupationsFromParsedResumeAction,
   searchSkillsAction,
   suggestSkillsFromParsedResumeAction,
 } from "./match-preferences";
+import { MINA_SIDOR_HREF } from "@/lib/nav/mina-sidor-hrefs";
 import { pickPrimaryResume } from "@/components/settings/match-preferences-shared";
 
 type UpdateInput = Parameters<typeof updateMatchPreferencesAction>[0];
@@ -494,5 +497,66 @@ describe("updateMatchPreferencesAction (#1918, ADR 0147)", () => {
 
     expect(result).toEqual({ success: false, error: "Ogiltiga uppgifter." });
     expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+});
+
+// #2247 — the job card's one-click add. A union on the server, so the action sends ONE chip's concept
+// group and nothing else, and never reads a failure's body.
+describe("addPreferredSkillsAction", () => {
+  beforeEach(() => {
+    revalidatePathMock.mockReset();
+    getSessionIdMock.mockReset().mockResolvedValue("session-1");
+    authedFetchMock.mockReset();
+  });
+
+  it("POSTs the concept group to the add endpoint and revalidates the settings page", async () => {
+    authedFetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    const result = await addPreferredSkillsAction(["ts_1", "ts_2"]);
+
+    expect(result).toEqual({ success: true });
+    expect(authedFetchMock).toHaveBeenCalledWith("session-1", "/api/v1/me/match-preferences/skills", {
+      method: "POST",
+      body: JSON.stringify({ conceptIds: ["ts_1", "ts_2"] }),
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith(MINA_SIDOR_HREF.matchning);
+  });
+
+  it("refuses without a session and sends nothing", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+
+    const result = await addPreferredSkillsAction(["ts_1"]);
+
+    expect(result).toEqual({ success: false, error: "Logga in för att lägga till kompetenser i din profil." });
+    expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([[[]], [["bad id!"]]])("refuses %j before any request", async (ids) => {
+    const result = await addPreferredSkillsAction(ids);
+
+    expect(result).toEqual({ success: false, error: "Det gick inte att lägga till kompetensen. Försök igen." });
+    expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed save without revalidating, whatever the body says", async () => {
+    authedFetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ detail: "stack trace" }), { status: 400 }),
+    );
+
+    const result = await addPreferredSkillsAction(["ts_1"]);
+
+    expect(result).toEqual({ success: false, error: "Det gick inte att lägga till kompetensen. Försök igen." });
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("reports an unreachable backend as a network failure", async () => {
+    authedFetchMock.mockRejectedValue(new TypeError("fetch failed"));
+
+    const result = await addPreferredSkillsAction(["ts_1"]);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Det gick inte att nå tjänsten. Kontrollera anslutningen och försök igen.",
+    });
   });
 });

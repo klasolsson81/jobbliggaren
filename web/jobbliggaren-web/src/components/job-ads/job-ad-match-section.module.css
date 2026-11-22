@@ -288,3 +288,55 @@
     grid-row: 2;
   }
 }
+
+/* #2247 — a missing skill the reader can add to the profile: the whole chip is one button. */
+.chipAdd {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.chipAddPrefix {
+  color: var(--jp-accent-700);
+  font-weight: var(--jp-fw-semibold);
+}
+
+.chipAdd:hover .chipAddLabel {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.chipAdd[aria-disabled="true"] {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+/* Present before any text arrives, so a screen reader is listening when it does. */
+.addStatus {
+  margin: 4px 0 0;
+  color: var(--jp-ink-2);
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+}
+
+.addStatus:empty {
+  margin: 0;
+}
+
+.addError {
+  margin: 4px 0 0;
+  color: var(--jp-danger-700);
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+}

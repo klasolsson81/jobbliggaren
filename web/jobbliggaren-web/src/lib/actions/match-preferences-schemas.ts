@@ -81,3 +81,9 @@ export function makeUpdateMatchPreferencesSchema(_t: ValidationTranslator) {
 export type UpdateMatchPreferencesInput = z.infer<
   ReturnType<typeof makeUpdateMatchPreferencesSchema>
 >;
+
+/**
+ * #2247 — one chip's concept group, as `POST /api/v1/me/match-preferences/skills` takes it: at least
+ * one id (an empty add is a client defect), the same id rule and bound as every other concept list.
+ */
+export const addPreferredSkillsSchema = z.array(conceptIdString).min(1).max(MAX_CONCEPT_IDS);

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useId,
   useMemo,
   useRef,
@@ -26,9 +27,9 @@ import {
   JUNIOR_ON_VALUE,
   JUNIOR_PARAM,
   serializeJobbAxis,
-  withCommitFlag,
   type JobbUrlState,
 } from "@/lib/job-ads/search-params";
+import { captureRecentSearchAction } from "@/lib/actions/recent-searches";
 import { composeSuggestionChip } from "@/lib/job-ads/chip-composition";
 import { buildTaxonomyLabelResolver } from "@/lib/job-ads/chip-models";
 import {
@@ -54,7 +55,7 @@ import {
   withoutDisplacedWorktimeWords,
 } from "@/lib/job-ads/tokenize";
 import { JobAdTypeahead } from "./job-ad-typeahead";
-import { useIsSearchSaved, useIsSearchStorable } from "./search-storability";
+import { useIsSearchStorable } from "./search-storability";
 
 /**
  * The hero search field, which mirrors the current search as text.
@@ -98,10 +99,6 @@ interface JobbHeroSearchProps {
   employer: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
-  // Whether the URL this page loaded with carried `?commit=true`. If it did, the
-  // search is already saved and the "Spara sökningen" button is hidden; a shared or
-  // bookmarked URL without it shows the button, so its recipient can save the search.
-  initialCommitted: boolean;
 }
 
 const emptySubscribe = () => () => {};
@@ -134,7 +131,6 @@ export function JobbHeroSearch({
   employer,
   sortBy,
   pageSize,
-  initialCommitted,
 }: JobbHeroSearchProps) {
   const router = useRouter();
   const t = useTranslations("jobads.ui");
@@ -216,9 +212,14 @@ export function JobbHeroSearch({
   // delta. commit() sets it, and an external change sets it to true, since navigating
   // to a recent search means it is already saved. `saveReceipt` is the short inline
   // confirmation after the user clicks save; the next edit clears it.
-  const [savedByIntent, setSavedByIntent] = useState(initialCommitted);
-  const [saveReceipt, setSaveReceipt] = useState<"none" | "awaiting" | "shown">("none");
+  // A page loaded from a link starts unsaved, so a shared or bookmarked search can be saved by its
+  // recipient. `failed` is the line that says a save did not go through (#2285).
+  const [savedByIntent, setSavedByIntent] = useState(false);
+  const [saveReceipt, setSaveReceipt] = useState<"none" | "awaiting" | "shown" | "failed">("none");
   const searchButtonRef = useRef<HTMLButtonElement>(null);
+  // #2285 — the search this component last committed, read when a capture answers: an answer for a
+  // search the user has since left changes nothing on screen. Kept in step with `lastCommitted` below.
+  const latestCommitRef = useRef<JobbUrlState>(base);
 
   // The text claims last applied: the base for the next delta. It starts from the
   // initial text, so the mirrored search is not committed again as new claims. It is
@@ -232,6 +233,10 @@ export function JobbHeroSearch({
   // which reverts to the stale base between transitions and would drop just-committed
   // filters from the next delta's base.
   const [lastCommitted, setLastCommitted] = useState<JobbUrlState>(base);
+  // An external change (a recent search, a chip in the toolbar) moves it as well as a commit does.
+  useEffect(() => {
+    latestCommitRef.current = lastCommitted;
+  }, [lastCommitted]);
   // Detects this component's own round trips. It must be a list: with two commits in
   // flight, a single value misclassified the first arriving props as an external
   // change and re-serialised the text mid-typing. A base matching any entry is our
@@ -262,7 +267,7 @@ export function JobbHeroSearch({
     } else if (sameUrlState(base, lastCommitted)) {
       // The filters match what was last committed; only a parameter outside the
       // state changed. The text already mirrors this state, so it is not re-synced.
-      // This keeps StripCommitParam's removal of `?commit=true` after mount from
+      // This keeps the re-render after a stored search (#2285) from
       // re-serialising the user's text. The comparison
       // is against lastCommitted, not prevBase: prevBase can be stale, and a real
       // external "clear all" must not be mistaken for a no-op.
@@ -296,20 +301,22 @@ export function JobbHeroSearch({
   }
 
   // `markCommit` marks a deliberate commit (Enter, the search button, a suggestion,
-  // clearing): the URL gets `?commit=true` so the backend saves the search. A live
-  // delta leaves it out. The flag is not part of JobbUrlState, buildJobbHref or
-  // sameUrlState; it is added to the navigation URL only, and StripCommitParam removes
-  // it after mount.
+  // clearing), which stores the search; a live delta does not (#2285, ADR 0060). The
+  // navigation goes first and the Server Action after it, so Next queues the action behind
+  // the navigation and the results are not held up by the store. A search the backend did
+  // not store, while it is still the one on screen, offers "Spara sökningen" again.
   function commit(next: JobbUrlState, announce: string, markCommit = false) {
     setLastCommitted(next);
     setRecentCommits((prev) => [...prev, next].slice(-10));
     setSavedByIntent(markCommit);
     startTransition(() => {
-      const href = buildJobbHref(next);
-      router.replace(markCommit ? withCommitFlag(href) : href, {
-        scroll: false,
-      });
+      router.replace(buildJobbHref(next), { scroll: false });
     });
+    if (markCommit) {
+      void captureRecentSearchAction(next).then(({ stored }) => {
+        if (!stored && sameUrlState(latestCommitRef.current, next)) setSavedByIntent(false);
+      });
+    }
     if (announce) setAnnouncement(announce);
   }
 
@@ -495,7 +502,7 @@ export function JobbHeroSearch({
   }
 
   // Search or Enter without a highlighted suggestion: the whole text is final, including
-  // the word in progress. It always commits with intent (`?commit=true`), even when the
+  // the word in progress. It always commits with intent, even when the
   // filters are unchanged, because searching again should move the search to the top of
   // the recent list.
   function onSubmitText() {
@@ -572,17 +579,29 @@ export function JobbHeroSearch({
     lastCommitted.worktimeExtent.length > 0;
 
   // "Spara sökningen" shows when a savable search has not been committed with intent.
-  // Clicking it commits the current state again with intent, so the backend saves it, and
-  // commit() hides the button.
-  function onSaveSearch() {
+  // Clicking it stores the search on screen through the Server Action, with no navigation
+  // (#2285), and hides the button.
+  async function onSaveSearch() {
     // The confirmation is announced through the persistent live region below. A live
     // region mounted together with its content is not reliably announced by every
     // screen reader, so the visible confirmation is aria-hidden. #2199 PR 2b: both wait
-    // for the committed answer (below), and focus moves to the search button, the
-    // control before this one, since this one unmounts.
-    commit(lastCommitted, "", true);
+    // for the answer, and focus moves to the search button, the control before this one,
+    // since this one unmounts. A save that did not go through says so and offers the
+    // button again.
+    const saving = lastCommitted;
+    setSavedByIntent(true);
     setSaveReceipt("awaiting");
     searchButtonRef.current?.focus();
+    const { stored } = await captureRecentSearchAction(saving);
+    if (!sameUrlState(latestCommitRef.current, saving)) return;
+    if (stored) {
+      setSaveReceipt("shown");
+      setAnnouncement(t("heroSearch.saved"));
+    } else {
+      setSavedByIntent(false);
+      setSaveReceipt("failed");
+      setAnnouncement(t("heroSearch.saveFailed"));
+    }
   }
   // #2199 PR 2b — offered only when the backend says this very search would be stored: a
   // personnummer or a religious occupation comes back `false`, and so does a search whose
@@ -590,14 +609,6 @@ export function JobbHeroSearch({
   const isStorable = useIsSearchStorable(lastCommitted);
   const showSaveAction =
     hydrated && hasSavableSearch && !savedByIntent && isStorable;
-  // #2199 PR 2b — the receipt claims the search was stored, so it waits for the answer to
-  // the commit the click sent: a rate limit or an error stores nothing and says so below.
-  // It holds once shown, after StripCommitParam's re-run answers without the commit flag.
-  const isSaved = useIsSearchSaved(lastCommitted);
-  if (saveReceipt === "awaiting" && isSaved) {
-    setSaveReceipt("shown");
-    setAnnouncement(t("heroSearch.saved"));
-  }
 
   return (
     <form
@@ -685,6 +696,12 @@ export function JobbHeroSearch({
               {t("heroSearch.saved")}
             </p>
           )}
+          {saveReceipt === "failed" && (
+            // #2285 — a save that did not go through; the live region below announces it too.
+            <p className="jp-hero__searchhelp jp-hero__searchhelp--notice" aria-hidden="true">
+              {t("heroSearch.saveFailed")}
+            </p>
+          )}
         </div>
       )}
 
@@ -727,10 +744,6 @@ export function JobbHeroSearch({
         <input type="hidden" name="sortBy" value={sortBy} />
       )}
       {pageSize && <input type="hidden" name="pageSize" value={pageSize} />}
-      {/* A no-JS submit is always a deliberate search, so it carries commit=true and the
-          backend saves it. ASP.NET's bool binding does not accept "1". Once hydrated,
-          onSubmit prevents the native submit and the router adds the flag instead. */}
-      <input type="hidden" name="commit" value="true" />
     </form>
   );
 }

@@ -2,11 +2,17 @@ import "server-only";
 import { getSessionId } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
 import {
+  captureRecentSearchResultSchema,
   listRecentSearchesResultSchema,
+  type CaptureRecentSearchResult,
   type ListRecentSearchesResult,
 } from "@/lib/dto/recent-searches";
 import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
 import { isValidId } from "@/lib/validation/guid";
+import {
+  recentSearchCaptureBody,
+  type RecentSearchCaptureInput,
+} from "@/lib/job-ads/recent-search-capture-body";
 
 /**
  * Klient-side timeout för list-anropet. ADR 0060 Beslut 4 accepterar N+1
@@ -30,6 +36,8 @@ import { isValidId } from "@/lib/validation/guid";
 const LIST_TIMEOUT_COMPACT_MS = 8_000;
 // Lat-count-vägen (B): /api/me/recent-searches/counts är den enda true-konsumenten.
 const LIST_TIMEOUT_WITH_COUNT_MS = 25_000;
+// #2285 — the capture POST: one count and one upsert on the user's own rows.
+const CAPTURE_TIMEOUT_MS = 8_000;
 
 /**
  * ADR 0060 — hämtar användarens auto-fångade RecentJobSearches.
@@ -102,6 +110,33 @@ export async function deleteRecentSearch(
     if (res.status === 401) return { kind: "unauthorized" };
     if (res.status === 404) return { kind: "notFound" };
     return { kind: "error" };
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * #2285 (ADR 0060 Amendment 2026-11-22) — stores a search in the user's recent searches: the one way a search reaches
+ * them. Called only from `captureRecentSearchAction`, the Server Action the /jobb hero and toolbar call when the user
+ * searches on purpose or clicks "Spara sökningen"; no render calls it, so no GET stores a search.
+ */
+export async function captureRecentSearch(
+  search: RecentSearchCaptureInput
+): Promise<ApiResult<CaptureRecentSearchResult>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const res = await authedFetch(sessionId, "/api/v1/me/recent-searches", {
+      method: "POST",
+      body: JSON.stringify(recentSearchCaptureBody(search)),
+      signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS),
+    });
+    return await responseToResult(
+      res,
+      captureRecentSearchResultSchema,
+      "POST /api/v1/me/recent-searches"
+    );
   } catch {
     return { kind: "error" };
   }

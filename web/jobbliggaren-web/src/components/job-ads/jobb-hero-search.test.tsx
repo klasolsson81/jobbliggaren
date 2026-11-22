@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
@@ -18,18 +18,22 @@ vi.mock("next/navigation", () => ({
 // every save test below runs against an admitted search, and `isStorableMock.mock.calls` shows which
 // search the hero asked about.
 const isStorableMock = vi.fn<(search: unknown) => boolean>(() => true);
-// The receipt's half. Yes unless a
-// test says otherwise, so the receipt tests below see an answer that arrived.
-const isSavedMock = vi.fn<(search: unknown) => boolean>(() => true);
 vi.mock("./search-storability", () => ({
   useIsSearchStorable: (search: unknown) => isStorableMock(search),
-  useIsSearchSaved: (search: unknown) => isSavedMock(search),
+}));
+// #2285 — the Server Action that stores a search. It answers `stored: true` unless a test says
+// otherwise, and `captureMock.mock.calls` shows which search the hero asked it to store.
+const captureMock = vi.fn<(search: unknown) => Promise<{ stored: boolean }>>(
+  async () => ({ stored: true }),
+);
+vi.mock("@/lib/actions/recent-searches", () => ({
+  captureRecentSearchAction: (search: unknown) => captureMock(search),
 }));
 beforeEach(() => {
   isStorableMock.mockReset();
   isStorableMock.mockImplementation(() => true);
-  isSavedMock.mockReset();
-  isSavedMock.mockImplementation(() => true);
+  captureMock.mockReset();
+  captureMock.mockImplementation(async () => ({ stored: true }));
 });
 
 const taxonomy: TaxonomyTree = {
@@ -79,7 +83,6 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroSearch>[0]>) {
       matchGrades={[]}
       employer={[]}
       sortBy="PublishedAtDesc"
-      initialCommitted={false}
       {...extra}
     />,
   );
@@ -179,25 +182,28 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
     expect(replaceMock).not.toHaveBeenCalled();
   });
 
-  it("Enter finaliserar pågående ord + commit-intent (E2j ?commit=true)", async () => {
+  it("Enter finaliserar pågående ord och sparar sökningen en gång (#2285)", async () => {
     const user = userEvent.setup();
     setup();
     await user.type(screen.getByRole("combobox"), "volvo{Enter}");
-    // E2j: Enter är en commit-punkt → ?commit=true så backend auto-capturerar.
-    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo&commit=true", {
+    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo", {
       scroll: false,
     });
+    expect(captureMock).toHaveBeenCalledTimes(1);
+    expect(captureMock).toHaveBeenCalledWith(expect.objectContaining({ q: "volvo" }));
     expect(screen.getByRole("combobox")).toHaveValue("volvo");
   });
 
-  it("Sök-knappen finaliserar + commit-intent (E2j ?commit=true)", async () => {
+  it("Sök-knappen finaliserar och sparar sökningen en gång (#2285)", async () => {
     const user = userEvent.setup();
     setup();
     await user.type(screen.getByRole("combobox"), "volvo");
     await user.click(screen.getByRole("button", { name: /^Sök/ }));
-    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo&commit=true", {
+    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=volvo", {
       scroll: false,
     });
+    expect(captureMock).toHaveBeenCalledTimes(1);
+    expect(captureMock).toHaveBeenCalledWith(expect.objectContaining({ q: "volvo" }));
   });
 
   // #823 — q-min-regeln. Den bor i applyClaimsDelta (enhetstestad i tokenize.test.ts);
@@ -307,19 +313,28 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
     });
   });
 
-  it("live-typing (mellanslag) committar UTAN commit-intent — ingen capture", async () => {
+  it("live-typing (mellanslag) navigerar men sparar ingenting", async () => {
     const user = userEvent.setup();
     setup();
-    // Mellanslag = live-förhandsvisning → router.replace UTAN ?commit=true
-    // (annars återinförs E2i:s mellanstegsspam i Senaste sökningar).
-    await user.type(screen.getByRole("combobox"), "hogia ");
+    // Mellanslag = live-förhandsvisning: navigerar men sparar inte (annars återinförs
+    // E2i:s mellanstegsspam i Senaste sökningar).
+    await user.type(screen.getByRole("combobox"), "hogia sandvik ");
     expect(replaceMock).toHaveBeenCalledWith("/jobb?q=hogia", {
       scroll: false,
     });
-    expect(replaceMock).not.toHaveBeenCalledWith(
-      "/jobb?q=hogia&commit=true",
-      { scroll: false },
-    );
+    expect(captureMock).not.toHaveBeenCalled();
+  });
+
+  // #2285 — a commit whose capture the backend did not store, while it is still the search on
+  // screen, offers "Spara sökningen" again rather than hiding it.
+  it("en avsiktlig sökning som inte sparades erbjuder Spara sökningen igen", async () => {
+    const user = userEvent.setup();
+    captureMock.mockImplementation(async () => ({ stored: false }));
+    setup();
+    await user.type(screen.getByRole("combobox"), "volvo{Enter}");
+    expect(
+      await screen.findByRole("button", { name: "Spara sökningen" }),
+    ).toBeInTheDocument();
   });
 
   it("radering av ord + Enter släpper anspråket (delta-remove)", async () => {
@@ -348,16 +363,14 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
         matchGrades={[]}
         employer={[]}
         sortBy="PublishedAtDesc"
-        initialCommitted={false}
       />,
     );
     expect(input).toHaveValue("göteborg ");
 
     await user.clear(input);
     await user.keyboard("{Enter}");
-    // Enter = commit-punkt → ?commit=true (tom sökning; backend browse-guard
-    // capturerar ändå inte, men navigeringen bär commit-intent).
-    expect(replaceMock).toHaveBeenLastCalledWith("/jobb?commit=true", {
+    // Enter = commit-punkt (tom sökning; backendens grind sparar ändå inget).
+    expect(replaceMock).toHaveBeenLastCalledWith("/jobb", {
       scroll: false,
     });
   });
@@ -409,7 +422,6 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         matchGrades={[]}
         employer={[]}
         sortBy="PublishedAtDesc"
-        initialCommitted={false}
       />,
     );
     expect(input).toHaveValue("göteborg volvo ");
@@ -430,7 +442,6 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         matchGrades={[]}
         employer={[]}
         sortBy="PublishedAtDesc"
-        initialCommitted={false}
       />,
     );
     expect(input).toHaveValue("göteborg volvo ");
@@ -456,7 +467,6 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         matchGrades={[]}
         employer={[]}
         sortBy="PublishedAtDesc"
-        initialCommitted={false}
       />,
     );
     expect(screen.getByRole("combobox")).toHaveValue(
@@ -487,7 +497,6 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         matchGrades={[]}
         employer={[]}
         sortBy="PublishedAtDesc"
-        initialCommitted={false}
       />,
     );
     expect(screen.getByRole("combobox")).toHaveValue("volvo lastbil");
@@ -512,7 +521,6 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         matchGrades={[]}
         employer={[]}
         sortBy="PublishedAtDesc"
-        initialCommitted={false}
       />,
     );
     expect(screen.getByRole("combobox")).toHaveValue("");
@@ -537,7 +545,6 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         matchGrades={[]}
         employer={[]}
         sortBy="PublishedAtDesc"
-        initialCommitted={false}
       />,
     );
     await user.type(screen.getByRole("combobox"), "volvo ");
@@ -561,7 +568,7 @@ describe("JobbHeroSearch — förslags-val skriver in label-texten", () => {
       }),
     );
     expect(replaceMock).toHaveBeenCalledWith(
-      "/jobb?municipality=PVZL_BQT_XtL&q=volvo&commit=true",
+      "/jobb?municipality=PVZL_BQT_XtL&q=volvo",
       { scroll: false },
     );
     expect(input).toHaveValue("volvo Göteborg ");
@@ -586,7 +593,7 @@ describe("JobbHeroSearch — förslags-val skriver in label-texten", () => {
     );
     // q får båda orden (compose Title-append) — ingen municipality-param.
     expect(replaceMock).toHaveBeenCalledWith(
-      "/jobb?q=S%C3%A4ljare+G%C3%B6teborg&commit=true",
+      "/jobb?q=S%C3%A4ljare+G%C3%B6teborg",
       { scroll: false },
     );
     // Texten claimar INTE labeln (utkastet borttaget, ingen insättning).
@@ -603,7 +610,7 @@ describe("JobbHeroSearch — förslags-val skriver in label-texten", () => {
     await user.keyboard("{ArrowDown}");
     await user.tab();
     expect(replaceMock).toHaveBeenCalledWith(
-      "/jobb?municipality=PVZL_BQT_XtL&commit=true",
+      "/jobb?municipality=PVZL_BQT_XtL",
       { scroll: false },
     );
     expect(input).toHaveValue("Göteborg ");
@@ -633,7 +640,7 @@ describe("JobbHeroSearch — ×-clear (E2j, CTO VAL 4 = semantik ii)", () => {
     );
     expect(screen.getByRole("combobox")).toHaveValue("");
     // Båda text-claimen borttagna; ×-clear bär commit-intent (CTO VAL 5).
-    expect(replaceMock).toHaveBeenLastCalledWith("/jobb?commit=true", {
+    expect(replaceMock).toHaveBeenLastCalledWith("/jobb", {
       scroll: false,
     });
   });
@@ -676,11 +683,11 @@ describe("JobbHeroSearch — no-JS-stöd", () => {
     // GET write the repeated form again.
     expect(occupationInputs).toHaveLength(1);
     expect(occupationInputs[0]).toHaveValue("MVqp_eS8_kDZ.Q5DF_juj_8do");
-    // E2j: no-JS-submit ÄR en commit → statiskt hidden commit=true så backend
-    // auto-capturerar (JS-vägen interceptar submit och bär commit som suffix).
+    // #2285 — a no-JS submit is a plain GET and stores nothing: no GET stores a search
+    // (ADR 0060's named degradation).
     expect(
       container.querySelector('input[type="hidden"][name="commit"]'),
-    ).toHaveValue("true");
+    ).toBeNull();
   });
 
   it("hjälptexten bär tagg-/Tab-instruktionen; ingen placeholder", () => {
@@ -710,7 +717,6 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
         matchGrades={[]}
         employer={[]}
         sortBy="PublishedAtDesc"
-        initialCommitted={false}
       />,
     );
     await user.type(screen.getByRole("combobox"), "göteborg ");
@@ -722,20 +728,20 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
 
 // #419 pt6 (Klas + CTO A1) — "Spara sökningen"-länken för typeahead-komponerade
 // (icke-committade) sök. Visas när ett sparbart sök inte committats med intent;
-// klick re-committar MED intent (?commit=true → backend auto-capturerar) + visar en
-// kort inline-bekräftelse; länken återkommer när söket redigeras igen.
+// klick sparar sökningen via Server Actionen (#2285) + visar en kort inline-bekräftelse;
+// länken återkommer när söket redigeras igen.
 describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
   // #2199 PR 2b — offered only when the backend admits the search; a refusal (a personnummer, a
   // religious occupation) or a verdict that has not come back yet offers nothing, and changes no copy.
   it("offers no save when the backend's verdict for the search is no", () => {
     isStorableMock.mockImplementation(() => false);
-    setup({ q: "utvecklare", initialCommitted: false });
+    setup({ q: "utvecklare" });
     expect(screen.queryByRole("button", { name: "Spara sökningen" })).toBeNull();
     expect(screen.queryByText("Sökningen är sparad i Senaste sökningar")).toBeNull();
   });
 
   it("asks about the search it shows", () => {
-    setup({ q: "utvecklare", initialCommitted: false });
+    setup({ q: "utvecklare" });
     expect(isStorableMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ q: "utvecklare" }),
     );
@@ -747,7 +753,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
   it("asks about the search after a live edit, not the one it was mounted with", async () => {
     const user = userEvent.setup();
     isStorableMock.mockImplementation((s) => (s as { q?: string }).q === "utvecklare");
-    setup({ q: "utvecklare", initialCommitted: false });
+    setup({ q: "utvecklare" });
     expect(screen.getByRole("button", { name: "Spara sökningen" })).toBeInTheDocument();
 
     await user.type(screen.getByRole("combobox"), " imam ");
@@ -759,34 +765,19 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
   });
 
   // design-reviewer, round 1 on #2243: the receipt claims the search was stored, so it waits for the
-  // committed answer; a rate limit or an error answers no and stores nothing.
-  it("confirms nothing, visibly or aloud, until the committed answer says yes", async () => {
+  // answer; a rate limit or an error answers no and stores nothing (#2285: the action's answer).
+  it("confirms nothing, visibly or aloud, until the answer says it was stored", async () => {
     const user = userEvent.setup();
-    isSavedMock.mockImplementation(() => false);
-    const { rerender } = setup({ q: "utvecklare", initialCommitted: false });
+    let answer: (value: { stored: boolean }) => void = () => {};
+    captureMock.mockImplementation(
+      () => new Promise<{ stored: boolean }>((resolve) => (answer = resolve)),
+    );
+    setup({ q: "utvecklare" });
 
     await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
     expect(screen.queryByText("Sökningen är sparad i Senaste sökningar")).toBeNull();
 
-    isSavedMock.mockImplementation(() => true);
-    rerender(
-      <JobbHeroSearch
-        taxonomy={taxonomy}
-        q="utvecklare"
-        occupationGroup={[]}
-        occupationName={[]}
-        region={[]}
-        municipality={[]}
-        remote={false}
-        junior={false}
-        employmentType={[]}
-        worktimeExtent={[]}
-        matchGrades={[]}
-        employer={[]}
-        sortBy="PublishedAtDesc"
-        initialCommitted={false}
-      />,
-    );
+    await act(async () => answer({ stored: true }));
     expect(
       screen.getAllByText("Sökningen är sparad i Senaste sökningar").length,
     ).toBeGreaterThan(0);
@@ -797,113 +788,33 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
         region.textContent?.includes("Sökningen är sparad i Senaste sökningar"),
       ),
     ).toBe(true);
-
-    // StripCommitParam re-runs the search without the flag, and that answer is a preview's: the
-    // receipt holds once shown.
-    isSavedMock.mockImplementation(() => false);
-    rerender(
-      <JobbHeroSearch
-        taxonomy={taxonomy}
-        q="utvecklare"
-        occupationGroup={[]}
-        occupationName={[]}
-        region={[]}
-        municipality={[]}
-        remote={false}
-        junior={false}
-        employmentType={[]}
-        worktimeExtent={[]}
-        matchGrades={[]}
-        employer={[]}
-        sortBy="PublishedAtDesc"
-        initialCommitted={false}
-      />,
-    );
-    expect(document.querySelector(".jp-hero__searchsaved")).not.toBeNull();
   });
 
-  // The button unmounts on the click, so focus moves to the control before it rather than to <body>.
-  it("moves focus to the search button after the click", async () => {
+  // #2285 — a save that did not go through says so, seen and heard, and offers the button again.
+  it("says a save did not go through and offers the button again", async () => {
     const user = userEvent.setup();
-    setup({ q: "utvecklare", initialCommitted: false });
+    captureMock.mockImplementation(async () => ({ stored: false }));
+    setup({ q: "utvecklare" });
 
     await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
 
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: /Sök/ }));
-  });
-
-  // design-reviewer, 2b plan read: the action waits for the verdict, so its line is held whether or
-  // not it is offered, and nothing below it moves when it arrives.
-  it("holds the save line for a savable search whether or not it is offered", () => {
-    isStorableMock.mockImplementation(() => false);
-    const { container } = setup({ q: "utvecklare", initialCommitted: false });
-    const slot = container.querySelector(".jp-hero__searchsaveslot");
-    expect(slot).not.toBeNull();
-    expect(slot).toBeEmptyDOMElement();
-  });
-
-  it("holds no save line when there is nothing to save", () => {
-    const { container } = setup({ initialCommitted: false });
-    expect(container.querySelector(".jp-hero__searchsaveslot")).toBeNull();
-  });
-
-  it("visar länken när sökningen är osparad (initialCommitted=false + sparbart sök)", () => {
-    setup({ q: "utvecklare", initialCommitted: false });
     expect(
-      screen.getByRole("button", { name: "Spara sökningen" }),
+      await screen.findByRole("button", { name: "Spara sökningen" }),
     ).toBeInTheDocument();
-  });
-
-  it("döljer länken när sökningen redan är sparad (initialCommitted=true, dvs efter Enter/Sök)", () => {
-    setup({ q: "utvecklare", initialCommitted: true });
     expect(
-      screen.queryByRole("button", { name: "Spara sökningen" }),
-    ).toBeNull();
-  });
-
-  it("döljer länken när det inte finns något sparbart sök (tomt)", () => {
-    setup({ initialCommitted: false });
-    expect(
-      screen.queryByRole("button", { name: "Spara sökningen" }),
-    ).toBeNull();
-  });
-
-  it("klick capturerar (router.replace med commit=true) + visar bekräftelse + länken försvinner", async () => {
-    const user = userEvent.setup();
-    setup({ q: "utvecklare", initialCommitted: false });
-    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
-    expect(replaceMock).toHaveBeenCalledWith(
-      expect.stringContaining("commit=true"),
-      { scroll: false },
-    );
-    // Bekräftelsen visas (synlig span + den persistenta sr-only-annonsen bär samma
-    // text → två noder; getAllByText undviker multiple-match-fel).
-    expect(
-      screen.getAllByText("Sökningen är sparad i Senaste sökningar").length,
+      screen.getAllByText("Sökningen kunde inte sparas. Försök igen.").length,
     ).toBeGreaterThan(0);
     expect(
-      screen.queryByRole("button", { name: "Spara sökningen" }),
-    ).toBeNull();
+      screen.getAllByRole("status").some((region) =>
+        region.textContent?.includes("Sökningen kunde inte sparas. Försök igen."),
+      ),
+    ).toBe(true);
+    expect(screen.queryByText("Sökningen är sparad i Senaste sökningar")).toBeNull();
   });
 
-  it("länken återkommer när användaren redigerar söket efter att ha sparat", async () => {
-    const user = userEvent.setup();
-    setup({ q: "utvecklare", initialCommitted: false });
-    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
-    expect(
-      screen.queryByRole("button", { name: "Spara sökningen" }),
-    ).toBeNull();
-    // Live-delta (typa en term + avgränsare) → osparat igen → länken åter.
-    await user.type(screen.getByRole("combobox"), "göteborg ");
-    expect(
-      screen.getByRole("button", { name: "Spara sökningen" }),
-    ).toBeInTheDocument();
-  });
-
-  it("StripCommitParam-roundtrip efter spara: länken förblir borta (own-roundtrip, ingen re-init)", async () => {
-    // nextjs-ui M2 — efter spara-klicket levereras samma filter-state igen (RSC-roundtrip
-    // + commit-strip). Own-roundtrip-detektorn klassar basen som EGEN och håller
-    // savedByIntent stabil; initialCommitted re-läses inte (useState-init körs en gång).
+  // #2285 — a search the hero did not commit itself (a recent search, a toolbar chip) is still the one the
+  // answer is for, so its save confirms.
+  it("confirms a save of a search that arrived from outside the hero", async () => {
     const user = userEvent.setup();
     const props = {
       taxonomy,
@@ -919,7 +830,117 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
       matchGrades: [] as string[],
       employer: [],
       sortBy: "PublishedAtDesc" as const,
-      initialCommitted: false,
+    };
+    const { rerender } = render(<JobbHeroSearch {...props} />);
+    rerender(<JobbHeroSearch {...props} q="" municipality={["PVZL_BQT_XtL"]} />);
+    // State that came from the URL counts as saved; a live edit makes it savable again.
+    await user.type(screen.getByRole("combobox"), "lager ");
+
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+
+    expect(
+      (await screen.findAllByText("Sökningen är sparad i Senaste sökningar")).length,
+    ).toBeGreaterThan(0);
+  });
+
+  // The button unmounts on the click, so focus moves to the control before it rather than to <body>.
+  it("moves focus to the search button after the click", async () => {
+    const user = userEvent.setup();
+    setup({ q: "utvecklare" });
+
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /Sök/ }));
+  });
+
+  // design-reviewer, 2b plan read: the action waits for the verdict, so its line is held whether or
+  // not it is offered, and nothing below it moves when it arrives.
+  it("holds the save line for a savable search whether or not it is offered", () => {
+    isStorableMock.mockImplementation(() => false);
+    const { container } = setup({ q: "utvecklare" });
+    const slot = container.querySelector(".jp-hero__searchsaveslot");
+    expect(slot).not.toBeNull();
+    expect(slot).toBeEmptyDOMElement();
+  });
+
+  it("holds no save line when there is nothing to save", () => {
+    const { container } = setup();
+    expect(container.querySelector(".jp-hero__searchsaveslot")).toBeNull();
+  });
+
+  it("visar länken för en sparbar sökning som laddats från en länk", () => {
+    setup({ q: "utvecklare" });
+    expect(
+      screen.getByRole("button", { name: "Spara sökningen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("döljer länken efter en avsiktlig sökning (Enter)", async () => {
+    const user = userEvent.setup();
+    setup({ q: "utvecklare" });
+    await user.type(screen.getByRole("combobox"), "{Enter}");
+    expect(
+      screen.queryByRole("button", { name: "Spara sökningen" }),
+    ).toBeNull();
+  });
+
+  it("döljer länken när det inte finns något sparbart sök (tomt)", () => {
+    setup();
+    expect(
+      screen.queryByRole("button", { name: "Spara sökningen" }),
+    ).toBeNull();
+  });
+
+  it("klick sparar sökningen på skärmen via actionen, utan navigering, + bekräftelse + länken försvinner", async () => {
+    const user = userEvent.setup();
+    setup({ q: "utvecklare" });
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+    expect(captureMock).toHaveBeenCalledTimes(1);
+    expect(captureMock).toHaveBeenCalledWith(expect.objectContaining({ q: "utvecklare" }));
+    expect(replaceMock).not.toHaveBeenCalled();
+    // Bekräftelsen visas (synlig span + den persistenta sr-only-annonsen bär samma
+    // text → två noder; findAllByText undviker multiple-match-fel).
+    expect(
+      (await screen.findAllByText("Sökningen är sparad i Senaste sökningar")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Spara sökningen" }),
+    ).toBeNull();
+  });
+
+  it("länken återkommer när användaren redigerar söket efter att ha sparat", async () => {
+    const user = userEvent.setup();
+    setup({ q: "utvecklare" });
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+    expect(
+      screen.queryByRole("button", { name: "Spara sökningen" }),
+    ).toBeNull();
+    // Live-delta (typa en term + avgränsare) → osparat igen → länken åter.
+    await user.type(screen.getByRole("combobox"), "göteborg ");
+    expect(
+      screen.getByRole("button", { name: "Spara sökningen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("omrendering efter spara: länken förblir borta (own-roundtrip, ingen re-init)", async () => {
+    // nextjs-ui M2 — efter spara-klicket levereras samma filter-state igen (the re-render a
+    // stored search revalidates, #2285). Own-roundtrip-detektorn klassar basen som EGEN och
+    // håller savedByIntent stabil.
+    const user = userEvent.setup();
+    const props = {
+      taxonomy,
+      q: "utvecklare",
+      occupationGroup: [] as string[],
+      occupationName: [],
+      region: [] as string[],
+      municipality: [] as string[],
+      remote: false,
+      junior: false,
+      employmentType: [] as string[],
+      worktimeExtent: [] as string[],
+      matchGrades: [] as string[],
+      employer: [],
+      sortBy: "PublishedAtDesc" as const,
     };
     const { rerender } = render(<JobbHeroSearch {...props} />);
     await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
@@ -996,7 +1017,6 @@ describe("JobbHeroSearch — the junior filter (#2261)", () => {
         matchGrades={[]}
         employer={[]}
         sortBy="PublishedAtDesc"
-        initialCommitted={false}
       />,
     );
     await user.type(screen.getByRole("combobox"), "volvo ");
@@ -1029,7 +1049,6 @@ describe("JobbHeroSearch — the occupation-name axis (#2199)", () => {
         matchGrades={[]}
         employer={[]}
         sortBy="PublishedAtDesc"
-        initialCommitted={false}
       />,
     );
     await user.type(screen.getByRole("combobox"), "volvo ");
@@ -1054,7 +1073,7 @@ describe("JobbHeroSearch — the occupation-name axis (#2199)", () => {
   });
 
   it("offers Spara sökningen for a search that carries only a name", () => {
-    setup({ occupationName: [NAME], initialCommitted: false });
+    setup({ occupationName: [NAME] });
     expect(
       screen.getByRole("button", { name: "Spara sökningen" }),
     ).toBeInTheDocument();
@@ -1082,7 +1101,6 @@ describe("JobbHeroSearch — text typed before hydration (#1787)", () => {
       matchGrades: [],
       employer: [],
       sortBy: "PublishedAtDesc",
-      initialCommitted: false,
       ...extra,
     };
   }
@@ -1122,7 +1140,7 @@ describe("JobbHeroSearch — text typed before hydration (#1787)", () => {
     expect(screen.getByRole("combobox")).toBe(field);
     expect(field).toHaveValue("backend");
     await submit();
-    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=backend&commit=true", {
+    expect(replaceMock).toHaveBeenCalledWith("/jobb?q=backend", {
       scroll: false,
     });
   });
@@ -1138,7 +1156,7 @@ describe("JobbHeroSearch — text typed before hydration (#1787)", () => {
     expect(screen.getByRole("combobox")).toHaveValue("java backend");
     await submit();
     expect(replaceMock).toHaveBeenCalledWith(
-      "/jobb?municipality=PVZL_BQT_XtL&q=java+backend&commit=true",
+      "/jobb?municipality=PVZL_BQT_XtL&q=java+backend",
       { scroll: false },
     );
   });
@@ -1242,7 +1260,6 @@ describe("JobbHeroSearch — minus-ord (#2143)", () => {
         matchGrades={[]}
         employer={[]}
         sortBy="PublishedAtDesc"
-        initialCommitted={false}
       />
     );
     // The own commit lands, then the toolbar's × removes "-aa" (an external change).
@@ -1252,7 +1269,7 @@ describe("JobbHeroSearch — minus-ord (#2143)", () => {
 
     await user.keyboard("{Enter}");
     expect(replaceMock).toHaveBeenLastCalledWith(
-      "/jobb?q=-bb+-cc+-dd+-ee+-ff&commit=true",
+      "/jobb?q=-bb+-cc+-dd+-ee+-ff",
       { scroll: false },
     );
   });

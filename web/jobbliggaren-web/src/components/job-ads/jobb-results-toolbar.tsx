@@ -31,7 +31,6 @@ import { jobAdSortLabel } from "@/lib/job-ads/status";
 import {
   buildJobbHref,
   DEFAULT_SORT_BY,
-  withCommitFlag,
   type JobbUrlState,
 } from "@/lib/job-ads/search-params";
 import {
@@ -44,6 +43,7 @@ import { formatOrgNr } from "@/lib/company-follows/org-nr";
 import { publishTotalCount } from "@/lib/job-ads/total-count-store";
 import { positiveQ } from "@/lib/job-ads/search-text-grammar";
 import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
+import { captureRecentSearchAction } from "@/lib/actions/recent-searches";
 
 /**
  * Result-toolbar för /jobb (HANDOVER-v3.md §7.2, ADR 0055).
@@ -352,22 +352,22 @@ export function JobbResultsToolbar({
   const showMatchSortDisclosure =
     selectValue === "MatchDesc" && !hasStatedDesiredOccupation;
 
-  // E2j (Klas-val 2026-06-12 = ja): toolbar-handlingar (ta bort chip / Rensa /
-  // byt sort) är avsiktliga, diskreta sökningar → bär commit-intent (?commit=true)
-  // så de auto-capturas till Senaste sökningar. commit-flaggan ligger UTANFÖR
-  // JobbUrlState (transient suffix på push-strängen) och strippas efter mount.
+  // E2j (Klas's choice, 2026-06-12): the toolbar's actions (remove a chip, Rensa, change the
+  // sort) are deliberate searches and are stored in Senaste sökningar. Since #2285 through the
+  // Server Action, called after the navigation so Next queues it behind the results (ADR 0060).
   function commit(next: JobbUrlState) {
     startTransition(() => {
       setOptimisticState(next);
-      router.push(withCommitFlag(buildJobbHref(next)));
+      router.push(buildJobbHref(next));
     });
+    void captureRecentSearchAction(next);
   }
 
   // STEG 5 (grade-filter) — navigering UTAN commit-intent. matchGrades är
   // runtime-view-state, INTE en avsiktlig sökning: en grad-justering ska aldrig
   // auto-capturas till Senaste sökningar (Klas: håll matchGrades utanför
   // recent-search/commit-angelägenheten). Samma optimistiska overlay som commit
-  // för omedelbar respons; ren `buildJobbHref` (ingen ?commit=true).
+  // för omedelbar respons; ren `buildJobbHref`, ingen sparning.
   function navigate(next: JobbUrlState) {
     startTransition(() => {
       setOptimisticState(next);

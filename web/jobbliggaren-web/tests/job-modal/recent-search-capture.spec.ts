@@ -1,5 +1,7 @@
+import { mkdirSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { ADS } from "./fixtures";
 import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } from "./servers";
@@ -10,6 +12,8 @@ import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, startHarness, type Harness } fr
  * would store a search: a list read carrying `commit=true`, which is how one was stored before #2285, or the capture
  * POST. The front proxy records each document request with its `Sec-Fetch-Site` and whether it carried the session
  * cookie, so each test also shows which way the planted link arrived.
+ *
+ * With VISUAL_SHOTS_DIR set, the save states are also saved as screenshots for the design verdict.
  */
 
 let harness: Harness;
@@ -52,9 +56,17 @@ async function hydrated(page: Page) {
 
 const navigationTo = (path: string) => harness.navigations.find((hop) => hop.path === path);
 
+async function shot(page: Page, name: string) {
+  const dir = process.env.VISUAL_SHOTS_DIR;
+  if (!dir) return;
+  mkdirSync(dir, { recursive: true });
+  await page.screenshot({ path: join(dir, `${name}.png`) });
+}
+
 test("an address-bar navigation to a planted /jobb link stores nothing", async ({ page }) => {
   await page.goto(PLANTED);
   await settled(page);
+  await hydrated(page);
 
   expect(navigationTo(PLANTED)).toMatchObject({ site: "none", session: true });
   expect(harness.captures).toEqual([]);
@@ -74,6 +86,8 @@ test("the employer's application link in the job modal, same-origin and planted,
     modal.getByRole("link", { name: "Ansök" }).click(),
   ]);
   await settled(opened);
+  await hydrated(opened);
+  await opened.waitForLoadState("networkidle");
 
   expect(navigationTo(PLANTED)).toMatchObject({ site: "same-origin", session: true });
   expect(harness.captures).toEqual([]);
@@ -102,6 +116,7 @@ test("a click on another site is bounced and its query dropped, so nothing is st
     await page.locator("#planted").click();
     await page.waitForURL(`${APP_ORIGIN}/jobb`);
     await settled(page);
+    await hydrated(page);
   } finally {
     await new Promise<void>((resolve) => void elsewhere.close(() => resolve()));
   }
@@ -134,11 +149,31 @@ test("Spara sökningen stores the search on screen with one POST and confirms it
   await page.goto("/jobb?q=utvecklare");
   await settled(page);
   await hydrated(page);
+  await shot(page, "save-offered-1280");
 
   await page.getByRole("button", { name: "Spara sökningen" }).click();
 
   await expect(page.locator("p.jp-hero__searchsaved")).toHaveText("Sökningen är sparad i Senaste sökningar");
+  await shot(page, "save-receipt-1280");
   expect(harness.captures).toHaveLength(1);
   expect(harness.captures[0]?.route).toBe(CAPTURE);
   expect(harness.captures[0]?.body?.q).toBe("utvecklare");
+});
+
+test("a save that is not stored says so and offers the button again", async ({ page }) => {
+  harness.listStorable = true;
+  harness.captureStored = false;
+  await page.goto("/jobb?q=utvecklare");
+  await settled(page);
+  await hydrated(page);
+
+  await page.getByRole("button", { name: "Spara sökningen" }).click();
+
+  await expect(page.locator("p.jp-hero__searchhelp--notice")).toHaveText("Sökningen kunde inte sparas. Försök igen.");
+  await expect(page.getByRole("button", { name: "Spara sökningen" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Sökningen kunde inte sparas" })).toHaveCount(1);
+  expect(harness.captures).toHaveLength(1);
+  await shot(page, "save-failed-1280");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await shot(page, "save-failed-390");
 });

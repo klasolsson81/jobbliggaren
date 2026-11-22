@@ -81,8 +81,7 @@ export interface JobbUrlState {
   // issue #292 (Klas + senior-cto-advisor) — matchnings-axelns huvudbrytare.
   // `true` = matchningen är AVSTÄNGD (skriver `?matchning=off` i URL:en); badges
   // + match-sort göms och matchGrades töms. Frånvaro (false) = default PÅ (när
-  // användaren angett ett yrke). Persistent, delningsbar URL-state (till skillnad
-  // från den transienta `commit`-flaggan). Härleds till `matchActive` i
+  // användaren angett ett yrke). Persistent, delningsbar URL-state. Härleds till `matchActive` i
   // `jobb-results.tsx` (SSOT): `matchActive = hasStatedDesiredOccupation &&
   // !matchningOff`.
   matchningOff?: boolean;
@@ -91,7 +90,7 @@ export interface JobbUrlState {
   // matchnings-anropen (skriver `?relaterade=on`). Frånvaro (undefined/false) =
   // default AV (ren URL, paritet med matchningOff). Master-switch för
   // includeRelated genom alla tre anropen (lista/batch/detalj). Runtime-view-
-  // state (navigerar utan commit-flaggan, paritet matchGrades).
+  // state (sparar ingen sökning, paritet matchGrades).
   includeRelated?: boolean;
   // #383 → förenklat 2026-06-30 (Klas: en enda "Dölj ansökta"-toggle i
   // hero-filterraden; "Visa sparade" + "Visa bara ansökta" borttagna — sparade nås
@@ -99,14 +98,14 @@ export interface JobbUrlState {
   // redan sökt. Frånvaro (undefined/false) = ingen status-gallring (ren URL, paritet
   // matchningOff/includeRelated). Svensk sentinel-param `?doljAnsokta=on`. ORTOGONAL
   // mot matchningen (renderas även när matchningen är av; gatas bara på inloggad
-  // seeker). Runtime-view-state (navigerar utan commit). Backend `JobAdStatusFilter`
+  // seeker). Runtime-view-state (sparar ingen sökning). Backend `JobAdStatusFilter`
   // (#383) behåller savedOnly/appliedOnly-fälten — FE skickar dem bara aldrig längre.
   hideApplied?: boolean;
   // #419 punkt 1 (CTO Approach A, 2026-06-30) — "Visa bara matchade". `true` = visa
   // ENDAST annonser med en positiv matchningsgrad för användaren (skriver
   // `?baraMatchade=on`). Frånvaro (undefined/false) = default AV (ren URL, paritet
-  // matchningOff/includeRelated/hideApplied). Runtime-view-state (navigerar utan
-  // commit-flaggan). Kontrollen (en kryssruta) bor i Matchning-popovern, gatad på
+  // matchningOff/includeRelated/hideApplied). Runtime-view-state (sparar ingen
+  // sökning). Kontrollen (en kryssruta) bor i Matchning-popovern, gatad på
   // matchnings-axeln PÅ; FE mappar den till API-kontraktets engelska flagga `onlyMatched`.
   onlyMatched?: boolean;
   // #454 PR-0 (ADR 0087 D6 FE-konsumtion; löser C1-flaggan "live silent-drop") —
@@ -308,32 +307,6 @@ function setAxis(
 }
 
 /**
- * Fas E2j (ADR 0060 amendment 2026-06-12) — commit-intent-signalen.
- * `commit` är en TRANSIENT signal-param, INTE ett tillstånd: den ingår
- * ALDRIG i `JobbUrlState`, `sameUrlState`, `buildJobbHref` eller
- * `serializeSearchText` (annars bryts spegel-fältets own-roundtrip-detektor
- * + förorenar delningsbara URL:er). Den adderas endast som suffix på
- * commit-punkternas navigering (Enter/Sök/förslags-val/toolbar) och strippas
- * efter mount. Backend (`ICapturesRecentSearch.Commit`) gatar auto-capturen
- * på den.
- */
-export const COMMIT_PARAM = "commit";
-
-/**
- * Adderar commit-intent-suffixet på en redan byggd href (utanför state).
- * Värdet är `true` (inte `1`) — ASP.NET Core minimal-API:s `bool`-binding
- * använder `bool.TryParse`, som tolkar "true"/"false" men INTE "1"/"0";
- * `?commit=1` skulle 400:a list-queryn. Backend-paramen är `bool commit`.
- */
-export const COMMIT_VALUE = "true";
-
-export function withCommitFlag(href: string): string {
-  return href.includes("?")
-    ? `${href}&${COMMIT_PARAM}=${COMMIT_VALUE}`
-    : `${href}?${COMMIT_PARAM}=${COMMIT_VALUE}`;
-}
-
-/**
  * #454 PR-0 — SPOT-parser för `?employer=`-paramen (delas av page.tsx och
  * buildPageHref — samma gate på båda ställen, annars divergerar de). Endast
  * ett exakt 10-siffrigt värde accepteras (`^\d{10}$` — samma form som
@@ -360,7 +333,7 @@ export function withCommitFlag(href: string): string {
  * hit heller.
  *
  * Det som FAKTISKT skyddar sedan 2026-08-19 är persistens-grinden i
- * `RecentJobSearchCaptureBehavior` (A2, Klas-beslut): en pnr-formad employer capturas
+ * `RecentSearchCaptureGate` (A2, Klas-beslut): en pnr-formad employer capturas
  * aldrig till `recent_job_searches`. Format-gaten här är med flit INTE vidgad — en
  * pnr-diskriminator i läsvägen hade brutit ett legitimt filter på en enskild firmas
  * annonser, som är riktiga annonser.

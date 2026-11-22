@@ -23,7 +23,6 @@ import { sameUrlState } from "@/lib/job-ads/tokenize";
 interface Verdict {
   search: JobbUrlState;
   storable: boolean;
-  committed: boolean;
 }
 
 const VerdictContext = createContext<Verdict | null>(null);
@@ -38,23 +37,18 @@ export function SearchStorability({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * Renders nothing; reports the backend's verdict for `search` while it is mounted. `committed` says the
- * list was fetched with the commit flag.
- */
+/** Renders nothing; reports the backend's verdict for `search` while it is mounted. */
 export function ReportSearchStorability({
   search,
   storable,
-  committed,
 }: {
   search: JobbUrlState;
   storable: boolean;
-  committed: boolean;
 }) {
   const report = useContext(ReportContext);
   useEffect(() => {
-    report?.({ search, storable, committed });
-  }, [report, search, storable, committed]);
+    report?.({ search, storable });
+  }, [report, search, storable]);
   return null;
 }
 
@@ -65,11 +59,4 @@ export function ReportSearchStorability({
 export function useIsSearchStorable(search: JobbUrlState): boolean {
   const verdict = useContext(VerdictContext);
   return verdict !== null && verdict.storable && sameUrlState(verdict.search, search);
-}
-
-export function useIsSearchSaved(search: JobbUrlState): boolean {
-  const verdict = useContext(VerdictContext);
-  return (
-    verdict !== null && verdict.committed && verdict.storable && sameUrlState(verdict.search, search)
-  );
 }

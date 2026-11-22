@@ -36,10 +36,9 @@
 # framtida framework-våg (t.ex. .NET 11) skulle kunna spränga taket tyst — det är
 # inte mätt och därför inte förhandsjusterat, men det är den kända riskformen.
 #
-# CVE-täckning är CI-/Dependabot-formad, INTE agent-formad (security-auditor.md:292
-# delegerar CVE-scan till Dependabot/CI — roster-gap-CTO 2026-05-17 §1.4, ADR 0045
-# Beslut 4/5). Dependabot öppnar PRs; den blockerande severity-domen ligger i
-# audit-jobbet (build.yml), observe-only Fas 1.
+# CVE-täckning är CI-/Dependabot-formad, INTE agent-formad (roster-gap-CTO
+# 2026-05-17 §1.4, ADR 0045 Beslut 4/5). Dependabot öppnar PRs; den blockerande
+# severity-domen ligger i audit-jobbet (build.yml), observe-only Fas 1.
 
 version: 2
 

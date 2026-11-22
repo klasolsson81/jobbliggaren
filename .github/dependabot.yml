@@ -124,9 +124,7 @@ updates:
         versions: ["18.9.0"]
       # The runtime-aligned families. Their next major either targets only the next TFM or
       # requires the next major's abstractions: #2308 (Microsoft.Extensions 11.0.0) failed with NU1109 (measured
-      # 2026-11-22). `eligible=false` stops a major from
-      # auto-merging, but it does not stop the PR from occupying a slot. That is why this is
-      # not the redundant control the docker-compose entry refuses for postgres.
+      # 2026-11-22).
       # `update-types` only, so no security update is suppressed.
       - dependency-name: "Microsoft.AspNetCore.*"
         update-types: ["version-update:semver-major"]
@@ -430,9 +428,7 @@ updates:
   #
   # NO postgres-major `ignore`, and the reason is written down so it is not re-proposed:
   # dependabot-automerge.yml already sets `eligible=false` on any major, so a postgres
-  # major CANNOT auto-merge today. Such an ignore would duplicate a live control, and
-  # it would carry no LIFT WHEN condition beyond "when
-  # we feel like upgrading" — a permanent suppression in a gate's clothing. (The
+  # major CANNOT auto-merge today. Such an ignore would duplicate a live control. (The
   # CodeCoverage pin above records what re-proposing a rejected rule costs: a CI run and
   # a review, twice.)
   #

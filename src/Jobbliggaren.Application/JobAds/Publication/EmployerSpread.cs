@@ -5,7 +5,7 @@ namespace Jobbliggaren.Application.JobAds.Publication;
 /// <see cref="PublicListFloor.Holds"/>. It is built inside the query that evaluates the floor and never leaves it, because
 /// its values are counts per employer.
 /// </summary>
-public sealed class EmployerSpread
+internal sealed class EmployerSpread
 {
     /// <summary>The list's ads.</summary>
     public int Ads { get; init; }

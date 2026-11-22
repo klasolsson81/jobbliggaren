@@ -252,6 +252,9 @@ public class OrganizationNumberSurfacingGuardTests
         // and is mapped away into the six-member PublicJobAdSummaryDto; it is never a response (the walker below).
         typeof(Jobbliggaren.Application.JobAds.Queries.GetRelatedPublicJobAds.GetRelatedPublicJobAdsQueryHandler)
             .GetNestedType("Candidate", BindingFlags.NonPublic)!,
+        // #2293 (ADR 0190): the floor's private pair row, built and compared inside one statement; only the outcome leaves.
+        typeof(Jobbliggaren.Application.JobAds.Publication.PublicListFloor)
+            .GetNestedType("EmployerPair", BindingFlags.NonPublic)!,
         // The employer-disambiguation port's row type — the handler masks it into
         // EmployerDisambiguationDto (which IS classified as masking).
         typeof(Jobbliggaren.Application.JobAds.Abstractions.EmployerAdGroup),

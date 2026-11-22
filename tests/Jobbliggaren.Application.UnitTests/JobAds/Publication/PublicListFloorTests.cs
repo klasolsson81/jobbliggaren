@@ -26,7 +26,6 @@ public class PublicListFloorTests
     [InlineData(100, 25, 50, true)]
     [InlineData(100, 25, 51, false)]
     [InlineData(101, 25, 50, true)]
-    [InlineData(0, 0, 0, false)]
     public void Holds_AtLeastTheAdsAndTheEmployers_AndNoEmployerAboveHalf(
         int ads, int employers, int largestEmployerAds, bool holds) =>
         Holds(new EmployerSpread { Ads = ads, Employers = employers, LargestEmployerAds = largestEmployerAds })

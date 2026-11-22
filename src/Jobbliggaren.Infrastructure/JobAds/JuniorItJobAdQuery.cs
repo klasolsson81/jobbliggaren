@@ -60,8 +60,7 @@ internal sealed class JuniorItJobAdQuery(AppDbContext db, IJuniorFieldCatalog ca
     {
         var groups = JuniorMembership.GroupsOf(await catalog.ResolveEnabledAsync(cancellationToken));
 
-        return await PublicListFloor.SpreadOf(ListedJuniors(db.JobAds.AsNoTracking(), now, groups))
-            .Where(PublicListFloor.Holds)
+        return await PublicListFloor.Outcome(ListedJuniors(db.JobAds.AsNoTracking(), now, groups))
             .AnyAsync(cancellationToken);
     }
 

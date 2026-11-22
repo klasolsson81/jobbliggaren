@@ -257,6 +257,20 @@ public class GetPublicJuniorItJobAdsQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_AFloorReadThatThrows_Throws_AndAnswersNoOutcome()
+    {
+        CountsAre((Stockholm, 3));
+        PageIs(RowsIn(Stockholm, StockholmsLan, 3));
+        _port.MeetsFloorAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<bool>>(_ => throw new DatabaseFailure());
+
+        await Should.ThrowAsync<DatabaseFailure>(async () => await HandleAsync());
+    }
+
+    // The adapter's database errors are DbExceptions (NpgsqlException is one).
+    private sealed class DatabaseFailure() : System.Data.Common.DbException("The database did not answer.");
+
+    [Fact]
     public async Task Handle_ShapesEachRow_AsItsSevenValues_InThePortsOrder_WithKommunAndLanNamed()
     {
         var named = Row("Junior utvecklare", Stockholm, StockholmsLan, 1, Now.AddDays(10));

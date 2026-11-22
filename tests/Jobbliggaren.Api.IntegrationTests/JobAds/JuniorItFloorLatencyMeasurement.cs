@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Text.Json;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.JobAds.Junior;
 using Jobbliggaren.Application.JobAds.Publication;
@@ -12,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using NSubstitute;
 using Shouldly;
 
@@ -25,15 +28,13 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// <para>
 /// <b>The pin:</b> every scan of <c>job_ads</c> in the floor's statement goes through
 /// <c>ix_job_ads_occupation_group_concept_id</c>, and none is a sequential scan. That is what bounds the statement's cost
-/// by the enabled field's listed ads rather than by the corpus (ADR 0064, the amendment for #2293, b2). The statement is
-/// composed by the production members, <see cref="PublicListFloor.SpreadOf"/> over the list's base, and its base is pinned
-/// equal to the port's in <c>JuniorItJobAdQueryReadTests</c>.
+/// by the enabled field's ads rather than by the corpus (ADR 0064, the amendment for #2293, b2).
 /// </para>
 /// <para>
 /// <b>The observation</b> is observe-only (ADR 0045): the handler's three statements on the default view and on the most
 /// expensive path a caller can choose, the floor's statement alone, the database time one address can spend at the list's
 /// bucket, the corpus's listed ads in the field, and the three plans, all written to the test output for ADR 0190's
-/// Measurements. The figures are a developer machine's, so they are a floor on what the box costs.
+/// Measurements. The figures are a developer machine's.
 /// </para>
 /// </remarks>
 [Collection("JobAdBrowsePlan")]
@@ -51,16 +52,20 @@ public class JuniorItFloorLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITe
         var ct = TestContext.Current.CancellationToken;
         await using var scope = _fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var (_, groups) = await SeedAsync(db, ct);
+        var (catalog, _) = await SeedAsync(db, ct);
 
-        var plan = await JuniorLatencyCorpus.ExplainAsync(db, FloorStatement(db, DateTimeOffset.UtcNow, groups), "the floor", ct);
+        CapturedCommand floor;
+        using (var capture = new CommandCapture(db))
+        {
+            await new JuniorItJobAdQuery(db, catalog).MeetsFloorAsync(DateTimeOffset.UtcNow, ct);
+            floor = capture.Commands.ShouldHaveSingleItem();
+        }
 
-        plan.ShouldContain(IndexName, Case.Insensitive,
-            $"The floor's statement no longer reaches {IndexName}: its cost is bounded by the corpus, not by the field."
-            + Environment.NewLine + plan);
-        plan.ShouldNotContain("Seq Scan on job_ads", Case.Insensitive,
-            "A scan of job_ads outside the occupation-group index: the floor's cost is no longer bounded by the field."
-            + Environment.NewLine + plan);
+        var scans = await JobAdsScansAsync(db, floor, ct);
+        scans.ShouldNotBeEmpty("The captured statement reads no job_ads: it is not the floor's.");
+        scans.Where(scan => scan != IndexName).ShouldBeEmpty(
+            $"A scan of job_ads in the floor's statement does not go through {IndexName}: its cost is no longer bounded by "
+            + "the field." + Environment.NewLine + string.Join(Environment.NewLine, scans));
     }
 
     [Fact]
@@ -107,16 +112,21 @@ public class JuniorItFloorLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITe
             + $"costliest path's p95, {defaultP95 * perMinute:F0} ms at the default view's, of which the floor is "
             + $"{floorP95 * perMinute:F0} ms.");
 
-        _output.WriteLine(await JuniorLatencyCorpus.ExplainAsync(db, FloorStatement(db, clock.UtcNow, groups), "the floor", ct));
-        _output.WriteLine(await JuniorLatencyCorpus.ExplainAsync(db, ListedJuniors(db, clock.UtcNow, groups)
-            .GroupBy(j => j.MunicipalityConceptId)
-            .Select(g => new { g.Key, Count = g.Count() }), "the count", ct));
-        _output.WriteLine(await JuniorLatencyCorpus.ExplainAsync(db, JobAdSearchComposition
-            .ApplySort(ListedJuniors(db, clock.UtcNow, groups), JobAdSortBy.ExpiresAtAsc,
-                new ResolvedSearchText(null, [], Application.JobAds.Abstractions.TaxonomyLabelMatchDto.Empty))
-            .Skip((costliest.Page - 1) * PublicJuniorItJobAdLimits.PageSize)
-            .Take(PublicJuniorItJobAdLimits.PageSize)
-            .Select(j => new { j.Id, j.Title }), $"the page, page {costliest.Page} in the deadline order", ct));
+        IReadOnlyList<CapturedCommand> sent;
+        using (var capture = new CommandCapture(db))
+        {
+            await handler.Handle(costliest, ct);
+            sent = capture.Commands;
+        }
+
+        sent.Count.ShouldBe(3, "the count, the page and the floor");
+        string[] labels = ["the count", $"the page, page {costliest.Page} in the deadline order", "the floor"];
+        foreach (var (label, statement) in labels.Zip(sent))
+        {
+            _output.WriteLine($"EXPLAIN (ANALYZE, BUFFERS), {label}, as sent:");
+            foreach (var line in await LatencyMeasurementTools.ExplainAsync(db, statement, ct))
+                _output.WriteLine(line);
+        }
     }
 
     private async Task<(JuniorFieldResolver Catalog, IReadOnlyCollection<string> Groups)> SeedAsync(
@@ -145,14 +155,49 @@ public class JuniorItFloorLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITe
         return (catalog, JuniorMembership.GroupsOf(fields));
     }
 
-    // The port's base, composed the way JuniorItJobAdQueryReadTests pins the port's own statements to.
-    private static IQueryable<JobAd> ListedJuniors(AppDbContext db, DateTimeOffset now, IReadOnlyCollection<string> groups) =>
-        db.JobAds.AsNoTracking()
-            .Where(JobAdPublication.IsListed(now))
-            .Where(JuniorMembership.Of(db.JuniorAssessments, groups));
+    // Every node of the plan that reads job_ads, named by the index it reads through, or by its node type when it reads none.
+    private static async Task<List<string>> JobAdsScansAsync(AppDbContext db, CapturedCommand statement, CancellationToken ct)
+    {
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            await using var explain = new NpgsqlCommand(
+                "EXPLAIN (FORMAT JSON) " + statement.Sql, (NpgsqlConnection)db.Database.GetDbConnection());
+            explain.Parameters.AddRange(statement.Parameters.Select(p => p.Clone()).ToArray());
+            using var plan = JsonDocument.Parse((string)(await explain.ExecuteScalarAsync(ct))!);
+            var scans = new List<string>();
+            Walk(plan.RootElement[0].GetProperty("Plan"), scans);
+            return scans;
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
+    }
 
-    // The statement the port sends inside EXISTS.
-    private static IQueryable<EmployerSpread> FloorStatement(
-        AppDbContext db, DateTimeOffset now, IReadOnlyCollection<string> groups) =>
-        PublicListFloor.SpreadOf(ListedJuniors(db, now, groups)).Where(PublicListFloor.Holds);
+    private static void Walk(JsonElement node, List<string> scans)
+    {
+        if (node.TryGetProperty("Relation Name", out var relation) && relation.GetString() == "job_ads")
+            scans.Add(AccessPath(node));
+        if (node.TryGetProperty("Plans", out var children))
+            foreach (var child in children.EnumerateArray())
+                Walk(child, scans);
+    }
+
+    private static string AccessPath(JsonElement node) => node.GetProperty("Node Type").GetString() switch
+    {
+        "Index Scan" or "Index Only Scan" => node.GetProperty("Index Name").GetString()!,
+        "Bitmap Heap Scan" => string.Join(" + ", BitmapIndexes(node).Distinct()),
+        var other => other!,
+    };
+
+    private static IEnumerable<string> BitmapIndexes(JsonElement node)
+    {
+        if (node.GetProperty("Node Type").GetString() == "Bitmap Index Scan")
+            yield return node.GetProperty("Index Name").GetString()!;
+        if (node.TryGetProperty("Plans", out var children))
+            foreach (var child in children.EnumerateArray())
+                foreach (var index in BitmapIndexes(child))
+                    yield return index;
+    }
 }

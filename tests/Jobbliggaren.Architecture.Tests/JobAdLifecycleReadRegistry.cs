@@ -265,7 +265,7 @@ public static class JobAdLifecycleReadRegistry
                     + "län ids, publication date, last publication day.")),
             ["Jobbliggaren.Infrastructure.JobAds.JuniorItJobAdQuery.MeetsFloorAsync"] =
                 One(Active(".Where(JobAdPublication.IsListed(now)).Where(JuniorMembership.Of(assessments, groups)), then "
-                    + "PublicListFloor.SpreadOf(...).Where(PublicListFloor.Holds).Any() — whether the whole open junior IT list meets "
+                    + "PublicListFloor.Outcome(...).Any() — whether the whole open junior IT list meets "
                     + "the floor for indexing (ADR 0166, the Amendment 2026-11-22), read per request over the list's own base. The "
                     + "organisation number and the company name stay inside the statement; only a boolean leaves the query.")),
             ["Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds.ClassifyJuniorJobAdsJob.RunAsync"] =

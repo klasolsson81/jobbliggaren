@@ -408,7 +408,7 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
 
         _commands.Commands[0].Text.ShouldContain("GROUP BY");
         _commands.Commands[1].Text.ShouldContain("LIMIT");
-        _commands.Commands[2].Text.ShouldContain("EXISTS");
+        _commands.Commands[2].Text.ShouldStartWith("SELECT EXISTS");
         _commands.Commands[2].Text.ShouldContain("organization_number");
         _commands.Results[2].ShouldBe((1, typeof(bool)), "only the floor's outcome leaves the database, never a count per employer");
     }
@@ -470,6 +470,29 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
     public async Task Floor_Holds_AtAHundredAdsFromTwentyFiveEmployers()
     {
         await SeedAsync(AtTheThresholds());
+
+        (await FloorAsync()).ShouldBeTrue();
+        (await FloorReadingAsync())[4].Value.ShouldBe("1");
+    }
+
+    [Fact]
+    public async Task Floor_Holds_WhenTheTwentyFifthEmployerFilesUnderOneNumberAndTwoNames()
+    {
+        List<Employer> seed = [.. TwentyFourWithFourAdsEach()];
+        seed.AddRange(Enumerable.Repeat(EmployerNo(25), 2));
+        seed.AddRange(Enumerable.Repeat(new Employer(NumberOf(25), "Tjugofem AB"), 2));
+        await SeedAsync(seed);
+
+        (await FloorAsync()).ShouldBeTrue();
+        (await FloorReadingAsync())[1].Value.ShouldBe("25");
+    }
+
+    [Fact]
+    public async Task Floor_Holds_WithTheAdsThatNameNoKommun()
+    {
+        var seed = AtTheThresholds();
+        await SeedAsync(seed.Take(96));
+        await SeedAsync(seed.Skip(96), kommun: null, lan: null);
 
         (await FloorAsync()).ShouldBeTrue();
     }
@@ -634,6 +657,7 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
         (await PageAsync(Goteborg)).FloorHolds.ShouldBeTrue();
         (await PageAsync(sortBy: JobAdSortBy.ExpiresAtAsc)).FloorHolds.ShouldBeTrue();
         (await PageAsync(page: 2)).FloorHolds.ShouldBeTrue();
+        (await FloorReadingAsync())[4].Value.ShouldBe("0");
     }
 
     /// <summary>One ad's employer: its organisation number, or none, and its company name.</summary>
@@ -685,15 +709,26 @@ public sealed class JuniorItJobAdQueryReadTests(SharedPostgresFixture postgres) 
     /// </summary>
     private async Task<bool> FloorAsync()
     {
-        var holds = (await PageAsync()).FloorHolds;
+        var page = await PageAsync();
+        var holds = page.FloorHolds;
 
         var reading = await FloorReadingAsync();
         reading.Select(r => r.Label).ShouldBe(FloorReadingLabels);
+        reading[0].Value.ShouldBe(page.Rows.TotalCount.ToString(System.Globalization.CultureInfo.InvariantCulture));
         reading[3].Value.ShouldBe(holds ? "true" : "false", "the merge-day reading computes the port's definition");
         var employers = reading[1].Value;
-        (employers == "E under 25" || int.Parse(employers, System.Globalization.CultureInfo.InvariantCulture) >= 25)
-            .ShouldBeTrue("E prints as a total from 25 up, and as \"E under 25\" below");
-        reading[2].Value.ShouldBeOneOf("E under 25", "true", "false");
+        if (employers == "E under 25")
+        {
+            reading[2].Value.ShouldBe("E under 25", "below 25 employers the reading prints neither E nor S");
+        }
+        else
+        {
+            int.Parse(employers, System.Globalization.CultureInfo.InvariantCulture).ShouldBeGreaterThanOrEqualTo(25);
+            reading[2].Value.ShouldBeOneOf("true", "false");
+            if (page.Rows.TotalCount >= 100)
+                reading[2].Value.ShouldBe(reading[3].Value);
+        }
+
         return holds;
     }
 

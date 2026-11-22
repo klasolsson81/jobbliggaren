@@ -6,7 +6,7 @@ import { publicJuniorUrl } from "@/lib/job-ads/junior-it-params";
  * The marketing part of the sitemap (#264, ADR 0174): the canonical public pages of the `(marketing)` landing and the
  * `(marketing-inner)` content pages. Deliberately not listed: the authenticated app, the `/gast` demo, and the auth
  * utility pages. A new public marketing page is added here when it ships; `seo-canonical.test.ts` derives the public
- * pages from the filesystem and holds this list, with the catalogue's first page, equal to them.
+ * pages from the filesystem and holds this list, with the catalogue's first page and `/junior`, equal to them.
  */
 export const MARKETING_PATHS = [
   "/",

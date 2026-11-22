@@ -15,7 +15,7 @@ interface PageProps {
  * answer for every request that reaches it. It reads no cookie and no session, and only `municipality`, `sortBy` and
  * `page`; a value that cannot be one of those is a 404 without asking the API.
  *
- * Only the whole list, newest first, page 1, is `index, follow`, with its canonical and its sitemap entry, and only
+ * Only the whole list, newest first, page 1, is `index, follow`, with its canonical, and only
  * while the API says the floor holds (ADR 0166, the Amendment 2026-11-22). Every other answer is `noindex, follow` with
  * no canonical. The title, description and link preview are fixed text: no row and no count. One read per render
  * (`getPublicJuniorItJobAds` is wrapped in `cache()` and shared with `generateMetadata`). A page the API does not have is

@@ -6,7 +6,7 @@
   "ci": {
     "collect": {
       "numberOfRuns": 3,
-      "//server": "scripts/lighthouse-server.mjs, not `pnpm start`: it is `next start` (no -H, see the script) with BACKEND_URL pointing at the stub backend the public-page smoke asserts on (scripts/public-job-stub.mjs). The two public pages below read the API on every request and need it; the other URLs never did. It prints the ready line only once both public pages have answered 200 from this stub. startServerReadyTimeout is its cap, not a wait: lhci proceeds on the first match.",
+      "//server": "scripts/lighthouse-server.mjs, not `pnpm start`: it is `next start` (no -H, see the script) with BACKEND_URL pointing at the stub backend the public-page smoke asserts on (scripts/public-job-stub.mjs). The three public pages below read the API on every request and need it; the other URLs never did. It prints the ready line only once each public page has answered 200 from this stub. startServerReadyTimeout is its cap, not a wait: lhci proceeds on the first match.",
       "startServerCommand": "node scripts/lighthouse-server.mjs",
       "startServerReadyPattern": "lighthouse-server ready",
       "startServerReadyTimeout": 60000,

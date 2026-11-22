@@ -49,6 +49,7 @@
   },
   "catalogue": {
     "lede": "Job ads from Platsbanken, most recently published first.",
+    "juniorLink": "New to IT? See <link>junior IT jobs</link>.",
     "count": "{count, plural, one {job vacancy} other {job vacancies}}",
     "titlePaged": "{label} – page {page, number}",
     "metaDescription": "Browse job vacancies from Platsbanken, most recently published first. Open an ad to read the full text.",
@@ -66,8 +67,9 @@
   },
   "junior": {
     "title": "Junior IT jobs",
-    "lede": "Open jobs in data and IT for people new to the field, from Platsbanken.",
-    "metaDescription": "Open junior IT jobs from Platsbanken: junior roles, trainee programmes and jobs that ask for no previous experience. Choose a place and sort the list.",
+    "metaTitle": "Junior IT jobs – open jobs for people new to IT",
+    "lede": "Junior roles, trainee programmes and IT jobs that need no experience.",
+    "metaDescription": "Open junior IT jobs right now, for example as a junior systems developer, developer or tester, trainee programmes and jobs that ask for no previous experience. The ads come from Platsbanken and the list is updated continuously.",
     "filters": {
       "heading": "Choose a place and an order",
       "place": "Place",

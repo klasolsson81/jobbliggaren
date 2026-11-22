@@ -1,5 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { juniorItHref, parseJuniorItParams } from "./junior-it-params";
+import { SITE_URL } from "@/lib/site-url";
+import {
+  JUNIOR_IT_ORDERS,
+  isIndexableJuniorItView,
+  juniorItHref,
+  parseJuniorItParams,
+  publicJuniorUrl,
+} from "./junior-it-params";
+
+describe("isIndexableJuniorItView", () => {
+  it("is true for the whole list, newest first, page 1, and for nothing else", () => {
+    for (const municipality of [null, "PVZL_BQT_XtL"]) {
+      for (const sortBy of JUNIOR_IT_ORDERS) {
+        for (const page of [1, 2, 7]) {
+          expect(isIndexableJuniorItView({ municipality, sortBy, page }), `${municipality} ${sortBy} ${page}`).toBe(
+            municipality === null && sortBy === "PublishedAtDesc" && page === 1
+          );
+        }
+      }
+    }
+  });
+
+  it("reads every spelling of the default view as that view", () => {
+    for (const params of [{}, { page: "1" }, { sortBy: "PublishedAtDesc", municipality: "" }, { utm_source: "x", vidare: "1" }]) {
+      const parsed = parseJuniorItParams(params);
+      expect(parsed.kind === "query" && isIndexableJuniorItView(parsed.query)).toBe(true);
+    }
+  });
+});
+
+describe("publicJuniorUrl", () => {
+  it("is the list's bare path on the site, with no query", () => {
+    expect(publicJuniorUrl()).toBe(`${SITE_URL}/junior`);
+  });
+});
 
 describe("parseJuniorItParams", () => {
   it("reads no parameter as every kommun, newest first, page 1", () => {

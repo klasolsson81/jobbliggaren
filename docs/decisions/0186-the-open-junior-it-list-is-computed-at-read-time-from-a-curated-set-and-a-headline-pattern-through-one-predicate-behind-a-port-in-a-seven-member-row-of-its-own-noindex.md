@@ -138,7 +138,7 @@ The pattern is a port of the reading's `HEAD_JUNIOR`. The change is that `\b` is
   or occupation group (security-auditor 1(c)). So there is no `unavailable` arm and no 503: the answer is a page or a page past the end.
 - **One `now` for both reads.** The handler takes `clock.UtcNow` once and passes it to `CountByMunicipalityAsync` and `ReadPageAsync`. The total is the count's sum, for the chosen kommun or for all
   of them. A page past the last page (`lastPage = max(1, ceil(total / 20))`) answers `NoSuchPage`, which the endpoint maps to **404**, as the catalogue does. A kommun with no listed junior ad
-  answers 200 with an empty page and the options. The registry (ADR 0113) holds two `Active` entries, `JuniorItJobAdQuery.CountByMunicipalityAsync` and `.ReadPageAsync`.
+  answers 200 with an empty page and the options. The registry (ADR 0113) holds two `Active` entries, `JuniorItJobAdQuery.CountByMunicipalityAsync` and `.ReadPageAsync`. (Three since the Amendment 2026-11-22, #2293: `.MeetsFloorAsync` is the third, and the handler passes it the same `now`.)
 - **The options.** `places` is every kommun that has a listed junior IT ad, counted over the **whole** list whatever kommun was chosen, so the visitor can move between them. A kommun without a name in the taxonomy cannot be offered by name, so it is left out of the options and still counts in the total. Ads without a kommun count in the unfiltered
   total and appear in no option. Counts and rows come from the same composed base, so they cannot disagree about membership. No option and no count is keyed by employer.
 - **The parameters.** `municipality` is a JobTech concept id (at most 32 characters); `sortBy` is `PublishedAtDesc` (the default) or `ExpiresAtAsc`; `page` is 1 to 100
@@ -179,7 +179,7 @@ policies' tests are to stay byte-unchanged (security-auditor S10).
   characters, `page=0` or an unknown order is a 404 decided in `parseJuniorItParams` without asking the API; every other query key is ignored. It reads no cookie and no session: a signed-in and an
   anonymous visitor get the same answer. (Superseded for `/junior` by the Amendment 2026-11-21, #2284.)
 - **`noindex, follow` on every 200,** `robots: { index: false, follow: true }`; in no sitemap; and `robots.ts` is unchanged, because a disallow would hide the `noindex` from a crawler. The title,
-  description and link preview are fixed text from `messages/{sv,en}/publicjob.json`, never a row or a count. There is no JSON-LD.
+  description and link preview are fixed text from `messages/{sv,en}/publicjob.json`, never a row or a count. There is no JSON-LD. (Superseded for the default view by the Amendment 2026-11-22, #2293: it is `index, follow` while the floor holds and is the pages part's 16th URL, and every other answer stays `noindex, follow`. The legal outcome is ADR 0166's Amendment 2026-11-22.)
 - **The form.** A plain GET `<form>`, so it works without JavaScript: `<select name="municipality">` ("Alla orter" and each kommun with its count), `<select name="sortBy">` (newest first, or the
   last day to apply, in `/jobb`'s own copy) and a "Visa" button. Changing either starts again from page 1. A count line, the rows and the pager sit in one `data-nosnippet` block, as the catalogue's
   do. The pager is the catalogue's model, with no prefetch.
@@ -215,7 +215,7 @@ This ADR decides none of them. Whichever Klas takes is its own ADR, and B or D g
 **Not measured, and not claimed:**
 - **The cost of the statements on the box's table.** Each request runs a regex over the listed ads of the Data/IT field's groups twice, once for the count and once for the page. The group index
   narrows the set and the bucket (60 per 60 s per address) bounds the rate, but no `EXPLAIN` or timing is taken for this ADR; ADR 0182's R2 is the form to follow if one is wanted. ADR 0045's hot-path
-  budget is observe-only.
+  budget is observe-only. (Measured since: ADR 0190, *Measurements*, 2026-11-22, with the read placed in ADR 0064's third class by its Amendment 2026-11-22; the box's own plan is still not measured. See the Amendment 2026-11-22 below.)
 - **The database's ctype on the box** (D4). The pattern is written so that it does not matter; what the ctype is has not been read.
 - **What Npgsql sends for the pattern,** beyond architect V1's reading of the translator at 10.0.3. The agreement test's Testcontainers run is the oracle, and it is re-run when the provider is
   upgraded.
@@ -262,7 +262,7 @@ Infrastructure; the curated ids and the pattern have one versioned home; the row
 - The curated file and the pattern have one home, a new reading is a new version, and a malformed file stops the host instead of silently listing nothing.
 
 ### Negative and accepted trade-offs
-- **A regex runs per request,** twice, over the listed ads of the field's groups. The cost is unmeasured (*What is not measured*), and the 60-per-60 bucket is the bound.
+- **A regex runs per request,** twice, over the listed ads of the field's groups. The cost is unmeasured (*What is not measured*), and the 60-per-60 bucket is the bound. (Amended 2026-11-22, #2293: the cost is measured in ADR 0190 and the read's class is ADR 0064's third; the bucket bounds one address's rate and not the cost. See the Amendment 2026-11-22 below.)
 - **The pattern is a heuristic.** It is precise (69 of 69) and finds about half (51 %). Until Klas chooses how new ads are labelled (D9), junior ads that the pattern misses are on the list only if
   they were in his reading of 2026-11-19, and that set ages as ads close.
 - **Two engines must agree.** The .NET compile check and PostgreSQL's `~*` read one pattern, and the agreement test is the only thing that says so. A provider upgrade or an edit to the file can
@@ -407,3 +407,27 @@ No later CTO session raises A2 again.
 **The hop that most visitors pay.** Until now a signed-out visitor who followed the post from another site got the list in one request. Now every cross-site document navigation to `/junior` without a cookie first gets the continuation document, then the strip's 307, then the list. That is most of the post's audience. The directive requires it: the cookie is the only signal that a visitor is signed in, and browsers withhold it on a navigation another site starts. A link that a desktop app hands to the browser arrives with `Sec-Fetch-Site: none` and pays nothing. This is information for Klas, not an escalation.
 
 **Residuals by pointer.** ADR 0018's Amendment 2026-11-21 holds R-a to R-f. Two of them bear on this page: **R-a,** a signed-in visitor who holds a stale cookie meets the redirect for at most 15 minutes after a revocation on the server, and **R-e,** a signed-in visitor sees the public list only in a private window, which is also where a recruiter complaint about the list is read.
+
+## Amendment 2026-11-22 (#2293, ADR 0190) — `/junior`'s default view is indexable while a floor holds, and the list's read gains a third member
+
+> **Provenance.** Written by `adr-keeper` for the driving session from its brief; it adds no decision of its own. Additive: nothing above this heading is rewritten except four pointers marked in place (D5's two `Active` entries, D8's "`noindex, follow` on every 200", and the sentences of *What is not measured* and *Consequences* about the cost). It points to ADR 0190, which holds Klas's answers and the rulings. The legal outcome is ADR 0166's Amendment 2026-11-22: this amendment points there and restates none of it (D8, one decision, one home).
+
+**1. D8: "`noindex, follow` on every 200" becomes "every answer except the default view while the floor holds".**
+- The default view (no kommun, newest first, page 1) is `index, follow` with its own canonical, built by `publicJuniorUrl()`, only while the floor holds; it is the 16th URL of the sitemap's pages part whether or not the floor holds (ADR 0174's amendment of the same date). Every other 200, the empty kommun included, and the 404 and the 5xx stay `noindex`, and a `noindex` answer names no canonical. The rule is ADR 0190 D4, and the single home of its legal outcome is ADR 0166's Amendment 2026-11-22.
+- D8's "in no sitemap" is amended in the same way, and "`robots.ts` is unchanged" holds. The title, description and link preview stay fixed text with no row and no count, and there is no JSON-LD; the title is new text (`publicjob.junior.metaTitle`) and the `h1` is unchanged (ADR 0190 D5).
+- D8's "A count line, the rows and the pager sit in one `data-nosnippet` block" now includes the form: the kommun options carry counts.
+- D8's parameters, "named and valued as on `/jobb`", are unchanged by this change; renaming the page parameter to `sida` is PR 2's (ADR 0190 D1).
+
+**2. D5: the registry holds three `Active` entries, the read passes one `now` to three members, and the envelope has three.**
+- `JobAdLifecycleReadRegistry` (ADR 0113) gains `JuniorItJobAdQuery.MeetsFloorAsync`, whose note says that the organisation number and the company name stay inside the statement and **only a boolean leaves the query**. The handler passes its one `now` to `CountByMunicipalityAsync`, `ReadPageAsync` and `MeetsFloorAsync`.
+- The three members compose one private base, `ListedJuniors` (`JobAdPublication.IsListed(now)` and `JuniorMembership.Of`), and each passes it its own read of `db.JobAds`. The count's and the page's statements are pinned equal to the chains they composed inline before it, so the shared base changes no SQL and ADR 0188's R1 and the count's bucket stay valid.
+- The envelope is `rows`, `places` and `floorHolds`: one boolean, whether the whole list meets the floor at `now`. It is the same for every kommun, order and page. Which view may be indexed is the web's rule.
+- ADR 0166's Amendment 2026-11-19 recorded the envelope as exactly two members; its Amendment 2026-11-22 records the third.
+
+**3. The cost is measured, and the bucket bounds one address.**
+- *What is not measured*, first bullet (the cost of the statements on the box's table): the cost is now measured on a 40 000-ad corpus, on a developer machine, in ADR 0190's *Measurements*, with the three statements and their plans. ADR 0064's Amendment 2026-11-22 places the read in a third class, with a bound and return conditions. The box's own plan is still not measured.
+- *Consequences*, "the 60-per-60 bucket is the bound": the bucket bounds one address's rate and not the cost. The cost is what ADR 0190 measures and the class's bound holds. D7's number and its basis are read in ADR 0190, *The junior bucket*.
+
+**4. What does not change.** The seven-member row, the validator's three parameters and their bounds, the policy `public-job-ad-junior-it` itself (its number is read in ADR 0190, *The junior bucket*), `no-store` on every answer, the reader and the signed-in hop (the Amendment 2026-11-21). The registry's other entries, `JuniorMembership` and the rules file are untouched.
+
+ADR 0186 remains **Accepted**.

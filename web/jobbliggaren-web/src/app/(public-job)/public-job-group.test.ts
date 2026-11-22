@@ -127,10 +127,12 @@ describe("(public-job) route group", () => {
     expect(segmentNotFound).not.toMatch(/getPublicJobAdCatalogue|fetch\(/);
   });
 
-  it("keeps the junior list out of every index: noindex on its page, plain anchors on its rows, no prefetch (ADR 0186)", () => {
+  it("indexes only the junior list's default view while its floor holds; plain anchors on its rows, no prefetch (ADR 0186, ADR 0166)", () => {
     const page = read(resolve(GROUP, "junior/page.tsx"));
+    expect(page).toMatch(/isIndexableJuniorItView\(params\.query\) && result\.page\.floorHolds \? publicJuniorUrl\(\) : null/);
+    expect(page).toMatch(/robots: \{ index: canonical !== null, follow: true \}/);
     expect(page).toMatch(/robots: \{ index: false, follow: true \}/);
-    expect(page).not.toMatch(/index: true|alternates|canonical/);
+    expect(page).not.toMatch(/index: true/);
     const rows = read(resolve(SRC, "components/job-ads/public-junior-it-job-ad-list.tsx"));
     expect(rows).not.toMatch(/from "next\/link"/);
     const list = read(resolve(SRC, "components/job-ads/public-junior-it-list.tsx"));

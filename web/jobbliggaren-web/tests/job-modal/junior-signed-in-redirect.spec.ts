@@ -142,7 +142,7 @@ test("a link previewer, which sends no Fetch Metadata, gets the page with its pr
 
   expect(res.status()).toBe(200);
   const html = await res.text();
-  expect(html).toContain('<meta property="og:title" content="Juniora IT-jobb"');
+  expect(html).toContain('<meta property="og:title" content="Juniora IT-jobb – lediga jobb för dig som är ny inom IT"');
   expect(html).toContain(ADS.open.title);
 });
 

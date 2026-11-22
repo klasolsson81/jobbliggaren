@@ -16,8 +16,9 @@
 - **No URL that carries ad data goes into a third-party tool**, such as PageSpeed Insights, an SEO crawler or a commissioned site audit. Those URLs are:
   - `/jobb/<uuid>`;
   - `/lediga-jobb` with every `?sida`, and any place page under it;
+  - `/junior` with every parameter (`municipality`, `sortBy`, `page`) and any value of them;
   - the job sitemap parts;
-  - `/sitemap-sidor.xml`, once it lists `/lediga-jobb`.
+  - `/sitemap-sidor.xml`, which lists `/lediga-jobb` and `/junior`.
 
   Sending one is trigger 5, and only Klas's re-take of ADR 0166 opens it.
 - **Query-level data from any search tool leaves that tool as aggregates by page type only.** That covers Search Console, Bing Webmaster Tools (search queries and AI grounding queries) and any SERP reading. Never copy a query string into a repository file, an issue or a transcript, because a query can name a person (CLAUDE.md §9.2 (c)). The fixed query list in §2 is ours, so recording positions for it is allowed.
@@ -29,6 +30,7 @@
 |---|---|---|---|---|
 | Page indexing for job URLs: indexed vs not indexed, with the reasons, especially "Crawled – currently not indexed" and "Duplicate, Google chose different canonical" | Klas (Search Console UI) | weekly for the first four weeks after Google first fetches a job part, then monthly | Indexing → Pages, filtered to the sitemap `sitemap-jobb-*.xml`; counts per reason | §4 |
 | Sitemaps report: discovered URLs per part, errors | Klas | as above | the `search-console-read` workflow's job summary (`search-console-read.md` §2) | §4 |
+| Page indexing for `/junior` (the default view, ADR 0190): indexed, or "Excluded by 'noindex' tag" | Klas (Search Console UI; Bing Webmaster Tools UI) | URL Inspection's live test after each deploy that changes the page's metadata or its floor; then weekly for the first four weeks, then monthly | URL Inspection on `https://jobbliggaren.se/junior`, in the UI only (never by script: trigger 5), beside an anonymous read of the page's robots value (`curl -s https://jobbliggaren.se/junior \| grep -o '<meta name="robots" content="[^"]*"'`). "Excluded by noindex" or the continuation document while the anonymous read says `index`, or the page alternating between indexed and excluded, is a STOPP to Klas (ADR 0190). At each reading also: the 5xx count for `/junior` in Crawl stats; the rejections per day on `public-job-ad-junior-it` (ADR 0190, *The junior bucket* (c)); and the box's totals for ADR 0190's table *The box against the corpus*, counts only, taken as the junior section of `public-job-page-publication-count.md` takes them (ADR 0064's amendment for #2293, r4) | §4 |
 | Performance by page type: clicks, impressions, CTR, average position for `/`, the marketing pages, `/jobb/` and (later) `/lediga-jobb` | Klas | monthly | the `search-console-read` workflow's job summary (`search-console-read.md` §2) | §4 |
 | Crawl stats | Klas | at the ADR 0174 D5 readings | Settings → Crawl stats | ADR 0174 D5 |
 | Generative-AI visibility in Google: impressions in AI Overviews and AI Mode by page type; and the "Search generative AI features" setting, which should read Include | Klas | monthly | Search Console's generative-AI performance report; Settings → Search generative AI | §4 |

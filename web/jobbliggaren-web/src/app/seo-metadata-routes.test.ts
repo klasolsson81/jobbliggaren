@@ -3,6 +3,7 @@ import { SITE_URL } from "@/lib/site-url";
 import robots from "./robots";
 import { marketingSitemapLocs } from "@/lib/seo/marketing-sitemap";
 import { publicCatalogueUrl } from "@/lib/job-ads/public-catalogue-url";
+import { publicJuniorUrl } from "@/lib/job-ads/junior-it-params";
 import { urlsetXml } from "@/lib/seo/sitemap-xml";
 import { PROTECTED_PREFIXES } from "@/lib/auth/protected-routes";
 
@@ -166,12 +167,18 @@ describe("the sitemap's marketing part", () => {
       `${SITE_URL}/matchning`,
       `${SITE_URL}/cv-granskning`,
       `${SITE_URL}/lediga-jobb`,
+      `${SITE_URL}/junior`,
     ]);
   });
 
   it("lists the catalogue's first page at exactly its canonical, and no other catalogue page (ADR 0176 F8)", () => {
-    expect(urls.at(-1)).toBe(publicCatalogueUrl(1));
+    expect(urls.at(-2)).toBe(publicCatalogueUrl(1));
     expect(urls.filter((u) => u.includes("sida="))).toEqual([]);
+  });
+
+  it("lists the junior list's indexable view at exactly its canonical, and no other view (ADR 0166, the Amendment 2026-11-22)", () => {
+    expect(urls.at(-1)).toBe(publicJuniorUrl());
+    expect(urls.filter((u) => u.includes("/junior?"))).toEqual([]);
   });
 
   it("never lists an authed app route or the /gast demo", () => {

@@ -172,10 +172,19 @@ function answerRelated(id, res, send) {
   }
 }
 
-/** The junior IT list's kommuner and rows: 23 listed ads over three kommuner, so two pages for all of them. */
+/**
+ * The junior IT list's kommuner and rows: 23 listed ads over three kommuner, so two pages for all of them. That is too few
+ * for the floor, so this list answers `floorHolds: false`.
+ */
 export const JUNIOR_PLACES = [
   { municipalityConceptId: "PVZL_BQT_XtL", name: "Göteborg", count: 9 },
   { municipalityConceptId: "AvNB_uwa_6n6", name: "Stockholm", count: 12 },
+  { municipalityConceptId: "oYPt_yRA_Smm", name: "Östersund", count: 2 },
+];
+/** The same kommuner at the floor's size: 103 listed ads, enough for a floor that holds (ADR 0166, the Amendment 2026-11-22). */
+export const JUNIOR_PLACES_AT_FLOOR = [
+  { municipalityConceptId: "PVZL_BQT_XtL", name: "Göteborg", count: 41 },
+  { municipalityConceptId: "AvNB_uwa_6n6", name: "Stockholm", count: 60 },
   { municipalityConceptId: "oYPt_yRA_Smm", name: "Östersund", count: 2 },
 ];
 export const juniorRow = (n, place = JUNIOR_PLACES[n % 3]) => ({
@@ -187,17 +196,22 @@ export const juniorRow = (n, place = JUNIOR_PLACES[n % 3]) => ({
   publishedAt: "2026-11-10T08:00:00+00:00",
   expiresAt: n % 4 === 0 ? null : "2026-12-10T22:59:59+00:00",
 });
-/** How the stub answers the junior IT list; a check sets it, and the checks reset it to "ok". */
+/**
+ * How the stub answers the junior IT list; a check sets it, and the checks reset it to "ok". "ok" is the small list, whose
+ * floor fails; "atFloor" is the list at the floor's size, whose floor holds.
+ */
 export const junior = { mode: "ok" };
 
 function answerJunior(url, send) {
   const page = Number(url.searchParams.get("page") ?? "1");
   const kommun = url.searchParams.get("municipality");
   switch (junior.mode) {
-    case "ok": {
+    case "ok":
+    case "atFloor": {
       if (!Number.isInteger(page) || page < 1) return send(400, "{}");
-      const place = kommun === null ? null : JUNIOR_PLACES.find((p) => p.municipalityConceptId === kommun);
-      const total = kommun === null ? JUNIOR_PLACES.reduce((sum, p) => sum + p.count, 0) : (place?.count ?? 0);
+      const places = junior.mode === "atFloor" ? JUNIOR_PLACES_AT_FLOOR : JUNIOR_PLACES;
+      const place = kommun === null ? null : places.find((p) => p.municipalityConceptId === kommun);
+      const total = kommun === null ? places.reduce((sum, p) => sum + p.count, 0) : (place?.count ?? 0);
       const pages = Math.max(1, Math.ceil(total / 20));
       if (page > pages) return send(404, "");
       const from = (page - 1) * 20 + 1;
@@ -208,12 +222,16 @@ function answerJunior(url, send) {
         200,
         JSON.stringify({
           rows: { items, totalCount: total, page, pageSize: 20, totalPages: Math.ceil(total / 20) },
-          places: JUNIOR_PLACES,
+          places,
+          floorHolds: junior.mode === "atFloor",
         })
       );
     }
     case "empty":
-      return send(200, JSON.stringify({ rows: { items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0 }, places: [] }));
+      return send(
+        200,
+        JSON.stringify({ rows: { items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0 }, places: [], floorHolds: false })
+      );
     case "budget":
       return send(429, "{}", { "retry-after": "9" });
     default:

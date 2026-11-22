@@ -134,7 +134,8 @@ export const EXPIRES_AT = "2026-11-01T22:59:59Z";
 
 /**
  * #2284 — `GET /api/v1/public/job-ads/junior`, the open junior list's page in the strict shape its reader parses
- * (`lib/dto/public-junior-it-job-ads.ts`): the seven row members, the paging envelope and the kommun options.
+ * (`lib/dto/public-junior-it-job-ads.ts`): the seven row members, the paging envelope, the kommun options and the floor's
+ * outcome, which two ads cannot clear.
  */
 export const JUNIOR_IT_PAGE = {
   rows: {
@@ -153,6 +154,7 @@ export const JUNIOR_IT_PAGE = {
     totalPages: 1,
   },
   places: [{ municipalityConceptId: MUNICIPALITY.conceptId, name: MUNICIPALITY.label, count: 2 }],
+  floorHolds: false,
 };
 
 /** `/matchningar`'s list: one background match, for the open ad. */

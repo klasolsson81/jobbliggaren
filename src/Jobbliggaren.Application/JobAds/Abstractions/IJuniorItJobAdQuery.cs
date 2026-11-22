@@ -3,13 +3,12 @@ using Jobbliggaren.Domain.JobAds;
 namespace Jobbliggaren.Application.JobAds.Abstractions;
 
 /// <summary>
-/// The listed junior IT ads behind <c>/junior</c> (ADR 0186). A port because the predicate is translated by the database
-/// provider (a regex over the title), which Application may not reference (AGENTS.md §2.1). It returns raw rows with
-/// concept ids; the handler names the places and shapes the public answer.
+/// The listed junior IT ads behind <c>/junior</c> (ADR 0186). It returns raw rows with concept ids; the handler names the
+/// places and shapes the public answer.
 /// </summary>
 /// <remarks>
-/// Both members read the ads listed at <c>now</c> (<c>JobAdPublication.IsListed</c>) that the junior IT predicate
-/// admits. The caller passes the same <c>now</c> to both, so the count and the page describe one moment.
+/// Every member reads the ads listed at <c>now</c> (<c>JobAdPublication.IsListed</c>) that <c>JuniorMembership</c>
+/// admits. The caller passes one <c>now</c> to all of them, so the count, the page and the floor describe one moment.
 /// </remarks>
 public interface IJuniorItJobAdQuery
 {
@@ -31,6 +30,12 @@ public interface IJuniorItJobAdQuery
         int skip,
         int take,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the whole list, over every kommun, meets <see cref="Publication.PublicListFloor"/> at
+    /// <paramref name="now"/>. Only the outcome leaves the database, never a count per employer.
+    /// </summary>
+    ValueTask<bool> MeetsFloorAsync(DateTimeOffset now, CancellationToken cancellationToken);
 }
 
 public sealed record JuniorItMunicipalityCount(string? MunicipalityConceptId, int Count);

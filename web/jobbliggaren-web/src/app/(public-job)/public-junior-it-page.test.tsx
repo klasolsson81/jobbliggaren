@@ -4,7 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 import { createFormatter, createTranslator } from "next-intl";
 import sv from "../../../messages/sv";
 import type { PublicJuniorItJobAdsResult } from "@/lib/api/public-junior-it-job-ads";
-import type { JuniorItOrder } from "@/lib/job-ads/junior-it-params";
+import { publicJuniorUrl, type JuniorItOrder } from "@/lib/job-ads/junior-it-params";
 
 vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace?: string) =>
@@ -54,11 +54,24 @@ const places = [
   { municipalityConceptId: STHLM, name: "Stockholm", count: 39 },
 ];
 
-const pageOf = (items: ReturnType<typeof row>[], totalCount: number, page = 1, placeList = places) => ({
+// A floor that holds needs a whole list of at least 100 ads, so the answers that carry it carry these places.
+const placesAtFloor = [
+  { municipalityConceptId: GBG, name: "Göteborg", count: 41 },
+  { municipalityConceptId: STHLM, name: "Stockholm", count: 60 },
+];
+
+const pageOf = (
+  items: ReturnType<typeof row>[],
+  totalCount: number,
+  page = 1,
+  placeList = places,
+  floorHolds = false
+) => ({
   kind: "ok" as const,
   page: {
     rows: { items, totalCount, page, pageSize: 20, totalPages: Math.ceil(totalCount / 20) },
     places: placeList,
+    floorHolds,
   },
 });
 
@@ -121,12 +134,13 @@ describe("the junior IT list page", () => {
     expect((screen.getByLabelText(sv.jobads.ui.toolbar.sortLabel) as HTMLSelectElement).value).toBe("ExpiresAtAsc");
   });
 
-  it("keeps the count line, the list and the pager in one data-nosnippet block", async () => {
+  it("keeps the form, the count line, the list and the pager in one data-nosnippet block", async () => {
     getPublicJuniorItJobAds.mockResolvedValue(pageOf([row(1)], 59, 2));
     const { container } = render(await PublicJuniorItPage(props({ page: "2" })));
 
     const blocks = container.querySelectorAll("[data-nosnippet]");
     expect(blocks).toHaveLength(1);
+    expect(blocks[0]!.querySelector("form")).not.toBeNull();
     expect(blocks[0]!.querySelector(".jp-results-count")).not.toBeNull();
     expect(blocks[0]!.querySelector("ol")).not.toBeNull();
     expect(within(blocks[0] as HTMLElement).getByRole("navigation")).toBeInTheDocument();
@@ -233,13 +247,45 @@ describe("the junior IT list page", () => {
 });
 
 describe("the junior IT list's metadata", () => {
-  it("is noindex, follow on every answer, with no canonical", async () => {
+  it("is noindex, follow on every answer while the floor fails, with no canonical", async () => {
     getPublicJuniorItJobAds.mockResolvedValue(pageOf([row(1)], 59));
     const views: Record<string, string>[] = [{}, { municipality: GBG }, { sortBy: "ExpiresAtAsc", page: "2" }];
     for (const params of views) {
       const metadata = await generateMetadata(props(params));
       expect(metadata.robots).toEqual({ index: false, follow: true });
       expect(metadata.alternates).toBeUndefined();
+      expect(metadata.openGraph).not.toHaveProperty("url");
+    }
+  });
+
+  it("is index, follow with its own canonical and preview address on the whole list's first page while the floor holds", async () => {
+    getPublicJuniorItJobAds.mockResolvedValue(pageOf([row(1)], 101, 1, placesAtFloor, true));
+    const spellings: Record<string, string>[] = [
+      {},
+      { page: "1" },
+      { sortBy: "PublishedAtDesc", municipality: "" },
+      { utm_source: "linkedin", vidare: "1" },
+    ];
+    for (const params of spellings) {
+      const metadata = await generateMetadata(props(params));
+      expect(metadata.robots).toEqual({ index: true, follow: true });
+      expect(metadata.alternates).toEqual({ canonical: publicJuniorUrl() });
+      expect(metadata.openGraph).toHaveProperty("url", publicJuniorUrl());
+    }
+  });
+
+  it("keeps a kommun, the deadline order and a later page noindex, follow with no canonical while the floor holds", async () => {
+    const views: [Record<string, string>, number][] = [
+      [{ municipality: GBG }, 41],
+      [{ sortBy: "ExpiresAtAsc" }, 101],
+      [{ page: "2" }, 101],
+    ];
+    for (const [params, total] of views) {
+      getPublicJuniorItJobAds.mockResolvedValue(pageOf([row(1)], total, Number(params.page ?? "1"), placesAtFloor, true));
+      const metadata = await generateMetadata(props(params));
+      expect(metadata.robots).toEqual({ index: false, follow: true });
+      expect(metadata.alternates).toBeUndefined();
+      expect(metadata.openGraph).not.toHaveProperty("url");
     }
   });
 
@@ -250,6 +296,18 @@ describe("the junior IT list's metadata", () => {
     expect(metadata).not.toContain(SENTINEL_TITLE);
     expect(metadata).not.toContain("Göteborg");
     expect(metadata.replace(/"url":"[^"]*"|"width":\d+|"height":\d+/g, "")).not.toMatch(/\d/);
+  });
+
+  it("titles the page and its preview with the search title, not the heading", async () => {
+    getPublicJuniorItJobAds.mockResolvedValue(pageOf([row(1)], 101, 1, placesAtFloor, true));
+    const metadata = await generateMetadata(props({}));
+    expect(metadata.title).toBe(sv.publicjob.junior.metaTitle);
+    expect(metadata.description).toBe(sv.publicjob.junior.metaDescription);
+    expect(metadata.openGraph).toMatchObject({
+      title: sv.publicjob.junior.metaTitle,
+      description: sv.publicjob.junior.metaDescription,
+    });
+    expect(sv.publicjob.junior.metaTitle).not.toBe(sv.publicjob.junior.title);
   });
 
   it("titles a refused parameter and a missing page as not found", async () => {

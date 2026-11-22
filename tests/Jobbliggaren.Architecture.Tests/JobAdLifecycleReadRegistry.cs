@@ -263,6 +263,11 @@ public static class JobAdLifecycleReadRegistry
                     + "[.Where(kommun == chosen)].ApplySort(PublishedAtDesc | ExpiresAtAsc).Skip().Take() — one page of the open "
                     + "junior IT list (ADR 0186, ADR 0187), read per request. A narrow row: id, title, company name, kommun and "
                     + "län ids, publication date, last publication day.")),
+            ["Jobbliggaren.Infrastructure.JobAds.JuniorItJobAdQuery.MeetsFloorAsync"] =
+                One(Active(".Where(JobAdPublication.IsListed(now)).Where(JuniorMembership.Of(assessments, groups)), then "
+                    + "PublicListFloor.Outcome(...).Any() — whether the whole open junior IT list meets "
+                    + "the floor for indexing (ADR 0166, the Amendment 2026-11-22), read per request over the list's own base. The "
+                    + "organisation number and the company name stay inside the statement; only a boolean leaves the query.")),
             ["Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds.ClassifyJuniorJobAdsJob.RunAsync"] =
                 One(Active(".Where(JobAdPublication.IsListed(now)).Where(group in enabled fields).Where(no current assessment)"
                     + ".Select(narrow projection) — the junior classification sweep's selection (ADR 0187): only listed ads are "

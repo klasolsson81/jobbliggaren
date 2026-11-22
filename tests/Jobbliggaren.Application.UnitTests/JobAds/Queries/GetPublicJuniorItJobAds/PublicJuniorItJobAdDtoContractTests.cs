@@ -36,14 +36,16 @@ public class PublicJuniorItJobAdDtoContractTests
         PropertiesOf(typeof(PublicJuniorItPlaceDto)).ShouldBe([.. PlaceProperties.Order(StringComparer.Ordinal)]);
 
     [Fact]
-    public void Available_IsThePageAndTheKommunOptions_AndNothingElse()
+    public void Available_IsThePageTheKommunOptionsAndTheFloorsOutcome_AndNothingElse()
     {
-        PropertiesOf(typeof(PublicJuniorItJobAdsPage.Available)).ShouldBe(["Places", "Rows"]);
+        PropertiesOf(typeof(PublicJuniorItJobAdsPage.Available)).ShouldBe(["FloorHolds", "Places", "Rows"]);
 
         typeof(PublicJuniorItJobAdsPage.Available).GetProperty(nameof(PublicJuniorItJobAdsPage.Available.Rows))!
             .PropertyType.ShouldBe(typeof(PagedResult<PublicJuniorItJobAdDto>));
         typeof(PublicJuniorItJobAdsPage.Available).GetProperty(nameof(PublicJuniorItJobAdsPage.Available.Places))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<PublicJuniorItPlaceDto>));
+        typeof(PublicJuniorItJobAdsPage.Available).GetProperty(nameof(PublicJuniorItJobAdsPage.Available.FloorHolds))!
+            .PropertyType.ShouldBe(typeof(bool), "only the floor's outcome reaches the wire, never a count per employer");
     }
 
     [Fact]

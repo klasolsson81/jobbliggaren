@@ -14,9 +14,10 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetPublicJuniorItJob
 #pragma warning disable CA2012
 
 /// <summary>
-/// One page of the open junior IT list (ADR 0186): the total, the range, the names and the kommun options, over the
-/// port. The port is a substitute that keeps the real adapter's contract: one count row per kommun id, each at least one,
-/// the ads without a kommun as one null row, and a page of at most <c>take</c> rows of the chosen kommun. The taxonomy
+/// One page of the open junior IT list (ADR 0186): the total, the range, the names, the kommun options and the floor's
+/// outcome, over the port. The port is a substitute that keeps the real adapter's contract: one count row per kommun id,
+/// each at least one, the ads without a kommun as one null row, a page of at most <c>take</c> rows of the chosen kommun,
+/// and a floor that holds only over a whole list of at least the floor's number of ads. The taxonomy
 /// port keeps the real adapter's: one row per asked id, a null label for an id the snapshot does not know. Membership,
 /// order and SQL are measured on Postgres in <c>JuniorItJobAdQueryReadTests</c>.
 /// </summary>
@@ -65,6 +66,12 @@ public class GetPublicJuniorItJobAdsQueryHandlerTests
         _port.CountByMunicipalityAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(_ => new ValueTask<IReadOnlyList<JuniorItMunicipalityCount>>(
                 counts.Select(c => new JuniorItMunicipalityCount(c.Kommun, c.Count)).ToList()));
+
+    // The real adapter can only answer true over a whole list of at least the floor's number of ads, so every test that
+    // stubs true also stubs counts that sum to at least that.
+    private void FloorIs(bool holds) =>
+        _port.MeetsFloorAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<bool>(holds));
 
     private void PageIs(IReadOnlyList<JuniorItJobAdRow> rows) =>
         _port.ReadPageAsync(
@@ -193,7 +200,7 @@ public class GetPublicJuniorItJobAdsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ReadsTheClockOnce_SoTheCountAndThePageDescribeOneInstant()
+    public async Task Handle_ReadsTheClockOnce_SoTheCountThePageAndTheFloorDescribeOneInstant()
     {
         var clock = Substitute.For<IDateTimeProvider>();
         clock.UtcNow.Returns(Now, Now.AddMinutes(1));
@@ -207,7 +214,61 @@ public class GetPublicJuniorItJobAdsQueryHandlerTests
         await _port.Received(1).CountByMunicipalityAsync(Now, Arg.Any<CancellationToken>());
         await _port.Received(1).ReadPageAsync(
             Now, null, JobAdSortBy.PublishedAtDesc, 0, PageSize, Arg.Any<CancellationToken>());
+        await _port.Received(1).MeetsFloorAsync(Now, Arg.Any<CancellationToken>());
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_AnswersTheFloorsOutcome_AsThePortGivesIt(bool holds)
+    {
+        CountsAre((Stockholm, 60), (Goteborg, 50));
+        PageIs(RowsIn(Stockholm, StockholmsLan, PageSize));
+        FloorIs(holds);
+
+        var page = (await HandleAsync()).ShouldBeOfType<PublicJuniorItJobAdsPage.Available>();
+
+        page.FloorHolds.ShouldBe(holds);
+    }
+
+    [Fact]
+    public async Task Handle_TheFloor_IsTheWholeListsOutcome_ForAKommunTheDeadlineOrderAndALaterPage()
+    {
+        CountsAre((Stockholm, 60), (Goteborg, 50));
+        PageIs(RowsIn(Goteborg, VastraGotalandsLan, PageSize));
+        FloorIs(true);
+
+        var page = (await HandleAsync(Goteborg, JobAdSortBy.ExpiresAtAsc, 2))
+            .ShouldBeOfType<PublicJuniorItJobAdsPage.Available>();
+
+        page.Rows.TotalCount.ShouldBe(50);
+        page.FloorHolds.ShouldBeTrue();
+        await _port.Received(1).MeetsFloorAsync(Now, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_APagePastTheEnd_NeverReadsTheFloor()
+    {
+        CountsAre((Stockholm, 3));
+
+        (await HandleAsync(page: 2)).ShouldBeOfType<PublicJuniorItJobAdsPage.NoSuchPage>();
+
+        await _port.DidNotReceive().MeetsFloorAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_AFloorReadThatThrows_Throws_AndAnswersNoOutcome()
+    {
+        CountsAre((Stockholm, 3));
+        PageIs(RowsIn(Stockholm, StockholmsLan, 3));
+        _port.MeetsFloorAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<bool>>(_ => throw new DatabaseFailure());
+
+        await Should.ThrowAsync<DatabaseFailure>(async () => await HandleAsync());
+    }
+
+    // The adapter's database errors are DbExceptions (NpgsqlException is one).
+    private sealed class DatabaseFailure() : System.Data.Common.DbException("The database did not answer.");
 
     [Fact]
     public async Task Handle_ShapesEachRow_AsItsSevenValues_InThePortsOrder_WithKommunAndLanNamed()

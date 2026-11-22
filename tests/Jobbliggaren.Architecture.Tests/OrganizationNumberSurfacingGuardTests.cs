@@ -64,6 +64,10 @@ public class OrganizationNumberSurfacingGuardTests
         // #2203 S6b (ADR 0182) — the related ads under a public job page key the employer on the anchor's and each
         // candidate's raw org.nr. It stays in the handler's private row, never in the six-member DTO, and is never logged.
         "src/Jobbliggaren.Application/JobAds/Queries/GetRelatedPublicJobAds/GetRelatedPublicJobAdsQueryHandler.cs",
+        // #2293 (ADR 0166, the Amendment 2026-11-22) — the junior list's floor keys each employer on its raw org.nr, and
+        // PublicListFloor.SpreadOf builds that key inside the query. Only a boolean leaves it, and nothing logs it.
+        "src/Jobbliggaren.Infrastructure/JobAds/JuniorItJobAdQuery.cs",
+        "src/Jobbliggaren.Application/JobAds/Publication/PublicListFloor.cs",
         "src/Jobbliggaren.Application/CompanyWatches/Jobs/CompanyWatchScan/CompanyWatchScanJob.cs",
         "src/Jobbliggaren.Application/CompanyWatches/Queries/ListCompanyWatches/ListCompanyWatchesQueryHandler.cs",
         // #311 PR-5 (ADR 0087 D4 / #544 gap-closure) — the per-ad follow-state overlay reads each page
@@ -248,6 +252,9 @@ public class OrganizationNumberSurfacingGuardTests
         // and is mapped away into the six-member PublicJobAdSummaryDto; it is never a response (the walker below).
         typeof(Jobbliggaren.Application.JobAds.Queries.GetRelatedPublicJobAds.GetRelatedPublicJobAdsQueryHandler)
             .GetNestedType("Candidate", BindingFlags.NonPublic)!,
+        // #2293 (ADR 0190): the floor's private pair row, built and compared inside one statement; only the outcome leaves.
+        typeof(Jobbliggaren.Application.JobAds.Publication.PublicListFloor)
+            .GetNestedType("EmployerPair", BindingFlags.NonPublic)!,
         // The employer-disambiguation port's row type — the handler masks it into
         // EmployerDisambiguationDto (which IS classified as masking).
         typeof(Jobbliggaren.Application.JobAds.Abstractions.EmployerAdGroup),

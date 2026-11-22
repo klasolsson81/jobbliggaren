@@ -1,3 +1,5 @@
+import { absoluteUrl } from "@/lib/site-url";
+
 /**
  * The open junior IT list's address, `/junior` (ADR 0186), and how its three parameters are read. They carry the same
  * names and values as `/jobb`'s (`municipality`, `sortBy`, `page`), so the list can hand a visitor on to `/jobb` with
@@ -71,4 +73,18 @@ export function juniorItHref(query: JuniorItQuery): `/${string}` {
   if (query.page > 1) search.set("page", String(query.page));
   const qs = search.toString();
   return qs === "" ? JUNIOR_IT_PATH : `${JUNIOR_IT_PATH}?${qs}`;
+}
+
+/**
+ * Whether search engines may index this view of the list (ADR 0166, the Amendment 2026-11-22; Klas, "Ja, bara
+ * förstasidan"): only the whole list, newest first, page 1. Every kommun, the deadline order and every later page stay
+ * `noindex`. The floor is the other half of the rule, and only the API can tell whether it holds.
+ */
+export function isIndexableJuniorItView(query: JuniorItQuery): boolean {
+  return query.municipality === null && query.sortBy === DEFAULT_JUNIOR_IT_ORDER && query.page === 1;
+}
+
+/** The indexable view's absolute address: its canonical, and its `loc` in the sitemap. */
+export function publicJuniorUrl(): string {
+  return absoluteUrl(JUNIOR_IT_PATH);
 }

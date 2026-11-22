@@ -379,8 +379,9 @@ public static partial class RateLimitingExtensions
             AddIpTokenBucketPolicy(options, PublicJobAdRelatedPolicy, rateLimitOpts.PublicJobAdRelated);
 
             // Partition: IP. The open junior IT list (ADR 0186), its own budget, so a visitor paging through it cannot
-            // drain the job pages' budget, or the reverse. Each call is a grouped count and one page over the listed
-            // ads of one occupation field's groups; the limit protects availability, not confidentiality.
+            // drain the job pages' budget, or the reverse. Each call is a grouped count, one page and the floor for
+            // indexing over the listed ads of one occupation field's groups; the limit protects availability, not
+            // confidentiality.
             AddIpTokenBucketPolicy(options, PublicJobAdJuniorItPolicy, rateLimitOpts.PublicJobAdJuniorIt);
 
             // Partition: UserId (claim "sub"). Auth-gated GET-ytor under /me/* +

@@ -84,6 +84,23 @@ updates:
     labels:
       - "dependencies"
       - "frontend"
+    # Versions the web-minor-patch group cannot carry. Each entry names what lifts it.
+    # `ignore` also applies to security updates (the option's security-updates marker in
+    # the Dependabot options reference, read 2026-11-22).
+    ignore:
+      # next 16.4.6 compresses Route Handler responses and drops a Content-Length the
+      # handler set; the CV file proxies are Route Handlers. LIFT WHEN vercel/next.js#101854
+      # is fixed in a release. Only the exact version is ignored, so 16.4.7 and later are
+      # still proposed.
+      - dependency-name: "next"
+        versions: ["16.4.6"]
+      - dependency-name: "eslint-config-next"
+        versions: ["16.4.6"]
+      # 0.16 moves @lhci/utils to js-yaml 5 and @lhci/cli to uuid 14, so the
+      # `@lhci/utils@0.15.1` patch and the override keyed to that version stop matching. LIFT WHEN
+      # #2045's PR retires them; that PR deletes this entry in the same diff.
+      - dependency-name: "@lhci/cli"
+        versions: [">=0.16.0"]
     groups:
       web-minor-patch:
         update-types: ["minor", "patch"]

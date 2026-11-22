@@ -44,7 +44,7 @@ vi.mock("@/lib/api/public-job-ad-catalogue", () => ({
 }));
 
 type PageModule = {
-  generateMetadata?: (props?: { searchParams: Promise<Record<string, string>> }) => Promise<Metadata>;
+  generateMetadata?: (props: { searchParams: Promise<Record<string, string>> }) => Promise<Metadata>;
 };
 
 const pages = import.meta.glob("./**/page.tsx");
@@ -75,7 +75,7 @@ beforeAll(async () => {
     if (load === undefined) throw new Error(`no page module at ${key}`);
     const { generateMetadata } = (await load()) as PageModule;
     if (generateMetadata === undefined) throw new Error(`${key} exports no generateMetadata`);
-    metadataByKey.set(key, await generateMetadata());
+    metadataByKey.set(key, await generateMetadata({ searchParams: Promise.resolve({}) }));
     if (key === JUNIOR_PAGE) juniorMetadata = generateMetadata;
   }
 }, 120_000);

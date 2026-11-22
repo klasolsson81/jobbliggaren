@@ -21,8 +21,8 @@ interface PageProps {
  * (`getPublicJuniorItJobAds` is wrapped in `cache()` and shared with `generateMetadata`). A page the API does not have is
  * a real 404; every other outcome throws and is a 5xx, so an outage never reads as a page that does not exist.
  */
-export async function generateMetadata(props?: PageProps): Promise<Metadata> {
-  const params = parseJuniorItParams((await props?.searchParams) ?? {});
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  const params = parseJuniorItParams(await searchParams);
   if (params.kind !== "query") return notFoundMetadata();
 
   const { municipality, sortBy, page } = params.query;

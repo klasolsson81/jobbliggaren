@@ -546,7 +546,7 @@ public class ListRecentSearchesQueryHandlerTests
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
     // En rad genom produktionsvägen: SearchCriteria.Create -> RecentJobSearch.Capture ->
-    // handlern. Samma entrypoints capture-behaviorn kör, så ingen assertion nedan vilar på
+    // handlern. Samma entrypoints capturern kör, så ingen assertion nedan vilar på
     // en premiss produktionen inte kan producera.
     private async Task<string> LabelOfAsync(SearchCriteria criteria)
     {

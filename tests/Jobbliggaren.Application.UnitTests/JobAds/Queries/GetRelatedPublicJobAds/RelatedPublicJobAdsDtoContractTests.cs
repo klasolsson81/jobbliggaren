@@ -2,7 +2,6 @@ using System.Reflection;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
 using Jobbliggaren.Application.JobAds.Queries.GetRelatedPublicJobAds;
-using Jobbliggaren.Application.RecentJobSearches.Common;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetRelatedPublicJobAds;
@@ -38,9 +37,8 @@ public class RelatedPublicJobAdsDtoContractTests
     }
 
     [Fact]
-    public void GetRelatedPublicJobAdsQuery_IsAnsweredForAnyone_AndNeverRecordsASearch()
+    public void GetRelatedPublicJobAdsQuery_IsAnsweredForAnyone()
     {
         typeof(GetRelatedPublicJobAdsQuery).IsAssignableTo(typeof(IAuthenticatedRequest)).ShouldBeFalse();
-        typeof(GetRelatedPublicJobAdsQuery).IsAssignableTo(typeof(ICapturesRecentSearch)).ShouldBeFalse();
     }
 }

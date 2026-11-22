@@ -1,4 +1,4 @@
-using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
+using Jobbliggaren.Application.RecentJobSearches.Commands.CaptureRecentSearch;
 using Jobbliggaren.Domain.Privacy;
 using Shouldly;
 
@@ -28,10 +28,10 @@ public sealed class TaxonomyAxisProfileIsInertTests
     // relax the production grammar and every row here stays green, because the local copy still
     // rejects the same things. TaxonomyConceptIdGrammarTests already solved this one directory
     // over, by validating instead of copying (ConceptIdPattern is a private const, so validating
-    // IS the route).
+    // IS the route). Since #2285 it is the validator in front of the sink: the capture command's.
     private static bool GrammarAdmits(string conceptId) =>
-        new ListJobAdsQueryValidator()
-            .Validate(new ListJobAdsQuery(OccupationGroup: [conceptId], OccupationName: [conceptId]))
+        new CaptureRecentSearchCommandValidator()
+            .Validate(new CaptureRecentSearchCommand(OccupationGroup: [conceptId], OccupationName: [conceptId]))
             .IsValid;
 
     [Theory]

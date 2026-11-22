@@ -8,7 +8,7 @@ namespace Jobbliggaren.Application.RecentJobSearches.Common;
 
 /// <summary>
 /// #2199 PR 2b — the one predicate deciding whether a search may be stored in recent searches, and what is
-/// stored. <c>RecentJobSearchCaptureBehavior</c> stores exactly what <see cref="Admit"/> returns, and
+/// stored. <c>CaptureRecentSearchCommandHandler</c> stores exactly what <see cref="Admit"/> returns, and
 /// <c>ListJobAdsQueryHandler</c> answers its verdict on every list response, so the /jobb hero offers
 /// "Spara sökningen" only for a search this gate admits. Before it, the hero's confirmation was false on
 /// every skip below (senior-cto-advisor, #2199 ruling 6).
@@ -16,13 +16,12 @@ namespace Jobbliggaren.Application.RecentJobSearches.Common;
 /// <remarks>
 /// It is total: the parser, the personnummer scanner and <see cref="SearchCriteria.Create"/> return values
 /// and never throw, which matters because the list handler calls it outside the capture's catch. It knows
-/// nothing of the commit flag or the user: those are the behaviour's, since they say whether this request
-/// stores, not whether this search may be stored.
+/// nothing of the user: that is the command handler's.
 /// </remarks>
 public sealed class RecentSearchCaptureGate(ISearchQueryParser parser, IReligiousOccupations religiousOccupations)
 {
     /// <summary>The criteria to store for <paramref name="search"/>, or <see langword="null"/> when it may not be stored.</summary>
-    public SearchCriteria? Admit(ICapturesRecentSearch search)
+    public SearchCriteria? Admit(IRecentSearchCandidate search)
     {
         ArgumentNullException.ThrowIfNull(search);
 
@@ -212,8 +211,8 @@ public sealed class RecentSearchCaptureGate(ISearchQueryParser parser, IReligiou
         // träffa i test: grinden unit-testas mot en fake query som ingen validator ser, så
         // ett `OccupationGroup: ["!"]` skulle nå den direkt. Skälet är att ett sådant test
         // inte skulle representera något NÅBART produktions-tillstånd — samtliga sju
-        // failure-paths i Create är onåbara från en query som passerar
-        // ListJobAdsQueryValidator (uppräknade och verifierade i #831:s rond-3-granskning).
+        // failure-paths i Create är onåbara från en sökning som passerar
+        // RecentSearchCandidateValidator (uppräknade och verifierade i #831:s rond-3-granskning).
         // Ett test här hade pinnat en fiktion, vilket CLAUDE.md §7 förbjuder.
         if (criteriaResult.IsFailure)
             return null;

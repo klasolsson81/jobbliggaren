@@ -42,8 +42,8 @@ public sealed class ListJobAdsQueryHandler(
     : IQueryHandler<ListJobAdsQuery, JobAdListPage>
 {
     // #2199 PR 2b — the page and, beside it, whether the capture gate admits this search into recent
-    // searches. Answered on every request, commit or not: the /jobb hero reads it from the live preview
-    // before the user asks to save, and the capture behaviour reads the same gate, so the two agree.
+    // searches. Answered on every request: the /jobb hero reads it from the live preview before the user
+    // asks to save, and the capture command reads the same gate, so the two agree.
     public async ValueTask<JobAdListPage> Handle(
         ListJobAdsQuery query, CancellationToken cancellationToken) =>
         new(await PageAsync(query, cancellationToken), captureGate.Admit(query) is not null);

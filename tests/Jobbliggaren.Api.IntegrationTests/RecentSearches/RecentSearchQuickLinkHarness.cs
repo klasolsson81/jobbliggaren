@@ -26,8 +26,8 @@ namespace Jobbliggaren.Api.IntegrationTests.RecentSearches;
 /// <summary>
 /// ADR 0188 (#2265) — one database of its own on the shared Postgres and every actor that writes what a quick link
 /// rests on, each the production one: <see cref="JobSeeker.Register"/> for the seeker, the real
-/// <see cref="RecentJobSearchCapturer"/> for the searches (what <c>RecentJobSearchCaptureBehavior</c> calls for a
-/// committed /jobb search), the real <see cref="MarkRecentSearchQuickLinkCommandHandler"/> for a mark and the real
+/// <see cref="RecentJobSearchCapturer"/> for the searches (what <c>CaptureRecentSearchCommandHandler</c> calls for a
+/// search the user stores), the real <see cref="MarkRecentSearchQuickLinkCommandHandler"/> for a mark and the real
 /// <see cref="SetJuniorQuickLinkCommandHandler"/> for the junior link, each handler followed by the save
 /// <c>UnitOfWorkBehavior</c> makes after it. <see cref="Seams"/> picks the moment another request commits.
 /// </summary>
@@ -83,14 +83,14 @@ internal sealed class RecentSearchQuickLinkHarness
     }
 
     /// <summary>A committed /jobb search for <paramref name="q"/>, at the clock's now, through the real capturer.</summary>
-    public async Task CaptureAsync(string q, int currentCount = 0)
+    public async Task<bool> CaptureAsync(string q, int currentCount = 0)
     {
         await using var scope = _provider.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
         var criteria = SearchCriteria.Create(
             occupationGroup: null, occupationName: null, municipality: null, region: null, employmentType: null,
             worktimeExtent: null, employer: null, remote: false, q: q, sortBy: JobAdSortBy.PublishedAtDesc).Value;
-        await new RecentJobSearchCapturer(
+        return await new RecentJobSearchCapturer(
                 db, Clock, new DbExceptionInspector(), NullLogger<RecentJobSearchCapturer>.Instance)
             .CaptureAsync(UserId, criteria, currentCount, Ct);
     }

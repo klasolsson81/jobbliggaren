@@ -1,7 +1,6 @@
 using System.Reflection;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
-using Jobbliggaren.Application.RecentJobSearches.Common;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.GetPublicJobAdCatalogue;
@@ -32,11 +31,9 @@ public class PublicJobAdSummaryDtoContractTests
     }
 
     [Fact]
-    public void GetPublicJobAdCatalogueQuery_IsAnsweredForAnyone_AndNeverRecordsASearch()
+    public void GetPublicJobAdCatalogueQuery_IsAnsweredForAnyone()
     {
-        // The union exists for its 404 and 503 arms. What keeps an anonymous read from capturing a search is that the
-        // message is not ICapturesRecentSearch (the capture behaviour's first gate), not the response type.
+        // The union exists for its 404 and 503 arms.
         typeof(GetPublicJobAdCatalogueQuery).IsAssignableTo(typeof(IAuthenticatedRequest)).ShouldBeFalse();
-        typeof(GetPublicJobAdCatalogueQuery).IsAssignableTo(typeof(ICapturesRecentSearch)).ShouldBeFalse();
     }
 }

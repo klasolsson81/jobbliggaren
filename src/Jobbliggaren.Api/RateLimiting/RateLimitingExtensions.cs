@@ -47,6 +47,7 @@ public static partial class RateLimitingExtensions
     public const string OccupationDivisionsPolicy = "occupation-divisions";
     public const string OccupationSearchPolicy = "occupation-search";
     public const string FollowSeenMarkPolicy = "follow-seen-mark";
+    public const string RecentSearchCapturePolicy = "recent-search-capture";
     public const string CompanyLookupPolicy = "company-lookup";
     public const string ResumeImportPolicy = "resume-import";
     public const string ResumeRenderPolicy = "resume-render";
@@ -688,6 +689,28 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.FollowSeenMark.PermitLimit / rateLimitOpts.FollowSeenMark.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.FollowSeenMark.WindowSeconds / (double)rateLimitOpts.FollowSeenMark.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // #2285 — POST /api/v1/me/recent-searches, the one way a search reaches recent searches. Its own bucket
+            // (security-auditor, #2285 plan read): not ListRead, since every deliberate search already spends a list
+            // token, and not MeWrite, since a run of chip clicks would starve the user's Spara, Följ and Ta bort.
+            // Partitioned by user like MeWrite, for the reason that policy gives.
+            options.AddPolicy(RecentSearchCapturePolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-recent-search-capture");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.RecentSearchCapture.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.RecentSearchCapture.PermitLimit / rateLimitOpts.RecentSearchCapture.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.RecentSearchCapture.WindowSeconds / (double)rateLimitOpts.RecentSearchCapture.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

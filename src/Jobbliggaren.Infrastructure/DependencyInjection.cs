@@ -1053,8 +1053,7 @@ public static class DependencyInjection
         // folds their counts with. A constructed instance, so a malformed embedded artefact stops the
         // host at startup rather than failing a search. #2199 PR 2b: loaded once, and the religious
         // occupations the recent-search capture gate reads are built from the same instance and from the
-        // taxonomy snapshot the database is seeded from. They are registered here in AddPersistence
-        // because the Worker, which never calls AddInfrastructure, resolves the capture behaviour too.
+        // taxonomy snapshot the database is seeded from.
         var occupationNameLineage = Taxonomy.OccupationNameLineageLoader.Load();
         services.AddSingleton<Jobbliggaren.Application.JobAds.Abstractions.IOccupationNameLineageProvider>(
             new Taxonomy.OccupationNameLineageProvider(occupationNameLineage));

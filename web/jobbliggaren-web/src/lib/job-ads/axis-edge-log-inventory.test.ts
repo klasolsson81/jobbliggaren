@@ -12,7 +12,6 @@ import { EDGE_LOG_VERDICT } from "./edge-log-verdicts";
 import {
   buildJobbHref,
   buildPageHref,
-  withCommitFlag,
   type JobbRawSearchParams,
   type JobbUrlState,
 } from "./search-params";
@@ -23,9 +22,8 @@ import {
  * `CaddyfileTokenScrubbingPinTests` derives the MAIL surface's parameter inventory from the
  * real `EmailTemplates` methods and requires every name to be either filtered at the edge or
  * named as deliberately kept, so a new parameter fails until someone decides which it is. It
- * cannot do the same for /jobb: that inventory exists only by CALLING the TypeScript builders
- * (and `withCommitFlag`, which is where `commit` comes from and nowhere else). This file is the
- * missing derivation, and #1584 is why it is owed — that PR filtered
+ * cannot do the same for /jobb: that inventory exists only by CALLING the TypeScript builders.
+ * This file is the missing derivation, and #1584 is why it is owed — that PR filtered
  * `employer` at the edge while nothing said what the route's other keys do there.
  *
  * It binds to that pin's `AppSurfaceScrubbedParameters` array and never to the Caddyfile. The
@@ -109,13 +107,7 @@ const JOBB_HREF_KEYS = emittedKeys(buildJobbHref(FULL_STATE));
 const PAGE_HREF_KEYS = emittedKeys(
   buildPageHref(FULL_RAW_PARAMS, TARGET_PAGE, DEFAULT_PAGE_SIZE)
 );
-const COMMIT_HREF_KEYS = emittedKeys(withCommitFlag(buildJobbHref(FULL_STATE)));
-
-const EMITTED: ReadonlySet<string> = new Set([
-  ...JOBB_HREF_KEYS,
-  ...PAGE_HREF_KEYS,
-  ...COMMIT_HREF_KEYS,
-]);
+const EMITTED: ReadonlySet<string> = new Set([...JOBB_HREF_KEYS, ...PAGE_HREF_KEYS]);
 
 // What the kept reasons below do and do not claim (security-auditor, 2026-08-30). They describe
 // the value space the UI PRODUCES, not the one the builders will re-emit: only `employer` and `q`
@@ -169,7 +161,7 @@ describe("/jobb axis inventory — an edge-log verdict per emitted query key", (
     expect(EMITTED.size).toBeGreaterThan(0);
     expect(JOBB_HREF_KEYS.size).toBe(17);
     expect(PAGE_HREF_KEYS.size).toBe(17);
-    expect(EMITTED.size).toBe(19);
+    expect(EMITTED.size).toBe(18);
     expect(keysJudged("must-not-reach-a-stored-log-post").length).toBeGreaterThan(0);
   });
 
@@ -186,10 +178,6 @@ describe("/jobb axis inventory — an edge-log verdict per emitted query key", (
     const carried = [...PAGE_HREF_KEYS].filter((k) => k !== PAGE_FIELD);
     expect(carried.length).toBe(readFields.length);
     expect(PAGE_HREF_KEYS.has(PAGE_FIELD)).toBe(true);
-  });
-
-  it("adds exactly the commit key on top of a built href", () => {
-    expect([...COMMIT_HREF_KEYS].filter((k) => !JOBB_HREF_KEYS.has(k))).toEqual(["commit"]);
   });
 
   it("partitions the inventory across both verdicts, so nothing is decided by absence", () => {

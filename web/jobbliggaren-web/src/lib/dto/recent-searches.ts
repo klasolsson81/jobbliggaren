@@ -161,3 +161,7 @@ export const listRecentSearchesResultSchema = z.array(recentJobSearchDtoSchema);
 export type ListRecentSearchesResult = z.infer<
   typeof listRecentSearchesResultSchema
 >;
+
+// #2285 — the capture POST's answer: whether the search is in the user's recent searches afterwards.
+export const captureRecentSearchResultSchema = z.object({ stored: z.boolean() });
+export type CaptureRecentSearchResult = z.infer<typeof captureRecentSearchResultSchema>;

@@ -72,7 +72,7 @@ public sealed class ListRecentSearchesQueryHandler(
             // the copies shipped as a defect (#1407 dropped remote from the projection, #1471
             // dropped employer), so no consumer reads the entity's axes on its own any more.
             //
-            // Employer passes the same gate the capture behavior persists through (ADR 0087
+            // Employer passes the same gate a capture persists through (ADR 0087
             // D8(c), masked arm): a row written before A2 (2026-08-19) can still carry a
             // personnummer-shaped value, and it reaches none of the three. The count is then
             // computed on the same masked criterion the click runs, so count == replay holds

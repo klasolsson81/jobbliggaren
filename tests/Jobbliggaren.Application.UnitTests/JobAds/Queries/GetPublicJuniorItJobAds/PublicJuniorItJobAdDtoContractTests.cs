@@ -2,7 +2,6 @@ using System.Reflection;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJuniorItJobAds;
-using Jobbliggaren.Application.RecentJobSearches.Common;
 using Jobbliggaren.Domain.JobAds;
 using Shouldly;
 
@@ -70,9 +69,8 @@ public class PublicJuniorItJobAdDtoContractTests
     }
 
     [Fact]
-    public void GetPublicJuniorItJobAdsQuery_IsAnsweredForAnyone_AndNeverRecordsASearch()
+    public void GetPublicJuniorItJobAdsQuery_IsAnsweredForAnyone()
     {
         typeof(GetPublicJuniorItJobAdsQuery).IsAssignableTo(typeof(IAuthenticatedRequest)).ShouldBeFalse();
-        typeof(GetPublicJuniorItJobAdsQuery).IsAssignableTo(typeof(ICapturesRecentSearch)).ShouldBeFalse();
     }
 }

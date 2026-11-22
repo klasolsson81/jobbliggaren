@@ -1526,6 +1526,9 @@ a.jp-hero__quicklink:hover {
   font-size: var(--text-caption);
   min-height: 1lh;
 }
+.jp-hero__searchsaveslot--retry {
+  min-height: calc(2lh + 6px);
+}
 .jp-hero__searchsaveaction {
   margin: 0;
   padding: 0;

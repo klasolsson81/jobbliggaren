@@ -6,7 +6,7 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// RUNTIME-KONTEXT, INTE en filter-identitets-dimension: den ingår ALDRIG i
 /// <see cref="JobAdFilterCriteria"/> (den anonymt cachebara SPOT:en som
 /// ListJobAds / RunSavedSearch / ListRecentSearches delar, ADR 0039 Beslut 1)
-/// eller <c>ICapturesRecentSearch</c> — en personlig "visa bara mina sparade"-vy
+/// eller <c>IRecentSearchCandidate</c> — en personlig "visa bara mina sparade"-vy
 /// får aldrig förorena den anonyma, cachebara sök-identiteten (paritet
 /// MatchGrades/IncludeRelated).
 /// <para>

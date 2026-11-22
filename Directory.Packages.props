@@ -90,17 +90,6 @@
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.15" />
     <!-- Test — Redis container -->
     <PackageVersion Include="Testcontainers.Redis" Version="4.17.0" />
-    <!-- Transitive CVE pin: Testcontainers 4.13.0 declares SSH.NET >= 2025.1.0 (measured in
-         its nuspec, all TFM groups), which is vulnerable to GHSA-q939-rpr3-3284 (HIGH —
-         ScpClient recursive download allows arbitrary file write via server-controlled SCP
-         filenames). Vulnerable range <= 2025.1.0; first patched 2026.0.0. We do not reference
-         SSH.NET directly and never call ScpClient — the pin applies only via
-         CentralPackageTransitivePinningEnabled (Directory.Build.props) to eliminate NU1903,
-         which otherwise fails restore REPO-WIDE under TreatWarningsAsErrors and blocks every
-         PR. 4.13.0 is the latest Testcontainers, so there is no bump to take instead; 2026.0.0
-         is above the declared floor → upward unification, no NU1605/downgrade, and it ships a
-         net10.0 group. Verified 2026-08-13 (GitHub Advisory Database, nuget.org). -->
-    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <!-- Smart enum — state machines i domänen -->
     <PackageVersion Include="Ardalis.SmartEnum" Version="8.2.0" />
     <!-- Hangfire — schedulerade jobb i Worker (BUILD.md §16, ADR 0023) -->
@@ -142,9 +131,8 @@
          vilket är sårbar mot CVE-2024-21907 (GHSA-5crp-9r3c-p9vr — DoS via StackOverflow vid
          djupt nestade JSON). Vi använder inte Newtonsoft direkt — pinningen sker bara via
          CentralPackageTransitivePinningEnabled (Directory.Build.props) för att eliminera
-         CVE-warningen som annars failar build under TreatWarningsAsErrors. 13.0.3 är senaste
-         stabila version och första post-fix release-linje. -->
-    <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
+         CVE-warningen som annars failar build under TreatWarningsAsErrors. -->
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <!-- F2-P8b JobTech-integration (ADR 0032). Refit för JobSearch (klassisk REST/JSON,
          BUILD.md §3.1). Microsoft.Extensions.Http.Resilience för retry+CB+rate-limit
          (Polly v8 under huven, ersätter deprecated Microsoft.Extensions.Http.Polly).
@@ -178,17 +166,6 @@
          >= 5.5.0 → uppåt-unifiering, ingen NU1605/downgrade. Web-verifierad 2026-06-30
          (nuget.org, GitHub Advisory Database). -->
     <PackageVersion Include="Scriban.Signed" Version="7.2.5" />
-    <!-- Transitive CVE pin: Microsoft.AspNetCore.OpenApi 10.0.10 pulls in Microsoft.OpenApi
-         2.0.0 transitively, which is vulnerable to GHSA-v5pm-xwqc-g5wc (HIGH — circular
-         schema references may terminate OpenAPI parsing; DoS). Vulnerable range
-         >= 2.0.0-preview11, <= 2.7.4; first patched 2.7.5. We do not reference
-         Microsoft.OpenApi directly — the pin applies only via
-         CentralPackageTransitivePinningEnabled (Directory.Build.props) to eliminate NU1903,
-         which otherwise fails restore repo-wide under TreatWarningsAsErrors. 2.7.5 stays in
-         the same 2.x major that Microsoft.AspNetCore.OpenApi 10.0.10 declares (>= 2.0.0) →
-         upward unification, no NU1605/downgrade. Verified 2026-07-01 (GitHub Advisory
-         Database GHSA-v5pm-xwqc-g5wc, nuget.org). -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <!-- Fas 4 lokal NLP-tier (ADR 0071 Beslut 6, BUILD.md §3.1 — INLÅST Pre-4 STEG 4;
          version-pin = Fas 4 STEG 0/F4-0). Deterministisk svensk NLP, ingen AI/LLM, körs
          lokalt på VPS:en. Catalyst medvetet UTE v1 (ADR 0071 Open Question 1, CTO-dom:

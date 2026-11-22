@@ -152,7 +152,7 @@ jobs:
           # namnet eller `init`/`analyze`-underpaths, och det är oobserverat vilket.
           # Båda innehåller `github/codeql-action`. Fail-CLOSED åt rätt håll — en
           # bredare träff kostar en manuell merge, en missad träff auto-mergar en
-          # motorbyte-PR.
+          # codeql-action-PR.
           #
           # SKIFTLÄGESOKÄNSLIG: `case` är skiftlägeskänsligt, men GitHub Actions löser
           # `owner/repo` skiftlägesokänsligt — `GitHub/CodeQL-Action` skulle alltså köra

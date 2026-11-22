@@ -115,10 +115,10 @@ does not extend to the application.
   files — so no copyleft attaches to the application (same posture as the MPL/LGPL
   components above).
 
-### SixLabors.ImageSharp 4.1.2 — feedback screenshot normalization
+### SixLabors.ImageSharp 4.1.3 — feedback screenshot normalization
 
-- **Granted licence:** Apache-2.0 under the [versioned Six Labors Split License](https://raw.githubusercontent.com/SixLabors/ImageSharp/v4.1.2/LICENSE), because Jobbliggaren is Source Available software (PolyForm Noncommercial, ADR 0072). BUILD §3.1 owns the eligibility decision.
+- **Granted licence:** Apache-2.0 under the [versioned Six Labors Split License](https://raw.githubusercontent.com/SixLabors/ImageSharp/v4.1.3/LICENSE), because Jobbliggaren is Source Available software (PolyForm Noncommercial, ADR 0072). BUILD §3.1 owns the eligibility decision.
 - **Copyright:** © Six Labors.
-- **Source:** https://github.com/SixLabors/ImageSharp/tree/v4.1.2
+- **Source:** https://github.com/SixLabors/ImageSharp/tree/v4.1.3
 - **Licence text:** [Apache-2.0](licenses/SixLabors.ImageSharp/LICENSE), shipped with the copyright notice in Api/Worker/Migrate images under `/app/licenses/SixLabors.ImageSharp/`.
 - **Use:** unmodified NuGet binary in Infrastructure, restricted PNG/JPEG/WebP decoding and fixed RGBA-PNG encoding for feedback screenshots. A valid community licence is supplied only at build time; credentials are never notices or deployment content.

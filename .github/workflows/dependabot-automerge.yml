@@ -274,8 +274,8 @@ jobs:
       # today.
       #
       # MEASURED ON pnpm 9.15.9 — what `pnpm/action-setup@v6` `version: 9` resolved
-      # to on 2026-07-28. `version: 9` pins the MAJOR only and there is no
-      # `packageManager` field, so the patch floats; measuring on 9 rather than only
+      # to on 2026-07-28. `version: 9` pins the MAJOR only, so the patch floats;
+      # measuring on 9 rather than only
       # on a local pnpm 10 mattered because a version-dependent mechanism would have
       # made this a silent no-op on the runner. 9.15.9 and 10.28.2 gave identical
       # advisory sets:

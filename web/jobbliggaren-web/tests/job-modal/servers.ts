@@ -571,6 +571,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
         return json(204);
       case "GET /api/v1/me/recent-searches":
         return json(200, harness.recentSearches);
+      // The real API binds the web's body: RecentSearchesTests.Storing_the_webs_own_body_with_the_sort_by_name_stores_it.
       case "POST /api/v1/me/recent-searches": {
         captures.push({ route, body: await bodyOf(request) });
         return json(200, { stored: harness.captureStored });

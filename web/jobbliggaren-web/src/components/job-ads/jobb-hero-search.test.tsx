@@ -812,6 +812,23 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
     expect(screen.queryByText("Sökningen är sparad i Senaste sökningar")).toBeNull();
   });
 
+  // #2285 (code-reviewer Minor 3) — a call that never answers (a network failure, an action id a deploy
+  // retired) is a save that did not go through, not one left waiting.
+  it("treats a rejected save as one that did not go through", async () => {
+    const user = userEvent.setup();
+    captureMock.mockImplementation(() => Promise.reject(new Error("network")));
+    setup({ q: "utvecklare" });
+
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Spara sökningen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Sökningen kunde inte sparas. Försök igen.").length,
+    ).toBeGreaterThan(0);
+  });
+
   // #2285 — a search the hero did not commit itself (a recent search, a toolbar chip) is still the one the
   // answer is for, so its save confirms.
   it("confirms a save of a search that arrived from outside the hero", async () => {

@@ -313,9 +313,11 @@ export function JobbHeroSearch({
       router.replace(buildJobbHref(next), { scroll: false });
     });
     if (markCommit) {
-      void captureRecentSearchAction(next).then(({ stored }) => {
-        if (!stored && sameUrlState(latestCommitRef.current, next)) setSavedByIntent(false);
-      });
+      void captureRecentSearchAction(next)
+        .catch(() => ({ stored: false }))
+        .then(({ stored }) => {
+          if (!stored && sameUrlState(latestCommitRef.current, next)) setSavedByIntent(false);
+        });
     }
     if (announce) setAnnouncement(announce);
   }
@@ -592,7 +594,7 @@ export function JobbHeroSearch({
     setSavedByIntent(true);
     setSaveReceipt("awaiting");
     searchButtonRef.current?.focus();
-    const { stored } = await captureRecentSearchAction(saving);
+    const { stored } = await captureRecentSearchAction(saving).catch(() => ({ stored: false }));
     if (!sameUrlState(latestCommitRef.current, saving)) return;
     if (stored) {
       setSaveReceipt("shown");

@@ -360,7 +360,7 @@ export function JobbResultsToolbar({
       setOptimisticState(next);
       router.push(buildJobbHref(next));
     });
-    void captureRecentSearchAction(next);
+    void captureRecentSearchAction(next).catch(() => undefined);
   }
 
   // STEG 5 (grade-filter) — navigering UTAN commit-intent. matchGrades är

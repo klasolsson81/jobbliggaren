@@ -21,7 +21,7 @@ describe("/integritet published policy date (#1917)", () => {
 
   it.each(["sv", "en"] as const)("renders its published date visibly after h1 in the band (%s)", async (language) => {
     locale = language;
-    const { container } = render(await IntegritetPage());
+    const { container } = render(await IntegritetPage({ searchParams: Promise.resolve({}) }));
     const catalogue = language === "sv" ? svLegal : enLegal;
     const band = container.querySelector(".jp-pagehero__main");
     const date = screen.getByText(catalogue.privacy.updated);
@@ -35,7 +35,7 @@ describe("/integritet published policy date (#1917)", () => {
 
   it.each(["sv", "en"] as const)("publishes the grace period, unavailable restore and separate backup boundary (%s)", async (language) => {
     locale = language;
-    render(await IntegritetPage());
+    render(await IntegritetPage({ searchParams: Promise.resolve({}) }));
 
     if (language === "sv") {
       expect(screen.getByText(/När du begär radering av ditt konto spärras åtkomsten direkt/))

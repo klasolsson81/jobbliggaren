@@ -31,9 +31,9 @@ export async function generateMetadata(): Promise<Metadata> {
  * their own step-up code goes to their own address. The layout has already read the session, and the read is
  * cached for the request.
  */
-export default async function AdminUsersPage({ searchParams = Promise.resolve({}) }: {
-  readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
-} = {}) {
+export default async function AdminUsersPage({ searchParams }: {
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const t = await getTranslations("admin.users");
   const filters = parseAccountFilters(await searchParams);
   if (filters === null) return <div className="flex flex-col gap-6">

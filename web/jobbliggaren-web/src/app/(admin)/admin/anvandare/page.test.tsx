@@ -85,7 +85,7 @@ const RESPONSE: AccountSearchResponse = {
 };
 
 async function renderPage() {
-  render(await AdminUsersPage());
+  render(await AdminUsersPage({ searchParams: Promise.resolve({}) }));
 }
 
 beforeEach(() => {
@@ -173,7 +173,7 @@ describe("/admin/anvandare — every account, searchable by address (#1974, ADR 
     expect(getServerSession).toHaveBeenCalled();
 
     getServerSession.mockResolvedValue(null);
-    await expect(AdminUsersPage()).rejects.toThrow(/^REDIRECT:\/logga-in$/);
+    await expect(AdminUsersPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(/^REDIRECT:\/logga-in$/);
   });
 });
 it("forwards the overview's validated registration interval and status to the initial server read", async () => {

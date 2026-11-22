@@ -262,12 +262,10 @@ are in that PR's body.
 - **The graph.** On net10.0, MailKit 5.0.0 brings MimeKit.Core 5.0.0 and nothing else (`project.assets.json`, read 2026-11-22).
   BouncyCastle.Cryptography, System.Security.Cryptography.Pkcs and System.Formats.Asn1 have left the Worker's mail graph.
   MimeKit's assembly is now `MimeKit.Core.dll`; the namespaces are unchanged.
-- **The call surface.** One reviewed member changed signature: `IMailFolder.GetStreamAsync(UniqueId, string, long, long, …)`,
-  whose offset and count widened from `int`. The adapter still asks for one partial range from offset 0, no longer than its
+- **The call surface.** The reviewed `IMailFolder.GetStreamAsync(UniqueId, string, long, long, …)` widened its offset and
+  count from `int`. The adapter still asks for one partial range from offset 0, no longer than its
   fixed caps. `IMessageSummary.Size` widened from `uint?` to `long?`, and `DmarcMailboxEntry` already takes it as `long`. The
   architecture tests now pin `MimeKit.Core` and the widened signature, both in the reviewed-member list and in the partial-range
   ban.
-- **Parser limits.** MimeKit 5's `ParserOptions.MaxHeaderLength` (16 KiB) cannot be reached, because D2 caps the header reads
-  at 8 KiB and 4 KiB.
 - **Superseded here, not rewritten above.** D2's "MailKit 4.18.2 (Klas, K2)" now reads MailKit 5.0.0. The first negative
   consequence's standing dependency is now MailKit and MimeKit.Core.

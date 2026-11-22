@@ -15,9 +15,9 @@ public class DmarcMailboxDependencyTests
 {
     private const string MailboxProject = "src/Jobbliggaren.Infrastructure.Mailbox/Jobbliggaren.Infrastructure.Mailbox.csproj";
 
-    private static readonly string[] MailPackageIds = ["MailKit", "MimeKit", "MimeKit.Core", "MailKitLite", "MimeKitLite"];
+    private static readonly string[] MailPackageIds = ["MailKit", "MimeKit", "MimeKit.Core", "MimeKit.Cryptography", "MailKitLite", "MimeKitLite"];
 
-    private static readonly string[] MailAssemblyNames = ["MailKit", "MimeKit", "MimeKit.Core", "BouncyCastle.Cryptography"];
+    private static readonly string[] MailAssemblyNames = ["MailKit", "MimeKit", "MimeKit.Core", "MimeKit.Cryptography", "BouncyCastle.Cryptography"];
 
     private static readonly string[] ScannedRoots = ["src", "tests", "perf"];
 

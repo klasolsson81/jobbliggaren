@@ -75,6 +75,20 @@ public class DmarcMailboxImapCallTests
 
     private static readonly string[] SummaryTypes = ["MailKit.IMessageSummary", "MailKit.MessageSummary"];
 
+    private static readonly string[] UniqueIdSetTypes = ["MailKit.UniqueIdRange", "MailKit.UniqueIdSet"];
+
+    private static readonly string[] LoaderTypes = ["MimeKit.MimeMessage", "MimeKit.MimeEntity", "MimeKit.HeaderList"];
+
+    private static readonly string[] ParserTypes = ["MimeKit.MimeParser", "MimeKit.LegacyMimeParser", "MimeKit.IMimeParser", "MimeKit.MimeReader"];
+
+    private const string UniqueIdType = "MailKit.UniqueId";
+
+    private const string ProtocolLoggerType = "MailKit.ProtocolLogger";
+
+    private const string IdleSessionType = "MailKit.Net.Imap.ImapIdleSession";
+
+    private const string TnefMessageType = "MimeKit.Tnef.TnefMessage";
+
     /// <summary>
     /// The never-list, one entry per thing the rulings forbid by name. The closed allowlists above already refuse all
     /// of it; this states each prohibition on its own so that widening an allowlist cannot quietly admit one.
@@ -91,9 +105,12 @@ public class DmarcMailboxImapCallTests
         ["CLOSE"] = member => On(member, FolderTypes) && member.Name.StartsWith("Close", StringComparison.Ordinal),
         ["APPEND and REPLACE"] = member => On(member, FolderTypes)
             && (member.Name.StartsWith("Append", StringComparison.Ordinal) || member.Name.StartsWith("Replace", StringComparison.Ordinal)),
-        ["IDLE, NOOP, CHECK and STATUS"] = member => (On(member, FolderTypes) || On(member, ClientTypes))
+        ["IDLE, NOOP, CHECK and STATUS"] = member => ((On(member, FolderTypes) || On(member, ClientTypes))
             && (member.Name.StartsWith("Idle", StringComparison.Ordinal) || member.Name.StartsWith("NoOp", StringComparison.Ordinal)
-                || member.Name.StartsWith("Check", StringComparison.Ordinal) || member.Name.StartsWith("Status", StringComparison.Ordinal)),
+                || member.Name.StartsWith("Check", StringComparison.Ordinal) || member.Name.StartsWith("Status", StringComparison.Ordinal)
+                || member.Name.StartsWith("CreateIdleSession", StringComparison.Ordinal)))
+            || On(member, [IdleSessionType]),
+        ["ENABLE"] = member => On(member, ClientTypes) && member.Name.StartsWith("Enable", StringComparison.Ordinal),
         ["A folder other than the inbox"] = member => (On(member, FolderTypes) || On(member, ClientTypes))
             && (member.Name.StartsWith("GetFolder", StringComparison.Ordinal) || member.Name.StartsWith("GetSubfolder", StringComparison.Ordinal)),
         ["GetMessage"] = member => On(member, FolderTypes) && member.Name.StartsWith("GetMessage", StringComparison.Ordinal),
@@ -108,12 +125,13 @@ public class DmarcMailboxImapCallTests
         ["BODYSTRUCTURE, ENVELOPE, PreviewText and headers off a summary"] = member => On(member, SummaryTypes)
             && member.Name is "get_Body" or "get_BodyParts" or "get_Envelope" or "get_PreviewText" or "get_Headers"
                 or "get_Attachments" or "get_TextBody" or "get_HtmlBody" or "get_References",
-        ["UniqueId.MaxValue, which serialises as *"] = member => member is FieldReference && On(member, ["MailKit.UniqueId"]) && member.Name == "MaxValue",
-        ["UniqueIdRange, UniqueIdRange.All and UniqueIdSet"] = member => On(member, ["MailKit.UniqueIdRange", "MailKit.UniqueIdSet"]),
-        ["MimeMessage.Load, MimeEntity.Load and HeaderList.Load"] = member => On(member, ["MimeKit.MimeMessage", "MimeKit.MimeEntity", "MimeKit.HeaderList"])
+        ["UniqueId.MaxValue, which serialises as *"] = member => member is FieldReference && On(member, [UniqueIdType]) && member.Name == "MaxValue",
+        ["UniqueIdRange, UniqueIdRange.All and UniqueIdSet"] = member => On(member, UniqueIdSetTypes),
+        ["MimeMessage.Load, MimeEntity.Load and HeaderList.Load"] = member => On(member, LoaderTypes)
             && member.Name.StartsWith("Load", StringComparison.Ordinal),
-        ["A MIME structure parser"] = member => On(member, ["MimeKit.MimeParser", "MimeKit.ExperimentalMimeParser", "MimeKit.MimeReader"]),
-        ["The protocol logger, which writes the AUTHENTICATE exchange"] = member => On(member, ["MailKit.ProtocolLogger"])
+        ["TnefMessage.Load"] = member => On(member, [TnefMessageType]) && member.Name.StartsWith("Load", StringComparison.Ordinal),
+        ["A MIME structure parser"] = member => On(member, ParserTypes),
+        ["The protocol logger, which writes the AUTHENTICATE exchange"] = member => On(member, [ProtocolLoggerType])
             || (On(member, ClientTypes) && member.Name == "set_ProtocolLogger")
             || (member is MethodReference { Name: ".ctor" } constructor && On(member, ClientTypes)
                 && constructor.Parameters.Any(parameter => parameter.ParameterType.FullName == "MailKit.IProtocolLogger")),
@@ -156,6 +174,20 @@ public class DmarcMailboxImapCallTests
     public void Every_ban_names_a_member_the_libraries_have(string ban)
     {
         LibraryMembers().ShouldContain(member => Bans[ban](member), $"'{ban}' matches nothing in MailKit or MimeKit");
+    }
+
+    /// <summary>A ban with several types still passes the check above when one of them is renamed away; this one does not.</summary>
+    [Fact]
+    public void Every_type_a_ban_names_is_a_type_the_libraries_have()
+    {
+        var libraryTypes = LibraryMembers().Select(member => member.DeclaringType.FullName).ToHashSet(StringComparer.Ordinal);
+        string[] named =
+        [
+            .. FolderTypes, .. ClientTypes, .. SummaryTypes, .. UniqueIdSetTypes, .. LoaderTypes, .. ParserTypes,
+            UniqueIdType, ProtocolLoggerType, IdleSessionType, TnefMessageType,
+        ];
+
+        named.Where(type => !libraryTypes.Contains(type)).ShouldBeEmpty("a type MailKit or MimeKit no longer defines bans nothing");
     }
 
     /// <summary>The scans above read real calls in the adapter's own types, compiler-generated code mapped back.</summary>

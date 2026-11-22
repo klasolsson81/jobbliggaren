@@ -58,8 +58,8 @@ firewall snapshots and operator evidence in the private deployment record.
 
 ## Consumer and command inventory
 
-The baseline uses the repository-pinned StackExchange.Redis 3.1.13 and
-Microsoft.Extensions.Caching.StackExchangeRedis 10.0.10. The contract fixtures
+The baseline uses the repository-pinned StackExchange.Redis 3.4.35 and
+Microsoft.Extensions.Caching.StackExchangeRedis 10.0.15. The contract fixtures
 run Redis 8.6, matching the production manifest's minor line; a different image
 or client version requires another contract run. Verify each production and
 development manifest image. Versions here identify this contract baseline,

@@ -6,8 +6,8 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #1981 PR 4a (ADR 0185; senior-cto-advisor Beslut D2, r2 §3; dotnet-architect re-check Rekommendation 1) — MailKit,
-/// MimeKit and BouncyCastle reach the Worker and nothing else. The mail packages are declared in one project, that
+/// #1981 PR 4a (ADR 0185; senior-cto-advisor Beslut D2, r2 §3; dotnet-architect re-check Rekommendation 1) — MailKit
+/// and MimeKit reach the Worker and nothing else. The mail packages are declared in one project, that
 /// project references Application alone, only the Worker references it, and only its assembly references the mail
 /// assemblies. Each fact is read where it is decided: the build files as text, the compiled assemblies as IL.
 /// </summary>
@@ -15,9 +15,9 @@ public class DmarcMailboxDependencyTests
 {
     private const string MailboxProject = "src/Jobbliggaren.Infrastructure.Mailbox/Jobbliggaren.Infrastructure.Mailbox.csproj";
 
-    private static readonly string[] MailPackageIds = ["MailKit", "MimeKit", "MailKitLite", "MimeKitLite"];
+    private static readonly string[] MailPackageIds = ["MailKit", "MimeKit", "MimeKit.Core", "MimeKit.Cryptography", "MailKitLite", "MimeKitLite"];
 
-    private static readonly string[] MailAssemblyNames = ["MailKit", "MimeKit", "BouncyCastle.Cryptography"];
+    private static readonly string[] MailAssemblyNames = ["MailKit", "MimeKit", "MimeKit.Core", "MimeKit.Cryptography", "BouncyCastle.Cryptography"];
 
     private static readonly string[] ScannedRoots = ["src", "tests", "perf"];
 
@@ -48,7 +48,7 @@ public class DmarcMailboxDependencyTests
             ],
             ignoreOrder: true,
             "MailKit is declared once for its version and once where it is used (ADR 0185, Klas GO K2). MimeKit and "
-            + "the obsolete Lite variants reach the mailbox project through MailKit and are never declared.");
+            + "the obsolete Lite variants are never declared.");
     }
 
     [Fact]
@@ -58,8 +58,7 @@ public class DmarcMailboxDependencyTests
             .Where(declaration => declaration.Id.Contains("BouncyCastle", StringComparison.OrdinalIgnoreCase))
             .Select(declaration => declaration.ToString())
             .ShouldBeEmpty(
-                "BouncyCastle is MimeKit's own dependency for S/MIME and PGP, which nothing here calls. Declaring it "
-                + "would pin it for every project under transitive pinning.");
+                "Declaring it would pin it for every project under transitive pinning.");
     }
 
     /// <summary>
@@ -124,7 +123,7 @@ public class DmarcMailboxDependencyTests
             .ToList();
 
         holders.ShouldBe(
-            ["Jobbliggaren.Infrastructure.Mailbox -> MailKit", "Jobbliggaren.Infrastructure.Mailbox -> MimeKit"],
+            ["Jobbliggaren.Infrastructure.Mailbox -> MailKit", "Jobbliggaren.Infrastructure.Mailbox -> MimeKit.Core"],
             ignoreOrder: true,
             "MailKit and MimeKit belong to Jobbliggaren.Infrastructure.Mailbox alone (Beslut D2)");
     }
@@ -136,7 +135,7 @@ public class DmarcMailboxDependencyTests
         var references = AssemblyReferenceNames(ProductionAssemblies.InfrastructureMailbox);
 
         references.ShouldContain("MailKit");
-        references.ShouldContain("MimeKit");
+        references.ShouldContain("MimeKit.Core");
         references.ShouldNotContain("BouncyCastle.Cryptography", "no S/MIME or PGP call is ever made from the adapter");
     }
 

@@ -251,3 +251,21 @@ Each goes back to the reviewer named.
 - `Jobbliggaren.Infrastructure.Mailbox`: `ImapDmarcMailbox` and its selection.
 - Worker: `dmarc-report-ingestion` (`23 * * * *`) and `dmarc-report-retention` (`20 4 * * *`). Api: the endpoint above.
 - Deploy: the worker-only secret directory, its pointer, `--check`, and the egress rule in `vps-base-hardening.md` §6.3.
+
+## Amendment 2026-11-22: MailKit 5.0.0 (lapse trigger 5)
+
+Lapse trigger 5 fired when Dependabot opened #2307: MailKit 4.18.2 → 5.0.0, released 2026-11-10. Klas answered on 2026-11-22,
+verbatim: "Migrera här (Rek.)". `senior-cto-advisor` ruled the route (Dependabot queue 2, E5): a session PR replaces #2307. The
+reviewers trigger 5 names, `security-auditor` and `dotnet-architect`, read the change together with `code-reviewer`. Their verdicts
+are in that PR's body.
+
+- **The graph.** On net10.0, MailKit 5.0.0 brings MimeKit.Core 5.0.0 and nothing else (`project.assets.json`, read 2026-11-22).
+  BouncyCastle.Cryptography and System.Security.Cryptography.Pkcs have left the Worker's mail graph.
+  MimeKit's assembly is now `MimeKit.Core.dll`; the namespaces are unchanged.
+- **The call surface.** The reviewed `IMailFolder.GetStreamAsync(UniqueId, string, long, long, …)` widened its offset and
+  count from `int`. The adapter still asks for one partial range from offset 0, no longer than its
+  fixed caps. `IMessageSummary.Size` widened from `uint?` to `long?`, and `DmarcMailboxEntry` already takes it as `long`. The
+  architecture tests now pin `MimeKit.Core` and the widened signature, both in the reviewed-member list and in the partial-range
+  ban.
+- **Superseded here, not rewritten above.** D2's "MailKit 4.18.2 (Klas, K2)" now reads MailKit 5.0.0. The first negative
+  consequence's standing dependency is now MailKit and MimeKit.Core.

@@ -260,7 +260,7 @@ reviewers trigger 5 names, `security-auditor` and `dotnet-architect`, read the c
 are in that PR's body.
 
 - **The graph.** On net10.0, MailKit 5.0.0 brings MimeKit.Core 5.0.0 and nothing else (`project.assets.json`, read 2026-11-22).
-  BouncyCastle.Cryptography, System.Security.Cryptography.Pkcs and System.Formats.Asn1 have left the Worker's mail graph.
+  BouncyCastle.Cryptography and System.Security.Cryptography.Pkcs have left the Worker's mail graph.
   MimeKit's assembly is now `MimeKit.Core.dll`; the namespaces are unchanged.
 - **The call surface.** The reviewed `IMailFolder.GetStreamAsync(UniqueId, string, long, long, …)` widened its offset and
   count from `int`. The adapter still asks for one partial range from offset 0, no longer than its

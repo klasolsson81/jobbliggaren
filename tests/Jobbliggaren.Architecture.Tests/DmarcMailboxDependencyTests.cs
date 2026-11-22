@@ -48,7 +48,7 @@ public class DmarcMailboxDependencyTests
             ],
             ignoreOrder: true,
             "MailKit is declared once for its version and once where it is used (ADR 0185, Klas GO K2). MimeKit and "
-            + "the obsolete Lite variants reach the mailbox project through MailKit and are never declared.");
+            + "the obsolete Lite variants are never declared.");
     }
 
     [Fact]

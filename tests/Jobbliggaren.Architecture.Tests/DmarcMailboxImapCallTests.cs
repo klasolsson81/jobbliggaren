@@ -87,10 +87,10 @@ public class DmarcMailboxImapCallTests
 
     private const string IdleSessionType = "MailKit.Net.Imap.ImapIdleSession";
 
-    private const string TnefMessageType = "MimeKit.Tnef.TnefMessage";
+    private const string ProtocolLoggerInterface = "MailKit.IProtocolLogger";
 
     /// <summary>
-    /// The never-list, one entry per thing the rulings forbid by name. The closed allowlists above already refuse all
+    /// The never-list. The closed allowlists above already refuse all
     /// of it; this states each prohibition on its own so that widening an allowlist cannot quietly admit one.
     /// </summary>
     private static readonly Dictionary<string, Func<MemberReference, bool>> Bans = new()
@@ -129,12 +129,12 @@ public class DmarcMailboxImapCallTests
         ["UniqueIdRange, UniqueIdRange.All and UniqueIdSet"] = member => On(member, UniqueIdSetTypes),
         ["MimeMessage.Load, MimeEntity.Load and HeaderList.Load"] = member => On(member, LoaderTypes)
             && member.Name.StartsWith("Load", StringComparison.Ordinal),
-        ["TnefMessage.Load"] = member => On(member, [TnefMessageType]) && member.Name.StartsWith("Load", StringComparison.Ordinal),
+        ["Anything in MimeKit.Tnef, its loaders and converters included"] = member => member.DeclaringType.Namespace == "MimeKit.Tnef",
         ["A MIME structure parser"] = member => On(member, ParserTypes),
         ["The protocol logger, which writes the AUTHENTICATE exchange"] = member => On(member, [ProtocolLoggerType])
             || (On(member, ClientTypes) && member.Name == "set_ProtocolLogger")
             || (member is MethodReference { Name: ".ctor" } constructor && On(member, ClientTypes)
-                && constructor.Parameters.Any(parameter => parameter.ParameterType.FullName == "MailKit.IProtocolLogger")),
+                && constructor.Parameters.Any(parameter => parameter.ParameterType.FullName == ProtocolLoggerInterface)),
         ["A certificate validation callback, revocation or protocol setting"] = member => On(member, ClientTypes)
             && member.Name is "set_ServerCertificateValidationCallback" or "set_CheckCertificateRevocation" or "set_SslProtocols",
         ["The credential overload, which falls back through every mechanism and LOGIN"] = member => On(member, ClientTypes)
@@ -184,7 +184,7 @@ public class DmarcMailboxImapCallTests
         string[] named =
         [
             .. FolderTypes, .. ClientTypes, .. SummaryTypes, .. UniqueIdSetTypes, .. LoaderTypes, .. ParserTypes,
-            UniqueIdType, ProtocolLoggerType, IdleSessionType, TnefMessageType,
+            UniqueIdType, ProtocolLoggerType, ProtocolLoggerInterface, IdleSessionType,
         ];
 
         named.Where(type => !libraryTypes.Contains(type)).ShouldBeEmpty("a type MailKit or MimeKit no longer defines bans nothing");

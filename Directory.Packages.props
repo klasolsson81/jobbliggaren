@@ -141,7 +141,7 @@
          Web-verifierad 2026-06-06 (reactiveui/refit #2114, nuget.org). -->
     <PackageVersion Include="Refit" Version="11.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="11.2.0" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.1" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="11.0.1" />
     <PackageVersion Include="WireMock.Net" Version="1.25.0" />
     <!-- Transitiv CVE-pinning: WireMock.Net 1.25.0 drar in OpenTelemetry.Api 1.14.0 +
          OpenTelemetry.Exporter.OpenTelemetryProtocol 1.14.0 vilka är sårbara mot

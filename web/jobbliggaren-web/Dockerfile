@@ -16,9 +16,8 @@
 #
 # NODE AND PNPM MAJORS ARE PINNED TO WHAT CI RUNS, and neither pin is cosmetic.
 # `pnpm-lock.yaml` is lockfileVersion 9.0 and every `pnpm/action-setup` call site in
-# the repo pins `version: 9`. There is no `packageManager` field anywhere here, so a
-# bare `corepack enable` would resolve whatever pnpm ships as the image default — and
-# pnpm 11 reads NONE of the `pnpm` block in package.json (CLAUDE.md §9.2). That block
+# the repo pins `version: 9`. pnpm 11 reads NONE of the `pnpm` block in package.json
+# (CLAUDE.md §9.2). That block
 # is the vulnerability-suppression surface: `overrides`, any `auditConfig`
 # acceptance, and `ignoredBuiltDependencies`. Dropping it
 # would ship an image whose remediations were silently not applied while every gate

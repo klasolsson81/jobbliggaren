@@ -1431,3 +1431,18 @@ ADR 0187 makes the junior list read a verdict stored per ad (`job_ad_junior_asse
 - **Tier B is how an erasure is honoured in the junior list.** Liveness is still read per request through `IsListed(now)`, so an erased ad leaves the rows, the total and the kommun options at once. The stored assessment goes with it: the erasure command deletes it in its own unit of work, and the sweep removes any assessment a racing run wrote onto the tombstone at the start and end of every tick. `Erase()` nulls `job_ads.junior_input_fingerprint`. No check step and no removal request is owed (`docs/runbooks/recruiter-pii-erasure.md` §2.4a).
 
 No supersession: ADR 0106 remains **Accepted**.
+
+## Amendment 2026-11-22 (#2293, ADR 0190) — D9 read-path table: the junior list's floor read
+
+ADR 0190 adds a third method that reads `JobAd` fields for the open junior IT list: the floor that decides whether its default view may be indexed (ADR 0166, Amendment 2026-11-22). The D9 table gains one row. It is recorded here, as the amendments above recorded theirs, and the table is not restated. It is the conditional item of `security-auditor`'s m1: ADR 0106's junior row, because the floor reads the organisation number.
+
+| Site | Surface | Projects | Gated on `Status != Erased`? | Issue |
+|---|---|---|---|---|
+| `JuniorItJobAdQuery.MeetsFloorAsync` (the junior list's floor) | Anonymous open junior IT list (through `junior`, as the envelope's `floorHolds`) | Inside one statement: the organisation number and the company name (trimmed, lower case) of every listed junior, grouped into counts. **Only a boolean leaves the query.** No row, count or employer value reaches Application, the wire, the metadata or a log | ✅ Yes — `JobAdPublication.IsListed(now)` at request time, the list's own base (ADR 0190 D3), so an Erased row is never read | — |
+
+- The method is registered in `JobAdLifecycleReadRegistry` (ADR 0113) as an Active site.
+- **The organisation number is read here for the first time in the junior list,** and never projected into a row, a DTO or a log line (ADR 0087 D8 (c)). The earlier amendments' sentence that it is never projected holds for the count and page reads. `OrganizationNumberSurfacingGuardTests.RawOrgNrReadingSourcePaths` lists `JuniorItJobAdQuery.cs` and `PublicListFloor.cs`, and `JuniorItJobAdQueryReadTests` pins that the statement reads `organization_number` and that its one column is a `bool`.
+- **Tier B is how an erasure is honoured in the floor.** The floor reads the same base as the rows, per request, so an erased ad leaves the floor at the same `now` as it leaves the rows, the total and the kommun options. No check step and no removal request is owed beyond those the amendments above state (`docs/runbooks/recruiter-pii-erasure.md` §2.4a).
+- The definition of an employer the statement computes is ADR 0166's Amendment 2026-11-22, which is its single home.
+
+No supersession: ADR 0106 remains **Accepted**.

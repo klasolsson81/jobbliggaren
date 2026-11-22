@@ -473,3 +473,15 @@ Console readings extend to catalogue crawl and indexing.
 process and does not fire it.
 
 ADR 0174 remains **Accepted**.
+
+## Amendment 2026-11-22 (#2293, ADR 0190) — D3: the pages part holds 16 URLs
+
+D1–D9 and the earlier text stand and nothing above is rewritten. `/junior`'s default view becomes indexable while a floor holds (ADR 0166, Amendment 2026-11-22; ADR 0190), and it joins the sitemap.
+
+**D3: the pages part holds 16 URLs.** The table row for `/sitemap-sidor.xml` now holds 16: `/junior`, the open junior IT list's default view, joins the 14 marketing URLs and the catalogue's first page, after the catalogue's. The entry is `loc` only, and its `loc` is the page's canonical, built by `publicJuniorUrl()` (`lib/job-ads/junior-it-params.ts`), the one function that also builds the page's canonical (the form of ADR 0176 F8). No parameter address of `/junior` is in any sitemap, and no later page: ADR 0166 trigger 8 holds, and trigger 20, as that amendment rewrites it, governs the entry. The index, the job parts and the partition are unchanged. `seo-metadata-routes.test.ts` and the HTTP smoke (16 paths, no address with a query string) pin the set.
+
+**The entry is static while the floor moves.** `/junior`'s default view answers `noindex` whenever the floor fails, and the entry stays in the pages part. Search Console's "Submitted URL marked noindex" is then the signal, and not a defect (ADR 0190, *Lapse triggers*).
+
+**D9: the legal pointer** for this entry is ADR 0166's Amendment 2026-11-22, triggers 8 and 20.
+
+ADR 0174 remains **Accepted**.

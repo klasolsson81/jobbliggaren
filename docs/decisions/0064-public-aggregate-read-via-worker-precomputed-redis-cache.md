@@ -330,6 +330,33 @@ trigger 16, so a change of class is a re-take of that ADR, not a choice made her
 **What does NOT change:** Variant B's architecture, Beslut (a), (b) and (c), the four existing legs of (d), and the ban on in-handler cache-aside. No supersession: ADR 0064 remains
 **Accepted**.
 
+## Amendment 2026-11-22 (#2293, ADR 0190) — rule (d): a per-request aggregate over a selection bounded by one occupation field is a third class, read per request because precomputing it is barred
+
+*(Section language: English per CLAUDE.md §1, matching the amendments above.)*
+
+**The class.** The amendment of 2026-10-10 sorted reads into two classes: a recurring read of the whole corpus, identical for every reader, which is precomputed, and a read of one record, which has nothing to precompute. The open junior IT list (ADR 0186, ADR 0187) and the floor that decides whether its default view may be indexed (ADR 0166, Amendment 2026-11-22; ADR 0190) are a **third class, beside them: a per-request aggregate over a selection bounded by one occupation field.**
+- It has both marks of the class that rule (d) precomputes: it is recurring, and it is the same for every reader of the default view.
+- But it counts the field's listed ads, and never the whole corpus.
+- Precomputing it is barred in any case (ADR 0166 triggers 20 and 22; ADR 0160 D6). The rows, the count and the floor are read at one `now`, so an erased or closed ad leaves all three in the same request.
+- Rule (d) holds in its 2026-10-18 form, because there is no COUNT and no OFFSET over the corpus. **The bound below is what takes the place of precomputing.** This amendment does not claim that the read is precomputed.
+
+**The bound.** It has three parts, and all three are measured.
+- **b1, the selection:** one enabled field, Data/IT, with 12 groups.
+- **b2, the access path:** every scan of `job_ads` in the floor statement goes through `ix_job_ads_occupation_group_concept_id`. A plan test pins it, `TheFloorStatement_ScansJobAdsOnlyThroughTheOccupationGroupIndex` in the `JobAdBrowsePlan` collection, in the form of `TheCandidatesStatement_ReachesTheOccupationGroupIndex`: it requires the index's name in the plan and forbids a sequential scan of `job_ads`. The plans of the count and the page are recorded from the same run (ADR 0190, *Measurements*). b2 is what keeps the cost bounded by the field rather than by the corpus, and a bound that no test reads can lapse without anyone noticing (Ford/Parsons/Kua 2017).
+- **b3, the cost envelope:** ADR 0190's dated figures, inside ADR 0045 class (a). They were taken on a developer machine. The corpus holds more listed juniors than the box, 2 526 against 149 on 2026-11-22. What the scans read is every ad in the field's groups whatever its status, and how the box compares on that is not measured, so the figures are not a bound on the box's in either direction (`security-auditor`'s reading of the bucket's cost, 2026-11-22; ADR 0190, *The junior bucket*).
+
+**Return conditions.** Each of these brings the question back to the CTO.
+- **r1.** A second field is enabled, or the Data/IT groups change. This is read at that change's plan read, and the read is measured again before the merge.
+- **r2.** A statement is added to the read or changed in it. Examples: PR 2's facet counts, the folding of the port, or any edit to `ListedJuniors`, `SpreadOf`, `JuniorMembership.Of` or `IsListed`. The read test's statement-count pin turns red, and the read is measured again before the merge, in ADR 0190's form.
+- **r3.** The plan pin turns red. It is never narrowed to make it pass.
+- **r4.** A reading of the box finds it outside the envelope: on any row of ADR 0190's table *The box against the corpus*, the box's total is above the corpus's. The rows count what the scans read, the field's ads of any status and the rows of `job_ad_junior_assessments`, and not only what is listed (ADR 0190, *What the cost follows*). It is read at each merge-day reading in the junior section of `public-job-page-publication-count.md` and at each `/junior` reading in `seo-measurement.md`'s schedule. The corpus is then raised to at least the box's total on every row and the run is repeated, before the merge when the reading is a merge day's. This is the form of `security-auditor`'s rule (v) for the bell.
+- **r5.** A new measurement goes over class (a)'s 300 ms. A snapshot is not the fallback (ADR 0166 trigger 22).
+- **r6.** Traffic from many addresses is seen competing with the signed-in product for the database. No per-address bucket bounds this. The remedy is then a bulkhead on the route, meaning a cap on concurrent requests (Nygard 2018, ch. 5), and never a lower number per address. Nothing checks this routinely; it is read when someone reports it.
+
+**Not a return condition: "the database time per IP exceeds the house anchor"** (dotnet-architect's proposal). The figure per address is the bucket's cost half. It is recorded in ADR 0190 and is governed by the bucket's own recompute trigger, in the docblock of `PublicJobAdJuniorIt`. The bucket's number and the class's bound change for different reasons and have different owners (the Common Closure Principle, Martin 2017, ch. 13), so this amendment points to that trigger and does not repeat it.
+
+**What does NOT change:** Variant B's architecture, Beslut (a), (b) and (c), the four existing legs of (d), and the ban on in-handler cache-aside: the read is never cached. No supersession: ADR 0064 remains **Accepted**.
+
 ## Referenser
 
 - CLAUDE.md §2.3 (CQRS — read-DTO ut, ingen Domain-objekt över gränsen), §3.3 (DTO = `record class`), §3.6 (`.AsNoTracking()` default + projektion), §5.4 (säkerhet — anonym DoS-yta), §8 punkt 9 (ADR = DoD vid arkitekturbeslut)

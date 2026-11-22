@@ -123,20 +123,26 @@ updates:
       - dependency-name: "Microsoft.Testing.Extensions.CodeCoverage"
         versions: ["18.9.0"]
       # The runtime-aligned families. Their next major either targets only the next TFM or
-      # requires the next major's abstractions, so on this net10.0 app it cannot restore by
-      # itself: #2308–#2310 (Microsoft.Extensions 11.0.0) each failed with NU1109 (measured
-      # 2026-11-22). With #2306 and #2307 they took all five slots under the limit above,
-      # so the rest of the .NET 11 wave could not open at all. `eligible=false` stops a major from
+      # requires the next major's abstractions: #2308 (Microsoft.Extensions 11.0.0) failed with NU1109 (measured
+      # 2026-11-22). `eligible=false` stops a major from
       # auto-merging, but it does not stop the PR from occupying a slot. That is why this is
       # not the redundant control the docker-compose entry refuses for postgres.
       # `update-types` only, so no security update is suppressed.
-      # LIFT WHEN the PR that moves `TargetFramework` off net10.0 lands; that PR deletes
-      # these entries, and the docker entry's two, in the same diff.
       - dependency-name: "Microsoft.AspNetCore.*"
         update-types: ["version-update:semver-major"]
       - dependency-name: "Microsoft.EntityFrameworkCore*"
         update-types: ["version-update:semver-major"]
-      - dependency-name: "Microsoft.Extensions.*"
+      - dependency-name: "Microsoft.Extensions.Caching.StackExchangeRedis"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.Configuration.Abstractions"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.DependencyInjection.Abstractions"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.Hosting"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.Logging.Console"
         update-types: ["version-update:semver-major"]
       - dependency-name: "Npgsql*"
         update-types: ["version-update:semver-major"]
@@ -336,7 +342,7 @@ updates:
     # owner rather than a note.
     #
     # The .NET images move with the framework, so their majors share the nuget entry's
-    # runtime-aligned ignore and its LIFT WHEN. An 11.0 runtime image does not run a
+    # runtime-aligned ignore. An 11.0 runtime image does not run a
     # net10.0 app, and an 11.0 SDK image carries no 10.0 SDK for global.json to select
     # (`rollForward: latestFeature` never crosses a major). The leading `*` matches the
     # image with or without its `mcr.microsoft.com/` prefix, because no Dependabot docker

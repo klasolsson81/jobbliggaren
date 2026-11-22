@@ -443,8 +443,8 @@ public static class ErasureCascadeRegistry
             // difference is the whole of #1425. The write path is SearchCriteria.ValidateConceptList
             // against ^[A-Za-z0-9_-]{1,32}\z and nothing else; no lookup against taxonomy_concepts
             // exists on any path into these columns. `Karlsson`, `Anna-Karlsson` and a ten-digit
-            // org.nr all pass, and a hand-edited /jobb?occupationGroup=<anything>&commit=true
-            // persists them. The ground that stood here was written against the columns' PURPOSE
+            // org.nr all pass, and a hand-built capture request (POST /api/v1/me/recent-searches,
+            // #2285) persists them. The ground that stood here was written against the columns' PURPOSE
             // and not against their MAPPING - the same error as resumes, one table over.
             //
             // #1419 closed the PERSONNUMMER case AT CAPTURE TIME and closed nothing else: it is

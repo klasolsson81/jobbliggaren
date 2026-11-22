@@ -23,8 +23,6 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetRemoteAdCount;
 /// <c>GetMyMatchCount</c> use remote as part of the ACTUAL filter (union semantics,
 /// equals the /jobb list's <c>TotalCount</c>); this hint is facet-EXCLUDED. Same
 /// <c>JobAdFilterCriteria.Remote</c> mechanism, different input, different question.
-/// Not <c>IRecentSearchCandidate</c> — a facet hint is not a search event (parity
-/// <c>GetFacetCountsQuery</c>).
 /// </para>
 /// </summary>
 public sealed record GetRemoteAdCountQuery(

@@ -1261,8 +1261,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// <summary>
     /// One recent-search row per (axis, value) pair, each with <c>q = null</c> and
     /// <c>employer = []</c> so the match can come from the concept-id axis and nowhere else —
-    /// the shape a hand-edited <c>/jobb?&lt;axis&gt;=&lt;value&gt;&amp;commit=true</c> produces (#1419
-    /// measured that route). Through <c>SearchCriteria.Create</c> + <c>RecentJobSearch.Capture</c>;
+    /// the shape a hand-built capture request produces (#1419 measured the link route that carried it before
+    /// #2285). Through <c>SearchCriteria.Create</c> + <c>RecentJobSearch.Capture</c>;
     /// not one column is hand-written (#843).
     /// </summary>
     /// <remarks>
@@ -2119,7 +2119,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// </summary>
     /// <remarks>
     /// <b>The seeded state is producible by <c>src/</c>, and the actor is named.</b> The axes are
-    /// never taxonomy-resolved, so a hand-edited <c>?occupationGroup=5509281234&amp;commit=true</c>
+    /// never taxonomy-resolved, so a hand-built request body
     /// persists verbatim through <c>CreateSavedSearchCommandHandler</c> → <c>SearchCriteria.Create</c>,
     /// which is the factory seeded here. There is no personnummer guard anywhere on that path (#1423),
     /// and the value is Luhn-invalid regardless.
@@ -3716,7 +3716,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// <c>RecentSearchCaptureGate</c> guards these six axes with <c>BearsPersonnummer</c>
     /// (#1419), whose detector runs <c>Personnummer.TryParse</c> — date sanity AND Luhn.
     /// <c>5509281234</c> fails Luhn, so it is not flagged and
-    /// <c>?occupationGroup=5509281234&amp;commit=true</c> still persists it. That is #1419's own
+    /// a capture request carrying <c>occupationGroup: ["5509281234"]</c> still persists it. That is #1419's own
     /// DECLARED residual. The first assertion below asserts the actor's own predicate admits the
     /// state, so a future tightening of that guard turns this test red rather than leaving it
     /// pinning a fiction (AGENTS.md §5 <c>Tests:</c>).

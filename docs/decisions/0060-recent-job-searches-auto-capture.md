@@ -335,3 +335,65 @@ amendment is the operative text for the gate.
 **Beslut 6, for a marked row.** A delete is still a hard delete, and a marked row is deleted the same way, with its link. The user's own delete, the account hard-delete (Mekanik-not 5) and the Art. 17 recruiter erasure take the link with the row; eviction never deletes a marked row. "No audit-trail dignity" stands for the rows themselves. Marking and unmarking a row are audit events, `RecentJobSearch.QuickLinkMarked` and `RecentJobSearch.QuickLinkUnmarked`, with no payload: the aggregate type and the row id, never a criterion, a label or a count.
 
 **What a future change must state.** Marked rows are no longer cleaned up by eviction: they stay for as long as they are quick links. Any future reset of recent searches (as the C2 migration deleted the rows when the FilterHash format changed, ADR 0067) and any change to the FilterHash format must state what it does to quick links.
+
+---
+
+# Amendment 2026-11-22 — Beslut 3 and the Amendment 2026-06-12: a recent search is stored only by a POST, the capture command (#2285)
+
+**Status:** Accepted. **Beslutsunderlag:**
+- `senior-cto-advisor` bound the direction on 2026-11-21 (`docs/reviews/2026-11-21-2285-routing-senior-cto-advisor.md`, local): capture in a POST and never by a GET, the intent to save carried by a Server Action, and `/jobb` no longer reads `commit`.
+- `security-auditor` and `dotnet-architect` read the plan before any code (G1, 2026-11-22, `docs/reviews/2026-11-22-2285-plan-*.md`, local).
+- The carrier Klas approved on 2026-06-12 is replaced. The decision's content stands: only a search the user makes on purpose is stored, never the live preview. Under the routing this is information to Klas, not an escalation.
+
+This amendment is additive. Beslut 3 and the Amendment 2026-06-12 above are not rewritten, and for how a search reaches the table this amendment is the operative text.
+
+**Why.** The Amendment 2026-06-12 made the commit flag ride on the list query: `GET /api/v1/job-ads?…&commit=true`. Whoever could make the signed-in user's browser load `/jobb?q=…&commit=true` could therefore store a search the user never wrote. Two such routes were found:
+- A link opened outside the browser arrives with `Sec-Fetch-Site: none`, and Chromium sends the `SameSite=Strict` cookie on it (measured 2026-11-21, #2284).
+- An employer's application address is rendered as the job modal's "Ansök", a same-origin link.
+
+`security-auditor` graded it Major (CSRF, area 7; Art. 5(1)(d) and 32). A GET that writes is open to every actor that can produce a GET (RFC 9110 §9.2.1), so the fix closes the class: no GET stores a search, in the web or in the API.
+
+**The carrier.** `CaptureRecentSearchCommand` behind `POST /api/v1/me/recent-searches`, sent only by the Server Action `captureRecentSearchAction`. Nothing else stores a search.
+- **Who calls it.** The `/jobb` hero calls it on a deliberate search (Enter, the search button, a picked suggestion, clearing) and on "Spara sökningen". The toolbar calls it on its actions (a chip ×, Rensa, a sort change). The live preview and a filter pick never call it.
+  - The hero and toolbar navigate first and call the action after, so Next queues the action behind the navigation and the results are not held up by the store.
+  - "Spara sökningen" calls the action without navigating.
+- **The body.** The search's identity axes and nothing else: q, the six concept-id axes, employer, remote, the junior flag and the sort. It carries no identity: the user comes from the session.
+  - What a client can send is what the URL could already carry.
+  - What disappears is a third party choosing it.
+- **The command.**
+  - It is `IAuthenticatedRequest` in the authorised group.
+  - It runs `RecentSearchCaptureGate.Admit` first and unchanged, still the one predicate on what may be stored. A refused search answers `stored: false` without a count.
+  - It then counts the criteria the gate admitted, through `IJobAdSearchQuery.CountAsync` (#1471: what a replay counts). Then it stores through `IRecentJobSearchCapturer`, which now answers whether the search is in the list afterwards.
+  - The answer is `200 { stored }`.
+- **Best-effort, as capture always was.** An unexpected failure in the count or the store answers `stored: false` and is logged by type alone (LoggerMessage 6001). The handler clears the change tracker first, so the unit of work's save after it cannot store a row the answer says was not stored. `CaptureRecentSearchBestEffortTests` pins this through the real pipeline, and is red without the clear.
+- **Rate limit.** Its own bucket, `RecentSearchCapturePolicy`: a TokenBucket of 30 per minute per user, five tokens back every ten seconds. Not ListRead and not MeWrite, because a run of chip clicks must not starve Spara, Följ and Ta bort.
+- **No audit.** The command is not auditable: a recent search has no audit-trail value (Beslut 6), and a row per deliberate search would grow `audit_log` with no accountability gained.
+
+**What is retired.**
+- `ListJobAdsQuery.Commit`, the list endpoint's `commit` parameter (an unbound `?commit=` is ignored and answers 200), and `RecentJobSearchCaptureBehavior` with its place in `MediatorPipelineBehaviors.InOrder`.
+- `IRecentSearchCaptureResponse`.
+- In the web: `StripCommitParam`, `withCommitFlag` and the no-JS form's hidden `commit=true`.
+- The marker `ICapturesRecentSearch` is renamed `IRecentSearchCandidate`. It names what the gate admits, and no query captures any more.
+- `RecentSearchCaptureConsumerTests` pins that `IRecentJobSearchCapturer.CaptureAsync` has exactly one caller, the command handler, and that the gate is asked by the list and the command only.
+- `recent-search-capture-callers.test.ts` pins the web half: the action is called by the hero and the toolbar only.
+
+**Beslut 3's rejected Variant B, tested again.** The four grounds it was rejected on, verbatim:
+
+| Ground against Variant B | Holds against this carrier? |
+|---|---|
+| "Trust-flytt till klient" | No. The body carries no identity, and the user is `ICurrentUser`'s. What a client can store is what it could put in the URL before, so nothing is widened. What changes is that a third party can no longer choose it. |
+| "Dubbla round-trips" | One POST is added per stored search. It runs after the navigation, off the results' critical path, and the render its revalidation causes takes the place of `StripCommitParam`'s. |
+| "Race conditions mellan list-render och capture" | Closed by the command's own count of the admitted criteria. It no longer reads the list's `TotalCount`. That also ends a latent drift: on the per-user path (saved, graded or matched-only) the list's count was filtered, while the replay counts anonymously. |
+| "FE måste persistera filter-shape" | No. The shape is `JobbUrlState`, which the hero and toolbar already hold. `recent-search-capture-body.test.ts` pins that the capture body and the list's query agree on every axis the gate reads, the junior flag included. |
+
+**A named degradation: a search made without JavaScript is no longer stored.** The search form stays a plain GET to `/jobb`, because the search must be a safe, bookmarkable GET. The same holds for a search submitted before the page's scripts load.
+- "Spara sökningen" already needed JavaScript.
+- The rejected alternative, a form with a Server Action and a redirect, would make the main no-JS search a POST for a convenience feature, with a second parse of the form that must track the page's.
+
+**The Amendment 2026-06-12's (d), qualified.** "Vi sparar sökningar du kör" is no longer literally true for a search made without JavaScript. The privacy policy then describes more processing than takes place. That is not a breach of Art. 5(1)(a), 12 or 13 (`security-auditor`), so the policy text is unchanged.
+
+**ADR 0045.** The command is class (c), command/write, p95 400 ms. Measured on 2026-11-22 on a developer machine; these are dated readings, regenerated by re-running the two classes:
+- **The count** (`CaptureCountLatencyMeasurement`, 40 000 ads, 40 warmed iterations): p95 7.2 ms for "stockholm", 42.3 ms for "systemutvecklare", 7.3 ms for "lärare stockholm", 12.4 ms for "svenska" and 17.9 ms for "deltid -stockholm".
+- **The store** (`RecentSearchCaptureLatencyMeasurement`, three warmed runs): p95 30–57 ms for an insert with room (18 calls), 10–86 ms for an insert that evicts, and 5–108 ms for a bump. The high ends are from one run whose bump p50 was 36 ms, against 4–5 ms in the other two.
+
+The list handler's code is unchanged. A list request no longer runs a capture after its handler. A stored search revalidates `/jobb` and `/sokningar`, so the page renders once more, as `StripCommitParam`'s replace did before. That render follows the action, which follows the navigation, so it is off the results' critical path.

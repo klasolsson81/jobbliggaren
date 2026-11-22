@@ -369,11 +369,10 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
    once (`PublicJobAdCatalogueReadTests`, `PublicJobAdCatalogueEndpointTests`). Nor does
    the related section on other ads' job pages (ADR 0182): it reads and classifies each
    row per request, so an erased ad leaves every section at once
-   (`RelatedPublicJobAdsReadTests`). Nor does the open junior IT list (`/junior`, ADRs 0186
-   and 0187), which needs neither a search-engine check nor a removal request, because it is
-   `noindex` and reads each row's liveness, the total and the kommun options per request
-   through `JobAdPublication.IsListed`, so an erased ad is absent from every view at once
-   (`JuniorItJobAdQueryReadTests`). Its stored junior assessment goes with the ad: the erase
+   (`RelatedPublicJobAdsReadTests`). Nor does the open junior IT list (`/junior`, ADRs 0186,
+   0187 and 0190): it reads each row's liveness, the total, the kommun options and the floor
+   for indexing per request through `JobAdPublication.IsListed`, so an erased ad is absent
+   from every view at once (`JuniorItJobAdQueryReadTests`). Its stored junior assessment goes with the ad: the erase
    command deletes it, and the classification sweep removes any assessment left on an erased
    ad (`JuniorAssessmentErasureTests`, `JuniorAssessmentErasureRaceTests`). The rule file's
    reading ids are never edited because of an erasure; an admin decision is never the
@@ -400,8 +399,11 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
    search engine's index copy of a catalogue page (`/lediga-jobb`), refreshed at its next
    crawl; the catalogue's rows are not quoted in snippets. So is an index copy of another
    ad's job page whose related section held the erased ad, refreshed at that page's next
-   crawl; its rows are not quoted in snippets either. So is a web-archive copy of a
-   `/junior` view (the list is `noindex`, so it has no search-engine index copy to reach).
+   crawl; its rows are not quoted in snippets either. So is a search engine's index copy of
+   the junior list's default view (`/junior`, indexed only while its floor holds, ADR 0166's
+   Amendment 2026-11-22), refreshed at its next crawl; its rows are not quoted in snippets
+   either, and every other `/junior` view is `noindex`. So is a web-archive copy of any
+   `/junior` view.
    Arbetsförmedlingen keeps the
    original until the ad's own deadline. Since the page carries
    `JobPosting` markup (ADR 0171), Google's own jobs experience holds a listing too; it drops

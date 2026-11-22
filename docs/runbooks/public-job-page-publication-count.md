@@ -100,6 +100,46 @@ validated; the null link and the three unlisted ads were not counted.
 
 The record is also posted on [#2090](https://github.com/klasolsson81/jobbliggaren/issues/2090) with the same date.
 
+## The junior list's floor — the merge-day reading (#2293)
+
+ADR 0166's Amendment 2026-11-22 (D11) adds a reading to the merge day of a change to `/junior`'s indexed view, taken at the same
+minute as the count above and run the same way:
+
+```bash
+ssh jp-vps 'sudo docker exec -i jobbliggaren-postgres psql -U postgres -d jobbliggaren -tA -F " | " -q -v ON_ERROR_STOP=1' \
+  < docs/runbooks/junior-list-floor-count.sql 2>/dev/null
+```
+
+`docs/runbooks/junior-list-floor-count.sql` computes the floor's own definition of an employer (`PublicListFloor`; ADR 0166, the
+Amendment 2026-11-22) over the list's base, in a read-only transaction, and prints five labelled lines: N and E as national totals,
+"E under 25" in place of E and `s_ok` below 25, `s_ok` only as `true` or `false`, the outcome, and how many kommuner would meet the
+floor on their own. `JuniorItJobAdQueryReadTests` runs the file over its seeds and asserts that it gives the port's answer.
+
+What may be written down from it: those five values. Never the largest employer's count or share, a grouping per employer, a top
+count, or E's separate terms (security-auditor, 2026-11-22).
+
+At the same minute, three totals more and one anonymous read:
+- What the measured envelope is compared with (ADR 0190; ADR 0064's amendment for #2293, r4): the listed ads in the Data/IT field,
+  the ads in the field's groups of any status, and the rows of `job_ad_junior_assessments`, one total per line:
+  ```bash
+  ssh jp-vps 'sudo docker exec -i jobbliggaren-postgres psql -U postgres -d jobbliggaren -tA -q -v ON_ERROR_STOP=1' 2>/dev/null <<'SQL'
+  BEGIN TRANSACTION READ ONLY;
+  WITH grp AS (SELECT concept_id FROM taxonomy_concepts WHERE parent_concept_id = 'apaJ_2ja_LuF' AND kind = 'OccupationGroup')
+  SELECT count(*) FROM job_ads
+  WHERE external_id IS NOT NULL AND external_source = 'Platsbanken' AND status = 'Active'
+    AND (expires_at IS NULL OR expires_at >= now()) AND occupation_group_concept_id IN (SELECT concept_id FROM grp)
+  UNION ALL SELECT count(*) FROM job_ads WHERE occupation_group_concept_id IN (SELECT concept_id FROM grp)
+  UNION ALL SELECT count(*) FROM job_ad_junior_assessments;
+  ROLLBACK;
+  SQL
+  ```
+- The delivered default view, read anonymously: its total and its robots value, which must equal the floor's outcome. No row is
+  printed:
+  `curl -s https://jobbliggaren.se/junior | grep -oE 'id="junior-count" class="jp-results-count"><b>[^<]*|<meta name="robots" content="[^"]*"'`
+
+| Date and time (UTC) | Release | N | E | `s_ok` | Floor holds | Kommuner meeting the floor | In the field: listed / any status | Assessment rows | `/junior`: total, robots | Taken by |
+|---|---|---|---|---|---|---|---|---|---|---|
+
 ## After the merge — what is read, and what is not
 
 The page is live for everyone, and every successful view of it is a `job_ads` row. A check that prints a title, an `og:` value or an `<h1>` is

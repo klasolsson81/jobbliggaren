@@ -178,4 +178,96 @@ internal sealed class NotificationFeedSeed
         db.FollowedCompanyAdHits.Add(FollowedCompanyAdHit.Create(userId, adId, watchId, _clock).Value);
         db.SaveChanges();
     }
+
+    // ── Branschbevakning (#1663 PR 3) ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A Branschbevakning created at <see cref="T0"/> whose last scan answered <paramref name="outcome"/> at T0 + 1 day,
+    /// through the aggregate (<see cref="CompanyWatchCriterion.Create"/>, then <see cref="CompanyWatchCriterion.RecordScan"/>),
+    /// so <c>NewCriterionAdSet.NewHits</c> admits its hits written after T0 when the outcome is Scanned.
+    /// </summary>
+    public CompanyWatchCriterionId Criterion(
+        AppDbContext db, Guid userId, CompanyWatchCriterionScanOutcome? outcome = CompanyWatchCriterionScanOutcome.Scanned)
+    {
+        _clock.UtcNow.Returns(T0);
+        var criterion = CompanyWatchCriterion.Create(
+            userId, CompanyWatchCriteriaSpec.Create(["63910"], ["0180"]).Value, null, _clock).Value;
+        if (outcome is { } answered)
+        {
+            _clock.UtcNow.Returns(T0.AddDays(1));
+            criterion.RecordScan(answered, T0.AddDays(1), _clock);
+        }
+
+        db.CompanyWatchCriteria.Add(criterion);
+        db.SaveChanges();
+        return criterion.Id;
+    }
+
+    /// <summary>
+    /// ONE criterion's hit of an ad read in the bell. A click reads every hit of the ad, but the state in between is
+    /// produced by the switch-on backlog mark (<c>CompanyWatchCriterionAdFeedSource.MarkBacklogAsync</c>), which flags the
+    /// hits created after an off-stamp and can leave an older hit of the same ad unread. InMemory cannot run that
+    /// statement, so the flag is set through the change tracker.
+    /// </summary>
+    public static void CriterionHitReadInBell(AppDbContext db, CompanyWatchCriterionId criterionId, JobAdId adId)
+    {
+        var hit = db.CompanyWatchCriterionAdHits.Single(h => h.CompanyWatchCriterionId == criterionId && h.JobAdId == adId);
+        db.Entry(hit).Property(h => h.ReadInNotificationFeed).CurrentValue = true;
+        db.SaveChanges();
+    }
+
+    /// <summary>A hit of <paramref name="adId"/> under the criterion, through <see cref="CompanyWatchCriterionAdHit.Create"/>, as the scan writes it.</summary>
+    public void CriterionHit(AppDbContext db, CompanyWatchCriterionId criterionId, JobAdId adId, DateTimeOffset at)
+    {
+        var criterion = db.CompanyWatchCriteria.Single(c => c.Id == criterionId);
+        _clock.UtcNow.Returns(at);
+        db.CompanyWatchCriterionAdHits.Add(CompanyWatchCriterionAdHit.Create(criterion, adId, _clock).Value);
+        db.SaveChanges();
+    }
+
+    /// <summary>
+    /// The user opened this ad's notification in the bell: every Branschbevakning hit of the ad is read. Production writes
+    /// it with one set-based UPDATE (<c>CompanyWatchCriterionAdFeedSource.MarkRowAsync</c>), which EF InMemory cannot run;
+    /// the state that leaves behind is this flag, set here through the change tracker.
+    /// </summary>
+    public static void CriterionHitsReadInBell(AppDbContext db, Guid userId, JobAdId adId)
+    {
+        foreach (var hit in db.CompanyWatchCriterionAdHits.Where(h => h.UserId == userId && h.JobAdId == adId))
+            db.Entry(hit).Property(h => h.ReadInNotificationFeed).CurrentValue = true;
+        db.SaveChanges();
+    }
+
+    /// <summary>
+    /// The user's X on this ad's notification: every Branschbevakning hit of the ad is dismissed and read, as
+    /// <c>CompanyWatchCriterionAdFeedSource.DismissRowAsync</c>'s one statement leaves it; InMemory cannot run it.
+    /// </summary>
+    public static void CriterionHitsDismissed(AppDbContext db, Guid userId, JobAdId adId)
+    {
+        foreach (var hit in db.CompanyWatchCriterionAdHits.Where(h => h.UserId == userId && h.JobAdId == adId))
+        {
+            db.Entry(hit).Property(h => h.ReadInNotificationFeed).CurrentValue = true;
+            db.Entry(hit).Property(h => h.DismissedFromNotificationFeed).CurrentValue = true;
+        }
+
+        db.SaveChanges();
+    }
+
+    /// <summary>
+    /// The user's visit to the criterion's page of new ads acknowledged its hits through <paramref name="through"/>.
+    /// Production writes it with the seen command's conditional UPDATE (<c>SetNewCriterionAdsSeenCommandHandler</c>),
+    /// which InMemory cannot run; the state it leaves is this column.
+    /// </summary>
+    public static void SeeCriterionNewAdsThrough(AppDbContext db, CompanyWatchCriterionId criterionId, DateTimeOffset through)
+    {
+        var criterion = db.CompanyWatchCriteria.Single(c => c.Id == criterionId);
+        db.Entry(criterion).Property(c => c.NewAdsSeenThrough).CurrentValue = through;
+        db.SaveChanges();
+    }
+
+    public void SwitchFeedCriterionAds(AppDbContext db, JobSeeker seeker, bool on, DateTimeOffset at)
+    {
+        _clock.UtcNow.Returns(at);
+        seeker.SetNotificationFeedCriterionAds(on, _clock);
+        db.SaveChanges();
+    }
 }

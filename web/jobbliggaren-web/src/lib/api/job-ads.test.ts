@@ -11,7 +11,7 @@ vi.mock("@/lib/auth/session", () => ({
   getSessionId: getSessionIdMock,
 }));
 
-import { getJobAd, getJobAds } from "./job-ads";
+import { getFacetCounts, getJobAd, getJobAds } from "./job-ads";
 
 const VALID_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -121,5 +121,105 @@ describe("getJobAds — the distans/remote wire mapping (#551 punkt 4)", () => {
     expect(params.getAll("region")).toEqual(["CifL_Rzy_Mku"]);
     expect(params.getAll("municipality")).toEqual(["AvNB_uwa_6n6"]);
     expect(params.get("remote")).toBe("true");
+  });
+});
+
+describe("getJobAds — the junior wire mapping (#2261)", () => {
+  async function urlFor(over: Partial<Parameters<typeof getJobAds>[0]> = {}) {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ items: [], totalCount: 0, page: 1, pageSize: 20 }),
+    } as unknown as Response);
+    global.fetch = fetchMock;
+    await getJobAds({ page: 1, pageSize: 20, sortBy: "PublishedAtDesc", ...over });
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    return new URL(url).searchParams;
+  }
+
+  // The endpoint binds a C# bool.
+  it("junior=true emits ?junior=true, the bool value, never 'on'", async () => {
+    const params = await urlFor({ junior: true });
+    expect(params.get("junior")).toBe("true");
+  });
+
+  it("junior=false or omitted writes no param", async () => {
+    expect((await urlFor({ junior: false })).has("junior")).toBe(false);
+    expect((await urlFor()).has("junior")).toBe(false);
+  });
+});
+
+describe("the occupation-name axis on the wire (#2199)", () => {
+  function okJson(body: unknown) {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => body,
+    } as unknown as Response;
+  }
+
+  async function sentParams(call: () => Promise<unknown>, body: unknown) {
+    const fetchMock = vi.fn().mockResolvedValue(okJson(body));
+    global.fetch = fetchMock;
+    await call();
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    return new URL(url).searchParams;
+  }
+
+  // The endpoint binds a repeated `occupationName` to string[]; the page's joined
+  // form must never reach it.
+  it("the list query repeats the key once per name, beside the groups", async () => {
+    const params = await sentParams(
+      () =>
+        getJobAds({
+          page: 1,
+          pageSize: 20,
+          sortBy: "PublishedAtDesc",
+          occupationGroup: ["DJh5_yyF_hEM"],
+          occupationName: ["z5AM_ayf_WcL", "1jm3_XFQ_TdJ"],
+        }),
+      { items: [], totalCount: 0, page: 1, pageSize: 20 },
+    );
+    expect(params.getAll("occupationName")).toEqual([
+      "z5AM_ayf_WcL",
+      "1jm3_XFQ_TdJ",
+    ]);
+    expect(params.getAll("occupationGroup")).toEqual(["DJh5_yyF_hEM"]);
+  });
+
+  it("the list query writes no key without a name", async () => {
+    const params = await sentParams(
+      () => getJobAds({ page: 1, pageSize: 20, sortBy: "PublishedAtDesc" }),
+      { items: [], totalCount: 0, page: 1, pageSize: 20 },
+    );
+    expect(params.has("occupationName")).toBe(false);
+  });
+
+  it("the facet-count query repeats the key once per name", async () => {
+    const params = await sentParams(
+      () =>
+        getFacetCounts("Municipality", {
+          occupationName: ["z5AM_ayf_WcL", "1jm3_XFQ_TdJ"],
+        }),
+      {},
+    );
+    expect(params.get("dimension")).toBe("Municipality");
+    expect(params.getAll("occupationName")).toEqual([
+      "z5AM_ayf_WcL",
+      "1jm3_XFQ_TdJ",
+    ]);
+  });
+
+  it("#2261: the facet-count query sends junior=true, and nothing when off", async () => {
+    const on = await sentParams(
+      () => getFacetCounts("Municipality", { junior: true }),
+      {},
+    );
+    expect(on.get("junior")).toBe("true");
+    const off = await sentParams(
+      () => getFacetCounts("Municipality", { junior: false }),
+      {},
+    );
+    expect(off.has("junior")).toBe(false);
   });
 });

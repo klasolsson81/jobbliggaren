@@ -1,4 +1,8 @@
+using System.Linq.Expressions;
 using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.JobAds.Junior;
+using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Infrastructure.Persistence;
 
 namespace Jobbliggaren.Infrastructure.JobAds;
 
@@ -12,12 +16,19 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// #2199 — it also expands the occupation-name picks through the lineage, and folds the
 /// occupation-name counts with the same lineage, so the filter and the counts have one reader.
 /// </para>
+/// <para>
+/// #2261, #2264 — it also builds the junior IT list's membership predicate when the criteria ask for it:
+/// <see cref="JuniorMembership.Of"/> over the stored assessments, the one definition <c>/junior</c> reads too
+/// (ADR 0187). The filter carries the predicate, never its ingredients.
+/// </para>
 /// </summary>
 internal sealed class JobAdSearchTextResolver(
     ISearchQueryParser parser,
     IOccupationSynonymExpander synonymExpander,
     ITaxonomyLabelMatcher labelMatcher,
-    IOccupationNameLineageProvider occupationNames)
+    IOccupationNameLineageProvider occupationNames,
+    AppDbContext db,
+    IJuniorFieldCatalog juniorFields)
 {
     public async ValueTask<ResolvedJobAdFilter> ResolveAsync(
         JobAdFilterCriteria criteria, CancellationToken cancellationToken)
@@ -28,11 +39,17 @@ internal sealed class JobAdSearchTextResolver(
         var labels = excluded.Count == 0
             ? TaxonomyLabelMatchDto.Empty
             : await labelMatcher.MatchExactLabelsAsync(parsed.ExcludedTerms, cancellationToken);
+        var junior = criteria.JuniorIt
+            ? JuniorMembership.Of(
+                db.JuniorAssessments,
+                JuniorMembership.GroupsOf(await juniorFields.ResolveEnabledAsync(cancellationToken)))
+            : null;
 
         return new ResolvedJobAdFilter(
             criteria,
             new ResolvedSearchText(positive, excluded, labels),
-            occupationNames.Lineage.Expand(criteria.OccupationName));
+            occupationNames.Lineage.Expand(criteria.OccupationName),
+            junior);
     }
 
     /// <summary>#2199 — the exact count per occupation-name pick, from ad counts grouped by (name, group).</summary>
@@ -54,7 +71,10 @@ internal sealed class JobAdSearchTextResolver(
 /// taken from another criteria.
 /// </summary>
 internal sealed class ResolvedJobAdFilter(
-    JobAdFilterCriteria criteria, ResolvedSearchText text, OccupationNameExpansion occupationNames)
+    JobAdFilterCriteria criteria,
+    ResolvedSearchText text,
+    OccupationNameExpansion occupationNames,
+    Expression<Func<JobAd, bool>>? juniorItMembership)
 {
     public JobAdFilterCriteria Criteria { get; } = criteria;
 
@@ -62,6 +82,9 @@ internal sealed class ResolvedJobAdFilter(
 
     /// <summary>#2199 — <see cref="JobAdFilterCriteria.OccupationName"/> expanded through the lineage.</summary>
     public OccupationNameExpansion OccupationNames { get; } = occupationNames;
+
+    /// <summary>#2261 — the junior IT list's membership when <see cref="JobAdFilterCriteria.JuniorIt"/> is on, else null.</summary>
+    public Expression<Func<JobAd, bool>>? JuniorItMembership { get; } = juniorItMembership;
 }
 
 /// <summary>The positive residual, the minus-words, and the concepts the minus-words name exactly.</summary>

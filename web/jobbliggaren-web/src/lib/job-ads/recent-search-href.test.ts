@@ -11,6 +11,7 @@ function makeRecent(
     id: "11111111-1111-1111-1111-111111111111",
     q: "backend",
     occupationGroupList: [],
+    occupationNameList: [],
     municipalityList: [],
     regionList: [],
     employmentTypeList: [],
@@ -18,6 +19,7 @@ function makeRecent(
     employerList: [],
     remote: false,
     occupationGroupLabels: [],
+    occupationNameLabels: [],
     municipalityLabels: [],
     regionLabels: [],
     sortBy: DEFAULT_SORT_BY,
@@ -25,6 +27,7 @@ function makeRecent(
     currentCount: 0,
     newCount: 0,
     lastViewedAt: "2026-06-27T10:00:00Z",
+    isQuickLink: false,
     ...overrides,
   };
 }
@@ -82,6 +85,7 @@ describe("buildRecentSearchHref (#294 — shared replay href)", () => {
     id: null,
     q: "q",
     occupationGroupList: "occupationGroup",
+    occupationNameList: "occupationName",
     municipalityList: "municipality",
     regionList: "region",
     employmentTypeList: "employmentType",
@@ -89,6 +93,7 @@ describe("buildRecentSearchHref (#294 — shared replay href)", () => {
     employerList: "employer",
     remote: "distans",
     occupationGroupLabels: null,
+    occupationNameLabels: null,
     municipalityLabels: null,
     regionLabels: null,
     sortBy: "sortBy",
@@ -96,10 +101,12 @@ describe("buildRecentSearchHref (#294 — shared replay href)", () => {
     currentCount: null,
     newCount: null,
     lastViewedAt: null,
+    isQuickLink: null,
   };
   const AXIS_SAMPLE: Partial<RecentJobSearchDto> = {
     q: "backend",
     occupationGroupList: ["MVqp_eS8_kDZ"],
+    occupationNameList: ["z5AM_ayf_WcL"],
     municipalityList: ["zHxw_uJZ_NNh"],
     regionList: ["CifL_Rzy_Mku"],
     employmentTypeList: ["gro4_cWF_6D7"],

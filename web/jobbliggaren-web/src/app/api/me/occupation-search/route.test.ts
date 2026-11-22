@@ -19,13 +19,35 @@ const BODY = {
       labelHit: false,
       headWord: "Elingenjör",
       variants: [
-        { nameLabel: "Elingenjör", groupConceptId: "nDaB_vdy_eAy", groupLabel: "Ingenjörer och tekniker inom elektroteknik" },
-        { nameLabel: "Elingenjör, fartyg/Fartygseltekniker", groupConceptId: "Rsoy_sS6_6c4", groupLabel: "Maskinbefäl" },
+        {
+          occupationNameConceptId: "kx3b_92W_PuD",
+          nameLabel: "Elingenjör",
+          groupConceptId: "nDaB_vdy_eAy",
+          groupLabel: "Ingenjörer och tekniker inom elektroteknik",
+        },
+        {
+          occupationNameConceptId: "YEm9_pLR_XoT",
+          nameLabel: "Elingenjör, fartyg/Fartygseltekniker",
+          groupConceptId: "Rsoy_sS6_6c4",
+          groupLabel: "Maskinbefäl",
+        },
       ],
       exactMatch: true,
     },
+    // #2199 PR 3 — a Group row's names carry their own ids; `toEqual(BODY)` below pins that the
+    // BFF's parse does not strip them.
+    {
+      kind: "Group",
+      groupConceptId: "DJh5_yyF_hEM",
+      groupLabel: "Mjukvaru- och systemutvecklare m.fl.",
+      matchedNames: [{ occupationNameConceptId: "7wdX_4rv_33z", nameLabel: "Backend-utvecklare" }],
+      labelHit: false,
+      headWord: null,
+      variants: [],
+      exactMatch: false,
+    },
   ],
-  totalRows: 1,
+  totalRows: 2,
 };
 
 function request(query: string) {

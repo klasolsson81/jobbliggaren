@@ -71,12 +71,14 @@ export function buildCompanyJobsHref(
   return buildJobbHref({
     q: "",
     occupationGroup: [],
+    occupationName: [],
     region: [],
     municipality: [],
     employmentType: [],
     worktimeExtent: [],
     matchGrades: scope === "matching" ? WATCH_MATCHING_GRADES : [],
     remote: false,
+    junior: false,
     employer: organizationNumbers,
     sortBy: DEFAULT_SORT_BY,
   });

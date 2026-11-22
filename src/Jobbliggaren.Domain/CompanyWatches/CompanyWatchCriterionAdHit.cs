@@ -22,8 +22,12 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// </para>
 ///
 /// <para>
-/// <b>The bell's two flags have no writer yet.</b> They are created false and are written only by the user's
-/// own click in the bell (PR 3); a system writer of either is Blocker class (ADR 0169 V20).
+/// <b>The bell's two flags.</b> They are created false. Their only writers are the Branschbevakning bell source's
+/// set-based statements (ADR 0175 D8), each triggered by the user in the bell or by their own switch: a click, the X,
+/// "Markera alla" and the backlog mark when the switch is turned back on. The scan, the purge and every other path write
+/// neither, and a system writer of either is Blocker class (ADR 0169 V20). The type therefore has no method for them, the
+/// same departure from explicit state transitions that <c>UserJobAdMatch</c> makes (ADR 0169 D1'): a tracked hit can be
+/// purged between a load and the save. The CHECK (dismissed implies read) and a source-scan writer guard compensate.
 /// </para>
 /// </summary>
 public sealed class CompanyWatchCriterionAdHit : AggregateRoot<CompanyWatchCriterionAdHitId>
@@ -33,7 +37,7 @@ public sealed class CompanyWatchCriterionAdHit : AggregateRoot<CompanyWatchCrite
     public CompanyWatchCriterionId CompanyWatchCriterionId { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
-    /// <summary>The bell's read flag (ADR 0168 parity). Written only by the user's click in the bell (PR 3).</summary>
+    /// <summary>The bell's read flag (ADR 0168 parity). Written only by the bell source's statements (see the class).</summary>
     public bool ReadInNotificationFeed { get; private set; }
 
     /// <summary>The bell's X (ADR 0169 parity); implies <see cref="ReadInNotificationFeed"/> by a CHECK.</summary>

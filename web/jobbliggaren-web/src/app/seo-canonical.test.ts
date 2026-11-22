@@ -12,9 +12,7 @@ import robots from "./robots";
  * #2092: every indexable public page names itself as its canonical, absolutely, and no
  * layout names one that other routes would inherit.
  *
- * The indexable surface is DERIVED from the filesystem (every page in the two marketing
- * route groups, and every page of `(public-job)` that is a URL of its own, which is the
- * catalogue: its internal `publik/` pages are reached by a rewrite and are no address)
+ * The indexable surface is DERIVED from the filesystem
  * and must equal the set the sitemap lists, so a new public page fails here until it is
  * both listed and self-canonical.
  */
@@ -22,6 +20,19 @@ import robots from "./robots";
 vi.mock("next-intl/server", () => ({
   getTranslations: async () => (key: string) => key,
   getLocale: async () => "sv",
+}));
+
+// The junior list's default view is indexable only while the floor holds, which takes a whole list of at least 100 ads.
+const juniorFloor = vi.hoisted(() => ({ holds: true }));
+vi.mock("@/lib/api/public-junior-it-job-ads", () => ({
+  getPublicJuniorItJobAds: async () => ({
+    kind: "ok",
+    page: {
+      rows: { items: [], totalCount: juniorFloor.holds ? 101 : 23, page: 1, pageSize: 20, totalPages: juniorFloor.holds ? 6 : 2 },
+      places: [],
+      floorHolds: juniorFloor.holds,
+    },
+  }),
 }));
 
 // The catalogue's metadata reads its page through the cached reader; an empty page 1 is a real answer (a measured zero).
@@ -32,12 +43,15 @@ vi.mock("@/lib/api/public-job-ad-catalogue", () => ({
   }),
 }));
 
-type PageModule = { generateMetadata?: () => Promise<Metadata> };
+type PageModule = {
+  generateMetadata?: (props?: { searchParams: Promise<Record<string, string>> }) => Promise<Metadata>;
+};
 
 const pages = import.meta.glob("./**/page.tsx");
 
 const PUBLIC_GROUPS = new Set(["(marketing)", "(marketing-inner)"]);
 const LOGIN_PAGE = "./(auth)/logga-in/page.tsx";
+const JUNIOR_PAGE = "./(public-job)/junior/page.tsx";
 
 /** `./(marketing-inner)/om/page.tsx` is `/om`: a route group adds no URL segment. */
 function routeOf(key: string): string {
@@ -51,6 +65,7 @@ const publicPages = Object.keys(pages)
   .sort((a, b) => routeOf(a).localeCompare(routeOf(b)));
 
 const metadataByKey = new Map<string, Metadata | undefined>();
+let juniorMetadata: NonNullable<PageModule["generateMetadata"]> | undefined;
 
 beforeAll(async () => {
   // Importing a page module is slow on a cold transform, so every import happens here,
@@ -61,6 +76,7 @@ beforeAll(async () => {
     const { generateMetadata } = (await load()) as PageModule;
     if (generateMetadata === undefined) throw new Error(`${key} exports no generateMetadata`);
     metadataByKey.set(key, await generateMetadata());
+    if (key === JUNIOR_PAGE) juniorMetadata = generateMetadata;
   }
 }, 120_000);
 
@@ -97,6 +113,30 @@ describe("self-canonicals on the indexable public pages (#2092)", () => {
     for (const file of layouts) {
       const block = metadataBlock(readFileSync(file, "utf8")) ?? "";
       expect(block, relative(app, file)).not.toMatch(/\b(alternates|canonical)\b/);
+    }
+  });
+});
+
+describe("the junior list's answers beyond its indexable view (ADR 0166, the Amendment 2026-11-22)", () => {
+  const view = (searchParams: Record<string, string>) => juniorMetadata!({ searchParams: Promise.resolve(searchParams) });
+
+  it.each([[{ municipality: "PVZL_BQT_XtL" }], [{ sortBy: "ExpiresAtAsc" }], [{ page: "2" }]])(
+    "keeps %j noindex with no canonical while the floor holds",
+    async (searchParams) => {
+      const metadata = await view(searchParams);
+      expect(metadata.robots).toMatchObject({ index: false });
+      expect(metadata.alternates?.canonical).toBeUndefined();
+    }
+  );
+
+  it("keeps the default view noindex with no canonical while the floor fails", async () => {
+    juniorFloor.holds = false;
+    try {
+      const metadata = await view({});
+      expect(metadata.robots).toMatchObject({ index: false });
+      expect(metadata.alternates?.canonical).toBeUndefined();
+    } finally {
+      juniorFloor.holds = true;
     }
   });
 });

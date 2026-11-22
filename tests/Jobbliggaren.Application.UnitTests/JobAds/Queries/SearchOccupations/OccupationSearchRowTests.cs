@@ -50,11 +50,15 @@ public class OccupationSearchRowTests
     public void ForGroup_WithMatchedNames_CarriesNoVariantsAndNoHeadWord()
     {
         var row = OccupationSearchRow.ForGroup(
-            "DJh5_yyF_hEM", "Mjukvaru- och systemutvecklare m.fl.", ["Backend-utvecklare"], labelHit: false, exactMatch: false);
+            "DJh5_yyF_hEM",
+            "Mjukvaru- och systemutvecklare m.fl.",
+            [new OccupationSearchMatchedName("7wdX_4rv_33z", "Backend-utvecklare")],
+            labelHit: false,
+            exactMatch: false);
 
         row.Kind.ShouldBe(OccupationSearchRowKind.Group);
         row.GroupConceptId.ShouldBe("DJh5_yyF_hEM");
-        row.MatchedNames.ShouldBe(["Backend-utvecklare"]);
+        row.MatchedNames.ShouldBe([new OccupationSearchMatchedName("7wdX_4rv_33z", "Backend-utvecklare")]);
         row.HeadWord.ShouldBeNull();
         row.Variants.ShouldBeEmpty();
     }

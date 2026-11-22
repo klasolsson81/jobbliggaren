@@ -1090,20 +1090,21 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-header--switchable .jp-brand { flex: 0 0 auto; }
   .jp-header--switchable .jp-brand__lockup { width: min-content; }
   .jp-header--switchable .jp-nav {
-    flex: 0 0 536px;
+    flex: 0 0 581px;
     min-width: 0;
     gap: 0;
     margin-left: 0;
   }
   .jp-header--switchable .jp-nav__link {
-    padding: 6px;
+    padding: 6px 4px;
     font-size: var(--text-body-sm);
   }
   .jp-header--switchable .jp-nav__link[aria-current="page"]::after {
     bottom: calc((100% - var(--jp-header-inner-h)) / 2);
-    left: 6px;
-    right: 6px;
+    left: 4px;
+    right: 4px;
   }
+  .jp-header--switchable .jp-nav:not(.jp-nav--user) .jp-nav__link:focus-visible { outline-offset: 0; }
   .jp-header--switchable .jp-nav--user { gap: 4px; }
   .jp-header--switchable .jp-nav--user .jp-nav__link {
     padding: 10px 14px;
@@ -1314,6 +1315,122 @@ a.jp-adminnav__link[aria-current="page"]::after {
   line-height: 1.5;
   max-width: 42ch;
   color: var(--jp-gold);
+}
+
+/* #2265 (ADR 0188; DESIGN.md, the band clause for /jobb only) — the quick-link row under the line: quiet, underlined
+   text links in the plate's soft ink (the tone of "Spara sökningen"), each with an × of its own. `a.` beats the global
+   `a:not(…)` link colour by source order at equal specificity, as the footer's links do. The row is the × button's
+   box, 32 px and 44 px at ≤768 px (the touch floor), which /jobb's loading.tsx reserves. */
+.jp-hero__quicklinks-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+}
+.jp-hero__quicklink-item {
+  display: inline-flex;
+  align-items: center;
+}
+a.jp-hero__quicklink {
+  font-size: var(--text-body-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-hero-ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+a.jp-hero__quicklink:hover {
+  color: var(--jp-hero-ink);
+}
+.jp-hero__quicklink-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--jp-r-md);
+  background: transparent;
+  color: var(--jp-hero-ink-soft);
+  cursor: pointer;
+}
+.jp-hero__quicklink-remove:hover {
+  color: var(--jp-hero-ink);
+}
+.jp-hero__quicklinks-reserve {
+  margin: 14px 0 0;
+  height: 32px;
+}
+.jp-hero__quicklinks-error {
+  margin: 8px 0 0;
+  font-size: var(--text-caption);
+  color: var(--jp-hero-ink);
+}
+/* #2275 — "Anpassa" at the end of the row: the links' soft ink without their underline, so it reads as the control
+   that picks them rather than as one more link. It opens `.jp-quicklink-picker` in a `.jp-popover`. */
+.jp-hero__quicklinks-settings {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  color: var(--jp-hero-ink-soft);
+  cursor: pointer;
+}
+.jp-hero__quicklinks-settings:hover {
+  color: var(--jp-hero-ink);
+}
+/* The tick-box list, in the hero's popover and on the settings page: the rows of `.jp-checkitem`. */
+.jp-quicklink-picker {
+  margin: 0;
+  padding: 6px 0;
+  border: 0;
+  min-width: 0;
+}
+.jp-quicklink-picker--flush {
+  margin-inline: -16px;
+}
+.jp-quicklink-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  cursor: pointer;
+  font-size: var(--text-ui);
+  color: var(--jp-ink-1);
+}
+.jp-quicklink-picker__row:hover:not(:has(input:disabled)) {
+  background: var(--jp-surface-3);
+}
+.jp-quicklink-picker__row input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--jp-accent-800);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.jp-quicklink-picker__row:has(input:disabled) {
+  color: var(--jp-ink-3);
+  cursor: default;
+}
+.jp-quicklink-picker__row input:disabled {
+  cursor: default;
+}
+.jp-quicklink-picker__note,
+.jp-quicklink-picker__error {
+  margin: 6px 16px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-quicklink-picker__error {
+  color: var(--jp-danger-700);
 }
 
 /* Höger-panel: actions-rad + sök-block + filter-pills (stack, gap 14) */
@@ -1626,6 +1743,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
     gap: 28px;
   }
   .jp-hero__title { font-size: var(--jp-fs-hero-title-sm); }
+  a.jp-hero__quicklink { display: inline-flex; align-items: center; min-height: 44px; }
+  .jp-hero__quicklink-remove { width: 44px; height: 44px; }
+  .jp-hero__quicklinks-reserve { height: 44px; }
+  .jp-hero__quicklinks-settings { min-height: 44px; }
+  .jp-quicklink-picker__row { min-height: 44px; }
   /* #419 pt4 — .jp-hero__actions är nu flex-start i bas-regeln (redundant override borttagen). */
   .jp-hero-chip,
   .jp-hero-pill { min-height: 44px; }

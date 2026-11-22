@@ -19,11 +19,16 @@ vi.mock("next-intl/server", () => ({
 vi.mock("@/lib/auth/session", () => ({
   getServerSession: async () => ({ email: "a@b.se", roles: [] }),
 }));
+// ADR 0188 — the page reads the profile for the junior quick link, which counts toward the cap.
+vi.mock("@/lib/api/me", () => ({
+  getMyProfile: async () => ({ kind: "error" }),
+}));
 
 const RECENT: RecentJobSearchDto = {
   id: "a1",
   q: "backend",
   occupationGroupList: [],
+  occupationNameList: [],
   municipalityList: [],
   regionList: [],
   employmentTypeList: [],
@@ -31,6 +36,7 @@ const RECENT: RecentJobSearchDto = {
   employerList: [],
   remote: false,
   occupationGroupLabels: [],
+  occupationNameLabels: [],
   municipalityLabels: [],
   regionLabels: [],
   sortBy: "PublishedAtDesc",
@@ -38,6 +44,7 @@ const RECENT: RecentJobSearchDto = {
   currentCount: 0,
   newCount: 0,
   lastViewedAt: "2026-05-20T19:00:00Z",
+  isQuickLink: false,
 };
 
 vi.mock("@/lib/api/recent-searches", () => ({

@@ -49,7 +49,7 @@ public class JobAdSearchNewSinceTests(ApiFactory factory)
         EmploymentType: [],
         WorktimeExtent: [],
         Employer: [],
-        Remote: false,
+        Remote: false, JuniorIt: false,
         Q: null);
 
     // Seeds one imported ad tagged with the run's occupation-group; lifecycle transitions run

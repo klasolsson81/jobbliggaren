@@ -364,7 +364,10 @@
       "yrkeSelectAll": "Select all occupational groups",
       "yrkeEmpty": "Occupational areas could not be loaded right now. You can search by search terms anyway.",
       "yrkeRightEmpty": "Select an occupational area on the left.",
-      "klass2Empty": "Filters could not be loaded right now. You can search by search terms anyway."
+      "yrkeNameHint": "Ticking an occupation shows ads where the employer specified exactly that occupation. Search for the occupational group for more.",
+      "yrkeGroupNameHint": "Ticking an occupation shows ads where the employer specified exactly that occupation.",
+      "yrkeNamesSelected": "{count, plural, one {# selected occupation is shown among the active filters, not here.} other {# selected occupations are shown among the active filters, not here.}}",
+      "klass2Empty": "Scope and employment type could not be loaded right now. You can search by search terms anyway."
     },
     "typeahead": {
       "loading": "Fetching suggestions…",
@@ -381,10 +384,45 @@
       "worktimeAll": "All",
       "worktimeHeading": "Scope",
       "employmentHeading": "Employment type",
-      "clear": "Clear"
+      "clear": "Clear",
+      "junior": "Junior IT jobs",
+      "juniorHint": "For people new to the field."
     },
     "heroChip": {
       "showAll": "Show all"
+    }
+  },
+  "quickLinks": {
+    "navLabel": "Quick links",
+    "junior": "Junior IT jobs",
+    "juniorCount": "{count, number} right now",
+    "juniorName": "Junior IT jobs, {count, number} right now",
+    "remove": "Remove the quick link: {label}",
+    "removed": "The quick link has been removed: {label}",
+    "add": "Add as quick link",
+    "unmark": "Remove as quick link",
+    "added": "The quick link has been added: {label}",
+    "full": "You can have at most {max, number} quick links. Remove one to add another.",
+    "errors": {
+      "full": "You already have {max, number} quick links. Remove one to add another.",
+      "conflict": "Your quick links changed at the same time. Please try again.",
+      "notFound": "The search no longer exists. It may have been removed.",
+      "notLoggedIn": "You are not signed in.",
+      "rateLimited": "Too many changes in a short time. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+      "failed": "The quick link could not be changed. Please try again."
+    },
+    "settings": {
+      "lede": "Your quick links are shown at the top of Jobs.",
+      "open": "Customise",
+      "openName": "Customise quick links",
+      "openEmpty": "Choose quick links",
+      "noSearches": "Run a search under Jobs, and you can add it here."
+    },
+    "picker": {
+      "legend": "Choose up to {max, number} quick links",
+      "full": "You can have at most {max, number} quick links. Untick one to choose another.",
+      "all": "All searches",
+      "noSearches": "Run a search, and you can add it here."
     }
   }
 }

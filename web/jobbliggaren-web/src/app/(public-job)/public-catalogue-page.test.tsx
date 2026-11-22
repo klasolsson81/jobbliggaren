@@ -64,6 +64,29 @@ describe("the public catalogue page", () => {
     expect(screen.getByText(sv.publicjob.catalogue.lede)).toBeInTheDocument();
   });
 
+  it("links to the junior IT list in one plain sentence under the band, outside the nosnippet block, on every page", async () => {
+    for (const sida of [undefined, "7"]) {
+      getPublicJobAdCatalogue.mockResolvedValue(pageOf([row(1), row(2)], 141, sida === undefined ? 1 : 7));
+      const { unmount } = render(await PublicCataloguePage(props(sida)));
+
+      const link = screen.getByRole("link", { name: "juniora IT-jobb" });
+      expect(link).toHaveAttribute("href", "/junior");
+      expect(link).not.toHaveAttribute("data-next-link");
+      expect(link.closest("p")?.textContent).toBe("Är du ny inom IT? Se juniora IT-jobb.");
+      expect(link.closest(".jp-pagehero")).toBeNull();
+      expect(link.closest("[data-nosnippet]")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("leaves the link out of the empty state", async () => {
+    getPublicJobAdCatalogue.mockResolvedValue(pageOf([], 0));
+    render(await PublicCataloguePage(props()));
+
+    expect(screen.getByRole("heading", { level: 2, name: sv.publicjob.catalogue.empty.title })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "juniora IT-jobb" })).toBeNull();
+  });
+
   it("renders a row per ad as an h2 with one plain anchor to the job page, the company and the place", async () => {
     getPublicJobAdCatalogue.mockResolvedValue(
       pageOf([row(1), row(2, { municipalityName: null }), row(3, { municipalityName: null, regionName: null })], 41)

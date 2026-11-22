@@ -6,6 +6,7 @@ using Jobbliggaren.Application.JobAds.Commands.CreateJobAd;
 using Jobbliggaren.Application.JobAds.Queries.DisambiguateEmployers;
 using Jobbliggaren.Application.JobAds.Queries.GetFacetCounts;
 using Jobbliggaren.Application.JobAds.Queries.GetJobAd;
+using Jobbliggaren.Application.JobAds.Queries.GetJuniorItJobAdCount;
 using Jobbliggaren.Application.JobAds.Queries.GetRemoteAdCount;
 using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
@@ -107,6 +108,9 @@ public static class JobAdsEndpoints
             // #2199 — yrkesbenämningar picked in Yrke, OR-ed with ?occupationGroup= (see
             // ListJobAdsQuery.OccupationName). Repeated query-string binds to string[].
             string[]? occupationName = null,
+            // #2261 — the junior IT list as a filter (ADR 0186 D2). Bool binding takes ?junior=true; the FE maps
+            // its own ?junior=on to it, as ?distans=on maps to ?remote=true.
+            bool junior = false,
             CancellationToken ct = default) =>
         {
             var result = await mediator.Send(
@@ -127,7 +131,8 @@ public static class JobAdsEndpoints
                     AppliedOnly: appliedOnly,
                     HideApplied: hideApplied,
                     OnlyMatched: onlyMatched,
-                    OccupationName: occupationName), ct);
+                    OccupationName: occupationName,
+                    JuniorIt: junior), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);
@@ -177,6 +182,8 @@ public static class JobAdsEndpoints
             string? q = null,
             // #2199 — yrkesbenämningar as Yrke filter context, OR-ed with ?occupationGroup=.
             string[]? occupationName = null,
+            // #2261 — an active junior filter as context, so a count for another dimension counts the list's WHERE.
+            bool junior = false,
             CancellationToken ct = default) =>
         {
             http.Response.Headers.CacheControl = "private, no-store";
@@ -190,7 +197,8 @@ public static class JobAdsEndpoints
                     WorktimeExtent: worktimeExtent,
                     Remote: remote,
                     Q: q,
-                    OccupationName: occupationName), ct);
+                    OccupationName: occupationName,
+                    JuniorIt: junior), ct);
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.FacetCountsPolicy);
@@ -220,6 +228,17 @@ public static class JobAdsEndpoints
             return Results.Ok(result);
         })
         .RequireRateLimiting(RateLimitingExtensions.FacetCountsPolicy);
+
+        // ADR 0188 (#2265) — the count behind the junior quick link in the /jobb hero: /junior's own number, read per
+        // request (ADR 0166 trigger 22). Its own per-user bucket. Cache-Control: private, no-store, as /remote-count.
+        group.MapGet("/junior-it-count", async (
+            IMediator mediator, HttpContext http, CancellationToken ct) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new GetJuniorItJobAdCountQuery(), ct);
+            return Results.Ok(result);
+        })
+        .RequireRateLimiting(RateLimitingExtensions.JobAdJuniorItCountPolicy);
 
         // ADR 0087 D6/D8(c) (#311 PR-2b C2) — employer disambiguation: given a company-name term
         // (?q=), the DISTINCT legal entities in the ad corpus that match, one row per org.nr (the

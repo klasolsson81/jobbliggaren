@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
+import { getJuniorItCount } from "@/lib/api/junior-it-count";
 import { getMyProfile } from "@/lib/api/me";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
@@ -13,6 +14,7 @@ import {
   MATCHNING_OFF_VALUE,
   RELATERADE_ON_VALUE,
   DISTANS_ON_VALUE,
+  JUNIOR_ON_VALUE,
   STATUS_ON_VALUE,
   parseEmployerParam,
   toStringList,
@@ -20,6 +22,7 @@ import {
 import { Announcer } from "@/components/common/announcer";
 import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
 import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
+import { JobbQuickLinks } from "@/components/job-ads/jobb-quick-links";
 import { JobbResults } from "@/components/job-ads/jobb-results";
 import { JobAdListSkeleton } from "@/components/job-ads/job-ad-list-skeleton";
 import { StripCommitParam } from "@/components/job-ads/strip-commit-param";
@@ -45,11 +48,15 @@ type JobbSearchParams = {
   pageSize?: string;
   sortBy?: string;
   occupationGroup?: string | string[];
+  // An occupation-name (#2199). The backend ORs it with occupationGroup inside the
+  // Yrke dimension.
+  occupationName?: string | string[];
   region?: string | string[];
   municipality?: string | string[];
   // Each toggle below reacts only to its exact value; any other value is treated
   // as absent.
   distans?: string;
+  junior?: string;
   employmentType?: string | string[];
   worktimeExtent?: string | string[];
   matchGrades?: string | string[];
@@ -78,18 +85,22 @@ interface PageProps {
 
 const DEFAULT_PAGE_SIZE = 20;
 
+const HERO_HEADING_ID = "jobb-hero-title";
+
 export default async function JobbPage({ searchParams }: PageProps) {
   // Start the hero's reads before awaiting the session, so they overlap the /me
   // round-trip instead of following it. None of them needs the session object:
   // each fetcher reads the session id itself and returns an error Result for a
   // guest, which the redirect below discards. The promise cannot reject, since
   // every fetcher returns a Result. getMyProfile is cache()-wrapped, so
-  // JobbResults reuses this read within the request.
+  // JobbResults reuses this read within the request. The fifth read is the
+  // junior quick link's count (ADR 0188), with a timeout of its own.
   const heroDataPromise = Promise.all([
     getTaxonomyTree(),
     getRecentSearches(),
     getSavedJobAds(),
     getMyProfile(),
+    getJuniorItCount(),
   ]);
 
   const user = await getServerSession();
@@ -104,6 +115,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
   );
   const sortBy = parseSortBy(params.sortBy);
   const occupationGroup = toStringList(params.occupationGroup);
+  const occupationName = toStringList(params.occupationName);
   const region = toStringList(params.region);
   const municipality = toStringList(params.municipality);
   const employmentType = toStringList(params.employmentType);
@@ -122,6 +134,8 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const onlyMatched = params.baraMatchade === STATUS_ON_VALUE;
   // A place facet: the Swedish `?distans=on` becomes the API's `remote: true`.
   const remote = params.distans === DISTANS_ON_VALUE;
+  // #2261 — the junior IT filter: `?junior=on` becomes the API's `junior: true`.
+  const junior = params.junior === JUNIOR_ON_VALUE;
   // buildPageHref uses the same parser, so the parsed page and its pagination
   // links cannot diverge.
   const employer = parseEmployerParam(params.employer);
@@ -140,8 +154,13 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // profile read means the user has a job-seeker profile:
   // hasStatedDesiredOccupation gates the matching control and hasSeeker gates
   // "Dölj ansökta", as the backend does. An error hides both controls.
-  const [taxonomyResult, recentSearchesResult, savedJobAdsResult, profileResult] =
-    await heroDataPromise;
+  const [
+    taxonomyResult,
+    recentSearchesResult,
+    savedJobAdsResult,
+    profileResult,
+    juniorCountResult,
+  ] = await heroDataPromise;
   const hasStatedDesiredOccupation =
     profileResult.kind === "ok" && profileResult.data.hasStatedDesiredOccupation;
   const hasSeeker = profileResult.kind === "ok";
@@ -153,6 +172,18 @@ export default async function JobbPage({ searchParams }: PageProps) {
 
   const savedJobAds =
     savedJobAdsResult.kind === "ok" ? savedJobAdsResult.data : [];
+
+  // ADR 0188 — the quick links. The junior link shows when the profile says it is on and the count was read and is
+  // above 0; a failed read of either hides it (security-auditor m3). The searches come from the read above.
+  const juniorCount =
+    profileResult.kind === "ok" &&
+    profileResult.data.juniorQuickLinkEnabled &&
+    juniorCountResult.kind === "ok" &&
+    juniorCountResult.data.count > 0
+      ? juniorCountResult.data.count
+      : null;
+  const juniorQuickLinkEnabled = profileResult.kind === "ok" ? profileResult.data.juniorQuickLinkEnabled : null;
+  const quickLinkSearches = recentSearchesResult.kind === "ok" ? recentSearchesResult.data : null;
 
   // A failed taxonomy read must not block search: the filter popover then shows
   // an empty list with an explanatory line (ADR 0043 Beslut B).
@@ -171,6 +202,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
     })
   ).toString();
   const occupationGroupKey = occupationGroup.join(",");
+  const occupationNameKey = occupationName.join(",");
   const regionKey = region.join(",");
   const municipalityKey = municipality.join(",");
   const employmentTypeKey = employmentType.join(",");
@@ -181,6 +213,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const statusKey = hideApplied ? "h" : "";
   const onlyMatchedKey = onlyMatched ? "m" : "";
   const remoteKey = remote ? "d" : "";
+  const juniorKey = junior ? "j" : "";
   const employerKey = employer.join(".");
 
   return (
@@ -195,8 +228,18 @@ export default async function JobbPage({ searchParams }: PageProps) {
         <div className="jp-hero__inner">
           <div className="jp-hero__plate">
             <div>
-              <h1 className="jp-hero__title">{t("jobb.title")}</h1>
+              <h1 id={HERO_HEADING_ID} tabIndex={-1} className="jp-hero__title">
+                {t("jobb.title")}
+              </h1>
               <p className="jp-hero__lede">{t("jobb.lede")}</p>
+              {/* Mounted with no link to show too: its status must outlive the last link, which the re-render after
+                  that removal takes away. */}
+              <JobbQuickLinks
+                juniorCount={juniorCount}
+                juniorEnabled={juniorQuickLinkEnabled}
+                searches={quickLinkSearches}
+                headingId={HERO_HEADING_ID}
+              />
             </div>
 
             <div className="jp-hero__panel">
@@ -214,9 +257,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 taxonomy={taxonomy}
                 q={q ?? ""}
                 occupationGroup={occupationGroup}
+                occupationName={occupationName}
                 region={region}
                 municipality={municipality}
                 remote={remote}
+                junior={junior}
                 employmentType={employmentType}
                 worktimeExtent={worktimeExtent}
                 matchGrades={matchGrades}
@@ -231,9 +276,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
               <JobbHeroFilters
                 taxonomy={taxonomy}
                 initialOccupationGroup={occupationGroup}
+                initialOccupationName={occupationName}
                 initialRegion={region}
                 initialMunicipality={municipality}
                 initialRemote={remote}
+                initialJunior={junior}
                 initialEmploymentType={employmentType}
                 initialWorktimeExtent={worktimeExtent}
                 initialMatchGrades={matchGrades}
@@ -280,7 +327,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
               with two writers. */}
           <Announcer>
           <Suspense
-            key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${remoteKey}|${employerKey}`}
+            key={`${resultsKey}|${occupationGroupKey}|${occupationNameKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${remoteKey}|${juniorKey}|${employerKey}`}
             fallback={<JobAdListSkeleton />}
           >
             <JobbResults
@@ -288,9 +335,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
               pageSize={pageSize}
               sortBy={sortBy}
               occupationGroup={occupationGroup}
+              occupationName={occupationName}
               region={region}
               municipality={municipality}
               remote={remote}
+              junior={junior}
               employmentType={employmentType}
               worktimeExtent={worktimeExtent}
               matchGrades={matchGrades}

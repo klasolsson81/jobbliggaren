@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.BackgroundJobs;
 using Jobbliggaren.Application.Common.Auditing.Jobs.AuditLogRetention;
 using Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchCriterionScan;
+using Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds;
 using Jobbliggaren.Application.JobAds.Jobs.ExpireJobAds;
 using Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 using Jobbliggaren.Application.JobAds.Jobs.RetainPlatsbankenJobAds;
@@ -54,6 +55,7 @@ public sealed partial class RecurringJobRegistrar(
     IOptions<CompanyWatchMaterialisationOptions> materialisationOptions,
     IOptions<OccupationDivisionProfileOptions> profileOptions,
     IOptions<CompanyWatchCriterionScanOptions> criterionScanOptions,
+    IOptions<ClassifyJuniorJobAdsOptions> juniorOptions,
     ILogger<RecurringJobRegistrar> logger) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
@@ -95,6 +97,14 @@ public sealed partial class RecurringJobRegistrar(
             RecurringJobIds.ExpireJobAds,
             job => job.RunAsync(CancellationToken.None),
             "45 3 * * *");  // 03:45 UTC — defense-in-depth ExpiresAt-cron (ADR 0032-amend 2026-05-23)
+
+        // #2264 (ADR 0187) — the junior classification sweep, level-triggered like the company-watch sweep: no
+        // handler enqueues anything, the stored fingerprints and rule version are the queue. Registered
+        // unconditionally; the kill-switch is in the job.
+        manager.AddOrUpdate<ClassifyJuniorJobAdsWorker>(
+            RecurringJobIds.ClassifyJuniorJobAds,
+            job => job.RunAsync(CancellationToken.None),
+            juniorOptions.Value.Cron);
 
         // ADR 0175 (#1663) — the nightly Branschbevakning scan. Its own cron
         // (CompanyWatchCriterionScan:CadenceCron, default 03:55 UTC): after the follow scan at 03:25 and its

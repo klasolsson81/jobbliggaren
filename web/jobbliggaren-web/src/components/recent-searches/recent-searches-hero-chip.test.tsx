@@ -17,6 +17,7 @@ function makeDto(extra: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     id: "id-1",
     q: null,
     occupationGroupList: [],
+    occupationNameList: [],
     municipalityList: [],
     regionList: [],
     employmentTypeList: [],
@@ -24,6 +25,7 @@ function makeDto(extra: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     employerList: [],
     remote: false,
     occupationGroupLabels: [],
+    occupationNameLabels: [],
     municipalityLabels: [],
     regionLabels: [],
     sortBy: "PublishedAtDesc",
@@ -31,6 +33,7 @@ function makeDto(extra: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     currentCount: 0,
     newCount: 0,
     lastViewedAt: "2026-05-20T19:00:00Z",
+    isQuickLink: false,
     ...extra,
   };
 }

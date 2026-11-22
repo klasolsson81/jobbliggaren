@@ -10,9 +10,14 @@ import { queryLabel } from "@/test/recent-search-label";
 
 const pushMock = vi.fn();
 const deleteActionMock = vi.fn();
+const quickLinkActionMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
+}));
+
+vi.mock("@/lib/actions/quick-links", () => ({
+  setRecentSearchQuickLinkAction: (...args: unknown[]) => quickLinkActionMock(...args),
 }));
 
 vi.mock("@/lib/actions/recent-searches", () => ({
@@ -24,6 +29,7 @@ function makeDto(extra?: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     id: "11111111-1111-1111-1111-111111111111",
     q: "backend",
     occupationGroupList: ["MVqp_eS8_kDZ"],
+    occupationNameList: [],
     municipalityList: [],
     regionList: ["CifL_Rzy_Mku"],
     employmentTypeList: ["gro4_cWF_6D7"],
@@ -33,6 +39,7 @@ function makeDto(extra?: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     occupationGroupLabels: [
       { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
     ],
+    occupationNameLabels: [],
     municipalityLabels: [],
     regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
     sortBy: "PublishedAtDesc",
@@ -40,6 +47,7 @@ function makeDto(extra?: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     currentCount: 42,
     newCount: 0,
     lastViewedAt: "2026-05-20T19:00:00Z",
+    isQuickLink: false,
     ...extra,
   };
 }
@@ -70,6 +78,9 @@ describe("RecentSearchRow", () => {
         })}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
 
@@ -86,6 +97,9 @@ describe("RecentSearchRow", () => {
         item={makeDto({ currentCount: 42, newCount: 0 })}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     expect(
@@ -103,6 +117,9 @@ describe("RecentSearchRow", () => {
         countsPending
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     const line = container.querySelector(".jp-job__meta--search-count");
@@ -118,6 +135,9 @@ describe("RecentSearchRow", () => {
         count={{ currentCount: 42, newCount: 0 }}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     expect(screen.getByText(/42/)).toBeInTheDocument();
@@ -145,6 +165,9 @@ describe("RecentSearchRow", () => {
         })}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
 
@@ -164,6 +187,9 @@ describe("RecentSearchRow", () => {
         item={makeDto()}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     const href =
@@ -179,6 +205,9 @@ describe("RecentSearchRow", () => {
         count={{ currentCount: 42, newCount: 7 }}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     expect(screen.getByText(/42/)).toBeInTheDocument();
@@ -193,6 +222,9 @@ describe("RecentSearchRow", () => {
         item={makeDto({ newCount: 7 })}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     // Anti-regression: ingen separat pill-yta med "NY"-text + ingen
@@ -211,6 +243,9 @@ describe("RecentSearchRow", () => {
         item={makeDto()}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     const link = screen.getByRole("link", { name: /Kör igen/ });
@@ -225,6 +260,9 @@ describe("RecentSearchRow", () => {
         item={makeDto()}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     expect(screen.getByRole("article")).toHaveClass("jp-job", { exact: true });
@@ -246,6 +284,9 @@ describe("RecentSearchRow", () => {
         item={makeDto()}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     const link = screen.getByRole("link", { name: "Kör igen" });
@@ -258,6 +299,9 @@ describe("RecentSearchRow", () => {
         item={makeDto()}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     const link = screen.getByRole("link", { name: /Kör igen/ });
@@ -275,6 +319,9 @@ describe("RecentSearchRow", () => {
         item={makeDto()}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     expect(
@@ -289,6 +336,9 @@ describe("RecentSearchRow", () => {
         item={makeDto()}
         onDeleted={() => undefined}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     // Klicka på h3 inuti raden — utanför både Kör igen-länk och delete-knapp.
@@ -306,6 +356,9 @@ describe("RecentSearchRow", () => {
         item={makeDto()}
         onDeleted={onDeleted}
         onDeleteFailed={() => undefined}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     await user.click(screen.getByRole("button", { name: /Ta bort/ }));
@@ -330,6 +383,9 @@ describe("RecentSearchRow", () => {
         item={makeDto()}
         onDeleted={() => undefined}
         onDeleteFailed={onFailed}
+        canAddQuickLink
+        onQuickLinkChanged={() => undefined}
+        onQuickLinkFailed={() => undefined}
       />,
     );
     await user.click(screen.getByRole("button", { name: /Ta bort/ }));
@@ -363,9 +419,63 @@ describe("RecentSearchRow count grammar", () => {
           count={{ currentCount, newCount }}
           onDeleted={() => undefined}
           onDeleteFailed={() => undefined}
+          canAddQuickLink
+          onQuickLinkChanged={() => undefined}
+          onQuickLinkFailed={() => undefined}
         />
       </NextIntlClientProvider>,
     );
     expect(container.querySelector(".jp-job__meta")?.textContent).toBe(text);
+  });
+});
+
+// ADR 0188 (#2265) — the row adds the search to the /jobb hero's quick links, or removes it; the search stays.
+describe("RecentSearchRow — the quick link", () => {
+  function renderRow(item: RecentJobSearchDto, canAddQuickLink: boolean, onQuickLinkChanged = vi.fn()) {
+    render(
+      <NextIntlClientProvider locale="sv" messages={svMessages}>
+        <ul>
+          <RecentSearchRow
+            item={item}
+            onDeleted={() => undefined}
+            onDeleteFailed={() => undefined}
+            canAddQuickLink={canAddQuickLink}
+            onQuickLinkChanged={onQuickLinkChanged}
+            onQuickLinkFailed={() => undefined}
+          />
+        </ul>
+      </NextIntlClientProvider>,
+    );
+    return onQuickLinkChanged;
+  }
+
+  beforeEach(() => {
+    quickLinkActionMock.mockReset();
+  });
+
+  it("offers to add an unmarked search while there is room", () => {
+    renderRow(makeDto(), true);
+    expect(screen.getByRole("button", { name: "Lägg till som snabblänk" })).toBeInTheDocument();
+  });
+
+  it("offers to remove a marked search, with or without room", () => {
+    renderRow(makeDto({ isQuickLink: true }), false);
+    expect(screen.getByRole("button", { name: "Ta bort som snabblänk" })).toBeInTheDocument();
+  });
+
+  it("offers nothing on an unmarked search when there is no room", () => {
+    renderRow(makeDto(), false);
+    expect(screen.queryByRole("button", { name: /snabblänk/ })).toBeNull();
+  });
+
+  it("adds the search by its id and hands the list the receipt", async () => {
+    quickLinkActionMock.mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    const onChanged = renderRow(makeDto(), true);
+
+    await user.click(screen.getByRole("button", { name: "Lägg till som snabblänk" }));
+
+    expect(quickLinkActionMock).toHaveBeenCalledWith("11111111-1111-1111-1111-111111111111", true);
+    expect(onChanged).toHaveBeenCalledWith(expect.stringMatching(/^Snabblänken har lagts till: /));
   });
 });

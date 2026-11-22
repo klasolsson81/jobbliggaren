@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Jobbliggaren.Api.Common;
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationFeedCriterionAds;
 using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationFeedFollowedAds;
 using Jobbliggaren.Application.JobSeekers.Commands.SetNotificationFeedMatches;
 using Jobbliggaren.Application.NotificationFeed;
@@ -23,9 +24,10 @@ namespace Jobbliggaren.Api.Endpoints;
 /// <item>Three POST marks: one notification read, and everything read through a token (#2130), and one notification
 ///   taken out of the bell with its X (#2151). They set the source rows' own bell flags (<c>read_in_notification_feed</c>; the X also
 ///   <c>dismissed_from_notification_feed</c>) and move no watermark. 204 for every request from a signed-in owner,
-///   whether or not the row exists, is theirs, or is still listed; they share their own bucket.</item>
-/// <item>Two PUT switches (#2130): whether a type reaches the bell. Delivery choices, never consents; each carries only
-///   <c>{enabled}</c>. Switching ON first marks what arrived while the type was off as read, then clears the stamp.</item>
+///   whether or not the row exists, is theirs, or is still listed.</item>
+/// <item>Three PUT switches (#2130; the third, Branschbevakning, #1663): whether a type reaches the bell. Delivery choices,
+///   never consents; each carries only <c>{enabled}</c>. Switching ON first marks what arrived while the type was off as
+///   read, then clears the stamp.</item>
 /// </list>
 /// </summary>
 public static class MeNotificationFeedEndpoints
@@ -37,6 +39,7 @@ public static class MeNotificationFeedEndpoints
         {
             ["matches"] = NotificationFeedSourceKind.Match,
             ["followed-company-ads"] = NotificationFeedSourceKind.FollowedCompanyAd,
+            ["company-watch-criterion-ads"] = NotificationFeedSourceKind.CompanyWatchCriterionAd,
         };
 
     public static void MapMeNotificationFeedEndpoints(this IEndpointRouteBuilder app)
@@ -90,7 +93,7 @@ public static class MeNotificationFeedEndpoints
 
             var result = await mediator.Send(new MarkNotificationsReadThroughCommand(kind, request.ThroughToken), ct);
             return result.IsSuccess ? Results.NoContent() : result.Error.ToProblemResult();
-        }).RequireRateLimiting(RateLimitingExtensions.NotificationFeedMarkPolicy);
+        }).RequireRateLimiting(RateLimitingExtensions.NotificationFeedMarkThroughPolicy);
 
         // #2130 - whether a type reaches the bell. MeWritePolicy: a switch is a user-owned mutation like the consents
         // and the mail pauses, and a switch-on is ONE request on this bucket, backlog mark included.
@@ -102,6 +105,13 @@ public static class MeNotificationFeedEndpoints
         group.MapPut("/followed-company-ads", (
             SetNotificationFeedFollowedAdsCommand command, IMediator mediator, CancellationToken ct) =>
             SwitchAsync(NotificationFeedSourceKind.FollowedCompanyAd, command.Enabled, () => mediator.Send(command, ct), mediator, ct))
+            .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
+
+        // #1663 (ADR 0175 D8) - the third switch, Branschbevakning. It stops the bell only: the scan, the hits, Översikt's
+        // count and the page of new ads go on.
+        group.MapPut("/company-watch-criterion-ads", (
+            SetNotificationFeedCriterionAdsCommand command, IMediator mediator, CancellationToken ct) =>
+            SwitchAsync(NotificationFeedSourceKind.CompanyWatchCriterionAd, command.Enabled, () => mediator.Send(command, ct), mediator, ct))
             .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
     }
 

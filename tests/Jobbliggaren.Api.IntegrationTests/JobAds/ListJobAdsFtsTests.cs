@@ -414,7 +414,7 @@ public class ListJobAdsFtsTests(ApiFactory factory)
 
         var filter = new JobAdFilterCriteria(
             OccupationGroup: [], OccupationName: [], Municipality: [], Region: [],
-            EmploymentType: [], WorktimeExtent: [], Employer: [], Remote: false, Q: word);
+            EmploymentType: [], WorktimeExtent: [], Employer: [], Remote: false, JuniorIt: false, Q: word);
 
         // CountAsync (recent-search-konsumentens väg) i bitmap-plan-transaktionen.
         var count = await search.CountAsync(filter, ct);

@@ -102,6 +102,12 @@ public static class RecurringJobIds
     public const string DmarcReportRetention = "dmarc-report-retention";
 
     /// <summary>
+    /// #2264 (ADR 0187) — classifies listed ads in the enabled occupation fields as junior, not junior or unclear,
+    /// every two minutes; the one writer of the junior verdict.
+    /// </summary>
+    public const string ClassifyJuniorJobAds = "classify-junior-job-ads";
+
+    /// <summary>
     /// The closed set of triggerable recurring-job ids. Ordinal comparison — these
     /// are stable internal slugs, not user text.
     /// </summary>
@@ -132,5 +138,6 @@ public static class RecurringJobIds
         EmailSendCountRetention,
         DmarcReportIngestion,
         DmarcReportRetention,
+        ClassifyJuniorJobAds,
     }.ToFrozenSet(StringComparer.Ordinal);
 }

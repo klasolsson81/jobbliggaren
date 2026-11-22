@@ -32,9 +32,11 @@ function renderPage() {
       <JobbHeroFilters
         taxonomy={taxonomy}
         initialOccupationGroup={[]}
+        initialOccupationName={[]}
         initialRegion={[]}
         initialMunicipality={[]}
         initialRemote={false}
+        initialJunior={false}
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}

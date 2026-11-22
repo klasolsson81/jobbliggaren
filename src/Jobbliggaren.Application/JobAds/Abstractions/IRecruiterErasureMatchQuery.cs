@@ -76,8 +76,7 @@ public interface IRecruiterErasureMatchQuery
     /// <remarks>
     /// <b>The looseness of a match must be inversely proportional to the strength of its review
     /// gate.</b> Ads are matched by naked substring and then confirmed id-by-id by a human — the
-    /// over-match is a fail-safe precisely BECAUSE a human confirms. These rows have no such gate
-    /// (they are an auto-captured cache, cap 20 per seeker, self-rebuilding on the next search), so
+    /// over-match is a fail-safe precisely BECAUSE a human confirms. These rows have no such gate, so
     /// the same looseness would be an unreviewed deletion of another user's row: erasing
     /// <c>anna</c> would take <c>marianna</c>, <c>johanna</c> and <c>susanna</c> with it. Hence the
     /// word boundary on <c>q</c> — and EXACT equality on <c>employer_list</c>, whose write path

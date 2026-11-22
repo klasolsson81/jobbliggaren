@@ -1,7 +1,7 @@
 /**
  * The server Lighthouse CI measures: `collect.startServerCommand` in `lighthouserc.json` (SEO epic #2090 S6, CTO B10).
  *
- * `/jobb/<uuid>` and `/lediga-jobb` read the API on every request, and the other URLs in that file do not need it.
+ * `/jobb/<uuid>`, `/lediga-jobb` and `/junior` read the API on every request, and the other URLs in that file do not need it.
  * This starts the stub backend the public-page smoke asserts on (`public-job-stub.mjs`), then `next start` with
  * `BACKEND_URL` pointing at it, so a measured page is the page the smoke checks. One command, so lhci can start it and
  * kill the whole tree. The stub answers any other path with a 401, which is what the landing's stats read gets.
@@ -11,7 +11,7 @@
  * request hangs (ADR 0165 D2). `public-job-smoke.mjs` runs the standalone server behind `X-Forwarded-Proto` for that
  * reason; here the default host answers `Host: localhost:3000`, the host lhci's URLs name, with no header.
  *
- * It does not print the ready line until the server has answered both public pages with a 200 AND the stub has seen the
+ * It does not print the ready line until the server has answered each public page with a 200 AND the stub has seen the
  * API read each one makes. That second condition is the one that matters on Windows, where an IPv4 and a dual-stack
  * listener can share port 3000 and `localhost` reaches the other one: the 200 would then be somebody else's page.
  */
@@ -33,6 +33,7 @@ const READY_DEADLINE_MS = 45_000;
 const PUBLIC_PAGES = [
   { path: `/jobb/${ID.listed}`, backendRead: `/api/v1/public/job-ads/${ID.listed}` },
   { path: "/lediga-jobb", backendRead: "/api/v1/public/job-ads/catalogue?page=1" },
+  { path: "/junior", backendRead: "/api/v1/public/job-ads/junior?sortBy=PublishedAtDesc&page=1" },
 ];
 
 const { server: stub, port: stubPort } = await startStub();

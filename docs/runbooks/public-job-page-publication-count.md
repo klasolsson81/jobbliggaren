@@ -94,8 +94,53 @@ validated; the null link and the three unlisted ads were not counted.
 | 2026-10-18 17:12 | Release 1641 (`c14ac57a1`), `--status` consistent before (17:12:17Z) and after (17:12:44Z); the S5 merge day (ADR 0166, the amendment for S5, D11); same query blob `8c02e37` | 42 295 | 231 | **0** | shaped 231 in the description; validated: no row printed (0) | not counted (before #2214 PR 1b) | 0 | Claude Code |
 | 2026-10-24 03:18 | Release sequence 1657 (source `515b7424b`), `--status` consistent before (03:17:58Z) and after (03:18:18Z); the S6b merge day (ADR 0166, the amendment for S6b, D11); same query blob `8c02e37` | 43 602 | 215 | **0** | shaped 215 in the description; validated: no row printed (0) | not counted (before #2214 PR 1b) | 0 | Claude Code |
 | 2026-10-25 21:27 | Release sequence 1671 (source `10ff4274b`), `--status` consistent before (21:27:20Z) and after (21:27:39Z); the #2214 PR 1b merge day (ADR 0166, the amendment for 1b, D11); query blob `ea21c16` | 43 436 | 825 | **0** | shaped 213 in the description; validated: no row printed (0) | shaped 660 / 660; validated: no row printed (0) | 0 | Claude Code |
+| 2026-11-20 07:24-07:25 | Release sequence 1675 (source `354e4a926`), `--status` consistent before (07:24:50Z) and after (07:25:30Z); the #2260 junior list's merge day (ADR 0166, the amendment of 2026-11-19, D11); query blob `ea21c16` | 43 431 | 801 | **0** | shaped 219 in the description; validated: no row printed (0) | shaped 626 / 626; validated: no row printed (0) | 0 | Claude Code |
+| 2026-11-20 15:00-15:01 | Release sequence 1679 (source `2565c0275`), `--status` consistent before (15:00:32Z) and after (15:01:03Z); the #2264 junior list's merge day (ADR 0166, the amendment of 2026-11-20, D11); query blob `ea21c16` | 45 007 | 828 | **0** | shaped 222 in the description; validated: no row printed (0) | shaped 652 / 652; validated: no row printed (0) | 0 | Claude Code |
+| 2026-11-21 21:42-21:43 | Release sequence 1684 (source `51f1409a3`), `--status` consistent before (21:42:34Z) and after (21:43:43Z); the #2284 merge day (ADR 0166, the amendment of 2026-11-21, item 6); query blob `ea21c16` | 44 097 | 804 | **0** | shaped 209 in the description; validated: no row printed (0) | shaped 639 / 639; validated: no row printed (0) | 0 | Claude Code |
+| 2026-11-22 11:46-11:47 | Release sequence 1687 (source `455500ab9`), `--status` consistent before (11:46:44Z) and after (11:47:07Z); the #2293 PR 1 merge day (ADR 0166, the Amendment 2026-11-22, D11); query blob `ea21c16` | 43 697 | 796 | **0** | shaped 205 in the description; validated 0 | shaped 635 / 635; validated 0 | 0 | Claude Code |
 
 The record is also posted on [#2090](https://github.com/klasolsson81/jobbliggaren/issues/2090) with the same date.
+
+## The junior list's floor — the merge-day reading (#2293)
+
+ADR 0166's Amendment 2026-11-22 (D11) adds a reading to the merge day of a change to `/junior`'s indexed view, taken at the same
+minute as the count above and run the same way:
+
+```bash
+ssh jp-vps 'sudo docker exec -i jobbliggaren-postgres psql -U postgres -d jobbliggaren -tA -F " | " -q -v ON_ERROR_STOP=1' \
+  < docs/runbooks/junior-list-floor-count.sql 2>/dev/null
+```
+
+`docs/runbooks/junior-list-floor-count.sql` computes the floor's own definition of an employer (`PublicListFloor`; ADR 0166, the
+Amendment 2026-11-22) over the list's base, in a read-only transaction, and prints five labelled lines: N and E as national totals,
+"E under 25" in place of E and `s_ok` below 25, `s_ok` only as `true` or `false`, the outcome, and how many kommuner would meet the
+floor on their own. `JuniorItJobAdQueryReadTests` runs the file over its seeds and asserts that it gives the port's answer.
+
+What may be written down from it: those five values. Never the largest employer's count or share, a grouping per employer, a top
+count, or E's separate terms (security-auditor, 2026-11-22).
+
+At the same minute, three totals more and one anonymous read:
+- What the measured envelope is compared with (ADR 0190; ADR 0064's amendment for #2293, r4): the listed ads in the Data/IT field,
+  the ads in the field's groups of any status, and the rows of `job_ad_junior_assessments`, one total per line:
+  ```bash
+  ssh jp-vps 'sudo docker exec -i jobbliggaren-postgres psql -U postgres -d jobbliggaren -tA -q -v ON_ERROR_STOP=1' 2>/dev/null <<'SQL'
+  BEGIN TRANSACTION READ ONLY;
+  WITH grp AS (SELECT concept_id FROM taxonomy_concepts WHERE parent_concept_id = 'apaJ_2ja_LuF' AND kind = 'OccupationGroup')
+  SELECT count(*) FROM job_ads
+  WHERE external_id IS NOT NULL AND external_source = 'Platsbanken' AND status = 'Active'
+    AND (expires_at IS NULL OR expires_at >= now()) AND occupation_group_concept_id IN (SELECT concept_id FROM grp)
+  UNION ALL SELECT count(*) FROM job_ads WHERE occupation_group_concept_id IN (SELECT concept_id FROM grp)
+  UNION ALL SELECT count(*) FROM job_ad_junior_assessments;
+  ROLLBACK;
+  SQL
+  ```
+- The delivered default view, read anonymously: its total and its robots value, which must equal the floor's outcome. No row is
+  printed:
+  `curl -s https://jobbliggaren.se/junior | grep -oE 'id="junior-count" class="jp-results-count"><b>[^<]*|<meta name="robots" content="[^"]*"'`
+
+| Date and time (UTC) | Release | N | E | `s_ok` | Floor holds | Kommuner meeting the floor | In the field: listed / any status | Assessment rows | `/junior`: total, robots | Taken by |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-22 11:47 | Release sequence 1687 (source `455500ab9`), `--status` consistent before and after; query blob `520b458` | 148 | 71 | true | true | 0 | 2 870 / 12 284 | 2 978 | 148; `noindex, follow`, because release 1687 predates the floor | Claude Code |
 
 ## After the merge — what is read, and what is not
 

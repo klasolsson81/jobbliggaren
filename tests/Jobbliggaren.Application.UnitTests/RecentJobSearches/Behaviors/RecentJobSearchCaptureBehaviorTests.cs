@@ -47,7 +47,9 @@ public class RecentJobSearchCaptureBehaviorTests
         JobAdSortBy SortBy = JobAdSortBy.PublishedAtDesc,
         bool Commit = true,
         // #2199 — the occupation-name picks, persisted since #2199 PR 2.
-        IReadOnlyList<string>? OccupationName = null)
+        IReadOnlyList<string>? OccupationName = null,
+        // #2261 — the junior IT filter.
+        bool JuniorIt = false)
         : IQuery<FakeCaptureResponse>, ICapturesRecentSearch;
 
     // Message UTAN markören — behaviorn ska vara no-op.
@@ -1082,7 +1084,8 @@ public class RecentJobSearchCaptureBehaviorTests
     //
     // Every string-bearing member must be read by a personnummer guard before capture: Q and
     // Employer by their own, the six taxonomy axes by BearsPersonnummer (OccupationName joined them
-    // in #2199 PR 2). Remote, SortBy and Commit are bool/enum and carry no text.
+    // in #2199 PR 2). Remote, JuniorIt, SortBy and Commit are bool/enum and carry no text; JuniorIt also
+    // skips the capture whole (#2261, senior-cto-advisor D1a).
     [Fact]
     public void ICapturesRecentSearch_HasExactlyTheseMembers_SoANewDimensionCannotArriveUnguarded()
     {
@@ -1099,8 +1102,8 @@ public class RecentJobSearchCaptureBehaviorTests
             .ToList();
 
         actual.ShouldBe(
-            ["Commit", "Employer", "EmploymentType", "Municipality", "OccupationGroup", "OccupationName",
-             "Q", "Region", "Remote", "SortBy", "WorktimeExtent"],
+            ["Commit", "Employer", "EmploymentType", "JuniorIt", "Municipality", "OccupationGroup",
+             "OccupationName", "Q", "Region", "Remote", "SortBy", "WorktimeExtent"],
             "a member arrived on or left ICapturesRecentSearch. If it is a NEW string-bearing " +
             "dimension it reaches recent_job_searches in plaintext, and it must be added to the " +
             "BearsPersonnummer chain in RecentSearchCaptureGate AND to the default-browse " +

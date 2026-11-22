@@ -567,6 +567,80 @@
       "replyReporterGone": "Kontoägaren saknar en aktiv profil eller en adress att svara till. Svaret skickades inte."
     }
   },
+  "juniorJobs": {
+    "meta": {
+      "title": "Juniorjobb"
+    },
+    "heading": "Juniorjobb",
+    "tabs": {
+      "label": "Välj flik",
+      "count": "{label} ({count})",
+      "unclear": "Att avgöra",
+      "shown": "Visas på /junior",
+      "decided": "Beslutade"
+    },
+    "list": {
+      "empty": {
+        "unclear": "Inga annonser att avgöra just nu.",
+        "shown": "Inga annonser visas på /junior just nu.",
+        "decided": "Inga beslutade annonser just nu."
+      },
+      "pageMissing": "Sidan finns inte.",
+      "firstPage": "Till första sidan"
+    },
+    "row": {
+      "published": "Publicerad",
+      "expires": "Sista dag",
+      "municipality": "Ort",
+      "reason": "Varför",
+      "rules": "Reglerna",
+      "rulesValue": "{outcome} · {rule}",
+      "decision": "Ditt beslut"
+    },
+    "outcomes": {
+      "junior": "Junior",
+      "notJunior": "Inte junior",
+      "unclear": "Oavgjord"
+    },
+    "choices": {
+      "junior": "Junior",
+      "notJunior": "Inte junior",
+      "release": "Lämna till reglerna",
+      "busy": "Sparar…"
+    },
+    "receipts": {
+      "junior": "Markerad som junior: {title}",
+      "notJunior": "Markerad som inte junior: {title}",
+      "release": "Lämnad till reglerna: {title}"
+    },
+    "rules": {
+      "reading-2026-11-19": "Din läsning 19–20 nov",
+      "title-thesis": "Examensarbete i rubriken",
+      "title-senior": "Senior, lead eller chef i rubriken",
+      "title-junior": "Juniorord i rubriken",
+      "years-3-plus": "Kräver minst tre års erfarenhet",
+      "text-mentor-only": "Ska handleda juniorer",
+      "text-junior-and-senior": "Söker både junior och senior",
+      "text-new-graduate": "Nyexaminerad i texten",
+      "text-early-career": "Tidigt i karriären i texten",
+      "text-no-experience-needed": "Ingen erfarenhet krävs, enligt texten",
+      "text-seek-junior": "Texten söker en junior",
+      "title-student": "Student i rubriken",
+      "flag-no-experience": "Märkt ”ingen erfarenhet krävs”",
+      "candidate-only": "Juniorord utan avgörande regel",
+      "no-signal": "Ingen juniorsignal",
+      "match-timeout": "Texten kunde inte läsas klart"
+    },
+    "unknownRule": "Okänd regel",
+    "errors": {
+      "unauthorized": "Du är inte inloggad längre. Logga in och försök igen.",
+      "forbidden": "Din session saknar Admin-rollen.",
+      "rateLimited": "För många förfrågningar. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
+      "gone": "Annonsen är stängd eller borttagen och kan inte avgöras.",
+      "refused": "Beslutet sparades inte. Ladda om sidan och försök igen.",
+      "unknown": "Det gick inte att bekräfta att beslutet sparades. Ladda om sidan och se efter."
+    }
+  },
   "logs": {
     "meta": {
       "security": "Loggar: Säkerhet",

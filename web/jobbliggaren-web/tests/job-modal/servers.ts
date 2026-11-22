@@ -10,6 +10,7 @@ import {
   CRITERION_REFERENCE,
   DESCRIPTION,
   EXPIRES_AT,
+  JUNIOR_IT_PAGE,
   MATCHES,
   PUBLISHED_AT,
   TAXONOMY,
@@ -20,7 +21,9 @@ import {
   profile,
   type FixtureAnswer,
   type HarnessAd,
+  type RecentSearchFixture,
 } from "./fixtures";
+import { hasQuickLinkRoom } from "../../src/lib/job-ads/quick-links";
 
 /**
  * The servers around the app for the job modal's navigation harness (#1963): a fixture backend the
@@ -65,6 +68,13 @@ export type FeedbackReceipt = {
   readonly screenshot: { readonly bytes: number; readonly png: boolean; readonly width: number; readonly height: number } | null;
 };
 
+export type Navigation = {
+  readonly path: string;
+  readonly status: number;
+  readonly site: string | null;
+  readonly session: boolean;
+};
+
 export type Harness = {
   /** Whether the user has stated an occupation; decides the profile and every match detail. */
   occupationStated: boolean;
@@ -78,6 +88,11 @@ export type Harness = {
   /** Every backend path the app asked for that the fixtures do not answer. */
   readonly misses: string[];
   readonly requests: string[];
+  /**
+   * #2284 — every top-level document request the browser sent to the app, in order: the path, the answer's status, its
+   * `Sec-Fetch-Site`, and whether it carried the session cookie, which is what a Strict-cookie hop measures.
+   */
+  readonly navigations: Navigation[];
   readonly syntheticUploadReceipts: readonly boolean[];
   rejectNextImport: boolean;
   /** #1979 — closed by default, so every other spec renders its pages without the feedback row. */
@@ -110,6 +125,20 @@ export type Harness = {
   /** #1663 PR 2 — Översikt's Bevakade företag: the followed companies, and the new-ad count its follow pill shows. */
   companyWatches: unknown[];
   followedCompanyAdNewCount: number;
+  /** ADR 0188 (#2265) — the recent searches; none by default, so every other page renders without them. */
+  recentSearches: RecentSearchFixture[];
+  /** ADR 0188 (#2265) — whether the junior quick link is on; the profile reports it and its PUT writes it. */
+  juniorQuickLinkEnabled: boolean;
+  /** ADR 0188 (#2265) — what the junior count answers; 0 by default, which keeps the junior link hidden. */
+  juniorItCount: FixtureAnswer;
+  /** ADR 0188 (#2265) — `GET /api/v1/me/profile` answers 500. */
+  refuseProfileRead: boolean;
+  /** ADR 0188 (#2265) — the next quick-link write answers this instead and changes nothing. */
+  refuseNextQuickLinkWrite: FixtureAnswer | null;
+  /** #2275 — how long a quick-link write waits before it answers, so a test can tick while one is pending. */
+  quickLinkWriteDelayMs: number;
+  /** ADR 0188 (#2265) — the quick-link writes received, in order. */
+  readonly quickLinkWrites: { route: string; body: Record<string, unknown> }[];
   reset(): void;
   stop(): Promise<void>;
 };
@@ -202,20 +231,22 @@ const application = (applicationId: string, ad: HarnessAd, withContacts = false)
   preservedAd: withContacts ? { jobAdId: ad.id, title: ad.title, company: ad.company, location: null, url: summary(ad).url, source: "Platsbanken", publishedAt: PUBLISHED_AT, expiresAt: EXPIRES_AT, description: DESCRIPTION, contacts: [{ name: "Testkontakt", role: "Rekryterare", email: "contact@example.test", phone: null, isDerived: false }], capturedAt: PUBLISHED_AT } : null,
 });
 
-/** #1666 — the bell with nothing to say: both sources answer, nothing is unread. */
+/** #1666, #1663 — the bell with nothing to say: every source answers, nothing is unread. */
 export const QUIET_NOTIFICATION_FEED = {
   items: [],
   sources: [
     { kind: "Match", unreadCount: 0, acknowledgedThrough: null },
     { kind: "FollowedCompanyAd", unreadCount: 0, acknowledgedThrough: null },
+    { kind: "CompanyWatchCriterionAd", unreadCount: 0, acknowledgedThrough: null },
   ],
 } as const;
 
-/** #2107, #2130 — the eight values /mina-sidor/notiser reads from the profile. */
+/** #2107, #2130, #1663 — the values /mina-sidor/notiser reads from the profile. */
 export type NotificationSettings = {
-  /** #2130 — whether each type reaches the bell. */
+  /** #2130, #1663 — whether each type reaches the bell. */
   notificationFeedMatchesEnabled: boolean;
   notificationFeedFollowedAdsEnabled: boolean;
+  notificationFeedCriterionAdsEnabled: boolean;
   notificationMailEnabled: boolean;
   backgroundMatchNotificationsEnabled: boolean;
   topMatchMailEnabled: boolean;
@@ -228,6 +259,7 @@ export type NotificationSettings = {
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   notificationFeedMatchesEnabled: true,
   notificationFeedFollowedAdsEnabled: true,
+  notificationFeedCriterionAdsEnabled: true,
   notificationMailEnabled: true,
   backgroundMatchNotificationsEnabled: false,
   topMatchMailEnabled: true,
@@ -245,6 +277,7 @@ const SETTINGS_WRITES: Record<string, keyof NotificationSettings> = {
   "PUT /api/v1/me/digest-cadence": "digestCadence",
   "PUT /api/v1/me/notification-feed/matches": "notificationFeedMatchesEnabled",
   "PUT /api/v1/me/notification-feed/followed-company-ads": "notificationFeedFollowedAdsEnabled",
+  "PUT /api/v1/me/notification-feed/company-watch-criterion-ads": "notificationFeedCriterionAdsEnabled",
 };
 
 /** #2130, #2151 — the bell's writes: one row read, everything of a source read through a token, and one row taken out with the X. */
@@ -257,11 +290,13 @@ const READ_MARK_ROUTES = [
 export async function startHarness(informationFlows = false, applicationCopies = 0, ports: { proxy: number; next: number; backend: number } = HARNESS_PORTS): Promise<Harness> {
   const misses: string[] = [];
   const requests: string[] = [];
+  const navigations: Navigation[] = [];
   const syntheticUploadReceipts: boolean[] = [];
   const feedbackReceipts: FeedbackReceipt[] = [];
   const seenReceipts: { route: string; body: Record<string, unknown> }[] = [];
   const settingsWrites: { route: string; body: Record<string, unknown> }[] = [];
   const readReceipts: { route: string; body: Record<string, unknown> }[] = [];
+  const quickLinkWrites: { route: string; body: Record<string, unknown> }[] = [];
   const ads = [...ALL_ADS, ...Array.from({ length: applicationCopies }, (_, index) => ({
     ...ALL_ADS[1]!,
     id: `19860000-0000-4000-8000-${String(index + 1000).padStart(12, "0")}`,
@@ -282,6 +317,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
     unavailableApplications: new Set(),
     misses,
     requests,
+    navigations,
     syntheticUploadReceipts,
     rejectNextImport: false,
     feedback: { open: false, answeredPages: [], answer: "saved" },
@@ -300,7 +336,21 @@ export async function startHarness(informationFlows = false, applicationCopies =
     criterionNewAds: newCriterionAdsAnswers(),
     companyWatches: [],
     followedCompanyAdNewCount: 0,
+    recentSearches: [],
+    juniorQuickLinkEnabled: true,
+    juniorItCount: { status: 200, body: { count: 0 } },
+    refuseProfileRead: false,
+    refuseNextQuickLinkWrite: null,
+    quickLinkWriteDelayMs: 0,
+    quickLinkWrites,
     reset() {
+      harness.recentSearches = [];
+      harness.juniorQuickLinkEnabled = true;
+      harness.juniorItCount = { status: 200, body: { count: 0 } };
+      harness.refuseProfileRead = false;
+      harness.refuseNextQuickLinkWrite = null;
+      harness.quickLinkWriteDelayMs = 0;
+      quickLinkWrites.length = 0;
       harness.criteria = [];
       harness.criterionNewAdCounts = { status: 200, body: { items: [] } };
       harness.criterionNewAds.clear();
@@ -309,6 +359,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
       harness.followedCompanyAdNewCount = 0;
       misses.length = 0;
       requests.length = 0;
+      navigations.length = 0;
       syntheticUploadReceipts.length = 0;
       feedbackReceipts.length = 0;
       seenReceipts.length = 0;
@@ -442,6 +493,35 @@ export async function startHarness(informationFlows = false, applicationCopies =
     if (route === "GET /api/v1/me/company-watches") return json(200, harness.companyWatches);
     if (route === "GET /api/v1/me/followed-company-ads/new-count") return json(200, { count: harness.followedCompanyAdNewCount });
     if (route === "GET /api/v1/me/match-count") return json(200, { count: harness.occupationStated ? ads.length : 0 });
+    // ADR 0188 (#2265) — the quick-link writes, refused past the cap as the API refuses them (`QuickLinkCap`).
+    const quickLinkSearch = route.match(/^(PUT|DELETE) \/api\/v1\/me\/recent-searches\/([0-9a-f-]{36})\/quick-link$/);
+    if (route === "PUT /api/v1/me/junior-quick-link" || quickLinkSearch) {
+      const body = await bodyOf(request);
+      quickLinkWrites.push({ route, body });
+      if (harness.quickLinkWriteDelayMs > 0)
+        await new Promise((resolve) => setTimeout(resolve, harness.quickLinkWriteDelayMs));
+      const refusal = harness.refuseNextQuickLinkWrite;
+      if (refusal) {
+        harness.refuseNextQuickLinkWrite = null;
+        return answer(refusal);
+      }
+      const marked = harness.recentSearches.filter((search) => search.isQuickLink).length;
+      const room = hasQuickLinkRoom(harness.juniorQuickLinkEnabled, marked);
+      const full = () => json(409, { title: "QuickLink.MaxTotal", status: 409 });
+      if (!quickLinkSearch) {
+        if (body.enabled === true && !harness.juniorQuickLinkEnabled && !room) return full();
+        harness.juniorQuickLinkEnabled = body.enabled === true;
+        return json(204);
+      }
+      const [, method, searchId] = quickLinkSearch;
+      const search = harness.recentSearches.find((candidate) => candidate.id === searchId);
+      if (!search) return json(404, { title: "RecentJobSearch.NotFound", status: 404 });
+      if (method === "PUT" && !search.isQuickLink && !room) return full();
+      harness.recentSearches = harness.recentSearches.map((candidate) =>
+        candidate.id === searchId ? { ...candidate, isQuickLink: method === "PUT" } : candidate
+      );
+      return json(204);
+    }
     const setting = SETTINGS_WRITES[route];
     if (setting) {
       const body = await bodyOf(request);
@@ -472,7 +552,11 @@ export async function startHarness(informationFlows = false, applicationCopies =
       case "POST /api/v1/me/jobs/seen":
         return json(204);
       case "GET /api/v1/me/recent-searches":
-        return json(200, []);
+        return json(200, harness.recentSearches);
+      case "GET /api/v1/job-ads/junior-it-count":
+        return answer(harness.juniorItCount);
+      case "GET /api/v1/public/job-ads/junior":
+        return json(200, JUNIOR_IT_PAGE);
       case "GET /api/v1/job-ads/taxonomy":
         return json(200, TAXONOMY);
       case "GET /api/v1/job-ads/taxonomy/skills/labels":
@@ -480,7 +564,12 @@ export async function startHarness(informationFlows = false, applicationCopies =
       case "GET /api/v1/job-ads/suggest":
         return json(200, []);
       case "GET /api/v1/me/profile":
-        return json(200, { ...profile(harness.occupationStated), ...harness.notificationSettings });
+        if (harness.refuseProfileRead) return json(500, { title: "Internal Server Error", status: 500 });
+        return json(200, {
+          ...profile(harness.occupationStated),
+          ...harness.notificationSettings,
+          juniorQuickLinkEnabled: harness.juniorQuickLinkEnabled,
+        });
       case "GET /api/v1/job-ads": {
         const items = ads.map(summary);
         return json(200, { items, totalCount: items.length, page: 1, pageSize: 20 });
@@ -567,6 +656,14 @@ export async function startHarness(informationFlows = false, applicationCopies =
     const upstream = forward(
       { host: "127.0.0.1", port: ports.next, method: request.method, path: request.url, headers: request.headers },
       (answer) => {
+        if (request.headers["sec-fetch-dest"] === "document") {
+          navigations.push({
+            path: request.url ?? "/",
+            status: answer.statusCode ?? 0,
+            site: typeof request.headers["sec-fetch-site"] === "string" ? request.headers["sec-fetch-site"] : null,
+            session: (request.headers.cookie ?? "").split(/;\s*/).some((pair) => pair.startsWith(`${SESSION_COOKIE}=`)),
+          });
+        }
         response.writeHead(answer.statusCode ?? 502, answer.headers);
         answer.pipe(response);
       }

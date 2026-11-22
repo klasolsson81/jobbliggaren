@@ -5,9 +5,10 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// <summary>
 /// The answer of <see cref="IOccupationSearcher"/> (#2198, ADR 0180): the rows in display order,
 /// capped by the searcher, and the exact number of rows the query reached.
-/// A Group row selects its group. A variant carries its own occupation-name concept id (#2199,
-/// ADR 0180 Amendment 2026-10-24): /jobb filters on it, while Matchning and the onboarding rail
-/// still select the variant's group (ADR 0040 Beslut 4).
+/// A Group row selects its group. A variant, and each occupation-name a Group row names as its
+/// evidence, carries its own occupation-name concept id (#2199, ADR 0180 Amendment 2026-10-24 and
+/// the PR 3 amendment): /jobb filters on it, while Matchning and the onboarding rail still select
+/// the group (ADR 0040 Beslut 4).
 /// </summary>
 public sealed record OccupationSearchResult(IReadOnlyList<OccupationSearchRow> Rows, int TotalRows)
 {
@@ -38,7 +39,7 @@ public sealed record OccupationSearchRow
         OccupationSearchRowKind kind,
         string? groupConceptId,
         string? groupLabel,
-        IReadOnlyList<string> matchedNames,
+        IReadOnlyList<OccupationSearchMatchedName> matchedNames,
         bool labelHit,
         string? headWord,
         IReadOnlyList<OccupationSearchVariant> variants,
@@ -61,8 +62,11 @@ public sealed record OccupationSearchRow
 
     public string? GroupLabel { get; }
 
-    /// <summary>The occupation-names that reached the group, in display order; empty on a Word row.</summary>
-    public IReadOnlyList<string> MatchedNames { get; }
+    /// <summary>
+    /// The occupation-names that reached the group, each with its own concept id, in display order;
+    /// empty on a Word row. Uncapped: how many a host spells out is the host's.
+    /// </summary>
+    public IReadOnlyList<OccupationSearchMatchedName> MatchedNames { get; }
 
     /// <summary>The group's own label matched the query.</summary>
     public bool LabelHit { get; }
@@ -79,7 +83,7 @@ public sealed record OccupationSearchRow
     public static OccupationSearchRow ForGroup(
         string groupConceptId,
         string groupLabel,
-        IReadOnlyList<string> matchedNames,
+        IReadOnlyList<OccupationSearchMatchedName> matchedNames,
         bool labelHit,
         bool exactMatch)
     {
@@ -110,6 +114,9 @@ public sealed record OccupationSearchRow
             OccupationSearchRowKind.Word, null, null, [], false, headWord, variants, exactMatch);
     }
 }
+
+/// <summary>One occupation-name a Group row names as its evidence, with its own concept id.</summary>
+public sealed record OccupationSearchMatchedName(string OccupationNameConceptId, string NameLabel);
 
 /// <summary>One occupation-name under a Word row, with its own concept id and its group.</summary>
 public sealed record OccupationSearchVariant(

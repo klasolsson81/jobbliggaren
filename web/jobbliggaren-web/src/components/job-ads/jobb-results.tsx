@@ -44,10 +44,14 @@ interface JobbResultsProps {
   pageSize: number;
   sortBy: JobAdSortBy;
   occupationGroup: string[];
+  /** Occupation-names (#2199), OR-ed with occupationGroup inside the Yrke dimension. */
+  occupationName: string[];
   region: string[];
   municipality: string[];
   /** A place facet the backend combines with region and municipality. */
   remote: boolean;
+  /** `?junior=on` (#2261): the junior IT list as a filter, AND-ed with every other axis. */
+  junior: boolean;
   employmentType: string[];
   worktimeExtent: string[];
   /** Selected grades, validated in page.tsx. Empty means every grade is shown. */
@@ -93,9 +97,11 @@ export async function JobbResults({
   pageSize,
   sortBy,
   occupationGroup,
+  occupationName,
   region,
   municipality,
   remote,
+  junior,
   employmentType,
   worktimeExtent,
   matchGrades,
@@ -117,6 +123,7 @@ export async function JobbResults({
   // names its chip from the catalogue instead (ADR 0043 Beslut B).
   const selectedConceptIds = [
     ...occupationGroup,
+    ...occupationName,
     ...region,
     ...municipality,
     ...employmentType,
@@ -159,9 +166,11 @@ export async function JobbResults({
   const listState: JobbUrlState = {
     q,
     occupationGroup,
+    occupationName,
     region,
     municipality,
     remote,
+    junior,
     employmentType,
     worktimeExtent,
     matchGrades,
@@ -190,9 +199,11 @@ export async function JobbResults({
       pageSize,
       sortBy: effectiveSortBy,
       occupationGroup,
+      occupationName,
       region,
       municipality,
       remote,
+      junior,
       employmentType,
       worktimeExtent,
       matchGrades,
@@ -317,9 +328,11 @@ export async function JobbResults({
           <JobbResultsToolbar
             totalCount={result.data.totalCount}
             occupationGroup={occupationGroup}
+            occupationName={occupationName}
             region={region}
             municipality={municipality}
             remote={remote}
+            junior={junior}
             employmentType={employmentType}
             worktimeExtent={worktimeExtent}
             matchGrades={matchGrades}

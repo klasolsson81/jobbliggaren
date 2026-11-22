@@ -121,7 +121,7 @@ public class JobAdBrowseSortQueryPlanTests(JobAdBrowsePlanFixture fixture)
 
         // Dedicated single-owner container ⇒ this class owns the table; TRUNCATE makes the seeded regime
         // (and therefore the plan) deterministic.
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads;", ct);
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads CASCADE;", ct);
 
         var seed =
             "INSERT INTO job_ads "

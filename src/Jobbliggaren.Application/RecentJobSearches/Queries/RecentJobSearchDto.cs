@@ -51,4 +51,6 @@ public sealed record RecentJobSearchDto(
     RecentSearchLabelDto Label,
     int CurrentCount,
     int NewCount,
-    DateTimeOffset LastViewedAt);
+    DateTimeOffset LastViewedAt,
+    // ADR 0188 (#2265) — whether the search is a quick link in the /jobb hero, never its slot.
+    bool IsQuickLink);

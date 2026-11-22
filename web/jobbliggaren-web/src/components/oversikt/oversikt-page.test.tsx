@@ -52,6 +52,8 @@ const baseProfile: JobSeekerProfileDto = {
   matchSummaryMailEnabled: true,
   notificationFeedMatchesEnabled: true,
   notificationFeedFollowedAdsEnabled: true,
+  notificationFeedCriterionAdsEnabled: true,
+  juniorQuickLinkEnabled: true,
   createdAt: "2026-05-11T10:00:00Z",
   hasStatedDesiredOccupation: false,
   preferredOccupationGroups: [],
@@ -122,6 +124,7 @@ function makeRecent(
     id: "33333333-3333-3333-3333-333333333333",
     q: "backend",
     occupationGroupList: [],
+    occupationNameList: [],
     municipalityList: [],
     regionList: [],
     employmentTypeList: [],
@@ -129,6 +132,7 @@ function makeRecent(
     employerList: [],
     remote: false,
     occupationGroupLabels: [],
+    occupationNameLabels: [],
     municipalityLabels: [],
     regionLabels: [],
     sortBy: DEFAULT_SORT_BY,
@@ -136,6 +140,7 @@ function makeRecent(
     currentCount: 0,
     newCount: 0,
     lastViewedAt: "2026-06-27T10:00:00Z",
+    isQuickLink: false,
     ...overrides,
   };
 }

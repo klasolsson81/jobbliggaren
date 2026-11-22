@@ -1073,3 +1073,800 @@ Her plan read of 2026-10-25 made the gate stricter than the one his answer named
 **Signature:** `security-auditor`, 2026-10-25, on her scoped re-check of PR [#2239](https://github.com/klasolsson81/jobbliggaren/pull/2239) and its verification at the final head `e2e889916`: signs this amendment, D1–D11 as re-taken for the application link, D10 triggers 18 and 19, the readings for triggers 2 and 3–17 and for the Amendment 2026-10-11 recorded under D10, the residuals (r1)–(r6) as residuals, and D11's merge-day reading of 2026-10-25 at 21:27:20 UTC (validated 0 in every field and in both readings of the link; the same minute, 0 listed links with a raw tab, LF or CR and 0 hosts with a ZWNJ or ZWJ), read with Klas's answers to questions 2 and 3 as quoted above and with no fifth addendum to DPIA #456 §8-B: `PublicJobAdDto` carries exactly 16 members, and `ApplicationUrl` is set only from `PublicApplicationLink.Admit`, once, in the content read after the second `Classify` has returned Listed; `Admit` never throws and gives the stored value whole or null, never a rewritten string, and null when `ApplicationUrl.FromSource` no longer admits the value, when the host after `IdnHost` is not LDH ASCII, when the host or a domain it is a subdomain of is one of the 22 contact hosts or the 15 shorteners, when the host is LinkedIn's and the first path segment, as `AbsolutePath` resolves it and decoded, is neither `jobs` nor `company`, or when Tier A's recogniser finds a span in any of the value's readings; `FromSource` refuses anything but an absolute http(s) URL with a host, an `@` or `%40`, any control character, a host whose `IdnHost` cannot be formed or is not ASCII, and a validated personnummer in any reading; the readings are the stored, percent-decoded and form-decoded forms, each as it is and with any tab or line break removed; the three lists and the LinkedIn path set are pinned whole by `PublicApplicationLinkTests`; the page renders the link once, as a plain anchor with `target="_blank"` and `rel="nofollow noopener noreferrer"`, through no `next/link` and with no prefetch, and only on a listed ad's 200; the link is in no title, meta, OpenGraph or Twitter tag, in no JSON-LD, in no share link or share payload, in no preview image, in no `PublicJobAdSummaryDto`, catalogue, sitemap or related row, and in no log line; the signed-in detail is unchanged. It renews, for the page, sitemap, catalogue and related-section scope, her signature of 2026-10-24 for S6b (#2210), and through it her signatures of 2026-10-18 for S5 and S4 and of 2026-10-12 (D1–D11 and signature 3) and 2026-10-17 (S3) for the page; and her signature of 2026-10-19 for the Search Console read path. R1–R5 hold at this head: against `9b8260fb2` the related read path, `PublicJobAdSummaryDto`, `PublicJobAdList` and their tests, the catalogue's and the sitemap's code and tests, `publicJobAdUrl`, `content-legal.json` (sv and en), `content-legal-signed-copy.test.ts`, `job-posting-json-ld.ts` and its test, the Search Console workflow, script, suite, samples and `google-github-actions/auth` pin, the share family, `/delningsbild`, `generateMetadata` and `deploy/` are byte-unchanged, `buildJobPosting` never reads `applicationUrl`, and no assertion line is removed beyond the declared 15-to-16 member count. It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override; her Art. 9 Blocker keeps its grade. It lapses with any D10 trigger that fires after it, 5–19 included (trigger 1's "any widening of the public surface" for the application link is the firing this amendment answers), and with any change to this amendment's text or to the properties above. A merge after 2026-10-25 UTC needs a fresh S2-P3 reading and the same count appended to D11 under its own rule, which does not reopen it unless its validated count is above 0, which is trigger 2, or the count reads a raw tab, LF or CR, or a ZWNJ or ZWJ host, above 0. The edit that writes this line, updates the amendment's heading and marks the amendment Accepted does not reopen it.
 
 This amendment is **Accepted** (approved by Klas 2026-10-24, and signed by `security-auditor` 2026-10-25).
+
+## Amendment 2026-11-19 (#2260, ADR 0186) — the D10 re-take for the junior list at `/junior`; approved by Klas 2026-11-19, signed by `security-auditor` 2026-11-20
+
+D1–D11 and the earlier amendments stand and nothing above is rewritten. D10's trigger 1 fires for the junior list on its head clause, "any widening of the public surface": a new anonymous read, `GET /api/v1/public/job-ads/junior`, and a new public page that lists listed ads' titles and employers, narrowed by kommun and sorted by deadline, reached from a public post. Klas knew it fires when he decided the page on 2026-11-19. The conclusion is withdrawn **for the junior list only**: that read; the page at `/junior` with every combination of its three parameters; and the curated file `junior-it-list.v1.json` in the public repository. The page, the sitemap, the catalogue, the Search Console read path, the related section and the application link keep their conclusions. **[K]** Klas took the conclusion again for the junior list on 2026-11-19 (sign-off below). This amendment is the single home of the legal outcome for the junior list: ADR 0186 points here and does not restate it. It follows `security-auditor`'s plan read of 2026-11-19 (`docs/reviews/2026-11-19-2260-plan-security-auditor.md`, local). The merge waits for her signature. Without it the processing would rest on a withdrawn conclusion, and the notice's "Vi har vägt de intressena mot dina rättigheter" would be untrue for it (Art. 5(1)(a), 12(1), 14(2)(b)).
+
+Sentences marked **[K]** are controller decisions, which Klas approved in the sign-off below; everything else is the record's facts and `security-auditor`'s reading.
+
+**D1: unchanged,** and applied to the list as written. A person who looks for a first job in IT finds the open ads that fit that search, without an account.
+
+**D2, necessity: re-taken.**
+- *Why the list is needed.* The catalogue is newest first across Sweden with no filter (trigger 12), and the related section starts from an ad the visitor has already found. Neither lets a visitor without an account find the junior IT ads open now, or narrow them to a place.
+- *Its own minimisation:*
+  - seven row members: the catalogue's six and the deadline, which the job page already shows; no free text or excerpt; no `Url`, no application link and no Arbetsförmedlingen id on the wire or the page;
+  - membership by one rule read from the ad itself: listed, in the Data/IT occupation field, and either in the curated set or titled by the headline pattern; nothing keyed by the visitor;
+  - three parameters: kommun, one of two orders, page; no free-text search;
+  - membership, order, count, kommun options and content read and classified per request through `JobAdPublication.IsListed(now)`;
+  - `noindex, follow` on every answer, in no sitemap; no row value and no count in the title, meta, OpenGraph or Twitter tags; no JSON-LD;
+  - the curated file carries Arbetsförmedlingen ids and nothing else from the reading.
+- *Alternatives:*
+  - a filter on the catalogue: trigger 12, and a place parameter on an indexable page is the pattern stage A rejected;
+  - the list without a kommun filter: the visitor's "where" is not met, and the rows would be the same;
+  - **[K]** an indexable list: each kommun view would be a place page in search results and would need the hub floor (N ≥ 100, E ≥ 25), which the junior set does not meet in most kommuner; Klas chose `noindex` on 2026-11-19;
+  - behind sign-in: the post's readers have no account.
+
+**D3: unchanged.**
+
+**D4, the weights:**
+- **W1: unchanged.** The list carries no free text.
+- **W2: re-weighed at kommun scale.** The employer name is the list's main personal datum. A kommun view can hold a single row, so a sole trader's name can stand alone under a place. It is the row the ad's own page and the catalogue already show; the count beside the kommun adds nothing the row does not. What the view adds is reach for a direct visitor, by place. It adds no reach by name, because no answer of `/junior` is indexed. *Stock:* 2026-11-20 07:25Z, 142 listed junior ads, every one with an organisation number, 0 of personnummer shape, 0 without one, 0 not ten characters; 34 kommuner, 20 of them with exactly one junior ad. *Left:* a web-archive copy of a kommun view, out of reach.
+- **W3:** handled by D11.
+- **W4: narrowed for the list.** `noindex` keeps every answer out of the index, so there is no index association to wait out. A link preview, LinkedIn's included, carries the static title, description and shared image, never a row or a count. *Left:* web-archive copies, and copies readers make.
+- **W5 at kommun scale.** What the list changes:
+  1. A kommun view is a small, stable local list, so an early drop of one of its ads is visible from one request, without walking the catalogue.
+  2. Ads erased by one request usually share an employer and often a kommun, so they can drop from one kommun view together.
+  3. The deadline is public per row, so a drop before the deadline is visible without a page read. That alone is not the signal: employers end ads early all the time.
+  4. The curated file gives the Arbetsförmedlingen id of up to 143 ads, so for those ads the comparison with Arbetsförmedlingen needs no page read. Joining the id to a row still needs a text match, which S4 already said is no protection to rely on.
+
+  What does not change: the list cannot tell an ended ad from an erased one, and only a drop early relative to Arbetsförmedlingen carries the signal. **[K]** The design changes that would reduce the inference are worse: a kommun floor costs the filter its purpose in most kommuner; holding an erased row serves it against Art. 17(1); and removing an id from the curated file because of an erasure would publish a dated, permanent erasure signal, so the file is never edited for one (trigger 23). Erasures to date: 0 (`job_ads` erased, all time, 2026-11-20 07:25Z). *Done:* content, membership, count and options per request; no Arbetsförmedlingen id on the page or the wire; `noindex`. *Left:* the inference, at kommun scale.
+- **The curated file.** `junior-it-list.v1.json`, an embedded resource in the public repository, holds 143 of the 144 Arbetsförmedlingen ids of Klas's reading of 2026-11-19: no label, year, place or note. By the record an external id is not personal data (`JobAd.Erase` keeps it on the tombstone on that ground, ADR 0106). Recorded beside that classification: the repository and its history are public and permanent from the first push, beyond the reach of an erasure on our side; and for an ad by a sole trader the id leads, through Arbetsförmedlingen's open API, to an organisation number that is a personnummer. Measured before the first push, counts only, on the box on 2026-11-20 at 07:10:52Z, over the reading's 144 ids: found 144; listed 142; outside the Data/IT groups 1; an organisation number of personnummer shape 0 (not ten digits 0, a third digit below 2 0); without an organisation number 0; erased 0. Klas, 2026-11-20, to whether that one id is left out: "Lämna ute det (Rek.)". It was removed inside a command that never printed it, in the unpushed commit that introduces the file, so no commit in the pushed history carries it; the file holds 143.
+- **Art. 9.** The list holds only ads in the Data/IT occupation field, on both arms of its rule. None of the groups the Amendment 2026-10-11 names is in that field, so the list does not reach the processing that decision covers, and the decision is not extended to it. None of its three triggers fires. Her Art. 9 Blocker keeps its grade and stays unsigned.
+
+**D5 gains the list's safeguards:** the seven-member row in a type of its own, pinned by a contract test and a wire test, with `PublicJobAdSummaryDto` unchanged; the answer's envelope of exactly two members, `rows` and `places`, and the kommun options `{municipalityConceptId, name, count}` and nothing else; the rule in D2 composed over `IsListed(now)` in one base query per request; three bound parameters and no free text; `no-store` on every answer; the policy `public-job-ad-junior-it`, 60 per 60 s per relayed client address, its own and never shared; `noindex, follow` on every answer and no sitemap entry; no row value and no count in metadata, and no JSON-LD; plain anchors on rows; the web reader relays only `pickForwardedHeaders`; no log line carrying a title, an employer or an id; no visitor-keyed measurement; the curated file's six keys pinned.
+
+**D6:** (c) unchanged. (d) updated by W2, W4 and W5 above. (e) is D5.
+
+**D7: no change.** The notice's "Annonsen visas också på en publik sida … Mottagare är därför allmänheten och sökmotorerna" and the policy's sentence stay true: the categories (title, employer, place, dates) and the recipients are those already named. The notice's "Vi har vägt de intressena mot dina rättigheter" becomes true for the list only at Klas's approval, so the merge cannot come before it. Signature 3's pinned text does not change.
+
+**D8: a fifth addendum to DPIA #456 §8-B,** and not a new full DPIA (**[K]** Klas, answer 2), on the terms its text states: R-842-10 gains the list, unchanged at Low × Med; R-842-9 gains the kommun view, the deadline and the curated ids, unchanged at Med × Med; R-842-1, -3, -4 and -8 unchanged; the one new copy is the curated file; **[K]** the Art. 36(1) determination is re-confirmed, so no prior consultation with IMY is owed; the Art. 9 row is untouched. The addendum is a local file, written in the main copy by the driving session; Klas approves its text when it is written (her S2), and she does not sign an amendment whose DPIA no longer describes the processing.
+
+**D9: unchanged.**
+
+**D10.** Trigger 1 fired for the junior list, and Klas took the conclusion again for it on 2026-11-19. This withdraws no finding and none of D4's residuals. Four triggers are added, continuing the numbering after the amendments for S3 (5–7), S4 (8–9), S5 (10–12), the Search Console read (13–14), S6b (15–17) and the application link (18–19). Their wording is `security-auditor`'s:
+
+20. The junior list made findable through a search engine: `noindex` removed from or weakened on any answer of `/junior`, with any combination of its parameters; `/junior` or any of its parameter addresses in any sitemap; a canonical from it to any other address; or a `robots.txt` rule that hides its `noindex` from a crawler. A place or another facet as a path (`/junior/<kommun>`) is a new public page, which is trigger 1.
+21. A junior row member outside the seven (`id`, `title`, `companyName`, `municipalityName`, `regionName`, `publishedAt`, `expiresAt`), or any other ad value anywhere on the page; a row value or a count in the page's title, meta, OpenGraph or Twitter tags; any JSON-LD on the page; or any count or option keyed by employer.
+22. Junior membership, order, count, kommun options or row content not read and classified through `JobAdPublication.IsListed(now)` at request time: a column, a snapshot, a precomputed or materialised table, any process or Next cache, ISR, a static render, a CDN, or a hand-written copy of the predicate. Also the selection widened: the Data/IT field dropped from either arm or widened, the headline pattern loosened, a parameter beyond kommun, the two orders and page, a free-text search, or any selection keyed by the visitor (sign-in state, history or location). Narrowing the pattern or the set is not a trigger.
+23. The curated file carrying anything beyond its six keys (`//`, `juniorItListVersion`, `readAt`, `occupationFieldConceptId`, `headlinePattern`, `curatedExternalIds`), such as a label, a year, a place, a note, a title, an employer or our own id, or a comment about any single ad; ids added other than by a new reading taken by Klas, recorded with its date and a count like M4's; or any id removed because of an erasure, a request or a complaint. A new reading replaces the set as a new version.
+
+The readings recorded with them:
+- **Trigger 2:** the merge-day reading in D11.
+- **Triggers 3 and 4:** no event known on 2026-11-19.
+- **Trigger 5:** not fired by the list: nothing is pushed. **[K]** The post on Jobbliggaren's LinkedIn page that links to `/junior`, its first comment and any image or video are outside the trigger as long as they carry the address `/junior`, Klas's own words and aggregate counts only: no title, no employer, no `/jobb/<uuid>` address, no Arbetsförmedlingen link and no image of a row (Klas, answer 3). Anything else in them is a push of ad content to a third party, which is trigger 5 and needs its own reading, Chapter V included, before the post.
+- **Triggers 6 and 7:** not fired. There is no JSON-LD on `/junior`, the group test pins JSON-LD to one file, and `job-posting-json-ld.ts` is unchanged.
+- **Triggers 8 and 9:** not touched. The list is in no sitemap.
+- **Triggers 10–12:** not fired. The catalogue's markup, membership, order and count are unchanged. **[K]** Trigger 12 is not met by moving a filter to another address: the junior list is a page of its own, re-taken here as trigger 1 requires, and the catalogue stays without a filter, sort, search or place parameter.
+- **Triggers 13 and 14:** not touched.
+- **Triggers 15–17:** not fired. The related section is unchanged.
+- **Triggers 18 and 19:** not fired. No application link is on the junior wire or page.
+- **The Amendment 2026-10-11 (Art. 9):** D4 above.
+
+**D11: the merge-day reading (W3).** S2-P3 with the current blob (`ea21c16`), counts only, on the merge's UTC day, before `agents-done`; validated 0 in every field and in both readings of the link. The same minute, totals only, over the junior set as the handler defines it (the file's pattern and ids, the Data/IT groups): listed junior ads; with an organisation number; personnummer-shaped; without one; not ten characters; kommuner; kommuner with exactly one junior ad; and `job_ads` erased, all time. It is recorded here and in the record table of `docs/runbooks/public-job-page-publication-count.md`. A validated count above 0 fires trigger 2, and the PR stops. A personnummer-shaped or not-ten-characters count above 0 goes back to `security-auditor` before the merge. If the merge slips past that UTC day, the reading is taken again.
+
+**The merge-day reading (counts only).** 2026-11-20, release sequence 1675 (source `354e4a926`), `--status` consistent before (07:24:50Z) and after (07:25:30Z). S2-P3 with query blob `ea21c16` (07:24:50–07:25:10Z): listed 43 431; shaped 801 (application link 626 stored and 626 decoded, description 219); **validated 0** in every field and in both readings of the link; link host other than Arbetsförmedlingen 0. The junior set as the handler defines it (the file's 143 ids and pattern, the Data/IT field's 12 groups; 07:25:28Z): 2026-11-20 07:25Z, 142 listed junior ads, every one with an organisation number, 0 of personnummer shape, 0 without one, 0 not ten characters; 34 kommuner, 20 of them with exactly one junior ad; `job_ads` erased, all time, 0. Recorded also in `docs/runbooks/public-job-page-publication-count.md`.
+
+**What the signature reads with** (her S1–S16). She signs at her scoped re-check of the PR's final head, read with ADR 0186 as delivered and with the fifth addendum to DPIA #456 §8-B as Klas approves its text. The delivered properties are those of D5 above and ADR 0186 D1–D8. Scope (her S14): no migration, package, `deploy/` diff, ACL change or `PROTECTED_PREFIXES` change; no new recipient, sub-processor, transfer or PII field; nothing pushed to anyone; edge exposure unchanged.
+
+**Her signatures, and their renewal.** Each of these lapses by its own words now, because trigger 1 fires after it:
+- the application link, 2026-10-25 (#2239, `e2e889916`), and with it the renewals it carried:
+  - S6b, 2026-10-24 (#2210);
+  - through S6b: S5, #2180, and S4, #2168, both 2026-10-18, and the page's signatures of 2026-10-12 (D1–D11 and signature 3) and 2026-10-17 (S3, #2160);
+  - Search Console, 2026-10-19 (#2189).
+
+Read with D10's scope rule, none of the lapses withdraws anything. The pointer amendment of 2026-10-24 (#2216) names no lapse ground and does not lapse. The Amendment 2026-10-11 is, as always, not covered. She renews the lapsed signatures at the final head on these conditions:
+- **R1 (the link):** `PublicJobAdDto`, `PublicApplicationLink`, their tests and the link's markup are byte-unchanged.
+- **R2 (S6b):** the related read path and its tests are byte-unchanged, and `PublicJobAdList` and its tests are byte-unchanged (the junior row is a component of its own), so the related section's render is identical.
+- **R3 (S5, S4):** the catalogue's and the sitemap's code and tests are byte-unchanged; the catalogue's render is identical; `publicJobAdUrl` and `publicCatalogueUrl` give the same output; the sitemap's pages part is unchanged.
+- **R4 (the page, S3):** `content-legal.json` (sv, en), `content-legal-signed-copy.test.ts`, `job-posting-json-ld.ts` and its test are byte-unchanged.
+- **R5 (Search Console):** the workflow, script, suite, samples and `auth` pin are byte-unchanged.
+- **R6 (the pointer, ADR 0183 D7):** the share family, `/delningsbild`, the job page's `generateMetadata` and `deploy/` are byte-unchanged; `proxy.ts` is byte-unchanged or carries a stated delta that changes no existing route's branch.
+
+In every suite, `git diff -U0` removes no assertion line beyond the declared ones: the group test's page list and reader list.
+
+**Sign-off**
+
+**Controller approval:** Klas Olsson, 2026-11-19, in the session's chat, to `security-auditor`'s escalation (`docs/reviews/2026-11-19-2260-plan-security-auditor.md`, put to him through AskUserQuestion). The questions are quoted as she wrote them in the escalation, and his answers without edits:
+1. To her question 1, on the re-take:
+
+   > 1. **Godkänner du omprövningen för juniorlistan?** Den skrivs som ett daterat tillägg till ADR 0166 och säger:
+   >    - Syftet är oförändrat: den som söker sitt första IT-jobb hittar de öppna annonserna utan konto.
+   >    - Listan visar öppna annonser inom Data/IT som antingen finns bland de 144 annons-id du läste fram 2026-11-19 eller har en juniorrubrik. Varje rad visar titel, arbetsgivare, kommun, län, publiceringsdatum och sista ansökningsdag. Den visar aldrig annonstext, ansökningslänk eller länk till Arbetsförmedlingen. Man kan välja kommun och sortera på datum eller sista ansökningsdag, inget annat. Allt läses vid varje visning, så en raderad annons försvinner direkt ur listan, ur antalet och ur kommunvalet.
+   >    - Sidan har noindex och finns inte i någon webbplatskarta. Därför kräver jag inget golv för kommunvalet. För ortssidor kräver jag minst 100 annonser och 25 arbetsgivare. En kommun med en enda annons visar samma rad som annonsens egen sida. Det som tillkommer är att den som besöker sidan kan hitta en arbetsgivare per ort, och för en enskild firma kan namnet vara ett personnamn. Tas noindex bort gäller golvet.
+   >    - Risken att en radering kan härledas blir billigare i en liten kommun. Den som bevakar en kommun kan se en annons försvinna, och annonser som raderas på samma begäran kan försvinna samtidigt. Det skiljer fortfarande inte en avslutad annons från en raderad. Varje ändring som minskar risken gör kommunvalet eller raderingen sämre.
+   >    - De 144 id:na ligger i det publika repot, utan etiketter, år, orter eller anteckningar. Ett id räknas inte som personuppgift i vår dokumentation. Men repot och dess historik är publika för alltid från första push, och för en enskild firma leder id:t via Arbetsförmedlingens öppna API till ett organisationsnummer som är ett personnummer. Därför räknas id:na mot databasen innan de pushas, bara som antal. Filen ändras aldrig för att en annons har raderats, eftersom en sådan ändring skulle bli en daterad, publik signal om raderingen.
+   >    - Art. 9: listan visar bara annonser inom Data/IT. Ditt beslut från 2026-10-11 om personlig assistans berörs därför inte och behöver inte utvidgas.
+   >    - Katalogen på /lediga-jobb får fortfarande inget filter. Juniorlistan är en egen sida, och den omprövas här.
+   >    - Personnummerräkningen (S2-P3) görs om samma dag som PR 1 mergas, bara som antal, och måste visa 0. Samma minut räknas enskilda firmor i juniorlistan och antalet raderade annonser.
+   >    - Notisen och integritetspolicyn stämmer som de står och ändras inte.
+   >    - Fyra nya triggers (20–23) läggs till:
+   >      - sidan blir sökbar;
+   >      - en uppgift utöver de sju, eller en rad eller ett antal i sidans titel, beskrivning eller förhandsvisning;
+   >      - något som inte läses vid varje visning, eller ett bredare urval;
+   >      - id-filen får något utöver id:na, eller ändras för att en annons har raderats.
+   >
+   >    (Rek.: Ja. Svarar du nej mergas inte PR 1.)
+
+   "Ja (Rek.)": the re-take of this ADR's conclusion for the junior list, as D1–D11 above list it, including that the list holds only Data/IT ads on both arms and so does not reach the processing his decision of 2026-10-11 covers, and triggers 20–23.
+2. To her question 2, on the DPIA:
+
+   > 2. **Godkänner du ett femte tillägg till DPIA:ns §8-B, inte en ny full DPIA och inget förhandssamråd med IMY?** Tilläggen anger i dag var en enskild firmas namn syns, och ingen av de listorna kan avgränsas till en ort. Det femte tillägget lägger till juniorlistan och id-filen och skriver vad som gäller för dem. Jag föreslår att bedömningarna står kvar: Låg × Medel för namnet och Medel × Medel för risken att en radering kan härledas. Art. 9-raden berörs inte. Du godkänner texten när den är skriven. (Rek.: Ja. Utan tillägget signerar jag inte, och då mergas inte PR 1.)
+
+   "Ja (Rek.)": a fifth addendum to DPIA #456 §8-B and not a new full DPIA, and no Art. 36 prior consultation, on the ratings in D8.
+3. To her question 3, on the LinkedIn post:
+
+   > 3. **Bär LinkedIn-inlägget bara adressen /junior, dina egna ord och antal?** Frågan gäller inlägget, den första kommentaren och en eventuell bild eller video. Då skickar vi inga annonsuppgifter till LinkedIn, och trigger 5 utlöses inte. En annonstitel, en arbetsgivare, en annonsadress eller en skärmbild av listan i inlägget innebär att annonsinnehåll skickas till en tredje part. Det kräver en egen omprövning innan inlägget publiceras, med en bedömning av överföring till tredje land. (Rek.: Ja, bara adressen, mina egna ord och antal.)
+
+   "Ja, bara det (Rek.)": the post, its first comment and any image or video carry only the address `/junior`, Klas's own words and aggregate counts, so trigger 5 is not fired; anything else in them needs its own reading before the post.
+
+Earlier the same day, at the plan stage (ADR 0186), Klas decided the page itself: "Ny öppen sida /junior (Rek.)" and "noindex (Rek.)". D2 relies on both.
+
+**Signature:** `security-auditor`, 2026-11-20, on her scoped re-check of PR [#2262](https://github.com/klasolsson81/jobbliggaren/pull/2262) at head `86f438e33`, re-verified at heads `c75f499c2` and `26e20ac27`: signs this amendment, D1–D11 as re-taken for the junior list, D10 triggers 20–23, the readings for triggers 2–19 and for the Amendment 2026-10-11 recorded under D10 (the trigger-5 reading for the LinkedIn post on Klas's answer 3 included), the residuals D4 names as *Left*, as residuals, the curated file's reading before its first push (2026-11-20 at 07:10:52 UTC, over the reading's 144 ids: found 144; listed 142; outside the Data/IT groups 1, left out on Klas's word "Lämna ute det (Rek.)" before the branch's first push, which GitHub registers at 07:21:04 UTC; personnummer-shaped 0; without an organisation number 0; erased 0), and D11's merge-day reading of 2026-11-20 at 07:24:50–07:25:30 UTC (validated 0 in every field and in both readings of the link; over the junior set, personnummer-shaped 0, without an organisation number 0 and not ten characters 0; `job_ads` erased, all time, 0), read with Klas's answers to questions 1–3 as quoted above and with the fifth addendum to DPIA #456 §8-B as Klas approved its text on 2026-11-20 (local): a junior row carries exactly the seven members of `PublicJuniorItJobAdDto` (`id`, `title`, `companyName`, `municipalityName`, `regionName`, `publishedAt`, `expiresAt`), its `id` a GUID, in an envelope of exactly `rows` and `places`, and a kommun option is `{municipalityConceptId, name, count}` and nothing else, with `PublicJobAdSummaryDto` and `PublicJobAdList` unchanged; membership is `JobAdPublication.IsListed(now)` and the Data/IT field's groups and either a curated id or the headline pattern, composed in LINQ into one base query from which the rows, the total and the kommun options are read per request at one `now`, with the ids and the pattern bound as parameters and never SQL text, the entity never materialised, and never a column, a snapshot, a cache or a copy of the predicate; a curated id outside the field never lists, and an ad removed by the stream, past its deadline, expired by `ExpireJobAdsJob` or erased leaves the rows, the total and the options in the same request; the API binds `municipality` (the concept-id form, at most 32 characters), `sortBy` (two values) and `page` (1–100, past the end a 404) and nothing else, and there is no free-text search; `no-store` is on the API's 200, 400, 404 and 429 and on the web's 200, 404 and 5xx, and the web caches nothing; `public-job-ad-junior-it` allows 60 per 60 s per relayed client address, its own policy, never shared; every 200 of `/junior`, the empty kommun included, is `noindex, follow` and its 404 is `noindex`, no sitemap entry or canonical names it, `robots.ts` is unchanged, no row value and no count reach the title, meta, OpenGraph or Twitter tags, there is no JSON-LD, rows are plain anchors, the pager never prefetches, and the page reads no session; the web reader relays only `pickForwardedHeaders`, with `no-store` and `redirect: "manual"`, and relays no cookie or `Authorization`; nothing of the junior read is logged beyond the handler's name and duration, and the loader's errors name no id; nothing is counted per visitor and no campaign parameter sets a cookie; the curated file carries exactly its six keys and 143 distinct eight-digit ids, pinned by the loader's test, and no commit in the pushed history carries an id the delivered file lacks; nothing is pushed to anyone. The Art. 9 paragraph is signed as a property of that rule, Data/IT on both arms, and not as an extension of Klas's decision of 2026-10-11. It renews, for the page, sitemap, catalogue, related-section and application-link scope, her signature of 2026-10-25 for the application link (#2239), and through it her signatures of 2026-10-24 for S6b (#2210), of 2026-10-18 for S5 (#2180) and S4 (#2168), and of 2026-10-12 (D1–D11 and signature 3) and 2026-10-17 (S3, #2160) for the page; and her signature of 2026-10-19 for the Search Console read path (#2189). R1–R6 hold at head `26e20ac27`: against `354e4a926`, `PublicJobAdDto`, `PublicApplicationLink`, `PublicJobAdSummaryDto`, `PublicJobAdList`, the related read path, the catalogue's and the sitemap's code, `publicJobAdUrl`, the job page's route, `content-legal.json` (sv and en), `content-legal-signed-copy.test.ts`, `job-posting-json-ld.ts`, the workflows, the share family, `/delningsbild`, `proxy.ts`, `robots.ts`, `deploy/` and their tests are byte-unchanged, except `seo-canonical.test.ts`, which leaves `./(public-job)/junior/page.tsx` out of its derivation by that exact path and pins it noindex with no canonical, its derivation over every page at `354e4a926` unchanged; and no assertion line is removed. It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override; her Art. 9 Blocker keeps its grade. It lapses with any D10 trigger that fires after it, 5–23 included (trigger 1's "any widening of the public surface" for the junior list is the firing this amendment answers), and with any change to this amendment's text, to the properties above or to that addendum; a new reading that replaces the curated set is trigger 23 and needs its own count before its first push. A merge after 2026-11-20 UTC needs a fresh S2-P3 reading and the junior-set count appended to D11 under its own rule, which does not reopen it unless its validated count is above 0, which is trigger 2, or the junior set reads a personnummer-shaped organisation number or one that is not ten characters. A pure base merge onto `26e20ac27` does not reopen it. The edit that writes this line, updates the amendment's heading, marks the amendment Accepted, and changes ADR 0186's and its README row's "awaits security-auditor's signature" to signed does not reopen it.
+
+ADR 0166 remains **Accepted** for D1–D11 for the page, and for the sitemap, the catalogue, the related section and the application link by their amendments. This amendment is **Accepted** (Klas 2026-11-19; signed by `security-auditor` 2026-11-20).
+
+## Amendment 2026-11-20 (#2264, ADR 0187) — the D10 re-take for the junior list's stored assessment; approved by Klas 2026-11-20, signed by `security-auditor` 2026-11-20
+
+D1–D11 and the earlier amendments stand, and nothing above is rewritten. D10's triggers 22 and 23, added by the Amendment 2026-11-19, fire for the junior list.
+
+Trigger 22 fires on both of its halves:
+- **The first half.** Membership is now computed from a verdict and a decision stored per ad in `job_ad_junior_assessments`, a precomputed table in the trigger's own words. A Worker sweep writes the verdict, and an audited admin command writes the decision.
+- **The second half.** The selection widens beyond the headline pattern and the curated set. It adds rules over the title and the post-scrub description, Arbetsförmedlingen's own experience mark, a years reader, and Klas's decisions in an admin queue.
+
+Trigger 23 fires because `junior-it-list.v1.json` is replaced by a rules file with more than its six keys, and because the reading's ids are added to.
+
+The conclusion is withdrawn **for the junior list only**:
+- `GET /api/v1/public/job-ads/junior`;
+- the page at `/junior`, with every combination of its three parameters;
+- the rules file `junior-rules.data-it.v1.json` in the public repository.
+
+The page, the sitemap, the catalogue, the Search Console read path, the related section and the application link keep their conclusions. The junior filter on `/jobb` (#2261), a signed-in count or link on `/jobb` (#2265) and the admin queue are not public surfaces, so they lie outside the conclusion. Each composes `JuniorMembership` and never copies it.
+
+**[K]** Klas took the conclusion again for the junior list on 2026-11-20 (sign-off below).
+
+This amendment is the single home of the legal outcome for the change: ADR 0187 points here and does not restate it. It follows `security-auditor`'s plan read of 2026-11-20 (`docs/reviews/2026-11-20-2264-plan-security-auditor.md`, local). The merge waits for her signature. Without it the widened list would rest on a withdrawn conclusion, and the notice's "Vi har vägt de intressena mot dina rättigheter" would be untrue for it (Art. 5(1)(a), 12(1), 14(2)(b)).
+
+**D1: unchanged.** A person who looks for a first job in IT finds the open ads that fit that search, without an account.
+
+**D2, necessity: re-taken.**
+- *Why the change is needed.* The headline rule finds about half of the junior ads (ADR 0186, R1), and the curated set ages as its ads close. The driving session's harness measured this against Klas's reading on 2026-11-20 at 10:00Z, counts only, over the rule file of commit `1be6f9976`. Its version is `1.0.0+a6bab50a` when a CRLF checkout hashes it and `1.0.0+0d07bb80` as LF. The delivered file has the same patterns, conditions, rule order and years block. It differs only in the `//` text, in the reading's ids, and in the four `auto` flags the criterion admits, and the harness sets those flags per criterion itself (`security-auditor`, measured at head `5b96cb60b`):
+  - 250 of the reading's 254 ads were retrievable.
+  - Under the criterion below, the automatic rules show 82 ads, 80 of them right; both wrong ones are labelled not junior. They exclude 48, 47 of them right. 120 go to the queue.
+  - Over the 2 850 Data/IT ads listed in the snapshot, 256 are candidates. Under the criterion and without the reading, the rules give 84 a Junior verdict and 130 Unclear, and every other ad NotJunior. With the reading's ids as the first step, the list would hold 144, before any decision in the queue.
+  - The queue for new ads: a mean of 4.0 a day over the last seven days, at most 9.
+  - Arbetsförmedlingen's experience mark is present on 43 860 of 43 860 snapshot ads and on 894 of 894 stream upserts.
+
+  *Not measured:* the precision is measured against the same reading the rules were tuned on, so it is optimistic. The no-signal outcome cannot be measured, because ads without a candidate signal were never read.
+- *What is stored.*
+  - **On `job_ads`, two nullable columns.** The ingest funnel (`SetSourcePayload`) writes both. The contact-scrub backfill (`ApplyContactScrubBackfill`) recomputes the fingerprint when it rewrites the text. No bulk write reaches either (`JobAdRawPayloadDerivationGuardTests`):
+    - `experience_required`, Arbetsförmedlingen's boolean;
+    - `junior_input_fingerprint`, a SHA-256 over the post-scrub title and description, the occupation group and the mark.
+  - **In `job_ad_junior_assessments`, one row per classified ad,** keyed by the ad's id, with a foreign key to `job_ads` (`ON DELETE CASCADE`). The row holds:
+    - the verdict, as an enum name;
+    - the deciding rule's id, in lower-case kebab and taken from the file;
+    - the rule-set version: the declared version and eight hex digits of SHA-256 over the file's bytes;
+    - the classified fingerprint, a stamped copy of the input fingerprint the sweep read;
+    - the time of classification;
+    - Klas's decision, as an enum name, and its time, which a CHECK keeps whole.
+  - **Nothing else.** No title, text, matched span, employer, organisation number or user id is stored, and no membership: the table holds verdicts and decisions, never the list. Who decided is recorded in `audit_log` and nowhere else.
+  - **Art. 17.**
+    - `Erase()` nulls the input fingerprint.
+    - In the same unit of work, the erasure command deletes the erased ad's assessment row.
+    - A sweep that read the ad before the erasure committed can write a row after it (`JuniorAssessmentErasureRaceTests`). So every tick of the sweep first deletes the assessments of erased ads, before its kill-switch and its field resolution, and does so again last. Such a row lasts until the next tick at most.
+    - In `ErasureCascadeRegistry`, both fingerprints are classified `Erased`, with derivation grounds.
+    - The experience mark, and the assessment's verdict, rule id, version and decision, are `NotRecruiterData`, under a ground that names the three writers.
+- *Who writes them:*
+  - **The ingest funnel** writes the mark and the input fingerprint, and classifies nothing. The contact-scrub backfill recomputes the fingerprint when it rewrites the text.
+  - **The sweep,** `ClassifyJuniorJobAdsJob`, runs every two minutes. It takes the listed ads in the enabled field that either have no assessment, or have a stamped fingerprint that differs from the input fingerprint, or carry a rule-set version that is not current.
+    - It reads an `AsNoTracking` projection of seven fields: id, external id, post-scrub title, description, occupation group, mark and input fingerprint. It never reads `raw_payload`, the contacts or the organisation number, and it never writes `job_ads`.
+    - It creates or reclassifies the assessment through `JobAdJuniorAssessment.Classify` and `Reclassify`.
+    - A match timeout yields Unclear under `match-timeout` and stamps the fingerprint, so the ad is not retried in a loop.
+    - It deletes the assessments of erased ads at the start and at the end of every tick, whatever its kill-switch says.
+  - **The decision** is written only by `DecideJuniorJobAdCommand`, through `JobAdJuniorAssessment.Decide`, under the Admin policy, audited as `Admin.JuniorDecisionRecorded` with the ad's id.
+  - **An architecture test pins the callers** (`JuniorClassificationWriterGuardTests`, a source scan of `src/`). Only the sweep calls `JobAdJuniorAssessment.Classify` and `Reclassify` and builds a `JuniorFieldClassifier`. Only the decide handler calls `Decide`. In `src/`, the rules run only through `JuniorFieldClassifier`. The phase-0 measurement lives under `tests/`, outside the scan.
+- *What stays per request.* Membership is `JuniorMembership.Of(assessments, groups)`: the ad's occupation group is among the enabled field's groups, and it has an assessment whose decision is `Junior`, or whose decision is absent and whose verdict is `Junior`. It is composed under `JobAdPublication.IsListed(now)` in every read of the list. The read does not filter by rule-set version. Content, order, count and kommun options come from that one base, per request.
+- *The order of decision.* An ad in the enabled field is classified in this order:
+  1. The reading's junior ids, as Junior under the reading's rule id.
+  2. NotJunior under `no-signal`, for an ad that is not a candidate.
+  3. For a candidate, the rules in file order. The first rule whose conditions all hold decides, and a rule that is not automatic yields Unclear under its own id.
+  4. Unclear under `candidate-only`.
+
+  A match timeout yields Unclear under `match-timeout`.
+
+  Klas's decision is not a step of the classification. It is stored beside the verdict, and the read puts it first: `JuniorMembership` admits an ad whose decision is `Junior`, or whose decision is absent and whose verdict is `Junior`.
+
+  **[K]** A rule is automatic only when its point precision against Klas's reading is at least 95 % on at least 10 cases. On 2026-11-20 four rules meet it:
+  - `title-junior`, 70 of 70, shows;
+  - `text-seek-junior`, 42 of 44, shows;
+  - `title-senior`, 29 of 30, excludes;
+  - `text-mentor-only`, 34 of 35, excludes.
+
+  Every other rule yields Unclear under its own id, which puts the ad in the queue.
+- *The queue.* `/admin/juniorjobb`, behind the Admin policy: internal processing by the controller himself, with no recipient.
+  - A row carries the title, the employer, the kommun, the publication date, the last application day, the rules' verdict with its rule's label, and Klas's decision. It links to the ad's page, `/jobb/<id>`, by the ad's internal id.
+  - It carries no ad text, no Arbetsförmedlingen id and no organisation number.
+  - The tab *Visas på /junior* composes `JuniorMembership`. A test reads that tab and `/junior` through their real handlers over the same rows, and finds the same ads (`AdminJuniorQueueHandlerTests`).
+  - Every tab composes `IsListed(now)`.
+- *Alternatives:*
+  - **The headline rule and the curated set alone** (ADR 0186): finds about half, and ages.
+  - **The verdict and the decision as columns on `job_ads`.** Rejected by `senior-cto-advisor` on 2026-11-20. With columns, the sweep would have to load the whole ad, `raw_payload`, contacts and organisation number included, only to write four values. As its own aggregate, the sweep reads a narrow projection and never writes the ad.
+  - **[K] The reading in both directions.** Rejected by Klas on 2026-11-20. "Not junior" is a datum of his reading that neither the ad nor the list shows, and it would be public for good. Its cost, measured the same day: 111 of the reading's not-junior ads are listed; under the criterion, 63 of them go to the queue once, 46 are excluded, and 2 are shown until Klas vetoes them.
+  - **The rules in SQL at request time:** two regex engines again, the database's locale back in the match, and a scan of the description on every request.
+  - **A model in ingestion:** an AGENTS.md §5 / ADR 0071 stop, not an option.
+  - **A recurring agent run:** CLAUDE.md §9.2 (c).
+  - **Every rule automatic:** fails the criterion.
+
+**D3: unchanged.**
+
+**D4, the weights:**
+- **W1: unchanged.** The list carries no free text. The sweep reads the post-scrub description to reach a verdict and stores none of it.
+- **W2 at the widened size.** As in the Amendment 2026-11-19, the employer name is the list's main personal datum, and a kommun view can hold a single row.
+  - *Stock before the merge.* From the harness's M4 (b) line under the criterion, over Arbetsförmedlingen's snapshot on 2026-11-20 at 10:00Z (the rule file of commit `1be6f9976`; see D2), over the ads the criterion's automatic rules and the reading would show:
+    - an organisation number of personnummer shape: 0;
+    - without one: 0;
+    - not ten characters: 0;
+    - 34 kommuner, 20 of them with exactly one ad;
+    - 2 ads without a kommun.
+  - *Stock after the deploy:* D11.
+  - *Left:* a web-archive copy of a kommun view, out of reach.
+- **W3:** handled by D11.
+- **W4: unchanged.** `noindex` on every answer.
+- **W5 at the widened size.** What the change adds:
+  1. Klas's decision is a second reason, besides closing, for an ad to leave `/junior` while it is still listed elsewhere. That makes a drop from the list a weaker erasure signal, not a stronger one.
+  2. His decision is the remedy for a recruiter's complaint or objection about the list, and it never edits the file (trigger 23).
+  3. An assessment is kept per ad, but every read composes `IsListed(now)`, so an erased ad still leaves the rows, the total and the kommun options in the same request. `Erase()` nulls its input fingerprint. The erasure command deletes its assessment row, and the next tick at the latest deletes a row that a racing sweep wrote.
+
+  **[K]** The file's reading holds junior ids only, so it publishes no verdict the list does not show itself. Erasures to date: 0 (on the box, 2026-11-20 16:53Z and 16:58Z, release sequence 1681). *Left:* the inference at kommun scale, as before.
+- **The rules file.** `junior-rules.data-it.v1.json`, an embedded resource in the public repository, replaces `junior-it-list.v1.json`. It carries:
+  - the keys its loader test pins at `a860452fb`;
+  - generic patterns, none of which names an employer, a person or a place, or quotes an ad;
+  - the rules in their order, with their `auto` flags;
+  - a reading block of exactly `ruleId` and `junior`.
+
+  The reading holds 145 Platsbanken ids: all 143 of v1's, and 2 junior-labelled ids from the reading's later additions. Beyond v1, the reading has 3 junior-labelled ids. The driving session checked them against JobTech on 2026-11-20, counts only: 1 is outside the Data/IT field, and the file does not carry it; 2 were kept. Every v1 id is in the file (`v1_missing 0`, measured locally by `security-auditor` at head `5b96cb60b`), so no id has left the set, erased or not.
+
+  By the record an external id is not personal data (ADR 0106). But the repository and its history are public and permanent from the first push. And for a sole trader's ad, the id leads through Arbetsförmedlingen's open API to an organisation number that is a personnummer.
+
+  Measured before the first push, counts only, on the box on 2026-11-20 at 11:02:03Z, over the file's 145 ids and the Data/IT field's 12 occupation groups: found 145 (not found 0); listed 143; outside the Data/IT groups 0; erased 0; an organisation number of personnummer shape 0, not ten digits 0; without an organisation number 0. The file is never edited because of an erasure.
+- **Profiling.** The rules evaluate a vacancy's stated requirements, not personal aspects of a natural person, and no decision about a person follows. The classification is not profiling within Art. 4(4), and Art. 22 does not apply.
+- **Art. 9: unchanged.** Only the Data/IT field is enabled, and the field's groups are a read-side conjunct of membership. A test pins that exactly one field is enabled. Another field is trigger 22, and Art. 9 is read again for it.
+- **The reading's working copy.** **[K]** A minimised copy of Klas's reading is kept outside every repository, at `C:\DOTNET-UTB\Jobbliggaren-junior-facit\junior-facit.json`. It holds the id, the label and the minimum and maximum years, and nothing else, and it exists to re-measure the rules. It is deleted on 2027-05-18, when the reading's last ad closes. It is not personal data on the record, and the processing register states it.
+
+**D5 gains the change's safeguards:**
+- Only two nullable columns are added to `job_ads`: the experience mark, which the ingest funnel alone writes, and the input fingerprint, which the ingest funnel writes and the contact-scrub backfill recomputes. No bulk write reaches either. The per-ad assessment table holds verdicts and decisions, and never membership, text or a matched span.
+- Only the sweep writes a verdict, from the versioned file. Only the audited admin command writes a decision, and every read puts the decision ahead of the verdict. An architecture test pins the callers.
+- Membership is `JuniorMembership`, composed per request under `IsListed(now)` with the enabled field's groups, in one base for the rows, the total and the options. It is never copied.
+- The sweep reads a seven-field `AsNoTracking` projection, never `raw_payload`, the contacts or the organisation number, and never writes `job_ads`.
+- A match timeout is recorded as Unclear and never retried in a loop.
+- The sweep logs counts and an exception's type name only.
+- The Domain enforces kebab rule ids and a closed version alphabet.
+- An erasure nulls the input fingerprint and deletes the assessment row in one unit of work. Every tick of the sweep deletes, first and last, any assessment left on an erased ad.
+- Exactly one field is enabled, and a test pins it.
+- The reading block holds junior ids only.
+- The queue is Admin-only and `private, no-store`, with no ad text.
+- The junior row, envelope, page, reader, metadata and policy of the Amendment 2026-11-19 are unchanged.
+
+**D6:** (c) unchanged. (d) updated by W2 and W5 above. (e) is D5.
+
+**D7: no change.**
+- The notice and the policy name the categories (title, employer, place, dates) and the recipients. They do not describe how the list is chosen, and `content-legal.json` (sv) carries no junior copy (2026-11-20).
+- The notice's "Vi har vägt de intressena mot dina rättigheter" becomes true for the widened list only at Klas's approval, so the merge cannot come before it.
+- Signature 3's pinned text does not change.
+
+**D8: a sixth addendum to DPIA #456 §8-B,** on the terms its text states:
+- R-842-10 gains the widened list, unchanged at Low × Med.
+- R-842-9 gains the decision as a non-erasure reason to leave the list, unchanged at Med × Med.
+- For the junior list it supersedes three statements of the fifth addendum: that the list is "titled by a fixed headline pattern", that "the list adds no store", and that "each row is classified per request".
+- **[K]** The Art. 36(1) determination is re-confirmed.
+- The Art. 9 row is untouched.
+
+The addendum is a local file, written in the main copy by the driving session, and Klas approves its text.
+
+**D9: unchanged.**
+
+**D10.** Triggers 22 and 23 fired for the junior list, and Klas took the conclusion again on 2026-11-20. This withdraws no finding and none of D4's residuals. For the junior list, triggers 22 and 23 are replaced by the wording below, and trigger 24 is added. The wording is `security-auditor`'s:
+
+22. Junior membership, order, count or kommun options not computed at request time from the per-ad assessments, as `JuniorMembership` defines it, under `JobAdPublication.IsListed(now)` and the enabled field's groups. The assessment table holds verdicts and decisions, one row per ad, and never membership. So this trigger covers all of these:
+    - membership read instead from a stored membership flag or member list, a snapshot, any process or Next cache, ISR, a static render or a CDN;
+    - a hand-written copy of `JuniorMembership` in place of a composition of it;
+    - a verdict written by anything but the sweep, from the versioned rules file, through the assessment's classification methods;
+    - a decision written by anything but the audited admin command, through `Decide`;
+    - any rule, the reading included, outranking Klas's decision.
+
+    Also any widening of the selection:
+    - a second occupation field enabled, or the field widened;
+    - a rule made automatic, or an automatic rule's pattern loosened, without a measurement against Klas's criterion of 2026-11-20 recorded with its date. The criterion is a point precision of at least 95 % on at least 10 cases, against his reading, or, once that copy is deleted, against his recorded decisions, by counts only;
+    - a parameter beyond kommun, the two orders and page;
+    - a free-text search;
+    - any selection keyed by the visitor.
+
+    Narrowing a rule, turning its `auto` off or removing it is not this trigger.
+23. The rules file carrying any of these:
+    - a key, at any level of the file, beyond those the loader maps at `a860452fb`;
+    - a pattern that names an employer, a person or a place, or that quotes one ad;
+    - a comment about any single ad;
+    - a reading that holds anything beyond junior ids: a not-junior id, a direction, a label, a year, a place or a note.
+
+    Also ids added other than by a new reading taken by Klas, recorded with its date and with a count like M3's before its first push; or any id removed because of an erasure, a request or a complaint. The remedy for a complaint or an objection is Klas's decision in the admin queue, never the file. A new reading replaces the set as a new version.
+24. Any of these:
+    - a stored junior value beyond the two `job_ads` columns (`experience_required`, `junior_input_fingerprint`) and the columns of `job_ad_junior_assessments` that the migration of `a860452fb` adds (the ad's id, verdict, rule id, rule-set version, classified fingerprint, classified at, decision, decided at), and above all a matched span;
+    - that table holding membership, a title, an employer, or any value read from the ad's text;
+    - the sweep reading anything beyond its projection (id, external id, post-scrub title and description, occupation group, experience mark, input fingerprint), in particular `raw_payload`, the contacts or the organisation number;
+    - the sweep writing `job_ads`;
+    - the purge of erased ads' assessments removed, made conditional, or moved after the sweep's kill-switch or field resolution; an erased ad keeping its input fingerprint;
+    - a log line of the sweep carrying more than counts and an exception's type name, or a log line of the queue's handlers carrying more than the request's type name, its duration and, on failure, its exception;
+    - ad text, an Arbetsförmedlingen id or an organisation number in the queue's rows.
+
+The readings recorded with them:
+- **Trigger 1:** not fired by the change. There is no new public page or read; a signed-in count and the queue are not public surfaces.
+- **Trigger 2:** D11.
+- **Triggers 3 and 4:** no event known on 2026-11-20.
+- **Trigger 5:** not fired. Arbetsförmedlingen is read and nothing is pushed. Klas's answer 3 of 2026-11-19 on the LinkedIn post stands unchanged.
+- **Triggers 6–19:** not fired; R1–R6 below.
+- **Triggers 20 and 21:** not fired; R7 below.
+- **The Amendment 2026-10-11 (Art. 9):** D4 above.
+
+**D11: the readings (W2, W3).**
+- **Before the merge,** on the merge's UTC day and before `agents-done`: S2-P3 with the current blob (`ea21c16`), counts only. It must read validated 0 in every field and in both readings of the link. It is recorded here and in `docs/runbooks/public-job-page-publication-count.md`. A validated count above 0 fires trigger 2, and the PR stops. If the merge slips past that UTC day, the reading is taken again.
+- **After the deploy and before Klas publishes the post,** counts only:
+  - listed Data/IT ads without an assessment (must be 0), and with a stale one;
+  - listed ads by verdict and rule id, and listed decisions by value;
+  - the listed juniors as `JuniorMembership` defines them, and of those: an organisation number of personnummer shape, without one, and not ten characters;
+  - kommuner; kommuner with exactly one ad; ads without a kommun;
+  - assessment rows of erased ads (must be 0). A row that a sweep wrote while racing an erasure lasts until the next tick, so a count above 0 is read again two ticks later. Also erased ads with an input fingerprint (must be 0);
+  - `job_ads` erased, all time;
+  - the list's own total, which must equal the listed juniors.
+
+  A stale assessment is read against the version the release stores: the declared version, then the first eight hex digits of SHA-256 over the file's blob in the release commit (LF).
+
+  A count above 0 in the three organisation-number fields goes back to `security-auditor` before the post.
+- **Readings:** M4 (a), 2026-11-20 15:00–15:01Z, on release sequence 1679 (source `2565c0275`, `--status` consistent before and after), query blob `ea21c16`: listed 45 007; shaped 828 (222 in the description, 652 in the application link, stored and decoded alike); **validated 0** in every field and in both readings of the link. Recorded in `docs/runbooks/public-job-page-publication-count.md`. M4 (c), 2026-11-20 16:53Z, on release sequence 1681 (source `bc2235aba`, `--status` consistent): listed Data/IT ads without an assessment 0 of 2 957; the 152 effective juniors listed have an organisation number of personnummer shape 0, without one 0, not ten characters 0; 35 kommuner, 21 with exactly one ad; `job_ads` erased, all time, 0. Second reading 16:58Z: assessments of erased ads 0; erased ads with an input fingerprint 0.
+
+**What the signature reads with.** She signs at her scoped re-check of the PR's final head, read with ADR 0187 as delivered and with the sixth addendum as Klas approves its text. The delivered properties are those of D5 above and of ADR 0187.
+
+Scope:
+- one migration: two nullable `job_ads` columns without a default, and one new table (single owner, with the `AppDbContext` hotspot);
+- no package and no `deploy/` diff;
+- no `PROTECTED_PREFIXES` or ACL change;
+- no new recipient, sub-processor, transfer or personal-data field;
+- nothing pushed to anyone;
+- edge exposure unchanged.
+
+**Her signatures, and their renewal.** Her signature of 2026-11-20 on the Amendment 2026-11-19 (#2262) lapses by its own words: triggers 22 and 23 fire after it, and its property "never a column, a snapshot, a cache or a copy of the predicate" changes. With it lapse the renewals it carried:
+- the application link, 2026-10-25 (#2239);
+- S6b, 2026-10-24 (#2210);
+- S5 (#2180) and S4 (#2168), both 2026-10-18;
+- the page's signatures of 2026-10-12 (D1–D11 and signature 3) and 2026-10-17 (S3, #2160);
+- Search Console, 2026-10-19 (#2189).
+
+Read with D10's scope rule, none of the lapses withdraws anything. The pointer amendment of 2026-10-24 (#2216) does not lapse. The Amendment 2026-10-11 is, as always, not covered. She renews the lapsed signatures at the final head on these conditions:
+- **R1–R6:** as in the Amendment 2026-11-19, read against `0a7823d10`.
+- **R7 (the junior list's public side):** against `0a7823d10`, the following are byte-unchanged, together with their tests:
+  - `PublicJuniorItJobAdDto`, `PublicJuniorItPlaceDto`, `PublicJuniorItJobAdsPage`, `GetPublicJuniorItJobAdsQuery` and its validator;
+  - the `/junior` route and the policy `public-job-ad-junior-it`;
+  - `app/(public-job)/junior/`, `public-junior-it-list.tsx`, `public-junior-it-job-ad-list.tsx`, `lib/api/public-junior-it-job-ads.ts`, `lib/dto/public-junior-it-job-ads.ts` and `lib/job-ads/junior-it-params.ts`;
+  - the `junior` block of `messages/{sv,en}/publicjob.json`;
+  - `robots.ts` and `seo-canonical.test.ts`.
+
+  The one exception is `PublicJuniorItJobAdsEndpointTests.cs`. Its seed helper now runs the real `ClassifyJuniorJobAdsJob`, so the seeded ad is classified (+6/−2: a `using`, two doc lines and the call). No assertion line changes.
+
+  The handler is byte-unchanged, or carries a stated delta that changes no member of the wire. `IJuniorItJobAdQuery` keeps its two members, and only its implementation's membership predicate changes, to `JuniorMembership`.
+- In every suite, `git diff -U0` removes no assertion line beyond the declared ones:
+  - `JuniorItHeadlinePatternAgreementTests`, and the list-loader, predicate and resolver tests, retired with their subjects;
+  - in `JuniorItJobAdQueryReadTests`, the curated- and headline-arm assertions, replaced by verdict- and decision-arm assertions. Its four exits (removal from the stream, a passed deadline, `ExpireJobAdsJob`, `Erase()`) are kept for the rows, the total and the options.
+
+  Three assertions change a count and remove nothing: `RecurringJobIdsTests` (25 to 26, three lines) and `app-shell.test.tsx` (seven links to eight).
+
+**Sign-off**
+
+**Controller approval:** Klas Olsson, in the session's chat, by AskUserQuestion. The questions are quoted as they were put to him, and his answers without edits:
+1. The criterion, at the phase-0 STOPP, 2026-11-20:
+
+   > Vilket kriterium ska avgöra vilka juniorregler som får visa eller utesluta annonser automatiskt? (Mätt mot ditt facit: A slår på fyra regler med 97,6 % rätt bland visade, kö ca 4/dag. B slår inte på någon regel, kö ca 8/dag.)
+
+   Answer: "A: ≥95 % och ≥10 fall (Rek.)".
+2. `security-auditor`'s question 1, 2026-11-20:
+
+   > security-auditor fråga 1: ska dina inte-junior-id:n ligga i det publika repot, med riktning? (Bara junior-id:n: 63 öppna inte-junior-annonser hamnar i kön en gång och 2 visas automatiskt tills du tar bort dem. Båda riktningarna: 0 och 0, id:na räknas på lådan före push.)
+
+   Answer: "Bara junior-id:na (Rek.)".
+3. Her question 2, 2026-11-20:
+
+   > security-auditor fråga 2: får en minimerad kopia av facit (id, etikett, antal år; inga anteckningar eller orter) sparas efter att mappen raderas, till 2027-05-18, för att kunna mäta om reglerna?
+
+   Answer: "Ja, utanför repot (Rek.)".
+4. Her question on the re-take, 2026-11-20, its text shown as the preview of the recommended option:
+
+   > Till Klas (security-auditor, #2264 juniorlistan, omprövningen): Med dina tre svar från i dag kan omprövningen skrivas. Den blir ett daterat tillägg till ADR 0166. PR:en mergas inte förrän du har godkänt tillägget och det sjätte DPIA-tillägget och jag har signerat. 1. Godkänner du omprövningen för juniorlistan?
+   >
+   > 1. Godkänner du omprövningen för juniorlistan? Den säger:
+   > - Syftet är oförändrat: den som söker sitt första IT-jobb hittar de öppna annonserna utan konto.
+   > - Varje öppen Data/IT-annons klassas i förväg i workern som junior, inte junior eller oklar. Utslaget sparas i en egen tabell, en rad per annons, tillsammans med regeln som avgjorde, och ditt beslut sparas på samma rad. Ingen annonstext sparas eller loggas. När en annons raderas, raderas dess rad samtidigt. En rad som workern skrev medan raderingen pågick tas bort senast vid workerns nästa körning.
+   > - Ditt beslut i adminkön går före allt annat, sedan dina junior-id:n och sist reglerna. En regel visar eller utesluter annonser automatiskt bara om den har varit rätt i minst 95 % av fallen, på minst 10 fall, mot din läsning. Annonser som ingen sådan regel avgör hamnar i kön.
+   > - I dag uppfyller fyra regler kravet. I mätningen visade de 82 annonser, och 80 av dem var rätt. Siffrorna är mätta mot samma läsning som reglerna har stämts av mot, så de är något optimistiska. Två av dina inte-junior-annonser visas tills du tar bort dem under fliken "Visas på /junior".
+   > - Om en annons är öppen läses fortfarande vid varje visning. En raderad annons försvinner därför direkt ur listan, ur antalet och ur kommunvalet.
+   > - Regelfilen i det publika repot innehåller bara dina 145 junior-id:n, utan etiketter, år, orter eller anteckningar, och inget mönster nämner en arbetsgivare, en person eller en ort. Id:na räknades på lådan innan de pushades, bara som antal: inget var raderat, inget låg utanför Data/IT och inget hade ett organisationsnummer med personnummerform. Filen ändras aldrig för att en annons har raderats. Klagar en arbetsgivare är ditt beslut i kön lösningen, inte filen.
+   > - Kön syns bara för dig. Den visar rubrik, arbetsgivare, ort, publiceringsdatum, sista dag, reglernas utslag och ditt beslut, men ingen annonstext.
+   > - Reglerna bedömer annonser, inte personer, så det är ingen profilering.
+   > - Bara Data/IT är påslaget. Ett nytt yrkesområde kräver en ny omprövning och en ny bedömning av Art. 9.
+   > - Kopian av ditt facit ligger utanför alla repon och raderas 2027-05-18.
+   > - Notisen och integritetspolicyn stämmer som de står och ändras inte.
+   > - Personnummerräkningen görs om samma dag som mergen, bara som antal, och måste visa 0. Efter driftsättningen, och innan du publicerar inlägget, räknas juniorlistan på lådan, bara som antal. Visar räkningen en enskild firma återkommer jag till dig innan inlägget går ut.
+   > - Triggerna 22 och 23 skrivs om, och en trigger 24 läggs till. Omprövningen måste göras om i fyra fall:
+   >   - Listan räknas fram på något annat sätt än ur bedömningarna vid varje visning, något annat än svepet eller ditt beslut avgör utslaget, eller en regel går före ditt beslut.
+   >   - Urvalet blir bredare: ett nytt yrkesområde, en regel som blir automatisk utan mätning mot ditt krav, en ny parameter eller fritextsökning.
+   >   - Regelfilen får något utöver junior-id:n och allmänna mönster, får id:n på annat sätt än genom en ny läsning av dig, eller ändras för att en annons har raderats eller för att någon har klagat.
+   >   - Något sparas utöver de två nya kolumnerna på annonsen och bedömningstabellen, tabellen börjar bära själva listan eller text ur annonsen, svepet läser mer än rubrik, rensad text, yrkesgrupp och erfarenhetskrav, svepet loggar mer än antal och feltyp, svepet slutar ta bort bedömningar av raderade annonser, eller kön visar annonstext.
+   >
+   > (Rek.: Ja. Svarar du nej mergas inte PR:en.)
+
+   Answer: "Ja (Rek.)".
+5. Her question on the sixth addendum, 2026-11-20, its text shown the same way:
+
+   > 2. Godkänner du det sjätte tillägget till DPIA:ns §8-B, som det står?
+   >
+   > 2. Godkänner du det sjätte tillägget till DPIA:ns §8-B, som det står? Tillägget säger:
+   > - att listan klassas i förväg;
+   > - att utslaget och ditt beslut sparas i en egen tabell, som raderas med annonsen;
+   > - att svepet läser den rensade annonstexten utan att spara eller logga den;
+   > - att kön är din egen behandling;
+   > - att regelfilen bara har junior-id:n.
+   >
+   > Bedömningarna står kvar: Låg × Medel för arbetsgivarens namn och Medel × Medel för risken att en radering kan härledas. Inget förhandssamråd med IMY behövs, och Art. 9-raden berörs inte. (Rek.: Ja, som det står. Utan tillägget signerar jag inte, och då mergas inte PR:en.)
+
+   Answer: "Ja, som det står (Rek.)".
+
+**Signature:** `security-auditor`, 2026-11-20, on her scoped re-check of PR [#2268](https://github.com/klasolsson81/jobbliggaren/pull/2268) at head `a860452fb` against `0a7823d10` (`origin/main`, holding PR #2267): signs this amendment, D1–D11 as re-taken for the junior list, D10 triggers 22 and 23 as replaced and trigger 24 as added, the readings recorded under D10, and the residuals D4 names as *Left*, as residuals, read with Klas's five answers as quoted above and with the sixth addendum to DPIA #456 §8-B as he approved its text on 2026-11-20 (local). The properties signed are those of D5 and of ADR 0187 at that head: membership is `JuniorMembership.Of(db.JuniorAssessments, groups)`, composed under `JobAdPublication.IsListed(now)` into the one base of `/junior`'s rows, total and kommun options, and composed, never copied, by the admin queue's *Visas* tab and, after `Status == Active`, by the `/jobb` junior filter, whose parity with the open list over seven arms `ListJobAdsJuniorItFilterTests.Junior_AdmitsExactlyTheAdsTheOpenJuniorListLists` pins; the rules run only in the sweep, and `JuniorItPredicate`, `JuniorItSetResolver`, `junior-it-list.v1.json` and its loader are gone; `job_ads` gains exactly `experience_required` and `junior_input_fingerprint`, and `job_ad_junior_assessments` holds the id, verdict, rule id, rule-set version, classified fingerprint, classified at, decision and decided at, and nothing else; only the sweep classifies and only the audited decide command decides; the sweep reads its seven-field projection and never `raw_payload`, the contacts or the organisation number, which `ClassifyJuniorJobAdsJobStalenessTests` pins, never writes `job_ads`, logs counts and an exception's type name only, and deletes erased ads' assessments first and last in every tick, before its kill-switch; `Erase()` nulls the input fingerprint and the erasure command deletes the assessment in the same unit of work; the queue is Admin-only and `private, no-store`, with no ad text, Arbetsförmedlingen id or organisation number; the rules file loads under `JsonUnmappedMemberHandling.Disallow` with the top-level `"//"` as its one unread key, is checked out LF, hashes to `d7b3cb36`, and carries 145 junior ids and no other id, label, year, place or note, and no commit of it in the pushed history carries an id the delivered file lacks; exactly one field is enabled. The readings signed are R4 (M3, 2026-11-20 11:02:03Z) and D11's merge-day reading of 2026-11-20 15:00–15:01Z (release sequence 1679, blob `ea21c16`, validated 0). It renews, for the page, sitemap, catalogue, related-section, application-link and Search Console scope, the signatures that lapsed with her signature of 2026-11-20 on the Amendment 2026-11-19 (#2262): of 2026-10-25 (#2239), 2026-10-24 (#2210), 2026-10-18 (#2180, #2168), 2026-10-12 and 2026-10-17 (#2160), and 2026-10-19 (#2189). Her signature of 2026-11-20 on the plan read of #2261 (ADR 0186, Amendment 2026-11-20) has lapsed by its own words, and this re-take replaces it. R1–R7 hold at `a860452fb` against `0a7823d10`: every file R1–R6 and R7 name is byte-unchanged; `PublicJuniorItJobAdsEndpointTests.cs` is the declared +6/−2; `JuniorItJobAdQuery.cs` changes only its membership predicate; and the only removed assertion lines are the declared ones and `admin-routes.spec.ts`'s tab-order assertion, whose expected array moved byte-for-byte into a `const` that the same assertion still reads, which removes nothing. It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override; her Art. 9 Blocker keeps its grade. It lapses with any D10 trigger that fires after it, 5–24 included, and with any change to this amendment's text, to the properties above, to the sixth addendum or to the rules file. A post-deploy reading (M4 (c)) above 0 goes back to her before the post if it is in the junior set's three organisation-number fields, in erased ads' assessment rows on the second reading two ticks later, or in erased ads with an input fingerprint. Writing M4 (c)'s counts into D11, W5 and the addendum does not otherwise reopen it. A merge after 2026-11-20 UTC needs a fresh S2-P3 reading appended to D11, which does not reopen it unless its validated count is above 0 (trigger 2). A pure base merge onto `a860452fb` does not reopen it. Nor does the edit that writes this line, fills this amendment's `<date>`, `<head>` and `<base>` with `2026-11-20`, `a860452fb` and `0a7823d10`, marks the amendment Accepted, and changes ADR 0187's status line and its README row from "Proposed until … signs" to signed.
+
+ADR 0166 remains **Accepted**: for D1–D11 for the page; for the sitemap, the catalogue, the related section and the application link by their amendments; and for the junior list by the Amendment 2026-11-19 as this amendment re-takes it. This amendment is **Accepted**: approved by Klas 2026-11-20 and signed by `security-auditor` 2026-11-20.
+
+## Amendment 2026-11-21 (#2284, ADR 0186) — no D10 trigger fires for the signed-in redirect from `/junior`; the junior list's signatures renewed; signed by `security-auditor` 2026-11-21
+
+D1–D11 and the earlier amendments stand, and nothing above is rewritten. This is the form of the pointer amendment of 2026-10-24: no **[K]** sentence is taken again, and there is no approval row from Klas. It adds the renewal that `security-auditor`'s plan read of 2026-11-21 requires (`docs/reviews/2026-11-21-2284-plan-security-auditor.md`, local, Major 1). It is the single home of the legal outcome for the redirect: ADR 0186's Amendment 2026-11-21 and ADR 0018's Amendment 2026-11-21 point here and do not restate it. The merge waits for her signature. Her reason, in her words translated: without the renewal the list still rests on Klas's conclusion, but the record asserts a signature that has lapsed twice (Art. 5(2) and 30(1)).
+
+**1. The two lapse grounds.**
+- **The rules file changed.** Her signature of 2026-11-20 (#2268, the closing signature of the Amendment 2026-11-20) lapsed at the base by its own words: it lapses "with any change to … the rules file". #2280 (`14c367cc0`) changed the rules file from 1.0.0 to 1.1.0, a negation guard `notJunior` on `text-seek-junior`, so the property "hashes to `d7b3cb36`" no longer holds. No trigger fired. The change narrows a rule, and `notJunior` is an entry in the pattern map, not a key the loader maps, so trigger 23 does not fire. Read with D10's scope rule, no conclusion is withdrawn. With the signature lapsed the renewals it carried: the page (2026-10-12, D1–D11 and signature 3; 2026-10-17, S3, #2160), S4 (#2168) and S5 (#2180), both 2026-10-18, S6b (#2210, 2026-10-24), the application link (#2239, 2026-10-25) and Search Console (#2189, 2026-10-19). Her measurement of 2026-11-21: no renewal exists in ADR 0166 or ADR 0187, and `docs/reviews/` holds no `security-auditor` report for #2278, in the main copy or in this worktree.
+- **The design makes a delivered property false.** ADR 0186 D8 says that a signed-in and an anonymous visitor get the same answer. Her signature of 2026-11-19 reads with it (the Amendment 2026-11-19, "What the signature reads with"), the Amendment 2026-11-20's D5 carries it on, and so does her S11 (`docs/reviews/2026-11-19-2260-plan-security-auditor.md:182`). At the address `/junior` it is false once the edge sends a request that carries the session cookie on. That is a second lapse ground, independent of the first.
+
+**2. The trigger reading, and the property signed.** Her reading, verbatim:
+
+*"No D10 trigger fires. Trigger 22 governs the junior list's selection; the edge sends a request that carries the session cookie to a surface outside the conclusion (the Amendment 2026-11-20: `/jobb`'s junior filter) and changes nothing the page selects for any request it answers."*
+
+What it rests on (her plan read, answer 1):
+- Trigger 22 governs the junior list's selection: membership, order, count and kommun options. "Any selection keyed by the visitor" stands among the widenings of that selection. The 307 changes which requests the page answers, not what the page selects.
+- The target, `/jobb`'s junior filter, is outside the conclusion: the Amendment 2026-11-20 names it as not a public surface.
+- It is the principle of #2265: "Sign-in decides who may read the number, not which ads are counted" (`docs/reviews/2026-11-20-2265-plan-security-auditor.md:75`).
+- The redirect makes the public list's audience smaller. It widens nothing.
+- ADR 0186's A2 read the example "(sign-in state, …)" without its object, the selection, and her Praise line in #2275 (`docs/reviews/2026-11-21-2275-security-auditor.md:100`) repeated A2's premise without testing it. This is the test, and A2 does not hold on that ground.
+- No other trigger (1–24) fires. Trigger 1: the continuation document carries no ad text. Trigger 5: nothing is sent to anyone. Trigger 20: the document carries `noindex` and no canonical, a crawler has no cookie, `/jobb?` is disallowed, and `robots.ts` and the sitemap are untouched. Trigger 21: the document's title is the app's name, no row and no count. Triggers 23 and 24: neither the rules file, the sweep, the queue nor any stored value is touched by the design.
+- The shared refresh driver is within what she can sign: it is the session cookie's own purpose (the cookie policy says it "håller dig inloggad", and of `refresh_after` that it "styr hur ofta din inloggning förnyas"); only requests that already carry the cookie are affected, never the cookieless public; it is the reviewed driver, moved out unchanged; and the refresh call carries only `Authorization` and the two forwarding headers, so D5's "no visitor-keyed measurement" holds. The exception for strictly necessary cookies applies, no notice text changes, and `content-legal-signed-copy.test.ts` is byte-unchanged since `a860452fb`. No new capability arises: on every protected path a client with any cookie can already reach `/auth/refresh`, bounded per client address (#1202). Her conditions are her Minors 2 and 3, a clear on exactly 401 only, and `no-store`.
+
+The property she signs, verbatim:
+
+*"The page reads no session and gives every request that reaches it the same answer. A GET or HEAD to `/junior` with a query the page accepts, carrying the session cookie, never reaches it: the edge answers with a `307`, `no-store`, to `/jobb` with the validated `municipality`, `junior=on` and `sortBy` — with no backend call when the refresh is not due or the request is a prefetch, otherwise after the shared refresh driver, carrying only that driver's cookies — and on exactly `401` it clears both cookies and gives the no-session answer. The junior read never carries the session, and the refresh call carries only `Authorization` and the two forwarding headers, so nothing attributes it to `/junior`."*
+
+**3. The ground.** Klas-direktiv 2026-11-21: "inloggad besökare på /junior → /jobb?junior=on, också när länken öppnas från LinkedIn/Discord/FB". No decision lies with him here: no trigger fires, no **[K]** sentence changes, and `security-auditor` escalates nothing. He reads this amendment after the merge.
+
+**4. The residuals R-a to R-f** are written, with their measurements, in ADR 0018's Amendment 2026-11-21 and are not restated here: R-a (a stale cookie), R-b (a kommun and an order chosen by another site), R-c (sandboxed popups), R-d (in-app browsers), R-e (the public list for a signed-in visitor, where a recruiter complaint under trigger 3 is read in a private window) and R-f (link previewers), with her two additions there: another site can make the session slide or rotate on `/junior` through the bounce, and the premise of #1893 and its race now reach `/junior`.
+
+**5. The renewal, and its conditions.** At her scoped re-check of the final head she renews the junior list's signature of 2026-11-20 (#2268) and, through it, the signatures it carried (1, above), on these conditions, all read against the final base `51f1409a3`:
+- **R1–R5:** as in the Amendment 2026-11-19.
+- **R6, rewritten for this renewal** (her wording): *"`proxy.ts` carries three stated deltas: the refresh driver moved into a shared module, pure, proven by `proxy.test.ts` passing with `git diff -U0` removing no assertion line and lines 299–306 byte-unchanged; the continuation answer and `hopTarget` moved into their own module, `strictCookieBounce`'s decisions unchanged; one branch for exactly `/junior`. No other route's answer changes: `/jobb/<uuid>`, `/admin`, the protected gate, the org.nr wash, the prefetch rule and the matcher's exclusions."*
+- **R7:** as in the Amendment 2026-11-20, the junior list's public side byte-unchanged with its tests.
+- **The declared deltas:**
+  - `RateLimiting` carries #2265's own policy, additions only (+7/−0 and +44/−0), and `public-job-ad-junior-it` is untouched.
+  - The rules file at 1.1.0 (#2280, `14c367cc0`), which is the base's own state (1).
+  - Her Minor 4, an R7 exception: `app/(public-job)/junior/page.tsx` changes only inside its docblock, which said "for everyone, signed in or not" (no longer true after this change) and "curated or carry a junior headline" (no longer true since #2264's stored assessment). `git diff` shows no code line.
+  - `content-legal.json`, read as "`content-legal-signed-copy.test.ts` byte-unchanged and green", also if #2276 lands first.
+  - `public-job-group.test.ts` gains lines only (the branch and the hand-over join its `PUBLIC_SURFACE`), and `seo-canonical.test.ts` is untouched.
+  - `scripts/public-job-smoke.mjs` (the `frontend` job's HTTP contract): the junior check "for the visitor with no credential" now sends no session cookie, a one-line change to its request that removes no assertion. Its premise, that a request with the session cookie gets the same answer, is the one this amendment's second lapse ground makes false. Two checks are added: the signed-in 307, and a session the server no longer knows answered as none, with the list and both cookies cleared.
+  - The edge-log inventory's first assertion, whose expected set grows to `id`, `municipality`, `page`, `sortBy` and `vidare`. The growth is declared (her answer 4), on her condition that none of the three added keys is entered on `AppSurfaceScrubbedParameters`.
+- In every other suite, `git diff -U0` removes no assertion line.
+
+**6. The merge-day reading.** A fresh S2-P3 reading and the junior set's counts, in the form of the Amendment 2026-11-20's D11, counts only (CLAUDE.md §9.2 (a)), on the merge's UTC day and before `agents-done`, recorded here and in the record table of `docs/runbooks/public-job-page-publication-count.md`. A count above 0 in any of the three organisation-number fields (personnummer-shaped, without one, not ten characters) goes back to `security-auditor`. A validated count above 0 fires trigger 2 and the PR stops, as D11 says.
+
+D11, the merge-day reading, counts only, 2026-11-21. Release sequence 1684 (source `51f1409a3`), `--status` consistent before (21:42:34Z) and after (21:43:43Z). S2-P3 with query blob `ea21c16`, the current one (21:42:46–21:43:05Z): listed 44 097; shaped 804 (description 209, application link 639 stored and 639 decoded); **validated 0** in every field and in both readings of the link; link host other than Arbetsförmedlingen 0. The junior set in D11's form (21:43:40–21:43:41Z, the Data/IT field's 12 occupation groups, the release's rules version `1.1.0+2a7891ba`): listed Data/IT ads 2 907; without an assessment 0; with a stale one 0 by version and 0 by fingerprint; by verdict and rule id, Junior: `reading-2026-11-19` 140, `title-junior` 9, `text-seek-junior` 1; NotJunior: `no-signal` 2 639, `title-senior` 31, `text-mentor-only` 10; Unclear: `candidate-only` 25, `years-3-plus` 16, `text-early-career` 13, `flag-no-experience` 10, `text-junior-and-senior` 8, `text-new-graduate` 4, `title-thesis` 1; decisions 0; listed juniors 150, of them an organisation number of personnummer shape 0, without one 0, not ten characters 0; 34 kommuner, 20 with exactly one ad; 2 ads without a kommun; assessments of erased ads 0; erased ads with an input fingerprint 0; `job_ads` erased, all time, 0; the list's own total, read anonymously at 21:43:41Z, 150, equal to the listed juniors. Triggers 3 and 4: no event known to the session on 2026-11-21.
+
+Read with D10's scope rule, this amendment withdraws nothing and lapses nothing beyond the two grounds in 1. The Amendment 2026-10-11 (Art. 9) is, as always, not covered.
+
+**Signature:** `security-auditor`, 2026-11-21, on her scoped re-check of PR [#2286](https://github.com/klasolsson81/jobbliggaren/pull/2286) at head `446f05631` against `51f1409a3` (`origin/main`), with `ci` green at that head: signs this amendment, items 1–6 — the two lapse grounds; the reading that no D10 trigger, 1–24, fires for the signed-in redirect from `/junior`; the property in 2 as quoted there; the residuals R-a to R-f of ADR 0018's Amendment 2026-11-21, with her two additions, as residuals; and D11's merge-day reading of 2026-11-21 at 21:42:34–21:43:43 UTC (release sequence 1684, source `51f1409a3`; query blob `ea21c16`, the current one, validated 0 in every field and in both readings of the link, link host other than Arbetsförmedlingen 0; the junior set at rules version `1.1.0+2a7891ba`, without an assessment 0, stale 0 by version and 0 by fingerprint, decisions 0, listed juniors 150, equal to the list's own anonymous total, of them personnummer-shaped 0, without an organisation number 0 and not ten characters 0, assessments of erased ads 0, erased ads with an input fingerprint 0, `job_ads` erased, all time, 0; no event under triggers 3 and 4 known on 2026-11-21) — read with ADR 0186's and ADR 0018's Amendments 2026-11-21 as delivered and with the sixth addendum to DPIA #456 §8-B as Klas approved its text on 2026-11-20 (local), which states nothing the redirect makes false. The property in 2 holds at that head as delivered: the query it accepts is `juniorItHandover`'s, the page's own parse; on the `401` path the render's cookie header carries no session cookie; without the cookie, a cross-site top-level GET with such a query and no marker gets the continuation document, `no-store`, `noindex`, `no-referrer` and `Cross-Origin-Opener-Policy: same-origin`, whose hop is the list's own address with at most its three validated keys and the marker, and the hop that returns without the cookie is sent to that address without the marker only as a document navigation that is not cross-site, so neither the bounce nor the strip repeats; every other request reaches the page as before; `continuationAnswer` and the bounce refuse every target that is not a path on this origin and every target whose parsed path begins with `//`, so no caller can turn the refresh into a navigation to another host; and no session id reaches a Location, the document or a log. It renews, for the page, sitemap, catalogue, related-section, application-link and Search Console scope and for the junior list, her signature of 2026-11-20 on the Amendment 2026-11-20 (#2268, head `a860452fb`), its properties as signed there except that, at `/junior`, D8's "same answer" gives way to the property in 2, and that the rules file is at 1.1.0 (#2280), checked out LF, its SHA-256 beginning `2a7891ba`, with the same 145 distinct eight-digit junior ids and no change from `d7b3cb36` but the version and the `notJunior` pattern, used once, as a negated condition of `text-seek-junior`; and through it her signatures of 2026-10-25 (#2239), 2026-10-24 (#2210), 2026-10-18 (#2180, #2168), 2026-10-12 and 2026-10-17 (#2160), and 2026-10-19 (#2189). R1–R7 hold at `446f05631` against `51f1409a3`; and since `a860452fb` every file R1–R5 and R7 name, and the share family, `/delningsbild`, the job page's `generateMetadata` and `deploy/` — R6's first clause in the Amendment 2026-11-19, which her rewrite of R6 dropped — are byte-unchanged, except the declared deltas: `content-legal.json` (sv, en), changed in the base by #2272 and #2277, with `content-legal-signed-copy.test.ts` byte-unchanged and green; `RateLimitingOptions.cs` +44/−0 and `RateLimitingExtensions.cs` +7/−0, #2265's own policy, with `public-job-ad-junior-it` untouched; the rules file; and `app/(public-job)/junior/page.tsx`, changed inside its docblock only. `proxy.ts` carries R6's three stated deltas and `proxy.test.ts` is +117/−0 with lines 299–306 byte-unchanged; `strictCookieBounce`'s decisions are unchanged for every target it can form, its tests byte-unchanged and green, with `isSameSitePath`, moved with the continuation answer, now also refusing a target whose parsed path begins with `//`. Against `51f1409a3` the only assertion line removed is the edge-log inventory's first, whose expected set grows to `id`, `municipality`, `page`, `sortBy` and `vidare`, none of the three added keys on `AppSurfaceScrubbedParameters`; the smoke loses one request line and no assertion, and passed 70/70 in the `frontend` job at that head. It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override; her Art. 9 Blocker keeps its grade. It lapses with any D10 trigger that fires after it, 1–24 included, and with any change to this amendment's text, to the properties above, to the sixth addendum or to the rules file. A merge after 2026-11-21 UTC needs a fresh S2-P3 reading and the junior set's counts appended to 6 under its own rule, which does not reopen it unless a count is above 0 where D11 requires 0 (a validated one is trigger 2) or in the three organisation-number fields, which comes back to her before the merge. A pure base merge onto `446f05631` does not reopen it. Nor does the edit that writes this line, marks this amendment Accepted as signed by `security-auditor` 2026-11-21, with no approval row from Klas, and changes ADR 0166's README row from "awaits her signature" to signed.
+
+This amendment is **Accepted**: signed by `security-auditor` 2026-11-21, with no approval row from Klas.
+
+## Amendment 2026-11-22 (#2293, ADR 0190) — the D10 re-take for an indexable `/junior`: its default view, only while a floor computed per request holds; approved by Klas 2026-11-22, signed by `security-auditor` 2026-11-22
+
+D1–D11 and the earlier amendments stand and nothing above is rewritten. D10's trigger 20 fires for the junior list by its own text: it names "`noindex` removed from or weakened on any answer of `/junior`" and "`/junior` … in any sitemap". The conclusion is withdrawn **for the junior list's default view only**, the one view that becomes findable: all kommuner, newest first, page 1, at `/junior`, and its entry in the sitemap's pages part. The job page, the sitemap, the catalogue, the related section, the application link, the Search Console read and the rest of the junior list keep their conclusions. **[K]** Klas took the conclusion again for that view on 2026-11-22 (sign-off below). This amendment is the single home of the legal outcome for the indexed view: ADR 0190 points here and does not restate it, and ADR 0186's Amendment 2026-11-22 points here for its D8. It follows `security-auditor`'s plan read G1 of 2026-11-22 (`docs/reviews/2026-11-22-2293-plan-security-auditor.md`, local) and her ruling on the floor's employer key and on E in a printed reading (`docs/reviews/2026-11-22-2293-floor-key-security-auditor.md`, local). The merge waits for her signature. Without it the view would rest on a withdrawn conclusion, and the notice's "Vi har vägt de intressena mot dina rättigheter" would be untrue for the indexed view (Art. 5(1)(a), 12(1), 14(2)(b)).
+
+Sentences marked **[K]** are controller decisions, which Klas approved in the sign-off below; everything else is the record's facts and `security-auditor`'s reading. **The text is proposed until she signs it:** the wording of triggers 20 and 21 in D10, and each reading in D10, is built from her M1, S1, P1–P8 and her ruling, and she confirms or rewords it at her scoped re-check. Where a reading rests on her own words it says so.
+
+**D1: unchanged,** and applied to the view as written. A person who looks for a first job in IT finds the open ads that fit that search, without an account, and now also through Google or Bing.
+
+**D2, necessity: re-taken.**
+- *Why the view is needed.* The purpose is unchanged. The catalogue is newest first across Sweden with no filter, and the related section starts from an ad the visitor has already found; neither lets a searcher find the junior IT ads open now. One address, `/junior`, is where such a search lands.
+- *Its own minimisation, S1:*
+  - **Only the default view may be `index, follow`:** no kommun, newest first, page 1. It is indexable only while the floor holds (*The floor*, below).
+  - **Every other answer stays `noindex, follow`:** a kommun view (0 of 33 kommuner meet the floor), the deadline order, page 2 and later, the empty kommun, the 404 and the 5xx, and the continuation document.
+  - **Why page 1 only.** D1's "a place such a search lands" is met by one URL. Indexing seven more pages puts the other 129 rows into index associations for no purpose that the sitemap and the catalogue do not already serve (Art. 5(1)(c), 25(1)). Every page in the default order is acceptable on the catalogue's precedent and was not recommended.
+  - **The canonical.** The default view names itself as its canonical, absolutely, so `vidare` and any unvalidated key can never reach it. A duplicate spelling (an ignored key, `page=1`, the default `sortBy`) carries the same canonical. A `noindex` answer names no canonical, as today: `noindex` beside a canonical to another address is a conflicting signal (ADR 0176 D1).
+  - **The sitemap.** One entry in the pages part: `loc` only, equal to that canonical, so trigger 8 does not fire. No parameter address is ever listed, and the job parts are untouched.
+  - **`robots.txt`** is unchanged. No rule for `/junior` or `/junior?`: a rule would hide the variants' `noindex`, and a blocked URL can be indexed from links alone.
+  - **Kept.** The title, description and image stay fixed, with no row and no count (trigger 21). No JSON-LD of any kind (trigger 21; Google forbids `JobPosting` on list pages). The count line, the rows and the pager stay in the one `data-nosnippet` block, and the kommun form is inside it (her m2: an option's count goes false in a quoted snippet, ADR 0120).
+- *Alternatives:* every page in the default order, **[K]** not chosen; keeping `noindex` (no re-take), **[K]** not chosen; a kommun or any other facet as an indexable path, which is trigger 1 and needs the floor on its own.
+
+**D3: unchanged.**
+
+**D4, the weights:**
+- **W1: unchanged.** The list carries no free text, and the view adds none.
+- **W2 at index scale.** Each of the 20 names on page 1 is already on its own indexed job page, in the job sitemap and on an indexed catalogue page. What indexing adds is an association between a name and "junior IT jobs" on one high-ranking URL, until the engine recrawls it. Google and Bing do not quote these rows in snippets or AI answers (`data-nosnippet`). *Stock:* 0 of 149 listed juniors without an organisation number (2026-11-22). *Left:* a burst of ads from one employer can fill page 1 while S still holds over the whole set; and engines other than Google and Bing may quote rows (not measured).
+- **W3:** handled by D11.
+- **W4.** Link previews stay static: the title, description and shared image carry no row and no count. *Left:* the index copy until recrawl, and more third-party copies (aggregators, archives, crawlers), all out of reach.
+- **W5: unchanged in kind.** The kommun views stay `noindex`, so the kommun-scale inference stands as already rated (the Amendment 2026-11-19). The floor closing is a coarse aggregate change and not a per-person signal. Erasures to date: 0 (2026-11-21). R-842-9 stays Med × Med.
+
+**D5 gains the view's safeguards** (her P1–P8):
+- **P1–P5:** the indexable answers, the floor, the sitemap entry, `robots.txt`, and the metadata, JSON-LD and `data-nosnippet` rules, all as in D2 above and in *The floor* below.
+- **P6:** every answer is `no-store` and nothing is cached. The reader relays only `pickForwardedHeaders`.
+- **P7:** the seven-member row is unchanged. The envelope gains at most one boolean, the floor's outcome, so it is exactly `rows`, `places` and `floorHolds`.
+- **P8:** no filter, sort or search is added. No migration, package, `deploy/`, `proxy.ts`, ACL or `PROTECTED_PREFIXES` change. No new recipient, transfer or PII field. Nothing is pushed: Klas's manual "Request indexing" in the Search Console UI stays outside trigger 5.
+
+**D6:** (c) unchanged. (d) updated by W2 and W4 above; W5 is unchanged in kind. (e) is D5.
+
+**D7: no change.** The notice and the policy stay true as written. `security-auditor` measured them in the Swedish text of `content-legal.json`:
+- line 583: "sökmotorer kan indexera den … Mottagare är därför allmänheten och sökmotorerna";
+- line 87: "en publik sida som sökmotorer kan indexera";
+- line 604: "inte heller kopior som sökmotorer … har gjort".
+
+The categories and the recipients are unchanged, which is the same reading her S5 made for the catalogue. The notice's "Vi har vägt de intressena mot dina rättigheter" becomes true for the indexed view only when Klas approves, so the merge cannot come first. Signature 3's pinned text does not change.
+
+**D8: a seventh addendum to DPIA #456 §8-B,** and not a new full DPIA (**[K]** Klas, answer Q2), on the terms its text states. The fifth addendum says that no answer of the list is indexed (L1356, L1370) and counts that as the list's own remedy in its Art. 36(1) reasoning (L1380); the sixth says `noindex` (L1406, L1448). For the default view that no longer holds. A full DPIA is not needed: the indexed view is a subset of the already indexed catalogue, under the same `data-nosnippet` and per-request read, with the floor added. Her reading:
+- R-842-10 stays Low × Med;
+- R-842-9 stays Med × Med;
+- **[K]** the Art. 36(1) determination is re-confirmed without the withdrawn remedy, so no prior consultation with IMY is owed;
+- the Art. 9 row is untouched.
+
+The addendum is owed. It is a local file, written in the main copy by the driving session, and Klas approves its text when it is written. She does not sign an amendment whose DPIA no longer describes the processing (her M2).
+
+**D9: unchanged.**
+
+**D10.** Trigger 20 fired for the junior list, and Klas took the conclusion again for the default view on 2026-11-22. This withdraws no finding and none of D4's residuals. **Trigger 20 is replaced and trigger 21 is extended**, as her M1 requires; triggers 22–24 and the earlier ones are unchanged. The wording is built from her M1 and S1 and is hers at signing:
+
+20. The junior list made findable through a search engine in any way but this one. **The default view** is every answer of `/junior` whose validated parse is every kommun, newest first and page 1, whatever other key the request carries (an ignored key, `page=1`, the default `sortBy` or an empty `municipality` included). It alone may be `index, follow`, only while the floor holds at that request's own `now`, and it then names the bare absolute `/junior` as its canonical. The sitemap's pages part lists `/junior` once, `loc` only and equal to that canonical, whether or not the floor holds: while it fails, the entry stays and the page answers `noindex, follow`. Everything else fires:
+    - `noindex` removed from or weakened on any other answer of `/junior` (a kommun, the deadline order, a later page, the empty kommun, a 404, a 5xx, the continuation document), with any combination of its parameters;
+    - `index` on the default view while the floor fails or was not read, a failed read included;
+    - a canonical on a `noindex` answer, or a canonical to any address but the bare absolute `/junior`;
+    - any other `/junior` address in any sitemap, or the entry with any element besides `loc`;
+    - a `robots.txt` rule that keeps a search engine's crawler from fetching any `/junior` address, since it must fetch a variant to read its `noindex`;
+    - the floor weakened (a threshold lowered, the share rule loosened, or the definition of an employer in *The employer, for the floor* changed so that it splits where it merges), read over anything but the rows' own base at the request's `now`, stored, cached, banded or made configurable.
+
+    A place or another facet as a path (`/junior/<kommun>`) is a new public page, which is trigger 1.
+21. A junior row member outside the seven (`id`, `title`, `companyName`, `municipalityName`, `regionName`, `publishedAt`, `expiresAt`), or any other ad value anywhere on the page; a row value or a count in the page's title, meta, OpenGraph or Twitter tags; any JSON-LD on the page; any count or option keyed by employer; or a value of the floor other than its outcome, the one boolean `floorHolds` — E, S, a threshold, the largest employer's count or share, a separate term of E, or any value per employer — on the wire, on the page or in its tags, in a log line, or in a column, cache or file the application writes. N is the list's own total and stays where it already is, in the count line and `rows.totalCount`. A printed reading under *E in a printed reading* is not this trigger.
+
+The readings recorded with them, for triggers 1–24:
+- **Trigger 1:** not fired by the change. There is no new public page, read or recipient: the page and its read are the Amendment 2026-11-19's, and what changes is whether one view of the page is findable, which is trigger 20. The one added link on `/lediga-jobb`, in a paragraph under its band, carries no ad text. Each later PR of the line is a re-take of its own trigger (her M4): the junior list's filters trigger 22, the catalogue's trigger 12, an employer profile or any page at a path trigger 1.
+- **Trigger 2:** the merge-day reading in D11.
+- **Triggers 3 and 4:** read on the merge day with D11.
+- **Trigger 5:** not fired. Nothing is pushed: the sitemap entry is read by crawlers, and Klas's manual "Request indexing" and URL Inspection in Search Console and in Bing's tool are outside the trigger on S4's reasoning (her P8).
+- **Triggers 6 and 7:** not fired. There is no JSON-LD on `/junior`, the group test pins JSON-LD to one file, and `job-posting-json-ld.ts` is unchanged.
+- **Trigger 8:** not fired. The new entry is `loc` only and equals the page's canonical: one function, `publicJuniorUrl()`, builds both.
+- **Trigger 9:** not touched. The job parts, their membership and their bound are unchanged, and the pages part is static.
+- **Triggers 10–12:** not fired. The catalogue's membership, order, count, rows and block are unchanged. The page gains one plain link to `/junior`, in a paragraph under its band and outside its `data-nosnippet` block, which carries no ad value, no count and no parameter, so trigger 12's "filter, sort, search or place parameter" is not met by it. The link is a declared R3 delta (below).
+- **Triggers 13 and 14:** not touched. `/junior` is not a page type in the Search Console read; adding it would change the pinned request bodies, which is trigger 13 (her S5).
+- **Triggers 15–17:** not fired. The related section is unchanged.
+- **Triggers 18 and 19:** not fired. No application link is on the junior wire or page.
+- **Trigger 20:** fires, and is re-taken above.
+- **Trigger 21:** not fired as extended. The row keeps its seven members, and the envelope's one addition is the floor's boolean. No floor value other than that boolean reaches the wire, the tags, a log line or a store, and nothing is keyed by employer.
+- **Trigger 22:** not fired. Membership, order, count and kommun options are read per request through `JobAdPublication.IsListed(now)`, as before. The floor is a third statement over the same base at the same `now`, stored and cached nowhere, and no parameter beyond kommun, the two orders and page is added.
+- **Trigger 23:** not fired. The rules file is unchanged.
+- **Trigger 24:** not fired. Nothing is stored for the floor. A band would be stored state and is this trigger: the per-request gate has no memory, so it closes at the opening numbers.
+- **The Amendment 2026-10-11 (Art. 9):** the list holds only Data/IT ads on both arms, so Klas's decision of 2026-10-11 is not touched and is not extended.
+
+**D11: the merge-day readings (W2, W3; her M3, S3).** Counts only (CLAUDE.md §9.2 (a)), on PR 1's merge UTC day and before `agents-done`, recorded here and in the record table of `docs/runbooks/public-job-page-publication-count.md`. Nothing carries over from the pre-reading of 2026-11-22 07:14Z. A validated count above 0 fires trigger 2 and the PR stops. A personnummer-shaped, without-a-number or not-ten-characters count above 0 goes back to `security-auditor` before the merge. If the merge slips past that UTC day, the readings are taken again.
+
+- **S2-P3** with the current query blob (`ea21c16`): validated 0 in every field and in both readings of the link; link host other than Arbetsförmedlingen 0.
+- **The junior set,** in the form of the Amendment 2026-11-21 item 6.
+- **The floor,** at the same minute, by `docs/runbooks/junior-list-floor-count.sql`, which computes the definition in *The employer, for the floor*. N and E are totals, S is a boolean, and the per-employer grouping is never printed. Below E = 25 the reading prints "E under 25" in place of E and S.
+- **The delivered default view,** read anonymously at the same minute, printing only its total and its robots value. The robots value must equal the floor's outcome. Rows are never printed (§9.2 (b)).
+- **Triggers 3 and 4:** no event known.
+
+| Reading | Value |
+|---|---|
+| Release sequence, source commit, and `--status` before and after | Release sequence 1687 (source `455500ab9`, this PR's base); `--status` consistent before (11:46:44Z) and after (11:47:07Z); read 2026-11-22 11:46:45–11:47:07Z |
+| S2-P3: listed ads | 43 697 |
+| S2-P3: shaped | 796 (the application link 635, decoded 635; the description 205) |
+| S2-P3: validated, in every field and both readings of the link (must be 0) | **0** |
+| S2-P3: link host other than Arbetsförmedlingen (must be 0) | **0** |
+| Junior set: listed juniors | 148 |
+| Junior set: organisation number of personnummer shape (must be 0) | **0** |
+| Junior set: without an organisation number (must be 0) | **0** |
+| Junior set: not ten characters (must be 0) | **0** |
+| Junior set: verdicts by rule | Junior 148 (`reading-2026-11-19` 138, `title-junior` 9, `text-seek-junior` 1); NotJunior 2 645 (`no-signal` 2 605, `title-senior` 31, `text-mentor-only` 9); Unclear 77 (`candidate-only` 25, `years-3-plus` 16, `text-early-career` 13, `flag-no-experience` 10, `text-junior-and-senior` 8, `text-new-graduate` 4, `title-thesis` 1) |
+| Junior set: decisions | none on 2 870 of 2 870 |
+| Junior set: kommuner, those with exactly one ad, members without a kommun | 33, 19, 2 |
+| Stale assessments, by version and by fingerprint (must be 0) | **0** by version (`1.1.0+2a7891ba`), **0** by fingerprint; listed Data/IT ads without an assessment 0 of 2 870 |
+| Assessments of erased ads (must be 0; read again two ticks later if above 0) | **0** |
+| Erased ads with an input fingerprint (must be 0) | **0** |
+| `job_ads` erased, all time | 0 |
+| Floor: `junior members (N)` | 148 |
+| Floor: `distinct employers (E)`, or "E under 25" | 71 |
+| Floor: `s_ok (no employer above half)`, or "E under 25" | true |
+| Floor: `floor holds` | true |
+| Floor: `kommuner meeting the floor` | 0 |
+| The delivered default view, read anonymously: its total and its robots value | 148, `noindex, follow`: release 1687 predates this PR and has no floor. The total equals N. The robots value equal to the floor's outcome is read after the deploy, in the close-out's anonymous check |
+| Triggers 3 and 4 | No event known (2026-11-22) |
+
+### The floor (S1)
+
+**The floor binds the national list.** It has three grounds:
+- **The place ground** (local readers recognise a sole trader). It does not reach the national list, because the list's subject is not a place.
+- **Size:** a name is one row among at least 100.
+- **Dominance:** no employer holds most of a page that ranks (CTO B3).
+
+The last two scale with an indexed list's size, not with its subject, so they apply here. Klas re-took the junior list on her sentence "Tas noindex bort gäller golvet" (the Amendment 2026-11-19). Reading it as place-only now would narrow a safeguard by reinterpretation.
+
+**How it is enforced.**
+- N ≥ 100, E ≥ 25, and no employer above 50 %.
+- It is read on every request, at the page's `now`, from the rows' own base (`IsListed(now)` ∧ `JuniorMembership.Of`, over the enabled field's groups), in one statement.
+- Only one boolean leaves the database. **S1, as ruling 2 below narrows it:** no value of E or S, and no per-employer value, appears on the wire, in metadata or in a log line. A printed reading carries no value of S and no per-employer value, and carries E only as S3 states.
+- A failed read never yields `index`.
+
+**Opening and closing.** A per-request gate has no memory, so it closes at the opening numbers. That is stricter than the hubs' 50/15 band, which needs stored state and so is trigger 24 and needs its own reading.
+
+**When the floor fails.** The default view answers `noindex, follow` from the next request, and search engines drop it at their next crawl. The index association until then is W4's residual. No removal request is owed, because no erasure is involved.
+
+**Measured 2026-11-22:** 149 listed juniors from 71 employers, no employer above half, so the floor held. G1 does not record the key behind the figure of 71, so it carries nothing over: the merge-day reading takes the floor again under that definition. Of the 149, 0 lacked an organisation number, so the choice of key changed nothing that day.
+
+### The employer, for the floor (security-auditor Ruling 1)
+
+**G1's sentence is withdrawn.** It read: "An employer is its organisation number, or its company name where it has none (ADR 0182 D1)". It misdescribes D1, which leaves out an ad without a number and treats rows with one name as one employer even under different numbers. Read as written it splits an employer in all three of the architect's cases.
+
+**The definition.** Two rows are one employer when they share an organisation number or share a company name. A name is compared as `lower(btrim(company_name))`, the hub script's form. The floor evaluates this in one statement, at the handler's `now`, over the rows' composed base:
+- **N** counts every row.
+- **E** = distinct numbers + distinct names − distinct (number, name) pairs, over the rows that carry a number.
+- **S** = the larger of the largest group by number and the largest group by name, over the rows that carry a number, **plus every row without a number**.
+- The floor holds when N ≥ 100, E ≥ 25 and 2·S ≤ N.
+
+**Ground.**
+- A safeguard should merge when the key is unsure. Merging can only close the floor (`noindex`); splitting can only open it.
+- The E formula never counts too many employers. Treat each number and each name as a node and each row as an edge between them. One employer is then one connected piece, and a graph has at least as many pieces as nodes minus edges.
+- The S rule: each key's group lies inside one employer, so taking the larger of the two is never laxer than either key alone.
+- A row without a number counts in N but proves nothing. D1 can leave such an ad out because it chooses rows for a section; `/junior` shows the row. So the row adds no employer, and it cannot be ruled out as the largest employer's. If the source stops sending numbers, the floor closes rather than quietly comparing spellings.
+- Reading the number is proportionate. It stays inside the statement and only the boolean leaves, as in D1 (Art. 5(1)(c), 25(1)). A name-only key would split one number across names, and for a sole trader that splits one person's share in two.
+- Not adopted: D1 as built, which chooses rows for a section and does not count a page that shows every row; and the hub script's name-only key.
+
+**What this amendment records** (her items 1–6):
+1. The definition above, as the floor's only definition of an employer. The code and the merge-day reading both compute it, and a change that splits where it merges is trigger 20.
+2. That it replaces G1's sentence, and why.
+3. How it relates to D1: the relation is the same. It differs where D1 may leave a row out and the floor may not, and it ignores case where D1 compares names exactly, which merges more.
+4. That `seo-supply-count.sql:23` measures the hub gate and not this floor. The first hub step uses this definition, or records why not in its own trigger-1 re-take.
+5. **The residual.** S can count too low only when the largest employer is a chain, that is, it changes both its number and its name across its ads (A–X, A–Y, B–Y). A grouped count cannot follow that chain.
+6. Measured 2026-11-22: 0 of 149 listed juniors lack an organisation number, so the choice changed nothing that day. The merge-day reading takes the floor again under this definition.
+
+**No simpler form is a fallback.** A smaller-of-two-keys for E, or one key for S, would weaken the floor, which is trigger 20. If one statement cannot carry the definition, it comes back to her, and the form goes to the CTO as the architect routes it.
+
+**Records the definition makes true (her m1).** ADR 0106's junior row, because the floor reads the organisation number: its amendment of 2026-11-22 records that the statement reads it and only a boolean leaves, and `OrganizationNumberSurfacingGuardTests` lists `JuniorItJobAdQuery.cs` and `PublicListFloor.cs`.
+
+### E in a printed reading (security-auditor Ruling 2)
+
+**S3 governs printed readings, and S1's clause is narrowed.** A printed reading is the merge-day reading, the amendment, the runbook row, a PR body, or the session's chat (its transcript leaves the box). It may carry N and E as national totals:
+- E is the floor's own E, the pair count. Below 25 the reading prints "E under 25" in place of E and S, and then the outcome.
+- S prints only as yes or no. It is compared inside the statement, in the `seo-supply-count.sql:31-35` form.
+- Never printed: the per-employer grouping, the largest employer's count or share, a top count, or the pair count's separate terms.
+
+S1 now reads, verbatim: *No value of E or S, and no per-employer value, appears on the wire, in metadata or in a log line. A printed reading carries no value of S and no per-employer value, and carries E only as S3 states.*
+
+**Ground.** E is a total, while S is about one employer. A distinct count over the national list is the form §9.2 (a) admits, and `seo-supply-count.sql` already prints it as `distinct_employers`. At 25 or more employers it cannot be one employer's own figure. Below 25 it can come close: at E = 1, N is that employer's own count. The largest employer's figure is a statistic about one employer; the public list links it to a name, and a tracked record keeps it after that employer's ads are erased (Art. 5(1)(c), (e), 17). The wire is stricter because the page needs only one bit (Art. 5(1)(c), 25(1); P7). What has already been printed fits the rule: "149 annonser från 71 arbetsgivare" is a total of this kind and is not a §9.2 (e) event.
+
+### What the floor's tests pin (her Ruling 1, "What the floor's tests must pin")
+
+Seeds go through production entry points. A listed ad without a number is a state the importer produces (`JobAdFacets.cs:177` turns a blank number into null, and 426 such ads were listed on 2026-10-23, ADR 0182 R5). All pins are SQL flips through the database provider.
+1. **E never counts too many.** Each flip that brings E to 24 from a seed at the thresholds answers `false`: two employers share a number under two names; two employers share a name under two numbers; two employers' names differ only in case; one employer's rows carry no number. With 24 true employers, one employer split under each key and one employer chained across both keys (A–X, A–Y, B–Y) also answer `false`.
+2. **S under both keys, with rows without a number charged to it.** An employer at exactly half holds. One more of its ads answers `false`, whether it adds a second name under its number, a second number under its name, or has no number under any name. A base where no row carries a number answers `false`, never an exception.
+3. **The reading computes the same definition.** `docs/runbooks/junior-list-floor-count.sql` is run as committed over the flip seeds in the same Testcontainers class, and it gives the port's answer and prints exactly the labelled `junior members (N)`, `distinct employers (E)` or "E under 25", `s_ok (no employer above half)`, `floor holds` and `kommuner meeting the floor`.
+4. **Only the boolean leaves.** One `bool` column at the reader; one boolean in the envelope; `JuniorItJobAdQuery.cs` on `OrganizationNumberSurfacingGuardTests.RawOrgNrReadingSourcePaths`.
+
+### What the signature reads with, and the renewal
+
+She signs at her scoped re-check of the PR's final head, read with ADR 0190 as delivered and with the seventh addendum to DPIA #456 §8-B as Klas approves its text. The delivered properties are P1–P8 above, the employer's definition and the four pins.
+
+**Her signatures, and their renewal.** Her signature of 2026-11-21 (#2286) lapses by its own words, because trigger 20 fires after it, and with it the signatures it carried: #2268, #2239, #2210, #2180, #2168, #2160, the page of 2026-10-12 and #2189. Read with D10's scope rule, nothing outside the indexed view is withdrawn. She renews them at the final head on these conditions:
+- **R1–R5:** as in the Amendment 2026-11-19. The declared deltas are `marketing-sitemap.ts` with its tests, the noindex set in `seo-canonical.test.ts`, and the smoke's path count.
+- **R6:** `proxy.ts` is byte-unchanged.
+- **R7:** the junior list's public side is byte-unchanged, except: the page's metadata; the envelope's boolean, with its strict schema and boundary test; the port's floor member; and the noindex assertions, narrowed to the variants.
+- Also byte-unchanged: the rules file, the sweep, the queue, `content-legal.json` and `content-legal-signed-copy.test.ts`.
+- `git diff -U0` removes no assertion line beyond the declared ones.
+
+**The declared deltas, as the worktree's `git diff -U0` shows them on 2026-11-22; she reads the list again at the final head:**
+- R3, the catalogue: one plain `<a href="/junior">` in a paragraph of its own under the band, outside the `data-nosnippet` block and not in the empty state (`catalogue.juniorLink`; `public-job-ad-catalogue.tsx`). DESIGN.md §6 keeps the band's line free of links. ADR 0176's Amendment 2026-11-22 records it.
+- R7, the junior list's public side, beyond the four exceptions above: the kommun form moved inside the `data-nosnippet` block (m2); the copy, `publicjob.junior.metaTitle` (new), `metaDescription` and the band's line `lede` (Klas, ADR 0190 D6 rows 7 and 10); and the docblock of `public-junior-it-list.tsx`, whose sentence on signed-in visitors has been false since 2026-11-21.
+- The junior list's backend, beyond the port's floor member:
+  - `IJuniorItJobAdQuery`'s docblock, with its false regex reason deleted;
+  - the handler's comment on the one instant;
+  - `ListedJuniors` in `JuniorItJobAdQuery.cs`, the base the count, the page and the floor share, with the count's and the page's SQL pinned equal to their inline form by `TheCountAndThePage_SendTheStatementsOfTheirOwnInlineBase_SoTheSharedBaseChangesNoSql`;
+  - `PublicListFloor`'s public surface, which ends in `Outcome`, one row or none, while the spread, the rule, the thresholds and `EmployerSpread` are internal; its private pair row's member is `OrganizationNumber`, and the row is on `OrganizationNumberSurfacingGuardTests.RawOrgNrCarriers` (`dotnet-architect`);
+  - the `JobAdLifecycleReadRegistry` note for `MeetsFloorAsync`.
+- The web, beyond the page's metadata and the envelope's boolean: `isIndexableJuniorItView` and `publicJuniorUrl` in `junior-it-params.ts`, with their tests; the sitemap's 16th `loc` and its docblock; `lighthouserc.json` and `lighthouse-server.mjs`, which now waits for `/junior` too; `public-catalogue-page.test.tsx` (tests added, no assertion removed); the stub's floor modes and the smoke's added checks; `fixtures.ts`.
+- Test-only refactors: `JuniorItCountLatencyMeasurement` on the shared `JuniorLatencyCorpus`.
+- `RateLimitingOptions.cs`: the `PublicJobAdJuniorIt` docblock, in `security-auditor`'s words; its numbers and the policy's tests byte-unchanged.
+- The assertion lines removed, each replaced by an assertion of the new property:
+  - `JuniorItJobAdQueryReadTests`: the statement count "2, the grouped count and the page", now three; the floor statement's `EXISTS` anywhere in its text, now at its start; and the floor reading's E and `s_ok` checked one at a time, now N equal to the list's total, `s_ok` masked whenever E is, and `s_ok` equal to the outcome from 100 ads up;
+  - `PublicListFloorTests`: a row with no ads, a spread `SpreadOf` never yields, deleted (`code-reviewer`);
+  - `JuniorItFloorLatencyMeasurement`: the plan pin over a statement the test composed, now over the statement `MeetsFloorAsync` sends, node by node;
+  - `PublicJuniorItJobAdsEndpointTests`: the envelope's keys `rows` and `places`, now with `floorHolds`;
+  - `PublicJuniorItJobAdDtoContractTests`: the envelope's properties `Places` and `Rows`, now with `FloorHolds`;
+  - `public-job-smoke.mjs`: the pages part's 15 paths, now 16, and "no catalogue page beyond the first", now no address with a query string;
+  - `public-job-group.test.ts`: the junior page's source pinned without `index: true`, `alternates` or `canonical`, now the indexing rule's own pin;
+  - `seo-canonical.test.ts`: the junior page pinned `noindex` with no canonical in the derivation's left-out set, now narrowed to the variants and the failed floor, with the default view under the floor in the derived set;
+  - `seo-metadata-routes.test.ts`: the pages part's last entry as the catalogue's first page, now second to last;
+  - `junior-signed-in-redirect.spec.ts`: the `og:title` "Juniora IT-jobb", now the new title.
+- `RateLimitingExtensions.cs`: one comment about the route's cost, made true.
+
+**Sign-off**
+
+**Controller approval:** Klas Olsson, 2026-11-22, in the session's chat, to `security-auditor`'s escalation (`docs/reviews/2026-11-22-2293-plan-security-auditor.md`, put to him through AskUserQuestion), and to `senior-cto-advisor`'s K1. The questions are quoted as their owners wrote them, and his answers without edits:
+
+Her escalation opened, in her words:
+
+> **Till Klas (security-auditor, /junior sökbar och publika filter, planläsning 2026-11-22):** Att /junior blir sökbar utlöser ADR 0166 D10 trigger 20 enligt dess egna ord. Slutsatsen dras då tillbaka för det som blir sökbart, men inte för annonssidan, kartan, katalogen, sektionen med liknande annonser, ansökningslänken, Search Console-läsningen eller resten av juniorlistan. Min signatur från 2026-11-21 och de signaturer den förnyade förfaller enligt sina egna ord. Det drar inte tillbaka något, och jag förnyar dem när jag signerar. Den första PR:en får inte mergas, och går alltså inte live, förrän du har svarat och jag har signerat.
+
+1. To the tracker flag, put by the driving session: the line lies outside the tracker's sequence (#1665 → #1664) and outside the CTO's order (#2287 → #2285 → #1665):
+
+   "Ja, kör linjen nu (Rek.)". It answers the order in the tracker; `security-auditor` did not read it as an answer about the phase-2 gate (her question 3 below).
+2. To her question 1, on the re-take:
+
+   > 1. **Godkänner du omprövningen så att /junior kan hittas via sökmotorer, och i vilken omfattning?** Tillägget säger:
+   >    - Syftet är oförändrat: den som söker sitt första IT-jobb hittar de öppna annonserna utan konto, nu också via Google eller Bing.
+   >    - Bara listans förstasida utan val blir sökbar: alla orter, nyast först, sida 1. Den får sin egen kanoniska adress och en rad i webbplatskartan. Ortsval, sortering på sista ansökningsdag, sida 2 och senare och alla andra kombinationer behåller noindex och finns inte i någon webbplatskarta. robots.txt ändras inte.
+   >    - Golvet gäller, som du godkände 2026-11-19 ("Tas noindex bort gäller golvet"). Förstasidan är sökbar bara så länge listan har minst 100 annonser från minst 25 arbetsgivare och ingen arbetsgivare har mer än hälften. Det räknas vid varje visning ur samma läsning som raderna, och bara utfallet ja eller nej lämnar läsningen. Faller golvet får sidan noindex från nästa visning, och sökmotorerna tar bort den när de läser om den. Mätt 2026-11-22: 149 annonser från 71 arbetsgivare, ingen över hälften. Ingen av de 33 orterna med en juniorannons klarar golvet, så ingen ortsvy kan bli sökbar.
+   >    - Det som tillkommer: en arbetsgivares namn, som för en enskild firma kan vara ett personnamn, kan hittas via en sökmotor på /junior tills sökmotorn läser om sidan. Raderna, antalet och bläddringen är märkta så att Google och Bing inte citerar dem. Varje namn finns redan på annonsens egen sida och i katalogen, som redan går att hitta via sökmotorer. Risken att en radering kan härledas ändras inte, eftersom ortsvyerna behåller noindex.
+   >    - Sidans titel, beskrivning och förhandsvisning är fast text utan rad och utan antal, och sidan får ingen strukturerad data.
+   >    - Art. 9: listan visar bara Data/IT. Ditt beslut från 2026-10-11 berörs inte.
+   >    - Notisen och integritetspolicyn stämmer som de står och ändras inte.
+   >    - Personnummerräkningen (S2-P3) och räkningen av juniorlistan görs om samma dag som mergen, bara som antal, tillsammans med golvets utfall.
+   >    - Trigger 20 skrivs om så att den gäller allt utom förstasidan när golvet håller.
+   >
+   >    Svarsalternativ:
+   >    - "Ja, bara förstasidan (Rek.)": omprövningen som ovan.
+   >    - "Ja, alla sidor i standardordningen": som ovan, men sida 2 och senare i ordningen nyast först blir också sökbara, var och en med egen kanonisk adress. Fler adresser bär då arbetsgivarnamn i sökmotorernas index, utan att syftet kräver det.
+   >    - "Nej, behåll noindex": ingen omprövning. /junior förblir som i dag, och sökbarheten byggs inte.
+
+   "Ja, bara förstasidan (Rek.)": the re-take of this ADR's conclusion for the default view, as D1–D11 above list it, with the floor, and trigger 20 rewritten and trigger 21 extended.
+3. To her question 2, on the DPIA:
+
+   > 2. **Godkänner du ett sjunde tillägg till DPIA:ns §8-B, inte en ny full DPIA och inget förhandssamråd med IMY?** Det femte och det sjätte tillägget säger att inget svar av listan finns i en sökmotors index, och det femte räknar det som listans eget skydd när det bedömer att inget förhandssamråd behövs. För förstasidan stämmer det inte längre. Det sjunde tillägget skriver vad som gäller. Jag föreslår att bedömningarna står kvar: Låg × Medel för arbetsgivarens namn och Medel × Medel för risken att en radering kan härledas, på samma skäl som för katalogen, som redan visar varje rad i listan på sökbara sidor. Art. 9-raden berörs inte. Du godkänner texten när den är skriven. (Rek.: Ja. Utan tillägget signerar jag inte, och då mergas inte PR:en.)
+   >    - "Ja, sjunde tillägget (Rek.)": tillägget skrivs, och inget förhandssamråd behövs.
+   >    - "Nej, en ny full DPIA": en DPIA enligt artikel 35.1 görs före mergen, och PR:en väntar.
+
+   "Ja, sjunde tillägget (Rek.)": a seventh addendum to DPIA #456 §8-B and not a new full DPIA, and no Art. 36 prior consultation, on the ratings in D8. He approves the addendum's text when it is written.
+4. To her conditional question 3 and `senior-cto-advisor`'s K1, put as one question. Hers, in full:
+
+   > 3. **Bara om senior-cto-advisor bedömer att detta är ett steg i fas 2 i #2090: ska /junior bli sökbar nu, före fas 2-grinden?** Grinden kräver bland annat fyra veckors mätning av sidindexeringen och den andra avläsningen i ADR 0174 D5, och ingen av dem är gjord. Ditt "Ja, kör linjen nu" gällde ordningen i stegtrackern, och jag tolkar det inte som ett svar om grinden. (Rek.: senior-cto-advisor bedömer först. Frågan rör inte dataskyddet.)
+   >    - "Ja, nu": linjen går före grinden.
+   >    - "Nej, vänta på grinden": sökbarheten väntar tills grindens villkor är uppfyllda.
+
+   The CTO judged it a step in phase 2 and put K1, in his words:
+
+   > **K1 — Fas 2-grinden för /junior.** Grinden från 2026-10-18 (B1) säger att nya sidor som listar annonser och ska synas i sökmotorer väntar tills fem villkor håller. Katalogen har varit live i fyra veckor, och det villkoret är uppfyllt. Övriga villkor:
+   > - ingen veckoavläsning av indexeringen är gjord;
+   > - avläsning 1 i ADR 0174 saknas, och avläsning 2 förfaller 2026-11-23;
+   > - CTO har inte valt gren A.
+   >
+   > En sökbar /junior är en sådan sida. Vill du häva grinden för just /junior, och bara för den?
+   >
+   > Bra att veta: sidan är sökbar bara så länge golvet håller. Det kräver minst 100 annonser och 25 arbetsgivare, och ingen arbetsgivare får ha mer än hälften. I dag håller det, med 149 annonser och 71 arbetsgivare. Men 140 av de 150 juniorannonserna 2026-11-21 kom från din läsning av 2026-11-19, och de stänger efter hand. Faller listan under golvet blir /junior noindex igen av sig själv, tills beslut i adminkön har fyllt på den.
+   > - *Ja, bara /junior (Rek.):* ortssidor och yrkessidor väntar kvar på grinden. Det är en sida och inget mönster, och urvalet är vår egen klassning, inte en lista som Platsbanken redan visar. Den rör inte mätningen av jobbsidorna, och golvet prövas vid varje visning.
+   > - *Nej, vänta på grinden:* /junior förblir noindex tills avläsningarna finns, tidigast om ungefär fyra veckor.
+
+   "Ja, bara /junior (Rek.)": it answers K1 and, with it, her conditional question 3: the line goes before the gate for `/junior`, and place pages and occupation pages stay behind it.
+5. The information she put to him with the questions, in her words, and not a decision:
+
+   > Information, inget beslut:
+   > - Arbetsgivarfiltret och fritextsökningen från /jobb kan inte bli publika i den här linjen utan egna bedömningar. Arbetsgivaren söks på organisationsnummer, och för en enskild firma är det ett personnummer. Fritextsökningen läser annonstexten, så den som söker på ett namn kan se när en radering slår igenom, och den når annonser som beskriver någons hälsa. Byggs någon av dem utan bedömning stoppar jag PR:en.
+   > - Varje filter på /lediga-jobb och varje ny parameter på /junior kräver en egen omprövning. Så länge filtrerade vyer har noindex kräver jag inget golv för dem.
+   > - Ett filter på yrkesgrupp når annonser för personlig assistans. Om ditt beslut från 2026-10-11 gäller ett sådant filter frågar jag dig i den PR:en. Filtret når också de fyra religiösa yrkesgrupperna. Valet av en av dem skrivs i dag i serverns fellogg när en sida svarar med fel, troligen tillsammans med besökarens adress. Det gäller redan /jobb, ska mätas och rättas i en egen PR och hindrar inte den första PR:en.
+   > - Den som kommer från ett sökresultat utan att vara inloggad får först ett mellandokument och en omdirigering innan listan visas, på samma sätt som de som kommer från LinkedIn-inlägget i dag. Om Googles sökrobot skulle få mellandokumentet blir /junior inte sökbar. Det är inte mätt, och du kan läsa det själv med Search Consoles live-test efter mergen.
+
+   Klas's other answers of the day (K2, K3, the copy and the link) are recorded in ADR 0190, D6.
+
+**Signature:** `security-auditor`, 2026-11-22, on her scoped re-check of PR [#2296](https://github.com/klasolsson81/jobbliggaren/pull/2296) at head `1e10b6f48` against `455500ab9` (`origin/main`), with `ci` green at that head: signs this amendment — D1–D11 as re-taken for the junior list's default view; D10's trigger 20 as replaced and trigger 21 as extended, in her wording; the readings for triggers 1–24 and for the Amendment 2026-10-11 recorded under D10; *The floor*, *The employer, for the floor* (her Ruling 1, its residual as a residual) and *E in a printed reading* (her Ruling 2); the residuals D4 names as *Left*, as residuals; and D11's merge-day reading of 2026-11-22 at 11:46:45–11:47:07 UTC (release sequence 1687, source `455500ab9`, `--status` consistent before and after; query blob `ea21c16`, validated 0 in every field and in both readings of the link, link host other than Arbetsförmedlingen 0; the junior set as D11's table records it, its five rows in the form of the Amendment 2026-11-21 item 6 included, at rules version `1.1.0+2a7891ba`: without an assessment 0 of 2 870, stale 0 by version and 0 by fingerprint, listed juniors 148, of them personnummer-shaped 0, without an organisation number 0 and not ten characters 0, assessments of erased ads 0, erased ads with an input fingerprint 0, `job_ads` erased, all time, 0; the floor by `junior-list-floor-count.sql` at blob `520b458`: N 148, E 71, `s_ok` true, floor holds true, kommuner meeting the floor 0; the list's own anonymous total 148, equal to N; no event under triggers 3 and 4 known on 2026-11-22) — read with ADR 0190 as delivered and with the seventh addendum to DPIA #456 §8-B as Klas approved its text on 2026-11-22 (local). At that head only the default view — every request whose validated parse is every kommun, newest first, page 1 — is `index, follow`, and only when that request's read answers `floorHolds: true`, naming `publicJuniorUrl()`, the bare absolute `/junior`, as its canonical; every other answer, the empty kommun, the 404 and the 5xx included, is `noindex` and names no canonical; the pages part lists `/junior` once, `loc` only, built by the same function, and no other `/junior` address is in any sitemap; the floor is one statement, `PublicListFloor.Outcome` — `SpreadOf` over the list's own base (`JobAdPublication.IsListed(now)` and `JuniorMembership.Of` over the enabled field's groups), filtered by `Holds` — asked as one `SELECT EXISTS` at the handler's one `now` and never past the last page, computing her definition of an employer with N ≥ 100, E ≥ 25 and 2·S ≤ N as named values in code; `Outcome` is that class's one public member, while `SpreadOf`, `Holds`, the thresholds and `EmployerSpread` are internal; it returns one `bool` column, the envelope is exactly `rows`, `places` and `floorHolds` with the seven-member row unchanged, and the web's strict schema reads any answer without a boolean `floorHolds` as unavailable, so a failed read is never `index`; nothing of the floor is stored, cached or logged, `JuniorItJobAdQuery.cs` and `PublicListFloor.cs` are on `OrganizationNumberSurfacingGuardTests.RawOrgNrReadingSourcePaths`, and the floor's private pair row is on its `RawOrgNrCarriers`; her four pins hold, the third by running the committed SQL over every floor seed against the port's answer and the list's own total; the title, description and preview carry no row and no count, there is no JSON-LD, and the form, the count line, the rows and the pager sit in one `data-nosnippet` block; every answer is `no-store` and the reader relays only `pickForwardedHeaders`; `public-job-ad-junior-it` stays 60 per 60 s per relayed client address, its own policy, its numbers and tests byte-unchanged and its docblock in her words; no filter, sort, search, migration, package, `deploy/` diff, ACL or `PROTECTED_PREFIXES` change, recipient, transfer or personal-data field is added, and nothing is pushed. It renews, for the page, sitemap, catalogue, related-section, application-link and Search Console scope and for the junior list beyond its default view, her signature of 2026-11-21 (#2286, head `446f05631`), its properties as signed there except that the default view is as above, and through it her signatures of 2026-11-20 (#2268), 2026-10-25 (#2239), 2026-10-24 (#2210), 2026-10-18 (#2180, #2168), 2026-10-12 and 2026-10-17 (#2160) and 2026-10-19 (#2189). R1–R7 hold at that head against `455500ab9`: every file R1–R5 and R7 name, `proxy.ts`, `robots.ts`, the share family, `/delningsbild`, the job page's `generateMetadata`, `deploy/`, `content-legal.json` (sv, en), `content-legal-signed-copy.test.ts`, the rules file, the sweep and the queue are byte-unchanged, except the deltas this amendment declares; and `git diff -U0` removes no assertion line beyond the declared ones. It does not cover the Amendment 2026-10-11 (Art. 9), which she has not signed and which remains the controller's override; her Art. 9 Blocker keeps its grade. It lapses with any D10 trigger that fires after it, 1–24 included, and with any change to this amendment's text, to the properties above, to the seventh addendum or to the rules file. D11's anonymous read is taken again after the deploy, beside the floor at the same minute: `index` while the floor reads false is trigger 20, and this signature then lapses by its own words. A merge after 2026-11-22 UTC needs D11 taken again under its own rule, the floor included, which does not reopen it unless a count is above 0 where D11 requires 0 (a validated one is trigger 2) or in the three organisation-number fields, which comes back to her before the merge. A pure base merge onto that head does not reopen it. Nor does the edit that writes this line, marks this amendment Accepted as signed by `security-auditor` 2026-11-22 in its heading and its closing status, and changes ADR 0166's README row (deleting "and the merge-day readings pending") and ADR 0190's status, in that ADR and in its README row, from awaiting her signature to signed.
+
+ADR 0166 remains **Accepted** for D1–D11 for the page, and for the sitemap, the catalogue, the related section, the application link and the junior list by their amendments. This amendment is **Accepted**: approved by Klas 2026-11-22, and signed by `security-auditor` 2026-11-22.

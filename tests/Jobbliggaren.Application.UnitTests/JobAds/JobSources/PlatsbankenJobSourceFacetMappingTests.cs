@@ -2,6 +2,7 @@ using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
+using Jobbliggaren.Infrastructure.Taxonomy;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 
@@ -100,6 +101,24 @@ public class PlatsbankenJobSourceFacetMappingTests
             "nothing, with no error anywhere.");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [InlineData(null)]
+    public async Task RefetchByExternalIdAsync_CarriesTheExperienceMark_AsTheWireStatesIt(bool? experienceRequired)
+    {
+        // #2264 — the advertiser's own "experience required" mark, one input to the junior classification. Null when
+        // the wire omits the key, never coerced to false.
+        var hit = FullyFacetedHit("ext-facets-exp");
+        hit.ExperienceRequired = experienceRequired;
+
+        var item = await CreateSut(hit).RefetchByExternalIdAsync(
+            "ext-facets-exp", TestContext.Current.CancellationToken);
+
+        item.ShouldNotBeNull();
+        item.Facets.ExperienceRequired.ShouldBe(experienceRequired);
+    }
+
     [Fact]
     public async Task RefetchByExternalIdAsync_DoesNotReadSsykFromTheOccupationGroup()
     {
@@ -183,6 +202,27 @@ public class PlatsbankenJobSourceFacetMappingTests
         item.ShouldNotBeNull();
         item.Facets.MunicipalityConceptId.ShouldBe(kommun);
         item.Facets.RegionConceptId.ShouldBe(lan);
+    }
+
+    [Fact]
+    public async Task RefetchByExternalIdAsync_PassesAKommunTheSnapshotCannotNameThroughAsTheWireStatesIt()
+    {
+        // ADR 0188 (#2265) — the actor behind JuniorItJobAdCountTests' ad in a kommun the taxonomy cannot name: the
+        // mapping copies the wire's id and never reads the embedded snapshot, so an id JobTech carries and the snapshot
+        // lacks is stored as it came. /junior and the /jobb hero's count both count such an ad, and neither can name it.
+        const string unnamedKommun = "Zz00_zzz_zzz";
+        TaxonomySnapshotLoader.Load().Regions
+            .SelectMany(r => r.Municipalities ?? [])
+            .Select(m => m.ConceptId)
+            .ShouldNotContain(unnamedKommun, "the premise: the snapshot cannot name this kommun");
+        var hit = FullyFacetedHit("ext-facets-6");
+        hit.WorkplaceAddress = new JobTechWorkplaceAddress { MunicipalityConceptId = unnamedKommun };
+
+        var item = await CreateSut(hit).RefetchByExternalIdAsync(
+            "ext-facets-6", TestContext.Current.CancellationToken);
+
+        item.ShouldNotBeNull();
+        item.Facets.MunicipalityConceptId.ShouldBe(unnamedKommun);
     }
 
     private sealed class FakeSearchClient(JobTechHit? hit = null, IReadOnlyList<string>? remoteIds = null)

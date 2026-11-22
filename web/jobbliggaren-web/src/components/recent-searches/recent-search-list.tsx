@@ -5,12 +5,15 @@ import { useTranslations } from "next-intl";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { useRecentSearchCounts } from "@/lib/hooks/use-recent-search-counts";
 import { RemovalStatus, useRowRemoval } from "@/components/common/row-removal";
+import { QUICK_LINK_MAX, hasQuickLinkRoom } from "@/lib/job-ads/quick-links";
 import { RecentSearchRow } from "./recent-search-row";
 
 interface RecentSearchListProps {
   items: ReadonlyArray<RecentJobSearchDto>;
   /** The page's h1, which takes focus when the last row is removed. It carries `tabIndex={-1}`. */
   headingId: string;
+  /** ADR 0188 (#2265): whether the junior quick link is on, which counts toward the cap of three. */
+  juniorQuickLinkOn: boolean;
 }
 
 interface DeleteError {
@@ -18,8 +21,9 @@ interface DeleteError {
   message: string;
 }
 
-export function RecentSearchList({ items, headingId }: RecentSearchListProps) {
+export function RecentSearchList({ items, headingId, juniorQuickLinkOn }: RecentSearchListProps) {
   const t = useTranslations("jobads.recent");
+  const tq = useTranslations("jobads.quickLinks");
   const [optimisticDeletedIds, setOptimisticDeletedIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -51,6 +55,20 @@ export function RecentSearchList({ items, headingId }: RecentSearchListProps) {
     setError({ id, message });
   }
 
+  function handleQuickLinkChanged(receipt: string) {
+    setError(null);
+    removal.announce(receipt);
+  }
+
+  function handleQuickLinkFailed(id: string, message: string) {
+    setError({ id, message });
+  }
+
+  const canAddQuickLink = hasQuickLinkRoom(
+    juniorQuickLinkOn,
+    visibleItems.filter((it) => it.isQuickLink).length
+  );
+
   return (
     <>
       <RemovalStatus receipt={removal.receipt} />
@@ -69,6 +87,9 @@ export function RecentSearchList({ items, headingId }: RecentSearchListProps) {
               {error.message}
             </div>
           )}
+          {!canAddQuickLink && visibleItems.some((it) => !it.isQuickLink) && (
+            <p className="mb-3 text-body-sm text-text-primary">{tq("full", { max: QUICK_LINK_MAX })}</p>
+          )}
           <ul className="jp-jobs" aria-label={t("listLabel")}>
             {visibleItems.map((item) => (
               <RecentSearchRow
@@ -80,6 +101,9 @@ export function RecentSearchList({ items, headingId }: RecentSearchListProps) {
                 onDeleteStart={removal.started}
                 onDeleted={handleDeleted}
                 onDeleteFailed={handleDeleteFailed}
+                canAddQuickLink={canAddQuickLink}
+                onQuickLinkChanged={handleQuickLinkChanged}
+                onQuickLinkFailed={handleQuickLinkFailed}
               />
             ))}
           </ul>

@@ -53,6 +53,11 @@ internal sealed class JobTechHit
     [JsonConverter(typeof(JobTechSwedishDateTimeConverter))]
     public DateTimeOffset? RemovedDate { get; set; }
 
+    // #2264 — the advertiser's own "experience required" mark, one input to the junior classification.
+    // Null when the wire omits the key.
+    [JsonPropertyName("experience_required")]
+    public bool? ExperienceRequired { get; set; }
+
     // F6 P4 sök-infrastruktur-fix 2026-05-20 (CTO + dotnet-architect).
     // ROTORSAK till filter-bugg (ssyk/region ger 0 träffar för alla picker-
     // conceptIds): JobTechHit deserialiserade tidigare inte klassifikations-

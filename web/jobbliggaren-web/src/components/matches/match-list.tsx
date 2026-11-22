@@ -38,9 +38,11 @@ const MATCH_LIST_CAP = 50;
 const MORE_MATCHES_HREF = buildJobbHref({
   q: "",
   occupationGroup: [],
+  occupationName: [],
   region: [],
   municipality: [],
   remote: false,
+  junior: false,
   employmentType: [],
   worktimeExtent: [],
   matchGrades: ["Good", "Strong"],

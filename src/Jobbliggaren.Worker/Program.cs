@@ -66,6 +66,7 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.SyncPlatsbankenStreamWork
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.SyncPlatsbankenSnapshotWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.RetainPlatsbankenJobAdsWorker>();
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ExpireJobAdsWorker>();
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ClassifyJuniorJobAdsWorker>();
 // The matching run every five minutes (ADR 0080, ADR 0161). The job resolves the matching engine's
 // ports in a child scope per user, then its dispatcher mails the due Top matches.
 builder.Services.AddMatchingEngine();

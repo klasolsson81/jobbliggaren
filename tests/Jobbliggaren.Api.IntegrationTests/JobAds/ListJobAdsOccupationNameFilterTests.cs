@@ -275,7 +275,7 @@ public class ListJobAdsOccupationNameFilterTests(ApiFactory factory)
         EmploymentType: [run],
         WorktimeExtent: [],
         Employer: [],
-        Remote: false,
+        Remote: false, JuniorIt: false,
         Q: null);
 
     private async Task SeedAsync(string title, string? occupationName, string group, string run, CancellationToken ct)

@@ -40,6 +40,7 @@ const PAGES = [
   { label: "Översikt", path: ROOT, heading: "Översikt" },
   { label: "Användare", path: `${ROOT}/anvandare`, heading: "Användare" },
   { label: "Feedback", path: `${ROOT}/feedback`, heading: "Feedback" },
+  { label: "Juniorjobb", path: `${ROOT}/juniorjobb`, heading: "Juniorjobb" },
   { label: "Loggar", path: `${ROOT}/loggar`, heading: "Loggar" },
   { label: "E-postleverans", path: `${ROOT}/e-post`, heading: "E-postleverans" },
   { label: "Bakgrundsjobb", path: `${ROOT}/jobb`, heading: "Bakgrundsjobb" },

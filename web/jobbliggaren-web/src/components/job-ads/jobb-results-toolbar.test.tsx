@@ -33,8 +33,10 @@ function toolbar(over: ToolbarOverrides = {}) {
     <JobbResultsToolbar
       totalCount={5}
       occupationGroup={[]}
+      occupationName={[]}
       region={[]}
       remote={false}
+      junior={false}
       municipality={[]}
       employmentType={[]}
       worktimeExtent={[]}
@@ -519,5 +521,82 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
         screen.getByRole("button", { name: "Ta bort filter Stark match" }),
       ).toBeInTheDocument();
     });
+  });
+});
+
+describe("JobbResultsToolbar — the occupation-name axis (#2199)", () => {
+  const NAME = "z5AM_ayf_WcL";
+  const labels = { ...resolvedLabels, [NAME]: "Projektledare, IT" };
+
+  it("shows a name as its own removable chip beside the group, and × removes only the name", async () => {
+    const user = userEvent.setup();
+    renderToolbar({
+      occupationGroup: ["MVqp_eS8_kDZ"],
+      occupationName: [NAME],
+      resolvedLabels: labels,
+    });
+    expect(screen.getByText("Projektledare, IT")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Ta bort filter Projektledare, IT" }),
+    );
+    expect(pushMock).toHaveBeenCalledWith(
+      "/jobb?occupationGroup=MVqp_eS8_kDZ&commit=true",
+    );
+  });
+
+  it("names a name the server could not resolve by its code, never hides it", () => {
+    renderToolbar({ occupationName: ["gone_name1"] });
+    expect(screen.getByText("Okänd kod (gone_name1)")).toBeInTheDocument();
+  });
+
+  it("Rensa sökord och filter clears the names too", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ occupationName: [NAME], resolvedLabels: labels, q: "data" });
+    await user.click(
+      screen.getByRole("button", { name: "Rensa sökord och filter" }),
+    );
+    expect(pushMock).toHaveBeenCalledWith("/jobb?commit=true");
+  });
+
+  it("a sort change keeps the names", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ occupationName: [NAME], resolvedLabels: labels, q: "data" });
+    await user.selectOptions(screen.getByLabelText("Sortera"), "Relevans");
+    expect(pushMock).toHaveBeenCalledWith(
+      `/jobb?occupationName=${NAME}&q=data&sortBy=Relevance&commit=true`,
+    );
+  });
+});
+
+describe("JobbResultsToolbar — the junior filter (#2261)", () => {
+  it("Rensa sökord och filter clears junior too", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ junior: true, q: "data" });
+    await user.click(
+      screen.getByRole("button", { name: "Rensa sökord och filter" }),
+    );
+    expect(pushMock).toHaveBeenCalledWith("/jobb?commit=true");
+  });
+
+  it("a sort change keeps junior", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ junior: true, q: "data" });
+    await user.selectOptions(screen.getByLabelText("Sortera"), "Relevans");
+    expect(pushMock).toHaveBeenCalledWith(
+      "/jobb?junior=on&q=data&sortBy=Relevance&commit=true",
+    );
+  });
+
+  it("a junior-only search renders no filter-chip group, and a q chip does", () => {
+    const { unmount } = renderToolbar({ junior: true, q: "" });
+    expect(
+      screen.queryByRole("group", { name: "Aktiva sökord och filter" }),
+    ).toBeNull();
+    unmount();
+    renderToolbar({ junior: true, q: "data" });
+    expect(
+      screen.getByRole("group", { name: "Aktiva sökord och filter" }),
+    ).toBeInTheDocument();
   });
 });

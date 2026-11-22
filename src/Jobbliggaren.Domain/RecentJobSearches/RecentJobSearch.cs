@@ -12,7 +12,9 @@ namespace Jobbliggaren.Domain.RecentJobSearches;
 /// JobSeeker endast via strongly-typed ID (CLAUDE.md §2.2). Skild från
 /// <see cref="SavedSearch"/> (manuell spara) — auto-capture-semantik
 /// (ADR 0060). Soft-delete används EJ; DELETE = hard-delete (auto-capture-
-/// rader har ingen audit-trail-värdighet vs. användar-skapade SavedSearches).
+/// rader har ingen audit-trail-värdighet vs. användar-skapade SavedSearches). A quick-link mark
+/// (ADR 0188) does not change that: setting and clearing it are audit events, and a marked row is
+/// deleted the same way, with its link.
 ///
 /// <para>
 /// <b>Invarianter:</b>
@@ -23,8 +25,9 @@ namespace Jobbliggaren.Domain.RecentJobSearches;
 /// Municipality/Region/EmploymentType/WorktimeExtent/Employer/Remote/SortBy är derivat av hash och får aldrig
 /// divergera (Bump muterar dem ej).</item>
 /// <item><b>Cap per seeker:</b> <see cref="MaxPerSeeker"/> — affärsregel, enforce:as i
-/// <c>IRecentJobSearchCapturer</c>-implementationen (evict äldsta LastViewedAt vid
-/// overflow). Konstanten deklareras i Domain (CLAUDE.md §5.1 — ingen magic number).</item>
+/// <c>IRecentJobSearchCapturer</c>-implementationen (at overflow it evicts the unmarked row with the
+/// oldest LastViewedAt; a row marked as a quick link is never evicted, ADR 0188). Konstanten deklareras
+/// i Domain (CLAUDE.md §5.1 — ingen magic number).</item>
 /// <item><b>Kriterier:</b> <see cref="SearchCriteria"/>-invarianter (ADR 0042 Beslut B,
 /// MaxConceptIds=400, regex, Q 2-100, tom-invariant, Relevance kräver Q) bärs av VO:t
 /// — Capture tar redan-validerad criteria som parameter (DRY, Evans 2003 kap. 5).</item>
@@ -39,7 +42,7 @@ namespace Jobbliggaren.Domain.RecentJobSearches;
 public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
 {
     /// <summary>Max antal RecentJobSearches per JobSeeker (CTO 2026-05-20 Q3 villkor).
-    /// Capturer evictar äldsta vid overflow innan ny rad skapas. Bär YAGNI-domen
+    /// At overflow the capturer evicts the oldest unmarked row before it creates the new one (ADR 0188). Bär YAGNI-domen
     /// för Variant A (re-query per row) — utan cap växer N+1 obegränsat.</summary>
     public const int MaxPerSeeker = 20;
 
@@ -91,6 +94,15 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
     public DateTimeOffset LastViewedAt { get; private set; }
     public int LastSeenCount { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
+
+    /// <summary>
+    /// ADR 0188 (#2265) — the quick-link slot (1 to <see cref="QuickLinkCap.MaxTotal"/>) when the user made this search a
+    /// quick link in the /jobb hero, or <c>null</c>. The row holds the link, so every path that deletes the row takes the
+    /// link with it. The slot's reader is the store: a CHECK bounds it and a unique index per job seeker admits each slot
+    /// once, so no race can mark more than <see cref="QuickLinkCap.MaxTotal"/> rows. Not part of the search's identity:
+    /// <see cref="FilterHashCalculator"/> never reads it, and <see cref="Capture"/> and <see cref="Bump"/> never write it.
+    /// </summary>
+    public int? QuickLinkSlot { get; private set; }
 
     // EF Core constructor
     private RecentJobSearch() { }
@@ -159,5 +171,35 @@ public sealed class RecentJobSearch : AggregateRoot<RecentJobSearchId>
         LastViewedAt = now;
         LastSeenCount = currentCount;
         RaiseDomainEvent(new RecentJobSearchBumpedDomainEvent(Id, JobSeekerId, now));
+    }
+
+    /// <summary>
+    /// ADR 0188 — makes this search a quick link in <paramref name="slot"/>. A row that already is one keeps its slot and
+    /// raises nothing. The cap of three spans aggregates, so the handler asks <see cref="QuickLinkCap"/> for room and a
+    /// free slot before it calls this.
+    /// </summary>
+    public void MarkAsQuickLink(int slot, DateTimeOffset now)
+    {
+        if (slot < 1 || slot > QuickLinkCap.MaxTotal)
+            throw new ArgumentOutOfRangeException(nameof(slot),
+                $"En snabblänksplats är 1 till {QuickLinkCap.MaxTotal}.");
+
+        if (QuickLinkSlot is not null)
+            return;
+
+        QuickLinkSlot = slot;
+        RaiseDomainEvent(new RecentJobSearchQuickLinkMarkedDomainEvent(Id, JobSeekerId, now));
+    }
+
+    /// <summary>
+    /// ADR 0188 — this search stops being a quick link and is evictable again. A row that is not one raises nothing.
+    /// </summary>
+    public void UnmarkQuickLink(DateTimeOffset now)
+    {
+        if (QuickLinkSlot is null)
+            return;
+
+        QuickLinkSlot = null;
+        RaiseDomainEvent(new RecentJobSearchQuickLinkUnmarkedDomainEvent(Id, JobSeekerId, now));
     }
 }

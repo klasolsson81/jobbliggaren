@@ -34,12 +34,22 @@ import { AdminEmailDelivery } from "@/components/admin/admin-email-delivery";
 import { AdminEmailDmarc as DmarcRegion } from "@/components/admin/admin-email-dmarc";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminLogsView, type AdminLogView } from "@/components/admin/admin-logs-view";
+import { AdminJuniorJobsView } from "@/components/admin/admin-junior-jobs-view";
+import type { ActionResult } from "@/lib/actions/_action-result";
+import type {
+  AdminJuniorChoice,
+  AdminJuniorJobRow,
+  AdminJuniorJobsPage,
+  AdminJuniorJobsQuery,
+  AdminJuniorTab,
+} from "@/lib/admin/junior-jobs";
 import type {
   PreviewAllowanceScenario,
   PreviewDelivery,
   PreviewDeliveryScenario,
   PreviewDmarcScenario,
   PreviewKindsScenario,
+  PreviewJuniorJob,
   PreviewOverviewData,
 } from "@/lib/admin-preview/fixtures";
 import { usePreviewState } from "./preview-shell.preview";
@@ -518,5 +528,85 @@ export function PreviewEmail({
       </div>
       <DmarcRegion read={deliveryRead(kind, dmarcs[dmarcScenario])} />
     </div>
+  );
+}
+
+/** Fewer than the live page's 25 a page, so the pager is seen with the fixtures there are. */
+const PREVIEW_JUNIOR_PAGE_SIZE = 5;
+
+/** The backend's tabs (`ListJuniorJobAdsQueryHandler`): a decision first, else the rules' verdict. */
+function inJuniorTab(ad: AdminJuniorJobRow, tab: AdminJuniorTab): boolean {
+  switch (tab) {
+    case "unclear":
+      return ad.decision === null && ad.verdict === "unclear";
+    case "shown":
+      return ad.decision === "junior" || (ad.decision === null && ad.verdict === "junior");
+    case "decided":
+      return ad.decision !== null;
+  }
+}
+
+function juniorPage(ads: ReadonlyArray<PreviewJuniorJob>, query: AdminJuniorJobsQuery): AdminJuniorJobsPage {
+  const count = (tab: AdminJuniorTab) => ads.filter((ad) => inJuniorTab(ad, tab)).length;
+  const inTab = ads
+    .filter((ad) => inJuniorTab(ad, query.tab))
+    .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt) || left.id.localeCompare(right.id));
+  const start = (query.page - 1) * PREVIEW_JUNIOR_PAGE_SIZE;
+  return {
+    items: inTab.slice(start, start + PREVIEW_JUNIOR_PAGE_SIZE).map((ad) => ({
+      id: ad.id,
+      title: ad.title,
+      company: ad.company,
+      municipality: ad.municipality,
+      publishedAt: ad.publishedAt,
+      expiresAt: ad.expiresAt,
+      verdict: ad.verdict,
+      ruleId: ad.ruleId,
+      decision: ad.decision,
+    })),
+    page: query.page,
+    totalPages: Math.ceil(inTab.length / PREVIEW_JUNIOR_PAGE_SIZE),
+    totalCount: inTab.length,
+    counts: { unclear: count("unclear"), shown: count("shown"), decided: count("decided") },
+  };
+}
+
+/**
+ * The junior queue in memory, driven by the URL as the live page is (#2264): a decision moves the ad between the
+ * tabs, and an ad that closed after the page was read is refused as the backend refuses it.
+ */
+export function PreviewJuniorJobs({
+  ads,
+  query,
+  basePath,
+}: {
+  readonly ads: ReadonlyArray<PreviewJuniorJob>;
+  readonly query: AdminJuniorJobsQuery;
+  readonly basePath: string;
+}) {
+  const { kind } = usePreviewState();
+  const t = useTranslations("admin.juniorJobs");
+  const [queue, setQueue] = useState(ads);
+
+  async function onDecide(id: string, decision: AdminJuniorChoice): Promise<ActionResult> {
+    await latency();
+    if (!queue.some((ad) => ad.id === id && ad.listed)) return { success: false, error: t("errors.gone") };
+    setQueue((previous) => previous.map((ad) => (ad.id === id ? { ...ad, decision } : ad)));
+    return { success: true };
+  }
+
+  return (
+    <AdminJuniorJobsView
+      basePath={basePath}
+      query={query}
+      region={
+        kind === "loaded"
+          ? { kind, data: juniorPage(queue, query) }
+          : kind === "empty"
+            ? { kind: "loaded", data: juniorPage([], query) }
+            : { kind }
+      }
+      onDecide={onDecide}
+    />
   );
 }

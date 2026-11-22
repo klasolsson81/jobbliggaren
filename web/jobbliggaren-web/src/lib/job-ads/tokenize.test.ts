@@ -65,9 +65,11 @@ const resolve = buildTaxonomyLabelResolver(taxonomy, labelCopy);
 const empty: JobbUrlState = {
   q: "",
   occupationGroup: [],
+  occupationName: [],
   region: [],
   municipality: [],
   remote: false,
+  junior: false,
   employmentType: [],
   worktimeExtent: [],
   matchGrades: [],
@@ -543,6 +545,67 @@ describe("sameUrlState #2072 (remote i komparatorn)", () => {
   it("samma remote ⇒ samma filter-state", () => {
     expect(
       sameUrlState({ ...empty, remote: true }, { ...empty, remote: true }),
+    ).toBe(true);
+  });
+});
+
+describe("the occupation-name axis in the text mirror (#2199)", () => {
+  it("compares the names, so an external name pick is not taken for a no-op", () => {
+    expect(
+      sameUrlState({ ...empty, occupationName: ["z5AM_ayf_WcL"] }, { ...empty }),
+    ).toBe(false);
+    expect(
+      sameUrlState({ ...empty }, { ...empty, occupationName: ["z5AM_ayf_WcL"] }),
+    ).toBe(false);
+    expect(
+      sameUrlState(
+        { ...empty, occupationName: ["z5AM_ayf_WcL"] },
+        { ...empty, occupationName: ["z5AM_ayf_WcL"] },
+      ),
+    ).toBe(true);
+  });
+
+  it("never writes a name into the text", () => {
+    expect(
+      serializeSearchText(
+        { ...empty, occupationName: ["z5AM_ayf_WcL"] },
+        resolve,
+        index,
+      ),
+    ).toBe("");
+  });
+
+  it("an added name re-serialises the text without the name", () => {
+    const next: JobbUrlState = {
+      ...empty,
+      region: ["CifL_Rzy_Mku"],
+      occupationName: ["z5AM_ayf_WcL"],
+      q: "sjuksköterska",
+    };
+    expect(
+      updateTextForStateChange(
+        "sjuksköterska",
+        { ...empty, region: ["CifL_Rzy_Mku"], q: "sjuksköterska" },
+        next,
+        resolve,
+        index,
+      ),
+    ).toBe("Stockholms län sjuksköterska");
+  });
+});
+
+describe("sameUrlState #2261 (junior in the comparator)", () => {
+  // senior-cto-advisor: without it a stale storability verdict for the non-junior search offers
+  // "Spara sökningen" for a junior search the gate refuses, and the hero's divergence detector
+  // drops the toggle on the next text commit.
+  it("a different junior flag is NOT the same filter state", () => {
+    expect(sameUrlState({ ...empty, junior: true }, { ...empty })).toBe(false);
+    expect(sameUrlState({ ...empty }, { ...empty, junior: true })).toBe(false);
+  });
+
+  it("the same junior flag is the same filter state", () => {
+    expect(
+      sameUrlState({ ...empty, junior: true }, { ...empty, junior: true }),
     ).toBe(true);
   });
 });

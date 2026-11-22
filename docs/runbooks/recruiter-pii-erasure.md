@@ -369,7 +369,14 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
    once (`PublicJobAdCatalogueReadTests`, `PublicJobAdCatalogueEndpointTests`). Nor does
    the related section on other ads' job pages (ADR 0182): it reads and classifies each
    row per request, so an erased ad leaves every section at once
-   (`RelatedPublicJobAdsReadTests`).
+   (`RelatedPublicJobAdsReadTests`). Nor does the open junior IT list (`/junior`, ADRs 0186,
+   0187 and 0190): it reads each row's liveness, the total, the kommun options and the floor
+   for indexing per request through `JobAdPublication.IsListed`, so an erased ad is absent
+   from every view at once (`JuniorItJobAdQueryReadTests`). Its stored junior assessment goes with the ad: the erase
+   command deletes it, and the classification sweep removes any assessment left on an erased
+   ad (`JuniorAssessmentErasureTests`, `JuniorAssessmentErasureRaceTests`). The rule file's
+   reading ids are never edited because of an erasure; an admin decision is never the
+   remedy for one.
 3. **Search Console** (the Domain property): *Removals → New request → Temporary
    removal → Remove this URL only*, for each address. Per Google it takes effect within
    about a day and lasts about six months; the permanent removal is the 410, which Google
@@ -392,7 +399,12 @@ towards those who hold the address. After 2.3, for **every** confirmed ad:
    search engine's index copy of a catalogue page (`/lediga-jobb`), refreshed at its next
    crawl; the catalogue's rows are not quoted in snippets. So is an index copy of another
    ad's job page whose related section held the erased ad, refreshed at that page's next
-   crawl; its rows are not quoted in snippets either. Arbetsförmedlingen keeps the
+   crawl; its rows are not quoted in snippets either. So is a search engine's index copy of
+   the junior list's default view (`/junior`, indexed only while its floor holds, ADR 0166's
+   Amendment 2026-11-22), refreshed at its next crawl; its rows are not quoted in snippets
+   either, and every other `/junior` view is `noindex`. So is a web-archive copy of any
+   `/junior` view.
+   Arbetsförmedlingen keeps the
    original until the ad's own deadline. Since the page carries
    `JobPosting` markup (ADR 0171), Google's own jobs experience holds a listing too; it drops
    it on the 410 or on `validThrough`, with a lag Google itself states, and whether the
@@ -449,7 +461,7 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 | Surface | Erased? | Why |
 |---|---|---|
 | `job_ads` (the ad, all of it) | ✅ **Yes** | Whole-record removal. Provable. |
-| `recent_job_searches` (saved search history) | ✅ **Yes**, hard-deleted | If a user searched the recruiter's name — or filtered on her org.nr in the employer filter (`employer_list`; an employer-only search has `q = NULL` and is matched exactly on the normalised org.nr) — that identifier is sitting in her search history. **Since #1425 this also reaches her name or org.nr sitting in one of the six concept-id filter axes** (`occupation_group_list` / `occupation_name_list` / `municipality_list` / `region_list` / `employment_type_list` / `worktime_extent_list`; the occupation-name axis since #2199 PR 2): those columns are validated on SHAPE ONLY and never against the taxonomy, so a hand-edited URL puts arbitrary text in them. They were classified "closed domain" for one release. Same row, same delete, same zero user cost. Auto-capture rows have no audit-trail dignity, the cap-20 list rebuilds on her next search, so the user loses nothing. |
+| `recent_job_searches` (saved search history) | ✅ **Yes**, hard-deleted | If a user searched the recruiter's name — or filtered on her org.nr in the employer filter (`employer_list`; an employer-only search has `q = NULL` and is matched exactly on the normalised org.nr) — that identifier is sitting in her search history. **Since #1425 this also reaches her name or org.nr sitting in one of the six concept-id filter axes** (`occupation_group_list` / `occupation_name_list` / `municipality_list` / `region_list` / `employment_type_list` / `worktime_extent_list`; the occupation-name axis since #2199 PR 2): those columns are validated on SHAPE ONLY and never against the taxonomy, so a hand-edited URL puts arbitrary text in them. They were classified "closed domain" for one release. Same row, same delete. Auto-capture rows have no audit-trail dignity. |
 | `saved_searches.criteria` (user's saved filters) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | **HER RIGHT APPLIES. Do not tell her otherwise.** One row carries two data subjects under two bases: the user's own criteria rest on Art. 6(1)(b) (our contract with *her*), but **the recruiter's name sitting inside those criteria does not** — 6(1)(b) requires the data subject to be a **party** to the contract, and the recruiter is party to nothing. That processing rests on **Art. 6(1)(f)**, which **Art. 21(1) reaches**. So her objection fires and Art. 17(1)(c) is available. We do not attempt the "compelling legitimate grounds" override: keeping her name in another user's filter is a convenience, and a saved search is recreatable in seconds. **We owe her erasure and we honour it in full** — we simply do not AUTOMATE it, because `SoftDelete()` would leave `criteria` in the row (it hides, it does not erase) and stripping the term is not always constructible. **A human does it, with the affected user in the loop. That is a mechanism choice, never a refusal.** |
 | `applications.manual_company`, `manual_title`, `manual_url` (manually tracked applications) | ⚠️ **Not automatically — a HUMAN erases it** | A user may have pasted or typed a recruiter's name/contact into these fields when tracking an application she found outside Platsbanken. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)) — but a system does not silently rewrite a person's private record of her own job hunt. Reported; a human handles it with that user. *(URL can carry a name: `linkedin.com/in/magnus-fagerberg`, company contact page, etc.)* |
 | `company_watch_criteria.label` (nickname for a watch predicate) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | A user might name a watch *"IT jobb med Magnus"*. Unlike `saved_searches`, the label is **optional and nullable** — the criterion is its codes (industry + municipality), and the label is just a UI nickname. **`UpdateLabel(null)` is always constructible and lossless.** We report the count; a human nulls the label with zero complexity. Same mechanism as `saved_searches`: report, human decides. *(This column was found by enforcing the cascade registry at the EF model level; it is why the guard breaks the build.)*  |

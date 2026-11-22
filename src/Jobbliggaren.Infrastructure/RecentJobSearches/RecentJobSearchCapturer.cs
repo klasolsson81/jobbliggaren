@@ -16,10 +16,11 @@ namespace Jobbliggaren.Infrastructure.RecentJobSearches;
 /// race-säkerhet via try/catch DbUpdateException + IDbExceptionInspector
 /// (paritet med UpsertExternalJobAd, ADR 0032 §5).
 ///
-/// <para>Cap=<see cref="RecentJobSearch.MaxPerSeeker"/> enforce:as här:
-/// vid INSERT mot full lista evictas äldsta LastViewedAt-rad i samma
-/// transaktion (best-effort — om race-evict tappar invarianten temporärt
-/// är det acceptabelt, cap är inte säkerhets-invariant utan affärsregel).</para>
+/// <para>Cap=<see cref="RecentJobSearch.MaxPerSeeker"/> enforce:as här. Before an INSERT against a full list, the
+/// unmarked rows with the oldest LastViewedAt are deleted, the whole surplus and not one row, in a statement that
+/// re-checks the quick-link slot (ADR 0188): a row marked as a quick link is never evicted, and the INSERT happens only
+/// once every row picked was deleted, so the cap holds whatever the slots are. A row picked for eviction that becomes a
+/// quick link in between makes this search go unstored, never a 21st row.</para>
 /// </summary>
 public sealed partial class RecentJobSearchCapturer(
     IAppDbContext db,
@@ -60,9 +61,9 @@ public sealed partial class RecentJobSearchCapturer(
             return;
         }
 
-        // Evict äldsta innan INSERT om cap nåtts. Räknar nu så vi inte tappar
-        // raden vi just bumpade ovan (men existing-grenen returnerade redan).
-        await EnforceCapAsync(jobSeekerId, cancellationToken).ConfigureAwait(false);
+        // Make room before the INSERT (ADR 0060 Beslut 5, ADR 0188); without room this search is not stored.
+        if (!await EnforceCapAsync(jobSeekerId, cancellationToken).ConfigureAwait(false))
+            return;
 
         var aggregate = RecentJobSearch.Capture(jobSeekerId, criteria, currentCount, clock.UtcNow);
         db.RecentJobSearches.Add(aggregate);
@@ -91,30 +92,39 @@ public sealed partial class RecentJobSearchCapturer(
         }
     }
 
-    private async Task EnforceCapAsync(JobSeekerId jobSeekerId, CancellationToken cancellationToken)
+    /// <summary>
+    /// Deletes the unmarked rows with the oldest <c>LastViewedAt</c> until the job seeker has fewer than
+    /// <see cref="RecentJobSearch.MaxPerSeeker"/>, and says whether it could. The delete re-checks the slot in its own
+    /// statement, so a row marked after the read survives and the capture is skipped instead.
+    /// </summary>
+    private async Task<bool> EnforceCapAsync(JobSeekerId jobSeekerId, CancellationToken cancellationToken)
     {
         var currentRowCount = await db.RecentJobSearches
             .Where(r => r.JobSeekerId == jobSeekerId)
             .CountAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        if (currentRowCount < RecentJobSearch.MaxPerSeeker)
-            return;
+        var surplus = currentRowCount - RecentJobSearch.MaxPerSeeker + 1;
+        if (surplus <= 0)
+            return true;
 
-        // Evict äldsta för att lämna plats. Vid race där två parallella
-        // captures båda evictar är överskott temporärt cap-1 — acceptabelt
-        // (cap är affärsregel, inte säkerhetsinvariant; nästa capture
-        // återställer).
         var oldest = await db.RecentJobSearches
-            .Where(r => r.JobSeekerId == jobSeekerId)
+            .Where(r => r.JobSeekerId == jobSeekerId && r.QuickLinkSlot == null)
             .OrderBy(r => r.LastViewedAt)
-            .FirstOrDefaultAsync(cancellationToken)
+            .Take(surplus)
+            .Select(r => r.Id)
+            .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        if (oldest is null)
-            return;
+        if (oldest.Count < surplus)
+            return false;
 
-        db.RecentJobSearches.Remove(oldest);
+        var deleted = await db.RecentJobSearches
+            .Where(r => oldest.Contains(r.Id) && r.QuickLinkSlot == null)
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return deleted == surplus;
     }
 
     [LoggerMessage(

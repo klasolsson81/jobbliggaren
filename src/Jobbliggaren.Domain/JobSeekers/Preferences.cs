@@ -1,7 +1,7 @@
 namespace Jobbliggaren.Domain.JobSeekers;
 
 /// <summary>
-/// The job-seeker's locale + notification preferences. Stored as jsonb on
+/// The job-seeker's locale, notification and quick-link preferences. Stored as jsonb on
 /// <c>job_seekers.preferences</c>; the Vag 4 fields are ADDITIVE — a row written before
 /// ADR 0080 deserializes the missing keys to their safe defaults (background-match
 /// notifications OFF), so no data migration is needed for them. A new field still moves the
@@ -38,12 +38,20 @@ namespace Jobbliggaren.Domain.JobSeekers;
 /// <see cref="JobSeeker.SetTopMatchMail"/> and <see cref="JobSeeker.SetMatchSummaryMail"/>.
 /// </para>
 /// <para>
-/// <b>ADR 0168 (#2130) — what reaches the notification bell.</b> <see cref="NotificationFeedMatchesOffAt"/> and
-/// <see cref="NotificationFeedFollowedAdsOffAt"/> switch one notification type off in the bell, with the same
+/// <b>ADR 0168 (#2130), ADR 0175 D8 (#1663) — what reaches the notification bell.</b>
+/// <see cref="NotificationFeedMatchesOffAt"/>, <see cref="NotificationFeedFollowedAdsOffAt"/> and
+/// <see cref="NotificationFeedCriterionAdsOffAt"/> switch one notification type off in the bell, with the same
 /// shape as the mail pauses: a stamp whose <c>null</c> means on. They decide only what reaches the bell — never
 /// a consent, a withdrawal, an e-mail, or what Översikt and the lists show — and the bell ignores the mail
-/// pauses in turn (ADR 0164 D1). Mutated only via <see cref="JobSeeker.SetNotificationFeedMatches"/> and
-/// <see cref="JobSeeker.SetNotificationFeedFollowedAds"/>.
+/// pauses in turn (ADR 0164 D1). Mutated only via <see cref="JobSeeker.SetNotificationFeedMatches"/>,
+/// <see cref="JobSeeker.SetNotificationFeedFollowedAds"/> and <see cref="JobSeeker.SetNotificationFeedCriterionAds"/>.
+/// </para>
+/// <para>
+/// <b>ADR 0188 (#2265) — the junior quick link on /jobb.</b> <see cref="JuniorQuickLinkOffAt"/> hides the default
+/// "Juniora IT-jobb" link in the /jobb hero, with the shape of the pauses above: a stamp whose <c>null</c> means shown,
+/// so every row written before the key existed shows the link. The quick links to searches are not stored here: each is
+/// a mark on its own <c>RecentJobSearch</c> row, which takes the link with it on every path that deletes the row.
+/// Mutated only via <see cref="JobSeeker.SetJuniorQuickLink"/>.
 /// </para>
 /// <para>
 /// TD-115 (2026-06-25): the legacy <c>EmailNotifications</c> (opt-OUT default, Art.
@@ -68,4 +76,6 @@ public sealed record Preferences(
     DateTimeOffset? TopMatchMailOffAt = null,
     DateTimeOffset? MatchSummaryMailOffAt = null,
     DateTimeOffset? NotificationFeedMatchesOffAt = null,
-    DateTimeOffset? NotificationFeedFollowedAdsOffAt = null);
+    DateTimeOffset? NotificationFeedFollowedAdsOffAt = null,
+    DateTimeOffset? JuniorQuickLinkOffAt = null,
+    DateTimeOffset? NotificationFeedCriterionAdsOffAt = null);

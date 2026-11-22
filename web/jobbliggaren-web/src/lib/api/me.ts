@@ -146,6 +146,15 @@ export function updateNotificationFeedFollowedAds(input: {
   });
 }
 
+/** ADR 0175 D8 (#1663) — whether new ads from Branschbevakningar reach the bell. Same shape and rule. */
+export function updateNotificationFeedCriterionAds(input: {
+  enabled: boolean;
+}): Promise<ApiResult<void>> {
+  return putNotificationSetting("/api/v1/me/notification-feed/company-watch-criterion-ads", {
+    enabled: input.enabled,
+  });
+}
+
 /**
  * ADR 0087 D2 — sets the digest cadence the two notification consents share and
  * neither owns. The body carries only `{ cadence }`, never a consent value.

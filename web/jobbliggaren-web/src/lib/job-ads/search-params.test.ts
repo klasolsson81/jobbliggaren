@@ -16,9 +16,11 @@ import {
 const empty: JobbUrlState = {
   q: "",
   occupationGroup: [],
+  occupationName: [],
   region: [],
   municipality: [],
   remote: false,
+  junior: false,
   employmentType: [],
   worktimeExtent: [],
   matchGrades: [],
@@ -403,6 +405,7 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
     const href = buildPageHref(
       {
         occupationGroup: ["2512"],
+        occupationName: ["z5AM_ayf_WcL"],
         region: ["01"],
         municipality: ["0180", "0181"],
         employmentType: ["1"],
@@ -420,6 +423,7 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
     );
     expect(href).toContain("page=3");
     expect(href).toContain("occupationGroup=2512");
+    expect(href).toContain("occupationName=z5AM_ayf_WcL");
     expect(href).toContain("region=01");
     expect(href).toContain("municipality=0180.0181");
     expect(href).toContain("employmentType=1");
@@ -435,7 +439,8 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
     // något SAKNAS, aldrig att något oavsett lagts TILL. Denna pinnar också
     // param-ordningen, som är kontrakt för delningsbara URL:er.
     expect(href).toBe(
-      "/jobb?page=3&sortBy=Relevance&occupationGroup=2512&region=01" +
+      "/jobb?page=3&sortBy=Relevance&occupationGroup=2512" +
+        "&occupationName=z5AM_ayf_WcL&region=01" +
         "&municipality=0180.0181&employmentType=1&worktimeExtent=2" +
         "&matchGrades=Strong.Good&relaterade=on&doljAnsokta=on" +
         "&baraMatchade=on&employer=5565021000&q=backend"
@@ -637,6 +642,74 @@ describe("#551 punkt 4 — Distans som ort-axel i URL:en", () => {
     );
     expect(buildPageHref({ ...params, distans: "1" }, 2, 20)).not.toContain(
       "distans",
+    );
+  });
+});
+
+describe("#2261 — the junior IT filter in the URL", () => {
+  const params: JobbRawSearchParams = {};
+
+  it("junior=true writes ?junior=on, the sentinel value", () => {
+    expect(buildJobbHref({ ...empty, junior: true })).toBe("/jobb?junior=on");
+  });
+
+  it("junior=false writes no param (off is absence, a clean URL)", () => {
+    expect(buildJobbHref({ ...empty, junior: false })).toBe("/jobb");
+  });
+
+  it("travels beside every other axis, never instead of one", () => {
+    const href = buildJobbHref({
+      ...empty,
+      q: "java",
+      municipality: ["AvNB_uwa_6n6"],
+      remote: true,
+      junior: true,
+    });
+    expect(href).toContain("q=java");
+    expect(href).toContain("municipality=AvNB_uwa_6n6");
+    expect(href).toContain("distans=on");
+    expect(href).toContain("junior=on");
+  });
+
+  it("the page-2 link KEEPS junior", () => {
+    expect(buildPageHref({ ...params, junior: "on" }, 2, 20)).toContain(
+      "junior=on",
+    );
+  });
+
+  it("the page-2 link carries no junior when the filter is off", () => {
+    expect(buildPageHref(params, 2, 20)).not.toContain("junior");
+  });
+
+  it("a value other than 'on' is not kept (drop-unknown)", () => {
+    expect(buildPageHref({ ...params, junior: "true" }, 2, 20)).not.toContain(
+      "junior",
+    );
+  });
+});
+
+describe("buildJobbHref and buildPageHref — the occupation-name axis (#2199)", () => {
+  it("writes the names as one joined param, right after occupationGroup", () => {
+    expect(
+      buildJobbHref({
+        ...empty,
+        occupationGroup: ["og1"],
+        occupationName: ["n1", "n2"],
+        region: ["r1"],
+      }),
+    ).toBe("/jobb?occupationGroup=og1&occupationName=n1.n2&region=r1");
+  });
+
+  it("writes no param for an empty list, so a URL without names is unchanged", () => {
+    expect(buildJobbHref({ ...empty, occupationGroup: ["og1"] })).toBe(
+      "/jobb?occupationGroup=og1",
+    );
+    expect(buildJobbHref(empty)).toBe("/jobb");
+  });
+
+  it("carries the names into a page link, healing the repeated form into the joined one", () => {
+    expect(buildPageHref({ occupationName: ["n1", "n2"] }, 2, 20)).toBe(
+      "/jobb?page=2&occupationName=n1.n2",
     );
   });
 });

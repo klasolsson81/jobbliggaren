@@ -15,9 +15,11 @@ import type { JobbUrlState } from "@/lib/job-ads/search-params";
 const search = (overrides: Partial<JobbUrlState> = {}): JobbUrlState => ({
   q: "backend",
   occupationGroup: [],
+  occupationName: [],
   region: [],
   municipality: [],
   remote: false,
+  junior: false,
   employmentType: [],
   worktimeExtent: [],
   matchGrades: [],

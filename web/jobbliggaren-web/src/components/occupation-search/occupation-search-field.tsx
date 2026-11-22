@@ -15,6 +15,11 @@ export interface OccupationSearchFieldProps {
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly state: OccupationSearchState;
+  /**
+   * What the status region says while the field is idle (#2199): /jobb names selected occupations
+   * the browse columns cannot show. Omitted, the idle region is empty, as before.
+   */
+  readonly idleStatus?: string;
 }
 
 /**
@@ -30,7 +35,13 @@ export interface OccupationSearchFieldProps {
  * handler looks for (`keep-host-open.ts`), spelled out because a JSX attribute name cannot be a
  * computed key.
  */
-export function OccupationSearchField({ id, value, onChange, state }: OccupationSearchFieldProps) {
+export function OccupationSearchField({
+  id,
+  value,
+  onChange,
+  state,
+  idleStatus = "",
+}: OccupationSearchFieldProps) {
   const t = useTranslations("components.occupationSearch");
   return (
     <div className="flex flex-col gap-1.5 mb-2">
@@ -59,16 +70,16 @@ export function OccupationSearchField({ id, value, onChange, state }: Occupation
         aria-atomic="true"
         className="min-h-6 text-body-sm tabular-nums text-text-primary"
       >
-        {statusText(t, state)}
+        {statusText(t, state, idleStatus)}
       </p>
     </div>
   );
 }
 
-function statusText(t: Translate, state: OccupationSearchState): string {
+function statusText(t: Translate, state: OccupationSearchState, idleStatus: string): string {
   switch (state.kind) {
     case "idle":
-      return "";
+      return idleStatus;
     case "pending":
       return t("pending");
     case "ok":

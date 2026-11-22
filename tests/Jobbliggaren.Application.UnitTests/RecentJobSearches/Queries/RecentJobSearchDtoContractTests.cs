@@ -65,6 +65,8 @@ public class RecentJobSearchDtoContractTests
             .PropertyType.ShouldBe(typeof(int));
         t.GetProperty(nameof(RecentJobSearchDto.LastViewedAt))!
             .PropertyType.ShouldBe(typeof(DateTimeOffset));
+        t.GetProperty(nameof(RecentJobSearchDto.IsQuickLink))!
+            .PropertyType.ShouldBe(typeof(bool));
     }
 
     [Fact]
@@ -94,7 +96,7 @@ public class RecentJobSearchDtoContractTests
         "OccupationGroupList", "OccupationNameList", "MunicipalityList", "RegionList",
         "EmploymentTypeList", "WorktimeExtentList", "EmployerList", "Remote",
         "OccupationGroupLabels", "OccupationNameLabels", "MunicipalityLabels", "RegionLabels",
-        "SortBy", "Label", "CurrentCount", "NewCount", "LastViewedAt",
+        "SortBy", "Label", "CurrentCount", "NewCount", "LastViewedAt", "IsQuickLink",
     ];
 
     [Fact]

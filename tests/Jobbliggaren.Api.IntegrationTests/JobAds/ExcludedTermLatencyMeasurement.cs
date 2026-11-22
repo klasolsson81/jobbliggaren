@@ -95,7 +95,9 @@ public class ExcludedTermLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
             new SearchQueryParser(),
             new OccupationSynonymExpander(Options.Create(new SearchSynonymsOptions())),
             labelMatcher,
-            _fixture.Services.GetRequiredService<IOccupationNameLineageProvider>());
+            _fixture.Services.GetRequiredService<IOccupationNameLineageProvider>(),
+            db,
+            _fixture.Services.GetRequiredService<Jobbliggaren.Application.JobAds.Junior.IJuniorFieldCatalog>());
         var sut = new JobAdSearchQuery(db, resolver);
 
         // Non-vacuity first: an exclusion that removed nothing would time a predicate that never ran.
@@ -156,7 +158,7 @@ public class ExcludedTermLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
     private static JobAdFilterCriteria Filter(string? q) =>
         new(
             OccupationGroup: [], OccupationName: [], Municipality: [], Region: [], EmploymentType: [], WorktimeExtent: [],
-            Employer: [], Remote: false, Q: q);
+            Employer: [], Remote: false, JuniorIt: false, Q: q);
 
     private static async Task<(double P50, double P95)> MeasureAsync(Func<Task> call, CancellationToken ct)
     {
@@ -221,7 +223,7 @@ public class ExcludedTermLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITes
     private static async Task SeedAsync(AppDbContext db, CancellationToken ct)
     {
         db.Database.SetCommandTimeout(600);
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads;", ct);
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE job_ads CASCADE;", ct);
 
         var bulk =
             "INSERT INTO job_ads "

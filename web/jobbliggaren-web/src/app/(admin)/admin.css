@@ -934,6 +934,92 @@
   color: var(--jp-ink-1);
 }
 
+/* ── Juniorjobb: the queue (#2264) ───────────────────────────────────────────────────── */
+/* One ledger of ads on the surface, hairlines between the rows; the choices sit to the right of the ad and drop
+   under it where the row is narrow. */
+.jp-adminjunior__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-md);
+}
+.jp-adminjunior__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px 24px;
+  padding: 16px 20px;
+}
+.jp-adminjunior__row + .jp-adminjunior__row { border-top: 1px solid var(--jp-border-soft); }
+.jp-adminjunior__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.jp-adminjunior__title {
+  margin: 0;
+  font-size: var(--text-body-lg);
+  font-weight: var(--jp-fw-semibold);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.jp-adminjunior__title a,
+.jp-adminjunior__textlink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+}
+.jp-adminjunior__title a:hover,
+.jp-adminjunior__textlink:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.jp-adminjunior__employer {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--jp-ink-1);
+}
+.jp-adminjunior__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin: 4px 0 0;
+  font-size: var(--text-body-sm);
+}
+.jp-adminjunior__facts div {
+  display: flex;
+  gap: 6px;
+}
+.jp-adminjunior__facts dt { color: var(--jp-ink-2); }
+.jp-adminjunior__facts dd {
+  margin: 0;
+  color: var(--jp-ink-1);
+  font-variant-numeric: tabular-nums;
+}
+.jp-adminjunior__place {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.jp-adminjunior__place svg { color: var(--jp-ink-2); }
+.jp-adminjunior__facts dd.jp-adminjunior__decision { font-weight: var(--jp-fw-semibold); }
+.jp-adminjunior__choices {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.jp-adminjunior__refusal {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-danger-700);
+}
+.jp-adminjunior .jp-adminpager { margin-top: 16px; }
+
 /* ── E-postleverans: summary ─────────────────────────────────────────────────────────── */
 .jp-adminmailsum {
   display: flex;
@@ -1278,6 +1364,8 @@
   }
   .jp-adminfeedback__select,
   .jp-adminfeedback__textlink,
+  .jp-adminjunior__title a,
+  .jp-adminjunior__textlink,
   .jp-adminpreview-scenario select { min-height: 44px; }
   .jp-admincard { padding: 18px 16px; }
   .jp-admincard--list { padding: 20px 16px; }
@@ -1303,4 +1391,6 @@
 }
 @media (max-width: 640px) {
   .jp-admincard[data-span] { grid-column: span 12; }
+  .jp-adminjunior__row { grid-template-columns: minmax(0, 1fr); }
+  .jp-adminjunior__choices { justify-content: flex-start; }
 }

@@ -23,6 +23,9 @@ import {
  */
 export interface FacetCountsFilterState {
   occupationGroup: ReadonlyArray<string>;
+  // #2199 — the Yrke dimension's finer granularity, so the other dimensions'
+  // counts reflect a name pick the way they reflect a group pick.
+  occupationName: ReadonlyArray<string>;
   municipality: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   // ADR 0067 PR-3 — Klass 2 ingår i facett-filtret så varje dimensions facett
@@ -31,6 +34,8 @@ export interface FacetCountsFilterState {
   worktimeExtent: ReadonlyArray<string>;
   // #551 punkt 4 — distans i samma filterkontext, av samma skäl som Klass 2.
   remote: boolean;
+  // #2261 — the junior filter, for the same reason: a count must count the list's own WHERE.
+  junior: boolean;
   q: string;
 }
 
@@ -47,11 +52,13 @@ export function useFacetCounts(
   // kör) — ingen JSON-rundtur/cast (code-reviewer Minor 1 E2c).
   const filterKey = JSON.stringify([
     filter.occupationGroup,
+    filter.occupationName,
     filter.municipality,
     filter.region,
     filter.employmentType,
     filter.worktimeExtent,
     filter.remote,
+    filter.junior,
     filter.q,
   ]);
   const filterRef = useRef(filter);
@@ -79,10 +86,13 @@ export function useFacetCounts(
       const params = new URLSearchParams({ dimension });
       for (const v of current.occupationGroup)
         params.append("occupationGroup", v);
+      for (const v of current.occupationName)
+        params.append("occupationName", v);
       for (const v of current.municipality) params.append("municipality", v);
       for (const v of current.region) params.append("region", v);
       // Wire-formen är ?remote=true (bool-bindning), aldrig rutt-flaggans "on".
       if (current.remote) params.append("remote", "true");
+      if (current.junior) params.append("junior", "true");
       for (const v of current.employmentType)
         params.append("employmentType", v);
       for (const v of current.worktimeExtent)

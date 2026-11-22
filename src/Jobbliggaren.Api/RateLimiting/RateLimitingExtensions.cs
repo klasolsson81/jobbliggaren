@@ -33,6 +33,7 @@ public static partial class RateLimitingExtensions
     public const string PublicJobAdListedIdsPolicy = "public-job-ad-listed-ids";
     public const string PublicJobAdCataloguePolicy = "public-job-ad-catalogue";
     public const string PublicJobAdRelatedPolicy = "public-job-ad-related";
+    public const string PublicJobAdJuniorItPolicy = "public-job-ad-junior-it";
     public const string MeListReadPolicy = "me-list-read";
     public const string JobAdStatusBatchPolicy = "job-ad-status-batch";
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
@@ -55,6 +56,8 @@ public static partial class RateLimitingExtensions
     public const string FeedbackPromptStatePolicy = "feedback-prompt-state";
     public const string NotificationFeedReadPolicy = "notification-feed-read";
     public const string NotificationFeedMarkPolicy = "notification-feed-mark";
+    public const string JobAdJuniorItCountPolicy = "job-ad-junior-it-count";
+    public const string NotificationFeedMarkThroughPolicy = "notification-feed-mark-through";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -375,6 +378,12 @@ public static partial class RateLimitingExtensions
             // confidentiality.
             AddIpTokenBucketPolicy(options, PublicJobAdRelatedPolicy, rateLimitOpts.PublicJobAdRelated);
 
+            // Partition: IP. The open junior IT list (ADR 0186), its own budget, so a visitor paging through it cannot
+            // drain the job pages' budget, or the reverse. Each call is a grouped count, one page and the floor for
+            // indexing over the listed ads of one occupation field's groups; the limit protects availability, not
+            // confidentiality.
+            AddIpTokenBucketPolicy(options, PublicJobAdJuniorItPolicy, rateLimitOpts.PublicJobAdJuniorIt);
+
             // Partition: UserId (claim "sub"). Auth-gated GET-ytor under /me/* +
             // /applications/pipeline + /resumes (Pre-4 STEG 5, TD-92). Egen policy
             // (ej ListRead-återanvändning) — /oversikt avfyrar 6 parallella BE-anrop
@@ -411,26 +420,11 @@ public static partial class RateLimitingExtensions
             // bucket (RateLimitingOptions.NotificationFeedRead carries the derivation). Auth-gated →
             // anonymous is caught by RequireAuthorization (NoLimiter bypass). TokenBucket, QueueLimit=0.
             options.AddPolicy(NotificationFeedReadPolicy, ctx =>
-            {
-                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-                if (string.IsNullOrEmpty(userId))
-                    return RateLimitPartition.GetNoLimiter("anonymous-notification-feed-read");
+                PerUserTokenBucket(ctx, "anonymous-notification-feed-read", rateLimitOpts.NotificationFeedRead));
 
-                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
-                    new TokenBucketRateLimiterOptions
-                    {
-                        TokenLimit = rateLimitOpts.NotificationFeedRead.PermitLimit,
-                        TokensPerPeriod = Math.Max(1, rateLimitOpts.NotificationFeedRead.PermitLimit / rateLimitOpts.NotificationFeedRead.SegmentsPerWindow),
-                        ReplenishmentPeriod = TimeSpan.FromSeconds(
-                            rateLimitOpts.NotificationFeedRead.WindowSeconds / (double)rateLimitOpts.NotificationFeedRead.SegmentsPerWindow),
-                        QueueLimit = 0,
-                        AutoReplenishment = true,
-                    });
-            });
-
-            // Partition: UserId (claim "sub"). #2130 - the notification bell's read marks (a click on a row, and
-            // "Markera alla som lästa"), their own bucket (RateLimitingOptions.NotificationFeedMark carries the
-            // derivation). Auth-gated -> anonymous is caught by RequireAuthorization (NoLimiter bypass).
+            // Partition: UserId (claim "sub"). #2130 - the notification bell's per-row marks (a click on a row, and its X),
+            // their own bucket (RateLimitingOptions.NotificationFeedMark carries the derivation); "Markera alla som lästa"
+            // has its own since #1663 PR 3 (NotificationFeedMarkThroughPolicy). Auth-gated -> anonymous is caught by RequireAuthorization (NoLimiter bypass).
             // TokenBucket, QueueLimit=0. Never MeWrite (a withdrawal of a consent must not meet a 429 caused by
             // clicking through notifications, Art. 7(3)) and never FollowSeenMark (that one is filled by every ad open).
             options.AddPolicy(NotificationFeedMarkPolicy, ctx =>
@@ -862,6 +856,16 @@ public static partial class RateLimitingExtensions
                 PerUserTokenBucket(ctx, "anonymous-criterion-new-ads", rateLimitOpts.CriterionNewAds));
             options.AddPolicy(CriterionNewAdsSeenPolicy, ctx =>
                 PerUserTokenBucket(ctx, "anonymous-criterion-new-ads-seen", rateLimitOpts.CriterionNewAdsSeen));
+
+            // ADR 0188 (#2265) — the junior quick link's count in the /jobb hero. Its own bucket, partitioned by
+            // UserId (claim "sub"); anonymous → NoLimiter, the group answers 401 first. The numbers and their
+            // derivation live in RateLimitingOptions, and only there.
+            options.AddPolicy(JobAdJuniorItCountPolicy, ctx =>
+                PerUserTokenBucket(ctx, "anonymous-job-ad-junior-it-count", rateLimitOpts.JobAdJuniorItCount));
+
+            // #1663 PR 3 — the bell's "Markera alla", apart from the per-row marks (RateLimitingOptions.NotificationFeedMarkThrough).
+            options.AddPolicy(NotificationFeedMarkThroughPolicy, ctx =>
+                PerUserTokenBucket(ctx, "anonymous-notification-feed-mark-through", rateLimitOpts.NotificationFeedMarkThrough));
         });
 
         return services;

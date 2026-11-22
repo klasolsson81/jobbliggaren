@@ -84,3 +84,24 @@ describe("one plain-text line under every green band (#1917)", () => {
     expect(checkBands(wrap('<p className="jp-pagehero__lede"><a href="/">Text.</a></p>'), "probe.tsx")).toHaveLength(1);
   });
 });
+
+// DESIGN.md, the band clause for /jobb only (#2265, ADR 0188): the quick-link row stays on /jobb's plate. Its markup
+// lives in one component, only /jobb's page renders it, and only /jobb's loading state reserves its row, so the
+// exception cannot spread to another band unnoticed.
+describe("the quick-link row stays on /jobb's plate (#2265)", () => {
+  const usersOf = (pattern: RegExp) =>
+    sourceFiles(SOURCE_ROOT)
+      .filter((file) => pattern.test(readFileSync(file, "utf8")))
+      .map((file) => relative(SOURCE_ROOT, file).split("\\").join("/"))
+      .sort();
+
+  it("renders the row's markup in one component, rendered by /jobb's page alone", () => {
+    expect(usersOf(/className="jp-hero__quicklinks-list"/)).toEqual(["components/job-ads/jobb-quick-links.tsx"]);
+    expect(usersOf(/className="jp-hero__quicklinks-settings"/)).toEqual(["components/job-ads/jobb-quick-links.tsx"]);
+    expect(usersOf(/from "@\/components\/job-ads\/jobb-quick-links"/)).toEqual(["app/(app)/jobb/page.tsx"]);
+  });
+
+  it("reserves the row in /jobb's loading state alone", () => {
+    expect(usersOf(/className="jp-hero__quicklinks-reserve"/)).toEqual(["app/(app)/jobb/loading.tsx"]);
+  });
+});

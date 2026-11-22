@@ -162,11 +162,15 @@ export function OversiktPage({
       ? buildJobbHref({
           q: "",
           occupationGroup: [...profile.data.preferredOccupationGroups],
+          // The match profile selects groups only (ADR 0040 Beslut 4).
+          occupationName: [],
           region: [...profile.data.preferredRegions],
           municipality: [...profile.data.preferredMunicipalities],
           // GetMyMatchCountQueryHandler filters on the saved remote preference, so the
           // link must carry it too, or the card and the list would disagree.
           remote: profile.data.preferredRemote,
+          // The match count has no junior axis.
+          junior: false,
           employmentType: [...profile.data.preferredEmploymentTypes],
           worktimeExtent: [],
           matchGrades: [],

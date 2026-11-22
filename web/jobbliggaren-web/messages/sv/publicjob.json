@@ -49,6 +49,7 @@
   },
   "catalogue": {
     "lede": "Annonser från Platsbanken, de senast publicerade först.",
+    "juniorLink": "Är du ny inom IT? Se <link>juniora IT-jobb</link>.",
     "count": "{count, plural, one {ledigt jobb} other {lediga jobb}}",
     "titlePaged": "{label} – sida {page, number}",
     "metaDescription": "Bläddra bland lediga jobb från Platsbanken, de senast publicerade först. Öppna en annons för att läsa hela texten.",
@@ -62,6 +63,35 @@
       "title": "Sidan finns inte",
       "body": "Listan över lediga jobb har ingen sådan sida.",
       "toCatalogue": "Till lediga jobb"
+    }
+  },
+  "junior": {
+    "title": "Juniora IT-jobb",
+    "metaTitle": "Juniora IT-jobb – lediga jobb för dig som är ny inom IT",
+    "lede": "Juniortjänster, traineeprogram och IT-jobb utan krav på erfarenhet.",
+    "metaDescription": "Lediga juniora IT-jobb just nu, till exempel som junior systemutvecklare, utvecklare eller testare, traineeprogram och jobb utan krav på tidigare erfarenhet. Annonserna kommer från Platsbanken och listan uppdateras löpande.",
+    "filters": {
+      "heading": "Välj ort och sortering",
+      "place": "Ort",
+      "allPlaces": "Alla orter",
+      "placeOption": "{name} ({count, number})",
+      "submit": "Visa"
+    },
+    "count": "{count, plural, one {ledigt jobb} other {lediga jobb}}",
+    "countInPlace": "{count, plural, one {ledigt jobb} other {lediga jobb}} i {place}",
+    "lastApplication": "Sista ansökningsdag",
+    "empty": {
+      "title": "Inga juniora IT-jobb just nu",
+      "body": "Titta in igen om några dagar."
+    },
+    "emptyPlace": {
+      "title": "Inga juniora IT-jobb på den orten just nu",
+      "allPlaces": "Visa alla orter"
+    },
+    "notFound": {
+      "title": "Sidan finns inte",
+      "body": "Listan över juniora IT-jobb har ingen sådan sida.",
+      "toList": "Till juniora IT-jobb"
     }
   }
 }

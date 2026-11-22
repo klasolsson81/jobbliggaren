@@ -193,6 +193,17 @@ public static class JobAdLifecycleReadRegistry
                     + "window does, and only ads the counted hits already named are kept, so a row listed here is "
                     + "one the count beside it counted."),
             ],
+            ["Jobbliggaren.Application.NotificationFeed.Sources.CompanyWatchCriterionAdFeedSource.ReadAsync"] =
+            [
+                Active("join JobAds for the ad columns of the notification bell's Branschbevakning rows (#1663 PR 3, "
+                    + "ADR 0175 D8). NO Status predicate at this site: the gate is INHERITED from "
+                    + "NewCriterionAdSet.NewHits, which the window composes onto, so the bell cannot show an ad the "
+                    + "Översikt pill and the page of new ads beside it did not count."),
+                Active("join JobAds for the ad columns of the newest unread Branschbevakning ads the window left out "
+                    + "because read hits crowded them out (#1663 PR 3). NO Status predicate at this site: the gate is "
+                    + "INHERITED from NewCriterionAdSet.NewHits, which the grouping composes onto exactly as the window "
+                    + "does, so a row listed here is one the count beside it counted."),
+            ],
             ["Jobbliggaren.Application.NotificationFeed.Sources.MatchFeedSource.ReadAsync"] =
             [
                 Active("join JobAds for the ad columns of the notification bell's match rows (#1666). NO "
@@ -243,6 +254,38 @@ public static class JobAdLifecycleReadRegistry
                     + "selecting a suggestion navigates to ?employer=, which ApplyFilter scopes to Active, so an "
                     + "employer with only archived ads would be a chip with no target and an ad count the chip then "
                     + "contradicts.")),
+            ["Jobbliggaren.Infrastructure.JobAds.JuniorItJobAdQuery.CountByMunicipalityAsync"] =
+                One(Active(".Where(JobAdPublication.IsListed(now)).Where(JuniorMembership.Of(assessments, groups)).GroupBy(kommun id)"
+                    + ".Select(id, count) — the open junior IT list's total and kommun options (ADR 0186, ADR 0187), read "
+                    + "per request over the stored assessments. Only the kommun id and a count leave the query.")),
+            ["Jobbliggaren.Infrastructure.JobAds.JuniorItJobAdQuery.ReadPageAsync"] =
+                One(Active(".Where(JobAdPublication.IsListed(now)).Where(JuniorMembership.Of(assessments, groups))"
+                    + "[.Where(kommun == chosen)].ApplySort(PublishedAtDesc | ExpiresAtAsc).Skip().Take() — one page of the open "
+                    + "junior IT list (ADR 0186, ADR 0187), read per request. A narrow row: id, title, company name, kommun and "
+                    + "län ids, publication date, last publication day.")),
+            ["Jobbliggaren.Infrastructure.JobAds.JuniorItJobAdQuery.MeetsFloorAsync"] =
+                One(Active(".Where(JobAdPublication.IsListed(now)).Where(JuniorMembership.Of(assessments, groups)), then "
+                    + "PublicListFloor.Outcome(...).Any() — whether the whole open junior IT list meets "
+                    + "the floor for indexing (ADR 0166, the Amendment 2026-11-22), read per request over the list's own base. The "
+                    + "organisation number and the company name stay inside the statement; only a boolean leaves the query.")),
+            ["Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds.ClassifyJuniorJobAdsJob.RunAsync"] =
+                One(Active(".Where(JobAdPublication.IsListed(now)).Where(group in enabled fields).Where(no current assessment)"
+                    + ".Select(narrow projection) — the junior classification sweep's selection (ADR 0187): only listed ads are "
+                    + "classified, as a narrow projection (id, external id, post-scrub title and text, group, experience mark, "
+                    + "input fingerprint); job_ads is never written.")),
+            ["Jobbliggaren.Application.JobAds.Jobs.ClassifyJuniorJobAds.ClassifyJuniorJobAdsJob.PurgeErasedAsync"] =
+                One(Any("db.JobAds.Where(j.Status == Erased), composed into the load of the assessments to remove — the "
+                        + "sweep's purge of assessments left on erased ads (ADR 0187 D3).",
+                    "Reads ERASED ads only, deliberately: it removes the assessment a sweep wrote while racing an Art. 17 "
+                    + "erasure, so no verdict or text fingerprint outlives the next tick on a tombstone. Only the ad's id "
+                    + "reaches the query; no ad value leaves it.")),
+            ["Jobbliggaren.Application.Admin.JuniorJobAds.Queries.ListJuniorJobAds.ListJuniorJobAdsQueryHandler.Handle"] =
+                One(Active(".Where(JobAdPublication.IsListed(now)).Where(group in enabled fields).Join(assessments) — the "
+                    + "admin junior queue's three tabs (ADR 0187, security-auditor m2): a closed or erased ad never reaches "
+                    + "it. A narrow row: id, title, company name, kommun id, dates, the verdict, its rule id and the decision.")),
+            ["Jobbliggaren.Application.Admin.JuniorJobAds.Commands.DecideJuniorJobAd.DecideJuniorJobAdCommandHandler.Handle"] =
+                One(Active(".Where(JobAdPublication.IsListed(now)).Where(group in enabled fields) inside the assessment load's "
+                    + "EXISTS — only a listed ad in an enabled field can be decided (ADR 0187); the ad itself is not loaded.")),
             ["Jobbliggaren.Application.Matching.Queries.NewMatchSet.Matches"] =
                 One(Active("join JobAds where j.Status == Active — the single definition of the user's new "
                     + "matches, shared by the uncapped new-match count (#913 B3 witness), the notification "

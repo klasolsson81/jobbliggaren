@@ -38,9 +38,11 @@ const taxonomy: TaxonomyTree = {
 const empty: JobbUrlState = {
   q: "",
   occupationGroup: [],
+  occupationName: [],
   region: [],
   municipality: [],
   remote: false,
+  junior: false,
   employmentType: [],
   worktimeExtent: [],
   matchGrades: [],

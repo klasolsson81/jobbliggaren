@@ -364,7 +364,10 @@
       "yrkeSelectAll": "Välj alla yrkesgrupper",
       "yrkeEmpty": "Yrkesområden kunde inte laddas just nu. Du kan söka på sökord ändå.",
       "yrkeRightEmpty": "Välj ett yrkesområde till vänster.",
-      "klass2Empty": "Filter kunde inte laddas just nu. Du kan söka på sökord ändå."
+      "yrkeNameHint": "Kryssar du i ett yrke visas annonser där arbetsgivaren angett just det yrket. Sök på yrkesgruppen för fler.",
+      "yrkeGroupNameHint": "Kryssar du i ett yrke visas annonser där arbetsgivaren angett just det yrket.",
+      "yrkeNamesSelected": "{count, plural, one {# valt yrke visas bland de aktiva filtren, inte här.} other {# valda yrken visas bland de aktiva filtren, inte här.}}",
+      "klass2Empty": "Omfattning och anställningsform kunde inte laddas just nu. Du kan söka på sökord ändå."
     },
     "typeahead": {
       "loading": "Hämtar förslag…",
@@ -381,10 +384,45 @@
       "worktimeAll": "Alla",
       "worktimeHeading": "Omfattning",
       "employmentHeading": "Anställningsform",
-      "clear": "Rensa"
+      "clear": "Rensa",
+      "junior": "Juniora IT-jobb",
+      "juniorHint": "För dig som är ny i yrket."
     },
     "heroChip": {
       "showAll": "Visa alla"
+    }
+  },
+  "quickLinks": {
+    "navLabel": "Snabblänkar",
+    "junior": "Juniora IT-jobb",
+    "juniorCount": "{count, number} just nu",
+    "juniorName": "Juniora IT-jobb, {count, number} just nu",
+    "remove": "Ta bort snabblänken: {label}",
+    "removed": "Snabblänken har tagits bort: {label}",
+    "add": "Lägg till som snabblänk",
+    "unmark": "Ta bort som snabblänk",
+    "added": "Snabblänken har lagts till: {label}",
+    "full": "Du kan ha högst {max, number} snabblänkar. Ta bort en för att lägga till en ny.",
+    "errors": {
+      "full": "Du har redan {max, number} snabblänkar. Ta bort en för att lägga till en ny.",
+      "conflict": "Snabblänkarna ändrades samtidigt. Försök igen.",
+      "notFound": "Sökningen finns inte längre. Den kan ha tagits bort.",
+      "notLoggedIn": "Du är inte inloggad.",
+      "rateLimited": "För många ändringar på kort tid. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
+      "failed": "Snabblänken kunde inte ändras. Försök igen."
+    },
+    "settings": {
+      "lede": "Snabblänkarna visas överst under Jobb.",
+      "open": "Anpassa",
+      "openName": "Anpassa snabblänkar",
+      "openEmpty": "Välj snabblänkar",
+      "noSearches": "Gör en sökning under Jobb, så kan du lägga till den här."
+    },
+    "picker": {
+      "legend": "Välj upp till {max, number} snabblänkar",
+      "full": "Du kan ha högst {max, number} snabblänkar. Kryssa ur en för att välja en annan.",
+      "all": "Alla sökningar",
+      "noSearches": "Gör en sökning, så kan du lägga till den här."
     }
   }
 }

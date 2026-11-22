@@ -101,6 +101,17 @@ public class JobAdPublicSurfaceGuardTests
                      "safe on logs and DTOs and STAYS on the Erase() tombstone like the concept-id facets " +
                      "(classified NotRecruiterData in ErasureCascadeRegistry).",
 
+        // --- #2264 the junior inputs (ADR 0187) ---
+        ["ExperienceRequired"] = "source facet (#2264): the advertiser's experience_required mark, parsed by the ACL " +
+                                 "into JobTechHit/JobAdFacets and written by JobAd.SetSourcePayload with PRESERVE on " +
+                                 "null like Remote. NOT derived from raw_payload in the database. NON-PII: a closed-" +
+                                 "domain boolean, kept on the Erase() tombstone (NotRecruiterData).",
+        ["JuniorInputFingerprint"] = "derived (#2264): a SHA-256 over the POST-SCRUB title and description, the " +
+                                     "occupation group and the experience mark, computed in C# by SetSourcePayload " +
+                                     "on every source write. NOT derived from raw_payload and never DB-generated. A " +
+                                     "hash of text that can hold a recruiter's name, so it is nulled by Erase() " +
+                                     "(Erased in ErasureCascadeRegistry, with a derivation ground).",
+
         // --- the PII one ---
         ["OrganizationNumber"] = "source facet (#841) AND PII, HIGHEST PRIORITY: a sole proprietor's org.nr " +
                                  "IS a personnummer in plaintext (ADR 0087 D8(c), CLAUDE.md §5). Plaintext " +

@@ -7,8 +7,8 @@ using static Jobbliggaren.Domain.UnitTests.JobSeekers.ConsentLifecycleDriver;
 namespace Jobbliggaren.Domain.UnitTests.JobSeekers;
 
 /// <summary>
-/// #2130 (ADR 0162, PR 2) — the two in-app switches on <see cref="JobSeeker"/>: whether new matches and new
-/// ads from followed companies reach the bell. Off is stamped once and kept while it stays off, on clears
+/// #2130 (ADR 0162, PR 2) and #1663 PR 3 (ADR 0175 D8) — the three in-app switches on <see cref="JobSeeker"/>:
+/// whether new matches, new ads from followed companies and new ads from a Branschbevakning reach the bell. Off is stamped once and kept while it stays off, on clears
 /// it, and the same state is a no-op. Each switch writes its own stamp and nothing else: never a consent, a
 /// withdrawal, an e-mail pause, the cadence or the other switch (security V3), because a switch for what
 /// reaches the bell is a delivery choice, never a consent.
@@ -19,6 +19,7 @@ public class JobSeekerNotificationFeedTests
     {
         SetNotificationFeedMatches,
         SetNotificationFeedFollowedAds,
+        SetNotificationFeedCriterionAds,
     }
 
     private static readonly FakeDateTimeProvider BaseClock = FakeDateTimeProvider.Default;
@@ -30,17 +31,19 @@ public class JobSeekerNotificationFeedTests
         FakeDateTimeProvider.At(BaseClock.UtcNow.AddHours(hours));
 
     [Fact]
-    public void Register_NewSeeker_HasBothBellTypesOn()
+    public void Register_NewSeeker_HasEveryBellTypeOn()
     {
         var prefs = NewSeeker().Preferences;
 
         prefs.NotificationFeedMatchesOffAt.ShouldBeNull();
         prefs.NotificationFeedFollowedAdsOffAt.ShouldBeNull();
+        prefs.NotificationFeedCriterionAdsOffAt.ShouldBeNull();
     }
 
     [Theory]
     [InlineData(Setter.SetNotificationFeedMatches)]
     [InlineData(Setter.SetNotificationFeedFollowedAds)]
+    [InlineData(Setter.SetNotificationFeedCriterionAds)]
     public void EachSetter_OffFromOn_StampsTheClocksNowAndBumpsUpdatedAt(Setter setter)
     {
         var seeker = NewSeeker();
@@ -55,6 +58,7 @@ public class JobSeekerNotificationFeedTests
     [Theory]
     [InlineData(Setter.SetNotificationFeedMatches)]
     [InlineData(Setter.SetNotificationFeedFollowedAds)]
+    [InlineData(Setter.SetNotificationFeedCriterionAds)]
     public void EachSetter_OffWhileOff_KeepsTheFirstStampAndDoesNotBumpUpdatedAt(Setter setter)
     {
         var seeker = NewSeeker();
@@ -72,6 +76,7 @@ public class JobSeekerNotificationFeedTests
     [Theory]
     [InlineData(Setter.SetNotificationFeedMatches)]
     [InlineData(Setter.SetNotificationFeedFollowedAds)]
+    [InlineData(Setter.SetNotificationFeedCriterionAds)]
     public void EachSetter_OnFromOff_ClearsTheStampAndBumpsUpdatedAt(Setter setter)
     {
         var seeker = NewSeeker();
@@ -87,6 +92,7 @@ public class JobSeekerNotificationFeedTests
     [Theory]
     [InlineData(Setter.SetNotificationFeedMatches)]
     [InlineData(Setter.SetNotificationFeedFollowedAds)]
+    [InlineData(Setter.SetNotificationFeedCriterionAds)]
     public void EachSetter_OnWhileOn_IsNoOpAndDoesNotBumpUpdatedAt(Setter setter)
     {
         var seeker = NewSeeker();
@@ -103,6 +109,7 @@ public class JobSeekerNotificationFeedTests
     [Theory]
     [InlineData(Setter.SetNotificationFeedMatches)]
     [InlineData(Setter.SetNotificationFeedFollowedAds)]
+    [InlineData(Setter.SetNotificationFeedCriterionAds)]
     public void EachSetter_OffAgainAfterSwitchingBackOn_TakesANewStamp(Setter setter)
     {
         var seeker = NewSeeker();
@@ -139,6 +146,7 @@ public class JobSeekerNotificationFeedTests
 
         seeker.SetNotificationFeedMatches(on: false, Later(3));
         seeker.SetNotificationFeedFollowedAds(on: false, Later(4));
+        seeker.SetNotificationFeedCriterionAds(on: false, Later(5));
 
         var prefs = seeker.Preferences;
         prefs.BackgroundMatchNotificationsEnabled.ShouldBeTrue();
@@ -212,21 +220,20 @@ public class JobSeekerNotificationFeedTests
     }
 
     [Fact]
-    public void EveryMailPauseSetter_LeavesBothBellStampsAlone()
+    public void EveryMailPauseSetter_LeavesEveryBellStampAlone()
     {
         var seeker = NewSeeker();
         seeker.SetNotificationFeedMatches(on: false, Later(1));
         seeker.SetNotificationFeedFollowedAds(on: false, Later(2));
-        var matches = seeker.Preferences.NotificationFeedMatchesOffAt;
-        var followed = seeker.Preferences.NotificationFeedFollowedAdsOffAt;
+        seeker.SetNotificationFeedCriterionAds(on: false, Later(3));
+        var stamps = Enum.GetValues<Setter>().Select(setter => Stamp(seeker.Preferences, setter)).ToList();
 
-        seeker.SetNotificationMail(on: false, Later(3));
-        seeker.SetTopMatchMail(on: false, Later(4));
-        seeker.SetMatchSummaryMail(on: false, Later(5));
-        seeker.SetNotificationMail(on: true, Later(6));
+        seeker.SetNotificationMail(on: false, Later(4));
+        seeker.SetTopMatchMail(on: false, Later(5));
+        seeker.SetMatchSummaryMail(on: false, Later(6));
+        seeker.SetNotificationMail(on: true, Later(7));
 
-        seeker.Preferences.NotificationFeedMatchesOffAt.ShouldBe(matches);
-        seeker.Preferences.NotificationFeedFollowedAdsOffAt.ShouldBe(followed);
+        Enum.GetValues<Setter>().Select(setter => Stamp(seeker.Preferences, setter)).ShouldBe(stamps);
     }
 
     private static void Set(JobSeeker seeker, Setter setter, bool on, IDateTimeProvider clock)
@@ -235,6 +242,7 @@ public class JobSeekerNotificationFeedTests
         {
             Setter.SetNotificationFeedMatches => seeker.SetNotificationFeedMatches,
             Setter.SetNotificationFeedFollowedAds => seeker.SetNotificationFeedFollowedAds,
+            Setter.SetNotificationFeedCriterionAds => seeker.SetNotificationFeedCriterionAds,
             _ => throw new ArgumentOutOfRangeException(nameof(setter), setter, null),
         };
         set(on, clock);
@@ -244,6 +252,7 @@ public class JobSeekerNotificationFeedTests
     {
         Setter.SetNotificationFeedMatches => preferences.NotificationFeedMatchesOffAt,
         Setter.SetNotificationFeedFollowedAds => preferences.NotificationFeedFollowedAdsOffAt,
+        Setter.SetNotificationFeedCriterionAds => preferences.NotificationFeedCriterionAdsOffAt,
         _ => throw new ArgumentOutOfRangeException(nameof(setter), setter, null),
     };
 
@@ -251,6 +260,7 @@ public class JobSeekerNotificationFeedTests
     {
         Setter.SetNotificationFeedMatches => preferences with { NotificationFeedMatchesOffAt = stamp },
         Setter.SetNotificationFeedFollowedAds => preferences with { NotificationFeedFollowedAdsOffAt = stamp },
+        Setter.SetNotificationFeedCriterionAds => preferences with { NotificationFeedCriterionAdsOffAt = stamp },
         _ => throw new ArgumentOutOfRangeException(nameof(setter), setter, null),
     };
 }

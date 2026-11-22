@@ -41,6 +41,8 @@ function setup(
         worktimeExtent={[]}
         onEmploymentTypeChange={onEmploymentTypeChange}
         onWorktimeExtentChange={onWorktimeExtentChange}
+        junior={false}
+        onJuniorToggle={vi.fn()}
         onClose={vi.fn()}
         triggerRef={triggerRef}
         emptyText="Filter kunde inte laddas just nu."
@@ -213,6 +215,52 @@ describe("JobbKlass2Panel — a11y + degradering", () => {
   });
 });
 
+describe("JobbKlass2Panel — Juniora IT-jobb (#2261)", () => {
+  it("renders one checkbox, unchecked when the filter is off, described by its hint", () => {
+    setup({ junior: false });
+    const box = screen.getByRole("checkbox", { name: "Juniora IT-jobb" });
+    expect(box).toHaveAttribute("aria-checked", "false");
+    expect(box).toHaveAccessibleDescription(
+      "För dig som är ny i yrket.",
+    );
+  });
+
+  it("is checked when the filter is on", () => {
+    setup({ junior: true });
+    expect(
+      screen.getByRole("checkbox", { name: "Juniora IT-jobb" }),
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
+  it.each([["click"], [" "], ["{Enter}"]])("toggles on %s", async (how) => {
+    const user = userEvent.setup();
+    const onJuniorToggle = vi.fn();
+    setup({ onJuniorToggle });
+    const box = screen.getByRole("checkbox", { name: "Juniora IT-jobb" });
+    if (how === "click") await user.click(box);
+    else {
+      box.focus();
+      await user.keyboard(how);
+    }
+    expect(onJuniorToggle).toHaveBeenCalledTimes(1);
+  });
+
+  // It needs no taxonomy, so it stays usable when the two taxonomy sections could not load.
+  it("still renders when the options could not be loaded", () => {
+    setup({ employmentTypeOptions: [], worktimeExtentOptions: [] });
+    expect(
+      screen.getByRole("checkbox", { name: "Juniora IT-jobb" }),
+    ).toBeInTheDocument();
+  });
+
+  it("carries no count (a boolean has no per-option count)", () => {
+    setup({ employmentTypeCounts: { "gro4_cWF_6D7": 3 } });
+    expect(
+      screen.getByRole("checkbox", { name: "Juniora IT-jobb" }),
+    ).toHaveTextContent(/^Juniora IT-jobb$/);
+  });
+});
+
 describe("JobbKlass2Panel — locale en (#1537)", () => {
   // `render` går genom shimen som hårdkodar locale="sv", så det engelska fallet
   // renderas via `/pure` — samma väg som `match-setup-rail-modal.test.tsx`.
@@ -231,6 +279,8 @@ describe("JobbKlass2Panel — locale en (#1537)", () => {
           worktimeExtent={[]}
           onEmploymentTypeChange={vi.fn()}
           onWorktimeExtentChange={vi.fn()}
+          junior={false}
+          onJuniorToggle={vi.fn()}
           onClose={vi.fn()}
           triggerRef={triggerRef}
           emptyText="Filters could not be loaded right now."

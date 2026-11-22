@@ -86,6 +86,7 @@ public sealed class ListRecentSearchesQueryHandler(
                 WorktimeExtent: r.WorktimeExtent,
                 Employer: EmployerAxisGate.Surfaceable(r.Employer),
                 Remote: r.Remote,
+                JuniorIt: false,
                 Q: r.Q);
 
             var occupationGroupLabels = await taxonomy.ResolveLabelsAsync(
@@ -151,7 +152,8 @@ public sealed class ListRecentSearchesQueryHandler(
                 Label: label,
                 CurrentCount: currentCount,
                 NewCount: newCount,
-                LastViewedAt: r.LastViewedAt));
+                LastViewedAt: r.LastViewedAt,
+                IsQuickLink: r.QuickLinkSlot is not null));
         }
 
         return dtos;

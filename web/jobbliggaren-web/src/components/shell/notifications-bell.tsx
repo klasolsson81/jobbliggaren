@@ -22,15 +22,16 @@ type TagsT = ReturnType<typeof useTranslations<"jobads.ui.tags">>;
 const BADGE_MAX = 99;
 
 /**
- * The header bell (#1666): the signed-in user's new matches and new ads from followed companies, read
- * by the shell's `NotificationFeedProvider` and shown in a non-modal popover. Nothing is acknowledged by opening
- * or reading.
+ * The header bell (#1666): the signed-in user's new matches, new ads from followed companies and (#1663) new ads
+ * from Branschbevakningar, read by the shell's `NotificationFeedProvider` and shown in a non-modal popover. Nothing
+ * is acknowledged by opening or reading.
  * The panel holds notifications and nothing else (#2130): its only links are the rows' own, to the ad.
  *
  * #2151 - every row carries an X, a button of its own beside the row link, that takes just that notification out of the
  * bell: the row goes at once, the count follows when the server has agreed (an unread row falls out of the badge), and
  * a refusal brings the row back with a notice, because nothing was deleted. It writes the bell's own flags and nothing
- * else, so Översikt, `/matchningar` and `/foretag/bevakade/nya` keep their rows and numbers.
+ * else, so Översikt, `/matchningar`, `/foretag/bevakade/nya` and each Branschbevakning's `/nya` keep their rows and
+ * numbers.
  *
  * #2130 - an unread row carries a dot, and a click on it (plain, modified or middle) marks THAT row read:
  * the dot goes at once, the count follows when the server has agreed, and nothing waits on it, because the

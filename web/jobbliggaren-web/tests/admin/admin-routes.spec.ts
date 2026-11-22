@@ -6,7 +6,7 @@ import { ACCOUNT_D_DELETION_EARLIEST, STEP_UP_CHALLENGE, STEP_UP_GRANT } from ".
 import { APP_ORIGIN, SESSION_COOKIE, SESSION_ID, TEXT_SPACING, startHarness, type Harness } from "./servers";
 
 /**
- * The seven admin routes in a real browser (#1973, ADR 0150): the nav reaches every page and marks
+ * The eight admin routes in a real browser (#1973, ADR 0150): the nav reaches every page and marks
  * the current one, each page that is not built yet keeps its structure and says "Kommer snart" with
  * no number on it, Användare lists, searches and opens the accounts (#1974), Bakgrundsjobb and
  * Granskning still render their data and their refused and failed states, an ordinary account never
@@ -39,6 +39,7 @@ const PAGES = [
   { label: "Översikt", path: "/admin", heading: "Översikt" },
   { label: "Användare", path: "/admin/anvandare", heading: "Användare" },
   { label: "Feedback", path: "/admin/feedback", heading: "Feedback" },
+  { label: "Juniorjobb", path: "/admin/juniorjobb", heading: "Juniorjobb" },
   { label: "Loggar", path: "/admin/loggar", heading: "Loggar" },
   { label: "E-postleverans", path: "/admin/e-post", heading: "E-postleverans" },
   { label: "Bakgrundsjobb", path: "/admin/jobb", heading: "Bakgrundsjobb" },
@@ -56,7 +57,7 @@ const UNBUILT = [
 
 const adminNav = (page: Page) => page.getByRole("navigation", { name: "Admin-navigation" });
 
-test("the nav reaches all seven pages in order and marks only the current one", async ({ page }) => {
+test("the nav reaches all eight pages in order and marks only the current one", async ({ page }) => {
   await page.goto("/admin");
   await expect(adminNav(page).getByRole("link")).toHaveText(PAGES.map((p) => p.label));
 
@@ -751,10 +752,18 @@ test("an ordinary account is sent away from the admin surface", async ({ page })
   await expect(adminNav(page)).toHaveCount(0);
 });
 
-test("the header reads in DOM order: skip link, brand, the seven links, then the account", async ({ page }) => {
+test("the header reads in DOM order: skip link, brand, the admin links, then the account", async ({ page }) => {
   await page.goto("/admin");
+  const expected = [
+    "Hoppa till huvudinnehåll",
+    "Jobbliggaren, startsida",
+    ...PAGES.map((p) => p.label),
+    "Adminmeny",
+    "Notiser",
+    "Inställningar",
+  ];
   const order: string[] = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < expected.length; i++) {
     await page.keyboard.press("Tab");
     order.push(
       await page.evaluate(() => {
@@ -763,14 +772,7 @@ test("the header reads in DOM order: skip link, brand, the seven links, then the
       })
     );
   }
-  expect(order).toEqual([
-    "Hoppa till huvudinnehåll",
-    "Jobbliggaren, startsida",
-    ...PAGES.map((p) => p.label),
-    "Adminmeny",
-    "Notiser",
-    "Inställningar",
-  ]);
+  expect(order).toEqual(expected);
 });
 
 for (const width of [320, 375, 768, 1024]) {

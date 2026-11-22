@@ -241,6 +241,12 @@ internal static class MappedPlaintextExposureRegistry
                 + "details — the ROPA's sixth entry, which ADR 0125's five-item list omitted. "
                 + "extracted_terms, extracted_lexemes and search_vector are derived FROM the "
                 + "description and carry whatever it carried. The recruiter is a data subject too.",
+            ["job_ad_junior_assessments"] = "One row per classified job ad (#2264, ADR 0187), keyed "
+                + "by the ad's id: a verdict, its rule id and rule-set version, a fingerprint of the "
+                + "ad's text and an admin's decision. No person column of its own, and it falls the "
+                + "row test on the SAME subset ground as job_ads: the key joins to an "
+                + "organization_number that IS a personnummer for a sole trader (#841) — in the same "
+                + "dump.",
             ["job_ad_snapshot_misses"] = "One row per (source, external_id) whose ad left the "
                 + "snapshot. No person column of its own, and it falls the row test on the SAME "
                 + "subset ground as job_ads: the row is created only for an ad we hold, so "

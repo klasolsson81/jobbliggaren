@@ -52,6 +52,8 @@ import { JobbMatchGradeFilter } from "./jobb-match-grade-filter";
 interface JobbHeroFiltersProps {
   taxonomy: TaxonomyTree | null;
   initialOccupationGroup: ReadonlyArray<string>;
+  /** `?occupationName=`: occupation-names picked in the Yrke search (#2199). */
+  initialOccupationName: ReadonlyArray<string>;
   initialRegion: ReadonlyArray<string>;
   initialMunicipality: ReadonlyArray<string>;
   /**
@@ -59,6 +61,8 @@ interface JobbHeroFiltersProps {
    * municipality, region and remote, so it widens the place choice.
    */
   initialRemote: boolean;
+  /** `?junior=on` (#2261): the junior IT list as a filter. Its checkbox is in the "Filter" panel. */
+  initialJunior: boolean;
   // Employment type (several) and working hours (one), shown in the "Filter" panel.
   initialEmploymentType: ReadonlyArray<string>;
   initialWorktimeExtent: ReadonlyArray<string>;
@@ -97,9 +101,11 @@ type OpenPop = "ort" | "yrke" | "filter" | "match" | null;
 // router.push transition an optimistic overlay shows the new value at once.
 interface FilterSelection {
   occupationGroup: string[];
+  occupationName: string[];
   region: string[];
   municipality: string[];
   remote: boolean;
+  junior: boolean;
   employmentType: string[];
   worktimeExtent: string[];
   matchGrades: string[];
@@ -112,9 +118,11 @@ interface FilterSelection {
 export function JobbHeroFilters({
   taxonomy,
   initialOccupationGroup,
+  initialOccupationName,
   initialRegion,
   initialMunicipality,
   initialRemote,
+  initialJunior,
   initialEmploymentType,
   initialWorktimeExtent,
   initialMatchGrades,
@@ -144,9 +152,11 @@ export function JobbHeroFilters({
   const base = useMemo<FilterSelection>(
     () => ({
       occupationGroup: [...initialOccupationGroup],
+      occupationName: [...initialOccupationName],
       region: [...initialRegion],
       municipality: [...initialMunicipality],
       remote: initialRemote,
+      junior: initialJunior,
       employmentType: [...initialEmploymentType],
       worktimeExtent: [...initialWorktimeExtent],
       matchGrades: [...initialMatchGrades],
@@ -157,9 +167,11 @@ export function JobbHeroFilters({
     }),
     [
       initialOccupationGroup,
+      initialOccupationName,
       initialRegion,
       initialMunicipality,
       initialRemote,
+      initialJunior,
       initialEmploymentType,
       initialWorktimeExtent,
       initialMatchGrades,
@@ -174,6 +186,10 @@ export function JobbHeroFilters({
     (_current, next: FilterSelection) => next,
   );
   const occupationGroup = selection.occupationGroup;
+  const occupationName = selection.occupationName;
+  // The pill counts what the Yrke chips remove: every group and every name, a group and one of its
+  // names as two (design-reviewer, #2199).
+  const yrkeCount = occupationGroup.length + occupationName.length;
   const ort: OrtSelection = selection;
 
   const [openPop, setOpenPop] = useState<OpenPop>(null);
@@ -234,9 +250,11 @@ export function JobbHeroFilters({
         buildJobbHref({
           q,
           occupationGroup: next.occupationGroup,
+          occupationName: next.occupationName,
           region: next.region,
           municipality: next.municipality,
           remote: next.remote,
+          junior: next.junior,
           employmentType: next.employmentType,
           worktimeExtent: next.worktimeExtent,
           matchGrades: next.matchGrades,
@@ -256,6 +274,13 @@ export function JobbHeroFilters({
   function changeOccupationGroup(next: string[]) {
     commit({ ...selection, occupationGroup: next });
   }
+  function changeOccupationName(next: string[]) {
+    commit({ ...selection, occupationName: next });
+  }
+  // One commit for both lists: two in a row would spread a stale `selection` into the second.
+  function clearYrke() {
+    commit({ ...selection, occupationGroup: [], occupationName: [] });
+  }
   function commitOrt(next: OrtSelection) {
     commit({
       ...selection,
@@ -267,6 +292,9 @@ export function JobbHeroFilters({
   // ort-selection.ts.
   function toggleRemote() {
     commit({ ...selection, remote: !selection.remote });
+  }
+  function toggleJunior() {
+    commit({ ...selection, junior: !selection.junior });
   }
   function changeEmploymentType(next: string[]) {
     commit({ ...selection, employmentType: next });
@@ -370,8 +398,11 @@ export function JobbHeroFilters({
   // this the filter would be visible nowhere while the popover is closed.
   const ortCount =
     ort.region.length + ort.municipality.length + (selection.remote ? 1 : 0);
+  // The junior filter lives in the same panel, so it counts towards the panel's pill.
   const filterCount =
-    selection.employmentType.length + selection.worktimeExtent.length;
+    selection.employmentType.length +
+    selection.worktimeExtent.length +
+    (selection.junior ? 1 : 0);
 
   // Per-option counts are fetched, debounced, only while their popover or panel is
   // open (ADR 0067 Beslut 4). The place popover needs two dimensions, municipality
@@ -381,11 +412,13 @@ export function JobbHeroFilters({
   // with only remote work selected would count the whole corpus.
   const facetFilter = {
     occupationGroup,
+    occupationName: selection.occupationName,
     municipality: ort.municipality,
     region: ort.region,
     employmentType: selection.employmentType,
     worktimeExtent: selection.worktimeExtent,
     remote: selection.remote,
+    junior: selection.junior,
     q,
   };
   const municipalityCounts = useFacetCounts(
@@ -464,17 +497,17 @@ export function JobbHeroFilters({
         ref={yrkeBtnRef}
         type="button"
         className="jp-hero-pill"
-        data-active={openPop === "yrke" || occupationGroup.length > 0}
+        data-active={openPop === "yrke" || yrkeCount > 0}
         aria-haspopup="dialog"
         aria-expanded={openPop === "yrke"}
         onClick={() => setOpenPop(openPop === "yrke" ? null : "yrke")}
       >
-        {occupationGroup.length > 0 && (
+        {yrkeCount > 0 && (
           <span className="jp-hero-pill__dot" aria-hidden="true" />
         )}
         {t("heroFilters.yrke")}
-        {occupationGroup.length > 0 && (
-          <span className="jp-hero-pill__count">{occupationGroup.length}</span>
+        {yrkeCount > 0 && (
+          <span className="jp-hero-pill__count">{yrkeCount}</span>
         )}
         <ChevronDown size={14} aria-hidden="true" />
       </button>
@@ -578,6 +611,10 @@ export function JobbHeroFilters({
         selected={occupationGroup}
         onChange={changeOccupationGroup}
         counts={occupationGroupCounts}
+        selectedNames={occupationName}
+        onNamesChange={changeOccupationName}
+        onClearAll={clearYrke}
+        facetFilter={facetFilter}
         footer={showResultsFooter}
         onClose={() => setOpenPop(null)}
         triggerRef={yrkeBtnRef}
@@ -594,6 +631,8 @@ export function JobbHeroFilters({
         worktimeExtentCounts={worktimeExtentCounts}
         onEmploymentTypeChange={changeEmploymentType}
         onWorktimeExtentChange={changeWorktimeExtent}
+        junior={selection.junior}
+        onJuniorToggle={toggleJunior}
         emptyText={t("heroFilters.klass2Empty")}
         footer={showResultsFooter}
         onClose={() => setOpenPop(null)}

@@ -19,6 +19,7 @@ const STATEFUL_PATHS = [
   "",
   "/anvandare",
   "/feedback",
+  "/juniorjobb",
   "/loggar",
   "/loggar/applikationsfel",
   "/loggar/platsbanken-import",

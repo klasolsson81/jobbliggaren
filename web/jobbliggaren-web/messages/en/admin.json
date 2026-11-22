@@ -567,6 +567,80 @@
       "replyReporterGone": "The account owner has no active profile or no address to reply to. The reply was not sent."
     }
   },
+  "juniorJobs": {
+    "meta": {
+      "title": "Junior jobs"
+    },
+    "heading": "Junior jobs",
+    "tabs": {
+      "label": "Choose a tab",
+      "count": "{label} ({count})",
+      "unclear": "To decide",
+      "shown": "On /junior",
+      "decided": "Decided"
+    },
+    "list": {
+      "empty": {
+        "unclear": "No ads to decide right now.",
+        "shown": "No ads are shown on /junior right now.",
+        "decided": "No decided ads right now."
+      },
+      "pageMissing": "The page does not exist.",
+      "firstPage": "Go to the first page"
+    },
+    "row": {
+      "published": "Published",
+      "expires": "Last day",
+      "municipality": "Place",
+      "reason": "Why",
+      "rules": "The rules",
+      "rulesValue": "{outcome} · {rule}",
+      "decision": "Your decision"
+    },
+    "outcomes": {
+      "junior": "Junior",
+      "notJunior": "Not junior",
+      "unclear": "Undecided"
+    },
+    "choices": {
+      "junior": "Junior",
+      "notJunior": "Not junior",
+      "release": "Leave to the rules",
+      "busy": "Saving…"
+    },
+    "receipts": {
+      "junior": "Marked as junior: {title}",
+      "notJunior": "Marked as not junior: {title}",
+      "release": "Left to the rules: {title}"
+    },
+    "rules": {
+      "reading-2026-11-19": "Your reading, 19–20 Nov",
+      "title-thesis": "Thesis project in the title",
+      "title-senior": "Senior, lead or manager in the title",
+      "title-junior": "Junior word in the title",
+      "years-3-plus": "Requires at least three years of experience",
+      "text-mentor-only": "Will mentor juniors",
+      "text-junior-and-senior": "Seeks both junior and senior",
+      "text-new-graduate": "New graduate in the text",
+      "text-early-career": "Early career in the text",
+      "text-no-experience-needed": "No experience required, according to the text",
+      "text-seek-junior": "The text seeks a junior",
+      "title-student": "Student in the title",
+      "flag-no-experience": "Marked “no experience required”",
+      "candidate-only": "Junior word without a deciding rule",
+      "no-signal": "No junior signal",
+      "match-timeout": "The text could not be read in full"
+    },
+    "unknownRule": "Unknown rule",
+    "errors": {
+      "unauthorized": "You are no longer signed in. Sign in and try again.",
+      "forbidden": "Your session does not have the Admin role.",
+      "rateLimited": "Too many requests. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+      "gone": "The ad is closed or removed and cannot be decided.",
+      "refused": "The decision was not saved. Reload the page and try again.",
+      "unknown": "Could not confirm that the decision was saved. Reload the page and check."
+    }
+  },
   "logs": {
     "meta": {
       "security": "Logs: Security",

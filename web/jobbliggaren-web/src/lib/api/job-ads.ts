@@ -26,6 +26,9 @@ export interface ListJobAdsQuery {
   // level-4). Fas E2b: ?municipality= (kommun) — backend unionerar
   // region∪municipality (Ort = en dimension, ADR 0067 impl-notat E2b).
   occupationGroup?: ReadonlyArray<string>;
+  // #2199 — occupation-names, repeated like occupationGroup. The backend ORs them
+  // with the groups inside the Yrke dimension (ADR 0067 Amendment 2026-10-24).
+  occupationName?: ReadonlyArray<string>;
   region?: ReadonlyArray<string>;
   municipality?: ReadonlyArray<string>;
   /**
@@ -36,6 +39,11 @@ export interface ListJobAdsQuery {
    * endpointen binder en `bool` och skulle inte binda "on".
    */
   remote?: boolean;
+  /**
+   * #2261 — the junior IT list as a filter. The route flag is `?junior=on`; the wire value is `true`,
+   * because the endpoint binds a `bool`.
+   */
+  junior?: boolean;
   // Klass 2 (2026-06-13) — anställningsform + omfattning. Upprepad query-
   // string (?employmentType=a&employmentType=b), string[]-bindning backend
   // (B2/#60). worktimeExtent bär 0–1 element (radio-single i panelen).
@@ -82,6 +90,8 @@ function buildQuery(query: ListJobAdsQuery): string {
   // append (ej set) — upprepad nyckel per element (ADR 0042 Beslut B).
   for (const v of query.occupationGroup ?? [])
     params.append("occupationGroup", v);
+  for (const v of query.occupationName ?? [])
+    params.append("occupationName", v);
   for (const v of query.region ?? []) params.append("region", v);
   for (const v of query.municipality ?? []) params.append("municipality", v);
   // Klass 2 — upprepad nyckel per element (samma som dimensionerna ovan).
@@ -96,6 +106,8 @@ function buildQuery(query: ListJobAdsQuery): string {
   // default false), och som "true": endpointen binder en C#-bool, och ASP.NET
   // binder INTE rutt-flaggans sentinel-ord "on". Två namn OCH två värden.
   if (query.remote) params.append("remote", "true");
+  // #2261 — written only when true, and as "true" for the bool binding, like remote above.
+  if (query.junior) params.append("junior", "true");
   // #454 PR-0 — arbetsgivar-filtret. En `employer`-param per org.nr; skrivs BARA ut
   // när listan är icke-tom.
   for (const v of query.employer ?? []) params.append("employer", v);
@@ -222,6 +234,7 @@ export async function suggestJobAdTerms(
 
 export interface FacetCountsFilter {
   occupationGroup?: ReadonlyArray<string>;
+  occupationName?: ReadonlyArray<string>;
   municipality?: ReadonlyArray<string>;
   region?: ReadonlyArray<string>;
   // ADR 0067 PR-3 — Klass 2-filterkontext för facetten (backend exkluderar
@@ -232,6 +245,8 @@ export interface FacetCountsFilter {
   // Klass 2: utan den räknar Yrke-/Klass-2-facetterna mot ett annat geo-predikat
   // än listan.
   remote?: boolean;
+  // #2261 — an active junior filter is context too, so the other facets count the list's own WHERE.
+  junior?: boolean;
   q?: string;
 }
 
@@ -256,6 +271,8 @@ export async function getFacetCounts(
   const params = new URLSearchParams({ dimension });
   for (const v of filter.occupationGroup ?? [])
     params.append("occupationGroup", v);
+  for (const v of filter.occupationName ?? [])
+    params.append("occupationName", v);
   for (const v of filter.municipality ?? []) params.append("municipality", v);
   for (const v of filter.region ?? []) params.append("region", v);
   for (const v of filter.employmentType ?? [])
@@ -264,6 +281,7 @@ export async function getFacetCounts(
     params.append("worktimeExtent", v);
   // #551 punkt 4 — bool-bindning backend-sidigt (JobAdsEndpoints), alltså "true".
   if (filter.remote) params.append("remote", "true");
+  if (filter.junior) params.append("junior", "true");
   if (filter.q) params.set("q", filter.q);
 
   try {

@@ -219,6 +219,11 @@ public class JobAdRawPayloadDerivationGuardTests
         ["EmploymentTypeConceptId"] = [],
         ["WorktimeExtentConceptId"] = [],
         ["OrganizationNumber"] = [],
+
+        // #2264 (ADR 0187) — the junior inputs, written by SetSourcePayload over the post-scrub text. A bulk write would
+        // let the fingerprint disagree with the text it claims to hash, and the sweep would then trust a stale verdict.
+        ["ExperienceRequired"] = [],
+        ["JuniorInputFingerprint"] = [],
     };
 
     [Fact]

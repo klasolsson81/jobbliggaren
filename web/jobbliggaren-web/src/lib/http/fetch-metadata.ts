@@ -37,3 +37,17 @@ export function isCrossSiteDocumentNavigation(headers: Headers): boolean {
     !isPrefetch(headers)
   );
 }
+
+/**
+ * A top-level document navigation that is not cross-site: started on this site or a sibling on it, or by the browser
+ * itself (`none`).
+ */
+export function isNonCrossSiteDocumentNavigation(headers: Headers): boolean {
+  const site = headers.get("sec-fetch-site");
+  return (
+    (site === "same-origin" || site === "same-site" || site === "none") &&
+    headers.get("sec-fetch-mode") === "navigate" &&
+    headers.get("sec-fetch-dest") === "document" &&
+    !isPrefetch(headers)
+  );
+}

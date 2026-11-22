@@ -299,4 +299,94 @@ public class RecentJobSearchTests
         // CTO 2026-05-20 Q3 villkor — cap för YAGNI-dom på Variant A (re-query per row).
         RecentJobSearch.MaxPerSeeker.ShouldBe(20);
     }
+
+    // ---------------------------------------------------------------
+    // ADR 0188 (#2265) — the quick-link slot
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Capture_LeavesTheSearchUnmarked()
+    {
+        RecentJobSearch.Capture(ValidJobSeekerId, ValidCriteria(), 1, Clock.UtcNow)
+            .QuickLinkSlot.ShouldBeNull();
+    }
+
+    [Fact]
+    public void MarkAsQuickLink_TakesTheSlotAndRaisesMarked()
+    {
+        var aggregate = RecentJobSearch.Capture(ValidJobSeekerId, ValidCriteria(), 1, Clock.UtcNow);
+        var markedAt = Clock.UtcNow.AddHours(1);
+
+        aggregate.MarkAsQuickLink(2, markedAt);
+
+        aggregate.QuickLinkSlot.ShouldBe(2);
+        var evt = aggregate.DomainEvents.OfType<RecentJobSearchQuickLinkMarkedDomainEvent>().ShouldHaveSingleItem();
+        evt.RecentJobSearchId.ShouldBe(aggregate.Id);
+        evt.JobSeekerId.ShouldBe(ValidJobSeekerId);
+        evt.OccurredAt.ShouldBe(markedAt);
+    }
+
+    [Fact]
+    public void MarkAsQuickLink_OnAMarkedSearch_KeepsItsSlotAndRaisesNothing()
+    {
+        var aggregate = RecentJobSearch.Capture(ValidJobSeekerId, ValidCriteria(), 1, Clock.UtcNow);
+        aggregate.MarkAsQuickLink(1, Clock.UtcNow.AddHours(1));
+
+        aggregate.MarkAsQuickLink(3, Clock.UtcNow.AddHours(5));
+
+        aggregate.QuickLinkSlot.ShouldBe(1);
+        aggregate.DomainEvents.OfType<RecentJobSearchQuickLinkMarkedDomainEvent>().Count().ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(-1)]
+    public void MarkAsQuickLink_ASlotOutsideTheCap_Throws(int slot)
+    {
+        var aggregate = RecentJobSearch.Capture(ValidJobSeekerId, ValidCriteria(), 1, Clock.UtcNow);
+
+        Should.Throw<ArgumentOutOfRangeException>(() => aggregate.MarkAsQuickLink(slot, Clock.UtcNow));
+        aggregate.QuickLinkSlot.ShouldBeNull();
+    }
+
+    [Fact]
+    public void UnmarkQuickLink_ClearsTheSlotAndRaisesUnmarked()
+    {
+        var aggregate = RecentJobSearch.Capture(ValidJobSeekerId, ValidCriteria(), 1, Clock.UtcNow);
+        aggregate.MarkAsQuickLink(1, Clock.UtcNow.AddHours(1));
+        var unmarkedAt = Clock.UtcNow.AddHours(2);
+
+        aggregate.UnmarkQuickLink(unmarkedAt);
+
+        aggregate.QuickLinkSlot.ShouldBeNull();
+        var evt = aggregate.DomainEvents.OfType<RecentJobSearchQuickLinkUnmarkedDomainEvent>().ShouldHaveSingleItem();
+        evt.RecentJobSearchId.ShouldBe(aggregate.Id);
+        evt.JobSeekerId.ShouldBe(ValidJobSeekerId);
+        evt.OccurredAt.ShouldBe(unmarkedAt);
+    }
+
+    [Fact]
+    public void UnmarkQuickLink_OnAnUnmarkedSearch_RaisesNothing()
+    {
+        var aggregate = RecentJobSearch.Capture(ValidJobSeekerId, ValidCriteria(), 1, Clock.UtcNow);
+
+        aggregate.UnmarkQuickLink(Clock.UtcNow.AddHours(1));
+
+        aggregate.QuickLinkSlot.ShouldBeNull();
+        aggregate.DomainEvents.OfType<RecentJobSearchQuickLinkUnmarkedDomainEvent>().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Bump_KeepsTheSlotAndTheHash()
+    {
+        var aggregate = RecentJobSearch.Capture(ValidJobSeekerId, ValidCriteria(), 1, Clock.UtcNow);
+        aggregate.MarkAsQuickLink(2, Clock.UtcNow.AddHours(1));
+        var hash = aggregate.FilterHash;
+
+        aggregate.Bump(5, Clock.UtcNow.AddHours(2));
+
+        aggregate.QuickLinkSlot.ShouldBe(2);
+        aggregate.FilterHash.ShouldBe(hash);
+    }
 }

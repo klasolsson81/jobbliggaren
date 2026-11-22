@@ -8,6 +8,7 @@ const wireBase = {
   id: "33333333-3333-3333-3333-333333333333",
   q: "backend",
   occupationGroupList: ["MVqp_eS8_kDZ"],
+  occupationNameList: [],
   municipalityList: ["zHxw_uJZ_NNh"],
   regionList: ["CifL_Rzy_Mku"],
   employmentTypeList: ["gro4_cWF_6D7"],
@@ -17,6 +18,7 @@ const wireBase = {
   occupationGroupLabels: [
     { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
   ],
+  occupationNameLabels: [],
   municipalityLabels: [{ conceptId: "zHxw_uJZ_NNh", label: "Solna" }],
   regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
   sortBy: 0,
@@ -30,6 +32,7 @@ const wireBase = {
   currentCount: 42,
   newCount: 7,
   lastViewedAt: "2026-05-20T19:00:00Z",
+  isQuickLink: false,
 };
 
 describe("recentJobSearchDtoSchema", () => {
@@ -131,11 +134,12 @@ describe("recentJobSearchDtoSchema", () => {
     expect(parsed.q).toBeNull();
   });
 
-  it("defaults missing occupationGroupLabels/regionLabels to empty arrays", () => {
-    const { occupationGroupLabels: _a, regionLabels: _b, ...rest } = wireBase;
-    const parsed = recentJobSearchDtoSchema.parse(rest);
-    expect(parsed.occupationGroupLabels).toEqual([]);
-    expect(parsed.regionLabels).toEqual([]);
+  it("defaults occupationGroupLabels, municipalityLabels and regionLabels, by the schema's shape", () => {
+    const { occupationGroupLabels, municipalityLabels, regionLabels } =
+      recentJobSearchDtoSchema.shape;
+    expect(occupationGroupLabels.parse(undefined)).toEqual([]);
+    expect(municipalityLabels.parse(undefined)).toEqual([]);
+    expect(regionLabels.parse(undefined)).toEqual([]);
   });
 
   it("carries remote from the wire in both polarities (#1407)", () => {
@@ -155,12 +159,27 @@ describe("recentJobSearchDtoSchema", () => {
     expect(parsed.employerList).toEqual(["5566010101", "5560125790"]);
   });
 
-  it("rejects a payload with no employerList field rather than defaulting it to empty", () => {
-    // Same actor as the remote case below (#1238's deploy-skew window), same reason: a default
-    // would make "the API stopped sending the axis" indistinguishable from "no employer
-    // filter" — a replay that silently widens, which is #1471's own failure mode one layer out.
-    const { employerList: _omitted, ...withoutEmployerList } = wireBase;
-    expect(() => recentJobSearchDtoSchema.parse(withoutEmployerList)).toThrow();
+  it("requires employerList, by the schema's shape", () => {
+    expect(recentJobSearchDtoSchema.pick({ employerList: true }).safeParse({}).success).toBe(false);
+  });
+
+  it("carries occupationNameList and its labels from the wire (#2199)", () => {
+    const parsed = recentJobSearchDtoSchema.parse({
+      ...wireBase,
+      occupationNameList: ["z5AM_ayf_WcL"],
+      occupationNameLabels: [{ conceptId: "z5AM_ayf_WcL", label: "Projektledare, IT" }],
+    });
+    expect(parsed.occupationNameList).toEqual(["z5AM_ayf_WcL"]);
+    expect(parsed.occupationNameLabels).toEqual([
+      { conceptId: "z5AM_ayf_WcL", label: "Projektledare, IT" },
+    ]);
+  });
+
+  it("requires occupationNameList and defaults occupationNameLabels, by the schema's shape", () => {
+    expect(
+      recentJobSearchDtoSchema.pick({ occupationNameList: true }).safeParse({}).success,
+    ).toBe(false);
+    expect(recentJobSearchDtoSchema.shape.occupationNameLabels.parse(undefined)).toEqual([]);
   });
 
   it("parses an Employer part, which carries neither text nor code (#1471)", () => {
@@ -188,16 +207,8 @@ describe("recentJobSearchDtoSchema", () => {
     }
   });
 
-  it("rejects a payload with no remote field rather than defaulting it to false", () => {
-    // The actor that produces this payload is not a path in src/ — it is the deploy
-    // skew window #1238 names: until the box applies release records, the five `latest`
-    // tags move one at a time (ADR 0149 R10), so a pull can land a new web against an
-    // older api that predates the field. This asserts only that the read side degrades safely
-    // (throw -> responseToResult -> {kind:"error"}), never what production emits.
-    // Defaulting instead would make "the API stopped sending the axis" indistinguishable
-    // from "the user did not pick distans" — #1407's own failure mode, one layer out.
-    const { remote: _omitted, ...withoutRemote } = wireBase;
-    expect(() => recentJobSearchDtoSchema.parse(withoutRemote)).toThrow();
+  it("requires remote, by the schema's shape", () => {
+    expect(recentJobSearchDtoSchema.pick({ remote: true }).safeParse({}).success).toBe(false);
   });
 
   it("parses Relevance numeric sortBy index 4", () => {

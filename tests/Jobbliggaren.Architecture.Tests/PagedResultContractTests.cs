@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Applications.Queries.GetApplications;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Application.JobAds.Queries.GetPublicJobAdCatalogue;
+using Jobbliggaren.Application.JobAds.Queries.GetPublicJuniorItJobAds;
 using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Application.Resumes.Queries.GetResumes;
 using Mediator;
@@ -53,6 +54,12 @@ namespace Jobbliggaren.Architecture.Tests;
 /// above does not see it. Its answer has two arms that are not a page: a page past the end (404) and a snapshot too old
 /// to answer (503), which is availability and no <c>ErrorKind</c>. The page arm still carries
 /// <see cref="PagedResult{T}"/>, pinned by its own test below, so the exception is stated rather than missed.
+/// </para>
+///
+/// <para>
+/// The open junior IT list (ADR 0186) answers the same third form: <c>GetPublicJuniorItJobAdsQuery</c> has <c>Page</c>
+/// and a constant page size, and its union's page arm carries <see cref="PagedResult{T}"/> beside the kommun options.
+/// Its one arm that is not a page is a page past the end (404). Its own test below pins the page arm.
 /// </para>
 ///
 /// <para>
@@ -135,6 +142,17 @@ public class PagedResultContractTests
         var available = typeof(PublicJobAdCataloguePage.Available).GetProperty(nameof(PublicJobAdCataloguePage.Available.Rows));
         available.ShouldNotBeNull();
         available.PropertyType.ShouldBe(typeof(PagedResult<PublicJobAdSummaryDto>));
+    }
+
+    [Fact]
+    public void GetPublicJuniorItJobAdsQuery_Available_arm_carries_PagedResult()
+    {
+        ReturnsPagedResult(typeof(GetPublicJuniorItJobAdsQuery)).ShouldBeFalse(
+            "the junior IT list answers a closed union, not a bare PagedResult (ADR 0186).");
+
+        var rows = typeof(PublicJuniorItJobAdsPage.Available).GetProperty(nameof(PublicJuniorItJobAdsPage.Available.Rows));
+        rows.ShouldNotBeNull();
+        rows.PropertyType.ShouldBe(typeof(PagedResult<PublicJuniorItJobAdDto>));
     }
 
     private static bool IsMediatorQuery(Type type) =>

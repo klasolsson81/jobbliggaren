@@ -76,6 +76,8 @@ import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
 interface JobbResultsToolbarProps {
   totalCount: number;
   occupationGroup: ReadonlyArray<string>;
+  // #2199 — occupation-names, rendered as removable chips beside the groups.
+  occupationName: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   municipality: ReadonlyArray<string>;
   /**
@@ -85,6 +87,11 @@ interface JobbResultsToolbarProps {
    * ADR 0042 Beslut B).
    */
   remote: boolean;
+  /**
+   * #2261 — the junior filter. Like Distans, the toolbar never edits it (its checkbox is in the
+   * Filter panel), but carries it in every href and clears it with the rest.
+   */
+  junior: boolean;
   // Klass 2 (2026-06-13) — anställningsform + omfattning. Renderas som
   // borttagbara chips i samma rad (server-resolverade labels via
   // /taxonomy/labels, kind-agnostisk sedan PR-1).
@@ -201,6 +208,7 @@ const CHIP_ICON: Record<SearchChip["axis"], LucideIcon> = {
   region: MapPin,
   municipality: MapPin,
   occupationGroup: Briefcase,
+  occupationName: Briefcase,
   employmentType: FileText,
   worktimeExtent: Clock,
   q: Search,
@@ -209,9 +217,11 @@ const CHIP_ICON: Record<SearchChip["axis"], LucideIcon> = {
 export function JobbResultsToolbar({
   totalCount,
   occupationGroup,
+  occupationName,
   region,
   municipality,
   remote,
+  junior,
   employmentType,
   worktimeExtent,
   matchGrades,
@@ -255,9 +265,11 @@ export function JobbResultsToolbar({
     () => ({
       q,
       occupationGroup: [...occupationGroup],
+      occupationName: [...occupationName],
       region: [...region],
       municipality: [...municipality],
       remote,
+      junior,
       employmentType: [...employmentType],
       worktimeExtent: [...worktimeExtent],
       matchGrades: [...matchGrades],
@@ -282,9 +294,11 @@ export function JobbResultsToolbar({
     [
       q,
       occupationGroup,
+      occupationName,
       region,
       municipality,
       remote,
+      junior,
       employmentType,
       worktimeExtent,
       matchGrades,
@@ -391,6 +405,7 @@ export function JobbResultsToolbar({
     commit({
       ...urlState,
       occupationGroup: [],
+      occupationName: [],
       region: [],
       municipality: [],
       // #551 punkt 4 — Distans nollas med de övriga ort-axlarna. Den har INGEN
@@ -398,6 +413,9 @@ export function JobbResultsToolbar({
       // borttagna" nedan); kontrollen är kryssrutan i Ort-popovern. "Rensa
       // sökord och filter" ska ändå tömma hela ort-dimensionen, inte två av tre.
       remote: false,
+      // #2261 — the junior filter has no chip either (the boolean-filter line above), and is
+      // cleared with the rest for the same reason.
+      junior: false,
       // Klass 2 — "Rensa sökord och filter" nollar ALLA axlar inkl.
       // anställningsform/omfattning (least surprise — allt med × försvinner).
       employmentType: [],
@@ -413,7 +431,7 @@ export function JobbResultsToolbar({
     commit({ ...urlState, sortBy: e.target.value as JobAdSortBy });
   }
 
-  // Chips-ordning: region → municipality → occupationGroup → q-ord
+  // Chips-ordning: region → municipality → occupationGroup → occupationName → q-ord
   // (ordningen ägs av buildChipModels). E2i (Klas-spec): ALLA taggar —
   // även fritext-sökorden — visas här med ×; raden är sökets TOTALA spegel
   // (hero-fältet är best-effort, C′-modellen).

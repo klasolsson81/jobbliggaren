@@ -43,6 +43,14 @@ public sealed class NotificationFeedGate
         new Specification<JobSeeker>(seeker => seeker.Preferences.NotificationFeedFollowedAdsOffAt == null));
 
     /// <summary>
+    /// New ads from a Branschbevakning (ADR 0175 D8): its own switch alone, on from the start. Its hits are produced
+    /// under Art. 6(1)(b) for every criterion, so no consent can be what gates reading them (DPIA 560 §D9, ruling (2)).
+    /// </summary>
+    public static NotificationFeedGate CriterionAds { get; } = new(
+        consent: null,
+        new Specification<JobSeeker>(seeker => seeker.Preferences.NotificationFeedCriterionAdsOffAt == null));
+
+    /// <summary>
     /// The query form: each part is its own <c>Where</c>, so nothing is rewritten and every part translates as it
     /// does on its own.
     /// </summary>

@@ -524,6 +524,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // ADR 0182 — the related ads under a public job page, the same 127.0.0.1 bucket for every anonymous test of them.
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRelated__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRelated__WindowSeconds", "60");
+        // ADR 0186 — the open junior IT list, the same 127.0.0.1 bucket for every anonymous test of it.
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdJuniorIt__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdJuniorIt__WindowSeconds", "60");
         // #1974 — the admin account directory's reads share one bucket per admin, and a paging or sorting
         // test calls them more often than the burst allows.
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__PermitLimit", "10000");
@@ -616,6 +619,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdCatalogue__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRelated__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdRelated__WindowSeconds", null);
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdJuniorIt__PermitLimit", null);
+        Environment.SetEnvironmentVariable("RateLimiting__PublicJobAdJuniorIt__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__AdminRead__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__FeedbackSubmit__PermitLimit", null);

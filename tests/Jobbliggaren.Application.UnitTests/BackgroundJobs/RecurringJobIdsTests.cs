@@ -42,12 +42,13 @@ public class RecurringJobIdsTests
         RecurringJobIds.EmailSendCountRetention,
         RecurringJobIds.DmarcReportIngestion,
         RecurringJobIds.DmarcReportRetention,
+        RecurringJobIds.ClassifyJuniorJobAds,
     ];
 
     [Fact]
-    public void All_HasExactlyTwentyFiveMembers()
+    public void All_HasExactlyTwentySixMembers()
     {
-        RecurringJobIds.All.Count.ShouldBe(25);
+        RecurringJobIds.All.Count.ShouldBe(26);
     }
 
     [Fact]
@@ -55,8 +56,8 @@ public class RecurringJobIdsTests
     {
         // FrozenSet dedups silently; assert against the raw constant list so a duplicated
         // const value (copy-paste slip) is caught rather than absorbed by the set.
-        ExpectedIds.Length.ShouldBe(25);
-        ExpectedIds.Distinct(StringComparer.Ordinal).Count().ShouldBe(25);
+        ExpectedIds.Length.ShouldBe(26);
+        ExpectedIds.Distinct(StringComparer.Ordinal).Count().ShouldBe(26);
     }
 
     [Fact]

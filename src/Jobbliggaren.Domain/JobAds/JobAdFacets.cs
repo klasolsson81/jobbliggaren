@@ -69,7 +69,8 @@ public sealed record JobAdFacets
         string? employmentTypeConceptId,
         string? worktimeExtentConceptId,
         string? organizationNumber,
-        bool? remote = null)
+        bool? remote = null,
+        bool? experienceRequired = null)
     {
         OccupationNameConceptId = Normalize(occupationNameConceptId);
         OccupationGroupConceptId = Normalize(occupationGroupConceptId);
@@ -79,6 +80,7 @@ public sealed record JobAdFacets
         WorktimeExtentConceptId = Normalize(worktimeExtentConceptId);
         OrganizationNumber = Normalize(organizationNumber);
         Remote = remote;
+        ExperienceRequired = experienceRequired;
     }
 
     /// <summary>
@@ -133,6 +135,13 @@ public sealed record JobAdFacets
     /// </summary>
     public bool? Remote { get; }
 
+    /// <summary>
+    /// #2264 — the advertiser's own "experience required" mark (payload: <c>experience_required</c>),
+    /// one input to the junior classification. <see langword="null"/> = the payload did not carry the key.
+    /// A non-PII closed-domain boolean.
+    /// </summary>
+    public bool? ExperienceRequired { get; }
+
     /// <summary>True when the payload carried no facet at all (parity <see cref="None"/>).</summary>
     public bool IsEmpty =>
         OccupationNameConceptId is null
@@ -142,7 +151,8 @@ public sealed record JobAdFacets
         && EmploymentTypeConceptId is null
         && WorktimeExtentConceptId is null
         && OrganizationNumber is null
-        && Remote is null;
+        && Remote is null
+        && ExperienceRequired is null;
 
     /// <summary>
     /// REDACTED on purpose. A record's compiler-generated <c>ToString()</c> prints every public member —

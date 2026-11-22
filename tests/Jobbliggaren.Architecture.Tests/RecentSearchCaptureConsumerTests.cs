@@ -2,6 +2,7 @@ using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Application.RecentJobSearches.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Commands.CaptureRecentSearch;
 using Jobbliggaren.Application.RecentJobSearches.Common;
+using Jobbliggaren.Domain.RecentJobSearches;
 using Jobbliggaren.Infrastructure.RecentJobSearches;
 using Shouldly;
 
@@ -34,6 +35,14 @@ public class RecentSearchCaptureConsumerTests
                     $"{typeof(CaptureRecentSearchCommandHandler).FullName}.Handle",
                 ],
                 "#2199 PR 2b / #2285: the list answers the gate's verdict and the command stores what the gate admits.");
+
+    [Fact]
+    public void Only_the_capturer_creates_or_bumps_a_recent_search() =>
+        UserJobAdMatchClaimerTests.ReferencesTo(typeof(RecentJobSearch), nameof(RecentJobSearch.Capture))
+            .Concat(UserJobAdMatchClaimerTests.ReferencesTo(typeof(RecentJobSearch), nameof(RecentJobSearch.Bump)))
+            .Distinct()
+            .ToList()
+            .ShouldBe([$"{typeof(RecentJobSearchCapturer).FullName}.CaptureAsync"]);
 
     private static List<string> CallersOf(string method) =>
         [.. UserJobAdMatchClaimerTests.ReferencesTo(typeof(IRecentJobSearchCapturer), method)

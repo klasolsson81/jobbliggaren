@@ -5,7 +5,6 @@ using Jobbliggaren.Application.Admin.Accounts.Queries.GetAccountDetails;
 using Jobbliggaren.Application.Admin.Accounts.Queries.GetAccountOverview;
 using Jobbliggaren.Application.Admin.Accounts.Queries.SearchAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
-using Jobbliggaren.Application.RecentJobSearches.Common;
 using Mediator;
 using Shouldly;
 
@@ -37,15 +36,6 @@ public class AdminAccountDirectoryTests
         AdminMessages().ShouldNotBeEmpty();
         AdminMessages()
             .Where(type => !typeof(IAdminRequest).IsAssignableFrom(type))
-            .Select(type => type.FullName)
-            .ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void No_admin_message_records_a_recent_search()
-    {
-        AdminMessages()
-            .Where(type => typeof(IRecentSearchCandidate).IsAssignableFrom(type))
             .Select(type => type.FullName)
             .ShouldBeEmpty();
     }

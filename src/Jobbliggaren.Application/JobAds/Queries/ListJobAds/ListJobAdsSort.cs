@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Jobbliggaren.Domain.JobAds;
 
 namespace Jobbliggaren.Application.JobAds.Queries.ListJobAds;
@@ -18,6 +19,7 @@ namespace Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 /// är en Application+Api-concern; den når aldrig Domain.
 /// </para>
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ListJobAdsSort>))]
 public enum ListJobAdsSort
 {
     PublishedAtDesc = 0,

@@ -460,6 +460,30 @@ public class RecentSearchesTests(ApiFactory factory)
         (await StoredSearchesAsync(ct)).ShouldBeEmpty();
     }
 
+    // #2285 (code-reviewer Blocker 1, security-auditor) — the web's own body, byte for byte the shape
+    // recentSearchCaptureBody writes: every axis present, the sort BY NAME. The e2e harness answers any body
+    // with 200, so this is the test its POST stub rests on.
+    [Theory]
+    [InlineData("Relevance", "Relevance")]
+    [InlineData("MatchDesc", "PublishedAtDesc")]
+    [InlineData("PublishedAtDesc", "PublishedAtDesc")]
+    public async Task Storing_the_webs_own_body_with_the_sort_by_name_stores_it(string sort, string storedSort)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var body =
+            "{\"q\":\"backend\",\"occupationGroup\":[],\"occupationName\":[],\"region\":[],\"municipality\":[],"
+            + "\"employmentType\":[],\"worktimeExtent\":[],\"employer\":[],\"remote\":false,\"juniorIt\":false,"
+            + $"\"sort\":\"{sort}\"}}";
+
+        using var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+        var response = await _client.PostAsync("/api/v1/me/recent-searches", content, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("stored").GetBoolean().ShouldBeTrue();
+        (await StoredSearchesAsync(ct)).ShouldHaveSingleItem().SortBy.ToString().ShouldBe(storedSort);
+    }
+
     // security-auditor, #2285 plan read: the body carries no identity. A body that names another user's id still
     // stores for the caller, whose id comes from the session.
     [Fact]

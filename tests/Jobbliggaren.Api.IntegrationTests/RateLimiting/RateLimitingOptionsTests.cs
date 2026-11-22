@@ -194,6 +194,17 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_RecentSearchCapture_Is30Per60s_TokenBucket()
+    {
+        // #2285 (security-auditor, plan read) — the capture POST's own bucket: five tokens back every ten seconds.
+        var sut = new RateLimitingOptions();
+
+        sut.RecentSearchCapture.PermitLimit.ShouldBe(30);
+        sut.RecentSearchCapture.WindowSeconds.ShouldBe(60);
+        sut.RecentSearchCapture.SegmentsPerWindow.ShouldBe(6);
+    }
+
+    [Fact]
     public void Defaults_NotificationFeedMark_Is60Per60s_TokenBucket()
     {
         // #2130 (security-auditor, PR 2 consult) - the bell's per-row marks: burst 60, ten tokens per 10 s. One bucket for
@@ -504,6 +515,7 @@ public class RateLimitingOptionsTests
         RateLimitingExtensions.JobAdStatusBatchPolicy.ShouldBe("job-ad-status-batch");
         RateLimitingExtensions.MeWritePolicy.ShouldBe("me-write");
         RateLimitingExtensions.FollowSeenMarkPolicy.ShouldBe("follow-seen-mark");
+        RateLimitingExtensions.RecentSearchCapturePolicy.ShouldBe("recent-search-capture");
         RateLimitingExtensions.NotificationFeedMarkPolicy.ShouldBe("notification-feed-mark");
         RateLimitingExtensions.NotificationFeedMarkThroughPolicy.ShouldBe("notification-feed-mark-through");
         RateLimitingExtensions.ResumeImportPolicy.ShouldBe("resume-import");

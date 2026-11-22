@@ -40,8 +40,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <para>
 /// Matching is normalised (case-folded, spaces and underscores removed) because Npgsql accepts
 /// the keyword in several spellings. Over JSON/YAML/env config that normalisation is safe; over
-/// IL it is applied to string literals only, so a comment naming the concept — as
-/// <c>RecentJobSearchCaptureBehavior</c> does — cannot trip it.
+/// IL it is applied to string literals only, so a comment naming the concept cannot trip it.
 /// </para>
 /// </summary>
 public class IncludeErrorDetailGuardTests

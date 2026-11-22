@@ -16,7 +16,7 @@ namespace Jobbliggaren.Api.IntegrationTests.RecentSearches;
 /// <summary>
 /// ADR 0188 (#2265) — <c>PUT</c> and <c>DELETE /api/v1/me/recent-searches/{id}/quick-link</c> end to end on the wired
 /// API and real Postgres, in the form of <c>RecentSearchesTests</c>. Every search is stored the way production stores it,
-/// a committed <c>GET /api/v1/job-ads</c> through the capture behaviour, and every mark goes through the route. The cap
+/// the capture POST, <c>POST /api/v1/me/recent-searches</c> (#2285), and every mark goes through the route. The cap
 /// is three quick links, the junior link counted while it is shown (<c>QuickLinkCap</c>); the slot a mark took is read
 /// from the table, since the list answers only whether a search is a quick link.
 /// </summary>
@@ -204,10 +204,10 @@ public sealed class RecentSearchQuickLinkEndpointTests(ApiFactory factory)
         return client;
     }
 
-    // A committed search: the capture behaviour stores it, as for every search a user commits on /jobb (ADR 0060).
+    // A stored search: the capture POST stores it, as for every search a user stores on /jobb (ADR 0060, #2285).
     private static async Task<Guid> CommitSearchAsync(HttpClient client, string q)
     {
-        (await client.GetAsync($"/api/v1/job-ads?q={q}&commit=true&page=1&pageSize=20", Ct))
+        (await client.PostAsJsonAsync("/api/v1/me/recent-searches", new { q }, Ct))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
         return (await ListAsync(client)).Where(s => s.Q == q).ToList().ShouldHaveSingleItem().Id;
     }

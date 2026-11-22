@@ -41,9 +41,8 @@ public class ListRecentSearchesCountReplayParityTests
 
     // Third digit < '2' — the house discriminator (OrganizationNumber.IsPersonnummerShaped).
     // The actor that produces a row carrying this value — alone or beside a legal entity — is
-    // not the current writer: RecentJobSearchCaptureBehavior has refused a personnummer-shaped
-    // employer since A2 (2026-08-19), and
-    // RecentJobSearchCaptureBehaviorTests.Handle_PersonnummerShapedEmployer_RunsTheSearchButCapturesNothing
+    // not the current writer: its gate has refused a personnummer-shaped employer since A2 (2026-08-19),
+    // and CaptureRecentSearchCommandHandlerTests.Handle_PersonnummerShapedEmployer_CapturesNothing
     // (the mixed list: ..._BesideALegalEntity_CapturesNothingAtAll) pins that. Rows written before
     // that date can carry one — LRU-capped, never purged — and the two cases below are what the
     // handler does with them: ADR 0087 D8(c)'s masked arm, on every consumer.

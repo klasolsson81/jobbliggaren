@@ -13,10 +13,10 @@ using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.RecentSearches;
 
-// ADR 0060 — RecentJobSearches auto-capture + list/delete end-to-end mot
-// Testcontainers Postgres. Auto-capture sker via RecentJobSearchCaptureBehavior
-// när authenticated user kör GET /api/v1/job-ads med IRecentSearchCandidate-
-// query-shape (q/occupationGroup/municipality/region/sortBy — C2-form).
+// ADR 0060 — RecentJobSearches capture + list/delete end-to-end mot
+// Testcontainers Postgres. Since #2285 a search is stored only by
+// POST /api/v1/me/recent-searches, the capture command the /jobb Server Action sends;
+// a list GET stores nothing, whatever it carries.
 //
 // C2 (ADR 0067, CTO-dom (d) + architect F5/F6): yrkesgrupp-only- och
 // kommun-only-sökningar capture:as nu (stänger C1:s LIVE-gap där guarden bara
@@ -26,6 +26,14 @@ namespace Jobbliggaren.Api.IntegrationTests.RecentSearches;
 public class RecentSearchesTests(ApiFactory factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
+
+    // #2285 — how a search is stored: the capture POST, with the command's own names (`sort`, `juniorIt`).
+    private async Task<JsonElement> CaptureAsync(object search, CancellationToken ct)
+    {
+        var response = await _client.PostAsJsonAsync("/api/v1/me/recent-searches", search, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        return await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+    }
 
     private async Task AuthenticateAsync(CancellationToken ct)
     {
@@ -45,15 +53,12 @@ public class RecentSearchesTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Searching_jobs_captures_a_recent_search_row()
+    public async Task Storing_a_search_stores_a_recent_search_row()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        // Trigga auto-capture genom att söka /api/v1/job-ads med kriterier.
-        var searchResponse = await _client.GetAsync(
-            "/api/v1/job-ads?q=backend&commit=true&page=1&pageSize=20", ct);
-        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await CaptureAsync(new { q = "backend" }, ct)).GetProperty("stored").GetBoolean().ShouldBeTrue();
 
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         listResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -117,7 +122,7 @@ public class RecentSearchesTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Searching_jobs_with_occupation_group_only_captures_a_recent_search_row()
+    public async Task Storing_a_search_with_occupation_group_only_stores_a_row()
     {
         // C1:s LIVE-gap: en ?occupationGroup=-sökning utan q capture:ades
         // aldrig (guarden räknade inte dimensionen). C2 stänger gapet.
@@ -125,9 +130,7 @@ public class RecentSearchesTests(ApiFactory factory)
         await AuthenticateAsync(ct);
 
         var group = $"grp{Guid.NewGuid():N}"[..16];
-        var searchResponse = await _client.GetAsync(
-            $"/api/v1/job-ads?occupationGroup={group}&commit=true&page=1&pageSize=20", ct);
-        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        await CaptureAsync(new { occupationGroup = new[] { group } }, ct);
 
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         listResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -147,15 +150,13 @@ public class RecentSearchesTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Searching_jobs_with_municipality_only_captures_a_recent_search_row()
+    public async Task Storing_a_search_with_municipality_only_stores_a_row()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
         var municipality = $"kn{Guid.NewGuid():N}"[..16];
-        var searchResponse = await _client.GetAsync(
-            $"/api/v1/job-ads?municipality={municipality}&commit=true&page=1&pageSize=20", ct);
-        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        await CaptureAsync(new { municipality = new[] { municipality } }, ct);
 
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         listResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -169,16 +170,16 @@ public class RecentSearchesTests(ApiFactory factory)
             .ShouldContain(municipality);
         row.TryGetProperty("ssykList", out _).ShouldBeFalse();
         // #1407: the false polarity of the distans axis must SERIALISE, not vanish.
-        // Searching_jobs_with_remote_only_persists_the_remote_flag_and_surfaces_it pins
+        // Storing_a_search_with_remote_only_persists_the_remote_flag_and_surfaces_it pins
         // true; a field emitted only when true would pass that one while leaving the FE
         // schema without a value to read.
         row.GetProperty("remote").GetBoolean().ShouldBeFalse();
     }
 
     [Fact]
-    public async Task Searching_jobs_with_employer_only_persists_org_nr_to_column_and_surfaces_it_for_replay()
+    public async Task Storing_a_search_with_employer_only_persists_org_nr_to_column_and_surfaces_it_for_replay()
     {
-        // #311 PR-2b C1 (ADR 0087 D6): a committed ?employer= search captures a RecentJobSearch AND
+        // #311 PR-2b C1 (ADR 0087 D6): a stored employer search captures a RecentJobSearch AND
         // persists the org.nr into the employer_list text[] column — the ONLY DB-level proof of the
         // shadow-backing-field + migration round-trip (the ListRecentSearches unit tests use EF
         // In-Memory, which never exercises text[]). #1471: the axis ALSO reaches the wire, as
@@ -191,9 +192,7 @@ public class RecentSearchesTests(ApiFactory factory)
         var userId = Guid.Parse(me.GetProperty("userId").GetString()!);
         const string orgNr = "5566010101";
 
-        var searchResponse = await _client.GetAsync(
-            $"/api/v1/job-ads?employer={orgNr}&commit=true&page=1&pageSize=20", ct);
-        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        await CaptureAsync(new { employer = new[] { orgNr } }, ct);
 
         // The recent-search row is captured (the default-browse guard now counts employer)...
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
@@ -220,9 +219,9 @@ public class RecentSearchesTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Searching_jobs_with_remote_only_persists_the_remote_flag_and_surfaces_it()
+    public async Task Storing_a_search_with_remote_only_persists_the_remote_flag_and_surfaces_it()
     {
-        // #551 PR-D (ADR 0087 D6-paritet): a committed ?remote=true search captures a RecentJobSearch
+        // #551 PR-D (ADR 0087 D6-paritet): a stored remote search captures a RecentJobSearch
         // AND persists the distans-axis into the remote bool column — the DB-level proof of the scalar-
         // column round-trip end-to-end (the ListRecentSearches unit tests use EF In-Memory).
         // #1407: the axis now ALSO reaches the wire, so the replay href can carry it. That is the whole
@@ -232,10 +231,7 @@ public class RecentSearchesTests(ApiFactory factory)
         var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);
         var userId = Guid.Parse(me.GetProperty("userId").GetString()!);
 
-        // ASP.NET bool-binding kräver ?remote=true (INTE "on"; FE mappar rutt-flaggan ?distans=on hit).
-        var searchResponse = await _client.GetAsync(
-            "/api/v1/job-ads?remote=true&commit=true&page=1&pageSize=20", ct);
-        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        await CaptureAsync(new { remote = true }, ct);
 
         // The recent-search row is captured (the default-browse guard now counts remote)...
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
@@ -254,9 +250,9 @@ public class RecentSearchesTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Searching_jobs_with_an_occupation_name_persists_it_and_replays_and_names_it()
+    public async Task Storing_a_search_with_an_occupation_name_persists_it_and_replays_and_names_it()
     {
-        // #2199 PR 2: a committed ?occupationName= search captures a RecentJobSearch, persists the
+        // #2199 PR 2: a stored occupation-name search captures a RecentJobSearch, persists the
         // pick into occupation_name_list (the DB-level proof of the text[] column and the
         // migration; the unit tests run on EF In-Memory), and the pick reaches the wire for the
         // replay and its label. Projektledare, IT is a picker name in the seeded
@@ -267,9 +263,7 @@ public class RecentSearchesTests(ApiFactory factory)
         var userId = Guid.Parse(me.GetProperty("userId").GetString()!);
         const string projektledareIt = "z5AM_ayf_WcL";
 
-        var searchResponse = await _client.GetAsync(
-            $"/api/v1/job-ads?occupationName={projektledareIt}&commit=true&page=1&pageSize=20", ct);
-        searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        await CaptureAsync(new { occupationName = new[] { projektledareIt } }, ct);
 
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -289,8 +283,8 @@ public class RecentSearchesTests(ApiFactory factory)
         recent.ShouldHaveSingleItem().OccupationName.ShouldBe([projektledareIt]);
     }
 
-    // #2199 PR 2b — a search that names a religious office reveals a faith (GDPR Art. 9), so a committed
-    // one runs and is never stored. The ids are JobTech's own, read through the real composition root:
+    // #2199 PR 2b — a search that names a religious office reveals a faith (GDPR Art. 9), so it runs, the
+    // list answers it may not be stored, and the capture stores nothing. The ids are JobTech's own, read through the real composition root:
     // the four groups of the policy constant, and Imam, which the lineage artefact files under Präster.
     [Theory]
     [InlineData("occupationGroup", ReligiousOccupationGroups.Priests)]
@@ -298,18 +292,20 @@ public class RecentSearchesTests(ApiFactory factory)
     [InlineData("occupationGroup", ReligiousOccupationGroups.Deacons)]
     [InlineData("occupationGroup", ReligiousOccupationGroups.LeadersOfReligiousCommunities)]
     [InlineData("occupationName", "5avt_87C_rXE")] // Imam
-    public async Task Searching_jobs_on_a_religious_occupation_runs_the_search_and_stores_nothing(
+    public async Task Storing_a_search_on_a_religious_occupation_stores_nothing(
         string axis, string conceptId)
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
         var searchResponse = await _client.GetAsync(
-            $"/api/v1/job-ads?{axis}={conceptId}&commit=true&page=1&pageSize=20", ct);
+            $"/api/v1/job-ads?{axis}={conceptId}&page=1&pageSize=20", ct);
         searchResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var page = await searchResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
         page.GetProperty("isStorableAsRecentSearch").GetBoolean().ShouldBeFalse();
 
+        (await CaptureAsync(new Dictionary<string, string[]> { [axis] = [conceptId] }, ct))
+            .GetProperty("stored").GetBoolean().ShouldBeFalse();
         (await StoredSearchesAsync(ct)).ShouldBeEmpty();
     }
 
@@ -317,7 +313,7 @@ public class RecentSearchesTests(ApiFactory factory)
     // field is stored as picked (senior-cto-advisor, 2026-10-26). The field is read from the snapshot the
     // composition root builds the guard from, so this also proves that half of the wiring.
     [Fact]
-    public async Task Searching_jobs_on_a_whole_field_that_holds_religious_groups_stores_the_search()
+    public async Task Storing_a_search_on_a_whole_field_that_holds_religious_groups_stores_it()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -326,10 +322,11 @@ public class RecentSearchesTests(ApiFactory factory)
             .OccupationGroups!.Select(g => g.ConceptId).ToList();
 
         var page = await _client.GetFromJsonAsync<JsonElement>(
-            $"/api/v1/job-ads?{string.Join("&", field.Select(g => $"occupationGroup={g}"))}&commit=true&page=1&pageSize=20",
+            $"/api/v1/job-ads?{string.Join("&", field.Select(g => $"occupationGroup={g}"))}&page=1&pageSize=20",
             ct);
 
         page.GetProperty("isStorableAsRecentSearch").GetBoolean().ShouldBeTrue();
+        (await CaptureAsync(new { occupationGroup = field }, ct)).GetProperty("stored").GetBoolean().ShouldBeTrue();
         (await StoredSearchesAsync(ct)).ShouldHaveSingleItem().OccupationGroup.Count.ShouldBe(field.Count);
     }
 
@@ -364,14 +361,14 @@ public class RecentSearchesTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Re_searching_same_filter_bumps_existing_row_no_duplicate()
+    public async Task Storing_the_same_search_again_bumps_existing_row_no_duplicate()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        await _client.GetAsync("/api/v1/job-ads?q=devops&commit=true&page=1&pageSize=20", ct);
-        await _client.GetAsync("/api/v1/job-ads?q=devops&commit=true&page=1&pageSize=20", ct);
-        await _client.GetAsync("/api/v1/job-ads?q=devops&commit=true&page=1&pageSize=20", ct);
+        await CaptureAsync(new { q = "devops" }, ct);
+        await CaptureAsync(new { q = "devops" }, ct);
+        (await CaptureAsync(new { q = "devops" }, ct)).GetProperty("stored").GetBoolean().ShouldBeTrue();
 
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -385,7 +382,7 @@ public class RecentSearchesTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        await _client.GetAsync("/api/v1/job-ads?q=qa&commit=true&page=1&pageSize=20", ct);
+        await CaptureAsync(new { q = "qa" }, ct);
 
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -407,7 +404,7 @@ public class RecentSearchesTests(ApiFactory factory)
 
         // User A skapar en RecentJobSearch
         await AuthenticateAsync(ct);
-        await _client.GetAsync("/api/v1/job-ads?q=sales&commit=true&page=1&pageSize=20", ct);
+        await CaptureAsync(new { q = "sales" }, ct);
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
         var aId = items[0].GetProperty("id").GetString()!;
@@ -426,5 +423,53 @@ public class RecentSearchesTests(ApiFactory factory)
         var stillThere = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var stillItems = await stillThere.Content.ReadFromJsonAsync<JsonElement>(ct);
         stillItems.GetArrayLength().ShouldBe(1);
+    }
+
+    // #2285 — the capture POST: what it refuses, and whose list it writes to.
+    [Fact]
+    public async Task Storing_a_search_without_auth_returns_401()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.PostAsJsonAsync("/api/v1/me/recent-searches", new { q = "backend" }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Storing_a_search_that_names_a_personnummer_answers_not_stored_and_stores_nothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        (await CaptureAsync(new { q = "19811218-9876" }, ct)).GetProperty("stored").GetBoolean().ShouldBeFalse();
+
+        (await StoredSearchesAsync(ct)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Storing_a_search_with_a_sort_outside_the_enum_is_400_not_500()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/me/recent-searches", new { q = "backend", sort = 99 }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await StoredSearchesAsync(ct)).ShouldBeEmpty();
+    }
+
+    // security-auditor, #2285 plan read: the body carries no identity. A body that names another user's id still
+    // stores for the caller, whose id comes from the session.
+    [Fact]
+    public async Task Storing_a_search_whose_body_names_another_user_stores_it_for_the_caller()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        await CaptureAsync(new { q = "backend", userId = Guid.NewGuid(), jobSeekerId = Guid.NewGuid() }, ct);
+
+        (await StoredSearchesAsync(ct)).ShouldHaveSingleItem().Q.ShouldBe("backend");
     }
 }

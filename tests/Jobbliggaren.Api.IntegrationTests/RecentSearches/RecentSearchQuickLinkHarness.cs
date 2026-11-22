@@ -26,8 +26,8 @@ namespace Jobbliggaren.Api.IntegrationTests.RecentSearches;
 /// <summary>
 /// ADR 0188 (#2265) — one database of its own on the shared Postgres and every actor that writes what a quick link
 /// rests on, each the production one: <see cref="JobSeeker.Register"/> for the seeker, the real
-/// <see cref="RecentJobSearchCapturer"/> for the searches (what <c>RecentJobSearchCaptureBehavior</c> calls for a
-/// committed /jobb search), the real <see cref="MarkRecentSearchQuickLinkCommandHandler"/> for a mark and the real
+/// <see cref="RecentJobSearchCapturer"/> for the searches (what <c>CaptureRecentSearchCommandHandler</c> calls for a
+/// search the user stores), the real <see cref="MarkRecentSearchQuickLinkCommandHandler"/> for a mark and the real
 /// <see cref="SetJuniorQuickLinkCommandHandler"/> for the junior link, each handler followed by the save
 /// <c>UnitOfWorkBehavior</c> makes after it. <see cref="Seams"/> picks the moment another request commits.
 /// </summary>

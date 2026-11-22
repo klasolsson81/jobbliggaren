@@ -71,11 +71,6 @@ public static class JobAdsEndpoints
             // mappar den svenska rutt-flaggan ?distans=on → ?remote=true. Persistensen deferrad
             // (se ListJobAdsQuery.Remote).
             bool remote = false,
-            // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate:
-            // ?commit=1 vid avsiktlig sökning (Enter/Sök/förslags-val/toolbar)
-            // → auto-capture; utelämnad (live-förhandsvisning) → ingen capture.
-            // Transient signal-param, ingår EJ i filter-identiteten.
-            bool commit = false,
             // ADR 0079 STEG 5 — grad-filtret ("Matchning"-toggeln). Upprepad query-
             // string ?matchGrades=Strong&matchGrades=Good binds till MatchGrade[] per
             // NAMN (enum serialiseras by-name; ej svenska, ej komma-separerat — wire-
@@ -124,7 +119,6 @@ public static class JobAdsEndpoints
                     Employer: employer,
                     Q: q,
                     Remote: remote,
-                    Commit: commit,
                     MatchGrades: matchGrades,
                     IncludeRelated: includeRelated,
                     SavedOnly: savedOnly,

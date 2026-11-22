@@ -275,17 +275,15 @@ public class ListJobAdsQueryHandlerTests
         result.Items.ShouldHaveSingleItem().Title.ShouldBe("Backend-utvecklare");
     }
 
-    // #2199 PR 2b — the page answers whether RecentSearchCaptureGate admits the search, on every request,
-    // commit or not: the hero reads it from the live preview before the user asks to save.
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Handle_AnOrdinarySearch_IsStorableAsRecentSearch(bool commit)
+    // #2199 PR 2b — the page answers whether RecentSearchCaptureGate admits the search, on every request:
+    // the hero reads it from the live preview before the user asks to save.
+    [Fact]
+    public async Task Handle_AnOrdinarySearch_IsStorableAsRecentSearch()
     {
         _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>()).Returns(EmptyPage());
 
         var result = await NewHandler().Handle(
-            new ListJobAdsQuery(Q: "backend", Commit: commit), TestContext.Current.CancellationToken);
+            new ListJobAdsQuery(Q: "backend"), TestContext.Current.CancellationToken);
 
         result.IsStorableAsRecentSearch.ShouldBeTrue();
     }

@@ -10,8 +10,6 @@ namespace Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 // ADR 0042 Beslut B — multi-värde-listor (IReadOnlyList). Nullable behålls
 // för "ej angivet" (handler översätter null → tom lista innan filter-SPOT:en).
 // Page/PageSize/SortBy/Q oförändrade.
-// ADR 0060 — IRecentSearchCandidate markerar queryn för auto-capture-behavior
-// (record-properties matchar interface-shape automatiskt).
 //
 // ADR 0067 Beslut 1 (Platsbanken sök-paritet Fas C2, CTO-dom (e) 2026-06-09):
 // Ssyk-paramen (occupation-name) är BORTTAGEN — no-op sedan C1, och C2
@@ -58,15 +56,8 @@ public sealed record ListJobAdsQuery(
     // svenska rutt-flaggan ?distans=on hit, paritet ?relaterade=on→includeRelated). Default false
     // = ingen remote-facett.
     bool Remote = false,
-    // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent-gate för
-    // auto-capture. Default false: live-förhandsvisning (router.replace per
-    // ord) fångas ej; FE sätter ?commit=1 vid Enter/Sök/förslags-val/toolbar.
-    // record-property matchar IRecentSearchCandidate.Commit automatiskt
-    // (paritet Since/Page). Påverkar ENDAST capture-behaviorns no-op-gate —
-    // ingår inte i SearchCriteria/filter-identiteten.
-    bool Commit = false,
     // ADR 0079 STEG 5 (grad-filter, 2026-06-23) — den per-användar-grad-filtreringen
-    // ("Matchning"-toggeln). RUNTIME-KONTEXT (analog Since/Commit): den ingår ALDRIG
+    // ("Matchning"-toggeln). RUNTIME-KONTEXT (analog Since): den ingår ALDRIG
     // i IRecentSearchCandidate / SearchCriteria / FilterHashCalculator (de läser bara
     // de namngivna fälten ovan) — en per-användar-grad får aldrig förorena den anonyma
     // sök-identiteten (ADR 0039 Beslut 1 / ADR 0062-isolering). En icke-tom lista
@@ -76,7 +67,7 @@ public sealed record ListJobAdsQuery(
     IReadOnlyList<MatchGrade>? MatchGrades = null,
     // #300 PR-5a (ADR 0084 §A — "Visa relaterade också"-toggeln, off by default) — när true
     // breddar profil-byggaren yrkes-gaten exakt → exakt ∪ related så related-annonser kan tagga
-    // MatchGrade.Related (rank 2). RUNTIME-KONTEXT (paritet MatchGrades/Commit): ingår
+    // MatchGrade.Related (rank 2). RUNTIME-KONTEXT (paritet MatchGrades): ingår
     // ALDRIG i IRecentSearchCandidate / SearchCriteria / FilterHashCalculator (de läser bara de
     // namngivna sök-identitets-fälten ovan) — en per-användar-breddning får aldrig förorena den
     // anonyma sök-identiteten (ADR 0039 Beslut 1 / ADR 0062). Default false = beteende-inert

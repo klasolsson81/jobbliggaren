@@ -1670,26 +1670,26 @@ The readings recorded with them, for triggers 1–24:
 
 | Reading | Value |
 |---|---|
-| Release sequence, source commit, and `--status` before and after | <!-- MERGE-DAY: release sequence, source commit and `--status` times --> |
-| S2-P3: listed ads | <!-- MERGE-DAY: S2-P3 listed --> |
-| S2-P3: shaped | <!-- MERGE-DAY: S2-P3 shaped --> |
-| S2-P3: validated, in every field and both readings of the link (must be 0) | <!-- MERGE-DAY: S2-P3 validated --> |
-| S2-P3: link host other than Arbetsförmedlingen (must be 0) | <!-- MERGE-DAY: S2-P3 link host --> |
-| Junior set: listed juniors | <!-- MERGE-DAY: listed juniors --> |
-| Junior set: organisation number of personnummer shape (must be 0) | <!-- MERGE-DAY: personnummer-shaped --> |
-| Junior set: without an organisation number (must be 0) | <!-- MERGE-DAY: without a number --> |
-| Junior set: not ten characters (must be 0) | <!-- MERGE-DAY: not ten characters --> |
-| Stale assessments, by version and by fingerprint (must be 0) | <!-- MERGE-DAY: stale assessments --> |
-| Assessments of erased ads (must be 0; read again two ticks later if above 0) | <!-- MERGE-DAY: assessments of erased ads --> |
-| Erased ads with an input fingerprint (must be 0) | <!-- MERGE-DAY: erased ads with a fingerprint --> |
-| `job_ads` erased, all time | <!-- MERGE-DAY: erased all time --> |
-| Floor: `junior members (N)` | <!-- MERGE-DAY: N --> |
-| Floor: `distinct employers (E)`, or "E under 25" | <!-- MERGE-DAY: E --> |
-| Floor: `s_ok (no employer above half)`, or "E under 25" | <!-- MERGE-DAY: s_ok --> |
-| Floor: `floor holds` | <!-- MERGE-DAY: floor holds --> |
-| Floor: `kommuner meeting the floor` | <!-- MERGE-DAY: kommuner meeting the floor --> |
-| The delivered default view, read anonymously: its total and its robots value | <!-- MERGE-DAY: default view total and robots value --> |
-| Triggers 3 and 4 | <!-- MERGE-DAY: no event known --> |
+| Release sequence, source commit, and `--status` before and after | Release sequence 1687 (source `455500ab9`, this PR's base); `--status` consistent before (11:46:44Z) and after (11:47:07Z); read 2026-11-22 11:46:45–11:47:07Z |
+| S2-P3: listed ads | 43 697 |
+| S2-P3: shaped | 796 (the application link 635, decoded 635; the description 205) |
+| S2-P3: validated, in every field and both readings of the link (must be 0) | **0** |
+| S2-P3: link host other than Arbetsförmedlingen (must be 0) | **0** |
+| Junior set: listed juniors | 148 |
+| Junior set: organisation number of personnummer shape (must be 0) | **0** |
+| Junior set: without an organisation number (must be 0) | **0** |
+| Junior set: not ten characters (must be 0) | **0** |
+| Stale assessments, by version and by fingerprint (must be 0) | **0** by version (`1.1.0+2a7891ba`), **0** by fingerprint; listed Data/IT ads without an assessment 0 of 2 870 |
+| Assessments of erased ads (must be 0; read again two ticks later if above 0) | **0** |
+| Erased ads with an input fingerprint (must be 0) | **0** |
+| `job_ads` erased, all time | 0 |
+| Floor: `junior members (N)` | 148 |
+| Floor: `distinct employers (E)`, or "E under 25" | 71 |
+| Floor: `s_ok (no employer above half)`, or "E under 25" | true |
+| Floor: `floor holds` | true |
+| Floor: `kommuner meeting the floor` | 0 |
+| The delivered default view, read anonymously: its total and its robots value | 148, `noindex, follow`: release 1687 predates this PR and has no floor. The total equals N. The robots value equal to the floor's outcome is read after the deploy, in the close-out's anonymous check |
+| Triggers 3 and 4 | No event known (2026-11-22) |
 
 ### The floor (S1)
 

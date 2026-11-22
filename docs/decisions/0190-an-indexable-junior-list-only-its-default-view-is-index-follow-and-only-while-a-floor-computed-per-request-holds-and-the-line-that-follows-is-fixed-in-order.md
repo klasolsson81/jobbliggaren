@@ -137,9 +137,9 @@ K2 and K3 as `senior-cto-advisor` wrote them (plan read G2, "Questions for Klas"
 | | The corpus | The box (counts only) |
 |---|---|---|
 | Listed juniors | 2 526 | 149 (2026-11-22 07:14Z) |
-| Listed ads in the Data/IT groups | 9 615 | <!-- MERGE-DAY: in-field listed total --> |
-| Ads in the Data/IT groups, any status | 13 380 | <!-- MERGE-DAY: in-field total, any status --> |
-| Rows of `job_ad_junior_assessments` | 13 380 | <!-- MERGE-DAY: assessment rows --> |
+| Listed ads in the Data/IT groups | 9 615 | 2 870 (2026-11-22 11:47Z) |
+| Ads in the Data/IT groups, any status | 13 380 | 12 284 (2026-11-22 11:47Z) |
+| Rows of `job_ad_junior_assessments` | 13 380 | 2 978 (2026-11-22 11:47Z) |
 
   The box's totals are read on the merge day, as totals only (CTO latency ruling, fix 8; `security-auditor`'s reading of the bucket's cost, 3 (c)). Every row is a baseline of return condition r4 in ADR 0064's amendment.
 

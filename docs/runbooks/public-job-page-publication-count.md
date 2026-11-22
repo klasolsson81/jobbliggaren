@@ -97,6 +97,7 @@ validated; the null link and the three unlisted ads were not counted.
 | 2026-11-20 07:24-07:25 | Release sequence 1675 (source `354e4a926`), `--status` consistent before (07:24:50Z) and after (07:25:30Z); the #2260 junior list's merge day (ADR 0166, the amendment of 2026-11-19, D11); query blob `ea21c16` | 43 431 | 801 | **0** | shaped 219 in the description; validated: no row printed (0) | shaped 626 / 626; validated: no row printed (0) | 0 | Claude Code |
 | 2026-11-20 15:00-15:01 | Release sequence 1679 (source `2565c0275`), `--status` consistent before (15:00:32Z) and after (15:01:03Z); the #2264 junior list's merge day (ADR 0166, the amendment of 2026-11-20, D11); query blob `ea21c16` | 45 007 | 828 | **0** | shaped 222 in the description; validated: no row printed (0) | shaped 652 / 652; validated: no row printed (0) | 0 | Claude Code |
 | 2026-11-21 21:42-21:43 | Release sequence 1684 (source `51f1409a3`), `--status` consistent before (21:42:34Z) and after (21:43:43Z); the #2284 merge day (ADR 0166, the amendment of 2026-11-21, item 6); query blob `ea21c16` | 44 097 | 804 | **0** | shaped 209 in the description; validated: no row printed (0) | shaped 639 / 639; validated: no row printed (0) | 0 | Claude Code |
+| 2026-11-22 11:46-11:47 | Release sequence 1687 (source `455500ab9`), `--status` consistent before (11:46:44Z) and after (11:47:07Z); the #2293 PR 1 merge day (ADR 0166, the Amendment 2026-11-22, D11); query blob `ea21c16` | 43 697 | 796 | **0** | shaped 205 in the description; validated 0 | shaped 635 / 635; validated 0 | 0 | Claude Code |
 
 The record is also posted on [#2090](https://github.com/klasolsson81/jobbliggaren/issues/2090) with the same date.
 
@@ -139,6 +140,7 @@ At the same minute, three totals more and one anonymous read:
 
 | Date and time (UTC) | Release | N | E | `s_ok` | Floor holds | Kommuner meeting the floor | In the field: listed / any status | Assessment rows | `/junior`: total, robots | Taken by |
 |---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-22 11:47 | Release sequence 1687 (source `455500ab9`), `--status` consistent before and after; query blob `520b458` | 148 | 71 | true | true | 0 | 2 870 / 12 284 | 2 978 | 148; `noindex, follow`, because release 1687 predates the floor | Claude Code |
 
 ## After the merge — what is read, and what is not
 

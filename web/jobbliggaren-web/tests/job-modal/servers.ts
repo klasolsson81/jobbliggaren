@@ -146,6 +146,8 @@ export type Harness = {
   readonly captures: { route: string; body: Record<string, unknown> | null }[];
   /** #2285 — what the capture POST answers for `stored`; true by default. */
   captureStored: boolean;
+  /** #2285 — how long the capture POST holds its answer; 0 by default. */
+  captureDelayMs: number;
   /** #2285 — whether the list answers that its search may be stored, which is what offers "Spara sökningen"; off by default. */
   listStorable: boolean;
   reset(): void;
@@ -355,10 +357,12 @@ export async function startHarness(informationFlows = false, applicationCopies =
     quickLinkWrites,
     captures,
     captureStored: true,
+    captureDelayMs: 0,
     listStorable: false,
     reset() {
       captures.length = 0;
       harness.captureStored = true;
+      harness.captureDelayMs = 0;
       harness.listStorable = false;
       harness.recentSearches = [];
       harness.juniorQuickLinkEnabled = true;
@@ -574,6 +578,8 @@ export async function startHarness(informationFlows = false, applicationCopies =
       // The real API binds the web's body: RecentSearchesTests.Storing_the_webs_own_body_with_the_sort_by_name_stores_it.
       case "POST /api/v1/me/recent-searches": {
         captures.push({ route, body: await bodyOf(request) });
+        if (harness.captureDelayMs > 0)
+          await new Promise((resolve) => setTimeout(resolve, harness.captureDelayMs));
         return json(200, { stored: harness.captureStored });
       }
       case "GET /api/v1/job-ads/junior-it-count":

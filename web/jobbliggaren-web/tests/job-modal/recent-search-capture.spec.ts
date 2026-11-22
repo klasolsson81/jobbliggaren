@@ -177,3 +177,30 @@ test("a save that is not stored says so and offers the button again", async ({ p
   await page.setViewportSize({ width: 390, height: 844 });
   await shot(page, "save-failed-390");
 });
+
+// design-reviewer, PR #2321 Major 3.
+for (const width of [1280, 390]) {
+  test(`a retried save waits at the failure's height, at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    harness.listStorable = true;
+    harness.captureStored = false;
+    await page.goto("/jobb?q=utvecklare");
+    await settled(page);
+    await hydrated(page);
+    const filterTop = async () =>
+      (await page.locator("button.jp-hero-pill").filter({ hasText: "Filter" }).first().boundingBox())?.y;
+
+    await page.getByRole("button", { name: "Spara sökningen" }).click();
+    await expect(page.locator("p.jp-hero__searchhelp--notice")).toHaveText("Sökningen kunde inte sparas. Försök igen.");
+    const atFailure = await filterTop();
+
+    harness.captureDelayMs = 5000;
+    await page.getByRole("button", { name: "Spara sökningen" }).click();
+    await expect(page.locator(".jp-hero__searchsaveslot--retry")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Spara sökningen" })).toHaveCount(0);
+
+    expect(atFailure).toBeDefined();
+    expect(await filterTop()).toBe(atFailure);
+    await shot(page, `save-retrying-${width}`);
+  });
+}

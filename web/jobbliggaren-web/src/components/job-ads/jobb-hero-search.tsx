@@ -215,7 +215,9 @@ export function JobbHeroSearch({
   // A page loaded from a link starts unsaved, so a shared or bookmarked search can be saved by its
   // recipient. `failed` is the line that says a save did not go through (#2285).
   const [savedByIntent, setSavedByIntent] = useState(false);
-  const [saveReceipt, setSaveReceipt] = useState<"none" | "awaiting" | "shown" | "failed">("none");
+  const [saveReceipt, setSaveReceipt] = useState<
+    "none" | "awaiting" | "retrying" | "shown" | "failed"
+  >("none");
   const searchButtonRef = useRef<HTMLButtonElement>(null);
   // #2285 — the search this component last committed, read when a capture answers: an answer for a
   // search the user has since left changes nothing on screen. Kept in step with `lastCommitted` below.
@@ -309,6 +311,10 @@ export function JobbHeroSearch({
     setLastCommitted(next);
     setRecentCommits((prev) => [...prev, next].slice(-10));
     setSavedByIntent(markCommit);
+    if (saveReceipt !== "none") {
+      setSaveReceipt("none");
+      if (!announce) setAnnouncement("");
+    }
     startTransition(() => {
       router.replace(buildJobbHref(next), { scroll: false });
     });
@@ -592,7 +598,8 @@ export function JobbHeroSearch({
     // button again.
     const saving = lastCommitted;
     setSavedByIntent(true);
-    setSaveReceipt("awaiting");
+    setSaveReceipt(saveReceipt === "failed" ? "retrying" : "awaiting");
+    setAnnouncement("");
     searchButtonRef.current?.focus();
     const { stored } = await captureRecentSearchAction(saving).catch(() => ({ stored: false }));
     if (!sameUrlState(latestCommitRef.current, saving)) return;
@@ -682,7 +689,13 @@ export function JobbHeroSearch({
           action arriving with the results, or never arriving, moves nothing below it
           (design-reviewer, 2b plan read). */}
       {(hasSavableSearch || saveReceipt !== "none") && (
-        <div className="jp-hero__searchsaveslot">
+        <div
+          className={
+            saveReceipt === "retrying"
+              ? "jp-hero__searchsaveslot jp-hero__searchsaveslot--retry"
+              : "jp-hero__searchsaveslot"
+          }
+        >
           {showSaveAction && (
             <button
               type="button"

@@ -829,6 +829,82 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
     ).toBeGreaterThan(0);
   });
 
+  // design-reviewer, PR #2321 Blocker 1 (WCAG 4.1.3).
+  it("announces a second failed save as well as the first", async () => {
+    const user = userEvent.setup();
+    let answer: (value: { stored: boolean }) => void = () => {};
+    captureMock.mockImplementation(
+      () => new Promise<{ stored: boolean }>((resolve) => (answer = resolve)),
+    );
+    setup({ q: "utvecklare" });
+    const announced = () =>
+      screen
+        .getAllByRole("status")
+        .some((region) =>
+          region.textContent?.includes("Sökningen kunde inte sparas. Försök igen."),
+        );
+
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+    await act(async () => answer({ stored: false }));
+    expect(announced()).toBe(true);
+
+    await user.click(await screen.findByRole("button", { name: "Spara sökningen" }));
+    expect(announced()).toBe(false);
+
+    await act(async () => answer({ stored: false }));
+    expect(announced()).toBe(true);
+  });
+
+  // design-reviewer, PR #2321 Major 2.
+  it("clears a failed save's line when the search is run again", async () => {
+    const user = userEvent.setup();
+    captureMock.mockImplementation(async () => ({ stored: false }));
+    setup({ q: "utvecklare" });
+
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+    await screen.findByRole("button", { name: "Spara sökningen" });
+    captureMock.mockImplementation(async () => ({ stored: true }));
+    await user.click(screen.getByRole("button", { name: /^Sök/ }));
+
+    expect(screen.queryByText("Sökningen kunde inte sparas. Försök igen.")).toBeNull();
+  });
+
+  // design-reviewer, PR #2321 Major 2.
+  it("never shows the receipt beside the button after a search that was not stored", async () => {
+    const user = userEvent.setup();
+    setup({ q: "utvecklare" });
+
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+    expect(
+      (await screen.findAllByText("Sökningen är sparad i Senaste sökningar")).length,
+    ).toBeGreaterThan(0);
+    captureMock.mockImplementation(async () => ({ stored: false }));
+    await user.click(screen.getByRole("button", { name: /^Sök/ }));
+
+    expect(
+      await screen.findByRole("button", { name: "Spara sökningen" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Sökningen är sparad i Senaste sökningar")).toBeNull();
+  });
+
+  // design-reviewer, PR #2321 Major 3; the height itself is rendered in recent-search-capture.spec.ts.
+  it("marks a retry's wait so it keeps the failure's height", async () => {
+    const user = userEvent.setup();
+    let answer: (value: { stored: boolean }) => void = () => {};
+    captureMock.mockImplementation(
+      () => new Promise<{ stored: boolean }>((resolve) => (answer = resolve)),
+    );
+    const { container } = setup({ q: "utvecklare" });
+    const slot = () => container.querySelector(".jp-hero__searchsaveslot");
+
+    await user.click(screen.getByRole("button", { name: "Spara sökningen" }));
+    expect(slot()).not.toHaveClass("jp-hero__searchsaveslot--retry");
+    await act(async () => answer({ stored: false }));
+
+    await user.click(await screen.findByRole("button", { name: "Spara sökningen" }));
+    expect(slot()).toHaveClass("jp-hero__searchsaveslot--retry");
+  });
+
   // #2285 — a search the hero did not commit itself (a recent search, a toolbar chip) is still the one the
   // answer is for, so its save confirms.
   it("confirms a save of a search that arrived from outside the hero", async () => {

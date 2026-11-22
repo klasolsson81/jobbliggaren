@@ -179,12 +179,7 @@ updates:
     # auto-merge with no agent on it.
     #
     # What changed: #1239 SHA-pins every action, `codeql-action` included. That
-    # inverts the polarity of this rule completely. `@<sha>` does not move, so the
-    # ONLY way the analysis engine can advance is now a Dependabot PR — and this
-    # rule was refusing exactly those. Kept as it stood, the engine would freeze on
-    # whatever bundle the pinned SHA carries (measured 2026-08-08: v4 shipped
-    # v4.37.4, .5 and .6 inside one week), and it would freeze SILENTLY, with the
-    # weekly scan still green.
+    # inverts the polarity of this rule completely.
     #
     # This is not a reversal of #1139. That decision's own words at
     # `codeql.yml`'s init site call a narrow VERSION tag "strictly worse than a SHA
@@ -197,8 +192,7 @@ updates:
     # codeql-action bump is patch/minor, so it would reach `eligible=true` and
     # auto-merge with NO agent invoked. `dependabot-automerge.yml`'s gate therefore
     # excludes `github/codeql-action` by dependency name. That exclusion is this
-    # rule's replacement and the two must be read together — moving the analysis
-    # engine stays a decision with a reader.
+    # rule's replacement and the two must be read together.
     # Same grouping rule as nuget above. Measured on PR #1139 (2026-08-01): three
     # actions in one group, two of them clean ESM-migration majors and the third the
     # codeql narrowing the `ignore` above now refuses. Reviewing that third one

@@ -32,9 +32,7 @@
 # det betyder för CVE-vägen.
 #
 # `open-pull-requests-limit` per entry är dimensionerat för att majors nu tar egna
-# slots. nuget står kvar på 5: #1140:s population ger 2 PR:er i den nya formen. En
-# framtida framework-våg (t.ex. .NET 11) skulle kunna spränga taket tyst — det är
-# inte mätt och därför inte förhandsjusterat, men det är den kända riskformen.
+# slots. nuget står kvar på 5: #1140:s population ger 2 PR:er i den nya formen.
 #
 # CVE-täckning är CI-/Dependabot-formad, INTE agent-formad (roster-gap-CTO
 # 2026-05-17 §1.4, ADR 0045 Beslut 5). Dependabot öppnar PRs.
@@ -124,6 +122,26 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "Microsoft.Testing.Extensions.CodeCoverage"
         versions: ["18.9.0"]
+      # The runtime-aligned families. Their next major either targets only the next TFM or
+      # requires the next major's abstractions, so on this net10.0 app it cannot restore by
+      # itself: #2308–#2310 (Microsoft.Extensions 11.0.0) each failed with NU1109 (measured
+      # 2026-11-22). With #2306 and #2307 they took all five slots under the limit above,
+      # so the rest of the .NET 11 wave could not open at all. `eligible=false` stops a major from
+      # auto-merging, but it does not stop the PR from occupying a slot. That is why this is
+      # not the redundant control the docker-compose entry refuses for postgres.
+      # `update-types` only, so no security update is suppressed.
+      # LIFT WHEN the PR that moves `TargetFramework` off net10.0 lands; that PR deletes
+      # these entries, and the docker entry's two, in the same diff.
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Npgsql*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "EFCore.NamingConventions"
+        update-types: ["version-update:semver-major"]
     # A MAJOR MUST NOT BE ABLE TO HIDE INSIDE A GROUP.
     #
     # This entry used to group `patterns: ["*"]`, i.e. everything including majors.
@@ -316,6 +334,18 @@ updates:
     # it, three PRs is the GUARANTEED outcome rather than the bad branch. Contrast the
     # docker-compose entry below, whose failure branch is silent and therefore needed an
     # owner rather than a note.
+    #
+    # The .NET images move with the framework, so their majors share the nuget entry's
+    # runtime-aligned ignore and its LIFT WHEN. An 11.0 runtime image does not run a
+    # net10.0 app, and an 11.0 SDK image carries no 10.0 SDK for global.json to select
+    # (`rollForward: latestFeature` never crosses a major). The leading `*` matches the
+    # image with or without its `mcr.microsoft.com/` prefix, because no Dependabot docker
+    # PR on this repo has yet shown which form it uses.
+    ignore:
+      - dependency-name: "*dotnet/sdk"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "*dotnet/aspnet"
+        update-types: ["version-update:semver-major"]
     groups:
       docker-minor-patch:
         update-types: ["minor", "patch"]

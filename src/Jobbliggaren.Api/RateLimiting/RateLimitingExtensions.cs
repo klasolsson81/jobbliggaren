@@ -57,6 +57,7 @@ public static partial class RateLimitingExtensions
     public const string NotificationFeedReadPolicy = "notification-feed-read";
     public const string NotificationFeedMarkPolicy = "notification-feed-mark";
     public const string JobAdJuniorItCountPolicy = "job-ad-junior-it-count";
+    public const string NotificationFeedMarkThroughPolicy = "notification-feed-mark-through";
 
     [LoggerMessage(2001, LogLevel.Warning,
         "Rate limit exceeded. Path={Path} Method={Method}")]
@@ -418,26 +419,11 @@ public static partial class RateLimitingExtensions
             // bucket (RateLimitingOptions.NotificationFeedRead carries the derivation). Auth-gated →
             // anonymous is caught by RequireAuthorization (NoLimiter bypass). TokenBucket, QueueLimit=0.
             options.AddPolicy(NotificationFeedReadPolicy, ctx =>
-            {
-                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-                if (string.IsNullOrEmpty(userId))
-                    return RateLimitPartition.GetNoLimiter("anonymous-notification-feed-read");
+                PerUserTokenBucket(ctx, "anonymous-notification-feed-read", rateLimitOpts.NotificationFeedRead));
 
-                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
-                    new TokenBucketRateLimiterOptions
-                    {
-                        TokenLimit = rateLimitOpts.NotificationFeedRead.PermitLimit,
-                        TokensPerPeriod = Math.Max(1, rateLimitOpts.NotificationFeedRead.PermitLimit / rateLimitOpts.NotificationFeedRead.SegmentsPerWindow),
-                        ReplenishmentPeriod = TimeSpan.FromSeconds(
-                            rateLimitOpts.NotificationFeedRead.WindowSeconds / (double)rateLimitOpts.NotificationFeedRead.SegmentsPerWindow),
-                        QueueLimit = 0,
-                        AutoReplenishment = true,
-                    });
-            });
-
-            // Partition: UserId (claim "sub"). #2130 - the notification bell's read marks (a click on a row, and
-            // "Markera alla som lästa"), their own bucket (RateLimitingOptions.NotificationFeedMark carries the
-            // derivation). Auth-gated -> anonymous is caught by RequireAuthorization (NoLimiter bypass).
+            // Partition: UserId (claim "sub"). #2130 - the notification bell's per-row marks (a click on a row, and its X),
+            // their own bucket (RateLimitingOptions.NotificationFeedMark carries the derivation); "Markera alla som lästa"
+            // has its own since #1663 PR 3 (NotificationFeedMarkThroughPolicy). Auth-gated -> anonymous is caught by RequireAuthorization (NoLimiter bypass).
             // TokenBucket, QueueLimit=0. Never MeWrite (a withdrawal of a consent must not meet a 429 caused by
             // clicking through notifications, Art. 7(3)) and never FollowSeenMark (that one is filled by every ad open).
             options.AddPolicy(NotificationFeedMarkPolicy, ctx =>
@@ -875,6 +861,10 @@ public static partial class RateLimitingExtensions
             // derivation live in RateLimitingOptions, and only there.
             options.AddPolicy(JobAdJuniorItCountPolicy, ctx =>
                 PerUserTokenBucket(ctx, "anonymous-job-ad-junior-it-count", rateLimitOpts.JobAdJuniorItCount));
+
+            // #1663 PR 3 — the bell's "Markera alla", apart from the per-row marks (RateLimitingOptions.NotificationFeedMarkThrough).
+            options.AddPolicy(NotificationFeedMarkThroughPolicy, ctx =>
+                PerUserTokenBucket(ctx, "anonymous-notification-feed-mark-through", rateLimitOpts.NotificationFeedMarkThrough));
         });
 
         return services;

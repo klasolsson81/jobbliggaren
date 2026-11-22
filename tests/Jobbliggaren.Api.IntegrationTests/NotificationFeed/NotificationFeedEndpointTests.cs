@@ -305,8 +305,9 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
         var late = await SeedAdAsync(factory, "Sen", "Bolag AB", ct);
 
         using var scope = factory.Services.CreateScope();
-        var interceptor = new AfterFirstMaxInterceptor(
-            () => SeedHitAsync(factory, userId, late, watch, Base.AddMinutes(2), ct));
+        // The follow source's third statement is its token, after the gate and the watches.
+        var interceptor = new AfterStatementInterceptor(
+            3, () => SeedHitAsync(factory, userId, late, watch, Base.AddMinutes(2), ct));
         await using var db = NewContext(scope, interceptor);
 
         var read = await new FollowedCompanyAdFeedSource().ReadAsync(Context(db, userId), ct);
@@ -415,9 +416,10 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
     }
 
     // The per-request cost the rate-limit bucket was sized on (RateLimitingOptions.NotificationFeedRead):
-    // with no "endast matchade" watch nothing is graded, and both sources run their full read.
+    // with no "endast matchade" watch nothing is graded, and both sources run their full read. A user without a
+    // Branschbevakning costs the third source its first statement only (#1663 PR 3).
     [Fact]
-    public async Task One_request_without_an_only_matched_watch_runs_nine_statements()
+    public async Task One_request_without_an_only_matched_watch_or_a_Branschbevakning_runs_ten_statements()
     {
         var ct = TestContext.Current.CancellationToken;
         var (_, userId) = await RegisterUserAsync(factory, "feed-cost", ct);
@@ -440,7 +442,8 @@ public class NotificationFeedEndpointTests(ApiFactory factory)
 
         feed.Items.Count.ShouldBe(2);
         // Match: consent + watermark, token, count, list. Followed: watermark, watches, token, count, window.
-        counter.Count.ShouldBe(9);
+        // Branschbevakning: its switch, the two higher gates and whether the user has a criterion at all.
+        counter.Count.ShouldBe(10);
         await profileBuilder.DidNotReceive().BuildFullForSortAsync(Arg.Any<CancellationToken>());
     }
 

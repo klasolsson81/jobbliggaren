@@ -34,6 +34,15 @@ public class NotificationFeedSourcesTests
             .ShouldBe(Enum.GetValues<NotificationFeedSourceKind>(), ignoreOrder: true);
     }
 
+    // ADR 0173 D7, ADR 0175 D8: the lists' order is the precedence, which is the enum's order. A lower source leaves out
+    // what a higher one holds, and the merge breaks a tie by kind, so a reordering here would move a notification.
+    [Fact]
+    public void All_AndMarkers_StandInTheEnumsOrder_WhichIsThePrecedence()
+    {
+        NotificationFeedSources.All.Select(s => s.Kind).ShouldBe(Enum.GetValues<NotificationFeedSourceKind>());
+        NotificationFeedSources.Markers.Select(m => m.Kind).ShouldBe(Enum.GetValues<NotificationFeedSourceKind>());
+    }
+
     [Fact]
     public void EverySource_IsStateless()
     {

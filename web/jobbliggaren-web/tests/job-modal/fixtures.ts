@@ -72,6 +72,7 @@ export function profile(occupationStated: boolean) {
     matchSummaryMailEnabled: true,
     notificationFeedMatchesEnabled: true,
     notificationFeedFollowedAdsEnabled: true,
+    notificationFeedCriterionAdsEnabled: true,
     juniorQuickLinkEnabled: true,
     createdAt: "2026-05-12T09:30:00+02:00",
     hasStatedDesiredOccupation: occupationStated,

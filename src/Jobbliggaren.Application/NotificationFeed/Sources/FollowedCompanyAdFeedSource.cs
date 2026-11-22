@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.Matching.Queries;
 using Jobbliggaren.Application.NotificationFeed.Queries.GetMyNotificationFeed;
@@ -36,6 +37,13 @@ namespace Jobbliggaren.Application.NotificationFeed.Sources;
 /// </para>
 ///
 /// <para>
+/// <b>The ads it holds for a lower source (ADR 0175 D8):</b> <see cref="HeldAdIds"/> is every ad with a live hit under an
+/// active watch while <see cref="NotificationFeedGate.FollowedAds"/> holds, whatever the hit's state, read or graded out
+/// included. The Branschbevakning source leaves those ads out, so a followed company's ad is its notification and not a
+/// Branschbevakning's. Nothing here reads that lower source.
+/// </para>
+///
+/// <para>
 /// <b>Window and horizon:</b> the list reads the newest <see cref="HitsPerRow"/> hits per shown row, read ones
 /// included and held ones not, and filters them after reading, so an ad whose included hits all lie beyond the
 /// window can be missing. When the window is full, the hit just past it is the horizon, and the merge shows no READ
@@ -56,9 +64,7 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
     /// The grade path's load bound. The common path is a SQL <c>COUNT(DISTINCT)</c> and needs none, but
     /// with an "endast matchade" watch every unacknowledged hit is loaded and its ad graded on every
     /// poll, and nothing limits how many companies a user follows. Past this many hits the source
-    /// refuses to count (ADR 0120 clause 5) rather than show a floor. Derived, not measured: at the
-    /// bell's 12 requests per minute it caps graded ids at 120 000 per user and minute, the order
-    /// <c>CompanyWatchCriteriaList</c> already accepts. The bell's own constant, deliberately not tied to
+    /// refuses to count (ADR 0120 clause 5) rather than show a floor. The bell's own constant, deliberately not tied to
     /// <c>ListNewFollowedCompanyAdsQueryHandler.MaxRows</c> or any other cap.
     /// </summary>
     internal const int MaxCountedHits = 10_000;
@@ -95,8 +101,11 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
         if (scope is null)
             return NotificationSourceRead.Nothing(Kind);
 
+        // The newest new hit, read in order rather than by MAX: PostgreSQL's min/max rewrite does not cross a join.
         var token = await NewFollowedCompanyAdSet.NewHits(db, userId, scope.LastSeen)
-            .MaxAsync(h => (DateTimeOffset?)h.CreatedAt, cancellationToken);
+            .OrderByDescending(h => h.CreatedAt)
+            .Select(h => (DateTimeOffset?)h.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
 
         var countInput = token is { } through
             ? await NewFollowedCompanyAdSet.LoadCountInputAsync(
@@ -270,6 +279,20 @@ internal sealed class FollowedCompanyAdFeedSource : INotificationFeedSource, INo
             .ThenBy(x => x.AdId.Value)
             .Take(maxItems)
             .ToList();
+
+    /// <summary>
+    /// The ads this source holds (ADR 0175 D8): every ad the user has a hit for under an active watch, read, dismissed,
+    /// graded out or behind the watermark alike, while <see cref="NotificationFeedGate.FollowedAds"/> holds. The
+    /// Branschbevakning source leaves these ads out, so an ad is one notification. The gate is inside the query, so a
+    /// statement that composes it reads a follow hit only while the gate holds in that statement.
+    /// </summary>
+    internal static IQueryable<JobAdId> HeldAdIds(IAppDbContext db, Guid userId)
+    {
+        var gated = NotificationFeedGate.FollowedAds.Apply(db.JobSeekers);
+        return NewFollowedCompanyAdSet.NewHits(db, userId, lastSeen: null)
+            .Where(h => gated.Any(js => js.UserId == h.UserId))
+            .Select(h => h.JobAdId);
+    }
 
     /// <summary>The hits the bell counts: unread in the bell, and of an ad the match source does not hold.</summary>
     private static Expression<Func<FollowedCompanyAdHit, bool>> CountedInTheBell(IQueryable<JobAdId>? held)

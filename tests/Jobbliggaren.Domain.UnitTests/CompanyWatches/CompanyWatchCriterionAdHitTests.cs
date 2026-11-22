@@ -78,10 +78,10 @@ public class CompanyWatchCriterionAdHitTests
     }
 
     [Fact]
-    public void Type_ExposesNoPublicInstanceMethod_SoNoBellFlagHasAWriter()
+    public void Type_ExposesNoPublicInstanceMethod_SoTheBellSourceStatementsStayTheOnlyWriters()
     {
-        // B6 / ADR 0169 V20: the only writer of either flag is the user's click, which arrives with the bell
-        // source in PR 3. Until then the type exposes no way to set them.
+        // B6 / ADR 0169 V20: the only writers of either flag are the Branschbevakning bell source's set-based statements
+        // (ADR 0175 D8), triggered by the user. The type exposes no way to set them, so no tracked write can join them.
         var writers = typeof(CompanyWatchCriterionAdHit)
             .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance
                 | System.Reflection.BindingFlags.DeclaredOnly)

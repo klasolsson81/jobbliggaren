@@ -26,6 +26,7 @@ import {
   updateFollowedCompanyNotificationConsent,
   updateMatchSummaryMail,
   updateNotificationConsent,
+  updateNotificationFeedCriterionAds,
   updateNotificationFeedFollowedAds,
   updateNotificationFeedMatches,
   updateNotificationMail,
@@ -52,6 +53,8 @@ import {
   type UpdateNotificationFeedMatchesInput,
   makeUpdateNotificationFeedFollowedAdsSchema,
   type UpdateNotificationFeedFollowedAdsInput,
+  makeUpdateNotificationFeedCriterionAdsSchema,
+  type UpdateNotificationFeedCriterionAdsInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
 import type { ActionResult } from "./_action-result";
@@ -252,6 +255,24 @@ export async function updateNotificationFeedFollowedAdsAction(
 
   const result = await updateNotificationFeedFollowedAds({ enabled: parsed.data.enabled });
   return notificationSettingOutcome(result, ts, "followedCompanyNotifications");
+}
+
+/**
+ * ADR 0175 D8 (#1663) — whether new ads from Branschbevakningar reach the bell. Same rule; its failures read as the
+ * background-match copy, which names no purpose.
+ */
+export async function updateNotificationFeedCriterionAdsAction(
+  input: UpdateNotificationFeedCriterionAdsInput
+): Promise<ActionResult> {
+  const ts = await getTranslations("settings");
+  const t = await getTranslations("validation");
+  const parsed = makeUpdateNotificationFeedCriterionAdsSchema(t).safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: ts("backgroundMatch.errors.invalidInput") };
+  }
+
+  const result = await updateNotificationFeedCriterionAds({ enabled: parsed.data.enabled });
+  return notificationSettingOutcome(result, ts, "backgroundMatch");
 }
 
 function notificationSettingOutcome(

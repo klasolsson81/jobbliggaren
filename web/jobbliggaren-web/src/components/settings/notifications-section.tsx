@@ -1,6 +1,6 @@
 "use client";
 
-// "use client": the card holds five switches and the cadence, saves each change optimistically in its
+// "use client": the card holds its switches and the cadence, saves each change optimistically in its
 // own transition, reverts a refused one, shows each outcome under the control that saved, and moves
 // focus when a change removes or disables the focused control. None of that runs in a Server Component.
 
@@ -23,6 +23,7 @@ import {
   updateFollowedCompanyNotificationConsentAction,
   updateMatchSummaryMailAction,
   updateNotificationConsentAction,
+  updateNotificationFeedCriterionAdsAction,
   updateNotificationFeedFollowedAdsAction,
   updateNotificationFeedMatchesAction,
   updateNotificationMailAction,
@@ -51,6 +52,8 @@ interface NotificationsSectionProps {
   readonly initialFeedMatchesEnabled: boolean;
   /** Whether new ads from followed companies reach the bell (ADR 0162). */
   readonly initialFeedFollowedAdsEnabled: boolean;
+  /** Whether new ads from Branschbevakningar reach the bell (ADR 0175 D8). */
+  readonly initialFeedCriterionAdsEnabled: boolean;
   readonly initialCadence: DigestCadence;
 }
 
@@ -70,6 +73,9 @@ interface NotificationsSectionProps {
  * and the matches switch renders only while the match consent is on, keeping its saved value when it is hidden,
  * with no line about why. A saved change asks the bell to read again at once.
  *
+ * #1663 (ADR 0175 D8) - Branschbevakningar have a group of their own after the followed companies, holding their bell
+ * switch and nothing else: no e-mail row (security-auditor, 2026-11-20). The switch always renders.
+ *
  * One write per control, each carrying only its own value.
  */
 export function NotificationsSection({
@@ -80,6 +86,7 @@ export function NotificationsSection({
   initialFollowEnabled,
   initialFeedMatchesEnabled,
   initialFeedFollowedAdsEnabled,
+  initialFeedCriterionAdsEnabled,
   initialCadence,
 }: NotificationsSectionProps) {
   const t = useTranslations("settings");
@@ -95,6 +102,8 @@ export function NotificationsSection({
     followTitle: `${id}-follow`,
     followError: `${id}-follow-error`,
     feedFollowedError: `${id}-feed-followed-error`,
+    criterionTitle: `${id}-criterion`,
+    feedCriterionError: `${id}-feed-criterion-error`,
     paused: `${id}-paused`,
     cadenceHint: `${id}-cadence-hint`,
     cadenceError: `${id}-cadence-error`,
@@ -108,6 +117,7 @@ export function NotificationsSection({
     summary: useTransition(),
     follow: useTransition(),
     feedFollowed: useTransition(),
+    feedCriterion: useTransition(),
     cadence: useTransition(),
   };
   const focus = useFocusKeeper(Object.values(saves).some(([saving]) => saving));
@@ -120,6 +130,7 @@ export function NotificationsSection({
   const summaryUnit = useRef<HTMLDivElement>(null);
   const followUnit = useRef<HTMLDivElement>(null);
   const feedFollowedUnit = useRef<HTMLDivElement>(null);
+  const feedCriterionUnit = useRef<HTMLDivElement>(null);
   const cadenceUnit = useRef<HTMLDivElement>(null);
 
   const mail = useControlWrite(
@@ -171,6 +182,18 @@ export function NotificationsSection({
     true,
     saves.feedFollowed,
     feedFollowedUnit,
+    focus,
+  );
+  const feedCriterion = useControlWrite(
+    initialFeedCriterionAdsEnabled,
+    async (enabled) => {
+      const result = await updateNotificationFeedCriterionAdsAction({ enabled });
+      if (result.success) void refreshBell();
+      return result;
+    },
+    true,
+    saves.feedCriterion,
+    feedCriterionUnit,
     focus,
   );
   const matchMailsShown = mail.value && match.value;
@@ -273,6 +296,18 @@ export function NotificationsSection({
           label={t("followedCompanyNotifications.toggleLabel")}
           description={t("followedCompanyNotifications.toggleDescription")}
           status={mail.value ? undefined : { id: ids.paused, text: t("notices.mailPaused") }}
+        />
+      </section>
+
+      <section className="jp-settings-group" aria-labelledby={ids.criterionTitle}>
+        <h3 id={ids.criterionTitle} className="jp-settings-group__title">
+          {t("notices.criterionTitle")}
+        </h3>
+        <SwitchUnit
+          write={feedCriterion}
+          unitRef={feedCriterionUnit}
+          errorId={ids.feedCriterionError}
+          label={t("notices.feedCriterionAdsLabel")}
         />
       </section>
 

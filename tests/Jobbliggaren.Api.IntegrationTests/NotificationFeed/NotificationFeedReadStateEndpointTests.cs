@@ -5,7 +5,10 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionNewAdCounts;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyAdCount;
+using Jobbliggaren.Application.CompanyWatches.Queries.ListNewCriterionAds;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListNewFollowedCompanyAds;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
@@ -33,19 +36,50 @@ namespace Jobbliggaren.Api.IntegrationTests.NotificationFeed;
 
 /// <summary>
 /// #2130 PR 2 (ADR 0162 as amended) - the bell's per-row read state end to end against Testcontainers Postgres: the two
-/// POST marks, the two PUT switches, and the read paths that now know a row can be read in the bell. Only a real provider
-/// proves that the set-based writes (<c>ExecuteUpdate</c> with a correlated consent <c>EXISTS</c>), the grouped common-path
-/// read and the flag predicates translate, and only the wired stack proves the surface: 401, the closed set of sources, the
-/// 204 for every request from a signed-in owner, the buckets, the audit rows and what a mark leaves alone. Every seed goes
-/// through an aggregate; every test uses fresh users (the shared <c>[Collection("Api")]</c> database is never reset).
+/// POST marks, the PUT switches (Branschbevakning's the third, #1663 PR 3), and the read paths that now know a row can be
+/// read in the bell. Only a real provider proves that the set-based writes (<c>ExecuteUpdate</c> with a correlated consent
+/// <c>EXISTS</c>), the grouped common-path read and the flag predicates translate, and only the wired stack proves the
+/// surface: 401, the closed set of sources, the 204 for every request from a signed-in owner, the buckets, the audit rows
+/// and what a mark leaves alone. Every seed goes through an aggregate; every test uses fresh users (the shared
+/// <c>[Collection("Api")]</c> database is never reset).
 /// </summary>
 [Collection("Api")]
 public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
 {
     private const string Matches = "matches";
     private const string FollowedAds = "followed-company-ads";
+    private const string Criterion = "company-watch-criterion-ads";
+
+    private static string KindOf(string source) => source switch
+    {
+        Matches => "Match",
+        FollowedAds => "FollowedCompanyAd",
+        Criterion => "CompanyWatchCriterionAd",
+        _ => throw new ArgumentOutOfRangeException(nameof(source), source, "A segment outside the bell's closed set."),
+    };
 
     // ── seeding ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Where one source's rows come from for one user: background matching's row needs nothing, a followed company's
+    /// ad needs the follow it was scanned under, and a Branschbevakning's ad the criterion that answered Scanned.
+    /// </summary>
+    private sealed record Producer(string Source, CompanyWatchId Watch, CompanyWatchCriterionId Criterion);
+
+    private async Task<Producer> ProducerAsync(string source, Guid userId, CancellationToken ct) => new(
+        source,
+        source == FollowedAds ? await SeedWatchAsync(factory, userId, ct) : default,
+        source == Criterion ? await SeedCriterionAsync(factory, userId, ct) : default);
+
+    /// <summary>One row of the producer's source, through the aggregate its producer writes it with.</summary>
+    private Task SeedRowAsync(Producer producer, Guid userId, JobAdId ad, DateTimeOffset at, CancellationToken ct) =>
+        producer.Source switch
+        {
+            Matches => SeedMatchAsync(factory, userId, ad, at, ct),
+            FollowedAds => SeedHitAsync(factory, userId, ad, producer.Watch, at, ct),
+            Criterion => SeedCriterionHitAsync(factory, producer.Criterion, ad, at, ct),
+            _ => throw new ArgumentOutOfRangeException(nameof(producer), producer.Source, null),
+        };
 
     private async Task ConsentAsync(Guid userId, bool enabled, CancellationToken ct)
     {
@@ -81,6 +115,46 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         return await db.AuditLogEntries.CountAsync(ct);
     }
 
+    /// <summary>The bell's read flag on every row of the ad in the source, never an empty list.</summary>
+    private async Task<List<bool>> ReadFlagsAsync(Guid userId, string source, JobAdId ad, CancellationToken ct)
+    {
+        List<bool> flags = source switch
+        {
+            Matches => [(await MatchRowAsync(factory, userId, ad, ct)).ReadInNotificationFeed],
+            FollowedAds => [.. (await HitRowsAsync(factory, userId, ad, ct)).Select(h => h.ReadInNotificationFeed)],
+            _ => [.. (await CriterionHitRowsAsync(factory, userId, ad, ct)).Select(h => h.ReadInNotificationFeed)],
+        };
+        flags.ShouldNotBeEmpty();
+        return flags;
+    }
+
+    /// <summary>
+    /// What Översikt shows for the source: the new-match count, the followed-ads count, or the producer's
+    /// Branschbevakning pill.
+    /// </summary>
+    private static async Task<int> OversiktCountAsync(HttpClient client, Producer producer, CancellationToken ct)
+    {
+        switch (producer.Source)
+        {
+            case Matches:
+                return await CountAsync(client, "/api/v1/me/new-match-count", ct);
+            case FollowedAds:
+                return await CountAsync(client, "/api/v1/me/followed-company-ads/new-count", ct);
+            default:
+                var counts = await client.GetFromJsonAsync<JsonElement>("/api/v1/me/company-watch-criteria/new-ad-counts", ct);
+                return counts.GetProperty("items").EnumerateArray()
+                    .Single(i => i.GetProperty("criterionId").GetGuid() == producer.Criterion.Value)
+                    .GetProperty("newAds").GetInt32();
+        }
+    }
+
+    private async Task<DateTimeOffset?> NewAdsSeenThroughAsync(CompanyWatchCriterionId criterion, CancellationToken ct)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return (await db.CompanyWatchCriteria.AsNoTracking().SingleAsync(c => c.Id == criterion, ct)).NewAdsSeenThrough;
+    }
+
     private static Task<HttpResponseMessage> MarkRowAsync(HttpClient client, string source, Guid adId, CancellationToken ct) =>
         client.PostAsync($"{FeedPath}/{source}/{adId}/read", content: null, ct);
 
@@ -109,13 +183,15 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
             .StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         (await anonymous.PutAsJsonAsync($"{FeedPath}/{Matches}", new { enabled = false }, ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         (await anonymous.PutAsJsonAsync($"{FeedPath}/{FollowedAds}", new { enabled = false }, ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await anonymous.PutAsJsonAsync($"{FeedPath}/{Criterion}", new { enabled = false }, ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Theory]
     [InlineData("POST", "/api/v1/me/notification-feed/{source}/{jobAdId:guid}/read", RateLimitingExtensions.NotificationFeedMarkPolicy)]
-    [InlineData("POST", "/api/v1/me/notification-feed/{source}/read", RateLimitingExtensions.NotificationFeedMarkPolicy)]
+    [InlineData("POST", "/api/v1/me/notification-feed/{source}/read", RateLimitingExtensions.NotificationFeedMarkThroughPolicy)]
     [InlineData("PUT", "/api/v1/me/notification-feed/matches", RateLimitingExtensions.MeWritePolicy)]
     [InlineData("PUT", "/api/v1/me/notification-feed/followed-company-ads", RateLimitingExtensions.MeWritePolicy)]
+    [InlineData("PUT", "/api/v1/me/notification-feed/company-watch-criterion-ads", RateLimitingExtensions.MeWritePolicy)]
     public void Each_route_requires_authorization_and_carries_its_own_policy(string method, string pattern, string policy)
     {
         _ = factory.CreateClient();
@@ -138,6 +214,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     [InlineData("0")]
     [InlineData("Match")]
     [InlineData("FollowedCompanyAd")]
+    [InlineData("CompanyWatchCriterionAd")]
     [InlineData("application")]
     public async Task A_source_outside_the_closed_set_is_a_400_for_a_user_with_rows_and_one_without(string source)
     {
@@ -363,34 +440,28 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     [Theory]
     [InlineData(Matches)]
     [InlineData(FollowedAds)]
+    [InlineData(Criterion)]
     public async Task Mark_all_reads_the_counted_set_up_to_the_token_and_leaves_a_row_after_it_unread(string source)
     {
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterUserAsync(factory, $"markall-{source}", ct);
         await ConsentAsync(userId, true, ct);
-        var watch = source == FollowedAds ? await SeedWatchAsync(factory, userId, ct) : default;
+        var producer = await ProducerAsync(source, userId, ct);
         var ads = new List<JobAdId>();
         for (var i = 0; i < 3; i++)
         {
             var ad = await SeedAdAsync(factory, $"Annons {i}", ct);
             ads.Add(ad);
-            if (source == Matches)
-                await SeedMatchAsync(factory, userId, ad, Base.AddMinutes(1 + i), ct);
-            else
-                await SeedHitAsync(factory, userId, ad, watch, Base.AddMinutes(1 + i), ct);
+            await SeedRowAsync(producer, userId, ad, Base.AddMinutes(1 + i), ct);
         }
-        var kind = source == Matches ? "Match" : "FollowedCompanyAd";
+        var kind = KindOf(source);
         var token = Source(await GetFeedAsync(client, ct), kind).AcknowledgedThrough!.Value;
         // A row that arrives after the number was read is neither counted nor marked: it stays unread for the next read.
         var late = await SeedAdAsync(factory, "Sen annons", ct);
-        if (source == Matches)
-            await SeedMatchAsync(factory, userId, late, token.AddMinutes(1), ct);
-        else
-            await SeedHitAsync(factory, userId, late, watch, token.AddMinutes(1), ct);
+        await SeedRowAsync(producer, userId, late, token.AddMinutes(1), ct);
         var watermarks = await SeekerAsync(userId, ct);
-        var oversikt = source == Matches
-            ? await CountAsync(client, "/api/v1/me/new-match-count", ct)
-            : await CountAsync(client, "/api/v1/me/followed-company-ads/new-count", ct);
+        var criterionWatermark = source == Criterion ? await NewAdsSeenThroughAsync(producer.Criterion, ct) : null;
+        var oversikt = await OversiktCountAsync(client, producer, ct);
 
         (await MarkThroughAsync(client, source, token, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await MarkThroughAsync(client, source, token, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent); // idempotent
@@ -403,9 +474,9 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         var after = await SeekerAsync(userId, ct);
         after.LastSeenMatchesAt.ShouldBe(watermarks.LastSeenMatchesAt);
         after.LastSeenFollowedAdsAt.ShouldBe(watermarks.LastSeenFollowedAdsAt);
-        (source == Matches
-            ? await CountAsync(client, "/api/v1/me/new-match-count", ct)
-            : await CountAsync(client, "/api/v1/me/followed-company-ads/new-count", ct)).ShouldBe(oversikt);
+        if (source == Criterion)
+            (await NewAdsSeenThroughAsync(producer.Criterion, ct)).ShouldBe(criterionWatermark);
+        (await OversiktCountAsync(client, producer, ct)).ShouldBe(oversikt);
     }
 
     [Fact]
@@ -439,17 +510,15 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     [Theory]
     [InlineData(Matches, "notificationFeedMatchesEnabled")]
     [InlineData(FollowedAds, "notificationFeedFollowedAdsEnabled")]
+    [InlineData(Criterion, "notificationFeedCriterionAdsEnabled")]
     public async Task A_switch_returns_204_the_profile_reads_it_back_and_the_feed_honours_it(string source, string profileFlag)
     {
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterUserAsync(factory, $"switch-{source}", ct);
         await ConsentAsync(userId, true, ct);
         var ad = await SeedAdAsync(factory, "Rad", ct);
-        var kind = source == Matches ? "Match" : "FollowedCompanyAd";
-        if (source == Matches)
-            await SeedMatchAsync(factory, userId, ad, Base.AddMinutes(1), ct);
-        else
-            await SeedHitAsync(factory, userId, ad, await SeedWatchAsync(factory, userId, ct), Base.AddMinutes(1), ct);
+        var kind = KindOf(source);
+        await SeedRowAsync(await ProducerAsync(source, userId, ct), userId, ad, Base.AddMinutes(1), ct);
         (await ProfileFlagAsync(client, profileFlag, ct)).ShouldBeTrue();
         Source(await GetFeedAsync(client, ct), kind).UnreadCount.ShouldBe(1);
 
@@ -471,28 +540,21 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     [Theory]
     [InlineData(Matches)]
     [InlineData(FollowedAds)]
+    [InlineData(Criterion)]
     public async Task Switching_a_type_back_on_shows_nothing_from_the_time_it_was_off_as_unread_and_keeps_what_was_unread_before(string source)
     {
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterUserAsync(factory, $"backlog-{source}", ct);
         await ConsentAsync(userId, true, ct);
-        var kind = source == Matches ? "Match" : "FollowedCompanyAd";
-        var watch = source == FollowedAds ? await SeedWatchAsync(factory, userId, ct) : default;
+        var kind = KindOf(source);
+        var producer = await ProducerAsync(source, userId, ct);
         var before = await SeedAdAsync(factory, "Före avstängningen", ct);
         var during = await SeedAdAsync(factory, "Medan den var av", ct);
 
-        async Task SeedAsync(JobAdId ad, DateTimeOffset at)
-        {
-            if (source == Matches)
-                await SeedMatchAsync(factory, userId, ad, at, ct);
-            else
-                await SeedHitAsync(factory, userId, ad, watch, at, ct);
-        }
-
-        await SeedAsync(before, Base.AddMinutes(1));
+        await SeedRowAsync(producer, userId, before, Base.AddMinutes(1), ct);
         (await SwitchAsync(client, source, false, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         // Rows are created while the type is off: after the off-stamp, which is "now".
-        await SeedAsync(during, DateTimeOffset.UtcNow.AddMinutes(10));
+        await SeedRowAsync(producer, userId, during, DateTimeOffset.UtcNow.AddMinutes(10), ct);
         (await GetFeedAsync(client, ct)).Items.Where(i => i.Kind == kind).ShouldBeEmpty();
 
         (await SwitchAsync(client, source, true, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -502,15 +564,13 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         // Marked read at switch-on, so it arrives as read history, not as a flood of unread (and the badge says 1, not 2).
         feed.Items.Single(i => i.Kind == kind && i.JobAdId == during.Value).IsUnread.ShouldBeFalse();
         Source(feed, kind).UnreadCount.ShouldBe(1);
-        if (source == Matches)
-            (await MatchRowAsync(factory, userId, during, ct)).ReadInNotificationFeed.ShouldBeTrue();
-        else
-            (await HitRowsAsync(factory, userId, during, ct)).ShouldAllBe(h => h.ReadInNotificationFeed);
+        (await ReadFlagsAsync(userId, source, during, ct)).ShouldAllBe(read => read);
     }
 
     [Theory]
     [InlineData(Matches)]
     [InlineData(FollowedAds)]
+    [InlineData(Criterion)]
     public async Task Switching_on_when_the_type_is_already_on_marks_nothing(string source)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -519,23 +579,17 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         var ad = await SeedAdAsync(factory, "Ny", ct);
         // Created "in the future" relative to anything a null stamp could mean: with no stamp the backlog is empty, and
         // a null stamp must never read as "since forever".
-        if (source == Matches)
-            await SeedMatchAsync(factory, userId, ad, DateTimeOffset.UtcNow.AddMinutes(10), ct);
-        else
-            await SeedHitAsync(
-                factory, userId, ad, await SeedWatchAsync(factory, userId, ct), DateTimeOffset.UtcNow.AddMinutes(10), ct);
+        await SeedRowAsync(await ProducerAsync(source, userId, ct), userId, ad, DateTimeOffset.UtcNow.AddMinutes(10), ct);
 
         (await SwitchAsync(client, source, true, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        if (source == Matches)
-            (await MatchRowAsync(factory, userId, ad, ct)).ReadInNotificationFeed.ShouldBeFalse();
-        else
-            (await HitRowsAsync(factory, userId, ad, ct)).ShouldAllBe(h => !h.ReadInNotificationFeed);
+        (await ReadFlagsAsync(userId, source, ad, ct)).ShouldAllBe(read => !read);
     }
 
     [Theory]
     [InlineData(Matches)]
     [InlineData(FollowedAds)]
+    [InlineData(Criterion)]
     public async Task A_switch_without_enabled_is_a_400_that_writes_nothing(string source)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -548,12 +602,14 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         var seeker = await SeekerAsync(userId, ct);
         seeker.Preferences.NotificationFeedMatchesOffAt.ShouldBeNull();
         seeker.Preferences.NotificationFeedFollowedAdsOffAt.ShouldBeNull();
+        seeker.Preferences.NotificationFeedCriterionAdsOffAt.ShouldBeNull();
         (await AuditCountAsync(ct)).ShouldBe(auditBefore);
     }
 
     [Theory]
     [InlineData(Matches, "JobSeeker.NotificationFeedMatchesUpdated")]
     [InlineData(FollowedAds, "JobSeeker.NotificationFeedFollowedAdsUpdated")]
+    [InlineData(Criterion, "JobSeeker.NotificationFeedCriterionAdsUpdated")]
     public async Task A_switch_writes_exactly_one_audit_row_carrying_only_the_requested_enabled(string source, string eventType)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -591,7 +647,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_switch_writes_only_its_own_stamp_never_a_consent_a_mail_pause_or_the_other_switch()
+    public async Task A_switch_writes_only_its_own_stamp_never_a_consent_a_mail_pause_or_another_switch()
     {
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterUserAsync(factory, "switch-own-stamp", ct);
@@ -606,6 +662,14 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         after.ShouldBe(before with { NotificationFeedFollowedAdsOffAt = after.NotificationFeedFollowedAdsOffAt });
         after.NotificationFeedMatchesOffAt.ShouldBeNull();
         after.NotificationFeedFollowedAdsOffAt.ShouldNotBeNull();
+        after.NotificationFeedCriterionAdsOffAt.ShouldBeNull();
+
+        // The third switch, alone, after the other two: only its own stamp moves.
+        (await SwitchAsync(client, Criterion, false, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var afterCriterion = (await SeekerAsync(userId, ct)).Preferences;
+        afterCriterion.ShouldBe(after with { NotificationFeedCriterionAdsOffAt = afterCriterion.NotificationFeedCriterionAdsOffAt });
+        afterCriterion.NotificationFeedCriterionAdsOffAt.ShouldNotBeNull();
     }
 
     // ── the X (#2151, ADR 0169) ──────────────────────────────────────────────────────────────
@@ -642,7 +706,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
 
         var (client, userId) = await RegisterUserAsync(factory, "dismiss-400", ct);
         await ConsentAsync(userId, true, ct);
-        foreach (var source in new[] { "7", "0", "Match", "FollowedCompanyAd", "application" })
+        foreach (var source in new[] { "7", "0", "Match", "FollowedCompanyAd", "CompanyWatchCriterionAd", "application" })
             (await DismissAsync(client, source, Guid.NewGuid(), ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await DismissAsync(client, Matches, Guid.Empty, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await client.PostAsync($"{FeedPath}/{Matches}/not-a-guid/dismiss", null, ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -819,6 +883,26 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         Source(feed, "FollowedCompanyAd").UnreadCount.ShouldBe(0);
     }
 
+    // The same trap in the third source: its X filters on the dismissed flag, so a Branschbevakning row the user already
+    // opened in the bell is taken out too.
+    [Fact]
+    public async Task The_X_works_on_a_Branschbevakning_row_already_read_in_the_bell()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, userId) = await RegisterUserAsync(factory, "dismiss-read-criterion", ct);
+        var ad = await SeedAdAsync(factory, "Läst bransch", ct);
+        await SeedRowAsync(await ProducerAsync(Criterion, userId, ct), userId, ad, Base.AddMinutes(1), ct);
+        (await MarkRowAsync(client, Criterion, ad.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await ReadFlagsAsync(userId, Criterion, ad, ct)).ShouldHaveSingleItem().ShouldBeTrue();
+
+        (await DismissAsync(client, Criterion, ad.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        (await DismissedFlagsAsync(userId, Criterion, ad, ct)).ShouldHaveSingleItem().ShouldBeTrue();
+        var feed = await GetFeedAsync(client, ct);
+        feed.Items.ShouldNotContain(i => i.JobAdId == ad.Value);
+        Source(feed, KindOf(Criterion)).UnreadCount.ShouldBe(0);
+    }
+
     [Fact]
     public async Task A_dismissal_is_idempotent()
     {
@@ -921,6 +1005,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     [Theory]
     [InlineData(Matches)]
     [InlineData(FollowedAds)]
+    [InlineData(Criterion)]
     public async Task A_dismissed_notification_never_comes_back_through_mark_all_or_a_read_mark(string source)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -928,20 +1013,12 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         await ConsentAsync(userId, true, ct);
         var gone = await SeedAdAsync(factory, "Borttagen", ct);
         var other = await SeedAdAsync(factory, "Annan", ct);
-        var watch = await SeedWatchAsync(factory, userId, ct);
-        if (source == Matches)
-        {
-            await SeedMatchAsync(factory, userId, gone, Base.AddMinutes(1), ct);
-            await SeedMatchAsync(factory, userId, other, Base.AddMinutes(2), ct);
-        }
-        else
-        {
-            await SeedHitAsync(factory, userId, gone, watch, Base.AddMinutes(1), ct);
-            await SeedHitAsync(factory, userId, other, watch, Base.AddMinutes(2), ct);
-        }
+        var producer = await ProducerAsync(source, userId, ct);
+        await SeedRowAsync(producer, userId, gone, Base.AddMinutes(1), ct);
+        await SeedRowAsync(producer, userId, other, Base.AddMinutes(2), ct);
 
         (await DismissAsync(client, source, gone.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        var kind = source == Matches ? "Match" : "FollowedCompanyAd";
+        var kind = KindOf(source);
         var token = Source(await GetFeedAsync(client, ct), kind).AcknowledgedThrough!.Value;
         (await MarkThroughAsync(client, source, token, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await MarkRowAsync(client, source, gone.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -957,54 +1034,45 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     [Theory]
     [InlineData(Matches)]
     [InlineData(FollowedAds)]
+    [InlineData(Criterion)]
     public async Task A_dismissed_notification_stays_dismissed_when_the_switch_on_backlog_mark_runs(string source)
     {
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterUserAsync(factory, $"dismiss-backlog-{source}", ct);
         await ConsentAsync(userId, true, ct);
-        var watch = await SeedWatchAsync(factory, userId, ct);
+        var producer = await ProducerAsync(source, userId, ct);
         (await SwitchAsync(client, source, false, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var gone = await SeedAdAsync(factory, "Kom medan den var av, borttagen", ct);
         var arrived = await SeedAdAsync(factory, "Kom medan den var av", ct);
         var afterTheStamp = DateTimeOffset.UtcNow.AddMinutes(10);
-        if (source == Matches)
-        {
-            await SeedMatchAsync(factory, userId, gone, afterTheStamp, ct);
-            await SeedMatchAsync(factory, userId, arrived, afterTheStamp.AddMinutes(1), ct);
-        }
-        else
-        {
-            await SeedHitAsync(factory, userId, gone, watch, afterTheStamp, ct);
-            await SeedHitAsync(factory, userId, arrived, watch, afterTheStamp.AddMinutes(1), ct);
-        }
+        await SeedRowAsync(producer, userId, gone, afterTheStamp, ct);
+        await SeedRowAsync(producer, userId, arrived, afterTheStamp.AddMinutes(1), ct);
         (await DismissAsync(client, source, gone.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         (await SwitchAsync(client, source, true, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         (await DismissedFlagsAsync(userId, source, gone, ct)).ShouldAllBe(d => d);
         // The control: the backlog mark did run over this type's rows, and read the one that was not dismissed.
-        var arrivedRead = source == Matches
-            ? [(await MatchRowAsync(factory, userId, arrived, ct)).ReadInNotificationFeed]
-            : (await HitRowsAsync(factory, userId, arrived, ct)).Select(h => h.ReadInNotificationFeed).ToList();
-        arrivedRead.ShouldAllBe(r => r, "the backlog mark reaches the rows created after the off-stamp");
+        (await ReadFlagsAsync(userId, source, arrived, ct))
+            .ShouldAllBe(r => r, "the backlog mark reaches the rows created after the off-stamp");
         (await GetFeedAsync(client, ct)).Items.ShouldNotContain(i => i.JobAdId == gone.Value);
     }
 
-    // A list visit: the two watermark endpoints /matchningar and /foretag/bevakade/nya call, and the per-hit seen stamp an ad
-    // open sends. None of them may clear the flag, and none of them may be what the X depends on.
+    // A list visit: the two watermark endpoints /matchningar and /foretag/bevakade/nya call, the per-hit seen stamp an ad
+    // open sends, and, for a Branschbevakning, the acknowledgement its page of new ads sends. None of them may clear the
+    // flag, and none of them may be what the X depends on.
     [Theory]
     [InlineData(Matches)]
     [InlineData(FollowedAds)]
+    [InlineData(Criterion)]
     public async Task A_dismissed_notification_stays_dismissed_through_a_list_visit_and_the_seen_stamp(string source)
     {
         var ct = TestContext.Current.CancellationToken;
         var (client, userId) = await RegisterUserAsync(factory, $"dismiss-visit-{source}", ct);
         await ConsentAsync(userId, true, ct);
         var gone = await SeedAdAsync(factory, "Borttagen", ct);
-        if (source == Matches)
-            await SeedMatchAsync(factory, userId, gone, Base.AddMinutes(1), ct);
-        else
-            await SeedHitAsync(factory, userId, gone, await SeedWatchAsync(factory, userId, ct), Base.AddMinutes(1), ct);
+        var producer = await ProducerAsync(source, userId, ct);
+        await SeedRowAsync(producer, userId, gone, Base.AddMinutes(1), ct);
         (await DismissAsync(client, source, gone.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         (await client.PostAsJsonAsync("/api/v1/me/matches/seen", new { seenThrough = Base.AddMinutes(5).ToString("O") }, ct))
@@ -1014,6 +1082,13 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await client.PostAsync($"/api/v1/me/company-watches/ad-hits/{gone.Value}/seen", null, ct))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        if (source == Criterion)
+        {
+            (await client.PostAsJsonAsync(
+                    $"/api/v1/me/company-watch-criteria/{producer.Criterion.Value}/new-ads/seen",
+                    new { seenThrough = Base.AddMinutes(5).ToString("O") }, ct))
+                .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
 
         (await DismissedFlagsAsync(userId, source, gone, ct)).ShouldAllBe(d => d);
         (await GetFeedAsync(client, ct)).Items.ShouldNotContain(i => i.JobAdId == gone.Value);
@@ -1061,6 +1136,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     // The architect's Viktigt 1: the X must work on a row the WATERMARK has already read (the user visited the list), where the
     // read flag is false. A dismissal that copied MarkThroughAsync's watermark predicate would be a 204 with no effect on every
     // row the user has already seen on /matchningar or /foretag/bevakade/nya, and every other test here would stay green.
+    // A Branschbevakning has no such row: what its page acknowledges leaves the bell (ADR 0175, F-A).
     [Theory]
     [InlineData(Matches)]
     [InlineData(FollowedAds)]
@@ -1090,10 +1166,18 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         (await GetFeedAsync(client, ct)).Items.ShouldNotContain(i => i.JobAdId == ad.Value);
     }
 
-    private async Task<List<bool>> DismissedFlagsAsync(Guid userId, string source, JobAdId ad, CancellationToken ct) =>
-        source == Matches
-            ? [(await MatchRowAsync(factory, userId, ad, ct)).DismissedFromNotificationFeed]
-            : (await HitRowsAsync(factory, userId, ad, ct)).Select(h => h.DismissedFromNotificationFeed).ToList();
+    /// <summary>The bell's dismissed flag on every row of the ad in the source, never an empty list.</summary>
+    private async Task<List<bool>> DismissedFlagsAsync(Guid userId, string source, JobAdId ad, CancellationToken ct)
+    {
+        List<bool> flags = source switch
+        {
+            Matches => [(await MatchRowAsync(factory, userId, ad, ct)).DismissedFromNotificationFeed],
+            FollowedAds => [.. (await HitRowsAsync(factory, userId, ad, ct)).Select(h => h.DismissedFromNotificationFeed)],
+            _ => [.. (await CriterionHitRowsAsync(factory, userId, ad, ct)).Select(h => h.DismissedFromNotificationFeed)],
+        };
+        flags.ShouldNotBeEmpty();
+        return flags;
+    }
 
     [Fact]
     public async Task The_bells_count_is_Oversikts_count_minus_the_rows_read_or_dismissed_in_the_bell_when_no_followed_ad_is_a_match()
@@ -1127,7 +1211,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     }
 
     // The filter is in the window's SQL, not applied after it: dismissed rows newer than an unread one neither hide it nor
-    // trigger the shortfall statements (ADR 0168 D6), so the request stays at nine statements, and a dismissed hit takes no
+    // trigger the shortfall statements (ADR 0168 D6), so the two sources stay at nine statements, and a dismissed hit takes no
     // slot of the follow window and moves no horizon.
     [Fact]
     public async Task Dismissed_rows_do_not_crowd_out_an_older_unread_one_and_cost_no_extra_statement()
@@ -1172,6 +1256,7 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     [Theory]
     [InlineData("user_job_ad_matches", "ck_user_job_ad_matches_dismissed_implies_read")]
     [InlineData("followed_company_ad_hits", "ck_followed_company_ad_hits_dismissed_implies_read")]
+    [InlineData("company_watch_criterion_ad_hits", "ck_company_watch_criterion_ad_hits_dismissed_implies_read")]
     public async Task A_dismissed_row_that_is_not_read_is_refused_by_the_database(string table, string constraint)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -1180,12 +1265,14 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         var ad = await SeedAdAsync(factory, "A", ct);
         if (table == "user_job_ad_matches")
             await SeedMatchAsync(factory, userId, ad, Base.AddMinutes(1), ct);
-        else
+        else if (table == "followed_company_ad_hits")
             await SeedHitAsync(factory, userId, ad, await SeedWatchAsync(factory, userId, ct), Base.AddMinutes(1), ct);
+        else
+            await SeedCriterionHitAsync(factory, await SeedCriterionAsync(factory, userId, ct), ad, Base.AddMinutes(1), ct);
 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-#pragma warning disable EF1002 // table is one of the two literals in the InlineData, never input
+#pragma warning disable EF1002 // table is one of the three literals in the InlineData, never input
         var thrown = await Should.ThrowAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlRawAsync(
             $"UPDATE {table} SET dismissed_from_notification_feed = true, read_in_notification_feed = false WHERE user_id = {{0}}",
             [userId], ct));
@@ -1252,9 +1339,10 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
         read2.Items.Single(i => i.JobAdId == unread.Value).Title.ShouldBe("Oläst följd");
     }
 
-    // Eleven, not nine, when read rows hide unread ones in BOTH sources: the two conditional statements run. The base case
-    // (nothing read in the bell) stays at nine, pinned by NotificationFeedEndpointTests. Driven with a small cap, which
-    // shrinks the window with it, so a handful of rows is enough.
+    // Eleven, not nine, when read rows hide unread ones in BOTH sources: the two conditional statements run. Their base case
+    // (nothing read in the bell) is nine, the whole request's ten (NotificationFeedEndpointTests); the three-source pins are
+    // NotificationFeedCriterionSourceTests'. Driven with a small cap, which shrinks the window with it, so a handful of rows
+    // is enough.
     [Fact]
     public async Task A_request_whose_read_rows_hide_unread_ones_in_both_sources_runs_eleven_statements()
     {
@@ -1323,20 +1411,29 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
     }
 
     // The bell's flag is the bell's own: neither Översikt's counts nor the list pages ever read it, so reading or switching
-    // in the bell cannot change what they show. Asserted on the SQL itself.
+    // in the bell cannot change what they show. Asserted on the SQL itself. The Branschbevakning pill and its page of new
+    // ads (#1663 PR 3, architect Viktigt 2) read the one set the bell's third source reads, and read neither a flag nor a
+    // higher source's rows: a hit read, dismissed or held in the bell is counted and listed all the same.
     [Fact]
     public async Task Oversikt_and_the_lists_never_read_the_bells_flag()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (_, userId) = await RegisterUserAsync(factory, "sql-flag", ct);
+        var (client, userId) = await RegisterUserAsync(factory, "sql-flag", ct);
         await ConsentAsync(userId, true, ct);
         var watch = await SeedWatchAsync(factory, userId, ct);
         var onlyMatched = await SeedWatchAsync(factory, userId, onlyMatched: true, ct);
+        var criterion = await SeedCriterionAsync(factory, userId, ct);
         var matchAd = await SeedAdAsync(factory, "M", ct);
         var followAd = await SeedAdAsync(factory, "F", ct);
+        var readInBell = await SeedAdAsync(factory, "Q", ct);
+        var dismissedInBell = await SeedAdAsync(factory, "R", ct);
         await SeedMatchAsync(factory, userId, matchAd, Base.AddMinutes(1), ct);
         await SeedHitAsync(factory, userId, followAd, watch, Base.AddMinutes(1), ct);
         await SeedHitAsync(factory, userId, await SeedAdAsync(factory, "G", ct), onlyMatched, Base.AddMinutes(2), ct);
+        foreach (var ad in new[] { matchAd, followAd, readInBell, dismissedInBell })
+            await SeedCriterionHitAsync(factory, criterion, ad, Base.AddMinutes(3), ct);
+        (await MarkRowAsync(client, Criterion, readInBell.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await DismissAsync(client, Criterion, dismissedInBell.Value, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         using var scope = factory.Services.CreateScope();
         var statements = new StatementText();
@@ -1357,11 +1454,23 @@ public class NotificationFeedReadStateEndpointTests(ApiFactory factory)
             .Handle(new GetNewFollowedCompanyAdCountQuery(), ct);
         await new ListNewFollowedCompanyAdsQueryHandler(db, currentUser, profileBuilder, search)
             .Handle(new ListNewFollowedCompanyAdsQuery(), ct);
+        var beforeCriterionReads = statements.Texts.Count;
+        var pill = await new GetCriterionNewAdCountsQueryHandler(db, currentUser).Handle(new GetCriterionNewAdCountsQuery(), ct);
+        var page = await new ListNewCriterionAdsQueryHandler(
+                db, currentUser, Substitute.For<IFailedAccessLogger>(), profileBuilder, search)
+            .Handle(new ListNewCriterionAdsQuery(criterion.Value), ct);
 
         statements.Texts.ShouldNotBeEmpty();
         statements.Texts.ShouldNotContain(text => text.Contains("read_in_notification_feed", StringComparison.OrdinalIgnoreCase));
         // #2151 (security V21): the dismissed flag is the bell's own as well.
         statements.Texts.ShouldNotContain(text => text.Contains("dismissed_from_notification_feed", StringComparison.OrdinalIgnoreCase));
+        var criterionReads = statements.Texts.Skip(beforeCriterionReads).ToList();
+        criterionReads.ShouldNotBeEmpty();
+        criterionReads.ShouldNotContain(text => text.Contains("user_job_ad_matches", StringComparison.OrdinalIgnoreCase));
+        criterionReads.ShouldNotContain(text => text.Contains("followed_company_ad_hits", StringComparison.OrdinalIgnoreCase));
+        pill.Items.ShouldHaveSingleItem().NewAds.ShouldBe(4, "held, read and dismissed in the bell alike");
+        page.ShouldNotBeNull().Rows.Select(r => r.Ad.Id)
+            .ShouldBe([matchAd.Value, followAd.Value, readInBell.Value, dismissedInBell.Value], ignoreOrder: true);
     }
 
     // The positive control of the pin above: the interceptor does see the bell's own statements, and they DO name the dismissed

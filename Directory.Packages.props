@@ -87,7 +87,7 @@
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.12" />
     <!-- Redis -->
     <PackageVersion Include="StackExchange.Redis" Version="3.3.1" />
-    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="11.0.0" />
     <!-- Test — Redis container -->
     <PackageVersion Include="Testcontainers.Redis" Version="4.15.0" />
     <!-- Transitive CVE pin: Testcontainers 4.13.0 declares SSH.NET >= 2025.1.0 (measured in

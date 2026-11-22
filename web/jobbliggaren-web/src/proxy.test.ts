@@ -841,6 +841,7 @@ describe("proxy — the matcher", () => {
     "/",
     "/logga-in",
     "/oversikt",
+    "/junior",
     "/jobb/abc",
     "/admin/anvandare",
     "/robots.txt",
@@ -1046,5 +1047,121 @@ describe("proxy: the public job page", () => {
     expect(busy.status).toBe(503);
     expect(busy.headers.get("retry-after")).toBe("11");
     expect(busy.headers.get("cache-control")).toBe("no-store");
+  });
+});
+
+// #2284: the open junior list's branch. Its own matrix is junior-it-signed-in-route.test.ts; these pin how the proxy
+// composes it: the session cookie binds the shared refresh driver, and without the cookie nothing on /junior calls the
+// backend.
+describe("proxy — a signed-in visitor of /junior (#2284)", () => {
+  const SAME_ORIGIN = {
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-dest": "document",
+  } as const;
+  const CROSS_SITE = { ...SAME_ORIGIN, "sec-fetch-site": "cross-site" } as const;
+  const SIGNED_IN = { [SESSION_COOKIE_NAME]: "sess-1" };
+  const JOBB = "https://app.test/jobb?junior=on";
+
+  it("sends a signed-in request on to /jobb after the due refresh, which carries only its own three headers", async () => {
+    fetchMock.mockResolvedValue(refreshResponse({ rotated: false, sessionId: null }));
+    const res = await proxy(
+      makeRequest("/junior?q=hemligt&sortBy=ExpiresAtAsc", {
+        cookies: SIGNED_IN,
+        headers: {
+          ...SAME_ORIGIN,
+          referer: "https://www.linkedin.com/feed/",
+          "x-forwarded-for": "203.0.113.7",
+          "x-forwarded-proto": "https",
+        },
+      })
+    );
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe(`${JOBB}&sortBy=ExpiresAtAsc`);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.cookies.get(REFRESH_AFTER_COOKIE_NAME)?.value).toMatch(/^\d+$/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("http://backend.test/api/v1/auth/refresh");
+    const sent = new Headers(init?.headers);
+    expect([...sent.keys()].sort()).toEqual(["authorization", "x-forwarded-for", "x-forwarded-proto"]);
+    expect(sent.get("authorization")).toBe("Bearer sess-1");
+  });
+
+  it("sends it on without the backend when the refresh is not due, and for a prefetch", async () => {
+    const notDue = await proxy(
+      makeRequest("/junior", {
+        cookies: { ...SIGNED_IN, [REFRESH_AFTER_COOKIE_NAME]: String(nowSeconds() + 600) },
+        headers: SAME_ORIGIN,
+      })
+    );
+    const prefetch = await proxy(
+      makeRequest("/junior", { cookies: SIGNED_IN, headers: { ...SAME_ORIGIN, "sec-purpose": "prefetch" } })
+    );
+
+    for (const res of [notDue, prefetch]) {
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toBe(JOBB);
+      expect(res.headers.get("set-cookie")).toBeNull();
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("serves the public page and clears both cookies when the refresh answers exactly 401", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 401 }));
+    const res = await proxy(makeRequest("/junior", { cookies: SIGNED_IN, headers: SAME_ORIGIN }));
+
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.cookies.get(SESSION_COOKIE_NAME)?.value).toBe("");
+    expect(res.cookies.get(REFRESH_AFTER_COOKIE_NAME)?.value).toBe("");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("x-middleware-request-cookie")).toBeNull();
+    expect(res.headers.get("x-middleware-override-headers")?.split(",")).not.toContain("cookie");
+    expect(res.headers.get("x-middleware-request-x-nonce")).toBeTruthy();
+  });
+
+  it("hands a cross-site arrival without the cookie the continuation document, without the backend", async () => {
+    const res = await proxy(makeRequest("/junior?sortBy=ExpiresAtAsc", { headers: CROSS_SITE }));
+
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("/junior?sortBy=ExpiresAtAsc&amp;vidare=1");
+    expect(res.headers.get("content-security-policy")).toContain("'nonce-");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends the hop that came back with the cookie on to /jobb, and without it to the clean list", async () => {
+    const withCookie = await proxy(
+      makeRequest("/junior?vidare=1", {
+        cookies: { ...SIGNED_IN, [REFRESH_AFTER_COOKIE_NAME]: String(nowSeconds() + 600) },
+        headers: SAME_ORIGIN,
+      })
+    );
+    const without = await proxy(makeRequest("/junior?vidare=1", { headers: SAME_ORIGIN }));
+
+    expect(withCookie.headers.get("location")).toBe(JOBB);
+    expect(without.status).toBe(307);
+    expect(without.headers.get("location")).toBe("https://app.test/junior");
+    expect(without.headers.get("content-security-policy")).toContain("'nonce-");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a link previewer", { "user-agent": "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)" }],
+    ["Googlebot", { "user-agent": "Googlebot/2.1" }],
+  ])("serves %s, which sends no Fetch Metadata and no cookie, the page itself", async (_label, headers) => {
+    const res = await proxy(makeRequest("/junior", { headers }));
+
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves a query the page refuses to the page's own 404, signed in or not", async () => {
+    for (const cookies of [undefined, SIGNED_IN]) {
+      const res = await proxy(makeRequest("/junior?page=0", { cookies, headers: CROSS_SITE }));
+      expect(res.headers.get("x-middleware-next")).toBe("1");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

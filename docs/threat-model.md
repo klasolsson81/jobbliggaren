@@ -46,12 +46,38 @@ so a new write at render under `(app)` or `(admin)` alters this boundary, as doe
 change that widens the bounce's conditions or its target. A failed-access log line
 for such a page is no longer evidence of what the logged user meant to do.
 
+The bounce now also answers one public path, `/junior` (ADR 0018 Amendment
+2026-11-21, #2284), through `web/jobbliggaren-web/src/lib/auth/junior-it-signed-in-route.ts`.
+For a query the page accepts, a cross-site top-level GET without the cookie gets
+the same continuation document, and its target is the list's own address with at
+most three validated keys and the marker. A GET or HEAD that carries the cookie
+goes through the shared refresh driver (`lib/auth/session-refresh.ts`) and gets a 307 to `/jobb`,
+so `/junior` with the cookie is the one public path on which the proxy calls the
+backend. That 307's
+target carries two validated keys, `municipality` and `sortBy`, onto a signed-in
+`/jobb`: "the target drops the query" has this one named exception, and `q`,
+`commit` and `employer` never reach a Location. Through the bounce another site
+can make the session slide or rotate on `/junior`, as it already can on every
+protected path. A link previewer that sends cross-site Fetch Metadata gets the
+continuation document, never a row or a count; whether the platforms' previewers
+do so is not measured. A link opened by a program outside the browser (a mail or
+chat client) arrives with `Sec-Fetch-Site: none`, which the bounce does not
+answer. In Chromium an address-bar navigation, which also carries `none`, sends
+the `SameSite=Strict` cookie (measured 2026-11-21 in the job-modal harness,
+#2284). Chromium labels a URL that another program opens `none` as well, and
+that case itself is not measured. Where such a link carries the cookie, it reaches
+a signed-in page with its whole query, so a crafted `/jobb?q=…&commit=true` can
+store a search the user did not write. This is #2285, a `security-auditor` Major
+routed to a PR of its own.
+
 When `/auth/refresh` answers 401 to a GET, `proxy.ts` deletes the session cookie
 (#1893). That rests on a premise: only a rejected session answers 401, and a Redis
 or database outage answers 5xx. Were an outage ever mapped to 401, every active
 browser's cookie would be deleted. The proxy's delete can also land after a fresh
 login in another tab and remove the new cookie; the window is the refresh timeout
-(2.5 s) plus render time.
+(2.5 s) plus render time. Since #2284 the same delete reaches `/junior` for a GET
+or a HEAD that carries the cookie, so the premise and the race apply there too;
+the request is then answered as one with no session, rendered without the dead id.
 
 Review issuance, rotation, expiry, revocation and store failure; cookie exposure,
 CSRF, redirects, forwarded-header trust, cache isolation and backend-path

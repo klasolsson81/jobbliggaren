@@ -48,10 +48,12 @@ const PUBLIC_SURFACE = [
   resolve(SRC, "lib/api/public-job-ad-related.ts"),
   resolve(SRC, "lib/api/public-junior-it-job-ads.ts"),
   resolve(SRC, "lib/auth/public-job-ad-route.ts"),
+  resolve(SRC, "lib/auth/junior-it-signed-in-route.ts"),
   resolve(SRC, "lib/job-ads/job-posting-json-ld.ts"),
   resolve(SRC, "lib/job-ads/catalogue-page-param.ts"),
   resolve(SRC, "lib/job-ads/public-catalogue-url.ts"),
   resolve(SRC, "lib/job-ads/junior-it-params.ts"),
+  resolve(SRC, "lib/job-ads/junior-it-handover.ts"),
 ];
 
 describe("(public-job) route group", () => {

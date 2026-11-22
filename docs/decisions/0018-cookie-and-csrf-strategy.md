@@ -283,7 +283,8 @@ as `Lax` would allow:
 - For such a GET, layer 3 ("no state changes on GET") now carries the CSRF protection that layer 1 carried. **Any
   new write at render under `(app)` or `(admin)` reopens this amendment.**
 - Public pages, `/api` (outside the proxy's matcher) and a browser that sends no Fetch Metadata keep the old
-  behaviour. Rule 3 itself is unchanged: the bounce writes nothing.
+  behaviour (superseded for `/junior` by the Amendment 2026-11-21, #2284). Rule 3 itself is unchanged: the bounce
+  writes nothing.
 
 **Accepted residuals.** None of these can be closed without also closing the mail click, which is itself a
 cross-site navigation.
@@ -300,7 +301,9 @@ cross-site navigation.
     chooses the criterion by its id (Amendment 2026-10-18).
 
   Each is an integrity effect on the user's own notices, not a disclosure. `(admin)` writes nothing at render. The
-  target drops the query, so a planted `/jobb?q=…&commit=true` recent search does not reach the page.
+  target drops the query, so a planted `/jobb?q=…&commit=true` recent search does not reach the page. (The Amendment
+  2026-11-21, #2284, marks the reach of this sentence: it holds for every key with free text, and for `/junior` two
+  validated keys travel on to a signed-in `/jobb`.)
 - **Failed-access log lines.** Another site can open `/cv/{id}`, `/ansokningar/{id}` or a Branschbevakning page
   (`/foretag/branschbevakningar/{id}`, its `/annonser` and `/nya`; Amendment 2026-10-18) with an id the signed-in user
   does not own, and the cross-user attempt is logged against that user (`IFailedAccessLogger`). Such a line is no
@@ -344,3 +347,171 @@ reopening, for one write.
 - `strict-cookie-bounce-render-writes.test.ts` accepts the new page, and a further write still reopens this.
 
 Additive amendment, apart from the two bullets above that it extends in place.
+
+## Amendment 2026-11-21 (#2284) — the bounce answers one public path, `/junior`
+
+> **Provenance.** Written by `adr-keeper` for the driving session from its brief; it adds no decision of its own. It records
+> `senior-cto-advisor`'s ruling D-A to D-E and `security-auditor`'s plan read, both of 2026-11-21
+> (`docs/reviews/2026-11-21-2284-plan-senior-cto-advisor.md` and `docs/reviews/2026-11-21-2284-plan-security-auditor.md`,
+> local, transcribed by the driving session). Additive: nothing above this heading is rewritten except two sentences
+> marked in place, one in "What it changes" and one in "Writes at render" of the Amendment 2026-10-10.
+
+**Why.** Klas-direktiv 2026-11-21: "inloggad besökare på /junior → /jobb?junior=on, också när länken öppnas från
+LinkedIn/Discord/FB". `/junior` is a public page that reads no session (ADR 0186 D8), and the session cookie is
+`SameSite=Strict`, so a link from LinkedIn, Discord or Facebook arrives without it. The cookie is the only signal that the
+visitor is signed in, and a browser withholds it on a navigation another site starts. The Amendment 2026-10-10 left every
+public path outside the bounce; this one adds one. The legal outcome has one home, ADR 0166 (Amendment 2026-11-21), and is
+not restated here. The product ruling is ADR 0186's Amendment 2026-11-21.
+
+**Where it lives.** A sibling branch beside `publicJobAdRoute`, not a case inside the bounce (CTO D-A):
+- `web/jobbliggaren-web/src/lib/auth/junior-it-signed-in-route.ts`, called in `proxy.ts` directly after
+  `strictCookieBounce`. `strictCookieBounce`'s decisions, `returnPathFor`, `PROTECTED_PREFIXES` and the cookie's
+  `SameSite=Strict` are unchanged, so `/junior` never becomes a login `next`. The branch reads no cookie itself: the proxy
+  binds the refresh driver to the cookie, and a test reads the module's source for `.cookies`.
+- `lib/job-ads/junior-it-handover.ts`, pure: both addresses the branch sends a request on to, from the one parse the page
+  itself uses (below).
+- `lib/auth/continuation-answer.ts`: the continuation document's answer and `hopTarget`, moved out of the bounce so that
+  both branches import them, and the junior branch never imports `strict-cookie-bounce.ts`. It takes a target, refuses one
+  that is not a path on this site, and builds the hop itself, so no caller can turn the document's refresh into a redirect
+  to another host (`security-auditor` Minor 1).
+- `lib/auth/session-refresh.ts`: the refresh driver, moved out of `route()` with a typed outcome (`notDue`, `failed`,
+  `unknownSession`, `slid`, `rotated`). The protected tail and the junior branch both use it.
+
+Both moves are pure, and are proven so, not assumed: `proxy.test.ts` passes with `git diff -U0` removing no assertion line,
+and its lines 299–306, the test that a public path never touches the backend, are byte-unchanged.
+
+**The condition, and the hop.** The branch acts only on exactly `/junior` with a query the page accepts. That is one parse,
+`parseJuniorItParams` (the page's own, over Next's array shape for a repeated key), so the proxy never sends on a request
+the page would answer with its 404, and only validated values travel. Without the session cookie, a request with **all** of
+the following gets `200` and the continuation document, the one the bounce serves (`no-store`, `noindex`, COOP
+`same-origin`, no `Set-Cookie`, no subresource):
+
+1. the path is exactly `/junior`, and the query is one the page accepts;
+2. no session cookie arrived;
+3. the method is `GET`;
+4. `Sec-Fetch-Site: cross-site`, `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`, and no prefetch purpose;
+5. the request does not carry the marker `vidare=1`.
+
+Its refresh goes to `hopTarget(juniorItHref(parsed))`: the list's canonical address for the validated `municipality`,
+`sortBy` and `page` (a default left out), plus the marker. "The target drops the query" (Amendment 2026-10-10) still holds
+for the gated pages; the hop carries three validated keys because the page it leads to is the public list, which reads no
+session and takes no free text. A request without Fetch Metadata, and a link previewer that sends none, is served the page as
+before.
+
+The marker's edge-log verdict stays `kept`. The hop's three added keys carry the values `/jobb` carries under the same
+names, so they take `/jobb`'s verdicts (`strict-cookie-bounce-edge-log-verdicts.ts`, ADR 0050 N-1). The inventory test now
+reads the hop from its real producer, `hopTarget` over `juniorItHandover`, with all three keys off their default, and its
+first assertion's expected set grows, declared, to `id`, `municipality`, `page`, `sortBy` and `vidare`.
+
+**The signed-in 307.** With the session cookie, a `GET` or `HEAD` is answered `307`, `Cache-Control: no-store`, to
+`buildJobbHref`: `/jobb?[municipality=…&]junior=on[&sortBy=…]`, exactly those three keys. `page` is dropped, because the two
+lists are different sets (ADR 0186 A4), and so is every other key, the marker included. HEAD is answered as GET because
+RFC 9110 §9.3.2 has HEAD identical to GET except that no content is sent; a GET that answers `307` beside a HEAD that
+answers `200` would break that (CTO D-C). The continuation document and the strip stay GET-only: they answer navigations, and
+a navigation is always a GET. Any other method falls through as before.
+
+The shared refresh driver runs first, when it is due, and the 307 carries what its outcome asks of a response (CTO D-E):
+- **Not due, or a prefetch:** the 307, with no backend call.
+- **The session slid or rotated:** the 307 carrying the companion cookie, and after a rotation the new id as the session
+  cookie. The id is in a `Set-Cookie` and nowhere else: never in a Location, a query, the document or a log.
+- **The refresh failed** (a timeout, a network error, a status other than 401, a malformed body): the 307 with the
+  30-second backoff. A failure says nothing about the session (#1893).
+- **Exactly 401:** both cookies are cleared, with their `__Host-` attributes, and the request is answered as one with no
+  session: the strip below if its condition holds, otherwise the public page, rendered with the session cookie taken out of
+  the forwarded `cookie` header (`forwardedWithoutSession`, the nonce pair kept), so the render never carries the id the
+  driver has just found dead.
+
+Every response that carries a `Set-Cookie` is `no-store`. The refresh call carries only `Authorization` and the headers
+`pickForwardedHeaders` picks (the two forwarding headers), never the path, the query or `Referer`.
+
+**Why the session is validated when due, not only looked for (CTO D-E).** Sessions are created Persistent
+(`PasswordlessSessionGrant.cs`, both creation paths; the OAuth callback, ADR 0142 D4). The server slides them for 30 days
+under a cookie that lives 180 (`SessionStoreOptions.cs:38-43`, `cookie-names.ts:23-28`), so anyone idle for more than 30 days
+whose browser kept the cookie holds one the server no longer knows, and that group only grows. Under a presence check each of
+them would open a link to an open list and be sent to `/logga-in?next=/jobb`, and land on `/jobb` without `junior=on` after
+signing in: the visitors the directive does not cover, sent the wrong way. A presence check is sound only where a false
+positive still ends at the right answer. On a protected page it does, since a stale cookie ends at login, which is right
+there; on a public page ADR 0017's presence gate ends at the wrong answer. Validating adds no backend call on any path: the
+refresh it runs is the one the 307's `/jobb` request would have run one hop later, the companion cookie on the 307 means
+`/jobb` then finds none due, and a dead cookie costs one call either way.
+
+**The edge strip.** A request that carries the marker and has no live session is sent on to the list's clean address with a
+`307`, `no-store`, to `juniorItHref(parsed)` (never "the query minus `vidare`"), carrying no `Set-Cookie` except the 401
+clear above. It fires only when **all** of these hold (CTO D-B):
+- the method is `GET` and the request carries the marker;
+- there is no live session: no cookie, or one the driver has just cleared;
+- it is a browser top-level document navigation: `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`, no prefetch;
+- `Sec-Fetch-Site` is `same-origin`, `same-site` or `none`.
+
+That is the exact complement of the bounce's own condition 4. A request without Fetch Metadata is not stripped, and a
+cross-site arrival that carries the marker is never stripped: it is served the page where it is.
+
+*Why it cannot loop (CTO D-B).*
+- Only a cross-site document navigation is ever bounced.
+- The Fetch Metadata specification (W3C Working Draft 2026-09-21, §2.3) computes `Sec-Fetch-Site` over a redirect's whole URL
+  list against the request's origin. `none` skips that step, and §4.1 keeps it across redirects (non-normative).
+- So a 307 from a request that is not cross-site has a follow-up that is not cross-site, and that follow-up cannot be
+  bounced. If a browser recomputed `none`, the cost would be one extra bounce, which ends on the same-origin hop.
+- A cross-site marked arrival is never stripped, so ADR 0165 D5's loop cannot form. That covers the opaque-origin hop of a
+  sandboxed popup and a shared marked link alike. `security-auditor` reads it the same way: the redirected request keeps its
+  initiator and is given only URLs on the same origin, so it is never cross-site.
+
+*Why ADR 0165 D5 does not bind it.* D5 rejected "a server redirect to strip the marker (loops in the sandbox case)". That is
+an *unconditional* strip. The loop needs a cross-site marked request to be stripped, and this strip never does that. The
+marker now has two removers, this edge strip for `/junior` and D5's client island `StripBounceMarker` for `/jobb/<uuid>`;
+the conditions explain the split, aligning them is not owed because there is no defect, and it is not filed.
+
+**Two stated rules each gain one named, pinned exception.**
+1. *"The target drops the query"* (Writes at render, above). For `/junior`, two validated keys, `municipality` (a kommun
+   concept id) and `sortBy` (one of two orders), travel on the 307 to a signed-in `/jobb`, with the constant `junior=on`.
+   `q`, `commit`, `employer` and every other key never reach a Location; a test names them. The rule holds for every key with
+   free text.
+2. *"Public paths never touch the backend"* (the proxy's own comment, pinned by `proxy.test.ts` lines 299–306). `/junior`
+   with the session cookie is the one named exception, when the refresh is due and the request is not a prefetch. The
+   comment in `proxy.ts` names `/junior` as that exception, the `/cv-granskning` test stays byte-unchanged, and a test for
+   `/junior` is added.
+
+**What it changes.** The cookie stays `SameSite=Strict`. A top-level GET navigation that another site starts to `/junior` now
+ends signed in at `/jobb`, as a navigation to a protected page does since the Amendment 2026-10-10, because the document's
+refresh starts on this origin. Nothing else gains the cookie. For that GET, "no state changes on GET" carries the CSRF
+protection that layer 1 carried, as for the protected pages.
+
+**Accepted residuals.** They add to those of the Amendment 2026-10-10.
+- **R-a, a stale cookie.** A session revoked on the server is still met with the 307 for at most 15 minutes, until the next
+  refresh falls due, and `/jobb`'s layout then re-verifies and sends the visitor to login (`(app)/layout.tsx:50`). Every
+  protected link has the same window. After that the driver's 401 clears both cookies and the public list is served.
+- **R-b, a kommun and an order chosen by another site.** Another site can choose the kommun and the order of a signed-in
+  `/jobb`. A well-formed kommun id that no ad has gives an empty page, whose watermark write sends `undefined`, which the
+  backend reads as now (`jobb-results.tsx:276-291`), so the user's own "new" markers move. That is an integrity effect on the
+  user's own notices, not a disclosure, in the class "Writes at render" above; the bounce to an unfiltered `/jobb` already
+  moves the mark about as far. Nothing can be planted: no `q` and no `commit` travel, and a junior search is never stored in
+  recent searches (ADR 0186 A1). `security-auditor`: a remaining effect in that class, no accepted-risk ADR needed.
+- **R-c, sandboxed popups.** No change. Caddy writes `Cross-Origin-Opener-Policy: same-origin` on every response
+  (`deploy/caddy/Caddyfile:216`, `:234`), so what the browser does with it in a sandboxed navigable (see "A sandboxed popup
+  gets a browser error" above) does not depend on this branch.
+- **R-d, in-app browsers with a cookie jar of their own** never hold the session, so they see the public list.
+- **R-e, the public list for a signed-in visitor.** Every request that carries the cookie is sent on, so a signed-in visitor
+  sees the public list only in a private window. A recruiter complaint about the list (ADR 0166 D10 trigger 3) is read there.
+- **R-f, link previewers** (`security-auditor`'s wording). A previewer that sends cross-site Fetch Metadata gets the
+  continuation document, not the page. It is never a row or a count. Whether the platforms' previewers do this is not
+  measured.
+- **Another site can make the session slide or rotate on `/junior`** through the bounce, as it already can on every protected
+  path.
+- **The premise of #1893 and its race now reach `/junior`,** for GET and HEAD: only a rejected session answers 401, and the
+  proxy's delete can land after a fresh login in another tab (`docs/threat-model.md`).
+- **Whether the user is signed in** is now also told by where `/junior` ends, the list or `/jobb`. `security-auditor`: no new
+  capability, since the bounce on a protected path already gives the same oracle and COOP severs the window handle.
+
+Measured in Chromium (job-modal harness, `tests/job-modal/junior-signed-in-redirect.spec.ts`), 2026-11-21, 6 of 6 on a
+production build, reading from the front proxy whether each document request carried the session cookie:
+- a click on a page on 127.0.0.1 reached `/junior` as `cross-site` without the cookie and got the document;
+- the document's hop arrived `same-origin` with the cookie and was answered `307` to `/jobb?junior=on`, which rendered with
+  the junior filter on;
+- signed out, the hop was stripped by a `307` to the clean `/junior`;
+- an address-bar navigation (`none`) carried the cookie and went straight on, `none` kept across the redirect;
+- a request with a LinkedInBot user agent and no Fetch Metadata got the page and its `og:title`;
+- with the refresh blocked, the document's link showed after the hold.
+
+Firefox and WebKit are not measured. The 2026-10-10 residual "Not measured on WebKit" stands for this hop.
+
+Additive amendment, apart from the two sentences marked in place.

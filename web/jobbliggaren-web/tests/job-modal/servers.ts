@@ -10,6 +10,7 @@ import {
   CRITERION_REFERENCE,
   DESCRIPTION,
   EXPIRES_AT,
+  JUNIOR_IT_PAGE,
   MATCHES,
   PUBLISHED_AT,
   TAXONOMY,
@@ -67,6 +68,13 @@ export type FeedbackReceipt = {
   readonly screenshot: { readonly bytes: number; readonly png: boolean; readonly width: number; readonly height: number } | null;
 };
 
+export type Navigation = {
+  readonly path: string;
+  readonly status: number;
+  readonly site: string | null;
+  readonly session: boolean;
+};
+
 export type Harness = {
   /** Whether the user has stated an occupation; decides the profile and every match detail. */
   occupationStated: boolean;
@@ -80,6 +88,11 @@ export type Harness = {
   /** Every backend path the app asked for that the fixtures do not answer. */
   readonly misses: string[];
   readonly requests: string[];
+  /**
+   * #2284 — every top-level document request the browser sent to the app, in order: the path, the answer's status, its
+   * `Sec-Fetch-Site`, and whether it carried the session cookie, which is what a Strict-cookie hop measures.
+   */
+  readonly navigations: Navigation[];
   readonly syntheticUploadReceipts: readonly boolean[];
   rejectNextImport: boolean;
   /** #1979 — closed by default, so every other spec renders its pages without the feedback row. */
@@ -277,6 +290,7 @@ const READ_MARK_ROUTES = [
 export async function startHarness(informationFlows = false, applicationCopies = 0, ports: { proxy: number; next: number; backend: number } = HARNESS_PORTS): Promise<Harness> {
   const misses: string[] = [];
   const requests: string[] = [];
+  const navigations: Navigation[] = [];
   const syntheticUploadReceipts: boolean[] = [];
   const feedbackReceipts: FeedbackReceipt[] = [];
   const seenReceipts: { route: string; body: Record<string, unknown> }[] = [];
@@ -303,6 +317,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
     unavailableApplications: new Set(),
     misses,
     requests,
+    navigations,
     syntheticUploadReceipts,
     rejectNextImport: false,
     feedback: { open: false, answeredPages: [], answer: "saved" },
@@ -344,6 +359,7 @@ export async function startHarness(informationFlows = false, applicationCopies =
       harness.followedCompanyAdNewCount = 0;
       misses.length = 0;
       requests.length = 0;
+      navigations.length = 0;
       syntheticUploadReceipts.length = 0;
       feedbackReceipts.length = 0;
       seenReceipts.length = 0;
@@ -539,6 +555,8 @@ export async function startHarness(informationFlows = false, applicationCopies =
         return json(200, harness.recentSearches);
       case "GET /api/v1/job-ads/junior-it-count":
         return answer(harness.juniorItCount);
+      case "GET /api/v1/public/job-ads/junior":
+        return json(200, JUNIOR_IT_PAGE);
       case "GET /api/v1/job-ads/taxonomy":
         return json(200, TAXONOMY);
       case "GET /api/v1/job-ads/taxonomy/skills/labels":
@@ -638,6 +656,14 @@ export async function startHarness(informationFlows = false, applicationCopies =
     const upstream = forward(
       { host: "127.0.0.1", port: ports.next, method: request.method, path: request.url, headers: request.headers },
       (answer) => {
+        if (request.headers["sec-fetch-dest"] === "document") {
+          navigations.push({
+            path: request.url ?? "/",
+            status: answer.statusCode ?? 0,
+            site: typeof request.headers["sec-fetch-site"] === "string" ? request.headers["sec-fetch-site"] : null,
+            session: (request.headers.cookie ?? "").split(/;\s*/).some((pair) => pair.startsWith(`${SESSION_COOKIE}=`)),
+          });
+        }
         response.writeHead(answer.statusCode ?? 502, answer.headers);
         answer.pipe(response);
       }

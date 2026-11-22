@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCrossSiteDocumentNavigation, isEmbedded, isPrefetch } from "./fetch-metadata";
+import { isCrossSiteDocumentNavigation, isEmbedded, isNonCrossSiteDocumentNavigation, isPrefetch } from "./fetch-metadata";
 
 const MAIL_CLICK = { "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" };
 
@@ -19,6 +19,23 @@ describe("isCrossSiteDocumentNavigation", () => {
     ["a prefetch", { ...MAIL_CLICK, "sec-purpose": "prefetch;prerender" }],
   ])("is not %s", (_label, headers) => {
     expect(isCrossSiteDocumentNavigation(new Headers(headers))).toBe(false);
+  });
+});
+
+describe("isNonCrossSiteDocumentNavigation", () => {
+  it.each(["same-origin", "same-site", "none"])("is a top-level document navigation with Sec-Fetch-Site %s", (site) => {
+    expect(isNonCrossSiteDocumentNavigation(new Headers({ ...MAIL_CLICK, "sec-fetch-site": site }))).toBe(true);
+  });
+
+  it.each<[string, Record<string, string>]>([
+    ["a cross-site navigation", MAIL_CLICK],
+    ["no Fetch Metadata at all", {}],
+    ["a missing site", { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" }],
+    ["a fetch", { ...MAIL_CLICK, "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors" }],
+    ["a frame", { ...MAIL_CLICK, "sec-fetch-site": "same-origin", "sec-fetch-dest": "iframe" }],
+    ["a prefetch", { ...MAIL_CLICK, "sec-fetch-site": "same-origin", "sec-purpose": "prefetch" }],
+  ])("is not %s", (_label, headers) => {
+    expect(isNonCrossSiteDocumentNavigation(new Headers(headers))).toBe(false);
   });
 });
 

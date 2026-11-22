@@ -132,6 +132,29 @@ export const DESCRIPTION = "Du utvecklar och förvaltar en tjänst som många an
 export const PUBLISHED_AT = "2026-10-01T08:00:00Z";
 export const EXPIRES_AT = "2026-11-01T22:59:59Z";
 
+/**
+ * #2284 — `GET /api/v1/public/job-ads/junior`, the open junior list's page in the strict shape its reader parses
+ * (`lib/dto/public-junior-it-job-ads.ts`): the seven row members, the paging envelope and the kommun options.
+ */
+export const JUNIOR_IT_PAGE = {
+  rows: {
+    items: [ADS.open, ADS.applied].map((ad) => ({
+      id: ad.id,
+      title: ad.title,
+      companyName: ad.company,
+      municipalityName: MUNICIPALITY.label,
+      regionName: "Västra Götalands län",
+      publishedAt: PUBLISHED_AT,
+      expiresAt: EXPIRES_AT,
+    })),
+    totalCount: 2,
+    page: 1,
+    pageSize: 20,
+    totalPages: 1,
+  },
+  places: [{ municipalityConceptId: MUNICIPALITY.conceptId, name: MUNICIPALITY.label, count: 2 }],
+};
+
 /** `/matchningar`'s list: one background match, for the open ad. */
 export const MATCHES = [
   { jobAdId: ADS.open.id, title: ADS.open.title, company: ADS.open.company, url: `https://example.test/annons/${ADS.open.id.slice(-3)}`, grade: "Good", createdAt: PUBLISHED_AT, isNew: false },

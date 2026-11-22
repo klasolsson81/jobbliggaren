@@ -70,7 +70,7 @@
          root-cause-fix 2026-05-16). Ren DI-abstraktion (ej EF/ASP.NET) → Clean Arch OK.
          Tidigare transitiv via FluentValidation.DependencyInjectionExtensions;
          explicit ref = versionshygien (senior-cto-advisor + dotnet-architect 2026-05-16). -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0" />
     <!-- #1981 PR 4a (ADR 0185) — IConfiguration for Jobbliggaren.Infrastructure.Mailbox's AddDmarcMailbox, which
          reads the one password key. Already in every host's graph through Microsoft.Extensions.Hosting 10.0.12; the
          Mailbox project references Application only, which does not carry it, so it is declared rather than reached

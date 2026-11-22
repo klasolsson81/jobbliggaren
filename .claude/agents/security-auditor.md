@@ -362,6 +362,11 @@ gated key becoming **open** (Beslut 6's priced obligation — an open key is wha
 creates the silent pin-back debt; a *gated* new key repairs without it, and taxing
 repair is what built the #1042 deadlock); a removal from
 `ignoredBuiltDependencies`;
+a new Dependabot `ignore` entry carrying a `versions` range or `update-types`, or an
+exact entry widened to either, in an ecosystem that gets security updates
+(`dependabot.yml`'s header names which) — graded against the diff, not the repo,
+and never from the guard's "no findings", since the guard does not read
+`dependabot.yml`; an exact single version declines one release and is not a trigger;
 and `pnpm/action-setup` raised **past 9** (ADR 0065: that is a migration, not a
 bump). Explicitly **not** triggers: raising an existing override target — the
 routine Dependabot repair — or removing an `ignoreGhsas` entry.

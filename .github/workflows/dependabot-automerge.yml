@@ -309,10 +309,9 @@ jobs:
       # dropped `error.errors`, which chromium-bidi's protocol parser reads on invalid
       # input; puppeteer-core 24 passes no parser to its BiDi server and Lighthouse
       # connects over CDP, and an `lhci collect` run with a module-load hook logged no
-      # load of zod or chromium-bidi. WHAT REMOVES IT: an `@lhci/cli` release on
-      # puppeteer-core 25, whose chromium-bidi runs on zod ^4 (held back by #2045's
-      # ignore). Verify by deleting the key and running the audit, not by waiting for
-      # it to stop matching.
+      # load of zod or chromium-bidi. WHAT REMOVES IT: an `@lhci/cli` release
+      # (held back by #2045's ignore). Verify by deleting the key and running the audit,
+      # not by waiting for it to stop matching.
       #
       # THE `sharp` RESIDUAL, NAMED RATHER THAN LEFT IMPLICIT. The override takes
       # sharp 0.34 -> 0.35 and `pnpm build` is green. That is evidence the

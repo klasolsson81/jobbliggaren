@@ -37,8 +37,10 @@
 	# stored log post. THIS CONFIGURES THE DEFAULT LOGGER, AND THE DEFAULT LOGGER IS THE
 	# ONE THAT LEAKS. No `log` directive exists on the site below, so there is no access
 	# log — but the default logger runs unconfigured and writes `http.log.error` with the
-	# whole request line on every 5xx. The two-arm measurement behind this block, and why
-	# `uid` is deleted rather than kept, both live in ADR 0050 `Amendment 2026-08-29`.
+	# whole request line on a 5xx Caddy answers itself (an unreachable or unhealthy upstream).
+	# A 5xx the upstream answered is proxied and writes nothing (#2169). The two-arm measurement
+	# behind this block, and why `uid` is deleted rather than kept, both live in ADR 0050
+	# `Amendment 2026-08-29`.
 	#
 	# THE QUERY KEYS ARE CASE-SENSITIVE — a probe param spelled TOKEN survived untouched.
 	# The gate therefore holds only while the mail templates keep spelling their
@@ -56,7 +58,7 @@
 	# json is the effective default — rather than changing what an operator reads.
 	#
 	# A `log` DIRECTIVE ADDED TO THE SITE BELOW WOULD BE A SEPARATE LOGGER that inherits
-	# none of this and logs EVERY request rather than only 5xx. The pin holds this file
+	# none of this and logs EVERY request. The pin holds this file
 	# to exactly one `log` directive, inside these global options.
 	log {
 		format filter {
@@ -127,6 +129,14 @@
 					# client writes, and the admin deep link carries the feedback id inside it, which the exact-key
 					# `id` filter above does not see. Same ground as `id`.
 					delete next
+					# The /jobb occupation filters (#2294). A JobTech concept id names an occupation, and every
+					# visitor who picks one sends the same value, but four groups are religious offices and so is
+					# every name filed under them (ReligiousOccupationGroups): a request carrying one reveals a
+					# faith, Art. 9(1), with no 9(2) ground an edge log could meet. The edge cannot tell those
+					# values from the rest, and a pick of a whole occupation field expands to every group in it,
+					# so the key goes whatever it carries.
+					delete occupationGroup
+					delete occupationName
 				}
 				request>headers delete
 			}

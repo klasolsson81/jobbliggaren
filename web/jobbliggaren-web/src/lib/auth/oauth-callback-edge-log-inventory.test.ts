@@ -11,9 +11,8 @@ import { EDGE_LOG_VERDICT } from "./oauth-callback-edge-log-verdicts";
 
 /**
  * ADR 0050 gate N-1, app-surface half, for the external-login callback (#1744; test-writer Major 9).
- * The callback's request line carries the provider's query, and on any 5xx Caddy's default logger
- * writes the whole request line. The route answers 200 on every branch, and this inventory closes
- * the edge besides.
+ * The callback's request line carries the provider's query. The route answers 200 on every branch,
+ * and this inventory closes the edge besides.
  */
 
 const MUST_NOT_REACH = keysJudged(EDGE_LOG_VERDICT, "must-not-reach-a-stored-log-post");

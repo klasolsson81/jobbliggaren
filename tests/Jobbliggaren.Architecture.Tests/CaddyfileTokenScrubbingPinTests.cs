@@ -23,8 +23,8 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <b>Placement is load-bearing, not incidental.</b> A <c>log</c> block in the GLOBAL options
 /// configures the default logger — the one that writes <c>http.log.error</c>. The same lines
 /// moved inside the site block configure a separate access logger instead, leaving the default
-/// logger unconfigured and the request line unscrubbed again, while logging every request rather
-/// than only Caddy's own 5xx. Both were raised independently by <c>code-reviewer</c> and
+/// logger unconfigured and the request line unscrubbed again, while logging every request.
+/// Both were raised independently by <c>code-reviewer</c> and
 /// <c>security-auditor</c> against an earlier, position-blind version of this class. Every fact
 /// below therefore reads <see cref="GlobalOptionsLines"/> rather than the whole file, and
 /// <see cref="TheCaddyfile_CarriesExactlyOneLogDirective"/> closes the other half: a SECOND
@@ -198,6 +198,11 @@ public class CaddyfileTokenScrubbingPinTests
     /// <summary>A line opening a <c>log</c> directive, at any indentation.</summary>
     private static readonly Regex LogDirective = new(@"^log\b", RegexOptions.Compiled);
 
+    /// <summary>The key alternation of the runbook's N-1 box arm, the count of lines still carrying a filtered key.</summary>
+    private static readonly Regex RunbookBoxArmKeys = new(
+        @"grep -ciE '\(\[\?&\]\|\\\\u0026\)\((?<keys>[A-Za-z_|]+)\)='",
+        RegexOptions.Compiled);
+
     /// <summary>
     /// The token-bearing links, as the real generators render them into the plain-text part.
     /// </summary>
@@ -352,6 +357,21 @@ public class CaddyfileTokenScrubbingPinTests
     }
 
     [Fact]
+    public void TheRunbookBoxArm_CountsEveryKeyTheCaddyfileFilters()
+    {
+        // The box arm in vps-deploy-stack.md spells its keys by hand, so a key added to the filter and not to the
+        // arm leaves the arm measuring less than the filter does. Case-insensitive, as the arm's `grep -i` is.
+        var runbook = File.ReadAllText(RepoFilePath(Path.Combine("docs", "runbooks", "vps-deploy-stack.md")));
+        var arms = RunbookBoxArmKeys.Matches(runbook);
+        arms.Count.ShouldBe(1, "docs/runbooks/vps-deploy-stack.md should carry exactly one N-1 box-arm key count.");
+
+        arms[0].Groups["keys"].Value.ToLowerInvariant().Split('|').ShouldBe(
+            CaddyfileFilteredParameters().Select(name => name.ToLowerInvariant()),
+            ignoreOrder: true,
+            "the N-1 box arm in docs/runbooks/vps-deploy-stack.md and the Caddyfile's query filter name different keys.");
+    }
+
+    [Fact]
     public void TheOracle_ReadsEveryLink_AndANonEmptyFilterInsideGlobalOptions()
     {
         // Guards the shape the facts above assume. `RenderedParameterNames` de-duplicates, so
@@ -423,10 +443,10 @@ public class CaddyfileTokenScrubbingPinTests
     /// Walks up from the test binary until the repo root is found, so the test project's own depth
     /// is not hardcoded. Fails loud and names the path it looked for.
     /// </summary>
-    internal static string CaddyfilePath()
-    {
-        var relative = Path.Combine("deploy", "caddy", "Caddyfile");
+    internal static string CaddyfilePath() => RepoFilePath(Path.Combine("deploy", "caddy", "Caddyfile"));
 
+    private static string RepoFilePath(string relative)
+    {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {

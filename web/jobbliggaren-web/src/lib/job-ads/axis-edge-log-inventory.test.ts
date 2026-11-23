@@ -38,8 +38,8 @@ import {
  * array, not another route's test file (senior-cto-advisor 2026-08-30; placement per
  * dotnet-architect).
  *
- * On the premise (CLAUDE.md §5 `Tests:`). The fixtures below are hand-built and no assertion
- * reads a fixture VALUE. What is asserted is the set of query KEY NAMES, and those are string
+ * On the premise (CLAUDE.md §5 `Tests:`). The fixtures below are hand-built. What is asserted
+ * is the set of query KEY NAMES, and those are string
  * literals inside the builders: no input can change a name, input decides only whether a name
  * gets written. The values must merely clear the builders' own emission gates. The maximal
  * state is arguably not reachable through the UI, but no branch in either builder reads two

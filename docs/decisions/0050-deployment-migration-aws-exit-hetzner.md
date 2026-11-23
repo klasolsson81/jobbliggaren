@@ -1664,7 +1664,7 @@ sina två omgraderingsarmar) står oförändrade och behöver fortfarande ett ö
 
 **Denna amendment rör inte lådan.** Ingenting här påstår att någon konfiguration ändrats i drift.
 
-## Amendment 2026-11-23 — #2294 and #2169: the default logger writes only on a 5xx Caddy answers itself, and an occupation filter never reaches a stored edge-log entry
+## Amendment 2026-11-23 — #2294 and #2169: the default logger writes on a 5xx Caddy answers itself, and an occupation filter never reaches a stored edge-log entry
 
 **Status:** Accepted 2026-11-23. **Source:** security-auditor's M6 (her #2293 plan read, 2026-11-22) and
 her G1 on #2294 (2026-11-23); senior-cto-advisor's routing of 2026-11-22, restated in #2294's body; the
@@ -1749,7 +1749,7 @@ measurement of 2026-10-18 recorded in #2169. Additive: the text of `Amendment 20
    proves only the image.
 
 6. **What this does not do.**
-   - It does not delete `remote_ip` or `client_ip`. That field set has its own change-reason, #1170.
+   - It does not delete `remote_ip` or `client_ip`.
    - `/api/jobb/facet-counts` has no edge-log inventory of its own, which is the derivation gap #1604
      already owns for `prefix`.
 

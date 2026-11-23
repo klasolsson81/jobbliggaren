@@ -58,7 +58,7 @@
 	# json is the effective default — rather than changing what an operator reads.
 	#
 	# A `log` DIRECTIVE ADDED TO THE SITE BELOW WOULD BE A SEPARATE LOGGER that inherits
-	# none of this and logs EVERY request rather than only Caddy's own 5xx. The pin holds this file
+	# none of this and logs EVERY request. The pin holds this file
 	# to exactly one `log` directive, inside these global options.
 	log {
 		format filter {

@@ -1255,8 +1255,8 @@ carries a visitor's `remote_ip`, so no line is ever printed:
 ```bash
 sudo docker inspect -f '{{.State.StartedAt}}' jobbliggaren-caddy
 sudo docker logs jobbliggaren-caddy 2>&1 | grep -c 'http.log.error'
-sudo docker logs jobbliggaren-caddy 2>&1 | grep 'http.log.error' | grep -ciE '([?&]|\\u0026)(token|email|uid|employer|q|userid|namn|eventtype|aggregatetype|prefix|code|state|hd|error_description|id|next|occupationgroup|occupationname)='   # 0
-sudo docker logs jobbliggaren-caddy 2>&1 | grep 'http.log.error' | grep -c '"headers":'   # 0
+sudo docker logs jobbliggaren-caddy 2>&1 | grep -ciE '([?&]|\\u0026)(token|email|uid|employer|q|userid|namn|eventtype|aggregatetype|prefix|code|state|hd|error_description|id|next|occupationgroup|occupationname)='   # 0
+sudo docker logs jobbliggaren-caddy 2>&1 | grep -c '"headers":'   # 0
 sudo docker exec jobbliggaren-caddy wget -qO- http://127.0.0.1:2019/config/logging/logs/default/encoder
 ```
 

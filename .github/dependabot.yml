@@ -112,8 +112,7 @@ updates:
     # (IApiResponse<T> stops shadowing base members) and pulls in the ReactiveUI.Primitives
     # R3-bridge source generator, which emits PrimitivesR3BridgeGeneratedAttribute in every
     # transitive referent -> CS0436 duplicate-attribute conflict in referencing test projects.
-    # It requires its own dedicated migration (see the Refit pin comment in
-    # Directory.Packages.props and the tracking issue), not a grouped Dependabot bump.
+    # It requires its own dedicated migration, not a grouped Dependabot bump.
     # Lift this ignore when the Refit 12 migration issue is executed.
     ignore:
       - dependency-name: "Refit"

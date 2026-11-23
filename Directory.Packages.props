@@ -131,37 +131,11 @@
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <!-- F2-P8b JobTech-integration (ADR 0032). Refit för JobSearch (klassisk REST/JSON,
          BUILD.md §3.1). Microsoft.Extensions.Http.Resilience för retry+CB+rate-limit
-         (Polly v8 under huven, ersätter deprecated Microsoft.Extensions.Http.Polly).
-         WireMock.Net.xUnit för integration-tester av JobTech-shape + resilience-fallbacks
-         (transient 503, rate-limit 429, polymorft event-schema).
-         10.2.0 = 10.1.6 OM-SIGNERAD med giltigt cert (drop-in, non-breaking). 10.1.6:s
-         författar-signeringscert (Glenn Watson) återkallades uppströms 2026-06-02 →
-         NU3012 i audit-jobbet. Bump till 10.2.0 löser cert-blockern utan kodändring.
-         11.x medvetet EJ valt (breaking error/exception-modell — egen framtida touch).
-         Web-verifierad 2026-06-06 (reactiveui/refit #2114, nuget.org). -->
+         (Polly v8 under huven, ersätter deprecated Microsoft.Extensions.Http.Polly). -->
     <PackageVersion Include="Refit" Version="11.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="11.2.0" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.1" />
-    <PackageVersion Include="WireMock.Net" Version="1.25.0" />
-    <!-- Transitiv CVE-pinning: WireMock.Net 1.25.0 drar in OpenTelemetry.Api 1.14.0 +
-         OpenTelemetry.Exporter.OpenTelemetryProtocol 1.14.0 vilka är sårbara mot
-         CVE-2026-40894 (GHSA-g94r-2vxg-569j, GHSA-4625-4j76-fww9, GHSA-mr8r-92fq-pj8p,
-         GHSA-q834-8qmm-v933 — excessive memory allocation vid propagation-header-
-         parsing). Fix från 1.15.3 (web-verifierat 2026-05-12). Pinnas via
-         CentralPackageTransitivePinningEnabled (Directory.Build.props). -->
-    <PackageVersion Include="OpenTelemetry.Api" Version="1.15.3" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
-    <!-- Transitiv CVE-pinning: WireMock.Net 1.25.0 drar in Scriban.Signed 5.5.0
-         (response-templating-motorn) vilken är sårbar mot GHSA-24c8-4792-22hx
-         (array-multiplikation → obegränsad minnesallokering, DoS, High severity) plus
-         syskon-advisories i samma juni-2026-Scriban-våg (StackOverflow-DoS, sandbox-escape).
-         Vi använder inte Scriban direkt (ingen `using Scriban` i src/tests) — pinningen sker
-         bara via CentralPackageTransitivePinningEnabled (Directory.Build.props) för att
-         eliminera NU1903 som annars failar restore under TreatWarningsAsErrors. 7.2.5 =
-         senaste patch (advisory fixad i 7.2.0); WireMock.Net deklarerar Scriban.Signed
-         >= 5.5.0 → uppåt-unifiering, ingen NU1605/downgrade. Web-verifierad 2026-06-30
-         (nuget.org, GitHub Advisory Database). -->
-    <PackageVersion Include="Scriban.Signed" Version="7.2.5" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="11.0.1" />
+    <PackageVersion Include="WireMock.Net" Version="2.32.0" />
     <!-- Fas 4 lokal NLP-tier (ADR 0071 Beslut 6, BUILD.md §3.1 — INLÅST Pre-4 STEG 4;
          version-pin = Fas 4 STEG 0/F4-0). Deterministisk svensk NLP, ingen AI/LLM, körs
          lokalt på VPS:en. Catalyst medvetet UTE v1 (ADR 0071 Open Question 1, CTO-dom:

@@ -1,6 +1,5 @@
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Behaviors;
-using Jobbliggaren.Application.RecentJobSearches.Behaviors;
 using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -46,11 +45,6 @@ public static class MediatorPipelineBehaviors
         // handlerns query materialiserar krypterade entiteter).
         typeof(FieldEncryptionKeyPrefetchBehavior<,>),
         typeof(UnitOfWorkBehavior<,>),
-        // ADR 0060 — post-handler auto-capture för ICapturesRecentSearch-queries
-        // (no-op för commands + queries utan markör). Placerad efter UoW så
-        // capture bara körs vid lyckad query; före Audit — queries audit:as inte
-        // och capture-fel ska inte blandas in i audit-pipeline.
-        typeof(RecentJobSearchCaptureBehavior<,>),
         typeof(AuditBehavior<,>),
     ];
 

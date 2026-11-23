@@ -8,6 +8,14 @@ import { JobbResultsToolbar } from "./jobb-results-toolbar";
 
 const pushMock = vi.fn();
 
+// #2285 — the Server Action a toolbar action stores its search through.
+const captureMock = vi.fn<(search: unknown) => Promise<{ stored: boolean }>>(
+  async () => ({ stored: true }),
+);
+vi.mock("@/lib/actions/recent-searches", () => ({
+  captureRecentSearchAction: (search: unknown) => captureMock(search),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
 }));
@@ -76,6 +84,7 @@ function renderToolbarInEnglish(over: ToolbarOverrides = {}) {
 
 beforeEach(() => {
   pushMock.mockClear();
+  captureMock.mockClear();
 });
 
 // 2026-06-30 — Matchning + Dölj ansökta flyttade till hero-filterraden
@@ -112,10 +121,14 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     await user.click(
       screen.getByRole("button", { name: "Ta bort filter Stockholms län" }),
     );
-    // region bort, occupationGroup + q bevarade. E2j: toolbar-handling =
-    // avsiktlig sökning → commit-intent (?commit=true, Klas-val 2026-06-12).
+    // region bort, occupationGroup + q bevarade. E2j: toolbar-handling = avsiktlig
+    // sökning (Klas-val 2026-06-12), sparad via Server Actionen sedan #2285.
     expect(pushMock).toHaveBeenCalledWith(
-      "/jobb?occupationGroup=MVqp_eS8_kDZ&q=backend&commit=true",
+      "/jobb?occupationGroup=MVqp_eS8_kDZ&q=backend",
+    );
+    expect(captureMock).toHaveBeenCalledTimes(1);
+    expect(captureMock).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "backend", occupationGroup: ["MVqp_eS8_kDZ"], region: [] }),
     );
   });
 
@@ -154,7 +167,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       screen.getByRole("button", { name: "Ta bort filter Solna" }),
     );
     // municipality bort, region bevarad.
-    expect(pushMock).toHaveBeenCalledWith("/jobb?region=CifL_Rzy_Mku&commit=true");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?region=CifL_Rzy_Mku");
   });
 
   it("fallback-label för okänd conceptId", () => {
@@ -171,7 +184,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     await user.click(
       screen.getByRole("button", { name: "Ta bort sökordet volvo" }),
     );
-    expect(pushMock).toHaveBeenCalledWith("/jobb?q=lastbil&commit=true");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?q=lastbil");
   });
 
   it("Rensa sökord och filter nollar ALLT inkl. q (E2i Klas-beslut — ersätter E2e-domen)", async () => {
@@ -187,7 +200,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     await user.click(
       screen.getByRole("button", { name: "Rensa sökord och filter" }),
     );
-    expect(pushMock).toHaveBeenCalledWith("/jobb?commit=true");
+    expect(pushMock).toHaveBeenCalledWith("/jobb");
   });
 
   it("Rensa-länken bevarar icke-default sortBy (E2e, code-reviewer Minor 1)", async () => {
@@ -202,7 +215,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     await user.click(
       screen.getByRole("button", { name: "Rensa sökord och filter" }),
     );
-    expect(pushMock).toHaveBeenCalledWith("/jobb?sortBy=ExpiresAtAsc&commit=true");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?sortBy=ExpiresAtAsc");
   });
 
   it("Rensa-länken visas inte utan aktiva chips (E2e)", () => {
@@ -246,7 +259,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       "Sortera efter matchning",
     );
     expect(pushMock).toHaveBeenCalledWith(
-      "/jobb?occupationGroup=MVqp_eS8_kDZ&q=data&sortBy=MatchDesc&commit=true",
+      "/jobb?occupationGroup=MVqp_eS8_kDZ&q=data&sortBy=MatchDesc",
     );
   });
 
@@ -282,7 +295,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     await user.click(
       screen.getByRole("button", { name: "Ta bort det uteslutna ordet deltid" }),
     );
-    expect(pushMock).toHaveBeenCalledWith("/jobb?q=volvo&commit=true");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?q=volvo");
   });
 
   it("#2148: en minus-tagg har egen klass och Minus-ikon; en plus-tagg behåller den neutrala chippen", () => {
@@ -305,7 +318,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     });
     await user.selectOptions(screen.getByLabelText("Sortera"), "Relevans");
     expect(pushMock).toHaveBeenCalledWith(
-      "/jobb?occupationGroup=MVqp_eS8_kDZ&q=data&sortBy=Relevance&commit=true",
+      "/jobb?occupationGroup=MVqp_eS8_kDZ&q=data&sortBy=Relevance",
     );
   });
 
@@ -323,7 +336,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     });
     await user.selectOptions(screen.getByLabelText("Sortera"), "Relevans");
     expect(pushMock).toHaveBeenCalledWith(
-      "/jobb?occupationGroup=MVqp_eS8_kDZ&doljAnsokta=on&q=data&sortBy=Relevance&commit=true",
+      "/jobb?occupationGroup=MVqp_eS8_kDZ&doljAnsokta=on&q=data&sortBy=Relevance",
     );
   });
 
@@ -338,7 +351,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     await user.click(
       screen.getByRole("button", { name: "Rensa sökord och filter" }),
     );
-    expect(pushMock).toHaveBeenCalledWith("/jobb?doljAnsokta=on&commit=true");
+    expect(pushMock).toHaveBeenCalledWith("/jobb?doljAnsokta=on");
   });
 
   // issue #292 — Gate (b): match-sort-alternativet + select-koercionen styrs av
@@ -400,14 +413,15 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       expect(screen.queryByText("Stark match")).toBeNull();
     });
 
-    it("× på en grad-chip kör onMatchGradesChange med graden borttagen (navigate, utan commit)", async () => {
+    it("× på en grad-chip navigerar med graden borttagen och sparar ingenting", async () => {
       const user = userEvent.setup();
       renderToolbar({ matchActive: true, matchGrades: ["Good", "Strong"] });
       await user.click(
         screen.getByRole("button", { name: "Ta bort filter Bra match" }),
       );
-      // Good borttagen, Strong kvar → ?matchGrades=Strong (ingen ?commit=true).
+      // Good borttagen, Strong kvar → ?matchGrades=Strong, och ingen sparning.
       expect(pushMock).toHaveBeenCalledWith("/jobb?matchGrades=Strong");
+      expect(captureMock).not.toHaveBeenCalled();
     });
   });
 
@@ -462,7 +476,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       return user
         .click(screen.getByRole("button", { name: "Ta bort filter 2 arbetsgivare" }))
         .then(() => {
-          expect(pushMock).toHaveBeenCalledWith("/jobb?commit=true");
+          expect(pushMock).toHaveBeenCalledWith("/jobb");
         });
     });
 
@@ -471,7 +485,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       expect(screen.queryByText(/Arbetsgivare /)).toBeNull();
     });
 
-    it("× tar bort employer ur URL:en med commit-intent (E2j) och bevarar övrig state", async () => {
+    it("× tar bort employer ur URL:en, sparar sökningen (E2j) och bevarar övrig state", async () => {
       const user = userEvent.setup();
       renderToolbar({
         employer: ["5560125790"],
@@ -483,9 +497,9 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
           name: "Ta bort filter Arbetsgivare 556012-5790",
         }),
       );
-      // employer borta, grad-filtret kvar; ?commit=true som varje annan chip — sedan #1471
-      // bär replayen arbetsgivar-axeln, så undantaget från E2j har ingen grund kvar.
-      expect(pushMock).toHaveBeenCalledWith("/jobb?matchGrades=Strong&commit=true");
+      // employer borta, grad-filtret kvar; sparad som varje annan chip — sedan #1471 bär
+      // replayen arbetsgivar-axeln, så undantaget från E2j har ingen grund kvar.
+      expect(pushMock).toHaveBeenCalledWith("/jobb?matchGrades=Strong");
     });
 
     it("sort-byte bevarar employer (param-bevarande-basen)", async () => {
@@ -541,7 +555,7 @@ describe("JobbResultsToolbar — the occupation-name axis (#2199)", () => {
       screen.getByRole("button", { name: "Ta bort filter Projektledare, IT" }),
     );
     expect(pushMock).toHaveBeenCalledWith(
-      "/jobb?occupationGroup=MVqp_eS8_kDZ&commit=true",
+      "/jobb?occupationGroup=MVqp_eS8_kDZ",
     );
   });
 
@@ -556,7 +570,7 @@ describe("JobbResultsToolbar — the occupation-name axis (#2199)", () => {
     await user.click(
       screen.getByRole("button", { name: "Rensa sökord och filter" }),
     );
-    expect(pushMock).toHaveBeenCalledWith("/jobb?commit=true");
+    expect(pushMock).toHaveBeenCalledWith("/jobb");
   });
 
   it("a sort change keeps the names", async () => {
@@ -564,7 +578,7 @@ describe("JobbResultsToolbar — the occupation-name axis (#2199)", () => {
     renderToolbar({ occupationName: [NAME], resolvedLabels: labels, q: "data" });
     await user.selectOptions(screen.getByLabelText("Sortera"), "Relevans");
     expect(pushMock).toHaveBeenCalledWith(
-      `/jobb?occupationName=${NAME}&q=data&sortBy=Relevance&commit=true`,
+      `/jobb?occupationName=${NAME}&q=data&sortBy=Relevance`,
     );
   });
 });
@@ -576,7 +590,7 @@ describe("JobbResultsToolbar — the junior filter (#2261)", () => {
     await user.click(
       screen.getByRole("button", { name: "Rensa sökord och filter" }),
     );
-    expect(pushMock).toHaveBeenCalledWith("/jobb?commit=true");
+    expect(pushMock).toHaveBeenCalledWith("/jobb");
   });
 
   it("a sort change keeps junior", async () => {
@@ -584,7 +598,7 @@ describe("JobbResultsToolbar — the junior filter (#2261)", () => {
     renderToolbar({ junior: true, q: "data" });
     await user.selectOptions(screen.getByLabelText("Sortera"), "Relevans");
     expect(pushMock).toHaveBeenCalledWith(
-      "/jobb?junior=on&q=data&sortBy=Relevance&commit=true",
+      "/jobb?junior=on&q=data&sortBy=Relevance",
     );
   });
 

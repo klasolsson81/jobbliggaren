@@ -1,93 +1,86 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Application.RecentJobSearches.Abstractions;
-using Jobbliggaren.Application.RecentJobSearches.Behaviors;
+using Jobbliggaren.Application.RecentJobSearches.Commands.CaptureRecentSearch;
 using Jobbliggaren.Application.RecentJobSearches.Common;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.SavedSearches;
 using Jobbliggaren.Infrastructure.Taxonomy;
-using Mediator;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
 
-namespace Jobbliggaren.Application.UnitTests.RecentJobSearches.Behaviors;
+namespace Jobbliggaren.Application.UnitTests.RecentJobSearches.Commands;
 
-// C2 (ADR 0067, CTO-dom (d)/(e) + architect F6) — RecentJobSearchCaptureBehavior:
+// #2285 — CaptureRecentSearchCommandHandler, the one way a search reaches recent searches. These tests moved here
+// from the retired post-handler behaviour's: what may be stored is still RecentSearchCaptureGate's to decide, and the
+// handler runs the REAL gate, so every rule below is asserted end to end through the command.
 //
-//   1. ICapturesRecentSearch-shape är nu Q + OccupationGroup + Municipality +
-//      Region + SortBy (Ssyk borta).
-//   2. Default-browse-guarden räknar ALLA fyra dimensioner — en yrkesgrupp-only
-//      eller kommun-only-sökning ska captureras (stänger C1:s LIVE capture-gap:
-//      guarden räknade bara Q/Ssyk/Region → OccupationGroup/Municipality-
-//      sökningar capturerades aldrig).
-//   3. SearchCriteria.Create anropas med nya signaturen (named args — tre
-//      likatypade listor i rad).
-//
-// RÖD tills interface + behavior uppdaterats. Behaviorn instansieras direkt
-// (Mediator.SourceGenerator — pipeline-behaviors är vanliga klasser).
-public class RecentJobSearchCaptureBehaviorTests
+// CA2012: stubbing a ValueTask-returning port member is the known analyzer false positive (NSubstitute intercepts the
+// call to record Returns; nothing consumes it). Scoped to this file, as in DeriveOccupationCodesQueryHandlerTests.
+#pragma warning disable CA2012
+public class CaptureRecentSearchCommandHandlerTests
 {
-    // Fake-message som matchar nya ICapturesRecentSearch-shapen.
-    // E2j (ADR 0060 amend 2026-06-12): Commit-markören gatar capturen —
-    // default = true här så de befintliga capture-väntande testerna
-    // (commit-intent) består; commit-guarden testas explicit nedan.
-    public sealed record FakeSearchQuery(
+    // The search a test sends, in the domain's sort; CommandFor maps it to the command's wire sort.
+    public sealed record Search(
         string? Q,
         IReadOnlyList<string>? OccupationGroup,
         IReadOnlyList<string>? Municipality,
         IReadOnlyList<string>? Region,
         IReadOnlyList<string>? EmploymentType = null,
         IReadOnlyList<string>? WorktimeExtent = null,
-        // #311 PR-2b C1 (ADR 0087 D6) — Employer i ICapturesRecentSearch-shapen.
+        // #311 PR-2b C1 (ADR 0087 D6) — Employer i IRecentSearchCandidate-shapen.
         IReadOnlyList<string>? Employer = null,
-        // #551 PR-D — Remote (distans, bool) i ICapturesRecentSearch-shapen. Default false så de
+        // #551 PR-D — Remote (distans, bool) i IRecentSearchCandidate-shapen. Default false så de
         // befintliga (remote-agnostiska) capture-testerna består; remote-guarden testas explicit nedan.
         bool Remote = false,
         JobAdSortBy SortBy = JobAdSortBy.PublishedAtDesc,
-        bool Commit = true,
         // #2199 — the occupation-name picks, persisted since #2199 PR 2.
         IReadOnlyList<string>? OccupationName = null,
         // #2261 — the junior IT filter.
-        bool JuniorIt = false)
-        : IQuery<FakeCaptureResponse>, ICapturesRecentSearch;
-
-    // Message UTAN markören — behaviorn ska vara no-op.
-    public sealed record FakePlainQuery : IQuery<FakeCaptureResponse>;
-
-    public sealed record FakeCaptureResponse(int TotalCount) : IRecentSearchCaptureResponse;
+        bool JuniorIt = false);
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
     private readonly IRecentJobSearchCapturer _capturer = Substitute.For<IRecentJobSearchCapturer>();
+    private readonly IJobAdSearchQuery _search = Substitute.For<IJobAdSearchQuery>();
+    private readonly IAppDbContext _db = Substitute.For<IAppDbContext>();
+    private readonly CapturingLogger<CaptureRecentSearchCommandHandler> _logger = new();
     private readonly Guid _userId = Guid.NewGuid();
 
-    public RecentJobSearchCaptureBehaviorTests()
+    public CaptureRecentSearchCommandHandlerTests()
     {
         _currentUser.UserId.Returns(_userId);
     }
 
-    private RecentJobSearchCaptureBehavior<TMessage, TResponse> CreateBehavior<TMessage, TResponse>()
-        where TMessage : IMessage =>
+    private CaptureRecentSearchCommandHandler CreateHandler() =>
         // #831 — the REAL parser, not a substitute: it is pure CPU and deterministic, and the
-        // behaviour under test is precisely "capture what the parser decided the search was".
+        // handler under test is precisely "capture what the parser decided the search was".
         // A fake here would let the test agree with itself instead of with production. #2199 PR 2b:
         // the gate that holds it is the real one too, religious occupations included.
-        new(_currentUser, _capturer, RealRecentSearchCaptureGate.Instance,
-            Substitute.For<ILogger<RecentJobSearchCaptureBehavior<TMessage, TResponse>>>());
+        new(_currentUser, RealRecentSearchCaptureGate.Instance, _search, _capturer, _db, _logger);
 
-    private static MessageHandlerDelegate<TMessage, TResponse> Next<TMessage, TResponse>(
-        TResponse response)
-        where TMessage : IMessage =>
-        (_, _) => ValueTask.FromResult(response);
+    private static CaptureRecentSearchCommand CommandFor(Search search) => new(
+        Q: search.Q,
+        OccupationGroup: search.OccupationGroup,
+        OccupationName: search.OccupationName,
+        Municipality: search.Municipality,
+        Region: search.Region,
+        EmploymentType: search.EmploymentType,
+        WorktimeExtent: search.WorktimeExtent,
+        Employer: search.Employer,
+        Remote: search.Remote,
+        JuniorIt: search.JuniorIt,
+        Sort: Enum.Parse<ListJobAdsSort>(search.SortBy.ToString()));
 
-    private async ValueTask<FakeCaptureResponse> HandleAsync(
-        FakeSearchQuery query, int totalCount = 7)
+    // `totalCount` is what the count of the admitted criteria answers, which the handler passes to the capturer.
+    private async ValueTask<Result<CaptureRecentSearchResult>> HandleAsync(Search search, int totalCount = 7)
     {
-        var behavior = CreateBehavior<FakeSearchQuery, FakeCaptureResponse>();
-        return await behavior.Handle(
-            query,
-            Next<FakeSearchQuery, FakeCaptureResponse>(new FakeCaptureResponse(totalCount)),
-            CancellationToken.None);
+        _search.CountAsync(Arg.Any<JobAdFilterCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<int>(totalCount));
+        return await CreateHandler().Handle(CommandFor(search), TestContext.Current.CancellationToken);
     }
 
     // ---------------------------------------------------------------
@@ -104,9 +97,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: ["grp1"], Municipality: null, Region: null));
 
         await _capturer.Received(1).CaptureAsync(
@@ -126,9 +119,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: ["sthlm_kn"], Region: null));
 
         await _capturer.Received(1).CaptureAsync(
@@ -139,7 +132,7 @@ public class RecentJobSearchCaptureBehaviorTests
     [Fact]
     public async Task Handle_RegionOnly_CapturesSearch()
     {
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: ["stockholm"]));
 
         await _capturer.Received(1).CaptureAsync(
@@ -149,7 +142,7 @@ public class RecentJobSearchCaptureBehaviorTests
     [Fact]
     public async Task Handle_QOnly_CapturesSearch()
     {
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "backend", OccupationGroup: null, Municipality: null, Region: null));
 
         await _capturer.Received(1).CaptureAsync(
@@ -164,16 +157,14 @@ public class RecentJobSearchCaptureBehaviorTests
     [Theory]
     [InlineData("1010101010")]   // pnr-shaped, third digit 1
     [InlineData("0001010101")]   // pnr-shaped, third digit 0
-    public async Task Handle_PersonnummerShapedEmployer_RunsTheSearchButCapturesNothing(string employer)
+    public async Task Handle_PersonnummerShapedEmployer_CapturesNothing(string employer)
     {
         // Not a hypothetical premise: `?employer=` is a FORMAT gate, so a personnummer-shaped value
         // in it comes from a hand-typed URL or an old bookmark - exactly what this argument is.
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             Employer: [employer]));
 
-        // The SEARCH ran (HandleAsync returns the handler's response); only the persistence is
-        // skipped. Refusing the search would break a legitimate filter on a sole trader's ads.
         await _capturer.DidNotReceive().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
@@ -188,9 +179,9 @@ public class RecentJobSearchCaptureBehaviorTests
         SearchCriteria? captured = null;
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7, Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "projekt", OccupationGroup: group is null ? null : [group], Municipality: null, Region: null,
             OccupationName: ["z5AM_ayf_WcL"]));
 
@@ -207,9 +198,9 @@ public class RecentJobSearchCaptureBehaviorTests
         SearchCriteria? captured = null;
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7, Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             OccupationName: ["z5AM_ayf_WcL"]));
 
@@ -220,7 +211,7 @@ public class RecentJobSearchCaptureBehaviorTests
     [Fact]
     public async Task Handle_AnEmptyOccupationNameList_StillCaptures()
     {
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "projekt", OccupationGroup: null, Municipality: null, Region: null, OccupationName: []));
 
         await _capturer.Received(1).CaptureAsync(
@@ -233,7 +224,7 @@ public class RecentJobSearchCaptureBehaviorTests
         // The gate is `.Any`, not `.All`: one personnummer-shaped value in a multi-employer list
         // refuses the whole capture. This is the pin ListRecentSearchesCountReplayParityTests'
         // mixed case names as the reason its row can only be pre-A2 (#1471).
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             Employer: ["5566010101", "1010101010"]));
 
@@ -247,7 +238,7 @@ public class RecentJobSearchCaptureBehaviorTests
         // Skip, never filter. A row with the employer stripped out would no longer reproduce the
         // search it claims to be, which is the whole point of Senaste sokningar - and it would put
         // a misleading row in front of the user instead of no row.
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "backend", OccupationGroup: ["1234"], Municipality: null, Region: null,
             Employer: ["1010101010"]));
 
@@ -265,16 +256,16 @@ public class RecentJobSearchCaptureBehaviorTests
         // DECLARED UNREACHABLE (CLAUDE.md section 5, Tests:), so this asserts only that the
         // persistence path degrades safely - never what production does with such a value.
         //
-        // The gate that actually stops them is ListJobAdsQueryValidator's
-        // RuleForEach(q => q.Employer).Matches(OrganizationNumberPattern), which runs in
-        // ValidationBehavior BEFORE this behaviour and 400s all four. `parseEmployerParam` is a
+        // The gate that actually stops them is RecentSearchCandidateValidator's
+        // RuleForEach(s => s.Employer).Matches(OrganizationNumberPattern), which runs in
+        // ValidationBehavior BEFORE this handler and 400s all four. `parseEmployerParam` is a
         // second, narrower gate on the FE and is NOT what makes them unreachable - naming it alone
         // would put the declaration on the wrong gate (code-reviewer, PR #1411).
         //
         // Kept as defence in depth: fail-safe in the wide direction, matching
         // OrganizationNumber.IsPersonnummerShaped's own posture, so the guard does not depend on a
         // gate one layer up staying exactly as narrow as it is now.
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             Employer: [employer]));
 
@@ -285,17 +276,9 @@ public class RecentJobSearchCaptureBehaviorTests
     [Fact]
     public async Task Handle_OneShapedEmployerAmongMany_CapturesNothing()
     {
-        // DECLARED UNREACHABLE, same as the four unparseable forms above and for the same reason
-        // it must be said out loud: no live path delivers arity > 1. `parseEmployerParam` takes
-        // `raw[0]`, and `lib/api/job-ads.ts` appends `employer` once from a `string | undefined`;
-        // under Option B the API is never edge-exposed, so nothing else can supply a second
-        // element. So this asserts only that the persistence path degrades safely, never what
-        // production does (security-auditor, PR #1411).
-        //
-        // Kept because the wire type IS a list: `ListJobAdsQuery.Employer` binds `string[]`, so
-        // `Any` and not `All` is the correct predicate the day a second element becomes possible.
+        // The command's `Employer` is a list, so `Any` and not `All` is the correct predicate.
         // One personnummer in the list is one personnummer persisted.
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             Employer: ["5566010101", "1010101010"]));
 
@@ -306,7 +289,7 @@ public class RecentJobSearchCaptureBehaviorTests
     // ---- The ?q= axis stops persisting a personnummer (Klas-beslut 2026-08-19) ----
     //
     // Same class as the employer block above, different detector. `q` has no FORMAT gate -
-    // ListJobAdsQueryValidator bounds its length and requires it non-empty when sorting by
+    // CaptureRecentSearchCommandValidator bounds its length and requires it non-empty when sorting by
     // relevance, and nothing else - so it carries hyphenated, 12-digit and space-gapped forms
     // the ten-digit employer axis structurally cannot. Detection is therefore the validating
     // flag chain (Normalize -> Scan -> Personnummer.TryParse date+Luhn), not a shape predicate.
@@ -324,15 +307,11 @@ public class RecentJobSearchCaptureBehaviorTests
     [InlineData("198112189876")]     // 12-digit, contiguous
     [InlineData("811278-9873")]      // samordningsnummer (day 78 = 18 + 60)
     [InlineData("811218 9876")]      // single-space gapped - bridged by the normalizer
-    public async Task Handle_PersonnummerShapedQ_RunsTheSearchButCapturesNothing(string q)
+    public async Task Handle_PersonnummerShapedQ_CapturesNothing(string q)
     {
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: q, OccupationGroup: null, Municipality: null, Region: null));
 
-        // The SEARCH ran - only the persistence is skipped. Refusing the search would be a
-        // behaviour change on a surface that has nothing to do with the leak. Asserting on the
-        // returned TotalCount would not pin that: Handle awaits next(...) before every guard, so
-        // the fake's response comes back on every path and the assertion could never fail.
         await _capturer.DidNotReceive().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
@@ -343,7 +322,7 @@ public class RecentJobSearchCaptureBehaviorTests
         // The carrier form the employer axis cannot have: a personnummer as one token among
         // ordinary search words. The scanner's candidate regex is delimiter-aware, so it finds
         // the token without the whole string having to look like a number.
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "backend 811218-9876 stockholm", OccupationGroup: null, Municipality: null,
             Region: null));
 
@@ -362,7 +341,7 @@ public class RecentJobSearchCaptureBehaviorTests
     // collides far more often (PersonnummerBridgeCollisionRateTests measures both rates).
     //
     // These vectors reach ?q= end to end: percent-encoding carries every one of them through
-    // the wire, ListJobAdsQueryValidator constrains q only by MaximumLength and a NotEmpty that
+    // the wire, CaptureRecentSearchCommandValidator constrains q only by MaximumLength and a NotEmpty that
     // applies when sorting by relevance (neither reached here - every vector is non-empty and
     // none sorts by relevance), and SearchCriteria's NormalizeString only trims - so each of
     // these persisted verbatim before this change.
@@ -381,7 +360,7 @@ public class RecentJobSearchCaptureBehaviorTests
     [InlineData("811218\u000C9876")]     // U+000C FORM FEED
     public async Task Handle_WidelyGappedPersonnummerQ_CapturesNothing(string q)
     {
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: q, OccupationGroup: null, Municipality: null, Region: null));
 
         await _capturer.DidNotReceive().CaptureAsync(
@@ -396,7 +375,7 @@ public class RecentJobSearchCaptureBehaviorTests
         // carrying a dimension beside the q can tell the two apart. Without this row the whole
         // widened theory above would stay green against a guard that nulled q instead of
         // skipping - and that guard would Bump() a different, real search.
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "811218\n9876", OccupationGroup: ["grp1"], Municipality: null, Region: null));
 
         await _capturer.DidNotReceive().CaptureAsync(
@@ -413,7 +392,7 @@ public class RecentJobSearchCaptureBehaviorTests
         // UNCHANGED, so ordinary searches carrying wide digit gaps still capture. The third
         // row is the deliberate residual ADR 0134 keeps and names: it is unbridged because a
         // separator is admitted only digit-adjacent, at any bound - not because of the width.
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: q, OccupationGroup: null, Municipality: null, Region: null));
 
         await _capturer.Received(1).CaptureAsync(
@@ -437,10 +416,10 @@ public class RecentJobSearchCaptureBehaviorTests
     [InlineData("region")]
     [InlineData("employmentType")]
     [InlineData("worktimeExtent")]
-    public async Task Handle_PersonnummerInAnyTaxonomyAxis_RunsTheSearchButCapturesNothing(string axis)
+    public async Task Handle_PersonnummerInAnyTaxonomyAxis_CapturesNothing(string axis)
     {
         const string pnr = "8112189876";
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null,
             OccupationGroup: axis == "occupationGroup" ? [pnr] : null,
             Municipality: axis == "municipality" ? [pnr] : null,
@@ -459,7 +438,7 @@ public class RecentJobSearchCaptureBehaviorTests
         // The conceptId grammar admits '-', so the hyphenated form reaches this axis too. It is
         // the shape a human actually types, and the contiguous-only scanner would miss it
         // without the shared chain's separator handling.
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: ["811218-9876"], Municipality: null, Region: null));
 
         await _capturer.DidNotReceive().CaptureAsync(
@@ -470,7 +449,7 @@ public class RecentJobSearchCaptureBehaviorTests
     public async Task Handle_PersonnummerAmongValidConceptIdsInOneAxis_CapturesNothing()
     {
         // Any element, not just the first: the guard reads the whole list.
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: ["grp1", "grp2", "8112189876"], Municipality: null, Region: null));
 
         await _capturer.DidNotReceive().CaptureAsync(
@@ -484,7 +463,7 @@ public class RecentJobSearchCaptureBehaviorTests
         // would hide a filter-out; with a second dimension beside it the criteria stays valid
         // and a filter-out WOULD capture - as a row whose FilterHash equals a genuine search on
         // the remaining dimension, which CaptureAsync would then find and Bump().
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: ["8112189876"], Municipality: ["sthlm"], Region: null));
 
         await _capturer.DidNotReceive().CaptureAsync(
@@ -506,9 +485,9 @@ public class RecentJobSearchCaptureBehaviorTests
         // shape predicate and this one runs the date+Luhn authority.
         SearchCriteria? captured = null;
         _capturer.CaptureAsync(_userId, Arg.Do<SearchCriteria>(c => captured = c), 7, Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: [conceptId], Municipality: null, Region: null));
 
         await _capturer.Received(1).CaptureAsync(
@@ -526,7 +505,7 @@ public class RecentJobSearchCaptureBehaviorTests
         // valid and a null-out WOULD capture - as a row whose FilterHash equals that of a
         // genuine q-less search on the same dimension, which CaptureAsync would then find and
         // Bump(), corrupting LastSeenCount and LastViewedAt on a different, real search.
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "811218-9876", OccupationGroup: ["grp1"], Municipality: null, Region: null));
 
         await _capturer.DidNotReceive().CaptureAsync(
@@ -544,7 +523,7 @@ public class RecentJobSearchCaptureBehaviorTests
         // year, a near-miss - still capture, and the stored q is byte-identical to the input.
         //
         // The org.nr vector is deliberately the Luhn-VALID fixture from
-        // ListJobAdsQueryValidator's own doc (5592804784, Luhn sum 50). A Luhn-invalid org.nr
+        // RecentSearchCandidateValidator's own doc (5592804784, Luhn sum 50). A Luhn-invalid org.nr
         // would pass this test for the wrong reason - the check digit, not the discriminator
         // under test. What actually rejects it is the date gate reached first: significant[2..4]
         // is "92", and a Swedish org.nr always carries >= 20 in the month position.
@@ -552,9 +531,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: q, OccupationGroup: null, Municipality: null, Region: null));
 
         await _capturer.Received(1).CaptureAsync(
@@ -573,9 +552,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             Employer: ["5566010101"]));
 
@@ -596,9 +575,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             Remote: true));
 
@@ -617,9 +596,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             EmploymentType: ["et_fast"], WorktimeExtent: null));
 
@@ -633,14 +612,14 @@ public class RecentJobSearchCaptureBehaviorTests
     [Fact]
     public async Task Handle_WorktimeExtentOnly_CapturesSearch()
     {
-        // B2: spegelbild — enbart WorktimeExtent (Q + övriga tomma, Commit=true).
+        // B2: spegelbild — enbart WorktimeExtent (Q + övriga tomma).
         SearchCriteria? captured = null;
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             EmploymentType: null, WorktimeExtent: ["wt_heltid"]));
 
@@ -659,9 +638,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "lärare",
             OccupationGroup: ["dim-grp"],
             Municipality: ["dim-kn"],
@@ -681,12 +660,23 @@ public class RecentJobSearchCaptureBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_PassesResponseTotalCountToCapturer()
+    public async Task Handle_PassesTheCountOfTheAdmittedCriteriaToCapturer()
     {
-        await HandleAsync(new FakeSearchQuery(
-            Q: "backend", OccupationGroup: null, Municipality: null, Region: null),
-            totalCount: 42);
+        // dotnet-architect V2 (#2285 plan read): the count is taken on what the gate admitted, the criteria a replay of
+        // the stored row counts (#1471), so the row's "nya" starts at 0. Here the parser nulls the one-letter q, so the
+        // count must run on the dimension alone.
+        JobAdFilterCriteria? counted = null;
+        _search.CountAsync(Arg.Do<JobAdFilterCriteria>(c => counted = c), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<int>(42));
 
+        await CreateHandler().Handle(
+            CommandFor(new Search(Q: "a", OccupationGroup: ["grp1"], Municipality: null, Region: null)),
+            TestContext.Current.CancellationToken);
+
+        counted.ShouldNotBeNull();
+        counted.Q.ShouldBeNull();
+        counted.OccupationGroup.ShouldBe(["grp1"]);
+        counted.JuniorIt.ShouldBeFalse();
         await _capturer.Received(1).CaptureAsync(
             _userId, Arg.Any<SearchCriteria>(), 42, Arg.Any<CancellationToken>());
     }
@@ -700,7 +690,7 @@ public class RecentJobSearchCaptureBehaviorTests
     {
         // Default-browse ("alla annonser, inget filter") får ALDRIG captureras
         // (data-minimering Art. 5(1)(c), security-auditor F6 P4a High-2).
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: null));
 
         await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
@@ -711,7 +701,7 @@ public class RecentJobSearchCaptureBehaviorTests
     [Fact]
     public async Task Handle_WhitespaceQAndEmptyLists_DoesNotCapture()
     {
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "   ", OccupationGroup: [], Municipality: [], Region: []));
 
         await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
@@ -726,57 +716,9 @@ public class RecentJobSearchCaptureBehaviorTests
         // else empty is default-browse (bool-semantik: false = inget filter) → never captured. If the
         // guard mis-counted remote=false as a filter this would over-capture (data-minimering
         // Art. 5(1)(c)); SearchCriteria.Create would also reject it (the lockstep tom-invariant).
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             Remote: false));
-
-        await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
-            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    // ---------------------------------------------------------------
-    // Commit-guard (E2j, ADR 0060 amend 2026-06-12) — capture endast vid
-    // commit-intent. Live-typing (router.replace per ord) sätter commit=false
-    // och får ALDRIG fångas (over-capture + data-minimerings-regression,
-    // Art. 5(1)(c)). Sök/Enter/förslags-val/toolbar sätter commit=true.
-    // ---------------------------------------------------------------
-
-    [Fact]
-    public async Task Handle_CommitFalse_DoesNotCapture()
-    {
-        // Live-förhandsvisning (commit=false) med fullt giltigt filter får
-        // INTE captureras — annars återinförs mellanstegsspammen.
-        await HandleAsync(new FakeSearchQuery(
-            Q: "backend", OccupationGroup: ["grp1"], Municipality: null, Region: null,
-            Commit: false));
-
-        await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
-            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Handle_CommitTrue_CapturesSearch()
-    {
-        // Explicit commit-intent (Sök/Enter/förslags-val) → capture.
-        await HandleAsync(new FakeSearchQuery(
-            Q: "backend", OccupationGroup: null, Municipality: null, Region: null,
-            Commit: true));
-
-        await _capturer.Received(1).CaptureAsync(
-            _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Handle_CommitTrueButAllDimensionsEmpty_DoesNotCapture()
-    {
-        // Commit-guard OCH default-browse-guard är additiva: en commit på
-        // tom sökning ("Sök" utan filter) capture:as fortfarande aldrig
-        // (Mekanik-not 2 består — browse-guarden ersätts inte av commit-guarden).
-        await HandleAsync(new FakeSearchQuery(
-            Q: null, OccupationGroup: null, Municipality: null, Region: null,
-            Commit: true));
 
         await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
@@ -788,37 +730,23 @@ public class RecentJobSearchCaptureBehaviorTests
     // ---------------------------------------------------------------
 
     [Fact]
-    public async Task Handle_AnonymousUser_DoesNotCapture()
+    public async Task Handle_AnonymousUser_FailsAndDoesNotCapture()
     {
+        // Defence in depth: the command is an IAuthenticatedRequest, so AuthorizationBehavior refuses first.
         _currentUser.UserId.Returns((Guid?)null);
 
-        await HandleAsync(new FakeSearchQuery(
+        var result = await HandleAsync(new Search(
             Q: "backend", OccupationGroup: ["grp1"], Municipality: null, Region: null));
 
+        result.IsFailure.ShouldBeTrue();
+        await _search.DidNotReceiveWithAnyArgs().CountAsync(Arg.Any<JobAdFilterCriteria>(), Arg.Any<CancellationToken>());
         await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_MessageWithoutMarker_DoesNotCapture()
-    {
-        var behavior = CreateBehavior<FakePlainQuery, FakeCaptureResponse>();
-        var response = new FakeCaptureResponse(5);
-
-        var result = await behavior.Handle(
-            new FakePlainQuery(),
-            Next<FakePlainQuery, FakeCaptureResponse>(response),
-            CancellationToken.None);
-
-        result.ShouldBeSameAs(response);
-        await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
-            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Handle_SubMinimumQAndNoDimensions_DoesNotCaptureButReturnsResponse()
+    public async Task Handle_SubMinimumQAndNoDimensions_AnswersNotStoredAndCountsNothing()
     {
         // Var Handle_InvalidCriteria_DoesNotCaptureButReturnsResponse. Utfallet är detsamma
         // (ingen capture) men #831 bytte VARFÖR, och den gamla kommentaren var därmed falsk:
@@ -826,10 +754,11 @@ public class RecentJobSearchCaptureBehaviorTests
         // InvalidQ. Nu nollar parsern q före guarden, så det här är ett rent default-browse
         // (ingen söktext, inga dimensioner) och guarden returnerar — Create anropas aldrig.
         // Ett default-browse ska inte capture:as, så beteendet är rätt av rätt skäl.
-        var result = await HandleAsync(new FakeSearchQuery(
+        var result = await HandleAsync(new Search(
             Q: "a", OccupationGroup: null, Municipality: null, Region: null));
 
-        result.TotalCount.ShouldBe(7);
+        result.Value.Stored.ShouldBeFalse();
+        await _search.DidNotReceiveWithAnyArgs().CountAsync(Arg.Any<JobAdFilterCriteria>(), Arg.Any<CancellationToken>());
         await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
             Arg.Any<CancellationToken>());
@@ -853,9 +782,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "a", OccupationGroup: ["grp1"], Municipality: null, Region: null));
 
         await _capturer.Received(1).CaptureAsync(
@@ -882,9 +811,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "a", OccupationGroup: ["grp1"], Municipality: null, Region: null,
             SortBy: JobAdSortBy.Relevance));
 
@@ -906,9 +835,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "backend", OccupationGroup: null, Municipality: null, Region: null,
             SortBy: JobAdSortBy.Relevance));
 
@@ -918,59 +847,119 @@ public class RecentJobSearchCaptureBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_WhenCapturerThrows_ResponseStillReturned()
+    public async Task Handle_WhenCapturerThrows_AnswersNotStoredAndClearsTheTracker()
     {
-        // Capture-fel får ALDRIG bryta sök-queryn (500 på söksidan oacceptabelt).
+        // Best-effort (security-auditor Minor 1, #2285 plan read): never a 500, and the tracker is cleared so the unit
+        // of work's save after the handler cannot send the failed write again.
         _capturer.CaptureAsync(
                 Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(_ => throw new InvalidOperationException("capture-fel"));
+            .Returns<Task<bool>>(_ => throw new InvalidOperationException("capture-fel"));
 
-        var result = await HandleAsync(new FakeSearchQuery(
+        var result = await HandleAsync(new Search(
             Q: "backend", OccupationGroup: ["grp1"], Municipality: null, Region: null));
 
-        result.TotalCount.ShouldBe(7);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Stored.ShouldBeFalse();
+        _db.Received(1).ClearTracking();
     }
 
     [Fact]
-    public async Task Handle_ReturnsResponseUnchanged_WhenCaptureSucceeds()
+    public async Task Handle_WhenTheCountThrows_AnswersNotStoredAndStoresNothing()
     {
-        var behavior = CreateBehavior<FakeSearchQuery, FakeCaptureResponse>();
-        var response = new FakeCaptureResponse(3);
+        _search.CountAsync(Arg.Any<JobAdFilterCriteria>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<int>>(_ => throw new InvalidOperationException("count-fel"));
 
-        var result = await behavior.Handle(
-            new FakeSearchQuery(
-                Q: "backend", OccupationGroup: null, Municipality: null, Region: null),
-            Next<FakeSearchQuery, FakeCaptureResponse>(response),
-            CancellationToken.None);
+        var result = await CreateHandler().Handle(
+            CommandFor(new Search(Q: "backend", OccupationGroup: null, Municipality: null, Region: null)),
+            TestContext.Current.CancellationToken);
 
-        result.ShouldBeSameAs(response);
+        result.Value.Stored.ShouldBeFalse();
+        await _capturer.DidNotReceiveWithAnyArgs().CaptureAsync(Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_WhenTheCountOrTheStoreThrows_LogsTheExceptionTypeAlone(bool countThrows)
+    {
+        var thrown = new InvalidOperationException("detail: hemligsokning");
+        if (countThrows)
+            _search.CountAsync(Arg.Any<JobAdFilterCriteria>(), Arg.Any<CancellationToken>())
+                .Returns<ValueTask<int>>(_ => throw thrown);
+        else
+            _search.CountAsync(Arg.Any<JobAdFilterCriteria>(), Arg.Any<CancellationToken>())
+                .Returns(new ValueTask<int>(7));
+        _capturer.CaptureAsync(
+                Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns<Task<bool>>(_ => throw thrown);
+
+        await CreateHandler().Handle(
+            CommandFor(new Search(Q: "hemligsokning", OccupationGroup: null, Municipality: null, Region: null)),
+            TestContext.Current.CancellationToken);
+
+        var record = _logger.Records.ShouldHaveSingleItem();
+        record.Level.ShouldBe(LogLevel.Warning);
+        record.EventId.ShouldBe(6001);
+        record.Message.ShouldContain(typeof(InvalidOperationException).FullName!);
+        record.Message.ShouldNotContain("hemligsokning");
+        _logger.Exceptions.ShouldHaveSingleItem().ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_WhenCancelled_Propagates()
+    {
+        _capturer.CaptureAsync(
+                Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns<Task<bool>>(_ => throw new OperationCanceledException());
+
+        await Should.ThrowAsync<OperationCanceledException>(async () => await HandleAsync(new Search(
+            Q: "backend", OccupationGroup: null, Municipality: null, Region: null)));
+        _db.DidNotReceive().ClearTracking();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_AnswersWhatTheCapturerAnswers(bool stored)
+    {
+        _capturer.CaptureAsync(
+                Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(stored);
+
+        var result = await HandleAsync(new Search(
+            Q: "backend", OccupationGroup: null, Municipality: null, Region: null));
+
+        result.Value.Stored.ShouldBe(stored);
     }
 
     // ---------------------------------------------------------------
-    // Interface-shape-grind — Ssyk borta ur ICapturesRecentSearch
+    // Interface-shape-grind — Ssyk borta ur IRecentSearchCandidate
     // ---------------------------------------------------------------
 
     [Fact]
-    public void ICapturesRecentSearch_HasNoSsykProperty_AfterC2()
+    public void IRecentSearchCandidate_HasNoSsykProperty_AfterC2()
     {
-        typeof(ICapturesRecentSearch).GetProperty("Ssyk").ShouldBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("OccupationGroup").ShouldNotBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("Municipality").ShouldNotBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("Region").ShouldNotBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("Q").ShouldNotBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("SortBy").ShouldNotBeNull();
-        // E2j (ADR 0060 amend 2026-06-12): commit-intent-markören.
-        typeof(ICapturesRecentSearch).GetProperty("Commit").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("Ssyk").ShouldBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("OccupationGroup").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("Municipality").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("Region").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("Q").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("SortBy").ShouldNotBeNull();
+        // #2285: no commit flag; a search is stored only by the command.
+        typeof(IRecentSearchCandidate).GetProperty("Commit").ShouldBeNull();
         // B2 (ADR 0067 Beslut 6/7): de två nya filter-dimensionerna.
-        typeof(ICapturesRecentSearch).GetProperty("EmploymentType").ShouldNotBeNull();
-        typeof(ICapturesRecentSearch).GetProperty("WorktimeExtent").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("EmploymentType").ShouldNotBeNull();
+        typeof(IRecentSearchCandidate).GetProperty("WorktimeExtent").ShouldNotBeNull();
     }
 
     // ---------------------------------------------------------------
     // #2199 PR 2b — a religious office singled out is never stored
     // ---------------------------------------------------------------
-    // The SEARCH runs and only the capture is skipped, as for the personnummer guards above. The ids
+    // The capture is skipped, as for the personnummer guards above. The ids
     // are JobTech's: the policy constant's groups, and names the lineage artefact files under them.
     // ReligiousOccupationsArtefactTests pins that the real adapter singles them out.
 
@@ -981,14 +970,14 @@ public class RecentJobSearchCaptureBehaviorTests
     private const string Forsamlingspedagog = "aWHP_Fv2_1US";
     private const string ProjektledareIt = "z5AM_ayf_WcL";
 
-    private async Task ShouldCaptureNothing(FakeSearchQuery query)
+    private async Task ShouldCaptureNothing(Search query)
     {
         await HandleAsync(query);
         await _capturer.DidNotReceive().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
-    private static FakeSearchQuery Yrke(IReadOnlyList<string>? groups = null, IReadOnlyList<string>? names = null) =>
+    private static Search Yrke(IReadOnlyList<string>? groups = null, IReadOnlyList<string>? names = null) =>
         new(Q: null, OccupationGroup: groups, Municipality: null, Region: null, OccupationName: names);
 
     [Theory]
@@ -996,7 +985,7 @@ public class RecentJobSearchCaptureBehaviorTests
     [InlineData(ReligiousOccupationGroups.Pastors)]
     [InlineData(ReligiousOccupationGroups.Deacons)]
     [InlineData(ReligiousOccupationGroups.LeadersOfReligiousCommunities)]
-    public Task Handle_AReligiousGroupOnly_RunsTheSearchButCapturesNothing(string group) =>
+    public Task Handle_AReligiousGroupOnly_CapturesNothing(string group) =>
         ShouldCaptureNothing(Yrke(groups: [group]));
 
     [Fact]
@@ -1084,27 +1073,27 @@ public class RecentJobSearchCaptureBehaviorTests
     //
     // Every string-bearing member must be read by a personnummer guard before capture: Q and
     // Employer by their own, the six taxonomy axes by BearsPersonnummer (OccupationName joined them
-    // in #2199 PR 2). Remote, JuniorIt, SortBy and Commit are bool/enum and carry no text; JuniorIt also
+    // in #2199 PR 2). Remote, JuniorIt and SortBy are bool/enum and carry no text; JuniorIt also
     // skips the capture whole (#2261, senior-cto-advisor D1a).
     [Fact]
-    public void ICapturesRecentSearch_HasExactlyTheseMembers_SoANewDimensionCannotArriveUnguarded()
+    public void IRecentSearchCandidate_HasExactlyTheseMembers_SoANewDimensionCannotArriveUnguarded()
     {
         // GetProperties() on an interface does NOT walk base interfaces (measured with a probe:
-        // an IDerived : IBase reports only IDerived's own). ICapturesRecentSearch has no base
+        // an IDerived : IBase reports only IDerived's own). IRecentSearchCandidate has no base
         // today, so without this the hole would be closed by absence rather than by construction
         // — and "inclusion cannot see growth" is the exact failure this gate exists to close, so
         // leaving it one level up would be the same defect wearing a hat.
-        var actual = typeof(ICapturesRecentSearch).GetProperties()
-            .Concat(typeof(ICapturesRecentSearch).GetInterfaces().SelectMany(i => i.GetProperties()))
+        var actual = typeof(IRecentSearchCandidate).GetProperties()
+            .Concat(typeof(IRecentSearchCandidate).GetInterfaces().SelectMany(i => i.GetProperties()))
             .Select(p => p.Name)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
 
         actual.ShouldBe(
-            ["Commit", "Employer", "EmploymentType", "JuniorIt", "Municipality", "OccupationGroup",
+            ["Employer", "EmploymentType", "JuniorIt", "Municipality", "OccupationGroup",
              "OccupationName", "Q", "Region", "Remote", "SortBy", "WorktimeExtent"],
-            "a member arrived on or left ICapturesRecentSearch. If it is a NEW string-bearing " +
+            "a member arrived on or left IRecentSearchCandidate. If it is a NEW string-bearing " +
             "dimension it reaches recent_job_searches in plaintext, and it must be added to the " +
             "BearsPersonnummer chain in RecentSearchCaptureGate AND to the default-browse " +
             "guard — neither of which fails on its own when a dimension is merely missing. " +
@@ -1122,9 +1111,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "-deltid", OccupationGroup: ["grp1"], Municipality: null, Region: null));
 
         captured.ShouldNotBeNull();
@@ -1141,9 +1130,9 @@ public class RecentJobSearchCaptureBehaviorTests
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "-deltid", OccupationGroup: null, Municipality: null, Region: null,
             SortBy: JobAdSortBy.Relevance));
 
@@ -1156,7 +1145,7 @@ public class RecentJobSearchCaptureBehaviorTests
     public async Task Handle_PersonnummerAsAMinusWord_CapturesNothing()
     {
         // The scan runs on the raw q, so a personnummer is caught in an excluded term too.
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "backend -811218-9876", OccupationGroup: null, Municipality: null, Region: null));
 
         await _capturer.DidNotReceive().CaptureAsync(
@@ -1169,9 +1158,9 @@ public class RecentJobSearchCaptureBehaviorTests
         SearchCriteria? captured = null;
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7, Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "-d", OccupationGroup: ["grp1"], Municipality: null, Region: null));
 
         captured.ShouldNotBeNull();
@@ -1185,9 +1174,9 @@ public class RecentJobSearchCaptureBehaviorTests
         SearchCriteria? captured = null;
         _capturer.CaptureAsync(
                 _userId, Arg.Do<SearchCriteria>(c => captured = c), 7, Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
 
-        await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new Search(
             Q: "lärare -deltid", OccupationGroup: null, Municipality: null, Region: null,
             SortBy: JobAdSortBy.Relevance));
 
@@ -1196,3 +1185,4 @@ public class RecentJobSearchCaptureBehaviorTests
         captured.SortBy.ShouldBe(JobAdSortBy.Relevance);
     }
 }
+#pragma warning restore CA2012

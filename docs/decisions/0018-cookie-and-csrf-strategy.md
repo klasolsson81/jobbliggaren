@@ -303,7 +303,8 @@ cross-site navigation.
   Each is an integrity effect on the user's own notices, not a disclosure. `(admin)` writes nothing at render. The
   target drops the query, so a planted `/jobb?q=…&commit=true` recent search does not reach the page. (The Amendment
   2026-11-21, #2284, marks the reach of this sentence: it holds for every key with free text, and for `/junior` two
-  validated keys travel on to a signed-in `/jobb`.)
+  validated keys travel on to a signed-in `/jobb`. The Amendment 2026-11-22, #2285, marks it again: since then
+  `commit` carries nothing, and no GET stores a recent search.)
 - **Failed-access log lines.** Another site can open `/cv/{id}`, `/ansokningar/{id}` or a Branschbevakning page
   (`/foretag/branschbevakningar/{id}`, its `/annonser` and `/nya`; Amendment 2026-10-18) with an id the signed-in user
   does not own, and the cross-user attempt is logged against that user (`IFailedAccessLogger`). Such a line is no
@@ -485,7 +486,7 @@ protection that layer 1 carried, as for the protected pages.
   backend reads as now (`jobb-results.tsx:276-291`), so the user's own "new" markers move. That is an integrity effect on the
   user's own notices, not a disclosure, in the class "Writes at render" above; the bounce to an unfiltered `/jobb` already
   moves the mark about as far. Nothing can be planted: no `q` and no `commit` travel, and a junior search is never stored in
-  recent searches (ADR 0186 A1). `security-auditor`: a remaining effect in that class, no accepted-risk ADR needed.
+  recent searches (ADR 0186 A1). (Since the Amendment 2026-11-22, #2285, `commit` carries nothing on any path.) `security-auditor`: a remaining effect in that class, no accepted-risk ADR needed.
 - **R-c, sandboxed popups.** No change. Caddy writes `Cross-Origin-Opener-Policy: same-origin` on every response
   (`deploy/caddy/Caddyfile:216`, `:234`), so what the browser does with it in a sandboxed navigable (see "A sandboxed popup
   gets a browser error" above) does not depend on this branch.
@@ -515,3 +516,36 @@ production build, reading from the front proxy whether each document request car
 Firefox and WebKit are not measured. The 2026-10-10 residual "Not measured on WebKit" stands for this hop.
 
 Additive amendment, apart from the two sentences marked in place.
+
+## Amendment 2026-11-22 (#2285) — rule 3 holds for a recent search on every path
+
+> **Provenance.** Written by the driving session. It records `senior-cto-advisor`'s routing of 2026-11-21 and the plan
+> reads of `security-auditor` and `dotnet-architect` of 2026-11-22 (`docs/reviews/2026-11-21-2285-routing-senior-cto-advisor.md`
+> and `docs/reviews/2026-11-22-2285-plan-*.md`, local). Additive: nothing above this heading is rewritten except two
+> sentences marked in place, one in "Writes at render" of the Amendment 2026-10-10 and one in R-b of the Amendment
+> 2026-11-21.
+
+**Why.** Rule 3 did not hold for recent searches. A signed-in `GET /jobb?…&commit=true` passed the flag to the list
+query, and the API stored the search. The bounce kept a cross-site navigation from carrying the query. It did not stop
+two other routes:
+- a link opened outside the browser, which arrives with `Sec-Fetch-Site: none` and in Chromium with the Strict cookie;
+- the job modal's "Ansök", which renders an employer's address as a same-origin link.
+
+**What it changes.** No GET stores a recent search, in the web or in the API. A search is stored only by the Server
+Action `captureRecentSearchAction`, which posts to `POST /api/v1/me/recent-searches` (ADR 0060 Amendment 2026-11-22).
+The list endpoint has no `commit` parameter, and `/jobb` reads none.
+
+**What protects it** is layers 1 and 2:
+- The Strict cookie does not travel on a cross-site POST.
+- Next compares a Server Action's `Origin` with its `Host`. `next.config.ts` sets no `serverActions.allowedOrigins`
+  (measured 2026-11-22 at `6b94c353d`). Setting it reopens this amendment.
+
+**What pins it.** Not `strict-cookie-bounce-render-writes.test.ts`, which sees only a write deferred with `after()`:
+- `RecentSearchCaptureConsumerTests` pins that the capture has exactly one caller, the command handler.
+- `recent-search-capture-callers.test.ts` pins that the Server Action is called only by the `/jobb` hero and toolbar.
+- `recent-search-capture.spec.ts` measures, in a real browser, that a planted `/jobb?q=…&commit=true` stores nothing
+  under `none`, from the same-origin "Ansök", without Fetch Metadata and after the cross-site bounce.
+
+**Residual, accepted.** A link can still fill in a search. It is stored only by the user's own action, on a page that
+shows every axis of it (an unknown id shows as a chip). A `none` link still moves `/jobb`'s watermark, the write at render
+the Amendment 2026-10-10 already lists.

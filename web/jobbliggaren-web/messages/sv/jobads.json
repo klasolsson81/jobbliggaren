@@ -344,7 +344,8 @@
       "announceRemoved": "Tog bort {label}",
       "announceCleared": "Rensade sökfältet",
       "save": "Spara sökningen",
-      "saved": "Sökningen är sparad i Senaste sökningar"
+      "saved": "Sökningen är sparad i Senaste sökningar",
+      "saveFailed": "Sökningen kunde inte sparas. Försök igen."
     },
     "heroFilters": {
       "ort": "Ort",

@@ -25,7 +25,6 @@ import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
 import { JobbQuickLinks } from "@/components/job-ads/jobb-quick-links";
 import { JobbResults } from "@/components/job-ads/jobb-results";
 import { JobAdListSkeleton } from "@/components/job-ads/job-ad-list-skeleton";
-import { StripCommitParam } from "@/components/job-ads/strip-commit-param";
 import { SearchStorability } from "@/components/job-ads/search-storability";
 import { RecentSearchesHeroChip } from "@/components/recent-searches/recent-searches-hero-chip";
 import { SavedJobAdsHeroChip } from "@/components/saved-job-ads/saved-job-ads-hero-chip";
@@ -74,9 +73,6 @@ type JobbSearchParams = {
   // would reject the whole query.
   employer?: string | string[];
   q?: string | string[];
-  // `?commit=true` marks a deliberate search, which the backend saves as a recent
-  // search; a live preview while typing does not carry it.
-  commit?: string;
 };
 
 interface PageProps {
@@ -145,9 +141,6 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // would fail validation, and the hero would carry the invalid q into every
   // later search. buildPageHref shares the parser.
   const q = parseQParam(params.q);
-  // StripCommitParam removes the flag after mount, so a shared link does not save
-  // the search again.
-  const commit = params.commit === "true";
 
   // These reads feed the hero, which renders outside the Suspense boundary, so
   // only the results area is replaced by a skeleton during a search. A successful
@@ -220,8 +213,6 @@ export default async function JobbPage({ searchParams }: PageProps) {
     // #2199 PR 2b — carries the results' save verdict up to the hero, which renders outside the
     // Suspense boundary; the hero offers "Spara sökningen" only when it answers the search on screen.
     <SearchStorability>
-      {/* Removes `?commit=true` after mount; renders nothing. */}
-      <StripCommitParam active={commit} />
       {/* The hero banner (ADR 0068) renders outside the Suspense boundary and
           stays visible while results load. */}
       <section className="jp-hero">
@@ -268,7 +259,6 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 employer={employer}
                 sortBy={sortBy}
                 pageSize={params.pageSize}
-                initialCommitted={commit}
               />
 
               {/* Filter pills with Platsbanken-style popovers (ADR 0055). Every
@@ -349,7 +339,6 @@ export default async function JobbPage({ searchParams }: PageProps) {
               onlyMatched={onlyMatched}
               employer={employer}
               q={q ?? ""}
-              commit={commit}
               rawParams={params}
             />
           </Suspense>

@@ -80,12 +80,6 @@ interface JobbResultsProps {
   employer: ReadonlyArray<string>;
   q: string;
   /**
-   * From `?commit=true`, which a deliberate search sets (Enter, the search button,
-   * a picked suggestion, the toolbar). The list query passes it on so the backend
-   * saves the search as a recent search; a live preview without it is not saved.
-   */
-  commit: boolean;
-  /**
    * The raw search params. Their shape lives with `buildPageHref` in
    * `lib/job-ads/search-params.ts`.
    */
@@ -111,7 +105,6 @@ export async function JobbResults({
   onlyMatched,
   employer,
   q,
-  commit,
   rawParams,
 }: JobbResultsProps) {
   const t = await getTranslations("jobads.ui");
@@ -212,7 +205,6 @@ export async function JobbResults({
       onlyMatched: effectiveOnlyMatched,
       employer,
       q,
-      commit,
     }),
     resolveTaxonomyLabels(selectedConceptIds),
     getJobsWatermark(),
@@ -317,12 +309,11 @@ export async function JobbResults({
                 : `${formatNumber(format, result.data.totalCount)} ${t("toolbar.hits", { count: result.data.totalCount })}`
             }
           />
-          {/* #2199 PR 2b — whether a commit of this search would be stored, for the hero's
+          {/* #2199 PR 2b — whether this search may be stored, for the hero's
               "Spara sökningen". The backend's capture gate decides; the frontend never does. */}
           <ReportSearchStorability
             search={listState}
             storable={result.data.isStorableAsRecentSearch}
-            committed={commit}
           />
           {/* Hit count, active filter chips and sort on one row (ADR 0055). */}
           <JobbResultsToolbar
@@ -392,7 +383,7 @@ export async function JobbResults({
           />
           {/* #2199 PR 2b — no verdict came back, and a save here would re-run a list that
               does not answer, so nothing would be stored. */}
-          <ReportSearchStorability search={listState} storable={false} committed={commit} />
+          <ReportSearchStorability search={listState} storable={false} />
           <p className="text-body font-medium text-warning-700">
             {t("results.rateLimitedTitle")}
           </p>
@@ -416,7 +407,7 @@ export async function JobbResults({
           <Announce
             message={`${t("results.errorTitle")} ${t("results.errorBody")}`}
           />
-          <ReportSearchStorability search={listState} storable={false} committed={commit} />
+          <ReportSearchStorability search={listState} storable={false} />
           <p className="text-body font-medium">{t("results.errorTitle")}</p>
           <p className="mt-1 text-body-sm">{t("results.errorBody")}</p>
         </div>

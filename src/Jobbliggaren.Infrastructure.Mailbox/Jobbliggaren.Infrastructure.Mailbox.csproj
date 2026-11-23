@@ -2,8 +2,8 @@
 
   <!--
     #1981 PR 4a (ADR 0185) — the Worker reads dmarc@jobbliggaren.se over IMAPS, read-only, and this is the one
-    assembly that speaks IMAP. It is a project of its own so that MailKit, MimeKit and BouncyCastle reach the Worker
-    image and nothing else: the Api references Infrastructure, so MailKit in Infrastructure would put all three in the
+    assembly that speaks IMAP. It is a project of its own so that MailKit and MimeKit reach the Worker
+    image and nothing else: the Api references Infrastructure, so MailKit in Infrastructure would put both in the
     Api's image, which never reads a mailbox (senior-cto-advisor, Beslut D2; Art. 25(2)). "The Api never builds the
     mailbox" is then a compile-time fact rather than a registration test. Migrate.Provisioning is the precedent for a
     production library outside Infrastructure.

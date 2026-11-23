@@ -124,20 +124,24 @@ public sealed class ListJobAdsJuniorItFilterTests(ApiFactory factory)
     // security-auditor, #2261 plan read, Minor 1: the harm a stored junior search would do is a Bump() of the
     // broader row it hashes like, so the existing row is the assertion, not only the absence of a new one.
     [Fact]
-    public async Task ACommittedJuniorSearch_IsNotStored_AndLeavesTheBroaderRowUntouched()
+    public async Task AStoredJuniorSearch_IsNotStored_AndLeavesTheBroaderRowUntouched()
     {
         var token = NewToken();
         await ImportAsync($"Junior utvecklare {token}", DataIt, Stockholm, StockholmsLan);
         using var client = await SignedInClientAsync();
-        (await client.GetAsync($"/api/v1/job-ads?q={token}&commit=true", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await client.PostAsJsonAsync("/api/v1/me/recent-searches", new { q = token }, Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
         var before = await StoredSearchesAsync(client);
         before.Count.ShouldBe(1);
 
-        var response = await client.GetAsync($"/api/v1/job-ads?q={token}&junior=true&commit=true", Ct);
+        var response = await client.GetAsync($"/api/v1/job-ads?q={token}&junior=true", Ct);
+        var capture = await client.PostAsJsonAsync("/api/v1/me/recent-searches", new { q = token, juniorIt = true }, Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
         body.RootElement.GetProperty("isStorableAsRecentSearch").GetBoolean().ShouldBeFalse();
+        using var stored = JsonDocument.Parse(await capture.Content.ReadAsStringAsync(Ct));
+        stored.RootElement.GetProperty("stored").GetBoolean().ShouldBeFalse();
         var after = await StoredSearchesAsync(client);
         after.ShouldBe(before);
     }

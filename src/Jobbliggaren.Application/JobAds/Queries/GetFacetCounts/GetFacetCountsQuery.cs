@@ -10,11 +10,6 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetFacetCounts;
 /// facett-exkluderade kriteriet vore semantiskt fel (SUM ≠ list-totalCount);
 /// "Visa N annonser"-talet ägs av <c>PagedResult.TotalCount</c> (SPOT,
 /// E2c-architect §1).
-/// <para>
-/// Implementerar MEDVETET INTE <c>ICapturesRecentSearch</c> — en
-/// facett-räkning är ingen sökhändelse; auto-capture hade skrivit en
-/// recent-search-rad per popover-toggle (E2c-architect §2).
-/// </para>
 /// </summary>
 public sealed record GetFacetCountsQuery(
     FacetDimension Dimension,

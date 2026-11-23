@@ -88,8 +88,8 @@ public interface IRecruiterErasureMatchQuery
     /// <para>
     /// <b>THE SIX CONCEPT-ID AXES ARE SEARCHED, and the ground that said otherwise was written
     /// against the columns' PURPOSE (#1425).</b> They are shape-validated
-    /// (<c>^[A-Za-z0-9_-]{1,32}\z</c>) and never taxonomy-resolved, so a hand-edited
-    /// <c>?occupationGroup=…&amp;commit=true</c> persists a single-token name or a ten-digit org.nr.
+    /// (<c>^[A-Za-z0-9_-]{1,32}\z</c>) and never taxonomy-resolved, so a hand-built capture request
+    /// (<c>POST /api/v1/me/recent-searches</c>, #2285) persists a single-token name or a ten-digit org.nr.
     /// The grammar admits no space, <c>@</c> or <c>.</c>, so an email, a postal address and a
     /// two-word name cannot be stored there — <c>Karlsson</c> and <c>Anna-Karlsson</c> can.
     /// #1419 closed the personnummer case AT CAPTURE TIME, forward-only, with a declared

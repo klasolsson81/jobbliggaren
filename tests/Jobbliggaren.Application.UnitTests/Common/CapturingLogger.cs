@@ -10,6 +10,7 @@ namespace Jobbliggaren.Application.UnitTests.Common;
 internal sealed class CapturingLogger<T> : ILogger<T>
 {
     private readonly List<(LogLevel Level, int EventId, string Message)> _records = [];
+    private readonly List<Exception?> _exceptions = [];
 
     public IReadOnlyList<(LogLevel Level, int EventId, string Message)> Records
     {
@@ -17,6 +18,16 @@ internal sealed class CapturingLogger<T> : ILogger<T>
         {
             lock (_records)
                 return [.. _records];
+        }
+    }
+
+    /// <summary>The exception each line in <see cref="Records"/> carried, in the same order.</summary>
+    public IReadOnlyList<Exception?> Exceptions
+    {
+        get
+        {
+            lock (_records)
+                return [.. _exceptions];
         }
     }
 
@@ -29,6 +40,9 @@ internal sealed class CapturingLogger<T> : ILogger<T>
         Func<TState, Exception?, string> formatter)
     {
         lock (_records)
+        {
             _records.Add((logLevel, eventId.Id, formatter(state, exception)));
+            _exceptions.Add(exception);
+        }
     }
 }

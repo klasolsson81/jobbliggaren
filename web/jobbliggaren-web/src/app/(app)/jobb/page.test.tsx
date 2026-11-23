@@ -94,9 +94,6 @@ vi.mock("@/components/recent-searches/recent-searches-hero-chip", () => ({
 vi.mock("@/components/saved-job-ads/saved-job-ads-hero-chip", () => ({
   SavedJobAdsHeroChip: () => null,
 }));
-vi.mock("@/components/job-ads/strip-commit-param", () => ({
-  StripCommitParam: () => null,
-}));
 // ADR 0188 — the stand-in shows what the page decided to pass, which is what the block at the bottom pins.
 vi.mock("@/components/job-ads/jobb-quick-links", () => ({
   JobbQuickLinks: (props: {
@@ -113,17 +110,21 @@ vi.mock("@/components/job-ads/jobb-quick-links", () => ({
   ),
 }));
 
-// The async-RSC seam described above. `ads` is set per test.
+// The async-RSC seam described above. `ads` is set per test; `resultsProps` is what the page passed.
 let ads: JobAdDto[] = [];
+let resultsProps: Record<string, unknown> | null = null;
 vi.mock("@/components/job-ads/jobb-results", async () => {
   const { ReportSearchStorability } = await import("@/components/job-ads/search-storability");
   return {
-    JobbResults: () => (
-      <>
-        <ReportSearchStorability search={probeSearch()} storable committed={false} />
-        <JobAdList jobAds={ads} />
-      </>
-    ),
+    JobbResults: (props: Record<string, unknown>) => {
+      resultsProps = props;
+      return (
+        <>
+          <ReportSearchStorability search={probeSearch()} storable />
+          <JobAdList jobAds={ads} />
+        </>
+      );
+    },
   };
 });
 
@@ -328,6 +329,20 @@ describe("/jobb — the page carries the results' save verdict to the hero", () 
     await renderPage();
 
     expect(screen.getByTestId("hero-storable")).toHaveTextContent("true");
+  });
+});
+
+// #2285 — /jobb no longer reads `commit`: a planted link carries it to the page and the page passes
+// nothing on, so the list query stores nothing whatever the link said.
+describe("/jobb — a planted commit flag reaches nothing", () => {
+  it("passes no commit on to the results", async () => {
+    ads = [];
+    resultsProps = null;
+    await renderPage({ q: "planterad", commit: "true" });
+
+    expect(resultsProps).not.toBeNull();
+    expect(resultsProps).not.toHaveProperty("commit");
+    expect(resultsProps).toHaveProperty("q", "planterad");
   });
 });
 

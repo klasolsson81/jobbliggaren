@@ -3,7 +3,6 @@ import { render, screen } from "@testing-library/react";
 import {
   ReportSearchStorability,
   SearchStorability,
-  useIsSearchSaved,
   useIsSearchStorable,
 } from "./search-storability";
 import type { JobbUrlState } from "@/lib/job-ads/search-params";
@@ -52,7 +51,7 @@ describe("search storability", () => {
   it("is true when the verdict for the shown search says yes", () => {
     render(
       <SearchStorability>
-        <ReportSearchStorability search={search()} storable committed={false} />
+        <ReportSearchStorability search={search()} storable />
         <Probe shown={search()} />
       </SearchStorability>,
     );
@@ -62,7 +61,7 @@ describe("search storability", () => {
   it("is false when the verdict says no", () => {
     render(
       <SearchStorability>
-        <ReportSearchStorability search={search()} storable={false} committed={false} />
+        <ReportSearchStorability search={search()} storable={false} />
         <Probe shown={search()} />
       </SearchStorability>,
     );
@@ -78,7 +77,7 @@ describe("search storability", () => {
   ])("is false when the yes answers another search (%s differs)", (_, change) => {
     render(
       <SearchStorability>
-        <ReportSearchStorability search={search()} storable committed={false} />
+        <ReportSearchStorability search={search()} storable />
         <Probe shown={search(change)} />
       </SearchStorability>,
     );
@@ -88,68 +87,16 @@ describe("search storability", () => {
   it("follows the latest verdict", () => {
     const { rerender } = render(
       <SearchStorability>
-        <ReportSearchStorability search={search()} storable committed={false} />
+        <ReportSearchStorability search={search()} storable />
         <Probe shown={search()} />
       </SearchStorability>,
     );
     rerender(
       <SearchStorability>
-        <ReportSearchStorability search={search()} storable={false} committed={false} />
+        <ReportSearchStorability search={search()} storable={false} />
         <Probe shown={search()} />
       </SearchStorability>,
     );
     expect(storable()).toHaveTextContent("false");
-  });
-});
-
-/**
- * The receipt's half: "Sökningen är sparad" waits for the answer to the request that carried the commit
- * flag.
- */
-function SavedProbe({ shown }: { shown: JobbUrlState }) {
-  return <span data-testid="saved">{String(useIsSearchSaved(shown))}</span>;
-}
-
-const saved = () => screen.getByTestId("saved");
-
-describe("search saved", () => {
-  it("is false for a preview's yes, which stored nothing", () => {
-    render(
-      <SearchStorability>
-        <ReportSearchStorability search={search()} storable committed={false} />
-        <SavedProbe shown={search()} />
-      </SearchStorability>,
-    );
-    expect(saved()).toHaveTextContent("false");
-  });
-
-  it("is true for the committed answer's yes for the shown search", () => {
-    render(
-      <SearchStorability>
-        <ReportSearchStorability search={search()} storable committed />
-        <SavedProbe shown={search()} />
-      </SearchStorability>,
-    );
-    expect(saved()).toHaveTextContent("true");
-  });
-
-  it("is false for the committed answer's no, as after a rate limit or an error", () => {
-    render(
-      <SearchStorability>
-        <ReportSearchStorability search={search()} storable={false} committed />
-        <SavedProbe shown={search()} />
-      </SearchStorability>,
-    );
-    expect(saved()).toHaveTextContent("false");
-  });
-
-  it("is false when the committed yes answers another search", () => {
-    render(
-      <SearchStorability>
-        <ReportSearchStorability search={search()} storable committed />
-        <SavedProbe shown={search({ q: "imam" })} />
-      </SearchStorability>,
-    );
-    expect(saved()).toHaveTextContent("false");
   });
 });

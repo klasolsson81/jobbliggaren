@@ -6,7 +6,6 @@ import { Announcer } from "@/components/common/announcer";
 import {
   ReportSearchStorability,
   SearchStorability,
-  useIsSearchSaved,
   useIsSearchStorable,
 } from "@/components/job-ads/search-storability";
 import type { JobAdDto } from "@/lib/dto/job-ads";
@@ -149,7 +148,6 @@ const renderHosted = async (
         onlyMatched: false,
         employer: [],
         q: "",
-        commit: false,
         rawParams: {},
         ...over,
       })}
@@ -320,16 +318,13 @@ describe("JobbResults — the save verdict reaches the hero's context", () => {
   function Probe({ search }: { search: JobbUrlState }) {
     return <span data-testid="storable">{String(useIsSearchStorable(search))}</span>;
   }
-  function SavedProbe({ search }: { search: JobbUrlState }) {
-    return <span data-testid="saved">{String(useIsSearchSaved(search))}</span>;
-  }
 
   // `staleYes` seeds a yes for the shown search first, as the previous load of the same search would
   // have; a branch that reports nothing would then leave it standing.
-  const renderWithProbe = async (fetched: string, shown: string, staleYes = false, commit = false) =>
+  const renderWithProbe = async (fetched: string, shown: string, staleYes = false) =>
     render(
       <SearchStorability>
-        {staleYes && <ReportSearchStorability search={stateFor(shown)} storable committed={commit} />}
+        {staleYes && <ReportSearchStorability search={stateFor(shown)} storable />}
         <Announcer>
           {await JobbResults({
             page: 1,
@@ -350,12 +345,10 @@ describe("JobbResults — the save verdict reaches the hero's context", () => {
             onlyMatched: false,
             employer: [],
             q: fetched,
-            commit,
             rawParams: {},
           })}
         </Announcer>
         <Probe search={stateFor(shown)} />
-        <SavedProbe search={stateFor(shown)} />
       </SearchStorability>,
     );
 
@@ -392,22 +385,11 @@ describe("JobbResults — the save verdict reaches the hero's context", () => {
     expect(storable()).toHaveTextContent("false");
   });
 
-  // The commit flag rides on the verdict: only the committed answer confirms a save.
-  it("marks the answer to a committed request", async () => {
-    getJobAds.mockResolvedValue(page(true));
-    await renderWithProbe("backend", "backend", false, true);
-    expect(document.querySelector('[data-testid="saved"]')).toHaveTextContent("true");
-  });
-
-  it("does not mark a preview's answer", async () => {
+  // #2285 — the list query stores nothing: it carries no commit flag, whatever the URL carried.
+  it("never asks the list query to store the search", async () => {
     getJobAds.mockResolvedValue(page(true));
     await renderWithProbe("backend", "backend");
-    expect(document.querySelector('[data-testid="saved"]')).toHaveTextContent("false");
-  });
-
-  it("reports the committed no after an error, so a stale committed yes cannot confirm a save", async () => {
-    getJobAds.mockResolvedValue({ kind: "error" });
-    await renderWithProbe("backend", "backend", true, true);
-    expect(document.querySelector('[data-testid="saved"]')).toHaveTextContent("false");
+    expect(getJobAds).toHaveBeenCalled();
+    for (const [query] of getJobAds.mock.calls) expect(query).not.toHaveProperty("commit");
   });
 });

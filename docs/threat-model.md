@@ -50,7 +50,7 @@ The bounce now also answers one public path, `/junior` (ADR 0018 Amendment
 2026-11-21, #2284), through `web/jobbliggaren-web/src/lib/auth/junior-it-signed-in-route.ts`.
 For a query the page accepts, a cross-site top-level GET without the cookie gets
 the same continuation document, and its target is the list's own address with at
-most three validated keys and the marker. A GET or HEAD that carries the cookie
+most three validated keys and the marker. A GET or HEAD with such a query that carries the cookie
 goes through the shared refresh driver (`lib/auth/session-refresh.ts`) and gets a 307 to `/jobb`,
 so `/junior` with the cookie is the one public path on which the proxy calls the
 backend. That 307's
@@ -66,9 +66,19 @@ answer. In Chromium an address-bar navigation, which also carries `none`, sends
 the `SameSite=Strict` cookie (measured 2026-11-21 in the job-modal harness,
 #2284). Chromium labels a URL that another program opens `none` as well, and
 that case itself is not measured. Where such a link carries the cookie, it reaches
-a signed-in page with its whole query, so a crafted `/jobb?q=…&commit=true` can
-store a search the user did not write. This is #2285, a `security-auditor` Major
-routed to a PR of its own.
+a signed-in page with its whole query.
+
+That query can fill in the search on screen, but it stores nothing: no GET stores a
+recent search (ADR 0018 and ADR 0060, their Amendments 2026-11-22, #2285). Only the
+Server Action `captureRecentSearchAction` does, by posting to
+`POST /api/v1/me/recent-searches` when the user searches on purpose or clicks
+"Spara sökningen". The Strict cookie does not travel on a cross-site POST, and Next
+compares a Server Action's Origin with its Host. The same holds for a same-origin
+link the app renders from third-party data, such as an employer's application
+address in the job modal. What remains is that a link can fill in a search, which is
+stored only by the user's own action on a page that shows every axis of it. A `none`
+link still moves `/jobb`'s watermark, the write at render the Amendment 2026-10-10
+already lists.
 
 When `/auth/refresh` answers 401 to a GET, `proxy.ts` deletes the session cookie
 (#1893). That rests on a premise: only a rejected session answers 401, and a Redis

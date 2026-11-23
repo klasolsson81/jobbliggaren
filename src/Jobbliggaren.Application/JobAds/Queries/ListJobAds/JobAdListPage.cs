@@ -10,12 +10,10 @@ namespace Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 /// field, so a web image older than the API still parses it.
 /// </summary>
 /// <remarks>
-/// It delegates to the page it wraps, which keeps one set of invariants and one <c>TotalPages</c>. It
-/// implements <see cref="IRecentSearchCaptureResponse"/> because the capture behaviour is keyed on the
-/// response type and does nothing, silently, for a response without it. <c>PagedResultContractTests</c>
-/// declares it as the fourth form.
+/// It delegates to the page it wraps, which keeps one set of invariants and one <c>TotalPages</c>.
+/// <c>PagedResultContractTests</c> declares it as the fourth form.
 /// </remarks>
-public sealed record JobAdListPage : IRecentSearchCaptureResponse
+public sealed record JobAdListPage
 {
     private readonly PagedResult<JobAdDto> _page;
 

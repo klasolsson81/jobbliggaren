@@ -11,7 +11,7 @@ namespace Jobbliggaren.Application.UnitTests.JobAds.Queries.ListJobAds;
 //   1. ListJobAdsSortExtensions.ToDomainSort — alla 6 värden mappar deterministiskt;
 //      MatchDesc → PublishedAtDesc (honest fallback + recent-search-hash, Decision 5).
 //   2. ListJobAdsQuery.SortBy/SortByMatch — härledda properties: SortBy ser ALLTID
-//      ett rent Domain-värde (ICapturesRecentSearch/FilterHash), SortByMatch är true
+//      ett rent Domain-värde (IRecentSearchCandidate/FilterHash), SortByMatch är true
 //      ENDAST för MatchDesc.
 public class ListJobAdsSortTests
 {

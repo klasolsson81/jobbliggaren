@@ -1,14 +1,10 @@
-using Jobbliggaren.Application.RecentJobSearches.Common;
-
 namespace Jobbliggaren.Application.Common;
 
 /// <summary>
 /// Generisk paginerings-DTO. Total separat från Items för att stöd CLAUDE.md §3.6
 /// (separat count-query). Items är immutable list för transport-stabilitet.
-/// Implementerar <see cref="IRecentSearchCaptureResponse"/> för ADR 0060 auto-capture-
-/// behavior (typad TotalCount-extraktion utan open/closed-brott).
 /// </summary>
-public sealed record PagedResult<T> : IRecentSearchCaptureResponse
+public sealed record PagedResult<T>
 {
     public IReadOnlyList<T> Items { get; }
     public int TotalCount { get; }

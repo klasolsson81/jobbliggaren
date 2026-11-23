@@ -22,11 +22,10 @@ const test = loggedInTest(RUN_ID);
  * After it: 4/4 navigate, and the panel matches the URL.
  *
  * **Why the gesture is the Klass-2 Filter panel and not a toolbar chip x.**
- * `removeChip` goes through the toolbar's `commit()`, which appends
- * `?commit=true`; that extra param makes the target differ from the cached entry,
- * so the collision cannot arise on that gesture at all. The colliding paths are
- * the ones that push BARE — every hero popover, and the toolbar's `navigate()`.
- * A spec driving the chip x would have passed on `main` and pinned nothing.
+ * The colliding paths are the ones that push BARE. When this spec was written the
+ * chip x appended `?commit=true`, which made its target differ from the cached
+ * entry, so a spec driving it would have passed on `main` and pinned nothing.
+ * Since #2285 every toolbar push is bare as well.
  *
  * jsdom cannot see any of this: it has no router cache, and `router.push` is a
  * synchronous mock there. `search-params.test.ts` pins that two applied states

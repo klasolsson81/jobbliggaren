@@ -8,8 +8,8 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.RecentJobSearches.Common;
 
 /// <summary>
-/// #2199 PR 2b — the gate on its own, through the query production sends it. The behaviour's tests cover each
-/// refusal through the capture; these pin what <see cref="RecentSearchCaptureGate.Admit"/> answers, which is
+/// #2199 PR 2b — the gate on its own, through the query production sends it. CaptureRecentSearchCommandHandlerTests
+/// cover each refusal through the capture; these pin what <see cref="RecentSearchCaptureGate.Admit"/> answers, which is
 /// also what the list page reports. The Create-failure arm is left untested on purpose: no query the
 /// validator lets through reaches it (the comment at that arm).
 /// </summary>

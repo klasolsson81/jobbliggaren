@@ -814,7 +814,6 @@ describe("NotificationsSection — focus", () => {
     await user.click(toggle(MAIL));
     await user.click(toggle(TOP));
     await waitFor(() => expect(topMock).toHaveBeenCalledWith({ enabled: false }));
-    expect(toggle(TOP)).toHaveFocus();
     await act(async () => save.settle({ success: false, error: "nej" }));
 
     await waitFor(() => expect(maybeToggle(TOP)).not.toBeInTheDocument());

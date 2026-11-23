@@ -131,12 +131,7 @@
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <!-- F2-P8b JobTech-integration (ADR 0032). Refit för JobSearch (klassisk REST/JSON,
          BUILD.md §3.1). Microsoft.Extensions.Http.Resilience för retry+CB+rate-limit
-         (Polly v8 under huven, ersätter deprecated Microsoft.Extensions.Http.Polly).
-         10.2.0 = 10.1.6 OM-SIGNERAD med giltigt cert (drop-in, non-breaking). 10.1.6:s
-         författar-signeringscert (Glenn Watson) återkallades uppströms 2026-06-02 →
-         NU3012 i audit-jobbet. Bump till 10.2.0 löser cert-blockern utan kodändring.
-         11.x medvetet EJ valt (breaking error/exception-modell — egen framtida touch).
-         Web-verifierad 2026-06-06 (reactiveui/refit #2114, nuget.org). -->
+         (Polly v8 under huven, ersätter deprecated Microsoft.Extensions.Http.Polly). -->
     <PackageVersion Include="Refit" Version="11.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="11.2.0" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.1" />

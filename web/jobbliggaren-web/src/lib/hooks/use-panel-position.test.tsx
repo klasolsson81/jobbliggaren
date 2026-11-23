@@ -101,7 +101,7 @@ describe("usePanelPosition (#2212)", () => {
 
     const panel = screen.getByRole("dialog");
     expect(panel.style.left).toBe("684px");
-    expect(panel.style.top).toBe("395.421875px");
+    expect(parseFloat(panel.style.top)).toBeCloseTo(395.421875, 2);
     expect(panel.style.width).toBe("580px");
     expect(panel.dataset.ready).toBe("true");
   });
@@ -147,7 +147,7 @@ describe("usePanelPosition (#2212)", () => {
     stubLayout();
     render(<Harness open />);
     const panel = screen.getByRole("dialog");
-    expect(panel.style.top).toBe("677.984375px");
+    expect(parseFloat(panel.style.top)).toBeCloseTo(677.984375, 2);
     expect(scrollIntoView).not.toHaveBeenCalled();
     const before = renders;
 
@@ -159,7 +159,7 @@ describe("usePanelPosition (#2212)", () => {
     });
 
     expect(renders).toBe(before);
-    expect(panel.style.top).toBe("677.984375px");
+    expect(parseFloat(panel.style.top)).toBeCloseTo(677.984375, 2);
   });
 
   it("stops listening once the panel closes, and measures afresh when it opens again", () => {

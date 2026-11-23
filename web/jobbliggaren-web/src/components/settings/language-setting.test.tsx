@@ -97,7 +97,6 @@ describe("LanguageSetting", () => {
 
     await user.click(english);
     expect(english).toBeDisabled();
-    // jsdom retains focus on a disabled element and ignores blur(): focus the viewport explicitly.
     document.documentElement.focus();
     expect(document.activeElement).toBe(document.body);
 

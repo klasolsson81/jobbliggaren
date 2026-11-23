@@ -38,8 +38,8 @@ import {
  * array, not another route's test file (senior-cto-advisor 2026-08-30; placement per
  * dotnet-architect).
  *
- * On the premise (CLAUDE.md §5 `Tests:`). The fixtures below are hand-built and no assertion
- * reads a fixture VALUE. What is asserted is the set of query KEY NAMES, and those are string
+ * On the premise (CLAUDE.md §5 `Tests:`). The fixtures below are hand-built. What is asserted
+ * is the set of query KEY NAMES, and those are string
  * literals inside the builders: no input can change a name, input decides only whether a name
  * gets written. The values must merely clear the builders' own emission gates. The maximal
  * state is arguably not reachable through the UI, but no branch in either builder reads two
@@ -126,6 +126,29 @@ const EMITTED: ReadonlySet<string> = new Set([...JOBB_HREF_KEYS, ...PAGE_HREF_KE
 const keysJudged = (v: "must-not-reach-a-stored-log-post" | "kept") =>
   keysJudgedIn(EDGE_LOG_VERDICT, v);
 
+/**
+ * The fixture values fed into the two occupation fields. Some values of both reveal a faith
+ * (#2294), so wherever a builder writes them the key must be judged must-not-reach. Found by the
+ * value rather than by the key's spelling, so a renamed key fails instead of inheriting `kept`.
+ */
+const OCCUPATION_VALUES: ReadonlySet<string> = new Set(
+  [
+    FULL_STATE.occupationGroup,
+    FULL_STATE.occupationName,
+    FULL_RAW_PARAMS.occupationGroup,
+    FULL_RAW_PARAMS.occupationName,
+  ].flat()
+);
+
+/** The keys of a built href whose value carries one of `values`, list values split on `.`. */
+function keysCarrying(href: string, values: ReadonlySet<string>): ReadonlyArray<string> {
+  const start = href.indexOf("?");
+  if (start < 0) return [];
+  return [...new URLSearchParams(href.slice(start + 1))]
+    .filter(([, value]) => value.split(".").some((token) => values.has(token)))
+    .map(([key]) => key);
+}
+
 describe("/jobb axis inventory — an edge-log verdict per emitted query key", () => {
   // Both directions collect before asserting rather than failing inside the loop: a maintainer
   // who added three axes should be told about three, not made to re-run twice to find them.
@@ -188,6 +211,27 @@ describe("/jobb axis inventory — an edge-log verdict per emitted query key", (
     const kept = keysJudged("kept");
     expect([...scrubbed, ...kept].sort()).toEqual([...EMITTED].sort());
     expect(kept.length).toBeGreaterThan(0);
+  });
+
+  it("judges every key that carries an occupation value must-not-reach (#2294)", () => {
+    const carriers = new Set([
+      ...keysCarrying(buildJobbHref(FULL_STATE), OCCUPATION_VALUES),
+      ...keysCarrying(
+        buildPageHref(FULL_RAW_PARAMS, TARGET_PAGE, DEFAULT_PAGE_SIZE),
+        OCCUPATION_VALUES
+      ),
+    ]);
+    // Without this the fact passes over zero keys the moment the fixture values stop reaching
+    // the href.
+    expect(carriers.size).toBeGreaterThan(0);
+    const keptCarriers = [...carriers].filter(
+      (key) => EDGE_LOG_VERDICT[key]?.verdict !== "must-not-reach-a-stored-log-post"
+    );
+    expect(
+      keptCarriers,
+      `These keys carry an occupation group or name, and some of those values reveal a faith ` +
+        `(Art. 9(1)). Judge them must-not-reach and add them to ${PIN_LIST} and the Caddyfile.`
+    ).toEqual([]);
   });
 });
 

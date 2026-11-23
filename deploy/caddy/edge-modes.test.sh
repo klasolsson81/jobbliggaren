@@ -316,22 +316,31 @@ h=$(get "$port_gated" "$SITE" / -u "$USER_NAME:$PASSWORD")
 h=$(get "$port_open" "$SITE" /)
 [ "$(status_of "$h")" = 503 ] && one_hsts "$h" && isolated "$h" && pass "open edge, web down: 503 with HSTS and isolation" || fail "open, web down: $(status_of "$h")"
 
-# Gate N-1 on the same open edge: a 5xx writes `http.log.error` with the request, and every key the
-# global filter deletes must be gone from it, with the header map. `keep` is the control that proves
-# the line was read at all.
+# Gate N-1 on the same open edge: a 5xx Caddy answers itself writes `http.log.error` with the
+# request, and the value of every key the global filter acts on must be gone from it, with the header
+# map. The keys come from the config this container runs, whatever the action, so each one is proven
+# at runtime; the floor below keeps a key that matters from leaving the list and the arm together.
+# Each key is sent twice, once as a `.`-joined list, the two forms the app writes (#2294). `keep` is
+# the control that proves the line was read at all, and the request field set is pinned whole.
+filtered=$(jq -r '.logging.logs.default.encoder.fields["request>uri"].actions[]? | .parameter' "$scratch/$name_open.test.json" | tr -d '\r')
+floor="token email occupationGroup occupationName"
+for key in $floor; do
+  grep -qxF "$key" <<<"$filtered" || fail "N-1: the global filter no longer acts on $key"
+done
 query="keep=n1-control"
-for key in token email uid employer q userId namn eventType aggregateType prefix code state hd error_description; do
-  query="$query&$key=n1-scrubbed"
+for key in $(printf '%s\n' $filtered $floor | sort -u); do
+  query="$query&$key=n1-scrubbed.n1-scrubbed&$key=n1-scrubbed"
 done
 get "$port_open" "$SITE" "/bekrafta-epost?$query" -H "Referer: https://$SITE/bekrafta-epost?$query" >/dev/null
 docker logs "$name_open" >"$scratch/n1.log" 2>&1
 errors=$(grep -c 'http.log.error' "$scratch/n1.log" || true)
-leaked=$(grep 'http.log.error' "$scratch/n1.log" | grep -c 'n1-scrubbed' || true)
+leaked=$(grep -c 'n1-scrubbed' "$scratch/n1.log" || true)
 control=$(grep 'http.log.error' "$scratch/n1.log" | grep -c 'n1-control' || true)
-headers=$(grep 'http.log.error' "$scratch/n1.log" | grep -c '"headers":' || true)
-[ "$errors" -ge 1 ] && [ "$control" -ge 1 ] && [ "$leaked" = 0 ] && [ "$headers" = 0 ] \
-  && pass "N-1: the 5xx log entry keeps no deleted key and no header map" \
-  || fail "N-1: errors=$errors control=$control leaked=$leaked headers=$headers"
+fields=$(grep 'http.log.error' "$scratch/n1.log" | grep 'n1-control' | head -1 | jq -c '.request | keys' 2>/dev/null | tr -d '\r' || true)
+[ "$errors" -ge 1 ] && [ "$control" -ge 1 ] && [ "$leaked" = 0 ] \
+  && [ "$fields" = '["client_ip","host","method","proto","remote_ip","remote_port","tls","uri"]' ] \
+  && pass "N-1: the 5xx log entry keeps no filtered value and no header map" \
+  || fail "N-1: errors=$errors control=$control leaked=$leaked fields=$fields"
 docker rm -f "$name" "$name_open" >/dev/null
 
 if [ "$failures" -gt 0 ]; then echo "$failures check(s) failed"; exit 1; fi

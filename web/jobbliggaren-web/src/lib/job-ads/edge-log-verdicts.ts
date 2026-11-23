@@ -32,23 +32,26 @@ export const EDGE_LOG_VERDICT: EdgeLogVerdicts = {
       "than 5(1)(c), and the one that holds if someone later wants q back for diagnostics.",
   },
   occupationGroup: {
-    verdict: "kept",
+    verdict: "must-not-reach-a-stored-log-post",
     reason:
-      "A JobTech taxonomy conceptId. Identical for every visitor who picks the same filter; it " +
-      "names an occupation, never a person, and any visitor can type it unauthenticated.",
+      "A JobTech taxonomy conceptId from a closed, published space, but four groups are " +
+      "religious offices (ReligiousOccupationGroups): picking one reveals the searcher's faith, " +
+      "Art. 9(1), with no 9(2) ground an edge log could meet. A pick of a whole occupation field " +
+      "expands to every group in it, so a URL can carry one the user never picked by name. The " +
+      "edge cannot tell those values from the rest, so the key goes. #2294.",
   },
   occupationName: {
-    verdict: "kept",
+    verdict: "must-not-reach-a-stored-log-post",
     reason:
-      "A JobTech taxonomy occupation-name conceptId (#2199), same class as occupationGroup at " +
-      "a finer granularity: it names an occupation, never a person, and the same value is " +
-      "produced by every visitor who picks that occupation.",
+      "A JobTech taxonomy occupation-name conceptId (#2199). Every name filed under one of the " +
+      "four religious groups is a religious office too, so the same Art. 9(1) ground as " +
+      "occupationGroup holds at a finer granularity. #2294.",
   },
   region: {
     verdict: "kept",
     reason:
-      "A public taxonomy region code, same class as occupationGroup: it names a place, and the " +
-      "same value is produced by every visitor who picks that place.",
+      "A public taxonomy region code: it names a place, and the same value is produced by every " +
+      "visitor who picks that place.",
   },
   municipality: {
     verdict: "kept",

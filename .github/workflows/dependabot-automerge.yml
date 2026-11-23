@@ -326,6 +326,7 @@ jobs:
       #
       # READING THE LOG: pnpm's summary line counts accepted advisories too.
       # Judge the gate by its exit code, and risk by the Dependabot alert count —
+      # `auto_dismissed` alerts counted as open (ADR 0065 Amendment 2026-11-23) —
       # never by that line.
       # `--prod` was measured and rejected AS THIS GATE'S MECHANISM, on convergence
       # alone: against the PRE-REPAIR tree it left `sharp`, `postcss`, `fast-uri`

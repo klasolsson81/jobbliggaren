@@ -8,6 +8,7 @@
 **Amendment 2026-07-25:** CI triggras base-oberoende (#861) — se [§Amendment 2026-07-25](#amendment-2026-07-25--ci-triggras-base-oberoende-mekanism-drift-861).
 **Amendment 2026-07-27:** Tvålabelsgrind (`automerge` = avsikt, `agents-done` = tillstånd) + undantaget för en ren bas-merge (#836) — se [§Amendment 2026-07-27](#amendment-2026-07-27--tvålabelsgrind-och-undantaget-för-en-ren-bas-merge-836).
 **Amendment 2026-07-28:** Vuln-grinden får acceptera bara det den inte kan reparera; en override-nyckel grindas bara för att partitionera — se [§Amendment 2026-07-28](#amendment-2026-07-28--the-blocking-vuln-gate-may-accept-a-risk-only-where-repair-is-unavailable).
+**Amendment 2026-11-23:** A GitHub auto-dismissal of a Dependabot alert is never an acceptance — see [§Amendment 2026-11-23](#amendment-2026-11-23--a-github-auto-dismissal-is-never-an-acceptance).
 **Superseder:** ADR 0019 (Solo direct-push till main, 2026-05-07)
 **Amends:** ADR 0007 (Branch protection för main i Fas 0, 2026-04-18) — Fas 0-protectionprofilen utökas till PR-gate-profil när CI-aggregatet `ci` finns på plats; ADR 0007 force-push- och deletion-skydd består.
 **Relaterad:** ADR 0019 §"Trigger för återgång till PR-flöde", `.github/workflows/build.yml` (`ci`-aggregat-job)
@@ -476,3 +477,24 @@ coverage; the local panel remains. See
 Implementation must be verified and the additional required check enabled in
 branch protection before enforcement is considered active. The dated protection
 snapshot above remains historical evidence, not the new desired configuration.
+
+## Amendment 2026-11-23 — a GitHub auto-dismissal is never an acceptance
+
+**Context.** #2337. Two high advisories stood in the dev tree under `@lhci/cli`:
+zod GHSA-mrhx-c7xc-m3w5 and body-parser GHSA-27r3-jxmh-p828. Neither had an
+`ignoreGhsas` entry, but GitHub's Dependabot auto-triage had set both alerts to
+`auto_dismissed` (development scope). So the register this ADR names as the record
+read zero (Amendment 2026-07-28: GitHub's Dependabot alerts, "the number that must
+reach zero"). `audit-suppression-guard.sh` cannot see a GitHub dismissal either, and
+meanwhile the blocking gate failed on exactly those two (run 45129123276). An
+acceptance had happened outside every control this ADR names. Both advisories were
+repaired in #2339.
+
+**Beslut (Klas, 2026-11-23: "No, never").** GitHub's auto-dismissal of a Dependabot
+alert is never an acceptance under this ADR. An advisory is repaired, or it is
+accepted through `pnpm.auditConfig.ignoreGhsas` with Beslut 2's three reasons. When the
+register is read, an `auto_dismissed` alert counts as open:
+`gh api 'repos/klasolsson81/jobbliggaren/dependabot/alerts?state=open,auto_dismissed'`.
+
+Whether to switch off GitHub's auto-triage rule is a repository setting, Klas's to
+make. This amendment does not decide it.

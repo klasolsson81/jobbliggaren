@@ -1664,6 +1664,98 @@ sina två omgraderingsarmar) står oförändrade och behöver fortfarande ett ö
 
 **Denna amendment rör inte lådan.** Ingenting här påstår att någon konfiguration ändrats i drift.
 
+## Amendment 2026-11-23 — #2294 and #2169: the default logger writes on a 5xx Caddy answers itself, and an occupation filter never reaches a stored edge-log entry
+
+**Status:** Accepted 2026-11-23. **Source:** security-auditor's M6 (her #2293 plan read, 2026-11-22) and
+her G1 on #2294 (2026-11-23); senior-cto-advisor's routing of 2026-11-22, restated in #2294's body; the
+measurement of 2026-10-18 recorded in #2169. Additive: the text of `Amendment 2026-08-11` and
+`Amendment 2026-08-29` stays as the record of what was measured then.
+
+1. **Which 5xx writes an entry (#2169).** The two amendments above say `http.log.error` is written
+   "vid varje 5xx". Measured 2026-10-18 on v2.11.4, three arms (#2169): Caddy writes the entry for a
+   5xx it produces itself, a handler error such as an unreachable upstream (502) or no healthy upstream
+   (503). A 5xx the upstream answered is proxied as a response and writes nothing. The Caddyfile's
+   comment and `CaddyfileTokenScrubbingPinTests`'s docblock now say this. The scrubbing still governs
+   Caddy's own 5xx; what was wrong was the scope.
+
+2. **What changed.** The global filter in `deploy/caddy/Caddyfile` deletes `occupationGroup` and
+   `occupationName` from `request>uri`. They are `/jobb`'s occupation filters. The value space is closed
+   and published, but four groups are religious offices and so is every name filed under them
+   (`ReligiousOccupationGroups`), so a request carrying one reveals a faith (Art. 9(1)), and an edge log
+   has no Art. 9(2) ground. The edge cannot tell those values from the rest, so the whole key goes.
+   - The change-reason, scoped as security-auditor required: *a selection that reveals a faith never
+     reaches a stored edge-log entry*. It says nothing about the web container's stdout, which rests on
+     `Amendment 2026-08-30` (measured on Next 16.3.0, reopened by an upgrade).
+   - `AppSurfaceScrubbedParameters` gains both keys, and its rule gains a third clause: scrub when some
+     value in the key's space can reveal a special category by deduction from the choice, and while that
+     question is open for the space.
+   - `/jobb`'s verdicts judge both keys must-not-reach. A new fact finds the keys by the values the
+     occupation fields write, so a renamed key fails rather than inheriting `kept`.
+   - `edge-modes.test.sh`'s N-1 arm takes its keys from the config Caddy adapted, with a floor. It sends
+     each key twice, once as a `.`-joined list, counts leaks over the whole
+     container log, and pins the entry's `request` field set.
+   - Every producer is covered, since the filter acts on the key: the URL builders, prefetched links, the
+     no-JS form, `/api/jobb/facet-counts` and a hand-typed URL. #2297's public filter shares `/jobb`'s
+     axis names (ADR 0190 D1 item 3, local).
+
+3. **The measurement, 2026-11-23, on the shipped binary.** The image was built from
+   `deploy/caddy/Dockerfile` (`xcaddy build v2.11.4`, `caddy version` v2.11.4 h1:XKxkMTgN…) and run on the
+   adapted shipped config with only the TLS issuer swapped to the internal CA. `SITE_ADMISSION=open`,
+   no `web` upstream, and synthetic sentinels only.
+
+   | Image | Status | `http.log.error` entries | `request` fields | `uri` |
+   |---|---|---|---|---|
+   | without the deletes (`sha256:fed3fe5a…`) | 503, Caddy's own | 1 | `client_ip`, `host`, `method`, `proto`, `remote_ip`, `remote_port`, `tls`, `uri` | both sentinels present |
+   | with them (`sha256:4a1f72bd…`) | 503, Caddy's own | 1 | the same eight | `/jobb?keep=m6ctl` |
+
+   The entry carries the client address in both rows: the deletes remove keys, not the address field.
+   **Regenerate:** `bash deploy/caddy/edge-modes.test.sh <image>`. Against an image without the two
+   deletes, the N-1 arm fails on its floor and counts `leaked=1`.
+
+   **Retention, read the same day.** The box's daemon and `jobbliggaren-caddy` both use `json-file`,
+   `max-size 10m`, `max-file 3`, read by key with `docker info` and `docker inspect`. That driver has no
+   time axis: the live segment lives as long as the container, and every release recreates it.
+   `jobbliggaren-logship.sh` would ship the container's log to `hostlogs/app/`, whose 30-day rule is not
+   applied, and it has never shipped (`log-sink.md` §1 and §4).
+
+4. **Existing entries, an Art. 5(2) record.** Read on the box on 2026-11-23, 04:06:40–04:07:30Z, under
+   CLAUDE.md §9.2 (a): counts and booleans only, and no line was printed.
+
+   ```bash
+   sudo docker exec jobbliggaren-caddy caddy version                                            # R0
+   sudo docker exec jobbliggaren-caddy wget -qO- http://127.0.0.1:2019/config/logging/logs/default/encoder   # R0, the deleted keys
+   sudo docker inspect -f '{{.State.StartedAt}}' jobbliggaren-caddy                             # R1
+   sudo docker logs jobbliggaren-caddy 2>&1 | grep -c 'http.log.error'                          # R2
+   sudo docker logs jobbliggaren-caddy 2>&1 | grep -cE '([?&]|\\u0026)(occupationGroup|occupationName)='   # R3
+   sudo docker logs jobbliggaren-caddy 2>&1 | grep -qF -f <(printf '%s\n' "$IDS") && echo true || echo false   # R4
+   sudo test -f /var/lib/jobbliggaren/last-successful-logship && echo true || echo false        # R5
+   sudo docker logs jobbliggaren-web 2>&1 | grep -cE 'occupationGroup|occupationName'           # R6
+   ```
+
+   `$IDS` holds the four group ids and the 30 names `occupation-name-lineage.json` files under them. It
+   was generated on the workstation and passed in the script's own text, so nothing was written on the
+   box. Results:
+   - **R0:** v2.11.4. The running filter deletes the 16 keys this file had before the change, and
+     neither occupation key.
+   - **R1:** the container started 2026-11-22T23:48:33Z.
+   - **R2:** 0 entries. **R3:** 0 lines. **R4:** false. **R5:** false. **R6:** 0.
+
+   So no entry carried an occupation key in the window that opened at R1, and nothing has gone off-box.
+   The window between this reading and the release that recreates the container is not measured.
+
+5. **"Live" for #2297's gate.** The release that carries this change is applied, `--status` reads
+   consistent, R0 read after the release shows both deletes in the running filter, and the running caddy
+   image's digest equals the release's. The configuration read proves the filter runs; the digest
+   proves only the image.
+
+6. **What this does not do.**
+   - It does not delete `remote_ip` or `client_ip`.
+   - `/api/jobb/facet-counts` has no edge-log inventory of its own, which is the derivation gap #1604
+     already owns for `prefix`.
+
+**This amendment does not touch the box.** The Caddyfile is baked into the edge image, so the change
+reaches the box only when a new image is built and reconcile recreates caddy.
+
 ## Relaterade beslut
 
 - **ADR 0005** — kostnadsskydd/launch-gating. Post-migration blir Budget

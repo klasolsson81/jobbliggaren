@@ -24,7 +24,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// configures the default logger — the one that writes <c>http.log.error</c>. The same lines
 /// moved inside the site block configure a separate access logger instead, leaving the default
 /// logger unconfigured and the request line unscrubbed again, while logging every request rather
-/// than only 5xx. Both were raised independently by <c>code-reviewer</c> and
+/// than only Caddy's own 5xx. Both were raised independently by <c>code-reviewer</c> and
 /// <c>security-auditor</c> against an earlier, position-blind version of this class. Every fact
 /// below therefore reads <see cref="GlobalOptionsLines"/> rather than the whole file, and
 /// <see cref="TheCaddyfile_CarriesExactlyOneLogDirective"/> closes the other half: a SECOND
@@ -152,12 +152,24 @@ public class CaddyfileTokenScrubbingPinTests
     /// <c>web/jobbliggaren-web/src/lib/auth/login-next-edge-log-verdicts.ts</c>.
     /// </para>
     /// <para>
+    /// <c>occupationGroup</c> and <c>occupationName</c> (#2294): <c>/jobb</c>'s occupation filters. The
+    /// value space is closed and published, but four groups are religious offices and so is every name
+    /// filed under them (<c>ReligiousOccupationGroups</c>), so a request carrying one reveals a faith,
+    /// Art. 9(1). The edge cannot tell those values from the rest, so both keys go. Their inventory is
+    /// <c>web/jobbliggaren-web/src/lib/job-ads/edge-log-verdicts.ts</c>.
+    /// </para>
+    /// <para>
     /// <b>What decides whether a name belongs here.</b> Scrub when the value's content is
-    /// UNBOUNDED, or when the value IS an identifier of a natural person. Everything else draws
-    /// from a closed, published or enumerated value space and has a stated purpose — it selects
-    /// which server-side query path ran — and is kept.
-    /// (senior-cto-advisor, 2026-08-30.) The rule lives here rather than in any one route's test
-    /// file because it governs every app surface, and the next surface's author opens this array.
+    /// UNBOUNDED, or when the value IS an identifier of a natural person, or when some value in the
+    /// key's space can reveal a special category of data (Art. 9(1)) by deduction from the choice:
+    /// an office that requires the faith, a membership requirement tied to the job, or an
+    /// organisation whose purpose is the category. Scrub, too, while that question is open for the
+    /// key's space. The sets the app guards elsewhere are instances of that test, not its boundary.
+    /// Everything else draws from a closed, published or enumerated value space and has a stated
+    /// purpose — it selects which server-side query path ran — and is kept.
+    /// (senior-cto-advisor, 2026-08-30; the third clause security-auditor, 2026-11-23.) The rule
+    /// lives here rather than in any one route's test file because it governs every app surface,
+    /// and the next surface's author opens this array.
     /// </para>
     /// <para>
     /// <b>This list is one half of a pair, and C# cannot derive the other.</b> The mail inventory
@@ -176,7 +188,8 @@ public class CaddyfileTokenScrubbingPinTests
     /// </summary>
     private static readonly string[] AppSurfaceScrubbedParameters =
         ["employer", "q", "userId", "namn", "eventType", "aggregateType", "prefix",
-         "code", "state", "hd", "error_description", "id", "next"];
+         "code", "state", "hd", "error_description", "id", "next",
+         "occupationGroup", "occupationName"];
 
     private static readonly Regex TokenLink = new(
         @"https://\S+/logga-in/lank\?\S+",

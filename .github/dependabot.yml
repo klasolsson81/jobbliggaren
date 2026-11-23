@@ -354,7 +354,7 @@ updates:
         update-types: ["minor", "patch"]
         group-by: dependency-name
 
-  # Docker Compose images — postgres:18.3, redis:8.6-alpine, datalust/seq:latest.
+  # Docker Compose images — postgres, redis and datalust/seq:latest.
   #
   # A `docker` entry does NOT reach these. `docker` and `docker-compose` are SEPARATE
   # ecosystems (GitHub Docs, read 2026-08-04; docker-compose reached GA 2025-02-25):
@@ -425,12 +425,6 @@ updates:
   # touch. This file's own rule, forty lines up, is that such a comment has no reader at
   # that moment; it applies to this file too.
   #
-  # NO postgres-major `ignore`, and the reason is written down so it is not re-proposed:
-  # dependabot-automerge.yml already sets `eligible=false` on any major, so a postgres
-  # major CANNOT auto-merge today. Such an ignore would duplicate a live control. (The
-  # CodeCoverage pin above records what re-proposing a rejected rule costs: a CI run and
-  # a review, twice.)
-  #
   # TWO FURTHER IMAGE CLASSES ARE COVERED BY NEITHER ENTRY, named here for the same reason
   # `seq:latest` is: so nobody reads two entries as full coverage. `docker` reads
   # Dockerfiles, `docker-compose` reads compose files, `github-actions` bumps `uses:`
@@ -449,7 +443,7 @@ updates:
   #        git grep -E 'const string.*(postgres:18|redis:8-alpine)' -- tests/
   #      is empty, and each literal must be edited on its own.
   #
-  # Both pin a floating major (`postgres:18`) while this file pins `postgres:18.3`, and
+  # Both pin a floating major (`postgres:18`) while the compose files pin a minor, and
   # nothing reconciles them. The repair for class 4 — a shared constant, or pinned tags
   # in every file the regenerators above list — is a follow-up PR: it touches the test
   # tree, not this PR's CI and
@@ -468,6 +462,15 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    # A postgres major is a coordinated migration of every environment that runs it (the
+    # root docker-compose.yml, deploy/docker-compose.yml, e2e.yml's service container and
+    # the Testcontainers literals) plus the ICU collation check above. Bumped in the root
+    # compose alone, it puts dev on a major production does not run and leaves every
+    # existing dev data directory unreadable
+    # (#2326). `update-types` only: GitHub runs no security updates for this ecosystem.
+    ignore:
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
     groups:
       compose-minor-patch:
         update-types: ["minor", "patch"]

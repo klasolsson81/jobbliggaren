@@ -694,9 +694,6 @@ describe("NotificationsSection — each control locks only itself", () => {
   });
 });
 
-// Chromium drops focus to <body> when the focused control becomes disabled for its write (#1391
-// measurement); jsdom keeps it, so these tests move it to <body> by hand. Unmounting the focused
-// control drops focus to <body> in both.
 describe("NotificationsSection — focus", () => {
   it.each([
     ["saved", { success: true } as const],

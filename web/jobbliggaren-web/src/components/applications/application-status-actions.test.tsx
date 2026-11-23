@@ -85,10 +85,11 @@ describe("ApplicationStatusActions (§8.3–8.5, #630 PR 7)", () => {
     );
     expect(screen.queryByText(/Flytta till/)).not.toBeInTheDocument();
     expect(document.querySelectorAll(".jp-steppicker__step")).toHaveLength(7);
-    // Nekad är aktiv i park-raden → markerad och disabled.
+    // Nekad är aktiv i park-raden → markerad och aria-disabled, fortfarande fokuserbar.
     const rejected = screen.getByRole("button", { name: "Nekad" });
     expect(rejected).toHaveAttribute("aria-pressed", "true");
-    expect(rejected).toBeDisabled();
+    expect(rejected).toHaveAttribute("aria-disabled", "true");
+    expect(rejected).not.toBeDisabled();
   });
 
   it("stegväljaren byter status DIREKT, även bakåt (fria byten, D3)", async () => {
@@ -107,7 +108,7 @@ describe("ApplicationStatusActions (§8.3–8.5, #630 PR 7)", () => {
     );
   });
 
-  it("nuvarande steg är disabled med aria-current (self-transition = no-op)", () => {
+  it("nuvarande steg är aria-disabled med aria-current (self-transition = no-op)", () => {
     render(
       <ApplicationStatusActions
         applicationId={APP_ID}
@@ -118,7 +119,8 @@ describe("ApplicationStatusActions (§8.3–8.5, #630 PR 7)", () => {
     );
     const current = document.querySelector('[data-state="current"]');
     expect(current).toHaveAttribute("aria-current", "step");
-    expect(current).toBeDisabled();
+    expect(current).toHaveAttribute("aria-disabled", "true");
+    expect(current).not.toBeDisabled();
     expect(current).toHaveTextContent("Nu");
   });
 
@@ -332,7 +334,9 @@ describe("ApplicationStatusActions — the terminal-move confirmation", () => {
     },
   );
 
-  it("leaves focus on the pressed control after the confirmation, as a direct move does", async () => {
+  // A natively disabled button loses focus to <body> in Chromium (#2323), so a pending
+  // control is aria-disabled: still focusable, and inert through the request guard.
+  it("keeps the pressed control focusable while the move is pending: aria-disabled, never native disabled", async () => {
     transitionStatusAction.mockImplementation(() => new Promise<never>(() => {}));
     const user = userEvent.setup();
     renderWithCopy("Submitted", true);
@@ -347,7 +351,84 @@ describe("ApplicationStatusActions — the terminal-move confirmation", () => {
       expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Withdrawn"),
     );
     await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
-    expect(withdrawn).toBeDisabled();
+    expect(withdrawn).toHaveAttribute("aria-disabled", "true");
+    expect(withdrawn).not.toBeDisabled();
     expect(withdrawn).toHaveFocus();
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).not.toBeDisabled();
+    }
+  });
+
+  it.each([
+    ["without a confirmation", false],
+    ["after the confirmation", true],
+  ] as const)(
+    "moves focus to the new current step when the CTA's move leaves no CTA (%s)",
+    async (_label, copyHasText) => {
+      const user = userEvent.setup();
+      const { rerender } = renderWithCopy("OfferReceived", copyHasText);
+      await user.click(
+        screen.getByRole("button", { name: "Flytta till Accepterad" }),
+      );
+      if (copyHasText) {
+        await user.click(
+          screen.getByRole("button", { name: "Markera som Accepterad" }),
+        );
+      }
+      await waitFor(() =>
+        expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Accepted"),
+      );
+
+      rerender(
+        <ApplicationStatusActions
+          applicationId={APP_ID}
+          status="Accepted"
+          displayName="Volvo"
+          copyHasText={copyHasText}
+        />,
+      );
+
+      expect(screen.queryByText(/Flytta till/)).not.toBeInTheDocument();
+      const accepted = document.querySelector('[data-state="current"]');
+      expect(accepted).toHaveTextContent("Accepterad");
+      expect(accepted).toHaveFocus();
+    },
+  );
+
+  it("leaves focus where the user put it when the CTA's move commits", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <>
+        <ApplicationStatusActions
+          applicationId={APP_ID}
+          status="OfferReceived"
+          displayName="Volvo"
+          copyHasText={false}
+        />
+        <button type="button">Elsewhere</button>
+      </>,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Flytta till Accepterad" }),
+    );
+    await waitFor(() =>
+      expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Accepted"),
+    );
+    const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+    elsewhere.focus();
+
+    rerender(
+      <>
+        <ApplicationStatusActions
+          applicationId={APP_ID}
+          status="Accepted"
+          displayName="Volvo"
+          copyHasText={false}
+        />
+        <button type="button">Elsewhere</button>
+      </>,
+    );
+
+    expect(elsewhere).toHaveFocus();
   });
 });

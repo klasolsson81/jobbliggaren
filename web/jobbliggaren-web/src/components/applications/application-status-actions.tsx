@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import { transitionStatusAction } from "@/lib/actions/applications";
@@ -32,7 +32,7 @@ interface ApplicationStatusActionsProps {
  *  - §8.3 Primär-CTA "Flytta till {nästa}" (fylld accent-800) — Ghosted:
  *    "Återaktivera som Skickad" (prototyp-facit); terminala: ingen CTA.
  *  - §8.4 Stegväljare: de 7 stegen på aktiva vägen, KLICKBARA ÄVEN BAKÅT =
- *    direkt transition (ADR 0092 D3 fria byten; nuvarande steg disabled —
+ *    direkt transition (ADR 0092 D3 fria byten; nuvarande steg aria-disabled —
  *    self-transition är en tyst no-op).
  *  - §8.5 AVSLUTA ELLER PARKERA: Nekad (dangertext) / Återtagen / Ghosted.
  *
@@ -55,12 +55,29 @@ export function ApplicationStatusActions({
   const [confirmTarget, setConfirmTarget] = useState<ApplicationStatus | null>(
     null,
   );
+  const rootRef = useRef<HTMLDivElement>(null);
+  const requestedByCta = useRef(false);
+  const focusCurrentStep = useRef(false);
+
+  // Native `disabled` drops focus to <body> in Chromium, so every control here
+  // is aria-disabled instead (#2323). The one control that can still vanish is
+  // the CTA: when the move it made leaves no next step, focus goes to the step
+  // that is now current, unless the user has already put focus elsewhere.
+  useEffect(() => {
+    if (!focusCurrentStep.current) return;
+    focusCurrentStep.current = false;
+    if (document.activeElement !== document.body) return;
+    rootRef.current
+      ?.querySelector<HTMLButtonElement>('button[aria-current="step"]')
+      ?.focus();
+  }, [status]);
 
   const currentIndex = ACTIVE_PATH_STATUSES.indexOf(status);
 
   const move = (target: ApplicationStatus) => {
     if (target === status || isPending) return;
     setError(null);
+    focusCurrentStep.current = requestedByCta.current;
     startTransition(async () => {
       const result = await transitionStatusAction(applicationId, target);
       if (result.success) {
@@ -72,13 +89,15 @@ export function ApplicationStatusActions({
           to: target,
         });
       } else {
+        focusCurrentStep.current = false;
         setError(result.error);
       }
     });
   };
 
-  const request = (target: ApplicationStatus) => {
+  const request = (target: ApplicationStatus, byCta = false) => {
     if (target === status || isPending) return;
+    requestedByCta.current = byCta;
     if (needsTerminalMoveConfirmation(target, copyHasText)) {
       setConfirmTarget(target);
       return;
@@ -95,14 +114,14 @@ export function ApplicationStatusActions({
         : null;
 
   return (
-    <div className="jp-drawer-actions">
+    <div className="jp-drawer-actions" ref={rootRef}>
       {/* §8.3 Primär-CTA. */}
       {ctaLabel != null && next != null && (
         <button
           type="button"
           className="jp-btn jp-btn--primary jp-drawer-cta"
-          disabled={isPending}
-          onClick={() => request(next)}
+          aria-disabled={isPending || undefined}
+          onClick={() => request(next, true)}
         >
           {ctaLabel}
         </button>
@@ -132,7 +151,7 @@ export function ApplicationStatusActions({
                   type="button"
                   className="jp-steppicker__step"
                   data-state={stepState}
-                  disabled={stepState === "current" || isPending}
+                  aria-disabled={stepState === "current" || isPending || undefined}
                   aria-current={stepState === "current" ? "step" : undefined}
                   onClick={() => request(step)}
                 >
@@ -172,7 +191,7 @@ export function ApplicationStatusActions({
                     : "jp-parkbtn"
                 }
                 aria-pressed={active}
-                disabled={active || isPending}
+                aria-disabled={active || isPending || undefined}
                 onClick={() => request(park)}
               >
                 {applicationStatusLabel(t, park)}

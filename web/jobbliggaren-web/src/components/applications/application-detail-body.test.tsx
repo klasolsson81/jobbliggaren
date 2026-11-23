@@ -85,12 +85,12 @@ describe("ApplicationDetailBody (§8, interaktiv sedan PR 7)", () => {
     expect(
       screen.getByRole("button", { name: "Flytta till Bekräftad" }),
     ).toBeInTheDocument();
-    // §8.4: exakt 7 steg, nuvarande (Skickad) disabled med aria-current.
+    // §8.4: exakt 7 steg, nuvarande (Skickad) aria-disabled med aria-current.
     const steps = container.querySelectorAll(".jp-steppicker__step");
     expect(steps).toHaveLength(7);
     const current = container.querySelector('[data-state="current"]');
     expect(current).toHaveTextContent("Skickad");
-    expect(current).toBeDisabled();
+    expect(current).toHaveAttribute("aria-disabled", "true");
     // §8.5: Nekad (dangertext) / Återtagen / Ghosted ("Inget svar").
     expect(screen.getByRole("button", { name: "Nekad" })).toHaveClass(
       "jp-parkbtn--danger",

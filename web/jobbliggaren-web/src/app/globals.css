@@ -4360,7 +4360,7 @@ a.jp-hero__quicklink:hover {
 /* Stegväljaren (§8.4): 7 steg, cirkel 24px — klar = success-bg + bock,
    nuvarande = fylld accent-800 + NU-chip + accent-50-rad, framtida = vit med
    border-strong-ring. Varje steg är en riktig knapp (klick = direkt byte,
-   även bakåt); nuvarande är disabled (self-transition = tyst no-op). */
+   även bakåt); nuvarande är aria-disabled (self-transition = tyst no-op). */
 .jp-steppicker {
   list-style: none;
   margin: 0;
@@ -4383,7 +4383,7 @@ a.jp-hero__quicklink:hover {
   cursor: pointer;
   text-align: left;
 }
-.jp-steppicker__step:hover:not(:disabled) { background: var(--jp-surface-2); }
+.jp-steppicker__step:hover:not([aria-disabled="true"]) { background: var(--jp-surface-2); }
 .jp-steppicker__step:focus-visible {
   outline: 2px solid var(--jp-accent-700);
   outline-offset: -2px;
@@ -4392,7 +4392,7 @@ a.jp-hero__quicklink:hover {
   background: var(--jp-accent-50);
   cursor: default;
 }
-.jp-steppicker__step:disabled:not([data-state="current"]) {
+.jp-steppicker__step[aria-disabled="true"]:not([data-state="current"]) {
   opacity: 0.55;
   cursor: default;
 }
@@ -4438,7 +4438,7 @@ a.jp-hero__quicklink:hover {
 }
 /* AVSLUTA ELLER PARKERA (§8.5): tre likvärdiga knappar på .jp-btn--sm-steget
    (DESIGN.md §6, ingen tredje höjd; 44px vid ≤768 enligt §5); Nekad = dangertext;
-   aktiv markeras (aria-pressed) och är disabled. */
+   aktiv markeras (aria-pressed) och är aria-disabled. */
 .jp-parkrow {
   display: flex;
   gap: 8px;
@@ -4460,7 +4460,7 @@ a.jp-hero__quicklink:hover {
   cursor: pointer;
   transition: border-color 80ms, background 80ms;
 }
-.jp-parkbtn:hover:not(:disabled) {
+.jp-parkbtn:hover:not([aria-disabled="true"]) {
   border-color: var(--jp-border-strong);
   background: var(--jp-surface-2);
 }
@@ -4468,7 +4468,7 @@ a.jp-hero__quicklink:hover {
   outline: 2px solid var(--jp-accent-700);
   outline-offset: 1px;
 }
-.jp-parkbtn:disabled { cursor: default; }
+.jp-parkbtn[aria-disabled="true"] { cursor: default; }
 .jp-parkbtn[aria-pressed="true"] {
   background: var(--jp-surface-2);
   border-color: var(--jp-border-strong);

@@ -359,6 +359,52 @@ describe("ApplicationStatusActions — the terminal-move confirmation", () => {
     }
   });
 
+  it("sends nothing for a further press on any group while a move is pending", async () => {
+    transitionStatusAction.mockImplementation(() => new Promise<never>(() => {}));
+    const user = userEvent.setup();
+    renderWithCopy("Submitted", false);
+    const steps = document.querySelectorAll<HTMLButtonElement>(".jp-steppicker__step");
+    const confirmedStep = steps[2]!;
+    await user.click(confirmedStep);
+    await waitFor(() => expect(transitionStatusAction).toHaveBeenCalledTimes(1));
+
+    const cta = screen.getByRole("button", { name: "Flytta till Bekräftad" });
+    const parks = document.querySelectorAll<HTMLButtonElement>(".jp-parkbtn");
+    for (const control of [cta, ...steps, ...parks]) {
+      expect(control).toHaveAttribute("aria-disabled", "true");
+    }
+
+    await user.click(confirmedStep);
+    await user.click(screen.getByRole("button", { name: "Inget svar" }));
+    await user.click(cta);
+    expect(transitionStatusAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends nothing for a press on the current step or the active park button", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Submitted"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    await user.click(document.querySelector<HTMLButtonElement>('[data-state="current"]')!);
+
+    rerender(
+      <ApplicationStatusActions
+        applicationId={APP_ID}
+        status="Ghosted"
+        displayName="Volvo"
+        copyHasText={false}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Inget svar" }));
+
+    expect(transitionStatusAction).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["without a confirmation", false],
     ["after the confirmation", true],
@@ -379,12 +425,13 @@ describe("ApplicationStatusActions — the terminal-move confirmation", () => {
         expect(transitionStatusAction).toHaveBeenCalledWith(APP_ID, "Accepted"),
       );
 
+      // A terminal move deletes the saved ad text, so the copy has none afterwards.
       rerender(
         <ApplicationStatusActions
           applicationId={APP_ID}
           status="Accepted"
           displayName="Volvo"
-          copyHasText={copyHasText}
+          copyHasText={false}
         />,
       );
 

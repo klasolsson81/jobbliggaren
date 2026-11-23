@@ -484,17 +484,16 @@ snapshot above remains historical evidence, not the new desired configuration.
 zod GHSA-mrhx-c7xc-m3w5 and body-parser GHSA-27r3-jxmh-p828. Neither had an
 `ignoreGhsas` entry, but GitHub's Dependabot auto-triage had set both alerts to
 `auto_dismissed` (development scope). So the register this ADR names as the record
-read zero (Amendment 2026-07-28: GitHub's Dependabot alerts, "the number that must
-reach zero"). `audit-suppression-guard.sh` cannot see a GitHub dismissal either, and
+read zero (Amendment 2026-07-28: GitHub's Dependabot alerts).
+`audit-suppression-guard.sh` cannot see a GitHub dismissal either, and
 meanwhile the blocking gate failed on exactly those two (run 45129123276). An
 acceptance had happened outside every control this ADR names. Both advisories were
 repaired in #2339.
 
 **Beslut (Klas, 2026-11-23: "No, never").** GitHub's auto-dismissal of a Dependabot
-alert is never an acceptance under this ADR. An advisory is repaired, or it is
-accepted through `pnpm.auditConfig.ignoreGhsas` with Beslut 2's three reasons. When the
+alert is never an acceptance under this ADR. When the
 register is read, an `auto_dismissed` alert counts as open:
-`gh api 'repos/klasolsson81/jobbliggaren/dependabot/alerts?state=open,auto_dismissed'`.
+`gh api --paginate 'repos/klasolsson81/jobbliggaren/dependabot/alerts?state=open,auto_dismissed&per_page=100'`.
 
 Whether to switch off GitHub's auto-triage rule is a repository setting, Klas's to
 make. This amendment does not decide it.

@@ -282,7 +282,7 @@ Verifieras via ArchUnit.NET eller NetArchTest-regler i Domain.ArchitectureTests-
 2. `ValidationBehavior` → `AuthorizationBehavior` → `AdminAuthorizationBehavior`: validation, authenticated access and defense in depth for `IAdminRequest`.
 3. `ReauthenticationBehavior`: consumes the purpose-bound, single-use inbox grant for `IReauthenticatingRequest`.
 4. `AccountAccessMutationBehavior`: takes the global lifecycle lock before sorted actor/target locks; owns the shared App/Identity physical transaction and commits only after successful audit/save. Lifecycle commands cannot replay automatically.
-5. `FieldEncryptionKeyPrefetchBehavior` → `UnitOfWorkBehavior` → `RecentJobSearchCaptureBehavior` → `AuditBehavior`: encryption prefetch, save/domain events, scoped recent-search capture and success-only audit. The protected outer scope owns commit (ADR 0155).
+5. `FieldEncryptionKeyPrefetchBehavior` → `UnitOfWorkBehavior` → `AuditBehavior`: encryption prefetch, save/domain events and success-only audit. The protected outer scope owns commit (ADR 0155).
 
 ---
 

@@ -9,6 +9,12 @@ import { EL_GROUP, IT_GROUP, USK_VARD_GROUP, UX_GROUP, ruleAnswer } from "@/test
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
 const pushMock = vi.fn<AppRouterInstance["push"]>();
+// #2285 — the only way a search is stored. A filter pick is no deliberate search, so it never reaches it
+// (security-auditor Minor 3, #2285 plan read; the privacy policy says ticking a filter is not enough).
+const captureMock = vi.fn();
+vi.mock("@/lib/actions/recent-searches", () => ({
+  captureRecentSearchAction: (...args: unknown[]) => captureMock(...args),
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
 }));
@@ -168,6 +174,7 @@ async function openYrke(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => {
   pushMock.mockClear();
+  captureMock.mockClear();
   resolveSearchMock.mockReset();
   resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.it });
 });
@@ -465,7 +472,7 @@ describe("/jobb Yrke: what search mode shows (#2198 PR 2)", () => {
 describe("/jobb Yrke: an occupation-name tick (#2199)", () => {
   const UX_DESIGNER = () => variantId("UX-designer");
 
-  it("a Group row's names open beside it, and a name pick pushes only the name, never commit", async () => {
+  it("a Group row's names open beside it, and a name pick pushes only the name and stores nothing", async () => {
     const user = userEvent.setup();
     resolveSearchMock.mockResolvedValue({ kind: "ok", result: ruleAnswer.ux });
     setup();
@@ -481,7 +488,7 @@ describe("/jobb Yrke: an occupation-name tick (#2199)", () => {
 
     expect(pushMock).toHaveBeenCalledTimes(1);
     expect(pushMock).toHaveBeenLastCalledWith(hrefWith({ names: [UX_DESIGNER()] }), { scroll: false });
-    expect(String(pushMock.mock.calls[0]?.[0])).not.toContain("commit");
+    expect(captureMock).not.toHaveBeenCalled();
   });
 
   it("a name whose group is selected is included and pushes nothing", async () => {

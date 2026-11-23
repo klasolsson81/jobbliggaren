@@ -30,7 +30,7 @@ public sealed class RecentJobSearchCapturerEvictionTests(SharedPostgresFixture p
         foreach (var id in marked)
             (await _h.MarkAsync(id)).IsSuccess.ShouldBeTrue();
 
-        await _h.CaptureAsync("nysokning");
+        (await _h.CaptureAsync("nysokning")).ShouldBeTrue();
 
         var rows = await _h.RowsAsync();
         rows.Count.ShouldBe(RecentJobSearch.MaxPerSeeker);
@@ -89,7 +89,7 @@ public sealed class RecentJobSearchCapturerEvictionTests(SharedPostgresFixture p
             raced = true;
         });
 
-        await _h.CaptureAsync("nysokning");
+        (await _h.CaptureAsync("nysokning")).ShouldBeFalse();
 
         raced.ShouldBeTrue("the premise: the mark committed between the eviction's read and its delete");
         _h.Seams.EvictionDeletes.ShouldBe(1, "the capture picked a row and sent its delete");

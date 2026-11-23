@@ -18,7 +18,7 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 /// /jobb hero, end to end on the wired API and real Postgres, in the form of <c>NotificationMailEndpointTests</c>. The
 /// link shows by default, each write reads back through <c>GET /api/v1/me/profile</c>, a repeated write is a no-op, and
 /// turning the link on over the cap of three quick links is refused. The searches are stored the way production stores
-/// them: a committed <c>GET /api/v1/job-ads</c> through the capture behaviour.
+/// them: the capture POST, <c>POST /api/v1/me/recent-searches</c> (#2285).
 /// </summary>
 [Collection("Api")]
 public sealed class JuniorQuickLinkEndpointTests(ApiFactory factory)
@@ -133,10 +133,10 @@ public sealed class JuniorQuickLinkEndpointTests(ApiFactory factory)
         return await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
     }
 
-    // A committed search: the capture behaviour stores it, as for every search a user commits on /jobb (ADR 0060).
+    // A stored search: the capture POST stores it, as for every search a user stores on /jobb (ADR 0060, #2285).
     private async Task<Guid> CommitSearchAsync(string q)
     {
-        (await _client.GetAsync($"/api/v1/job-ads?q={q}&commit=true&page=1&pageSize=20", Ct))
+        (await _client.PostAsJsonAsync(RecentSearchesPath, new { q }, Ct))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
         var items = await _client.GetFromJsonAsync<JsonElement>($"{RecentSearchesPath}?includeCount=false", Ct);
         return items.EnumerateArray()

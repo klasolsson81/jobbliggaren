@@ -1,4 +1,5 @@
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.RecentJobSearches.Commands.CaptureRecentSearch;
 using Jobbliggaren.Application.RecentJobSearches.Commands.DeleteRecentSearch;
 using Jobbliggaren.Application.RecentJobSearches.Commands.MarkRecentSearchQuickLink;
 using Jobbliggaren.Application.RecentJobSearches.Commands.UnmarkRecentSearchQuickLink;
@@ -10,8 +11,7 @@ namespace Jobbliggaren.Api.Endpoints;
 /// <summary>
 /// ADR 0060 — RecentJobSearches (auto-fångade sökningar per JobSeeker).
 /// Route-prefix <c>/api/v1/me/recent-searches</c> följer "my data"-konvention
-/// från <see cref="MeEndpoints"/>. Auto-capture sker via pipeline-behavior på
-/// ListJobAds-flöden.
+/// från <see cref="MeEndpoints"/>.
 /// </summary>
 public static class RecentSearchesEndpoints
 {
@@ -33,6 +33,17 @@ public static class RecentSearchesEndpoints
             var result = await mediator.Send(new ListRecentSearchesQuery(includeCount), ct);
             return Results.Ok(result);
         }).RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
+
+        // #2285 (ADR 0060 Amendment 2026-11-22) — the one way a search reaches recent searches: a POST from the /jobb
+        // Server Action when the user searches on purpose or clicks "Spara sökningen". The body is the search's axes and
+        // nothing else; the user comes from the session. 200 with { stored } whether or not it was stored.
+        group.MapPost("/", async (CaptureRecentSearchCommand command, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return result.IsSuccess
+                ? Results.Ok(result.Value)
+                : result.Error.ToProblemResult();
+        }).RequireRateLimiting(RateLimitingExtensions.RecentSearchCapturePolicy);
 
         group.MapDelete("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken ct) =>
         {

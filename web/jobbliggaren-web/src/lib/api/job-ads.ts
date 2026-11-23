@@ -76,10 +76,6 @@ export interface ListJobAdsQuery {
   // arbetsgivar-filter.
   employer?: ReadonlyArray<string>;
   q?: string;
-  // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent: true ⇒ ?commit=true
-  // skickas och backend auto-capturerar sökningen till Senaste sökningar.
-  // Default (live-förhandsvisning) fångas EJ. Transient signal, ej filter.
-  commit?: boolean;
 }
 
 function buildQuery(query: ListJobAdsQuery): string {
@@ -121,9 +117,6 @@ function buildQuery(query: ListJobAdsQuery): string {
   // listan). Värdet är "true" (ASP.NET bool-binding tar inte "1").
   if (query.onlyMatched) params.set("onlyMatched", "true");
   if (query.q) params.set("q", query.q);
-  // E2j — commit-intent gatar backend-auto-capture (ADR 0060 amend). Värdet
-  // är "true" (ASP.NET bool-binding tar inte "1" — skulle 400:a list-queryn).
-  if (query.commit) params.set("commit", "true");
   return params.toString();
 }
 

@@ -10,9 +10,8 @@ using Microsoft.Extensions.Logging;
 namespace Jobbliggaren.Infrastructure.RecentJobSearches;
 
 /// <summary>
-/// ADR 0060 — Capturer-implementation. Egen UoW per CTO-dom (anropar
-/// SaveChangesAsync direkt — capture är side-effect, ej en del av huvud-querys
-/// UoW). UNIQUE(job_seeker_id, filter_hash) bär identitets-invarianten;
+/// ADR 0060 — Capturer-implementation. Anropar SaveChangesAsync direkt
+/// (Beslut 5). UNIQUE(job_seeker_id, filter_hash) bär identitets-invarianten;
 /// race-säkerhet via try/catch DbUpdateException + IDbExceptionInspector
 /// (paritet med UpsertExternalJobAd, ADR 0032 §5).
 ///
@@ -29,7 +28,7 @@ public sealed partial class RecentJobSearchCapturer(
     ILogger<RecentJobSearchCapturer> logger)
     : IRecentJobSearchCapturer
 {
-    public async Task CaptureAsync(
+    public async Task<bool> CaptureAsync(
         Guid userId,
         SearchCriteria criteria,
         int currentCount,
@@ -45,7 +44,7 @@ public sealed partial class RecentJobSearchCapturer(
             .ConfigureAwait(false);
 
         if (jobSeekerId == default)
-            return;
+            return false;
 
         var hash = FilterHashCalculator.Compute(criteria);
 
@@ -58,12 +57,12 @@ public sealed partial class RecentJobSearchCapturer(
         {
             existing.Bump(currentCount, clock.UtcNow);
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            return;
+            return true;
         }
 
         // Make room before the INSERT (ADR 0060 Beslut 5, ADR 0188); without room this search is not stored.
         if (!await EnforceCapAsync(jobSeekerId, cancellationToken).ConfigureAwait(false))
-            return;
+            return false;
 
         var aggregate = RecentJobSearch.Capture(jobSeekerId, criteria, currentCount, clock.UtcNow);
         db.RecentJobSearches.Add(aggregate);
@@ -71,6 +70,7 @@ public sealed partial class RecentJobSearchCapturer(
         try
         {
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return true;
         }
         catch (DbUpdateException ex) when (dbExceptionInspector.IsUniqueConstraintViolation(ex))
         {
@@ -84,11 +84,12 @@ public sealed partial class RecentJobSearchCapturer(
                 .FirstOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            if (raced is not null)
-            {
-                raced.Bump(currentCount, clock.UtcNow);
-                await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            }
+            if (raced is null)
+                return false;
+
+            raced.Bump(currentCount, clock.UtcNow);
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return true;
         }
     }
 

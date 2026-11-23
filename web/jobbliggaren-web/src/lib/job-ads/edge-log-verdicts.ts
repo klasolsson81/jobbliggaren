@@ -121,10 +121,4 @@ export const EDGE_LOG_VERDICT: EdgeLogVerdicts = {
     verdict: "kept",
     reason: "A page ordinal. It carries no user content.",
   },
-  commit: {
-    verdict: "kept",
-    reason:
-      "A transient intent boolean the client strips after mount; a constant string, never state " +
-      "and never user input.",
-  },
 };

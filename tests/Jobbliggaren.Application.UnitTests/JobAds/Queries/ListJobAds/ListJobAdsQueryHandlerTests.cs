@@ -275,17 +275,15 @@ public class ListJobAdsQueryHandlerTests
         result.Items.ShouldHaveSingleItem().Title.ShouldBe("Backend-utvecklare");
     }
 
-    // #2199 PR 2b — the page answers whether RecentSearchCaptureGate admits the search, on every request,
-    // commit or not: the hero reads it from the live preview before the user asks to save.
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Handle_AnOrdinarySearch_IsStorableAsRecentSearch(bool commit)
+    // #2199 PR 2b — the page answers whether RecentSearchCaptureGate admits the search, on every request:
+    // the hero reads it from the live preview before the user asks to save.
+    [Fact]
+    public async Task Handle_AnOrdinarySearch_IsStorableAsRecentSearch()
     {
         _search.SearchAsync(Arg.Any<JobAdSearchCriteria>(), Arg.Any<CancellationToken>()).Returns(EmptyPage());
 
         var result = await NewHandler().Handle(
-            new ListJobAdsQuery(Q: "backend", Commit: commit), TestContext.Current.CancellationToken);
+            new ListJobAdsQuery(Q: "backend"), TestContext.Current.CancellationToken);
 
         result.IsStorableAsRecentSearch.ShouldBeTrue();
     }
@@ -755,7 +753,7 @@ public class ListJobAdsQueryHandlerTests
     // --- #300 PR-5a: ListJobAdsQuery.IncludeRelated threads into BuildFullForSortAsync ----
     // The per-user path builds the FULL profile via BuildFullForSortAsync; PR-5a adds the
     // includeRelated arg that the FE toggle flips (ADR 0084 question A, off by default). The
-    // flag is RUNTIME-CONTEXT (like MatchGrades) — it NEVER enters ICapturesRecentSearch /
+    // flag is RUNTIME-CONTEXT (like MatchGrades) — it NEVER enters IRecentSearchCandidate /
     // SearchCriteria / FilterHash. These tests stub with Arg.Any<bool>() and capture the
     // threaded arg via Arg.Do<bool>. RED until ListJobAdsQuery carries IncludeRelated AND the
     // handler passes includeRelated: query.IncludeRelated into BuildFullForSortAsync (per-user
@@ -869,13 +867,13 @@ public class ListJobAdsQueryHandlerTests
     [Fact]
     public void ListJobAdsQuery_IncludeRelated_IsNotPersistedSearchIdentity()
     {
-        // Defence-in-depth: IncludeRelated is NOT part of ICapturesRecentSearch (the captured
+        // Defence-in-depth: IncludeRelated is NOT part of IRecentSearchCandidate (the captured
         // anonymous search identity). The capture interface exposes only the named filter
-        // fields + Commit/Since-style runtime context, never IncludeRelated.
-        typeof(Jobbliggaren.Application.RecentJobSearches.Common.ICapturesRecentSearch)
+        // fields, never IncludeRelated.
+        typeof(Jobbliggaren.Application.RecentJobSearches.Common.IRecentSearchCandidate)
             .GetProperty("IncludeRelated").ShouldBeNull(
                 "IncludeRelated är runtime-kontext (analogt MatchGrades) och får aldrig " +
-                "ingå i ICapturesRecentSearch / sök-identiteten (ADR 0084 / ADR 0079 STEG 5).");
+                "ingå i IRecentSearchCandidate / sök-identiteten (ADR 0084 / ADR 0079 STEG 5).");
     }
 
     // --- #383 (CTO-bind cto-7f3a9c2e1b4d8a6f): status-filter-grenen ----------

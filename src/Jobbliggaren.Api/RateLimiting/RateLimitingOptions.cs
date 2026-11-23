@@ -822,6 +822,18 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
+    /// POST /api/v1/me/recent-searches (#2285) — storing a search the user ran on purpose. Partitioned by user, anonymous
+    /// -> NoLimiter (the group's authorization answers 401 first). 30/min as a TokenBucket, five tokens back every ten
+    /// seconds. A token costs at most one count and one upsert on the user's own rows, of which there are at most 20.
+    /// security-auditor, #2285 plan read.
+    /// </summary>
+    public PolicyOptions RecentSearchCapture { get; init; } = new()
+    {
+        PermitLimit = 30,
+        WindowSeconds = 60,
+    };
+
+    /// <summary>
     /// GET /api/v1/me/company-watch-criteria/new-ad-counts (ADR 0175 D7, #1663 PR 2) — "N nya" per
     /// Branschbevakning, one grouped statement over the owner's unseen hits. Its own bucket and not
     /// <see cref="CompanyWatchCriteriaList"/>'s: that bucket is priced on the list's gate statements, and

@@ -249,6 +249,8 @@ Session 1 levererar **endast Fas A** (CLAUDE.md §9.2 — fas-skifte till kod-mo
 
 ### Implementerings-notat 2026-06-12 (Fas E2j) — sök-commit-modellen (commit-intent-capture)
 
+> **Superseded on the carrier by [ADR 0060 Amendment 2026-11-22](./0060-recent-job-searches-auto-capture.md) (#2285).** The commit points below stand, and so does the live preview's not storing. The flag, `StripCommitParam` and the no-JS form's hidden `commit=true` are retired: a search is stored only by the capture POST a Server Action sends.
+
 **Källa:** Klas rendered-feedback på E2i live-spegel 2026-06-12 (recent-search "sparas inte som väntat"; native × rensar text men inte filter; behövs Sök-knapp/× vid live-resultat?) + dotnet-architect (`docs/reviews/2026-06-12-sok-paritet-e2j-architect.md`) + senior-cto-advisor decision-maker (`-e2j-cto.md`, VAL 1–7) + Klas-produktval (AskUserQuestion 2026-06-12) + security-auditor (`-e2j-security-audit.md`, APPROVED) + code-reviewer (`-e2j-code-review.md`, Approved) + design-reviewer (`-e2j-design-review.md`, Approved). Additivt notat — Beslut 5-brödtexten orörd. **Backend-mekaniken (commit-intent-gaten) dokumenteras i [ADR 0060 amendment 2026-06-12](./0060-recent-job-searches-auto-capture.md#amendment-2026-06-12--beslut-3-preciseras-capture-trigger-blir-commit-intent-gatad-platsbanken-sök-paritet-fas-e2j)** — detta notat täcker FE-sök-commit-modellen.
 
 - **Empirisk defekt (modell-sessionens utlösare):** E2i:s live-`router.replace` per ord triggade en RSC-render → `ListJobAdsQuery`-capture per mellansteg; dev-DB:n bekräftade `recent_job_searches` full vid cap=20 av mellanstegsspam som evictade äkta committade sökningar. F3.3 "acceptera+observera" (E2h CTO-uppskjuten) eskalerade till en defekt + data-minimerings-regression.

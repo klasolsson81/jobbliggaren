@@ -28,11 +28,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <para>
 /// <b><c>Result&lt;PagedResult&lt;T&gt;&gt;</c> är AVSIKTLIGT inte tillåtet</b> (senior-cto-advisor
 /// 2026-07-13, #560 PR-2 — läs detta INNAN du sträcker dig efter en <c>Result&lt;&gt;</c>-unwrap i
-/// <see cref="ReturnsPagedResult"/>). Två skäl. (1) <see cref="PagedResult{T}"/> implementerar
-/// <c>IRecentSearchCaptureResponse</c>, så huset har minst en pipeline-behavior nycklad på
-/// RESPONSTYPENS identitet med en TYST no-op-grind — ett <c>Result&lt;&gt;</c>-hölje byter den
-/// identiteten och kopplar tyst bort responsen från varje sådan mekanism. Testet låser responstypen,
-/// inte bara payload-formatet. (2) En paginerad query vars enda felväg är not-found har inget för
+/// <see cref="ReturnsPagedResult"/>). En paginerad query vars enda felväg är not-found har inget för
 /// <c>ErrorKind</c> att diskriminera: 401 kastas av <c>AuthorizationBehavior</c> och 400 av
 /// <c>ValidationBehavior</c>, så de når aldrig Result-kanalen. Husregeln: <b>enda felet är not-found →
 /// <c>T?</c></b> (endpointen mappar null → 404; se <c>RunSavedSearchQuery</c> och
@@ -66,8 +62,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <b>A fourth form, declared: a flat page plus one verdict</b> (#2199 PR 2b, senior-cto-advisor 2026-10-26).
 /// <c>ListJobAdsQuery</c> answers <see cref="JobAdListPage"/>: every member of <see cref="PagedResult{T}"/>,
 /// delegated to the page it wraps, and whether the search may be stored in recent searches. It is flat so the
-/// wire only gains a field, and it implements <c>IRecentSearchCaptureResponse</c> itself, which is the identity
-/// reason (1) above protects. The generic test exempts exactly this type, and its own test below pins all three.
+/// wire only gains a field. The generic test exempts exactly this type, and its own test below pins it.
 /// </para>
 /// </summary>
 public class PagedResultContractTests
@@ -127,10 +122,6 @@ public class PagedResultContractTests
             Members(typeof(PagedResult<JobAdDto>))
                 .Append((nameof(JobAdListPage.IsStorableAsRecentSearch), typeof(bool)))
                 .OrderBy(m => m.Item1, StringComparer.Ordinal));
-
-        typeof(Jobbliggaren.Application.RecentJobSearches.Common.IRecentSearchCaptureResponse)
-            .IsAssignableFrom(typeof(JobAdListPage))
-            .ShouldBeTrue("without the marker the capture behaviour silently stores nothing");
     }
 
     [Fact]

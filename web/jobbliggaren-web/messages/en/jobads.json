@@ -344,7 +344,8 @@
       "announceRemoved": "Removed {label}",
       "announceCleared": "Cleared the search field",
       "save": "Save this search",
-      "saved": "The search is saved in Recent searches"
+      "saved": "The search is saved in Recent searches",
+      "saveFailed": "The search could not be saved. Try again."
     },
     "heroFilters": {
       "ort": "Place",

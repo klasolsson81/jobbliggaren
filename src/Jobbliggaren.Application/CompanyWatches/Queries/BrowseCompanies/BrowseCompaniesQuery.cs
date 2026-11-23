@@ -20,10 +20,7 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies;
 /// one — ceremony, not error modelling. <c>Result&lt;T&gt;</c> is reserved for queries where
 /// <c>ErrorKind</c> genuinely discriminates (compare <c>LookupCompanyQuery</c>, which carries both a
 /// Validation refusal and a NotFound). The nullable form is also what <c>PagedResultContractTests</c>
-/// requires: <see cref="PagedResult{T}"/> implements <c>IRecentSearchCaptureResponse</c>, so the house
-/// has pipeline behaviors keyed on the RESPONSE TYPE's identity with a silent no-op gate — a
-/// <c>Result&lt;&gt;</c> wrapper changes that identity and would quietly disconnect the response from
-/// them. Parity: <c>RunSavedSearchQuery</c>, the structural sibling.
+/// requires. Parity: <c>RunSavedSearchQuery</c>, the structural sibling.
 /// </para>
 ///
 /// <para>

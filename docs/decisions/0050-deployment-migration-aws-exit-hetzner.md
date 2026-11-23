@@ -1691,8 +1691,8 @@ measurement of 2026-10-18 recorded in #2169. Additive: the text of `Amendment 20
      question is open for the space.
    - `/jobb`'s verdicts judge both keys must-not-reach. A new fact finds the keys by the values the
      occupation fields write, so a renamed key fails rather than inheriting `kept`.
-   - `edge-modes.test.sh`'s N-1 arm takes its keys from the config Caddy adapted, with a floor of the two
-     occupation keys. It sends each key twice, once as a `.`-joined list, counts leaks over the whole
+   - `edge-modes.test.sh`'s N-1 arm takes its keys from the config Caddy adapted, with a floor. It sends
+     each key twice, once as a `.`-joined list, counts leaks over the whole
      container log, and pins the entry's `request` field set.
    - Every producer is covered, since the filter acts on the key: the URL builders, prefetched links, the
      no-JS form, `/api/jobb/facet-counts` and a hand-typed URL. #2297's public filter shares `/jobb`'s

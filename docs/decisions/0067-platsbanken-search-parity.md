@@ -685,6 +685,15 @@ operative text. It also changes ADR 0060's capture chain: the behaviour's no-op 
    release is live, as a count only. If any are, the purge is a scoped, logged DELETE migration behind Klas's migration GO. #2199 stays open until that purge is merged or the count reads none. No read-side mask: a
    hidden row would still be stored, counted against the cap of 20, and invisible to its own data subject.
 
+## Amendment 2026-11-23 — the occupation keys are deleted at the edge (#2294)
+
+**Status:** Accepted 2026-11-23. **Source:** security-auditor's M6 and her G1 on #2294. Amendment 2026-10-25 (PR 3) point 1
+says the edge-log verdict of `occupationName` is `kept`, "the class of `occupationGroup`". For both keys that verdict is reversed:
+four groups are religious offices and so is every name filed under them, so either key can reveal a faith (Art. 9(1)). Both are
+now judged must-not-reach in `web/jobbliggaren-web/src/lib/job-ads/edge-log-verdicts.ts`, and the edge's global log filter deletes
+them. The measurement and the box reading are in ADR 0050's `Amendment 2026-11-23`. The URL contract is unchanged: the keys, their
+order and their value grammar stay as point 1 sets them.
+
 ---
 
 *ADR-index underhålls av docs-keeper. ADR 0067 fastställer Platsbanken-sök-paritets-initiativets design: yrke-filter-nivåskifte till ssyk-level-4 (occupation-name-substrat bevarat), nya STORED-dimensioner (kommun/yrkesgrupp/anställningsform/omfattning) i Klass 1/Klass 2-sekvens, distans-defer, facet-counts via port-metod, typeahead-chip-sök med residual-FTS, VO-expansion, och fas-uppdelning A–E. Kompletteras av ADR 0043-amendment 2026-06-08 (kommun-dimension + yrkesgrupp-nivå).*

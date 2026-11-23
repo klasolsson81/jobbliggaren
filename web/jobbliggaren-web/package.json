@@ -70,6 +70,7 @@
       "basic-ftp@<=6.2.3": "^6.2.4",
       "source-map-js": "^1.2.2",
       "minimatch@>=7.0.0 <11.0.1": "^11.0.1",
+      "chromium-bidi@14.0.0>zod": "^4.6.6",
       "proxy-addr": "^2.0.8",
       "compression": "^1.8.2",
       "@lhci/utils@0.15.1>js-yaml@^3.13.1": "^4.3.2"

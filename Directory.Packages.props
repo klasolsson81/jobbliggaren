@@ -134,7 +134,7 @@
          (Polly v8 under huven, ersätter deprecated Microsoft.Extensions.Http.Polly). -->
     <PackageVersion Include="Refit" Version="11.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="11.2.0" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.1" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="11.0.1" />
     <PackageVersion Include="WireMock.Net" Version="2.32.0" />
     <!-- Fas 4 lokal NLP-tier (ADR 0071 Beslut 6, BUILD.md §3.1 — INLÅST Pre-4 STEG 4;
          version-pin = Fas 4 STEG 0/F4-0). Deterministisk svensk NLP, ingen AI/LLM, körs

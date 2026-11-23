@@ -301,6 +301,19 @@ jobs:
       # (declares browsers 3.x) and on uuid >= 11.1.1 — the selectors then stop
       # matching, which no guard reports.
       #
+      # THE `chromium-bidi@14.0.0>zod` KEY CROSSES A MAJOR TOO (#2337; Klas, 2026-11-23:
+      # fix rather than accept). GHSA-mrhx-c7xc-m3w5 has no 3.x fix, so the key lifts
+      # chromium-bidi 14.0.0's `zod ^3.24.1` (pinned through puppeteer-core 24 under
+      # `@lhci/cli`) onto the app's zod 4. It is scoped to that parent so that a future
+      # zod-3 consumer meets the audit gate instead of a silent major. THE RESIDUAL: zod 4
+      # dropped `error.errors`, which chromium-bidi's protocol parser reads on invalid
+      # input; puppeteer-core 24 passes no parser to its BiDi server and Lighthouse
+      # connects over CDP, and an `lhci collect` run with a module-load hook logged no
+      # load of zod or chromium-bidi. WHAT REMOVES IT: an `@lhci/cli` release on
+      # puppeteer-core 25, whose chromium-bidi runs on zod ^4 (held back by #2045's
+      # ignore). Verify by deleting the key and running the audit, not by waiting for
+      # it to stop matching.
+      #
       # THE `sharp` RESIDUAL, NAMED RATHER THAN LEFT IMPLICIT. The override takes
       # sharp 0.34 -> 0.35 and `pnpm build` is green. That is evidence the
       # override does not BREAK the build; it is NOT evidence that sharp still

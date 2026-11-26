@@ -147,7 +147,7 @@ internal static class AutoPromoteGate
         }
 
         var content = ResumeContentMapper.ToDomain(dto);
-        var created = Resume.CreateFromParsed(jobSeekerId, label, content, parsed.Id, clock);
+        var created = Resume.CreateFromParsed(jobSeekerId, label, content, parsed.Id, parsed.DetectedLanguage, clock);
 
         // The ONE arm that carries a code: `created.Error.Code`, verbatim and unexamined. This is
         // not a second evaluation of "why did this fail" — it is the FIRST evaluation's output,

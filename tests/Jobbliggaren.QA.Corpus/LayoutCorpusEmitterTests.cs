@@ -1027,7 +1027,7 @@ public sealed class MarkerTracerDiscriminatorTests
             "CV",
             content,
             Jobbliggaren.Domain.Resumes.Parsing.ParsedResumeId.New(),
-            Clock).Value;
+            ResumeLanguage.Sv, Clock).Value;
 
         // The marker is in the BYTES in every case — that is what holds the earlier rungs fixed
         // and makes the two PROMOTED columns the only variable. (An earlier draft built rawText

@@ -101,7 +101,8 @@ public class PromoteParsedResumeCommandHandlerTests
     // not vacuous.
     private const string UnclassifiedPreamble = "Driven utvecklare som trivs nära produktionen.";
 
-    private static ParsedResume BuildPendingReview(JobSeekerId owner, PersonnummerScanOutcome? pnr = null)
+    private static ParsedResume BuildPendingReview(
+        JobSeekerId owner, PersonnummerScanOutcome? pnr = null, ResumeLanguage? language = null)
     {
         var content = new ParsedResumeContent(
             new ParsedContact("Anna Andersson", "anna@example.com", "070-1234567", "Stockholm"),
@@ -110,7 +111,7 @@ public class PromoteParsedResumeCommandHandlerTests
             preamble: UnclassifiedPreamble);
 
         return ParsedResume.Create(
-            owner, "anna-cv.pdf", "application/pdf", ResumeLanguage.Sv,
+            owner, "anna-cv.pdf", "application/pdf", language ?? ResumeLanguage.Sv,
             content, "Anna Andersson\nBackend-utvecklare, Beta AB",
             ParseConfidence.FromSections(
             [
@@ -121,11 +122,12 @@ public class PromoteParsedResumeCommandHandlerTests
     }
 
     private static async Task<(ParsedResume Parsed, JobSeeker Owner)> SeedOwnedAsync(
-        Infrastructure.Persistence.AppDbContext db, Guid userId, PersonnummerScanOutcome? pnr = null)
+        Infrastructure.Persistence.AppDbContext db, Guid userId, PersonnummerScanOutcome? pnr = null,
+        ResumeLanguage? language = null)
     {
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        var parsed = BuildPendingReview(seeker.Id, pnr);
+        var parsed = BuildPendingReview(seeker.Id, pnr, language);
         db.ParsedResumes.Add(parsed);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return (parsed, seeker);
@@ -290,6 +292,22 @@ public class PromoteParsedResumeCommandHandlerTests
         result.IsSuccess.ShouldBeTrue();
         var resume = db.Resumes.Local.ShouldHaveSingleItem();
         resume.Origin.ShouldBe(ResumeSourceOrigin.Import);
+    }
+
+    [Theory]
+    [InlineData("Sv")]
+    [InlineData("En")]
+    public async Task Handle_PromotesTheCvInTheLanguageTheImportDetected(string language)
+    {
+        var db = TestAppDbContextFactory.Create();
+        var detected = ResumeLanguage.FromName(language);
+        var (parsed, _) = await SeedOwnedAsync(db, _userId, language: detected);
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        db.Resumes.Local.ShouldHaveSingleItem().Language.ShouldBe(detected);
     }
 
     // ===============================================================

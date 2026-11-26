@@ -53,7 +53,7 @@ public class ResumeSourceMetadataTests
     private static Resume CreateImportedResume() =>
         Resume.CreateFromParsed(
             ValidJobSeekerId, ValidName, GapFilledContent(),
-            new ParsedResumeId(Guid.NewGuid()), Clock).Value;
+            new ParsedResumeId(Guid.NewGuid()), ResumeLanguage.Sv, Clock).Value;
 
     // ---------------------------------------------------------------
     // Origin by construction + template-option / adoption defaults
@@ -82,7 +82,7 @@ public class ResumeSourceMetadataTests
         // satisfied at the factory, not by a setter (ADR 0096).
         var result = Resume.CreateFromParsed(
             ValidJobSeekerId, ValidName, GapFilledContent(),
-            new ParsedResumeId(Guid.NewGuid()), Clock);
+            new ParsedResumeId(Guid.NewGuid()), ResumeLanguage.Sv, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Origin.ShouldBe(ResumeSourceOrigin.Import);
@@ -106,7 +106,7 @@ public class ResumeSourceMetadataTests
         var sourceParsedId = new ParsedResumeId(Guid.NewGuid());
 
         var result = Resume.CreateFromParsed(
-            ValidJobSeekerId, ValidName, GapFilledContent(), sourceParsedId, Clock);
+            ValidJobSeekerId, ValidName, GapFilledContent(), sourceParsedId, ResumeLanguage.Sv, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.SourceParsedResumeId.ShouldBe(sourceParsedId);

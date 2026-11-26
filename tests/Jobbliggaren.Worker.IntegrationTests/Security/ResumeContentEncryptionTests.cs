@@ -375,7 +375,7 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
             var db = writeScope.ServiceProvider.GetRequiredService<AppDbContext>();
             var resume = Resume.CreateFromParsed(
                 seeker.Id, "Importerat CV", original,
-                new ParsedResumeId(Guid.NewGuid()), clock).Value;
+                new ParsedResumeId(Guid.NewGuid()), ResumeLanguage.Sv, clock).Value;
             resumeId = resume.Id;
             db.Resumes.Add(resume);
             await db.SaveChangesAsync(ct);

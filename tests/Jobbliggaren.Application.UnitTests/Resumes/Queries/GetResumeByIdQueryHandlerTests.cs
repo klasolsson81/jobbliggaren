@@ -68,7 +68,7 @@ public class GetResumeByIdQueryHandlerTests
 
         var resume = Resume.CreateFromParsed(
             seeker.Id, "Importerat CV", content,
-            new Domain.Resumes.Parsing.ParsedResumeId(Guid.NewGuid()), FakeDateTimeProvider.Default).Value;
+            new Domain.Resumes.Parsing.ParsedResumeId(Guid.NewGuid()), ResumeLanguage.Sv, FakeDateTimeProvider.Default).Value;
         db.Resumes.Add(resume);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 

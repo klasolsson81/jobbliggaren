@@ -210,18 +210,24 @@ public sealed class Resume : AggregateRoot<ResumeId>
     /// <paramref name="sourceParsedResumeId"/> till det nya CV:t OCH persisterar länken på
     /// <see cref="SourceParsedResumeId"/> (PR-9c, ADR 0100 §D5 — DQ5b:s "enbart event, ingen
     /// kolumn" vänd nu när en konsument finns: cascade-nyckeln för per-CV original-radering).
-    /// Aggregatet konstrueras giltigt i ett steg (DDD §2.2).
+    /// Aggregatet konstrueras giltigt i ett steg (DDD §2.2), med det språk importen
+    /// upptäckte (<paramref name="language"/>).
     /// </summary>
     public static Result<Resume> CreateFromParsed(
         JobSeekerId jobSeekerId,
         string? name,
         ResumeContent content,
         ParsedResumeId sourceParsedResumeId,
+        ResumeLanguage language,
         IDateTimeProvider clock)
     {
         if (jobSeekerId == default)
             return Result.Failure<Resume>(
                 DomainError.Validation("Resume.JobSeekerIdRequired", "JobSeekerId krävs."));
+
+        if (language is null)
+            return Result.Failure<Resume>(DomainError.Validation(
+                "Resume.LanguageRequired", "Språk krävs."));
 
         var nameCheck = ValidateName(name);
         if (nameCheck.IsFailure)
@@ -236,6 +242,7 @@ public sealed class Resume : AggregateRoot<ResumeId>
         // Origin by construction (ADR 0096): promoting a parsed import IS the import
         // path — "promote sets källa=import" is satisfied here, not by a setter.
         var resume = new Resume(id, jobSeekerId, nameCheck.Value, ResumeSourceOrigin.Import, now);
+        resume.Language = language;
         // PR-9c (ADR 0100 §D5): persist the parsed→resume provenance the event carries
         // transiently — it is the cascade key for per-CV original-file erasure. Set by
         // construction (before events), mirroring Origin.

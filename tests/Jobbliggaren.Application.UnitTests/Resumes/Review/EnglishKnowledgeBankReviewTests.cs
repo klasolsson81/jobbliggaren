@@ -8,7 +8,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 
 /// <summary>
 /// #2341: an English CV is read with the English cliché and soft-skill list, chosen by the CV's
-/// language, so A7 and A9 judge English text instead of passing it for want of Swedish words.
+/// language, so A7 and A9 judge English text instead of passing it for want of Swedish words. Its
+/// notes never ask its author for Swedish text.
 /// </summary>
 public class EnglishKnowledgeBankReviewTests
 {
@@ -67,5 +68,24 @@ public class EnglishKnowledgeBankReviewTests
             "A9", "Reliable QA engineer who cut the time to a verified fix from 9 to 3 days.", ResumeLanguage.En);
 
         a9.Verdict.ShouldBe(CriterionVerdict.Pass);
+    }
+
+    [Fact]
+    public async Task A8_ShouldNotAskAnEnglishCvForASwedishSummary()
+    {
+        var a8 = await VerdictAsync(
+            "A8", "Objective: To obtain a challenging position in software testing.", ResumeLanguage.En);
+
+        a8.Verdict.ShouldBe(CriterionVerdict.Fail);
+        Note(a8).ShouldBe("profiltext i \"Objective\"-USA-stil, skriv en kort sammanfattning");
+    }
+
+    [Fact]
+    public async Task C4_ShouldNotCiteASwedishStandard_ToAnEnglishCv()
+    {
+        var c4 = await VerdictAsync("C4", "Experienced QA engineer. She led the test team in 2024.", ResumeLanguage.En);
+
+        c4.Verdict.ShouldBe(CriterionVerdict.Warn);
+        Note(c4).ShouldBe("tredje person: använd konsekvent perspektiv (CV-standard: utan pronomen)");
     }
 }

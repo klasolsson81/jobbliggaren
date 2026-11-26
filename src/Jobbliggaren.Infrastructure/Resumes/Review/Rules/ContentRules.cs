@@ -386,14 +386,14 @@ internal sealed class A8ProfileRule : ICriterionRule
                     context.RawText, profile, $"profiltext är för lång ({words} ord, gränsen är {maxWords:0})")));
         }
 
-        // #489: the rubric's "Objective: To obtain..."-USA-style clause. A Swedish CV profile opening
-        // with the English "Objective" heading is the objective-statement anti-pattern the rubric
-        // fails (deterministic prefix, never a Swedish false positive; agent review completeness).
+        // #489: the rubric's "Objective: To obtain..."-USA-style clause. A profile opening with the
+        // "Objective" heading is the objective-statement anti-pattern the rubric fails, whatever the
+        // CV's language (deterministic prefix, never a Swedish false positive).
         if (profile.TrimStart().StartsWith("Objective", StringComparison.OrdinalIgnoreCase))
         {
             return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Fail,
                 ReviewText.Cite(ReviewText.SpanExcerpt(
-                    context.RawText, profile, "profiltext i \"Objective\"-USA-stil, skriv en kort svensk sammanfattning")));
+                    context.RawText, profile, "profiltext i \"Objective\"-USA-stil, skriv en kort sammanfattning")));
         }
 
         // #489: "ren adjektivlista" is a rubric Fail. Detect a bare list DOMINATED by curated

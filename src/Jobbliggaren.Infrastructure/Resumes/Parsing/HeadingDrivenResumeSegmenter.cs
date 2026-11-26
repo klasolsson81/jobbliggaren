@@ -744,12 +744,6 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     private static readonly string[] TitleOrgSeparators =
         [" — ", " – ", " - ", ", ", " | ", " @ ", " at ", " på ", " hos "];
 
-    /// <summary>
-    /// Reads a header line's two fields: a trailing date is stripped, then the line splits on the
-    /// first <see cref="TitleOrgSeparators"/> entry it carries. The one reading of "does this line
-    /// name a role and an employer", shared by the field split above and by
-    /// <see cref="EntryBoundaries"/>, which accepts a header only when this read succeeds.
-    /// </summary>
     internal static bool TryReadHeaderFields(string line, out string title, out string organization, out string separator) =>
         TrySplitFields(StripTrailingPeriod(line.Trim()), out title, out organization, out separator);
 

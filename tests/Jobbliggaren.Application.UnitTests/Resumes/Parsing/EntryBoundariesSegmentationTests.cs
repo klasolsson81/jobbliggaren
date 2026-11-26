@@ -315,6 +315,44 @@ public class EntryBoundariesSegmentationTests
         experiences[0].Organization.ShouldBe("Acme AB");
     }
 
+    // A dated line whose text before the date ends a sentence is description, never a dated header.
+    [Fact]
+    public void Segment_DatedSentenceInsideADescription_OpensNoEntry()
+    {
+        var experiences = _sut.Segment(
+            """
+            Arbetslivserfarenhet
+            Testledare — Acme AB 2020 – 2023
+            Testade betalflöden.
+            Vikarierade hos Volvo. 2019 – 2020
+            Studieuppehåll, resa i Asien. 2018 – 2019
+            Utvecklare — Beta AB 2016 – 2018
+            Byggde tjänster.
+            """).Content.Experience;
+
+        experiences.Select(e => e.Organization).ShouldBe(["Acme AB", "Beta AB"]);
+    }
+
+    // In a period-first run, a range whose line above is header-shaped reads as that line's date too,
+    // so it is not cut.
+    [Fact]
+    public void Segment_PeriodFirstRunWithALaterHeaderAboveItsRange_IsNotCut()
+    {
+        var experiences = _sut.Segment(
+            """
+            Arbetslivserfarenhet
+            2020 – 2023
+            Testledare — Acme AB
+            Testade betalflöden.
+            Utvecklare — Beta AB
+            2016 – 2020
+            Byggde tjänster, skrev tester
+            """).Content.Experience;
+
+        experiences.Count.ShouldBe(1);
+        experiences[0].Organization.ShouldBe("Acme AB");
+    }
+
     // A header whose second field is only a year names no employer: the anchor test and the field
     // split read the line alike, so no entry with an empty organization or institution is cut.
     [Fact]

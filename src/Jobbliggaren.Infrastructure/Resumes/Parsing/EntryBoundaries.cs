@@ -139,7 +139,8 @@ internal static class EntryBoundaries
             Layout.PeriodFirst when IsRangeRow(lines[i])
                 && i - previousDateLine >= 2
                 && i + 1 < lines.Count
-                && IsCompleteHeader(lines[i + 1], excludedName) => i,
+                && IsCompleteHeader(lines[i + 1], excludedName)
+                && (i - 1 == previousDateLine + 1 || !CouldHeadTheRange(lines[i - 1], excludedName)) => i,
             Layout.OneLineHeader when IsRangeRow(lines[i])
                 && i - 1 > previousDateLine
                 && IsCompleteHeader(lines[i - 1], excludedName)
@@ -153,11 +154,13 @@ internal static class EntryBoundaries
         };
 
     // A one-line header admits one reading only when the line above it cannot be the upper line of
-    // a two-line header: it is the previous entry's date line, or it is not header-shaped. Otherwise
-    // intro + "Role — Employer" and "Role" / "Employer, City" read alike.
+    // a two-line header. Otherwise intro + "Role — Employer" and "Role" / "Employer, City" read alike.
     private static bool HasOneReading(
         IReadOnlyList<string> lines, int headerLine, int previousDateLine, string? excludedName) =>
-        headerLine - 1 <= previousDateLine || !IsHeaderShaped(lines[headerLine - 1], excludedName);
+        headerLine - 1 <= previousDateLine || !CouldHeadTheRange(lines[headerLine - 1], excludedName);
+
+    private static bool CouldHeadTheRange(string line, string? excludedName) =>
+        IsHeaderShaped(line, excludedName) && !IsDated(line);
 
     private static bool IsRangeRow(string line)
     {
@@ -185,6 +188,7 @@ internal static class EntryBoundaries
         var trimmed = line.Trim();
         return DatePatterns.TryStripTrailingDateRange(trimmed, out var head)
             && head.Length > 0
+            && IsHeaderShaped(head, excludedName)
             && IsCompleteHeader(trimmed, excludedName);
     }
 

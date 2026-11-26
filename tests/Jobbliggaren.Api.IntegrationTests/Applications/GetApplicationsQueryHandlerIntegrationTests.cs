@@ -2,6 +2,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Applications.Attention;
 using Jobbliggaren.Application.Applications.Queries.GetApplications;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -37,6 +38,11 @@ namespace Jobbliggaren.Api.IntegrationTests.Applications;
 [Collection("Api")]
 public class GetApplicationsQueryHandlerIntegrationTests
 {
+    // #2248: both list reads resolve the ad's Ort through the taxonomy ACL; the real port, so a
+    // handler built by hand reads what the DI-built one does.
+    private static ITaxonomyReadModel Taxonomy(IServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<ITaxonomyReadModel>();
+
     private readonly ApiFactory _factory;
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
@@ -91,7 +97,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         currentUser.UserId.Returns((Guid?)null);
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var handler = new GetApplicationsQueryHandler(db, currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -108,7 +114,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -125,7 +131,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -143,7 +149,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         var (_, apps) = await SeedAsync(db, clock, _userId, draftCount: 1, submittedCount: 1);
         var submitted = apps.Single(a => a.Status == ApplicationStatus.Submitted);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -167,7 +173,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetApplicationsQuery(Status: "Draft"), CancellationToken.None);
 
@@ -185,7 +191,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 2, submittedCount: 1);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetApplicationsQuery(Status: "Submitted"), CancellationToken.None);
 
@@ -206,7 +212,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         var otherUserId = Guid.NewGuid();
         await SeedAsync(db, clock, otherUserId, draftCount: 3);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
@@ -224,7 +230,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
 
         await SeedAsync(db, clock, _userId, draftCount: 5);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
 
         var result = await handler.Handle(
             new GetApplicationsQuery(Page: 1, PageSize: 2),
@@ -254,7 +260,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.Single();

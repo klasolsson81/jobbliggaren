@@ -158,8 +158,8 @@ public sealed class GetActivityReportQueryHandler(
             })
             .ToListAsync(cancellationToken);
 
-        var locationByConceptId = await ResolveLocationsAsync(
-            rows.Select(r => r.MunicipalityConceptId), cancellationToken);
+        var locationByConceptId = await MunicipalityLabels.ResolveAsync(
+            taxonomy, rows.Select(r => r.MunicipalityConceptId), cancellationToken);
 
         var items = rows
             .Select(r => new ActivityReportItemDto(
@@ -167,10 +167,7 @@ public sealed class GetActivityReportQueryHandler(
                 r.AppliedAt,
                 r.Employer,
                 r.Title,
-                r.MunicipalityConceptId is not null
-                    && locationByConceptId.TryGetValue(r.MunicipalityConceptId, out var loc)
-                        ? loc
-                        : null,
+                MunicipalityLabels.For(locationByConceptId, r.MunicipalityConceptId),
                 r.Source,
                 r.Url,
                 r.AdStatus))
@@ -194,36 +191,5 @@ public sealed class GetActivityReportQueryHandler(
         // previous YEAR. Deriving it from a boundary instant would be worse: that
         // value is the previous month by construction, every day of the month.
         return calendar.MonthOf(clock.UtcNow);
-    }
-
-    /// <summary>
-    /// Batch-resolve distinct municipality concept-ids to human labels via the
-    /// taxonomy ACL (one call, bounded). A concept-id that does not resolve
-    /// (taxonomy drift) comes back without a label — we drop it rather than
-    /// surface the opaque id in a civic report (§5).
-    /// </summary>
-    private async Task<IReadOnlyDictionary<string, string>> ResolveLocationsAsync(
-        IEnumerable<string?> conceptIds, CancellationToken cancellationToken)
-    {
-        var distinct = conceptIds
-            .Where(id => id is not null)
-            .Select(id => id!)
-            .Distinct()
-            .ToList();
-
-        if (distinct.Count == 0)
-            return new Dictionary<string, string>();
-
-        var labels = await taxonomy.ResolveLabelsAsync(distinct, cancellationToken);
-
-        var map = new Dictionary<string, string>(labels.Count);
-        foreach (var label in labels)
-        {
-            // An unresolved code renders as the neutral empty placeholder, never
-            // as a leaked concept-id (§5).
-            if (label.Label is not null)
-                map[label.ConceptId] = label.Label;
-        }
-        return map;
     }
 }

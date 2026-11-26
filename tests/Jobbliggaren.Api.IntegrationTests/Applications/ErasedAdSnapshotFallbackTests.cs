@@ -53,6 +53,11 @@ namespace Jobbliggaren.Api.IntegrationTests.Applications;
 [Collection("Api")]
 public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
 {
+    // #2248: both list reads resolve the ad's Ort through the taxonomy ACL; the real port, so a
+    // handler built by hand reads what the DI-built one does.
+    private static ITaxonomyReadModel Taxonomy(IServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<ITaxonomyReadModel>();
+
     private static readonly DateTimeOffset T0 = new(2026, 7, 15, 9, 0, 0, TimeSpan.Zero);
 
     private static readonly IOptions<ApplicationAttentionOptions> AttentionOptions =
@@ -184,7 +189,7 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var seed = await SeedAsync(db, ct);
 
         var handler = new GetApplicationsQueryHandler(
-            db, UserWith(seed.UserId), ClockAt(T0), AttentionOptions);
+            db, UserWith(seed.UserId), ClockAt(T0), AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetApplicationsQuery(), ct);
 
         result.Items.Count.ShouldBe(4);
@@ -219,7 +224,7 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var seed = await SeedAsync(db, ct);
 
         var handler = new GetApplicationsQueryHandler(
-            db, UserWith(seed.UserId), ClockAt(T0), AttentionOptions);
+            db, UserWith(seed.UserId), ClockAt(T0), AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetApplicationsQuery(), ct);
 
         // R5: the domain tombstone sentinel "[raderad]" must never cross the Application
@@ -244,7 +249,7 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var seed = await SeedAsync(db, ct);
 
         var handler = new GetPipelineQueryHandler(
-            db, UserWith(seed.UserId), ClockAt(T0), AttentionOptions);
+            db, UserWith(seed.UserId), ClockAt(T0), AttentionOptions, Taxonomy(scope));
         var groups = await handler.Handle(new GetPipelineQuery(), ct);
 
         var all = groups.SelectMany(g => g.Applications).ToList();

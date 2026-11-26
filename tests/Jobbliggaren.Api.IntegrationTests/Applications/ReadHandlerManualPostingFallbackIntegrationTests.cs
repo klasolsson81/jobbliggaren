@@ -41,6 +41,11 @@ namespace Jobbliggaren.Api.IntegrationTests.Applications;
 [Collection("Api")]
 public class ReadHandlerManualPostingFallbackIntegrationTests
 {
+    // #2248: both list reads resolve the ad's Ort through the taxonomy ACL; the real port, so a
+    // handler built by hand reads what the DI-built one does.
+    private static ITaxonomyReadModel Taxonomy(IServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<ITaxonomyReadModel>();
+
     private readonly ApiFactory _factory;
 
     private readonly ICurrentUser _currentUser = Substitute.For<ICurrentUser>();
@@ -107,7 +112,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.ShouldHaveSingleItem();
@@ -138,7 +143,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.ShouldHaveSingleItem();
@@ -174,7 +179,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.ShouldHaveSingleItem();
@@ -198,7 +203,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
             DomainApplication.Create(otherSeeker.Id, null, null, ManualVo(), clock).Value);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         result.Items.Count.ShouldBe(1);
@@ -296,7 +301,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         jobAd.Archive(clock).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetApplicationsQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetApplicationsQuery(), CancellationToken.None);
 
         var dto = result.Items.ShouldHaveSingleItem();
@@ -401,7 +406,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var group = result.ShouldHaveSingleItem();
@@ -426,7 +431,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var group = result.ShouldHaveSingleItem();
@@ -459,7 +464,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         jobAd.Archive(clock).IsSuccess.ShouldBeTrue();
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var group = result.ShouldHaveSingleItem();
@@ -488,7 +493,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var group = result.ShouldHaveSingleItem();
@@ -520,7 +525,7 @@ public class ReadHandlerManualPostingFallbackIntegrationTests
         db.Applications.Add(app);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions);
+        var handler = new GetPipelineQueryHandler(db, _currentUser, clock, AttentionOptions, Taxonomy(scope));
         var result = await handler.Handle(new GetPipelineQuery(), CancellationToken.None);
 
         var dto = result.First(g => g.Status == "Draft").Applications.Single();

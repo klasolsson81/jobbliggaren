@@ -37,4 +37,9 @@ public sealed record ApplicationDto(
     // re-implemented in TypeScript (SPOT). Default None keeps it out of the EF
     // projection (Evaluate is not SQL-translatable); both read handlers re-stamp it
     // in-memory after materialisation. Serialized by NAME (JsonStringEnumConverter).
-    ApplicationAttentionSignal AttentionSignal = ApplicationAttentionSignal.None);
+    ApplicationAttentionSignal AttentionSignal = ApplicationAttentionSignal.None,
+    // #2248: the ad's "Ort" — its municipality resolved to a Swedish name, the same value the
+    // activity report shows (MunicipalityLabels). null when the ad names none, the id does not
+    // resolve, or there is no ad row (manual). Stamped in-memory after materialisation like
+    // AttentionSignal: the taxonomy lookup is one batched call, not part of the EF projection.
+    string? Location = null);

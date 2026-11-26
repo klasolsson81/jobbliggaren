@@ -243,7 +243,9 @@ internal static class ReviewText
             experience.Title, experience.Organization, experience.Period,
             null, null, experience.RawText, TextIsDescriptionOnly: false));
 
-    /// <summary>Profile + all experience text joined, for whole-CV prose scans (lowercased on demand).
+    /// <summary>Profile + each experience's description lines joined, for whole-CV prose scans
+    /// (lowercased on demand). Both arms scan the same text: the staging block's header, period and
+    /// organisation lines are not prose.
     /// <para>NB (#478 Low, v1 scope): a citation resolved against this concatenation carries an offset
     /// into the SYNTHETIC joined string, not into any single <c>RawText</c> field. The verbatim
     /// <c>Quote</c> is the ground truth the UI highlights by; the offset is a positional hint only and
@@ -259,9 +261,12 @@ internal static class ReviewText
 
         foreach (var experience in context.Content.Experience)
         {
-            if (!string.IsNullOrWhiteSpace(experience.Text))
+            var text = experience.TextIsDescriptionOnly
+                ? experience.Text
+                : string.Join('\n', DescriptionLines(experience));
+            if (!string.IsNullOrWhiteSpace(text))
             {
-                sb.AppendLine(experience.Text);
+                sb.AppendLine(text);
             }
         }
 

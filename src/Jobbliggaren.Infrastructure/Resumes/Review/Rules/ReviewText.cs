@@ -301,6 +301,22 @@ internal static class ReviewText
     public static bool ContainsMeasurableDigit(string text) =>
         ContainsDigit(DatePatterns.StripDates(text));
 
+    /// <summary>The bullet from its first word on. A bullet's first word is its first token that
+    /// carries a letter or a digit, the token the analyzer gives A2 as the opener, so a lead glyph
+    /// is never a word (#2352).</summary>
+    public static string FromFirstWord(string bullet)
+    {
+        for (var i = 0; i < bullet.Length; i++)
+        {
+            if (char.IsLetterOrDigit(bullet[i]))
+            {
+                return bullet[i..];
+            }
+        }
+
+        return string.Empty;
+    }
+
     /// <summary>True if <paramref name="text"/> (lowercased) starts with <paramref name="phrase"/>
     /// on a word boundary (so "ledde" matches "ledde teamet" but not "ledning").</summary>
     public static bool StartsWithWord(string text, string phrase)

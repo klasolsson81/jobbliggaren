@@ -248,7 +248,8 @@ internal sealed class A6ConcretionRule : ICriterionRule
             return true;
         }
 
-        var words = bullet.Split([' ', ',', ';', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var words = ReviewText.FromFirstWord(bullet)
+            .Split([' ', ',', ';', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         for (var i = 1; i < words.Length; i++)
         {
             if (words[i].Length > 1 && char.IsUpper(words[i][0]))

@@ -219,7 +219,7 @@ public sealed class CorpusGenerator(CorpusConfig? config = null)
             new ParsedContact("Anna Andersson", "anna@example.com", "070-123 45 67",
                 Pick(SwedishCorpusLexicon.Locations, rng)),
             $"Erfaren {title.ToLowerInvariant()} med åtta års erfarenhet.",
-            [new ParsedExperience(title, org, "2021–2024", $"{title}, {org}, 2021–2024. {bullet}")],
+            [new ParsedExperience(title, org, "2021–2024", $"{title}, {org}, 2021–2024\n{bullet}")],
             [new ParsedEducation("KTH", "Civilingenjör", "2016–2021", "KTH Civilingenjör 2016–2021")],
             [.. SwedishCorpusLexicon.Skills.Take(3)],
             ["Svenska", "Engelska"]);
@@ -267,7 +267,7 @@ public sealed class CorpusGenerator(CorpusConfig? config = null)
         var content = new ParsedResumeContent(
             new ParsedContact("John Smith", "john@example.com", "+44 20 1234 5678", "London"),
             $"Experienced {title} delivering scalable systems.",
-            [new ParsedExperience(title, "Globex", "2019-2024", $"{title} at Globex, 2019-2024. Led a team of 8.")],
+            [new ParsedExperience(title, "Globex", "2019-2024", $"{title} at Globex, 2019-2024\nLed a team of 8.")],
             [new ParsedEducation("MIT", "B.Sc.", "2015-2019", "MIT B.Sc. 2015-2019")],
             ["C#", "Go", "Kubernetes"], ["English"]);
         return (content, $"John Smith\n{title}", ResumeLanguage.En);
@@ -287,10 +287,12 @@ public sealed class CorpusGenerator(CorpusConfig? config = null)
     private static (ParsedResumeContent, string, ResumeLanguage) NewlyArrivedCv(Random rng)
     {
         var name = Pick(SwedishCorpusLexicon.NonSwedishNames, rng);
+        var location = Pick(SwedishCorpusLexicon.Locations, rng);
+        var track = Pick(SwedishCorpusLexicon.SecondaryTracks, rng);
         var content = new ParsedResumeContent(
-            new ParsedContact(name, "newcomer@example.com", null, Pick(SwedishCorpusLexicon.Locations, rng)),
+            new ParsedContact(name, "newcomer@example.com", null, location),
             "Recently arrived. Söker arbete. Open to work.",
-            [new ParsedExperience(Pick(SwedishCorpusLexicon.SecondaryTracks, rng), null, null, "Tidigare arbete utomlands")],
+            [new ParsedExperience(track, null, null, $"{track}\nTidigare arbete utomlands")],
             [], [Pick(SwedishCorpusLexicon.Skills, rng)], ["Engelska", "Arabiska"]);
         return (content, $"{name}\nSöker arbete", ResumeLanguage.En);
     }
@@ -298,10 +300,12 @@ public sealed class CorpusGenerator(CorpusConfig? config = null)
     private static (ParsedResumeContent, string, ResumeLanguage) AdversarialCv(Random rng)
     {
         var rawText = AdversarialText(rng);
+        var title = new string('q', 2000);
+        const string period = "<script>alert(1)</script>";
         var content = new ParsedResumeContent(
             new ParsedContact("XY", "a@b.c", "\t\t\t", new string('Z', 500)),
             new string('å', 1000),
-            [new ParsedExperience(new string('q', 2000), "Org", "<script>alert(1)</script>", rawText[..Math.Min(rawText.Length, 4000)])],
+            [new ParsedExperience(title, "Org", period, $"{title}, Org, {period}\n{rawText[..Math.Min(rawText.Length, 4000)]}")],
             [], [], []);
         return (content, rawText, ResumeLanguage.Sv);
     }
@@ -313,7 +317,7 @@ public sealed class CorpusGenerator(CorpusConfig? config = null)
         var content = new ParsedResumeContent(
             new ParsedContact("Erik Eriksson", "erik@example.com", "070-555 00 00", "Göteborg"),
             $"Systemvetare. Personnummer: {pnr}.",
-            [new ParsedExperience("Systemvetare", org, "2020–2024", $"Systemvetare, {org}. Pnr {pnr}.")],
+            [new ParsedExperience("Systemvetare", org, "2020–2024", $"Systemvetare, {org}, 2020–2024\nPnr {pnr}.")],
             [new ParsedEducation("GU", "Kandidat", "2016–2019", "GU Kandidat 2016–2019")],
             ["SQL", "C#"], ["Svenska"]);
         return (content, $"Erik Eriksson\n{pnr}\nSystemvetare", ResumeLanguage.Sv);

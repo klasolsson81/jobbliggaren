@@ -69,7 +69,6 @@ public class WrappedPdfBulletTests
         "Reported defects in Jira and followed them up with the developers until they were verified and\nclosed.",
     ];
 
-    // The width-setting line of every Swedish CV below: the longest line.
     private const string SwedishProfile =
         "Erfaren lagerarbetare med flera års erfarenhet av plock, packning och leveranser inom dagligvaruhandeln";
 
@@ -223,6 +222,8 @@ public class WrappedPdfBulletTests
         var entry = parsed.Content.Experience.ShouldHaveSingleItem();
         entry.RawText.ShouldStartWith(header, customMessage: "premise: the long line is the entry's header");
         entry.Organization.ShouldNotBe(tail, "premise: the tail is not read as the organisation");
+        LineWrapMeasure.For(parsed.SourceContentType, parsed.RawText).ShouldNotBeNull().Continues(header, tail)
+            .ShouldBeTrue("premise: the tail reads as the wrap of the header line");
         Units(parsed).ShouldBe([tail]);
     }
 

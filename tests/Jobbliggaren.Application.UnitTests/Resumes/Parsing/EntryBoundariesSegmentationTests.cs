@@ -2,6 +2,10 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Jobbliggaren.Application.Resumes.Abstractions;
+using Jobbliggaren.Application.Resumes.Common;
+using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using QuestPDF.Fluent;
@@ -13,8 +17,7 @@ using QuestDocument = QuestPDF.Fluent.Document;
 namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 
 // #2249 — entry boundaries recovered from each entry's own date when the text carries no blank
-// line (PDF text always; a paragraph-spaced DOCX too), repeated typed sections kept apart, and the
-// inline "Experience: …" heading accepted only when dated entries follow it.
+// line (PDF text always; a paragraph-spaced DOCX too), and repeated typed sections kept apart.
 //
 // The fixture mirrors the STRUCTURE of the reported CV — eleven assignments under
 // "Arbetslivserfarenhet", then two employer rows under "Anställningar" that state only the
@@ -178,7 +181,7 @@ public class EntryBoundariesSegmentationTests
     }
 
     [Fact]
-    public void Segment_EmployerRowsWithoutDescriptions_EachStayAnEntryOfTheirOwn()
+    public void Segment_EmployerRowsNamingOnlyTheEmployer_StayFused()
     {
         const string cv =
             """
@@ -193,8 +196,225 @@ public class EntryBoundariesSegmentationTests
 
         var experiences = _sut.Segment(cv).Content.Experience;
 
-        experiences.Select(e => e.Title).ShouldBe(["Konsultbolaget Alfa AB", "Konsultbolaget Beta AB", "Spelbolaget Gamma AB"]);
-        experiences.Select(e => e.Period).ShouldBe(["2025 – nuvarande", "2022 – 2025", "2018 – 2022"]);
+        // Accepted and known: a header naming one field is not an anchor, so the run is not cut.
+        experiences.Count.ShouldBe(1);
+        experiences[0].RawText.ShouldBe(string.Join('\n', cv.ReplaceLineEndings("\n").Split('\n').Skip(1)));
+    }
+
+    // ── Counter-examples from the 2026-11-01 review of PR #2250 ─────────────────────
+
+    // M1: a date inside ONE entry's description is not a second entry — in a blank-line CV (where
+    // the blank lines stay the only boundary) and in the same CV without them.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Segment_DateRowInsideADescription_OpensNoEntry(bool blankBetweenEntries)
+    {
+        var experiences = _sut.Segment(Cv(blankBetweenEntries, "Arbetslivserfarenhet",
+            ["Testledare — Acme AB", "2020 – 2023", "Certifierad ISTQB Foundation", "2021", "Ansvarade för regressionstester."],
+            ["Utvecklare — Beta AB", "2016 – 2020", "Byggde tjänster."])).Content.Experience;
+
+        experiences.Count.ShouldBe(2);
+        experiences[0].RawText.ShouldBe(
+            "Testledare — Acme AB\n2020 – 2023\nCertifierad ISTQB Foundation\n2021\nAnsvarade för regressionstester.");
+        experiences[1].Organization.ShouldBe("Beta AB");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Segment_DatedLineWithoutAnEmployerInsideADescription_OpensNoEntry(bool blankBetweenEntries)
+    {
+        var experiences = _sut.Segment(Cv(blankBetweenEntries, "Arbetslivserfarenhet",
+            ["Konsult — Acme AB 2019 – 2024", "Projektledning för molnmigrering 2021 – 2022", "Ansvarade för releaser."],
+            ["Utvecklare — Beta AB 2015 – 2019", "Byggde tjänster."])).Content.Experience;
+
+        experiences.Count.ShouldBe(2);
+        experiences[0].RawText.ShouldBe(
+            "Konsult — Acme AB 2019 – 2024\nProjektledning för molnmigrering 2021 – 2022\nAnsvarade för releaser.");
+        experiences[1].Organization.ShouldBe("Beta AB");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Segment_YearRowInsideAnEducationEntry_OpensNoEntry(bool blankBetweenEntries)
+    {
+        var educations = _sut.Segment(Cv(blankBetweenEntries, "Utbildning",
+            ["Civilingenjör — Exempeluniversitetet", "2005 – 2010", "Examensarbete inom maskininlärning", "2010"],
+            ["Gymnasieexamen — Exempelgymnasiet", "2002 – 2005"])).Content.Education;
+
+        educations.Count.ShouldBe(2);
+        educations[0].RawText.ShouldBe(
+            "Civilingenjör — Exempeluniversitetet\n2005 – 2010\nExamensarbete inom maskininlärning\n2010");
+        educations[1].Institution.ShouldBe("Exempelgymnasiet");
+    }
+
+    // M2: a header that starts in lower case still anchors on a dash, and no later description
+    // line becomes a title or an employer.
+    [Fact]
+    public void Segment_LowercaseInitialHeaders_KeepEveryEntryWhole()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["iOS-utvecklare — Acme AB", "2020 – 2023", "Byggde appar, ansvarade för releaser."],
+            ["e-handelsansvarig — Beta AB", "2018 – 2020", "Byggde tjänster, skrev tester."],
+            ["Utvecklare — Gamma AB", "2015 – 2018", "Ritade system."])).Content.Experience;
+
+        experiences.Select(e => e.Title).ShouldBe(["iOS-utvecklare", "e-handelsansvarig", "Utvecklare"]);
+        experiences.Select(e => e.Organization).ShouldBe(["Acme AB", "Beta AB", "Gamma AB"]);
+    }
+
+    // A lower-case line split only on a comma reads as a wrapped description clause, so it never
+    // heads the date row under it.
+    [Fact]
+    public void Segment_LowercaseCommaLineAboveADateRow_IsNoHeader()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Testledare — Acme AB", "2020 – 2023", "Ledde testarbetet för två system och", "byggde appar, skrev tester", "2018 – 2019"],
+            ["Utvecklare — Beta AB", "2015 – 2018", "Ritade system."])).Content.Experience;
+
+        experiences.Select(e => e.Title).ShouldBe(["Testledare", "Utvecklare"]);
+        experiences[0].RawText.ShouldEndWith("byggde appar, skrev tester\n2018 – 2019");
+    }
+
+    // Where the author wrote blank lines they stay the only boundary, so a sub-assignment written
+    // inside one entry's description is not cut out of it.
+    [Fact]
+    public void Segment_SubAssignmentInsideABlankLineSeparatedEntry_StaysInThatEntry()
+    {
+        var experiences = _sut.Segment(Cv(true, "Arbetslivserfarenhet",
+            ["Konsult — Acme AB", "2019 – 2024", "Uppdrag i urval.", "Projektledare, Volvo", "2021 – 2022", "Ledde migreringen."],
+            ["Utvecklare — Beta AB", "2015 – 2019", "Byggde tjänster."])).Content.Experience;
+
+        experiences.Count.ShouldBe(2);
+        experiences[0].RawText.ShouldBe(
+            "Konsult — Acme AB\n2019 – 2024\nUppdrag i urval.\nProjektledare, Volvo\n2021 – 2022\nLedde migreringen.");
+    }
+
+    // M3: an unpunctuated line above the first header reads both as an intro and as the role of a
+    // two-line header, so the run is not cut; a punctuated intro is unambiguous and is cut.
+    [Fact]
+    public void Segment_UnpunctuatedIntroAboveTheFirstHeader_StaysFused()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Konsultuppdrag via Konsultbolaget Alfa AB"],
+            ["Testledare — Kund Ett AB", "2020 – 2023", "Teknik: Playwright, Azure DevOps"],
+            ["Utvecklare — Kund Två AB", "2018 – 2020", "Teknik: Java, Spring"])).Content.Experience;
+
+        experiences.Count.ShouldBe(1);
+        experiences.ShouldNotContain(e => e.Title != null && e.Title.StartsWith("Teknik", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Segment_PunctuatedIntroAboveTheFirstHeader_IsRoutedAndTheEntriesAreCut()
+    {
+        var content = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Konsultuppdrag via Konsultbolaget Alfa AB."],
+            ["Testledare — Kund Ett AB", "2020 – 2023", "Teknik: Playwright, Azure DevOps"],
+            ["Utvecklare — Kund Två AB", "2018 – 2020", "Teknik: Java, Spring"])).Content;
+
+        content.Experience.Select(e => e.Title).ShouldBe(["Testledare", "Utvecklare"]);
+        content.Experience.Select(e => e.Organization).ShouldBe(["Kund Ett AB", "Kund Två AB"]);
+        content.Experience[0].RawText.ShouldEndWith("Teknik: Playwright, Azure DevOps");
+        content.Sections.Single(s => s.Heading == "Arbetslivserfarenhet").Entries
+            .Single().Lines.ShouldBe(["Konsultuppdrag via Konsultbolaget Alfa AB."]);
+    }
+
+    // M4: the intro line under the heading becomes no entry, so no company-less entry blocks the
+    // whole CV at the auto-promote gate.
+    [Fact]
+    public void Segment_IntroLineAboveDatedHeaders_IsRoutedAndTheCvStaysPromotable()
+    {
+        const string cv =
+            """
+            Alex Example
+            alex@example.com
+            Experience
+            See LinkedIn for my education and recommendations.
+            QA consultant — Example Consulting AB 08/2025 - Present
+            I performance tested web applications and APIs.
+            Scrum Master — Sample Experience AB 08/2022 - 07/2025
+            I was responsible for several web QA projects.
+            QA Tester — Game Studio AB 11/2018 - 10/2021
+            Tested the release on three platforms.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        result.Content.Experience.Select(e => e.Organization)
+            .ShouldBe(["Example Consulting AB", "Sample Experience AB", "Game Studio AB"]);
+        result.Content.Sections.Single(s => s.Heading == "Experience").Entries
+            .Single().Lines.ShouldBe(["See LinkedIn for my education and recommendations."]);
+
+        var parsed = ParsedResume.Create(
+            JobSeekerId.New(), "cv.pdf", "application/pdf", result.DetectedLanguage, result.Content, cv,
+            result.Confidence, PersonnummerScanOutcome.None, [], FakeDateTimeProvider.Default).Value;
+        AutoPromoteGate.Evaluate(parsed, "CV", parsed.JobSeekerId, FakeDateTimeProvider.Default)
+            .ShouldBeOfType<AutoPromoteGateVerdict.Promotable>();
+    }
+
+    // m6: a running page header carrying the person's name, between a role line and its date row,
+    // is never read as a header. Accepted and known: that entry stays fused with the one above.
+    [Fact]
+    public void Segment_RunningHeaderWithTheNameBetweenRoleAndDate_IsNeverAHeader()
+    {
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+            Arbetslivserfarenhet
+            Testledare — Kund Ett AB
+            2020 – 2023
+            Testade betalflöden.
+            Utvecklare — Kund Två AB
+            Anna Andersson | CV 2026
+            2016 – 2020
+            Byggde tjänster.
+            """;
+
+        var experiences = _sut.Segment(cv).Content.Experience;
+
+        experiences.Count.ShouldBe(1);
+        experiences[0].Title.ShouldBe("Testledare");
+    }
+
+    // Accepted and known: "Role" / "Employer, City" reads as a two-line header and as an intro over a
+    // one-line header alike, so the run is not cut.
+    [Fact]
+    public void Segment_TwoLineHeaderWhoseEmployerLineCarriesACity_StaysFused()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Systemutvecklare", "Acme AB, Göteborg", "2019 – 2024", "Byggde integrationer."],
+            ["Backend-utvecklare", "Volvo Cars, Torslanda", "2015 – 2019", "Byggde tjänster."])).Content.Experience;
+
+        experiences.Count.ShouldBe(1);
+    }
+
+    // Accepted and known: a dated line above the first anchor is an entry the rule could not read,
+    // and it is not filed as free text outside the section.
+    [Fact]
+    public void Segment_DatedLineAboveTheFirstAnchor_StaysFused()
+    {
+        var content = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Sommarjobb på Exempelbolaget.", "2014"],
+            ["Testledare — Kund Ett AB", "2020 – 2023", "Testade betalflöden."],
+            ["Utvecklare — Kund Två AB", "2016 – 2020", "Byggde tjänster."])).Content;
+
+        content.Experience.Count.ShouldBe(1);
+        content.Sections.ShouldNotContain(s => s.Heading == "Arbetslivserfarenhet");
+    }
+
+    private static string Cv(bool blankBetweenEntries, string heading, params string[][] entries)
+    {
+        var lines = new List<string> { heading };
+        foreach (var entry in entries)
+        {
+            if (blankBetweenEntries)
+                lines.Add(string.Empty);
+            lines.AddRange(entry);
+        }
+
+        return string.Join('\n', lines);
     }
 
     // ── What must NOT become an entry ───────────────────────────────────────────────
@@ -305,26 +525,6 @@ public class EntryBoundariesSegmentationTests
         QA Tester Uppsala, Sweden Game Studio AB 11/2018 - 10/2021
         Tested the 2019 release on three platforms.
         """;
-
-    [Fact]
-    public void Segment_InlineExperienceHeadingFollowedByDatedHeaders_OpensTheSection()
-    {
-        var result = _sut.Segment(CompactEnglishCv);
-
-        // Not at a blank-line boundary (PDF text never is), but a dated entry follows it.
-        var experiences = result.Content.Experience;
-        experiences.Count.ShouldBe(4);
-
-        // The intro sentence the user wrote under the heading is kept verbatim, as its own entry —
-        // never glued onto the first employer.
-        experiences[0].RawText.ShouldBe("See LinkedIn for my education and recommendations.");
-        experiences[0].Period.ShouldBeNull();
-
-        experiences.Skip(1).Select(e => e.Period).ShouldBe(["08/2025 - Present", "08/2022 - 07/2025", "11/2018 - 10/2021"]);
-        experiences[2].RawText.ShouldContain("• Automated tests for an e-service, released 2024 - 2025 across agencies.");
-        result.Confidence.Sections.Single(s => s.Kind == ParsedSectionKind.Experience)
-            .Level.ShouldBe(SectionConfidenceLevel.Confident);
-    }
 
     [Fact]
     public void Segment_ProfileSentenceStartingWithExperienceColon_IsNotAHeading()

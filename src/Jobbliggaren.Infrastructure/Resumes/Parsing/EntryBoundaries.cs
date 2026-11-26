@@ -3,64 +3,77 @@ using System.Buffers;
 namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 /// <summary>
-/// Where one dated entry ends and the next begins inside a run of lines that carries NO blank line
-/// (#2249). A blank line is the only boundary <see cref="HeadingDrivenResumeSegmenter"/> used to
-/// see, and two common inputs never have one: PDF text (the extractor emits one newline per visual
-/// line, so authored spacing is gone — pinned by
-/// <c>PdfPigOpenXmlCvTextExtractorTests.Extract_PdfSpacingIsInvisibleInTheExtractedText_TodaysBase</c>)
-/// and a DOCX written with paragraph spacing instead of empty paragraphs. Both collapsed a whole
-/// experience section into one entry.
-///
-/// <para><b>The signal is the entry's own date, never spacing.</b> Two shapes are recognised:
-/// a date ROW (a line carrying nothing but a period, <see cref="DatePatterns.IsDateOnlyLine"/>)
-/// with the header lines that sit above it, and a DATED HEADER (role/employer text ending in a date
-/// RANGE on the same line). A run is split only when it holds at least TWO anchors of one shape — a
-/// run with one dated entry stays exactly what it was, so every blank-line-separated CV is
-/// untouched.</para>
-///
-/// <para><b>How many header lines go with a date row is read off the document, not assumed.</b>
-/// The first entry in the run fixes it (0 when the period comes first, 1 for "Role — Employer",
-/// 2 for "Role / Employer / Period"), and every later entry is cut at the same height. A later
-/// entry whose header lines do not look like a header is not cut at all — two entries left fused
-/// is the honest failure, an entry cut through its description is not.</para>
-///
-/// <para><b>What does not count.</b> A year or range INSIDE prose ("lanserades i oktober 2024",
-/// "During 2024-2025 I …") is neither a date row nor a trailing range; a bulleted line, a line that
-/// starts in lower case (a wrapped continuation) and a line longer than any header never anchor an
-/// entry. Nothing is added, dropped or reordered: the entries partition the input lines.</para>
+/// Where one dated entry ends and the next begins in a run of lines that carries no blank line
+/// (#2249). A boundary is cut only where the document admits exactly one reading of it; anything
+/// read off the document may narrow where cuts are allowed, never place one. A boundary that is
+/// ambiguous or unreadable is not cut, and the run stays one entry.
 /// </summary>
 internal static class EntryBoundaries
 {
-    // A header names a role, an employer and perhaps a place and a period. A line longer than this
-    // is wrapped description prose, whatever it ends with.
     private const int MaxHeaderLength = 120;
-
-    // The most header lines a date row may own ("Role / Employer / Period" is two).
-    private const int MaxHeaderHeight = 2;
 
     // Bullet glyphs a CV realistically uses. A bulleted line is content, never a header.
     private static readonly SearchValues<char> BulletMarkers =
         SearchValues.Create(['-', '*', '•', '–', '—', '·', '●', '▪']);
 
-    // A line ending like a sentence is prose, not the upper line of a two-line header.
     private static readonly SearchValues<char> SentenceEnds =
         SearchValues.Create(['.', '!', '?', ':', ';', ',']);
 
+    // A comma joins two prose clauses as readily as a role and an employer, so a header that starts
+    // in lower case ("iOS-utvecklare — Acme AB") is read only on these separators.
+    private static readonly string[] LowercaseHeaderSeparators = [" — ", " – ", " - ", " | ", " @ "];
+
+    private enum Layout
+    {
+        // "2020 – 2023" / "Role — Employer"
+        PeriodFirst,
+
+        // "Role — Employer 2020 – 2023"
+        DatedHeader,
+
+        // "Role — Employer" / "2020 – 2023"
+        OneLineHeader,
+
+        // "Role" / "Employer" / "2020 – 2023"
+        TwoLineHeader,
+    }
+
+    private readonly record struct Anchor(Layout Layout, int Start, int DateLine);
+
+    /// <summary>The entries of a split run, and the lines above its first entry.</summary>
+    internal sealed record RunSplit(IReadOnlyList<string> Lead, IReadOnlyList<IReadOnlyList<string>> Entries);
+
     /// <summary>
-    /// Splits a run of non-blank lines into entries. Returns the run whole when it does not carry
-    /// two anchors of one shape. Lines before the first anchor (an intro sentence) stay together as
-    /// an entry of their own rather than being glued to the first dated entry.
+    /// The run's entries, or null when it is not split: fewer than two anchors, a first anchor that
+    /// admits more than one reading, or a dated line above the first anchor. A line containing
+    /// <paramref name="excludedName"/> is never a header.
     /// </summary>
-    internal static List<IReadOnlyList<string>> Split(IReadOnlyList<string> lines)
+    internal static RunSplit? Split(IReadOnlyList<string> lines, string? excludedName)
     {
         ArgumentNullException.ThrowIfNull(lines);
 
-        var starts = DateRowStarts(lines) ?? DatedHeaderStarts(lines);
-        if (starts is null)
-            return [lines];
+        if (FirstAnchor(lines, excludedName) is not { } first)
+            return null;
 
-        if (starts[0] > 0)
-            starts.Insert(0, 0);
+        for (var i = 0; i < first.Start; i++)
+        {
+            if (IsDated(lines[i]))
+                return null;
+        }
+
+        var starts = new List<int> { first.Start };
+        var previousDateLine = first.DateLine;
+        for (var i = first.DateLine + 1; i < lines.Count; i++)
+        {
+            if (StartAt(lines, i, first.Layout, previousDateLine, excludedName) is not { } start)
+                continue;
+
+            starts.Add(start);
+            previousDateLine = i;
+        }
+
+        if (starts.Count < 2)
+            return null;
 
         var entries = new List<IReadOnlyList<string>>(starts.Count);
         for (var s = 0; s < starts.Count; s++)
@@ -69,19 +82,8 @@ internal static class EntryBoundaries
             entries.Add([.. lines.Skip(starts[s]).Take(end - starts[s])]);
         }
 
-        return entries;
+        return new RunSplit([.. lines.Take(first.Start)], entries);
     }
-
-    /// <summary>
-    /// True when <paramref name="line"/> (followed by <paramref name="next"/>) opens a dated entry:
-    /// a dated header, a header line over a date row, or a date row over a header line. Read by
-    /// <see cref="CvHeadingDetector"/> to tell an inline "Experience: …" heading that opens a list
-    /// of entries from a profile sentence that merely starts with the same word.
-    /// </summary>
-    internal static bool OpensEntry(string line, string? next) =>
-        IsDatedHeader(line)
-        || (next is not null && CanCarryHeader(line) && IsDateRow(next))
-        || (next is not null && IsDateRow(line) && CanCarryHeader(next));
 
     internal static bool IsBulletLine(string line)
     {
@@ -89,111 +91,114 @@ internal static class EntryBoundaries
         return trimmed.Length > 0 && BulletMarkers.Contains(trimmed[0]);
     }
 
-    private static List<int>? DateRowStarts(IReadOnlyList<string> lines)
+    private static Anchor? FirstAnchor(IReadOnlyList<string> lines, string? excludedName)
     {
-        var rows = new List<int>();
-        for (var i = 0; i < lines.Count; i++)
-        {
-            if (IsDateRow(lines[i]))
-                rows.Add(i);
-        }
+        var f = 0;
+        while (f < lines.Count && !IsRangeRow(lines[f]) && !EndsInRange(lines[f]))
+            f++;
 
-        if (rows.Count < 2)
+        if (f == lines.Count)
             return null;
 
-        var height = HeaderHeight(lines, rows[0]);
-        var starts = new List<int> { rows[0] - height };
-        var previousRow = rows[0];
+        if (!IsRangeRow(lines[f]))
+            return IsDatedHeader(lines[f], excludedName) ? new Anchor(Layout.DatedHeader, f, f) : null;
 
-        foreach (var row in rows.Skip(1))
+        if (f == 0)
         {
-            // A date row directly under another one ("2010 – 2013" / "2014") continues that entry.
-            if (row - previousRow > 1 && StartFor(lines, row, height) is { } start && start > previousRow)
-                starts.Add(start);
-
-            previousRow = row;
+            return lines.Count > 1 && IsCompleteHeader(lines[1], excludedName)
+                ? new Anchor(Layout.PeriodFirst, 0, 0)
+                : null;
         }
 
-        return starts.Count >= 2 ? starts : null;
-    }
-
-    private static List<int>? DatedHeaderStarts(IReadOnlyList<string> lines)
-    {
-        var starts = new List<int>();
-        for (var i = 0; i < lines.Count; i++)
+        if (IsCompleteHeader(lines[f - 1], excludedName))
         {
-            if (IsDatedHeader(lines[i]))
-                starts.Add(i);
+            // Two header-shaped lines over the range read as intro + "Role — Employer" and as
+            // "Role" / "Employer, City" alike.
+            return f >= 2 && IsHeaderShaped(lines[f - 2], excludedName)
+                ? null
+                : new Anchor(Layout.OneLineHeader, f - 1, f);
         }
 
-        return starts.Count >= 2 ? starts : null;
+        return f == 2
+            && IsHeaderShaped(lines[0], excludedName)
+            && IsHeaderShaped(lines[1], excludedName)
+            && !SplitsIntoFields(lines[1])
+                ? new Anchor(Layout.TwoLineHeader, 0, 2)
+                : null;
     }
 
-    // How many lines above the FIRST date row are its header. The line directly above is the header
-    // whenever it can be one; a second line counts only when both read as header lines.
-    private static int HeaderHeight(IReadOnlyList<string> lines, int firstRow)
-    {
-        if (firstRow == 0 || !CanCarryHeader(lines[firstRow - 1]))
-            return 0;
-
-        var height = 1;
-        while (height < MaxHeaderHeight
-            && firstRow - height - 1 >= 0
-            && IsStrictHeader(lines[firstRow - height])
-            && IsStrictHeader(lines[firstRow - height - 1]))
+    // Where the entry whose date sits on line i starts, read in the run's layout — or null.
+    private static int? StartAt(
+        IReadOnlyList<string> lines, int i, Layout layout, int previousDateLine, string? excludedName) =>
+        layout switch
         {
-            height++;
-        }
+            Layout.DatedHeader when IsDatedHeader(lines[i], excludedName) => i,
+            Layout.PeriodFirst when IsRangeRow(lines[i])
+                && i - previousDateLine >= 2
+                && i + 1 < lines.Count
+                && IsCompleteHeader(lines[i + 1], excludedName) => i,
+            Layout.OneLineHeader when IsRangeRow(lines[i])
+                && i - 1 > previousDateLine
+                && IsCompleteHeader(lines[i - 1], excludedName) => i - 1,
+            Layout.TwoLineHeader when IsRangeRow(lines[i])
+                && i - 2 > previousDateLine
+                && IsHeaderShaped(lines[i - 1], excludedName)
+                && !SplitsIntoFields(lines[i - 1])
+                && IsHeaderShaped(lines[i - 2], excludedName) => i - 2,
+            _ => null,
+        };
 
-        return height;
-    }
-
-    // Where the entry owning the date row at <paramref name="row"/> starts, at the learned height —
-    // or null when the line above cannot be its header.
-    private static int? StartFor(IReadOnlyList<string> lines, int row, int height)
-    {
-        if (height == 0)
-            return row;
-
-        if (!CanCarryHeader(lines[row - 1]))
-            return null;
-
-        var start = row - 1;
-        while (row - start < height && start - 1 >= 0 && IsStrictHeader(lines[start - 1]))
-            start--;
-
-        return start;
-    }
-
-    private static bool IsDateRow(string line)
+    private static bool IsRangeRow(string line)
     {
         var trimmed = line.Trim();
-        return trimmed.Length > 0 && !IsBulletLine(trimmed) && DatePatterns.IsDateOnlyLine(trimmed);
+        return trimmed.Length > 0
+            && !IsBulletLine(trimmed)
+            && DatePatterns.TryStripTrailingDateRange(trimmed, out var head)
+            && head.Length == 0;
     }
 
-    private static bool IsDatedHeader(string line)
+    private static bool EndsInRange(string line)
+    {
+        var trimmed = line.Trim();
+        return trimmed.Length > 0 && DatePatterns.TryStripTrailingDateRange(trimmed, out _);
+    }
+
+    private static bool IsDated(string line)
+    {
+        var trimmed = line.Trim();
+        return trimmed.Length > 0 && (DatePatterns.IsDateOnlyLine(trimmed) || EndsInRange(trimmed));
+    }
+
+    private static bool IsDatedHeader(string line, string? excludedName)
     {
         var trimmed = line.Trim();
         return trimmed.Length <= MaxHeaderLength
             && !IsBulletLine(trimmed)
             && DatePatterns.TryStripTrailingDateRange(trimmed, out var head)
             && head.Length > 0
-            && !char.IsLower(head[0]);
+            && IsCompleteHeader(head, excludedName);
     }
 
-    private static bool CanCarryHeader(string line)
+    private static bool IsHeaderShaped(string line, string? excludedName)
     {
         var trimmed = line.Trim();
         return trimmed.Length > 0
             && trimmed.Length <= MaxHeaderLength
-            && !char.IsLower(trimmed[0])
             && !IsBulletLine(trimmed)
-            && !IsDateRow(trimmed);
+            && !DatePatterns.IsDateOnlyLine(trimmed)
+            && !SentenceEnds.Contains(trimmed[^1])
+            && !trimmed.Contains(':', StringComparison.Ordinal)
+            && (excludedName is null || !trimmed.Contains(excludedName, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool IsStrictHeader(string line)
+    private static bool IsCompleteHeader(string line, string? excludedName)
     {
         var trimmed = line.Trim();
-        return CanCarryHeader(trimmed) && !SentenceEnds.Contains(trimmed[^1]);
+        return IsHeaderShaped(trimmed, excludedName)
+            && HeadingDrivenResumeSegmenter.TrySplitFields(trimmed, out _, out _, out var separator)
+            && (!char.IsLower(trimmed[0]) || LowercaseHeaderSeparators.Contains(separator));
     }
+
+    private static bool SplitsIntoFields(string line) =>
+        HeadingDrivenResumeSegmenter.TrySplitFields(line.Trim(), out _, out _, out _);
 }

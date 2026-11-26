@@ -260,6 +260,25 @@ internal static partial class DatePatterns
         return line;
     }
 
+    /// <summary>
+    /// The RANGE half of <see cref="StripTrailingDate"/>: true when <paramref name="line"/> ends in a
+    /// date range (row grammar, optional parenthesised qualifier), with <paramref name="head"/> the
+    /// text before it. A trailing BARE year does not count — "Scrum.org, 2024" is a certificate
+    /// line, not an entry header (#2249, <see cref="EntryBoundaries"/>).
+    /// </summary>
+    public static bool TryStripTrailingDateRange(string line, out string head)
+    {
+        var range = DateRowRange().Match(line);
+        if (range.Success && IsIgnorableTail(line[(range.Index + range.Length)..], allowQualifier: true))
+        {
+            head = TrimTrailingSeparators(line[..range.Index]);
+            return true;
+        }
+
+        head = line;
+        return false;
+    }
+
     // What may follow the match and still leave the line "nothing but a date".
     //
     // TWO OF THE THREE SURVIVING WIDENED FORMS LIVE HERE AND NOT IN DateRange, AND THE SPLIT IS THE
@@ -297,25 +316,6 @@ internal static partial class DatePatterns
     // not accepted, and the group must span the whole tail with no inner bracket of either kind, so
     // "(a)(b)", "(a) x" and "Acme AB (heltid)" are all rejected (senior-cto-advisor re-bind
     // 2026-08-03 §5, which measured that the restriction moves no pinned row).
-    /// <summary>
-    /// The RANGE half of <see cref="StripTrailingDate"/>: true when <paramref name="line"/> ends in a
-    /// date range (row grammar, optional parenthesised qualifier), with <paramref name="head"/> the
-    /// text before it. A trailing BARE year does not count — "Scrum.org, 2024" is a certificate
-    /// line, not an entry header (#2249, <see cref="EntryBoundaries"/>).
-    /// </summary>
-    public static bool TryStripTrailingDateRange(string line, out string head)
-    {
-        var range = DateRowRange().Match(line);
-        if (range.Success && IsIgnorableTail(line[(range.Index + range.Length)..], allowQualifier: true))
-        {
-            head = TrimTrailingSeparators(line[..range.Index]);
-            return true;
-        }
-
-        head = line;
-        return false;
-    }
-
     private static bool IsIgnorableTail(string tail, bool allowQualifier)
     {
         var rest = tail.Trim();

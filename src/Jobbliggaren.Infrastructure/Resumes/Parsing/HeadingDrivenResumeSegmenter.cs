@@ -40,7 +40,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
 
         var lines = SplitLines(rawText);
         var headings = CvHeadingDetector.Detect(lines, _lexicon);
-        var (blocks, freeSections) = BuildSectionBlocks(lines, headings);
+        var (blocks, segments, freeSections) = BuildSectionBlocks(lines, headings);
         var preamble = PreambleLines(lines, headings);
         var language = DetectLanguage(rawText);
 
@@ -86,8 +86,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         var preambleText = PreambleResidue.ToText(residue, out var droppedLineCount);
 
         var profileText = SectionText(blocks, ParsedSectionKind.Profile);
-        var experiences = ParseExperiences(blocks);
-        var educations = ParseEducations(blocks);
+        var experiences = ParseExperiences(segments, fullName, freeSections);
+        var educations = ParseEducations(segments, fullName, freeSections);
         var skillsParse = ParseList(blocks, ParsedSectionKind.Skills, MaxSkills);
         var languagesParse = ParseList(blocks, ParsedSectionKind.Languages, MaxLanguages);
 
@@ -160,10 +160,11 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     /// sections are appended in document order, never merged — two sections with the SAME heading
     /// stay two sections.</para>
     /// </summary>
-    private static (Dictionary<ParsedSectionKind, string> Typed, List<ParsedSection> Free)
+    private static (Dictionary<ParsedSectionKind, string> Typed, List<TypedSegment> Segments, List<ParsedSection> Free)
         BuildSectionBlocks(string[] lines, List<DetectedHeading> headings)
     {
         var blocks = new Dictionary<ParsedSectionKind, string>();
+        var segments = new List<TypedSegment>();
         var free = new List<ParsedSection>();
 
         for (var h = 0; h < headings.Count; h++)
@@ -183,13 +184,11 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
 
             if (headings[h].Kind is { } kind)
             {
-                // Same typed heading twice ⇒ concatenate the blocks deterministically. The seam is a
-                // BLANK line (#2249): a second heading is a boundary the user wrote, so the last
-                // entry of the first block ("Arbetslivserfarenhet") must not run on into the first
-                // entry of the second ("Anställningar"). A single newline fused them.
+                // Same typed heading twice ⇒ concatenate the blocks deterministically.
                 blocks[kind] = blocks.TryGetValue(kind, out var existing)
-                    ? string.Concat(existing, "\n\n", block).Trim()
+                    ? string.Concat(existing, "\n", block).Trim()
                     : block;
+                segments.Add(new TypedSegment(kind, headings[h].Heading, block));
                 continue;
             }
 
@@ -201,8 +200,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             free.Add(new ParsedSection(headings[h].Heading, BuildSectionEntries(block)));
         }
 
-        return (blocks, free);
+        return (blocks, segments, free);
     }
+
+    // One typed heading occurrence and its body. Entries are read per occurrence, so the seam between
+    // a repeated heading's two blocks ("Arbetslivserfarenhet", "Anställningar") is always a boundary.
+    private readonly record struct TypedSegment(ParsedSectionKind Kind, string Heading, string Body);
 
     /// <summary>
     /// A free section's body → entries, reusing the SAME entry rule as Experience/Education
@@ -216,7 +219,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         if (block.Length == 0)
             return entries;
 
-        foreach (var entry in SplitEntries(block))
+        var split = SplitEntries(block, excludedName: null);
+        IEnumerable<Entry> all = split.Lead.Count > 0
+            ? split.Entries.Prepend(ToEntry(split.Lead))
+            : split.Entries;
+
+        foreach (var entry in all)
         {
             if (entries.Count >= MaxEntries)
                 break;
@@ -345,13 +353,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // owners, still read by FirstPhone and by the entry parsers below.
 
     private static List<ParsedExperience> ParseExperiences(
-        Dictionary<ParsedSectionKind, string> blocks)
+        List<TypedSegment> segments, string? fullName, List<ParsedSection> freeSections)
     {
         var result = new List<ParsedExperience>();
-        if (!blocks.TryGetValue(ParsedSectionKind.Experience, out var block) || block.Length == 0)
-            return result;
-
-        foreach (var entry in SplitEntries(block))
+        foreach (var entry in TypedEntries(segments, ParsedSectionKind.Experience, fullName, freeSections))
         {
             if (result.Count >= MaxEntries)
                 break;
@@ -364,13 +369,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     }
 
     private static List<ParsedEducation> ParseEducations(
-        Dictionary<ParsedSectionKind, string> blocks)
+        List<TypedSegment> segments, string? fullName, List<ParsedSection> freeSections)
     {
         var result = new List<ParsedEducation>();
-        if (!blocks.TryGetValue(ParsedSectionKind.Education, out var block) || block.Length == 0)
-            return result;
-
-        foreach (var entry in SplitEntries(block))
+        foreach (var entry in TypedEntries(segments, ParsedSectionKind.Education, fullName, freeSections))
         {
             if (result.Count >= MaxEntries)
                 break;
@@ -380,6 +382,29 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         }
 
         return result;
+    }
+
+    // The entries of every occurrence of one typed heading, in document order. Lines above an
+    // occurrence's first dated entry are no entry: they go verbatim into a free section carrying that
+    // occurrence's heading, one title-less entry (#2249; the #856 routing, so MaxSections does not
+    // gate it). A line containing the person's name is never read as an entry header.
+    private static List<Entry> TypedEntries(
+        List<TypedSegment> segments, ParsedSectionKind kind, string? fullName, List<ParsedSection> freeSections)
+    {
+        var entries = new List<Entry>();
+        foreach (var segment in segments)
+        {
+            if (segment.Kind != kind || segment.Body.Length == 0)
+                continue;
+
+            var split = SplitEntries(segment.Body, fullName);
+            if (split.Lead.Count > 0)
+                freeSections.Add(new ParsedSection(segment.Heading, [new ParsedSectionEntry(null, split.Lead)]));
+
+            entries.AddRange(split.Entries);
+        }
+
+        return entries;
     }
 
     // #856: the outcome of parsing a typed list block. Kept = the short atoms that stay skills/
@@ -470,12 +495,14 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
 
     private readonly record struct Entry(IReadOnlyList<string> Lines, string Text);
 
-    // Split a section block into entries on blank lines, then split each blank-delimited run on the
-    // dated-entry structure it carries (#2249 — PDF text and paragraph-spaced DOCX have no blank
-    // lines at all; EntryBoundaries owns that rule). A run with fewer than two dated entries comes
-    // back whole, so a blank-line-separated CV parses exactly as before.
-    private static IEnumerable<Entry> SplitEntries(string block)
+    private readonly record struct SegmentSplit(IReadOnlyList<Entry> Entries, IReadOnlyList<string> Lead);
+
+    // Split a section block into entries on blank lines. Only a block with no blank line at all is
+    // read for its dated-entry structure (#2249): PDF text and a paragraph-spaced DOCX carry none,
+    // while a block whose author wrote blank lines keeps them as its only boundary.
+    private static SegmentSplit SplitEntries(string block, string? excludedName)
     {
+        var runs = new List<List<string>>();
         var current = new List<string>();
         foreach (var line in block.Split('\n'))
         {
@@ -483,8 +510,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             {
                 if (current.Count > 0)
                 {
-                    foreach (var entry in EntriesOf(current))
-                        yield return entry;
+                    runs.Add(current);
                     current = [];
                 }
             }
@@ -495,14 +521,15 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         }
 
         if (current.Count > 0)
-        {
-            foreach (var entry in EntriesOf(current))
-                yield return entry;
-        }
+            runs.Add(current);
+
+        if (runs.Count == 1 && EntryBoundaries.Split(runs[0], excludedName) is { } split)
+            return new SegmentSplit([.. split.Entries.Select(ToEntry)], split.Lead);
+
+        return new SegmentSplit([.. runs.Select(ToEntry)], []);
     }
 
-    private static IEnumerable<Entry> EntriesOf(List<string> run) =>
-        EntryBoundaries.Split(run).Select(lines => new Entry(lines, string.Join('\n', lines).Trim()));
+    private static Entry ToEntry(IReadOnlyList<string> lines) => new(lines, string.Join('\n', lines).Trim());
 
     // Header line → (title, organization) best-effort, the split reading the SECOND line when the
     // first carries nothing but a period; falls back to the second line as the organization for
@@ -568,16 +595,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         if (first.Length == 0 && entry.Lines.Count >= 2)
             splitSource = StripTrailingPeriod(entry.Lines[1]);
 
-        foreach (var separator in TitleOrgSeparators)
-        {
-            var index = splitSource.IndexOf(separator, StringComparison.OrdinalIgnoreCase);
-            if (index > 0 && index + separator.Length < splitSource.Length)
-            {
-                var title = splitSource[..index].Trim();
-                var organization = splitSource[(index + separator.Length)..].Trim();
-                return (NullIfEmpty(title), NullIfEmpty(organization));
-            }
-        }
+        if (TrySplitFields(splitSource, out var title, out var organization, out _))
+            return (NullIfEmpty(title), NullIfEmpty(organization));
 
         // #1060 β-3: a line that carries no fields must not BECOME a field — the mirror of β-1's
         // rule that such a line must not DECIDE the split, and it reuses the predicate the
@@ -720,6 +739,30 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
 
     private static readonly string[] TitleOrgSeparators =
         [" — ", " – ", " - ", ", ", " | ", " @ ", " at ", " på ", " hos "];
+
+    /// <summary>
+    /// Splits a header line into its two fields on the first <see cref="TitleOrgSeparators"/> entry
+    /// it carries. The one reading of "does this line name a role and an employer", shared by the
+    /// field split above and by <see cref="EntryBoundaries"/>, which accepts a header only when this
+    /// split succeeds.
+    /// </summary>
+    internal static bool TrySplitFields(string line, out string title, out string organization, out string separator)
+    {
+        foreach (var candidate in TitleOrgSeparators)
+        {
+            var index = line.IndexOf(candidate, StringComparison.OrdinalIgnoreCase);
+            if (index > 0 && index + candidate.Length < line.Length)
+            {
+                title = line[..index].Trim();
+                organization = line[(index + candidate.Length)..].Trim();
+                separator = candidate;
+                return true;
+            }
+        }
+
+        title = organization = separator = string.Empty;
+        return false;
+    }
 
     // #428: a full DATE RANGE is unambiguous anywhere in the entry, but a BARE YEAR is only a
     // reliable period signal on the FIRST line (Lines[0]). Scanning the full entry text for a bare

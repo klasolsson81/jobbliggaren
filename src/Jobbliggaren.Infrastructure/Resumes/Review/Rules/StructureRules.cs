@@ -325,10 +325,9 @@ internal sealed class B5ConsistentFormattingRule : ICriterionRule
         // SortedSet → distinct + deterministic order (the count is what drives the verdict;
         // the glyphs themselves are never echoed into the user-facing evidence).
         var markers = new SortedSet<char>();
-        var measure = LineWrapMeasure.For(context.SourceContentType, context.RawText);
         foreach (var experience in context.Content.Experience)
         {
-            foreach (var line in ReviewText.DescriptionBullets(experience, measure))
+            foreach (var line in ReviewText.DescriptionBullets(experience, context.WrapMeasure))
             {
                 if (LeadMarker(line) is { } marker)
                 {

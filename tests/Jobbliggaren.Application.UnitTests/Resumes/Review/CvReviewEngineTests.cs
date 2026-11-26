@@ -2354,16 +2354,15 @@ public class CvReviewEngineTests
         a6AtFail.ShouldNotBe(CriterionVerdict.Fail);
 
         // `total` bullets; `concrete` carry a measurable metric (a concrete artefact), the rest are
-        // generic (no digit, no capitalised named system). Dates are irrelevant here. Each bullet
-        // ends a sentence, so no line can read as the PDF wrap of the one above it (#2342).
+        // generic (no digit, no capitalised named system). Dates are irrelevant here.
         static ParsedResume A6Bullets(int concrete, int total)
         {
             var bullets = new List<string>();
             for (var i = 0; i < total; i++)
             {
                 bullets.Add(i < concrete
-                    ? "Ökade resultatet med 20 procent."
-                    : "ansvarade för dagliga arbetsuppgifter.");
+                    ? "Ökade resultatet med 20 procent"
+                    : "ansvarade för dagliga arbetsuppgifter");
             }
 
             return Resume(experience: [Experience(bullets: [.. bullets])]);

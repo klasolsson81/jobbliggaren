@@ -8,9 +8,6 @@ using Jobbliggaren.Infrastructure.Resumes.Improvement;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Review;
 using Jobbliggaren.Infrastructure.Resumes.Review.Rules;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
 using Shouldly;
 using static Jobbliggaren.Application.UnitTests.Resumes.Review.CvReviewFixtures;
 
@@ -24,44 +21,45 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// line, because PDF text never carries one. The English shape is the 2026-11-26 measurement:
 /// a synthetic CV rendered by headless Chrome (11 pt Arial, A4) and read by the real extractor,
 /// copied line for line. The Swedish CVs are authored to the same rule and assert their own
-/// width premise. Every unit is produced by the real segmenter, never hand-built (CLAUDE.md §5,
-/// Tests).</para>
+/// width premise.</para>
 /// </summary>
 public class WrappedPdfBulletTests
 {
-    // The measured document. Its longest line is 94 characters.
-    private const string MeasuredEnglishCv = """
-        Testa Testsson
-        testa.testsson@example.com | 070-000 00 00 | Exempelstad
-        Profile
-        Quality assurance engineer with a background in automated testing of web applications and a
-        strong interest in continuous delivery and test design for distributed systems.
-        Experience
-        QA Engineer — Exempelbolaget AB
-        2021 – 2024
-        Automated 35 regression tests with Selenium and C#, reducing the regression cycle from two
-        days to four hours.
-        Designed a test strategy for the payment service together with three development teams and
-        the product owner group.
-        Introduced contract tests between the order service and the warehouse service, which removed
-        a class of release blockers.
-        Mentored two junior testers.
-        Test Analyst — Fiktiva Konsult AB
-        2018 – 2021
-        Wrote and maintained manual test cases for an insurance portal used by customers of a
-        regional insurance company.
-        Reported defects in Jira and followed them up with the developers until they were verified and
-        closed.
-        Education
-        BSc Computer Science — Exempeluniversitetet
-        2015 – 2018
-        Skills
-        Selenium, C#, Playwright, SQL, Jira
-        Languages
-        Swedish, English
-        """;
+    // The measured document, one element per line: PDF text ends every line with a bare
+    // newline, whatever line ends this source file is checked out with.
+    internal static readonly string MeasuredEnglishCv = string.Join('\n',
+    [
+        "Testa Testsson",
+        "testa.testsson@example.com | 070-000 00 00 | Exempelstad",
+        "Profile",
+        "Quality assurance engineer with a background in automated testing of web applications and a",
+        "strong interest in continuous delivery and test design for distributed systems.",
+        "Experience",
+        "QA Engineer — Exempelbolaget AB",
+        "2021 – 2024",
+        "Automated 35 regression tests with Selenium and C#, reducing the regression cycle from two",
+        "days to four hours.",
+        "Designed a test strategy for the payment service together with three development teams and",
+        "the product owner group.",
+        "Introduced contract tests between the order service and the warehouse service, which removed",
+        "a class of release blockers.",
+        "Mentored two junior testers.",
+        "Test Analyst — Fiktiva Konsult AB",
+        "2018 – 2021",
+        "Wrote and maintained manual test cases for an insurance portal used by customers of a",
+        "regional insurance company.",
+        "Reported defects in Jira and followed them up with the developers until they were verified and",
+        "closed.",
+        "Education",
+        "BSc Computer Science — Exempeluniversitetet",
+        "2015 – 2018",
+        "Skills",
+        "Selenium, C#, Playwright, SQL, Jira",
+        "Languages",
+        "Swedish, English",
+    ]);
 
-    private static readonly string[] MeasuredEnglishUnits =
+    internal static readonly string[] MeasuredEnglishUnits =
     [
         "Automated 35 regression tests with Selenium and C#, reducing the regression cycle from two\ndays to four hours.",
         "Designed a test strategy for the payment service together with three development teams and\nthe product owner group.",
@@ -71,16 +69,16 @@ public class WrappedPdfBulletTests
         "Reported defects in Jira and followed them up with the developers until they were verified and\nclosed.",
     ];
 
-    // The width-setting line of every Swedish CV below: 103 characters, the longest line.
+    // The width-setting line of every Swedish CV below: the longest line.
     private const string SwedishProfile =
         "Erfaren lagerarbetare med flera års erfarenhet av plock, packning och leveranser inom dagligvaruhandeln";
 
-    // 101 characters, ending mid-clause: any lower-case line after it reaches the measure.
+    // Ends mid-clause: any lower-case line after it reaches the measure.
     private const string FullSwedishLine =
         "Ledde planeringen av inventeringen på avdelningen tillsammans med två skiftledare och lagerchefen och";
 
     private static string SwedishCv(params string[] descriptionLines) =>
-        string.Join('\n',
+        WithTheSwedishMeasure(string.Join('\n',
         [
             "Testa Testsson",
             "testa.testsson@example.com",
@@ -93,9 +91,18 @@ public class WrappedPdfBulletTests
             "Utbildning",
             "Gymnasieexamen — Exempelgymnasiet",
             "2015 – 2018",
-        ]);
+        ]));
 
-    private static IReadOnlyList<string> Units(ParsedResume parsed)
+    private static string WithTheSwedishMeasure(string cv)
+    {
+        var width = LineWrapMeasure.For(CvFileSignature.PdfContentType, cv).ShouldNotBeNull().Width;
+        width.ShouldBe(SwedishProfile.Length, "premise: the profile line sets the measure");
+        (FullSwedishLine.Length + 1 + 1).ShouldBeGreaterThanOrEqualTo(width,
+            "premise: after the full line, any lower-case word reaches the measure");
+        return cv;
+    }
+
+    internal static IReadOnlyList<string> Units(ParsedResume parsed)
     {
         var measure = LineWrapMeasure.For(parsed.SourceContentType, parsed.RawText);
         return [.. CvReviewContext.FromParsed(parsed).Content.Experience
@@ -110,11 +117,11 @@ public class WrappedPdfBulletTests
         AllCorrectSpellChecker(), RealAllowlist(),
         RealCvConventionsProvider(), RealParsingLexicon());
 
-    private static async Task<CvReviewResult> ReviewAsync(ParsedResume parsed) =>
+    internal static async Task<CvReviewResult> ReviewAsync(ParsedResume parsed) =>
         await Engine().ReviewAsync(CvReviewContext.FromParsed(parsed), RenderProfile.Ats,
             TestContext.Current.CancellationToken);
 
-    private static IEnumerable<TextSpan> QuotesOf(CvReviewResult result, string criterionId) =>
+    internal static IEnumerable<TextSpan> QuotesOf(CvReviewResult result, string criterionId) =>
         Verdict(result, criterionId).Evidence.OfType<TextSpanEvidence>().Select(e => e.Span);
 
     // ── 1–2. A wrapped bullet is one unit ─────────────────────────────────
@@ -191,11 +198,11 @@ public class WrappedPdfBulletTests
         // The "Title / Company / Dates" layout, with the employer repeated on a line of its own
         // between a line that reaches the measure and a lower-case line.
         const string next = "var ansvarig för att alla avvikelser rapporterades.";
-        var parsed = ResumeFromCvText(string.Join('\n',
+        var parsed = ResumeFromCvText(WithTheSwedishMeasure(string.Join('\n',
         [
             "Testa Testsson", "Profil", SwedishProfile, "Erfarenhet",
             "Lagerarbetare", "Exempellagret AB", "2018 – 2024", FullSwedishLine, "Exempellagret AB", next,
-        ]));
+        ])));
 
         parsed.Content.Experience.ShouldHaveSingleItem().Organization.ShouldBe("Exempellagret AB",
             "premise: the repeated line is the entry's organisation");
@@ -231,27 +238,42 @@ public class WrappedPdfBulletTests
         units.ShouldBe(MeasuredEnglishUnits.SelectMany(u => u.Split('\n')).ToList());
     }
 
-    [Fact]
-    public void DescriptionBullets_ShouldKeepEveryAuthoredLine_OnTheCanonicalArm()
+    // A canonical description is typed by the user, so each line end is authored.
+    private const string CanonicalDescription =
+        "Automated 35 regression tests with Selenium and C#, reducing the regression cycle from two\ndays to four hours.";
+
+    private static CvReviewContext CanonicalContext()
     {
-        // A canonical description is typed by the user, so each line end is authored. The arm
-        // ignores a measure even when one is passed.
-        const string description = "Automated 35 regression tests with Selenium and C#, reducing the regression cycle from two\ndays to four hours.";
         var content = new ResumeContent(
             new PersonalInfo("Testa Testsson", "testa.testsson@example.com", null, "Exempelstad"),
             experiences:
             [
                 new Experience("Exempelbolaget AB", "QA Engineer",
-                    new DateOnly(2021, 1, 1), new DateOnly(2024, 1, 1), description),
+                    new DateOnly(2021, 1, 1), new DateOnly(2024, 1, 1), CanonicalDescription),
             ]);
-        var linearized = ResumeContentLinearizer.Linearize(content);
-        var experience = CvReviewContext.FromCanonical(content, linearized, ResumeLanguage.En)
-            .Content.Experience.ShouldHaveSingleItem();
+        return CvReviewContext.FromCanonical(content, ResumeContentLinearizer.Linearize(content), ResumeLanguage.En);
+    }
 
-        var measure = LineWrapMeasure.For(CvFileSignature.PdfContentType, MeasuredEnglishCv);
+    [Fact]
+    public void DescriptionBullets_ShouldKeepEveryAuthoredLine_OnTheCanonicalArm()
+    {
+        var context = CanonicalContext();
 
-        ReviewText.DescriptionBullets(experience, measure.ShouldNotBeNull())
-            .ShouldBe(description.Split('\n'));
+        context.SourceContentType.ShouldBeNull("premise: a canonical CV has no source file");
+        var measure = LineWrapMeasure.For(context.SourceContentType, context.LinearText);
+        measure.ShouldBeNull();
+        ReviewText.DescriptionBullets(context.Content.Experience.ShouldHaveSingleItem(), measure)
+            .ShouldBe(CanonicalDescription.Split('\n'));
+    }
+
+    [Fact]
+    public void DescriptionBullets_OnTheCanonicalArm_IgnoresAMeasureThatNoCallerCanPassIt()
+    {
+        var context = CanonicalContext();
+        var measure = LineWrapMeasure.For(CvFileSignature.PdfContentType, context.LinearText).ShouldNotBeNull();
+
+        ReviewText.DescriptionBullets(context.Content.Experience.ShouldHaveSingleItem(), measure)
+            .ShouldBe(CanonicalDescription.Split('\n'));
     }
 
     // ── 13. Review and improve read the same unit ─────────────────────────
@@ -336,44 +358,5 @@ public class WrappedPdfBulletTests
         var change = (await WeakVerbProposalsAsync(parsed)).ShouldHaveSingleItem();
 
         change.Replacement!.Before.ShouldBe("Var ansvarig för");
-    }
-
-    // ── 14. From PDF bytes, through the real extractor ────────────────────
-
-    static WrappedPdfBulletTests() => QuestPDF.Settings.License = LicenseType.Community;
-
-    // One text item per measured line, so the line ends are the measured ones and no layout
-    // engine decides them. Small type keeps the longest line from wrapping again on the page.
-    private static byte[] MeasuredEnglishCvPdf() =>
-        Document.Create(container =>
-            container.Page(page =>
-            {
-                page.Size(PageSizes.A4);
-                page.Margin(1, Unit.Centimetre);
-                page.DefaultTextStyle(t => t.FontSize(8));
-                page.Content().Column(col =>
-                {
-                    foreach (var line in MeasuredEnglishCv.Split('\n'))
-                        col.Item().Text(line);
-                });
-            })).GeneratePdf();
-
-    [Fact]
-    public async Task FromPdfBytes_AWrappedBulletIsOneUnit_AndNoCriterionCitesItsTail()
-    {
-        var extraction = new PdfPigOpenXmlCvTextExtractor()
-            .Extract(MeasuredEnglishCvPdf(), CvFileKind.Pdf, TestContext.Current.CancellationToken);
-        extraction.Status.ShouldBe(CvExtractionStatus.Extracted);
-        extraction.RawText.Split('\n').ShouldBe(MeasuredEnglishCv.Split('\n'),
-            "premise: the extractor ends each line where the measured document did");
-
-        var parsed = ResumeFromCvText(extraction.RawText);
-
-        Units(parsed).ShouldBe(MeasuredEnglishUnits);
-        var result = await ReviewAsync(parsed);
-        foreach (var criterionId in new[] { "A1", "A2", "A6" })
-        {
-            QuotesOf(result, criterionId).ShouldAllBe(s => MeasuredEnglishUnits.Contains(s.Quote));
-        }
     }
 }

@@ -102,6 +102,6 @@ public class CvFileSignatureTests
     [InlineData("application/pdfx", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
-    public void IsMediaType_ReadsTheDeclaredTypeWithoutItsParameters(string? contentType, bool expected) =>
-        CvFileSignature.IsMediaType(contentType, CvFileSignature.PdfContentType).ShouldBe(expected);
+    public void DeclaresMediaType_ReadsTheDeclaredTypeWithoutItsParameters(string? contentType, bool expected) =>
+        CvFileSignature.DeclaresMediaType(contentType, CvFileSignature.PdfContentType).ShouldBe(expected);
 }

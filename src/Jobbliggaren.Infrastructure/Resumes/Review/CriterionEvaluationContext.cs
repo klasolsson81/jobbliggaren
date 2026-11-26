@@ -3,6 +3,7 @@ using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Sections;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review;
@@ -41,7 +42,10 @@ internal sealed record CriterionEvaluationContext(
     // RECOMMENDATION). The engine surfaces it here so D3StandardFontRule reaches it through the
     // context (parity SectionOrder/Allowlist — new()'d rules, no ctor deps). The <10 pt band is a
     // THRESHOLD read from the rubric via context.Criterion.RequiredThreshold, not carried here.
-    IReadOnlyList<string> FontAllowlist)
+    IReadOnlyList<string> FontAllowlist,
+    // #2342: the PDF line-wrap measure, computed once per review (parity SectionOrder), so every
+    // criterion that reads the bullet unit reads the same one.
+    LineWrapMeasure? WrapMeasure)
 {
     /// <summary>The source-agnostic structured content view (CV-PII, decrypted upstream).</summary>
     public ReviewableCv Content => Review.Content;

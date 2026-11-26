@@ -21,7 +21,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// OPENING with a drop-in-safe weak verb from the KnowledgeBank mapping, and NO date row opens with
 /// one — it is offered the row and DECLINES it; the replacement is a verbatim KnowledgeBank value,
 /// so it could not synthesise even if it fired. (The transform IS offered the row: its bullet unit
-/// is <c>DescriptionBullets</c> itself — read at <c>WeakVerbTransform.cs:34</c>, which iterates this
+/// is <c>DescriptionBullets</c> itself — read at <c>WeakVerbTransform.cs</c>, which iterates this
 /// method; no test HERE calls <c>Propose</c> (<c>CvImprovementEngineTests</c> does, via
 /// <c>SuggestAsync</c> — an unqualified "no test calls it" would be false). What is MEASURED below is that the
 /// <c>ParsedExperience</c> overload suppresses the row. Saying the transform is not offered it
@@ -31,9 +31,9 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// <c>ReviewText.ExperienceBullets</c>. <c>StructureRules</c>' B5 also reads
 /// <c>DescriptionBullets</c> and its bullet-marker set does contain the en dash — but it does NOT act
 /// on any form in play here, and <c>LeadMarker</c> has TWO guards that must be kept apart.
-/// <b>Guard one</b> (<c>StructureRules.cs:362</c>) needs a marker glyph followed by whitespace — the
+/// <b>Guard one</b> (<c>StructureRules.cs</c>) needs a marker glyph followed by whitespace — the
 /// forms this union RELEASES all open with a digit or a letter, so B5 never reaches its second
-/// guard on them. <b>Guard two</b> (<c>:372-376</c>, written for exactly "- 2020 – nuvarande") nulls
+/// guard on them. <b>Guard two</b> (written for exactly "- 2020 – nuvarande") nulls
 /// a marker whose remainder <c>PeriodParser</c> parses — that is what disarms the
 /// leading-separator form, which this union SUPPRESSES anyway.</para>
 ///

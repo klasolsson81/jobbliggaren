@@ -102,6 +102,7 @@ public class LineWrapMeasureTests
     [Theory]
     [InlineData("", "ghi")]
     [InlineData("abc def", "")]
-    public void Continues_ShouldNotJoin_WhenEitherLineIsEmpty(string previous, string next) =>
-        MeasureOfWidth(1).Continues(previous, next).ShouldBeFalse();
+    public void Continues_ShouldNotJoinAnEmptyLine_ThatNoCallerCanPassIt(string previous, string next) =>
+        LineWrapMeasure.For(CvFileSignature.PdfContentType, "abc def\nghi").ShouldNotBeNull()
+            .Continues(previous, next).ShouldBeFalse();
 }

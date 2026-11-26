@@ -23,7 +23,7 @@ internal sealed class LineWrapMeasure
     /// layout's. None for any other declared type, and none for a text with nothing in it.</summary>
     public static LineWrapMeasure? For(string? declaredContentType, string rawText)
     {
-        if (!CvFileSignature.IsMediaType(declaredContentType, CvFileSignature.PdfContentType))
+        if (!CvFileSignature.DeclaresMediaType(declaredContentType, CvFileSignature.PdfContentType))
             return null;
 
         var width = 0;

@@ -43,11 +43,10 @@ internal static class ReviewText
     /// </summary>
     public static IReadOnlyList<string> ExperienceBullets(CriterionEvaluationContext context)
     {
-        var measure = LineWrapMeasure.For(context.SourceContentType, context.RawText);
         var bullets = new List<string>();
         foreach (var experience in context.Content.Experience)
         {
-            bullets.AddRange(DescriptionBullets(experience, measure));
+            bullets.AddRange(DescriptionBullets(experience, context.WrapMeasure));
         }
 
         return bullets;
@@ -148,12 +147,12 @@ internal static class ReviewText
             // WeakVerbTransform's bullet unit, which IS this method (measured in
             // ReviewTextPeriodLineUnionTests). What that transform then does is DECLINE to propose:
             // it proposes only for a bullet OPENING with a drop-in-safe weak verb from the
-            // KnowledgeBank mapping (WeakVerbTransform.cs:46-51), and no date row opens with one
+            // KnowledgeBank mapping (WeakVerbTransform.cs), and no date row opens with one
             // (naming an opening GLYPH instead would be wrong for the leading-separator direction).
             // That the transform DECLINES is read from its firing condition, not run — same
             // provenance as the A1/A2/A6 clause below. What IS read directly is that its bullet
-            // unit is this method: WeakVerbTransform.cs:34 iterates DescriptionBullets — read at
-            // that line, not measured by a test that calls Propose. Offered, not
+            // unit is this method: WeakVerbTransform.cs iterates DescriptionBullets — read,
+            // not measured by a test that calls Propose. Offered, not
             // acted on — stating it as "not released into WeakVerbTransform" would over-correct in
             // the other direction.
             //

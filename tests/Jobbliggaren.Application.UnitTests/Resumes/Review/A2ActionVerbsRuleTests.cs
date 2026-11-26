@@ -85,6 +85,22 @@ public class A2ActionVerbsRuleTests
         Evidence(a2).Span.Quote.ShouldBe(glyph + "Var ansvarig för budgeten.");
     }
 
+    // A stopword opener has no lexeme of its own, so it is never strong, even when a later word
+    // carries a strong verb's stem: "ansvarig" stems to "ansvar", the stem of the strong
+    // "ansvarade för", and "manager" to "manag", the stem of the strong "managed".
+    [Theory]
+    [InlineData("Sv", "Som ansvarig för budgeten minskade jag kostnaderna.", "Ledde teamet om åtta personer.", "Ledde inköpen.")]
+    [InlineData("En", "As manager of the budget, cut costs by a tenth.", "Led the team of eight people.", "Led the purchasing.")]
+    public async Task A2_ShouldNeverReadAStopwordOpener_AsStrong(
+        string language, string stopwordLed, string strong, string alsoStrong)
+    {
+        var a2 = await A2FromParsedAsync(ResumeLanguage.FromName(language), stopwordLed, strong, alsoStrong);
+
+        a2.Verdict.ShouldBe(CriterionVerdict.Warn, "premise: two strong openers in three, between the two ratios");
+        Evidence(a2).Note.ShouldBe("inleds inte med ett starkt handlingsverb");
+        Evidence(a2).Span.Quote.ShouldBe(stopwordLed);
+    }
+
     [Theory]
     [MemberData(nameof(WeakPhrases))]
     public async Task A2_ShouldReadEveryWeakPhraseInTheBank_AsAWeakOpener(string language, string weak)

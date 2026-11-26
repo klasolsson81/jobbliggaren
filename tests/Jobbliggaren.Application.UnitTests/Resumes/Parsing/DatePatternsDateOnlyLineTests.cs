@@ -9,7 +9,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// assembly-internal API (<c>DatePatterns</c> is <c>internal</c>, so the consumer set is closed
 /// and named) with THREE call sites across two types (<c>HeadingDrivenResumeSegmenter.StripTrailingPeriod</c>
 /// for the reduction, <c>HeadingDrivenResumeSegmenter.SplitTitleOrganization</c> for the predicate
-/// and <c>ReviewText.DescriptionLines</c>), and until this file it had no direct test of its
+/// and <c>ReviewText.DescriptionBullets</c>), and until this file it had no direct test of its
 /// own: both readers exercised it only through their own behaviour, so the shared contract was
 /// asserted nowhere. A predicate two engines depend on is pinned where it lives.
 ///
@@ -240,14 +240,14 @@ public class DatePatternsDateOnlyLineTests
         // opens with a digit, so StructureRules' LeadMarker returns null — which is why only
         // A1/A2/A6 are named below. Nor does it act on the leading-separator direction: LeadMarker
         // nulls any marker whose remainder PeriodParser parses, which that direction always
-        // satisfies by construction. B5 reads DescriptionLines and CAN act — but only where the
+        // satisfies by construction. B5 reads DescriptionBullets and CAN act — but only where the
         // remainder is a form PeriodParser refuses ("– jan 2020 – dec 2024"), which is the live
         // escape, not either form this union releases.
         //
         // Swapping ReviewText's PeriodParser test for a
         // DatePatterns-only one would release exactly these lines into the review side's bullet
         // scorer (ReviewText.ExperienceBullets → A1/A2/A6) AND into WeakVerbTransform's bullet
-        // unit, which IS DescriptionLines. The transform is offered the row and DECLINES to
+        // unit, which IS DescriptionBullets. The transform is offered the row and DECLINES to
         // propose on it — it fires only for a bullet opening with a drop-in-safe weak verb from
         // the KnowledgeBank mapping — so only the review side acts.
         //
@@ -374,7 +374,7 @@ public class DatePatternsDateOnlyLineTests
         // exists, so nothing is stripped and the line is already empty. DECLARED UNREACHABLE from
         // every reader (CLAUDE.md §5), which is why the value is not a claim about production. No call site
         // can produce it: HeadingDrivenResumeSegmenter's entries carry only non-blank lines, and
-        // ReviewText.DescriptionLines filters `l.Length > 0` before the period test runs. It is
+        // ReviewText.DescriptionBullets filters `l.Length > 0` before the period test runs. It is
         // pinned because the method is shared Infrastructure API that must not throw on the
         // degenerate input, NOT as a claim about what production does with an empty line.
         ShouldReduceTo(string.Empty, string.Empty);

@@ -197,7 +197,7 @@ public static class FrameApplyComposer
     }
 
     // Every prose line a frame can rewrite, in the deterministic search order. Trimmed —
-    // the same unit ReviewText.DescriptionLines scores (the review cites trimmed bullets).
+    // the same unit ReviewText.DescriptionBullets scores (the review cites trimmed bullets).
     private static IEnumerable<string> ContentLines(ResumeContent content)
     {
         if (content.Summary is { } summary)

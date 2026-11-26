@@ -353,7 +353,7 @@ internal static partial class DatePatterns
     /// reads the reduction in <c>StripTrailingPeriod</c> and this predicate directly in
     /// <c>SplitTitleOrganization</c>. The segmenter asks it to refuse a field —
     /// a line carrying no field must not BECOME one (#1060 β-3) — and
-    /// <see cref="Review.Rules.ReviewText.DescriptionLines"/> asks it to refuse a bullet, so the
+    /// <see cref="Review.Rules.ReviewText.DescriptionBullets"/> asks it to refuse a bullet, so the
     /// review engine never scores the user's date row as prose. Before the promotion those two
     /// agreed only by accident: the review side suppressed such a line via its
     /// organization-equality test, which fired only BECAUSE the segmenter had fabricated the line

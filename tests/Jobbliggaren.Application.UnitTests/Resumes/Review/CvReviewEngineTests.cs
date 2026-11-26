@@ -560,7 +560,7 @@ public class CvReviewEngineTests
     }
 
     // ── #487 date-MASKING isolation (StripDates): an inline date inside a bullet (not a
-    // standalone period line, so it survives DescriptionLines) must not count as a metric.
+    // standalone period line, so it survives DescriptionBullets) must not count as a metric.
     // These are the vectors that go RED if ContainsMeasurableDigit degrades to ContainsDigit.
 
     [Fact]
@@ -643,7 +643,7 @@ public class CvReviewEngineTests
     {
         // Genuine segmenter output where the organisation sits on its OWN line (the
         // "Title\nCompany\nDates" layout) — the organisation line is not a description bullet,
-        // so A2 reads the real bullet's verb and A1 sees the real metric (#487, DescriptionLines
+        // so A2 reads the real bullet's verb and A1 sees the real metric (#487, DescriptionBullets
         // org-drop branch).
         const string cv =
             """

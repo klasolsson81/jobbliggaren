@@ -215,7 +215,7 @@ public class DateModelWideningReviewSideTests
         // The second "bullet style" B5 counted was the user's date row. She would have been told to
         // unify punctuation she had not varied.
         //
-        // The widening closes it upstream: DescriptionLines suppresses the row, so LeadMarker is
+        // The widening closes it upstream: DescriptionBullets suppresses the row, so LeadMarker is
         // never offered it and no second glyph exists to count. Note the mechanism — this is NOT a
         // change to B5 or to LeadMarker, which are untouched.
         const string cv = $"""

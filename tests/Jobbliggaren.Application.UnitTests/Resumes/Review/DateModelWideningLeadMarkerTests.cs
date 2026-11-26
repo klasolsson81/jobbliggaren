@@ -63,7 +63,7 @@ public class DateModelWideningLeadMarkerTests
     {
         // ONE ROW, AND THE OTHER TWO WERE REMOVED RATHER THAN KEPT AS PADDING. An earlier revision
         // ran three: "– 2020 – nuvarande" and "- 01/2022 – 06/2024" alongside this one. Both are
-        // suppressed by DescriptionLines BEFORE LeadMarker is ever offered them — DatePatterns
+        // suppressed by DescriptionBullets BEFORE LeadMarker is ever offered them — DatePatterns
         // reduces each to empty, so IsDateOnlyLine is true and the union drops the row upstream. B5
         // then saw one glyph and returned NotAssessed for a reason that had nothing to do with guard
         // two. Delete guard two and both rows stayed green; the theory's own comments named a
@@ -79,7 +79,7 @@ public class DateModelWideningLeadMarkerTests
         // SURVIVE the union to be offered the guard, and its remainder must PARSE for the guard to
         // fire.
         DatePatterns.IsDateOnlyLine(markerRow).ShouldBeFalse(
-            "premise: the row must survive DescriptionLines, or LeadMarker is never offered it.");
+            "premise: the row must survive DescriptionBullets, or LeadMarker is never offered it.");
         PeriodParser.TryParse(markerRow.TrimStart('–', ' '), out _, out _, out _).ShouldBeTrue(
             "premise: guard two only fires where the remainder parses — and it does only since road 3.");
 

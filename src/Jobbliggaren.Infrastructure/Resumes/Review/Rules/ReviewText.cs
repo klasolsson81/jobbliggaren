@@ -46,7 +46,7 @@ internal static class ReviewText
         var bullets = new List<string>();
         foreach (var experience in context.Content.Experience)
         {
-            bullets.AddRange(DescriptionLines(experience));
+            bullets.AddRange(DescriptionBullets(experience));
         }
 
         return bullets;
@@ -101,7 +101,7 @@ internal static class ReviewText
     /// overload) so the review (A2) and improve sides score the SAME bullet unit
     /// (#487 review side, #534 improve side).
     /// </summary>
-    internal static IEnumerable<string> DescriptionLines(ReviewableExperience experience)
+    internal static IEnumerable<string> DescriptionBullets(ReviewableExperience experience)
     {
         var lines = experience.Text
             .Split('\n')
@@ -147,7 +147,7 @@ internal static class ReviewText
             // (naming an opening GLYPH instead would be wrong for the leading-separator direction).
             // That the transform DECLINES is read from its firing condition, not run — same
             // provenance as the A1/A2/A6 clause below. What IS read directly is that its bullet
-            // unit is this method: WeakVerbTransform.cs:34 iterates DescriptionLines — read at
+            // unit is this method: WeakVerbTransform.cs:34 iterates DescriptionBullets — read at
             // that line, not measured by a test that calls Propose. Offered, not
             // acted on — stating it as "not released into WeakVerbTransform" would over-correct in
             // the other direction.
@@ -202,7 +202,7 @@ internal static class ReviewText
             // degradation into an unparseable stored value, so the VALUE grammar still declines it
             // and PeriodParser still refuses it. The LINE grammar reads it, which is why this
             // disjunct fires and the other does not — pinned in
-            // ReviewTextPeriodLineUnionTests.DescriptionLines_SuppressesTheSlashDateRow_…, because a
+            // ReviewTextPeriodLineUnionTests.DescriptionBullets_SuppressesTheSlashDateRow_…, because a
             // union that started passing through BOTH halves would be a different change wearing
             // this one's result. The union is otherwise unchanged and is still a union: neither
             // predicate subsumes the other, and DatePatternsDateOnlyLineTests owns the axis list.
@@ -225,7 +225,7 @@ internal static class ReviewText
             // are suppressed today" without the layout qualifier would have been a claim sized
             // against one layout and read as a claim about the class. That hole is now closed and
             // pinned at both altitudes: the bullet unit in
-            // ReviewTextPeriodLineUnionTests.DescriptionLines_ShouldNowSuppressTheDateRow_…, and the
+            // ReviewTextPeriodLineUnionTests.DescriptionBullets_ShouldNowSuppressTheDateRow_…, and the
             // verdicts in DateModelWideningReviewSideTests (senior-cto-advisor bind 2026-08-02 §2,
             // qualified by test-writer's measurement the same day, closed by road 3).
 
@@ -238,8 +238,8 @@ internal static class ReviewText
     /// (#534 — the improve flow stays <c>ParsedResume</c>-scoped until PR-7). Delegates to
     /// the unified-view logic above so the bullet unit stays ONE definition (#487).
     /// </summary>
-    internal static IEnumerable<string> DescriptionLines(ParsedExperience experience) =>
-        DescriptionLines(new ReviewableExperience(
+    internal static IEnumerable<string> DescriptionBullets(ParsedExperience experience) =>
+        DescriptionBullets(new ReviewableExperience(
             experience.Title, experience.Organization, experience.Period,
             null, null, experience.RawText, TextIsDescriptionOnly: false));
 

@@ -354,7 +354,7 @@ public class DateModelWideningStoredPeriodTests
     [Fact]
     public void ALoneMonthPointLine_IsNowSuppressedFromTheBullets_WhichIsTheDirectionThatIsAllowed()
     {
-        // (S3) obligation 5(a) — the union at ReviewText.DescriptionLines is
+        // (S3) obligation 5(a) — the union at ReviewText.DescriptionBullets is
         // `PeriodParser.TryParse(line, …) || DatePatterns.IsDateOnlyLine(line)`, so widening the LEFT
         // disjunct widens suppression. That is the permitted direction: suppression may grow, never
         // narrow. A line that is nothing but "maj 2020" is not a description bullet.
@@ -374,7 +374,7 @@ public class DateModelWideningStoredPeriodTests
         var parsed = ResumeFromCvText(cv);
         var reviewable = CvReviewContext.FromParsed(parsed).Content.Experience.ShouldHaveSingleItem();
 
-        ReviewText.DescriptionLines(reviewable).ShouldBe([bullet],
+        ReviewText.DescriptionBullets(reviewable).ShouldBe([bullet],
             "a lone month point is a date, not prose — suppression grew, which is the allowed direction.");
     }
 }

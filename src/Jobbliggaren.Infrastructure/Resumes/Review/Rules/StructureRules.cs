@@ -327,7 +327,7 @@ internal sealed class B5ConsistentFormattingRule : ICriterionRule
         var markers = new SortedSet<char>();
         foreach (var experience in context.Content.Experience)
         {
-            foreach (var line in ReviewText.DescriptionLines(experience))
+            foreach (var line in ReviewText.DescriptionBullets(experience))
             {
                 if (LeadMarker(line) is { } marker)
                 {
@@ -367,7 +367,7 @@ internal sealed class B5ConsistentFormattingRule : ICriterionRule
         // A marker (esp. the ambiguous "-") leading a BARE date range ("- 2020 – nuvarande") is
         // a period line, not a bullet STYLE — excluding it avoids a spurious mixed-marker Warn
         // (architect PR-6a Minor). A date-only line demonstrates no punctuation style, so
-        // dropping it costs nothing. Reuses the SAME parser DescriptionLines filters full
+        // dropping it costs nothing. Reuses the SAME parser DescriptionBullets filters full
         // period lines with (#487).
         var rest = trimmed[1..].TrimStart();
         if (PeriodParser.TryParse(rest, out _, out _, out _))

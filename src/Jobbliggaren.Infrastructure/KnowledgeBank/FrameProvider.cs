@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
+using Jobbliggaren.Domain.Resumes;
 
 namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 
@@ -13,7 +14,8 @@ namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 /// </summary>
 internal sealed class FrameProvider(IVerbMapper verbMapper) : IFrameProvider
 {
-    private readonly FrameCatalog _catalog = FramesLoader.Load(verbMapper.GetVerbMapping());
+    // The frames are Swedish sentences, so they bind to the Swedish verb mapping (#2341).
+    private readonly FrameCatalog _catalog = FramesLoader.Load(verbMapper.GetVerbMapping(ResumeLanguage.Sv));
 
     public FrameCatalog GetFrameCatalog() => _catalog;
 }

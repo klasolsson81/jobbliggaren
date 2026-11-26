@@ -26,17 +26,48 @@ public class A2ActionVerbsRuleTests
         Verdict(await Engine().ReviewAsync(context, RenderProfile.Ats, TestContext.Current.CancellationToken), "A2");
 
     private static Task<CvCriterionVerdict> A2FromParsedAsync(params string[] bullets) =>
-        A2Async(CvReviewContext.FromParsed(Resume(experience: [Experience(bullets: bullets)])));
+        A2FromParsedAsync(ResumeLanguage.Sv, bullets);
+
+    private static Task<CvCriterionVerdict> A2FromParsedAsync(ResumeLanguage language, params string[] bullets) =>
+        A2Async(CvReviewContext.FromParsed(
+            Resume(experience: [Experience(bullets: bullets)], detectedLanguage: language)));
+
+    // The rest of a bullet after its opener, in the CV's language.
+    private static string Object(ResumeLanguage language) =>
+        language == ResumeLanguage.En ? "the work of the department." : "arbetet på avdelningen.";
 
     private static TextSpanEvidence Evidence(CvCriterionVerdict verdict) =>
         verdict.Evidence.ShouldHaveSingleItem().ShouldBeOfType<TextSpanEvidence>();
 
     private static string Capitalised(string phrase) => char.ToUpperInvariant(phrase[0]) + phrase[1..];
 
-    public static TheoryData<string> WeakPhrases() => [.. RealVerbMapper().GetVerbMapping().WeakVerbs.Select(w => w.Weak)];
+    public static TheoryData<string, string> WeakPhrases()
+    {
+        var data = new TheoryData<string, string>();
+        foreach (var language in ResumeLanguage.List)
+        {
+            foreach (var weak in RealVerbMapper().GetVerbMapping(language).WeakVerbs)
+            {
+                data.Add(language.Name, weak.Weak);
+            }
+        }
 
-    public static TheoryData<string> StrongVerbs() =>
-        [.. RealVerbMapper().GetVerbMapping().StrongVerbGroups.SelectMany(g => g.Verbs)];
+        return data;
+    }
+
+    public static TheoryData<string, string> StrongVerbs()
+    {
+        var data = new TheoryData<string, string>();
+        foreach (var language in ResumeLanguage.List)
+        {
+            foreach (var verb in RealVerbMapper().GetVerbMapping(language).StrongVerbGroups.SelectMany(g => g.Verbs))
+            {
+                data.Add(language.Name, verb);
+            }
+        }
+
+        return data;
+    }
 
     // Measured 2026-11-26 with the production analyzer: "Var ansvarig för budgeten" lexemises to
     // [ansvar, budget], the stem "ansvarade för" also lexemises to.
@@ -56,9 +87,10 @@ public class A2ActionVerbsRuleTests
 
     [Theory]
     [MemberData(nameof(WeakPhrases))]
-    public async Task A2_ShouldReadEveryWeakPhraseInTheBank_AsAWeakOpener(string weak)
+    public async Task A2_ShouldReadEveryWeakPhraseInTheBank_AsAWeakOpener(string language, string weak)
     {
-        var a2 = await A2FromParsedAsync($"{Capitalised(weak)} arbetet på avdelningen.");
+        var cvLanguage = ResumeLanguage.FromName(language);
+        var a2 = await A2FromParsedAsync(cvLanguage, $"{Capitalised(weak)} {Object(cvLanguage)}");
 
         a2.Verdict.ShouldBe(CriterionVerdict.Fail);
         Evidence(a2).Note.ShouldBe(WeakNote);
@@ -66,11 +98,38 @@ public class A2ActionVerbsRuleTests
 
     [Theory]
     [MemberData(nameof(StrongVerbs))]
-    public async Task A2_ShouldReadEveryStrongVerbInTheBank_AsAStrongOpener(string verb)
+    public async Task A2_ShouldReadEveryStrongVerbInTheBank_AsAStrongOpener(string language, string verb)
     {
-        var a2 = await A2FromParsedAsync($"{Capitalised(verb)} arbetet på avdelningen.");
+        var cvLanguage = ResumeLanguage.FromName(language);
+        var a2 = await A2FromParsedAsync(cvLanguage, $"{Capitalised(verb)} {Object(cvLanguage)}");
 
         a2.Verdict.ShouldBe(CriterionVerdict.Pass);
+    }
+
+    // #2341: measured 2026-11-26, an English CV whose bullets open with "Designed", "Led" or
+    // "Automated" failed A2, because the strong verbs were Swedish only.
+    [Fact]
+    public async Task A2_ShouldPassAnEnglishCv_WhoseBulletsOpenWithStrongEnglishVerbs()
+    {
+        var a2 = await A2FromParsedAsync(ResumeLanguage.En,
+            "Designed a test strategy for the payment service.",
+            "Led the migration of the end-to-end suite to a new framework.",
+            "Automated 35 regression tests with Selenium and C#.");
+
+        a2.Verdict.ShouldBe(CriterionVerdict.Pass);
+    }
+
+    [Fact]
+    public async Task A2_ShouldFlagAnEnglishWeakOpener()
+    {
+        var a2 = await A2FromParsedAsync(ResumeLanguage.En,
+            "Responsible for manual test cases for an insurance portal.",
+            "Designed a test strategy for the payment service.",
+            "Led the migration of the end-to-end suite to a new framework.");
+
+        a2.Verdict.ShouldBe(CriterionVerdict.Fail);
+        Evidence(a2).Note.ShouldBe(WeakNote);
+        Evidence(a2).Span.Quote.ShouldBe("Responsible for manual test cases for an insurance portal.");
     }
 
     [Fact]

@@ -82,7 +82,7 @@ public sealed class ApplyCvImprovementsCommandHandler(
         }
 
         var catalog = frameProvider.GetFrameCatalog();
-        var strongVerbs = FrameApplyComposer.BuildStrongVerbSet(verbMapper.GetVerbMapping(), catalog);
+        var strongVerbs = FrameApplyComposer.BuildStrongVerbSet(verbMapper.GetVerbMapping(ResumeLanguage.Sv), catalog);
 
         // Pre-apply review over the CURRENT canonical content — the substrate every
         // change's fingerprint and Before line resolve against (server recompute, §D2).

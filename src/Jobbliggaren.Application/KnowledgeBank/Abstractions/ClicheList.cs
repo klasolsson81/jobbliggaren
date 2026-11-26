@@ -44,4 +44,6 @@ public sealed record ClicheEntry(
 /// (senior-cto-advisor DQ3 — cliché/verb evolve at a different cadence than the rubric
 /// and keep parity with the existing <c>TaxonomyVersion</c> string convention).
 /// </summary>
-public sealed record ClicheList(string Version, IReadOnlyList<ClicheEntry> Entries);
+/// <param name="Source">The asset name a change proposed from this list cites as its
+/// provenance (<c>KnowledgeBankProvenance.Source</c>).</param>
+public sealed record ClicheList(string Version, IReadOnlyList<ClicheEntry> Entries, string Source);

@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
+using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Review;
 using NSubstitute;
@@ -112,7 +113,7 @@ public class RubricThresholdBindingTests
         // sentence). Real rubric failFromCount = 2 → 2 unsupported ≥ 2 → Fail; raise to 3 → 2 < 3 →
         // Warn. Soft-skill phrases come from the REAL cliché lexicon (golden source), parity the
         // CvReviewEngineTests A9 cases.
-        var soft = RealClicheLexicon().GetClicheList().Entries
+        var soft = RealClicheLexicon().GetClicheList(ResumeLanguage.Sv).Entries
             .Where(e => e.Kind == ClicheKind.SoftSkill)
             .Select(e => e.Phrase)
             .ToList();

@@ -54,8 +54,8 @@ internal sealed class CvImprovementEngine : ICvImprovementEngine
     {
         ArgumentNullException.ThrowIfNull(parsedResume);
 
-        var cliches = _clicheLexicon.GetClicheList();
-        var verbs = _verbMapper.GetVerbMapping();
+        var cliches = _clicheLexicon.GetClicheList(parsedResume.DetectedLanguage);
+        var verbs = _verbMapper.GetVerbMapping(parsedResume.DetectedLanguage);
         var rubric = _rubricProvider.GetRubric();
         var language = parsedResume.DetectedLanguage == ResumeLanguage.En
             ? TextLanguage.English

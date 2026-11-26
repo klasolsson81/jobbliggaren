@@ -67,7 +67,7 @@ internal sealed class WeakVerbTransform : ICvTransform
                     evidence: evidence,
                     replacement: new ProposedReplacement(before, match.SuggestedStrong),
                     rationale: "Byt det svaga inledande verbet mot ett starkt handlingsverb.",
-                    provenance: new KnowledgeBankProvenance("verb-mapping", context.Verbs.Version, match.Weak),
+                    provenance: new KnowledgeBankProvenance(context.Verbs.Source, context.Verbs.Version, match.Weak),
                     resolvedKbValue: match.SuggestedStrong);
             }
         }

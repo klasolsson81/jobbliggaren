@@ -30,7 +30,10 @@ public sealed record WeakVerbMapping(string Weak, string SuggestedStrong, string
 /// here). Versioned DATA (CLAUDE.md §5: "action-verb lists ... versioned data/config
 /// ... not inline strings"). Plain-string version (DQ3).
 /// </summary>
+/// <param name="Source">The asset name a change proposed from this mapping cites as its
+/// provenance (<c>KnowledgeBankProvenance.Source</c>).</param>
 public sealed record VerbMapping(
     string Version,
     IReadOnlyList<StrongVerbGroup> StrongVerbGroups,
-    IReadOnlyList<WeakVerbMapping> WeakVerbs);
+    IReadOnlyList<WeakVerbMapping> WeakVerbs,
+    string Source);

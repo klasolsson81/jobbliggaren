@@ -55,8 +55,8 @@ internal static class CvImprovementFixtures
     internal static IClicheLexicon RealClicheLexicon() => new ClicheLexicon();
     internal static IVerbMapper RealVerbMapper() => new VerbMapper();
     internal static Rubric RealRubric() => RealRubricProvider().GetRubric();
-    internal static ClicheList RealClicheList() => RealClicheLexicon().GetClicheList();
-    internal static VerbMapping RealVerbMapping() => RealVerbMapper().GetVerbMapping();
+    internal static ClicheList RealClicheList() => RealClicheLexicon().GetClicheList(ResumeLanguage.Sv);
+    internal static VerbMapping RealVerbMapping() => RealVerbMapper().GetVerbMapping(ResumeLanguage.Sv);
 
     // Fas 4b 8b.4b — the parsing lexicon (heading RECOGNITION, D6 + B1 transforms) and the
     // conventions asset (section-order RECOMMENDATION, B1 transform). Real committed assets, loaded

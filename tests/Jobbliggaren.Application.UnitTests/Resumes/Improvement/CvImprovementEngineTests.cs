@@ -115,7 +115,7 @@ public class CvImprovementEngineTests
     private static IClicheLexicon FakeLexiconFrom(params ClicheEntry[] entries)
     {
         var lexicon = Substitute.For<IClicheLexicon>();
-        lexicon.GetClicheList().Returns(new ClicheList("test-cliche", entries));
+        lexicon.GetClicheList(Arg.Any<ResumeLanguage>()).Returns(new ClicheList("test-cliche", entries, "cliche-list"));
         return lexicon;
     }
 

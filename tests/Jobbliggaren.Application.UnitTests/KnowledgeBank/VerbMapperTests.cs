@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
+using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Infrastructure.KnowledgeBank;
 using Shouldly;
 
@@ -16,7 +17,7 @@ namespace Jobbliggaren.Application.UnitTests.KnowledgeBank;
 /// </summary>
 public class VerbMapperTests
 {
-    private static VerbMapping LoadMapping() => new VerbMapper().GetVerbMapping();
+    private static VerbMapping LoadMapping() => new VerbMapper().GetVerbMapping(ResumeLanguage.Sv);
 
     [Fact]
     public void GetVerbMapping_ShouldLoadVersionedEmbeddedResource_WhenCalled()
@@ -166,5 +167,59 @@ public class VerbMapperTests
 
         legacy.ShouldNotBeNull();
         legacy!.DropInSafe.ShouldBeFalse();
+    }
+    // ── #2341: one mapping per CV language ───────────────────────────────
+
+    private const string SwedishResource = "Jobbliggaren.Infrastructure.KnowledgeBank.verb-mapping.sv.v1.json";
+
+    [Fact]
+    public void GetVerbMapping_ShouldServeEveryResumeLanguage_EachFromItsOwnAsset()
+    {
+        var mapper = new VerbMapper();
+
+        foreach (var language in ResumeLanguage.List)
+        {
+            mapper.GetVerbMapping(language).Version.ShouldNotBe("unknown");
+        }
+
+        mapper.GetVerbMapping(ResumeLanguage.Sv).Source.ShouldBe("verb-mapping");
+        mapper.GetVerbMapping(ResumeLanguage.Sv).Version.ShouldBe("1.1");
+        mapper.GetVerbMapping(ResumeLanguage.En).Source.ShouldBe("verb-mapping.en");
+        mapper.GetVerbMapping(ResumeLanguage.En).Version.ShouldBe("1.0");
+    }
+
+    [Fact]
+    public void GetVerbMapping_English_ShouldSuggestOnlyItsOwnStrongVerbs()
+    {
+        var english = new VerbMapper().GetVerbMapping(ResumeLanguage.En);
+        var strong = english.StrongVerbGroups.SelectMany(g => g.Verbs).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        english.StrongVerbGroups.Count.ShouldBe(7);
+        english.WeakVerbs.ShouldAllBe(w => strong.Contains(w.SuggestedStrong));
+        english.WeakVerbs.Where(w => w.DropInSafe).Select(w => w.Weak).ShouldBe(["was responsible for"]);
+    }
+
+    [Fact]
+    public void Construction_ShouldFail_WhenAResumeLanguageHasNoMapping()
+    {
+        var onlySwedish = new Dictionary<ResumeLanguage, KnowledgeBankAsset>
+        {
+            [ResumeLanguage.Sv] = new("verb-mapping", SwedishResource),
+        };
+
+        Should.Throw<InvalidOperationException>(() => new VerbMapper(onlySwedish))
+            .Message.ShouldContain(ResumeLanguage.En.Name);
+    }
+
+    [Fact]
+    public void Construction_ShouldFail_WhenALanguagesListIsNotEmbedded()
+    {
+        var unembedded = new Dictionary<ResumeLanguage, KnowledgeBankAsset>
+        {
+            [ResumeLanguage.Sv] = new("verb-mapping", SwedishResource),
+            [ResumeLanguage.En] = new("verb-mapping.en", "Jobbliggaren.Infrastructure.KnowledgeBank.verb-mapping.xx.v1.json"),
+        };
+
+        Should.Throw<InvalidOperationException>(() => new VerbMapper(unembedded));
     }
 }

@@ -1,36 +1,46 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
+using Jobbliggaren.Domain.Resumes;
 
 namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 
 /// <summary>
-/// <see cref="IClicheLexicon"/> over the committed, versioned CV lexicon
-/// (<c>cliche-list.sv.v2.json</c>, F4-7, research §6.1). Loads + maps the embedded asset
-/// once at construction and serves the cached immutable contract — registered as a
-/// singleton. v2 (#490/#495/#496): every entry carries a <c>kind</c> discriminator, an
-/// advisory <c>guidance</c> field, and an OPTIONAL genuine <c>dropInReplacement</c> (the
-/// only literal the propose step may apply verbatim — no synthesis).
+/// <see cref="IClicheLexicon"/> over the committed, versioned CV lexicons, one per CV language
+/// (<c>cliche-list.sv.v2.json</c>, <c>cliche-list.en.v1.json</c>; F4-7, research §6.1). Loads and
+/// maps every asset once at construction and serves the cached immutable contracts. A language
+/// without a list stops construction, and DI constructs it at registration, so the host never boots
+/// without one. v2 (#490/#495/#496): every entry carries a <c>kind</c> discriminator, an advisory
+/// <c>guidance</c> field, and an OPTIONAL genuine <c>dropInReplacement</c> (the only literal the
+/// propose step may apply verbatim — no synthesis).
 /// </summary>
 internal sealed class ClicheLexicon : IClicheLexicon
 {
-    private const string ResourceName =
-        "Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.sv.v2.json";
+    private static readonly IReadOnlyDictionary<ResumeLanguage, KnowledgeBankAsset> Assets =
+        new Dictionary<ResumeLanguage, KnowledgeBankAsset>
+        {
+            [ResumeLanguage.Sv] = new("cliche-list", "Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.sv.v2.json"),
+            [ResumeLanguage.En] = new("cliche-list.en", "Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.en.v1.json"),
+        };
 
-    private readonly ClicheList _list = Load();
+    private readonly IReadOnlyDictionary<ResumeLanguage, ClicheList> _lists;
 
-    public ClicheList GetClicheList() => _list;
-
-    private static ClicheList Load()
+    public ClicheLexicon()
+        : this(Assets)
     {
-        var asm = typeof(ClicheLexicon).Assembly;
-        using var stream = asm.GetManifestResourceStream(ResourceName)
-            ?? throw new InvalidOperationException(
-                $"Embedded cliché-asset saknas: {ResourceName}. " +
-                "Verifiera <EmbeddedResource> i Jobbliggaren.Infrastructure.csproj.");
+    }
+
+    internal ClicheLexicon(IReadOnlyDictionary<ResumeLanguage, KnowledgeBankAsset> assets) =>
+        _lists = KnowledgeBankAsset.LoadForEveryLanguage(assets, "klyschlista", Load);
+
+    public ClicheList GetClicheList(ResumeLanguage language) => _lists[language];
+
+    private static ClicheList Load(KnowledgeBankAsset asset)
+    {
+        using var stream = asset.Open();
 
         var file = JsonSerializer.Deserialize<ClicheListFile>(stream, KnowledgeBankJson.Options)
-            ?? throw new InvalidOperationException("cliche-list.sv.v2.json deserialiserade till null.");
+            ?? throw new InvalidOperationException($"{asset.ResourceName} deserialiserade till null.");
 
         var entries = file.Entries
             .Select(e => new ClicheEntry(
@@ -41,7 +51,7 @@ internal sealed class ClicheLexicon : IClicheLexicon
                 NullIfBlank(e.DropInReplacement)))
             .ToList();
 
-        return new ClicheList(file.Version, entries);
+        return new ClicheList(file.Version, entries, asset.Source);
     }
 
     // A blank/whitespace dropInReplacement is "no genuine drop-in" — normalise it to null so the

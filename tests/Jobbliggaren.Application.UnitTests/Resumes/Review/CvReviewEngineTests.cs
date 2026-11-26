@@ -265,7 +265,7 @@ public class CvReviewEngineTests
     public async Task ReviewAsync_ShouldPassA2_WhenBulletsStartWithStrongVerbsFromMapping()
     {
         // Strong verbs are exactly those in verb-mapping.sv.v1.json (golden source).
-        var strong = RealVerbMapper().GetVerbMapping()
+        var strong = RealVerbMapper().GetVerbMapping(ResumeLanguage.Sv)
             .StrongVerbGroups.SelectMany(g => g.Verbs).First(); // e.g. "ledde"
 
         var resume = Resume(experience:
@@ -283,7 +283,7 @@ public class CvReviewEngineTests
     {
         // A weak verb from the mapping ("var ansvarig för") at the bullet start → not a
         // strong opener. The verdict cites the offending span.
-        var weak = RealVerbMapper().GetVerbMapping().WeakVerbs[0].Weak; // "var ansvarig för"
+        var weak = RealVerbMapper().GetVerbMapping(ResumeLanguage.Sv).WeakVerbs[0].Weak; // "var ansvarig för"
 
         var resume = Resume(experience:
         [
@@ -328,7 +328,7 @@ public class CvReviewEngineTests
         // #487(b): pre-fix A2 read the entry's first word = the job title, never a verb, and
         // FAILED citing the title even when every bullet opens with a strong verb. With real
         // bullet lines A2 PASSES.
-        var strong = RealVerbMapper().GetVerbMapping()
+        var strong = RealVerbMapper().GetVerbMapping(ResumeLanguage.Sv)
             .StrongVerbGroups.SelectMany(g => g.Verbs).First();
         var resume = Resume(experience:
         [
@@ -706,7 +706,7 @@ public class CvReviewEngineTests
     // The kind==Cliche / kind==SoftSkill phrases from the REAL committed asset (golden source):
     // A7 owns the clichés, A9 owns the soft-skill adjectives — one phrase, one verdict (#490).
     private static List<string> Phrases(ClicheKind kind) =>
-        RealClicheLexicon().GetClicheList().Entries
+        RealClicheLexicon().GetClicheList(ResumeLanguage.Sv).Entries
             .Where(e => e.Kind == kind)
             .Select(e => e.Phrase)
             .ToList();
@@ -2313,7 +2313,7 @@ public class CvReviewEngineTests
         // (non-strong, non-weak) opener so the non-strong share is honest and never a weak-verb Fail.
         static ParsedResume A2Bullets(int strong, int total)
         {
-            var strongVerb = RealVerbMapper().GetVerbMapping()
+            var strongVerb = RealVerbMapper().GetVerbMapping(ResumeLanguage.Sv)
                 .StrongVerbGroups.SelectMany(g => g.Verbs).First();
             var bullets = new List<string>();
             for (var i = 0; i < total; i++)

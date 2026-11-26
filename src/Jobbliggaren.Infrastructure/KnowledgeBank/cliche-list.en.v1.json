@@ -1,0 +1,31 @@
+{
+  "clicheListVersion": "1",
+  "entries": [
+    { "phrase": "team player", "kind": "cliche", "why": "Alla skriver det, och det går inte att kontrollera", "guidance": "Beskriv ett samarbete och vad det ledde till. \"Led a cross-functional team of 6 that shipped the release two weeks early\"" },
+    { "phrase": "results-driven", "kind": "cliche", "why": "Vagt, säger inget om vilka resultat", "guidance": "Skriv resultatet med siffror direkt i punkten" },
+    { "phrase": "results-oriented", "kind": "cliche", "why": "Vagt, säger inget om vilka resultat", "guidance": "Skriv resultatet med siffror direkt i punkten" },
+    { "phrase": "think outside the box", "kind": "cliche", "why": "Tom fras", "guidance": "Beskriv idén och vad den förändrade. \"Proposed a new triage routine that cut the fix time from 9 to 3 days\"" },
+    { "phrase": "proven track record", "kind": "cliche", "why": "Påstår ett resultat utan att visa det", "guidance": "Visa resultatet i stället, med siffror och sammanhang" },
+    { "phrase": "go-getter", "kind": "cliche", "why": "Klyscha utan innehåll", "guidance": "Beskriv något du tog initiativ till och vad det gav" },
+    { "phrase": "self-starter", "kind": "cliche", "why": "Klyscha utan innehåll", "guidance": "\"Initiated and ran a pilot project from idea to launch in four months\"" },
+    { "phrase": "go-to person", "kind": "cliche", "why": "Säger inget om vad du faktiskt gör", "guidance": "Beskriv vad kollegor kommer till dig med och vad det leder till" },
+    { "phrase": "synergy", "kind": "cliche", "why": "Modeord utan innehåll", "guidance": "Beskriv konkret vad samarbetet gav" },
+    { "phrase": "thought leader", "kind": "cliche", "why": "Självutnämnt och omätbart", "guidance": "Nämn föredrag, artiklar eller projekt som visar det" },
+    { "phrase": "excellent communication skills", "kind": "cliche", "why": "Förväntas av alla och visas inte", "guidance": "Beskriv vad du kommunicerade, till vem och med vilket resultat" },
+    { "phrase": "works well under pressure", "kind": "cliche", "why": "Säg det inte, visa det", "guidance": "\"Delivered the migration of 28 systems in 6 weeks while keeping daily operations running\"" },
+    { "phrase": "reliable", "kind": "softSkill", "why": "Förväntas av alla anställda", "guidance": "Ge ett exempel med siffror. \"Kept 99.9 % uptime for the booking service over two years\"" },
+    { "phrase": "detail-oriented", "kind": "softSkill", "why": "Mätbart men inte mätt", "guidance": "\"Reviewed 18 annual reports with no corrections in the external audit\"" },
+    { "phrase": "hard-working", "kind": "softSkill", "why": "Förväntas av alla", "guidance": "Beskriv en konkret prestation som visar det" },
+    { "phrase": "hardworking", "kind": "softSkill", "why": "Förväntas av alla", "guidance": "Beskriv en konkret prestation som visar det" },
+    { "phrase": "flexible", "kind": "softSkill", "why": "Säger inget om vad du gör annorlunda", "guidance": "\"Rotated between three roles during a reorganisation, from developer to tech lead\"" },
+    { "phrase": "adaptable", "kind": "softSkill", "why": "Säger inget om vad du gör annorlunda", "guidance": "Beskriv en förändring du hanterade och vad den gav" },
+    { "phrase": "organised", "kind": "softSkill", "why": "Förväntas av alla", "guidance": "Beskriv vad du organiserade och med vilket resultat" },
+    { "phrase": "organized", "kind": "softSkill", "why": "Förväntas av alla", "guidance": "Beskriv vad du organiserade och med vilket resultat" },
+    { "phrase": "proactive", "kind": "softSkill", "why": "Påstående utan exempel", "guidance": "Beskriv något du gjorde innan någon bad om det och vad det gav" },
+    { "phrase": "passionate", "kind": "softSkill", "why": "Tom passion-signal som alla använder", "guidance": "Beskriv ett konkret projekt eller initiativ" },
+    { "phrase": "highly motivated", "kind": "softSkill", "why": "Påstående utan exempel", "guidance": "Visa motivationen med något du åstadkom" },
+    { "phrase": "self-motivated", "kind": "softSkill", "why": "Påstående utan exempel", "guidance": "Visa motivationen med något du åstadkom" },
+    { "phrase": "dedicated", "kind": "softSkill", "why": "Förväntas av alla", "guidance": "Beskriv vad du lade tid på och vad det gav" },
+    { "phrase": "creative", "kind": "softSkill", "why": "Påstående utan exempel", "guidance": "Beskriv en idé du genomförde och vad den gav" }
+  ]
+}

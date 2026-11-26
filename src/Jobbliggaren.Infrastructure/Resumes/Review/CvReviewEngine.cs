@@ -83,8 +83,8 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         ArgumentNullException.ThrowIfNull(context);
 
         var rubric = _rubricProvider.GetRubric();
-        var cliches = _clicheLexicon.GetClicheList();
-        var verbs = _verbMapper.GetVerbMapping();
+        var cliches = _clicheLexicon.GetClicheList(context.Language);
+        var verbs = _verbMapper.GetVerbMapping(context.Language);
         var allowlist = _spellingAllowlist.GetAllowlist();
         var language = context.Language == ResumeLanguage.En ? TextLanguage.English : TextLanguage.Swedish;
         var datedExperiences = BuildDatedExperiences(context);

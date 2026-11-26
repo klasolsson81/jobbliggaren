@@ -96,5 +96,5 @@ internal static class FrameFixtures
 
     /// <summary>A verb mapping whose single strong-verb group carries <paramref name="strongVerbs"/>.</summary>
     internal static VerbMapping VerbMappingWith(params string[] strongVerbs) =>
-        new(VerbMappingVersion, [new StrongVerbGroup("Ledarskap & ansvar", strongVerbs)], []);
+        new(VerbMappingVersion, [new StrongVerbGroup("Ledarskap & ansvar", strongVerbs)], [], "verb-mapping");
 }

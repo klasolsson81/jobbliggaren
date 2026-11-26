@@ -1,3 +1,5 @@
+using Jobbliggaren.Domain.Resumes;
+
 namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 
 /// <summary>
@@ -8,6 +10,8 @@ namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 /// </summary>
 public interface IVerbMapper
 {
-    /// <summary>The current committed verb mapping (<c>verb-mapping.sv.v1.json</c>).</summary>
-    VerbMapping GetVerbMapping();
+    /// <summary>The committed verb mapping for a CV written in <paramref name="language"/>
+    /// (<c>verb-mapping.sv.v1.json</c>, <c>verb-mapping.en.v1.json</c>). Every
+    /// <see cref="ResumeLanguage"/> has one.</summary>
+    VerbMapping GetVerbMapping(ResumeLanguage language);
 }

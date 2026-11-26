@@ -55,7 +55,7 @@ internal sealed class ClicheTransform : ICvTransform
                     evidence: evidence,
                     replacement: new ProposedReplacement(span.Quote, entry.DropInReplacement),
                     rationale: entry.Why,
-                    provenance: new KnowledgeBankProvenance("cliche-list", context.Cliches.Version, entry.Phrase),
+                    provenance: new KnowledgeBankProvenance(context.Cliches.Source, context.Cliches.Version, entry.Phrase),
                     resolvedKbValue: entry.DropInReplacement);
             }
         }

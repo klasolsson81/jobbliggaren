@@ -1,0 +1,47 @@
+{
+  "verbMappingVersion": "1.0",
+  "strongVerbGroups": [
+    {
+      "group": "Ledarskap & ansvar",
+      "verbs": ["led", "lead", "managed", "directed", "headed", "oversaw", "coordinated", "supervised", "mentored", "coached", "delegated", "prioritised", "prioritized", "chaired", "spearheaded"]
+    },
+    {
+      "group": "Bygga & skapa",
+      "verbs": ["built", "build", "designed", "developed", "created", "established", "founded", "launched", "introduced", "implemented", "initiated", "engineered", "architected", "prototyped"]
+    },
+    {
+      "group": "Förbättra & optimera",
+      "verbs": ["improved", "increased", "reduced", "optimised", "optimized", "streamlined", "automated", "accelerated", "simplified", "doubled", "halved", "consolidated", "modernised", "modernized", "refactored"]
+    },
+    {
+      "group": "Leverera & genomföra",
+      "verbs": ["delivered", "completed", "executed", "achieved", "shipped", "deployed", "migrated", "released", "resolved", "produced"]
+    },
+    {
+      "group": "Analys & beslut",
+      "verbs": ["analysed", "analyzed", "evaluated", "assessed", "identified", "defined", "validated", "tested", "investigated", "researched", "audited", "diagnosed", "mapped"]
+    },
+    {
+      "group": "Sälj & relation",
+      "verbs": ["sold", "negotiated", "secured", "won", "closed", "acquired", "grew", "expanded", "generated", "retained"]
+    },
+    {
+      "group": "Kommunikation",
+      "verbs": ["presented", "trained", "taught", "wrote", "authored", "documented", "facilitated", "advocated"]
+    }
+  ],
+  "weakVerbs": [
+    { "weak": "was responsible for", "suggestedStrong": "managed", "group": "Ledarskap & ansvar", "dropInSafe": true },
+    { "weak": "responsible for", "suggestedStrong": "managed", "group": "Ledarskap & ansvar", "dropInSafe": false },
+    { "weak": "in charge of", "suggestedStrong": "led", "group": "Ledarskap & ansvar", "dropInSafe": false },
+    { "weak": "worked on", "suggestedStrong": "developed", "group": "Bygga & skapa", "dropInSafe": false },
+    { "weak": "worked with", "suggestedStrong": "coordinated", "group": "Ledarskap & ansvar", "dropInSafe": false },
+    { "weak": "helped", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "assisted with", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "participated in", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "was involved in", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "involved in", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "tasked with", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "duties included", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false }
+  ]
+}

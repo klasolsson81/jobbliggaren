@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
+using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Infrastructure.KnowledgeBank;
 using Shouldly;
 
@@ -18,7 +19,7 @@ namespace Jobbliggaren.Application.UnitTests.KnowledgeBank;
 /// </summary>
 public class ClicheLexiconTests
 {
-    private static ClicheList LoadList() => new ClicheLexicon().GetClicheList();
+    private static ClicheList LoadList() => new ClicheLexicon().GetClicheList(ResumeLanguage.Sv);
 
     [Fact]
     public void GetClicheList_ShouldLoadVersionedEmbeddedResource_WhenCalled()
@@ -192,5 +193,56 @@ public class ClicheLexiconTests
         legacy.ShouldNotBeNull();
         legacy!.Kind.ShouldBeNull();
         legacy.DropInReplacement.ShouldBeNull();
+    }
+    // ── #2341: one list per CV language ──────────────────────────────────
+
+    private const string SwedishResource = "Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.sv.v2.json";
+
+    [Fact]
+    public void GetClicheList_ShouldServeEveryResumeLanguage_EachFromItsOwnAsset()
+    {
+        var lexicon = new ClicheLexicon();
+
+        foreach (var language in ResumeLanguage.List)
+        {
+            lexicon.GetClicheList(language).Entries.ShouldNotBeEmpty();
+        }
+
+        lexicon.GetClicheList(ResumeLanguage.Sv).Source.ShouldBe("cliche-list");
+        lexicon.GetClicheList(ResumeLanguage.En).Source.ShouldBe("cliche-list.en");
+        lexicon.GetClicheList(ResumeLanguage.En).Version.ShouldBe("1");
+    }
+
+    [Theory]
+    [InlineData("team player", ClicheKind.Cliche)]
+    [InlineData("results-driven", ClicheKind.Cliche)]
+    [InlineData("reliable", ClicheKind.SoftSkill)]
+    [InlineData("detail-oriented", ClicheKind.SoftSkill)]
+    public void GetClicheList_English_ShouldClassifyItsEntries(string phrase, ClicheKind kind)
+    {
+        var english = new ClicheLexicon().GetClicheList(ResumeLanguage.En);
+
+        english.Entries.Single(e => e.Phrase == phrase).Kind.ShouldBe(kind);
+    }
+
+    [Fact]
+    public void GetClicheList_English_ShouldCarryAnExplanationOnEveryEntry()
+    {
+        // `why` and `guidance` reach the user through ClicheTransform.
+        var english = new ClicheLexicon().GetClicheList(ResumeLanguage.En);
+
+        english.Entries.ShouldAllBe(e => !string.IsNullOrWhiteSpace(e.Why) && !string.IsNullOrWhiteSpace(e.Guidance));
+    }
+
+    [Fact]
+    public void Construction_ShouldFail_WhenAResumeLanguageHasNoList()
+    {
+        var onlySwedish = new Dictionary<ResumeLanguage, KnowledgeBankAsset>
+        {
+            [ResumeLanguage.Sv] = new("cliche-list", SwedishResource),
+        };
+
+        Should.Throw<InvalidOperationException>(() => new ClicheLexicon(onlySwedish))
+            .Message.ShouldContain(ResumeLanguage.En.Name);
     }
 }

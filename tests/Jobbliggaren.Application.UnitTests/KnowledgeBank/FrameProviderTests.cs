@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
+using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Infrastructure.KnowledgeBank;
 using Shouldly;
 
@@ -25,7 +26,7 @@ public class FrameProviderTests
         // The cross-asset pin: the catalog is authored against verb-mapping v1.1 and
         // the loader fails loud on drift (proven in FramesLoaderTests) — here we prove
         // the COMMITTED pair agrees.
-        catalog.VerbMappingVersion.ShouldBe(new VerbMapper().GetVerbMapping().Version);
+        catalog.VerbMappingVersion.ShouldBe(new VerbMapper().GetVerbMapping(ResumeLanguage.Sv).Version);
     }
 
     [Fact]
@@ -46,7 +47,7 @@ public class FrameProviderTests
     {
         // ADR 0093 §D2 invariant (b) made structural at PR-5 time: the apply-half can
         // never meet a frame whose lead verb the knowledge bank does not endorse.
-        var strongVerbs = new VerbMapper().GetVerbMapping().StrongVerbGroups
+        var strongVerbs = new VerbMapper().GetVerbMapping(ResumeLanguage.Sv).StrongVerbGroups
             .SelectMany(g => g.Verbs)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 

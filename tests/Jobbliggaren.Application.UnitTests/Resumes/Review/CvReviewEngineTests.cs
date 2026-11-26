@@ -15,7 +15,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// Fas 4 STEG 9 (F4-9, ADR 0071/0074) — the deterministic CV-review engine. NO AI/LLM:
 /// every verdict is a rule over the parsed CV + the versioned knowledge bank, with cited
 /// evidence (CLAUDE.md §5). Golden expectations are derived from the REAL committed assets
-/// (rubric.v2.0.0.json / cliche-list.v2.json / verb-mapping.v1.json) via the real loaders,
+/// (rubric.v2.0.0.json / cliche-list.sv.v2.json / verb-mapping.sv.v1.json) via the real loaders,
 /// so the tests can never drift from the data the engine actually reads.
 ///
 /// The internal sealed <see cref="CvReviewEngine"/> is constructed directly (Infrastructure
@@ -264,7 +264,7 @@ public class CvReviewEngineTests
     [Fact]
     public async Task ReviewAsync_ShouldPassA2_WhenBulletsStartWithStrongVerbsFromMapping()
     {
-        // Strong verbs are exactly those in verb-mapping.v1.json (golden source).
+        // Strong verbs are exactly those in verb-mapping.sv.v1.json (golden source).
         var strong = RealVerbMapper().GetVerbMapping()
             .StrongVerbGroups.SelectMany(g => g.Verbs).First(); // e.g. "ledde"
 

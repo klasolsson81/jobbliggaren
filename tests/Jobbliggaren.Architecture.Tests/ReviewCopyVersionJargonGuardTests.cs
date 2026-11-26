@@ -14,7 +14,7 @@ namespace Jobbliggaren.Architecture.Tests;
 ///
 /// <para>Same lexer as the em-dash guard (<see cref="ReviewCopyScan"/>): comments and XML-doc are
 /// exempt, since they legitimately say "rubric v1.2 DATA". A version token is <c>v</c> + digits as a
-/// word of its own, so an asset resource name (<c>verb-mapping.v1.json</c>) and an identifier
+/// word of its own, so an asset resource name (<c>verb-mapping.sv.v1.json</c>) and an identifier
 /// (<c>NotAssessedV1</c>) are not one.</para>
 /// </summary>
 public class ReviewCopyVersionJargonGuardTests
@@ -99,7 +99,7 @@ public class ReviewCopyVersionJargonGuardTests
     public void Scan_ignores_an_asset_resource_name_and_an_identifier()
     {
         const string source =
-            "const string Name = \"Jobbliggaren.Infrastructure.KnowledgeBank.verb-mapping.v1.json\";\n" +
+            "const string Name = \"Jobbliggaren.Infrastructure.KnowledgeBank.verb-mapping.sv.v1.json\";\n" +
             "var token = \"NotAssessedV1\";";
         Scan(source).ShouldBeEmpty("ett resursnamn eller en identifierare är ingen versionsbeteckning i copy.");
     }

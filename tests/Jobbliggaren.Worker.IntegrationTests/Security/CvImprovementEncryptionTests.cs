@@ -157,7 +157,7 @@ public class CvImprovementEncryptionTests(WorkerTestFixture fixture)
         result.RubricVersion.ToString().ShouldNotBeNullOrWhiteSpace();
         result.Changes.ShouldNotBeEmpty(
             "Motorn ska föreslå ändringar över det dekrypterade CV:t (drop-in-säkert svagt verb).");
-        // #495: the seeded cliché "Driven lagspelare" has no genuine drop-in in cliche-list.v2.json,
+        // #495: the seeded cliché "Driven lagspelare" has no genuine drop-in in cliche-list.sv.v2.json,
         // so it is flagged by A7 but never rewritten — the drop-in-safe weak verb "Var ansvarig för"
         // is what proves the engine proposed over the DECRYPTED aggregate (the point of this test).
         result.Changes.ShouldContain(c => c.Kind == ProposedChangeKind.WeakVerbUpgrade);

@@ -5,7 +5,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.KnowledgeBank;
 
 /// <summary>
-/// Fas 4 STEG 7 (F4-7) — the committed CV lexicon (cliche-list.v2.json) loads through the real
+/// Fas 4 STEG 7 (F4-7) — the committed CV lexicon (cliche-list.sv.v2.json) loads through the real
 /// <see cref="ClicheLexicon"/>. The lexicon is VERSIONED DATA (CLAUDE.md §5: "cliché lists ...
 /// versioned data/config per the knowledge bank, not inline strings"). v2 (#490/#495/#496):
 /// every entry carries a <see cref="ClicheKind"/> discriminator (one phrase → exactly one

@@ -25,7 +25,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Improvement;
 /// QuestPDF: Phase A is the BCL-only engine + contracts; the IDocument renderer is Phase B.
 ///
 /// Golden expectations come from the REAL committed assets via the real loaders
-/// (<c>cliche-list.v2.json</c> / <c>verb-mapping.v1.json</c> / <c>rubric.v2.0.0.json</c>), so
+/// (<c>cliche-list.sv.v2.json</c> / <c>verb-mapping.sv.v1.json</c> / <c>rubric.v2.0.0.json</c>), so
 /// the <c>After</c>-text can never drift from the data the engine actually reads. The cliché
 /// drop-in arm is driven via a fake <c>IClicheLexicon</c> because today's real asset carries no
 /// genuine drop-in (#495 — advisory guidance is never applied verbatim).
@@ -226,7 +226,7 @@ public class CvImprovementEngineTests
     [Fact]
     public async Task SuggestAsync_ShouldProposeWeakVerbUpgrade_WhenBulletStartsWithAWeakVerb()
     {
-        // Use a REAL weak verb + its EXACT SuggestedStrong from verb-mapping.v1.json.
+        // Use a REAL weak verb + its EXACT SuggestedStrong from verb-mapping.sv.v1.json.
         var mapping = RealVerbMapping().WeakVerbs[0]; // "var ansvarig för" → "ansvarade för"
         var resume = Resume(experience:
         [
@@ -240,7 +240,7 @@ public class CvImprovementEngineTests
             "A2/C3-svagt-verb citerar bullet-spannet (TextSpanEvidence).");
         change.Replacement.ShouldNotBeNull();
         change.Replacement!.After.ShouldBe(mapping.SuggestedStrong,
-            "After ska vara EXAKT SuggestedStrong ur verb-mapping.v1.json (ingen syntes).");
+            "After ska vara EXAKT SuggestedStrong ur verb-mapping.sv.v1.json (ingen syntes).");
 
         var kb = change.Provenance.ShouldBeOfType<KnowledgeBankProvenance>();
         kb.Version.ShouldBe(RealVerbMapping().Version);

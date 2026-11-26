@@ -8,6 +8,6 @@ namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 /// </summary>
 public interface IVerbMapper
 {
-    /// <summary>The current committed verb mapping (<c>verb-mapping.v1.json</c>).</summary>
+    /// <summary>The current committed verb mapping (<c>verb-mapping.sv.v1.json</c>).</summary>
     VerbMapping GetVerbMapping();
 }

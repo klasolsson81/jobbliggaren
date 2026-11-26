@@ -275,8 +275,8 @@ public class CvImprovementEvidenceRedactionTests
     {
         // The pnr CV triggers a WeakVerb ("Var ansvarig för") whose After is a curated KB value
         // with no pnr in it — redaction must NOT alter it. Expected value read from the real asset
-        // (verb-mapping.v1.json). NOTE (#495): the cliché arm no longer contributes a KB After —
-        // today's cliche-list.v2.json carries no genuine drop-in, so a cliché is flagged (A7) but
+        // (verb-mapping.sv.v1.json). NOTE (#495): the cliché arm no longer contributes a KB After —
+        // today's cliche-list.sv.v2.json carries no genuine drop-in, so a cliché is flagged (A7) but
         // never rewritten; the drop-in-untouched-by-redaction path is covered by the weak verb here
         // (and by the fake-lexicon drop-in tests in CvImprovementEngineTests).
         const string WeakVerbAfter = "ansvarade för";

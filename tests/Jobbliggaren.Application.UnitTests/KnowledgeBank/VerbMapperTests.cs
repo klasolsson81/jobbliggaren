@@ -5,7 +5,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.KnowledgeBank;
 
 /// <summary>
-/// Fas 4 STEG 7 (F4-7) — the committed verb mapping (verb-mapping.v1.json) loads
+/// Fas 4 STEG 7 (F4-7) — the committed verb mapping (verb-mapping.sv.v1.json) loads
 /// through the real <see cref="VerbMapper"/>. Strong/weak action-verb data is
 /// VERSIONED DATA (CLAUDE.md §5: "action-verb lists ... versioned data/config ... not
 /// inline strings"). The closure invariant is the load-bearing one: every weak verb's

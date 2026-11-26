@@ -277,10 +277,8 @@ public class EntryBoundariesSegmentationTests
         experiences[0].RawText.ShouldEndWith("byggde appar, skrev tester\n2018 – 2019");
     }
 
-    // Where the author wrote blank lines they stay the only boundary, so a sub-assignment written
-    // inside one entry's description is not cut out of it.
     [Fact]
-    public void Segment_SubAssignmentInsideABlankLineSeparatedEntry_StaysInThatEntry()
+    public void Segment_SubAssignmentInsideAnEntryOfABlankLineSeparatedSection_StaysInThatEntry()
     {
         var experiences = _sut.Segment(Cv(true, "Arbetslivserfarenhet",
             ["Konsult — Acme AB", "2019 – 2024", "Uppdrag i urval.", "Projektledare, Volvo", "2021 – 2022", "Ledde migreringen."],
@@ -289,6 +287,59 @@ public class EntryBoundariesSegmentationTests
         experiences.Count.ShouldBe(2);
         experiences[0].RawText.ShouldBe(
             "Konsult — Acme AB\n2019 – 2024\nUppdrag i urval.\nProjektledare, Volvo\n2021 – 2022\nLedde migreringen.");
+    }
+
+    // Accepted and known: in a section holding one blank-line-free entry, a sub-assignment that
+    // names a role and an employer over a range is shaped exactly like an entry, and is cut.
+    [Fact]
+    public void Segment_SubAssignmentInsideTheOnlyEntryOfASection_IsCut()
+    {
+        var experiences = _sut.Segment(Cv(true, "Arbetslivserfarenhet",
+            ["Konsult — Acme AB", "2019 – 2024", "Uppdrag i urval.", "Projektledare, Volvo", "2021 – 2022", "Ledde migreringen."]))
+            .Content.Experience;
+
+        experiences.Select(e => e.Organization).ShouldBe(["Acme AB", "Volvo"]);
+    }
+
+    // A later entry written in another layout than the first is read in neither: "Utvecklare" /
+    // "Beta AB, Stockholm" over a range is a two-line header and an intro over a one-line header
+    // alike, so no title or organization is read off it.
+    [Theory]
+    [InlineData("Testledare — Acme AB|2020 – 2023|Testade betalflöden.|Utvecklare|Beta AB, Stockholm|2016 – 2020|Byggde tjänster.")]
+    [InlineData("Testledare — Acme AB 2020 – 2023|Testade betalflöden.|Utvecklare|Beta AB, Stockholm 2016 – 2020|Byggde tjänster.")]
+    public void Segment_LaterEntryInAnotherLayout_IsNotCut(string entryLines)
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet", entryLines.Split('|'))).Content.Experience;
+
+        experiences.Count.ShouldBe(1);
+        experiences[0].Organization.ShouldBe("Acme AB");
+    }
+
+    // A header whose second field is only a year names no employer: the anchor test and the field
+    // split read the line alike, so no entry with an empty organization or institution is cut.
+    [Fact]
+    public void Segment_HeaderWhoseSecondFieldIsAYear_OpensNoEntry()
+    {
+        var content = _sut.Segment(
+            """
+            Arbetslivserfarenhet
+            Testledare — Acme AB
+            2020 – 2023
+            Testade betalflöden.
+            Praktikant, 2019
+            2019 – 2019
+            Utvecklare — Beta AB
+            2016 – 2019
+            Utbildning
+            Civilingenjör — Exempeluniversitetet
+            2005 – 2010
+            Naturvetenskapsprogrammet, 2005
+            2002 – 2005
+            """).Content;
+
+        content.Experience.Select(e => e.Organization).ShouldBe(["Acme AB", "Beta AB"]);
+        content.Education.Count.ShouldBe(1);
+        content.Education[0].Institution.ShouldBe("Exempeluniversitetet");
     }
 
     // M3: an unpunctuated line above the first header reads both as an intro and as the role of a

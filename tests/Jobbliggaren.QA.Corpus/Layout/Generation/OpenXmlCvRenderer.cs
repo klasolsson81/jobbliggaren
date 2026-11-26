@@ -35,9 +35,7 @@ internal static class OpenXmlCvRenderer
     /// shape a two-column Word template produces. No blank paragraphs.
     /// <para>UNTIL #1060 β-1 the cell order made <c>SplitTitleOrganization</c> read Title as null,
     /// because the split ran against a line carrying nothing but a period. It now reads the next
-    /// line instead, so this arm parses its one fused entry and PROMOTES (lossily — it still yields
-    /// one entry of five, for the unrelated reason that the document authors no blank lines
-    /// and <c>SplitEntries</c> splits on those alone).</para></summary>
+    /// line instead.</para></summary>
     internal static byte[] TableLabelFirstNoBlanks(CvModel m) =>
         Build(m, useTable: true, blankSeparators: false, roleFirst: false, companyFirst: false);
 
@@ -48,7 +46,7 @@ internal static class OpenXmlCvRenderer
 
     /// <summary>The one-variable twin of <see cref="TableLabelFirstNoBlanks"/>: same body, only
     /// <c>&lt;w:p&gt;&lt;w:pPr /&gt;&lt;/w:p&gt;</c> separators added. This is the arm that isolates
-    /// BLANK-LINE loss at the segmenter level (entries 5 vs 1) while holding header-line order
+    /// BLANK-LINE loss at the segmenter level while holding header-line order
     /// fixed.
     /// <para>Its promote outcome WAS expected to stay blocked, on the reasoning that a label-first
     /// header line still yields a null Title. #1060 β-1 removed that cause, and this arm now promotes
@@ -70,7 +68,7 @@ internal static class OpenXmlCvRenderer
     /// <summary>The fourth cell of the <c>useTable: true</c> 2×2 over (header order × blank
     /// separators), which the other three above already occupy. It exists to answer ONE question
     /// the corpus could not answer before: is the entry-boundary loss on the no-blanks arms a
-    /// property of the DOCUMENT (no blank line ⇒ <c>SplitEntries</c> cannot split) or a
+    /// property of the DOCUMENT or a
     /// property of the label-first HEADER ORDER? Every no-blanks arm the corpus shipped was also
     /// label-first, so the two variables were confounded and the report could not separate them.
     ///

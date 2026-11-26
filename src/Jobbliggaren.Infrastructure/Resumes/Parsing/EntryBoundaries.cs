@@ -101,7 +101,11 @@ internal static class EntryBoundaries
             return null;
 
         if (!IsRangeRow(lines[f]))
-            return IsDatedHeader(lines[f], excludedName) ? new Anchor(Layout.DatedHeader, f, f) : null;
+        {
+            return IsDatedHeader(lines[f], excludedName) && HasOneReading(lines, f, -1, excludedName)
+                ? new Anchor(Layout.DatedHeader, f, f)
+                : null;
+        }
 
         if (f == 0)
         {
@@ -112,11 +116,9 @@ internal static class EntryBoundaries
 
         if (IsCompleteHeader(lines[f - 1], excludedName))
         {
-            // Two header-shaped lines over the range read as intro + "Role — Employer" and as
-            // "Role" / "Employer, City" alike.
-            return f >= 2 && IsHeaderShaped(lines[f - 2], excludedName)
-                ? null
-                : new Anchor(Layout.OneLineHeader, f - 1, f);
+            return HasOneReading(lines, f - 1, -1, excludedName)
+                ? new Anchor(Layout.OneLineHeader, f - 1, f)
+                : null;
         }
 
         return f == 2
@@ -132,14 +134,16 @@ internal static class EntryBoundaries
         IReadOnlyList<string> lines, int i, Layout layout, int previousDateLine, string? excludedName) =>
         layout switch
         {
-            Layout.DatedHeader when IsDatedHeader(lines[i], excludedName) => i,
+            Layout.DatedHeader when IsDatedHeader(lines[i], excludedName)
+                && HasOneReading(lines, i, previousDateLine, excludedName) => i,
             Layout.PeriodFirst when IsRangeRow(lines[i])
                 && i - previousDateLine >= 2
                 && i + 1 < lines.Count
                 && IsCompleteHeader(lines[i + 1], excludedName) => i,
             Layout.OneLineHeader when IsRangeRow(lines[i])
                 && i - 1 > previousDateLine
-                && IsCompleteHeader(lines[i - 1], excludedName) => i - 1,
+                && IsCompleteHeader(lines[i - 1], excludedName)
+                && HasOneReading(lines, i - 1, previousDateLine, excludedName) => i - 1,
             Layout.TwoLineHeader when IsRangeRow(lines[i])
                 && i - 2 > previousDateLine
                 && IsHeaderShaped(lines[i - 1], excludedName)
@@ -147,6 +151,13 @@ internal static class EntryBoundaries
                 && IsHeaderShaped(lines[i - 2], excludedName) => i - 2,
             _ => null,
         };
+
+    // A one-line header admits one reading only when the line above it cannot be the upper line of
+    // a two-line header: it is the previous entry's date line, or it is not header-shaped. Otherwise
+    // intro + "Role — Employer" and "Role" / "Employer, City" read alike.
+    private static bool HasOneReading(
+        IReadOnlyList<string> lines, int headerLine, int previousDateLine, string? excludedName) =>
+        headerLine - 1 <= previousDateLine || !IsHeaderShaped(lines[headerLine - 1], excludedName);
 
     private static bool IsRangeRow(string line)
     {
@@ -172,11 +183,9 @@ internal static class EntryBoundaries
     private static bool IsDatedHeader(string line, string? excludedName)
     {
         var trimmed = line.Trim();
-        return trimmed.Length <= MaxHeaderLength
-            && !IsBulletLine(trimmed)
-            && DatePatterns.TryStripTrailingDateRange(trimmed, out var head)
+        return DatePatterns.TryStripTrailingDateRange(trimmed, out var head)
             && head.Length > 0
-            && IsCompleteHeader(head, excludedName);
+            && IsCompleteHeader(trimmed, excludedName);
     }
 
     private static bool IsHeaderShaped(string line, string? excludedName)
@@ -195,10 +204,10 @@ internal static class EntryBoundaries
     {
         var trimmed = line.Trim();
         return IsHeaderShaped(trimmed, excludedName)
-            && HeadingDrivenResumeSegmenter.TrySplitFields(trimmed, out _, out _, out var separator)
+            && HeadingDrivenResumeSegmenter.TryReadHeaderFields(trimmed, out _, out _, out var separator)
             && (!char.IsLower(trimmed[0]) || LowercaseHeaderSeparators.Contains(separator));
     }
 
     private static bool SplitsIntoFields(string line) =>
-        HeadingDrivenResumeSegmenter.TrySplitFields(line.Trim(), out _, out _, out _);
+        HeadingDrivenResumeSegmenter.TryReadHeaderFields(line, out _, out _, out _);
 }

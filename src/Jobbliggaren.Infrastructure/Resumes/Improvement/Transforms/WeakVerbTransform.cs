@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Improvement.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Improvement.Transforms;
@@ -24,6 +25,7 @@ internal sealed class WeakVerbTransform : ICvTransform
     public IEnumerable<ProposedChange> Propose(CvImprovementContext context)
     {
         var index = 0;
+        var measure = LineWrapMeasure.For(context.Resume.SourceContentType, context.RawText);
         foreach (var experience in context.Content.Experience)
         {
             // #534: score the DESCRIPTION bullets (the same unit the F4-9 A2 review rule reads via
@@ -31,7 +33,7 @@ internal sealed class WeakVerbTransform : ICvTransform
             // RawText opens with the title/organisation header, so reading the block matched the job
             // TITLE and the rewrite never fired in production. DescriptionBullets already excludes the
             // header, the period line, and the organisation-on-its-own line, and trims each line.
-            foreach (var bullet in ReviewText.DescriptionBullets(experience))
+            foreach (var bullet in ReviewText.DescriptionBullets(experience, measure))
             {
                 // Language-aware NLP-tier tokenisation (dispatches sv/en; never throws for either).
                 if (context.Analyzer.ToLexemes(bullet, context.Language).Count == 0)

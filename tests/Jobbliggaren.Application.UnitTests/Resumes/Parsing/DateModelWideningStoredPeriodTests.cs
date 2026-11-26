@@ -374,7 +374,8 @@ public class DateModelWideningStoredPeriodTests
         var parsed = ResumeFromCvText(cv);
         var reviewable = CvReviewContext.FromParsed(parsed).Content.Experience.ShouldHaveSingleItem();
 
-        ReviewText.DescriptionBullets(reviewable).ShouldBe([bullet],
+        ReviewText.DescriptionBullets(reviewable, LineWrapMeasure.For(parsed.SourceContentType, parsed.RawText))
+            .ShouldBe([bullet],
             "a lone month point is a date, not prose — suppression grew, which is the allowed direction.");
     }
 }

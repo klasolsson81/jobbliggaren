@@ -224,13 +224,14 @@ internal static class CvReviewFixtures
     /// rawText the parser would never emit (the header line + own-line period are real).
     /// </summary>
     internal static ParsedResume ResumeFromCvText(
-        string cvText, string sourceFileName = "CV_Anna_Andersson.pdf")
+        string cvText, string sourceFileName = "CV_Anna_Andersson.pdf",
+        string sourceContentType = "application/pdf")
     {
         var segmented = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load()).Segment(cvText);
         var created = ParsedResume.Create(
             JobSeekerId.New(),
             sourceFileName,
-            "application/pdf",
+            sourceContentType,
             segmented.DetectedLanguage,
             segmented.Content,
             cvText,

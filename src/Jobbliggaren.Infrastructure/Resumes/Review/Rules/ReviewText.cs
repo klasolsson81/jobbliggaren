@@ -43,10 +43,11 @@ internal static class ReviewText
     /// </summary>
     public static IReadOnlyList<string> ExperienceBullets(CriterionEvaluationContext context)
     {
+        var measure = LineWrapMeasure.For(context.SourceContentType, context.RawText);
         var bullets = new List<string>();
         foreach (var experience in context.Content.Experience)
         {
-            bullets.AddRange(DescriptionBullets(experience));
+            bullets.AddRange(DescriptionBullets(experience, measure));
         }
 
         return bullets;
@@ -90,18 +91,20 @@ internal static class ReviewText
             HasExperienceEntries(context) ? UnparsedPeriodsReason : NoExperienceReason(subject));
 
     /// <summary>
-    /// The description lines of one experience entry in the unified view (Fas 4b PR-4,
+    /// The description bullets of one experience entry in the unified view (Fas 4b PR-4,
     /// ADR 0093 §D8). A canonical entry's <c>Text</c> IS the pure description
     /// (<c>TextIsDescriptionOnly</c>) — every non-empty line is a bullet. A staging
     /// entry's <c>Text</c> is the segmenter's verbatim block, so the header line
     /// (title/organisation — always the first line the segmenter emits) and any line
     /// that is purely the period or the organisation on its own line (the
-    /// "Title\nCompany\nDates" layout) are excluded (#487). Shared with the improve
+    /// "Title\nCompany\nDates" layout) are excluded (#487). On a PDF, a line that
+    /// <paramref name="measure"/> reads as a layout wrap continues the bullet above it, joined
+    /// with its line end kept, so a bullet stays a verbatim slice of the block (#2342). Shared with the improve
     /// engine's <c>WeakVerbTransform</c> (via the <see cref="ParsedExperience"/>
     /// overload) so the review (A2) and improve sides score the SAME bullet unit
     /// (#487 review side, #534 improve side).
     /// </summary>
-    internal static IEnumerable<string> DescriptionBullets(ReviewableExperience experience)
+    internal static IEnumerable<string> DescriptionBullets(ReviewableExperience experience, LineWrapMeasure? measure)
     {
         var lines = experience.Text
             .Split('\n')
@@ -121,6 +124,8 @@ internal static class ReviewText
 
         // lines[0] is the header (title/organisation, possibly with a trailing period the
         // segmenter recovered separately) — never a description bullet.
+        string? bullet = null;
+        string? previous = null;
         for (var i = 1; i < lines.Count; i++)
         {
             var line = lines[i];
@@ -162,6 +167,7 @@ internal static class ReviewText
             // derived.
             if (PeriodParser.TryParse(line, out _, out _, out _) || DatePatterns.IsDateOnlyLine(line))
             {
+                previous = null;
                 continue;
             }
 
@@ -169,6 +175,7 @@ internal static class ReviewText
             if (!string.IsNullOrWhiteSpace(experience.Organization)
                 && string.Equals(line, experience.Organization, StringComparison.OrdinalIgnoreCase))
             {
+                previous = null;
                 continue;
             }
 
@@ -229,7 +236,26 @@ internal static class ReviewText
             // verdicts in DateModelWideningReviewSideTests (senior-cto-advisor bind 2026-08-02 §2,
             // qualified by test-writer's measurement the same day, closed by road 3).
 
-            yield return line;
+            if (previous is not null && measure?.Continues(previous, line) == true)
+            {
+                bullet = string.Concat(bullet, "\n", line);
+            }
+            else
+            {
+                if (bullet is not null)
+                {
+                    yield return bullet;
+                }
+
+                bullet = line;
+            }
+
+            previous = line;
+        }
+
+        if (bullet is not null)
+        {
+            yield return bullet;
         }
     }
 
@@ -238,10 +264,10 @@ internal static class ReviewText
     /// (#534 — the improve flow stays <c>ParsedResume</c>-scoped until PR-7). Delegates to
     /// the unified-view logic above so the bullet unit stays ONE definition (#487).
     /// </summary>
-    internal static IEnumerable<string> DescriptionBullets(ParsedExperience experience) =>
+    internal static IEnumerable<string> DescriptionBullets(ParsedExperience experience, LineWrapMeasure? measure) =>
         DescriptionBullets(new ReviewableExperience(
             experience.Title, experience.Organization, experience.Period,
-            null, null, experience.RawText, TextIsDescriptionOnly: false));
+            null, null, experience.RawText, TextIsDescriptionOnly: false), measure);
 
     /// <summary>Profile + all experience text joined, for whole-CV prose scans (lowercased on demand).
     /// <para>NB (#478 Low, v1 scope): a citation resolved against this concatenation carries an offset

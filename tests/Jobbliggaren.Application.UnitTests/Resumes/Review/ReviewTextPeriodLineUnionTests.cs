@@ -110,14 +110,15 @@ public class ReviewTextPeriodLineUnionTests
         var parsed = ResumeFromCvText(cv);
         var staging = parsed.Content.Experience.ShouldHaveSingleItem();
         var reviewable = CvReviewContext.FromParsed(parsed).Content.Experience.ShouldHaveSingleItem();
+        var measure = LineWrapMeasure.For(parsed.SourceContentType, parsed.RawText);
 
         // BOTH overloads, because they have different readers and the same job: the
         // ReviewableExperience one is the review engine's (A1/A2/A6), the ParsedExperience one is
         // WeakVerbTransform's (#534). A union that suppressed on one arm only would be a
         // half-closed hole, and (b6) names the improve arm specifically.
         return (
-            ReviewText.DescriptionBullets(reviewable).ToList(),
-            ReviewText.DescriptionBullets(staging).ToList(),
+            ReviewText.DescriptionBullets(reviewable, measure).ToList(),
+            ReviewText.DescriptionBullets(staging, measure).ToList(),
             staging.Organization);
     }
 

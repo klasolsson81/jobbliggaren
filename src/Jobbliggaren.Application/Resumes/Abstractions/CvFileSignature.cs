@@ -52,25 +52,34 @@ public static class CvFileSignature
         return false;
     }
 
+    /// <summary>
+    /// True when the declared <paramref name="contentType"/> names <paramref name="mediaType"/>,
+    /// read without its parameters and case-insensitively. A declared type is the client's word,
+    /// not the file's: only <see cref="TryResolve"/> reads the magic bytes.
+    /// </summary>
+    public static bool IsMediaType(string? contentType, string mediaType) =>
+        MediaTypeOf(contentType).Equals(mediaType, StringComparison.OrdinalIgnoreCase);
+
     // Allows an empty/unknown/generic content-type (the magic bytes are authoritative),
     // or one that matches the format the magic bytes already identified. A content-type
     // that names a different supported format is a mismatch → reject.
     private static bool ContentTypeAllowsOrUnknown(string? contentType, string expected)
     {
+        var mediaType = MediaTypeOf(contentType);
+
+        return mediaType.Length == 0
+            || mediaType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // The media type with its parameters (e.g. "; charset=utf-8") stripped, trimmed; empty when
+    // nothing was declared.
+    private static string MediaTypeOf(string? contentType)
+    {
         if (string.IsNullOrWhiteSpace(contentType))
-            return true;
+            return string.Empty;
 
-        // Strip parameters (e.g. "; charset=utf-8") and normalize.
         var separatorIndex = contentType.IndexOf(';');
-        var mediaType = (separatorIndex >= 0 ? contentType[..separatorIndex] : contentType)
-            .Trim();
-
-        if (mediaType.Length == 0
-            || mediaType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return mediaType.Equals(expected, StringComparison.OrdinalIgnoreCase);
+        return (separatorIndex >= 0 ? contentType[..separatorIndex] : contentType).Trim();
     }
 }

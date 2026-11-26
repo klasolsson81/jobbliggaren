@@ -36,52 +36,52 @@ public class EntryBoundariesSegmentationTests
 
     private static readonly Item[] Assignments =
     [
-        new("Testledare prestandatest", "Exempelverket", "08/2025 – 05/2026",
-            ["Planerade och genomförde last- och stresstester av provtjänsten.",
-             "Analyserade resultaten och presenterade dem för leverantören.",
-             "Teknik och arbetssätt: JMeter, SAML, JWT, distribuerade test."]),
-        new("Testare / Testledare", "Strandmyndigheten", "08/2022 – 08/2025",
-            ["Ansvarade för regressionstestning av två e-tjänster.",
-             "Införde testautomatisering för formulärflöden.",
-             "Teknik och arbetssätt: Playwright, Azure DevOps, WCAG."]),
-        new("QA Manager", "Assistansbolaget Norr", "02/2025 – 07/2025",
-            ["Ledde ett team med tre testare och etablerade teststrategin.",
-             "Teknik och arbetssätt: Mikrotjänster, Jira, Kubernetes."]),
-        new("Testledare / Scrum Master", "Arbetsgivarförbundet Väst", "06/2023 – 10/2024",
-            ["Ansvarade för testledning inom Scrum för en ny webbplats,",
-             "som lanserades i oktober 2024 efter större systemtester.",
-             "Teknik och arbetssätt: Figma, Google Lighthouse, WCAG."]),
-        new("Testledare", "Försäkringsföreningen Syd", "02/2023 – 12/2023",
-            ["Var testledare och kravhanterare för en informationswebb.",
-             "Teknik och arbetssätt: SharePoint, Telemetry, Optimizely CMS."]),
-        new("Testledare / QA Manager", "Bostadsbolaget Öst", "11/2022 – 12/2024",
-            ["Införde ett nattligt smoke-test av externwebbens sökfunktion.",
-             "Teknik och arbetssätt: Episerver CMS, Jira, Azure DevOps."]),
-        new("QA Manager", "Apoteksbolaget Mitt", "08/2022 – 01/2023",
-            ["Testade inköpsflöden och behörigheter i receptsystemet.",
-             "Teknik och arbetssätt: ERP, e-handel, Android, iOS."]),
-        new("Senior QA-testare", "Spelstudion Uppsala", "11/2018 – 08/2022",
-            ["Koordinerade dagliga smoke-tester i distribuerade team.",
-             "Arbetade med lanseringar under 2019 och 2020 på flera plattformar.",
-             "Teknik och arbetssätt: PlayFab, Postman, Confluence."]),
-        new("Testledare", "Indiestudion Stockholm", "10/2016 – 11/2018",
-            ["Genomförde användartester för två VR-projekt.",
-             "Teknik och arbetssätt: Unity, Unreal Engine, UX."]),
-        new("Testledare", "Kortspelsbolaget", "03/2016 – 09/2016",
-            ["Samlade in användarfeedback för en prototyp.",
-             "Teknik och arbetssätt: Postman, TDD, gamification."]),
-        new("QA-trainee", "Konsultbyrån Exempel", "05/2015 – 02/2016",
-            ["Skapade processmallar och introduktionsmaterial.",
-             "Teknik och arbetssätt: Wordpress, ISO, QA."]),
+        new("Testkoordinator", "Exempelbolaget Ett AB", "07/2021 – 12/2021",
+            ["Skrev testfall för ett påhittat bokningssystem.",
+             "Sammanställde testrapporter för en fiktiv beställare.",
+             "Teknik och arbetssätt: Exempelverktyg A, Exempelverktyg B."]),
+        new("Mjukvarutestare / Testkoordinator", "Exempelbolaget Två AB", "01/2021 – 06/2021",
+            ["Körde regressionstester av en fiktiv e-tjänst.",
+             "Automatiserade flöden i ett påhittat formulär.",
+             "Teknik och arbetssätt: Exempelverktyg C, Exempelverktyg D."]),
+        new("Kvalitetsingenjör", "Exempelbolaget Tre AB", "07/2020 – 12/2020",
+            ["Byggde upp en teststrategi för ett påhittat projekt.",
+             "Teknik och arbetssätt: Exempelverktyg E, Exempelverktyg F."]),
+        new("Testkoordinator / Agil coach", "Exempelbolaget Fyra AB", "01/2020 – 06/2020",
+            ["Ledde testarbetet för en påhittad webbplats,",
+             "som togs i drift i maj 2020 efter systemtester.",
+             "Teknik och arbetssätt: Exempelverktyg G, Exempelverktyg H."]),
+        new("Testkoordinator", "Exempelbolaget Fem AB", "07/2019 – 12/2019",
+            ["Granskade krav för en fiktiv informationstjänst.",
+             "Teknik och arbetssätt: Exempelverktyg I, Exempelverktyg J."]),
+        new("Testkoordinator / Kvalitetsingenjör", "Exempelbolaget Sex AB", "01/2019 – 06/2019",
+            ["Satte upp nattliga körningar mot en påhittad söktjänst.",
+             "Teknik och arbetssätt: Exempelverktyg K, Exempelverktyg L."]),
+        new("Kvalitetsingenjör", "Exempelbolaget Sju AB", "07/2018 – 12/2018",
+            ["Testade behörigheter i ett fiktivt ordersystem.",
+             "Teknik och arbetssätt: Exempelverktyg M, Exempelverktyg N."]),
+        new("Senior mjukvarutestare", "Exempelbolaget Åtta AB", "01/2018 – 06/2018",
+            ["Samordnade dagliga kontroller i ett påhittat team.",
+             "Deltog i releaser under 2016 och 2017 på två plattformar.",
+             "Teknik och arbetssätt: Exempelverktyg O, Exempelverktyg P."]),
+        new("Testkoordinator", "Exempelbolaget Nio AB", "07/2017 – 12/2017",
+            ["Höll användartester för ett fiktivt spel.",
+             "Teknik och arbetssätt: Exempelverktyg Q, Exempelverktyg R."]),
+        new("Testkoordinator", "Exempelbolaget Tio AB", "01/2017 – 06/2017",
+            ["Samlade synpunkter på en påhittad prototyp.",
+             "Teknik och arbetssätt: Exempelverktyg S, Exempelverktyg T."]),
+        new("Testassistent", "Exempelbolaget Elva AB", "07/2016 – 12/2016",
+            ["Skrev introduktionsmaterial för fiktiva kollegor.",
+             "Teknik och arbetssätt: Exempelverktyg U, Exempelverktyg V."]),
     ];
 
     // The employer rows clarify WHICH consultancy and WHEN; the work itself is described under the
     // assignments, so these deliberately carry a single line (or none) of their own.
     private static readonly Item[] Employments =
     [
-        new("Konsult / Testledare", "Konsultbolaget Alfa AB", "08/2025 – 11/2026 (nuvarande)",
-            ["Arbetar med uppdrag inom kvalitetssäkring och QA-test."]),
-        new("Testledare / Scrum Master", "Konsultbolaget Beta AB, Stockholm", "08/2022 – 07/2025", []),
+        new("Konsult / Testkoordinator", "Exempelkonsult Alfa AB", "01/2019 – 12/2021 (heltid)",
+            ["Arbetar med påhittade uppdrag inom kvalitetssäkring."]),
+        new("Konsult / Agil coach", "Exempelkonsult Beta AB, Exempelstad", "07/2016 – 12/2018", []),
     ];
 
     private static IEnumerable<string> ItemLines(Item item) =>
@@ -91,8 +91,8 @@ public class EntryBoundariesSegmentationTests
     /// a paragraph-spaced DOCX produce: not one blank line anywhere.</summary>
     private static List<string> CvLines(bool blankBetweenEntries)
     {
-        var lines = new List<string> { "Anna Andersson", "Senior QA / Test Lead", "Profil",
-            "Testledare med över tio års erfarenhet av test och kvalitetssäkring.", "Arbetslivserfarenhet" };
+        var lines = new List<string> { "Anna Andersson", "Testkoordinator", "Profil",
+            "Testkoordinator med påhittad erfarenhet av test och kvalitetssäkring.", "Arbetslivserfarenhet" };
 
         void AddEntries(IEnumerable<Item> items)
         {
@@ -111,8 +111,8 @@ public class EntryBoundariesSegmentationTests
         lines.Add("Anställningar");
         AddEntries(Employments);
         lines.AddRange([
-            "Utbildning", "Kandidatprogram i beteendevetenskap — Exempeluniversitetet", "2010 – 2013",
-            "Certifikat", "• Professional Scrum Master I — Scrum.org, 2024",
+            "Utbildning", "Kandidatprogram i exempelvetenskap — Exempeluniversitetet", "2012 – 2015",
+            "Certifikat", "• Exempelcertifiering I — Exempelinstitutet, 2016",
             "Språkkunskaper", "Svenska — modersmål", "Engelska — flytande"]);
         return lines;
     }
@@ -419,21 +419,21 @@ public class EntryBoundariesSegmentationTests
             Alex Example
             alex@example.com
             Experience
-            See LinkedIn for my education and recommendations.
-            QA consultant — Example Consulting AB 08/2025 - Present
-            I performance tested web applications and APIs.
-            Scrum Master — Sample Experience AB 08/2022 - 07/2025
-            I was responsible for several web QA projects.
-            QA Tester — Game Studio AB 11/2018 - 10/2021
-            Tested the release on three platforms.
+            See the attached portfolio for references.
+            Example Role One — Example Company One AB 01/2021 - Present
+            I tested a fictional booking service.
+            Example Role Two — Example Company Two AB 01/2019 - 12/2020
+            I ran tests for a fictional web shop.
+            Example Role Three — Example Company Three AB 01/2017 - 12/2018
+            Tested a fictional release on two platforms.
             """;
 
         var result = _sut.Segment(cv);
 
         result.Content.Experience.Select(e => e.Organization)
-            .ShouldBe(["Example Consulting AB", "Sample Experience AB", "Game Studio AB"]);
+            .ShouldBe(["Example Company One AB", "Example Company Two AB", "Example Company Three AB"]);
         result.Content.Sections.Single(s => s.Heading == "Experience").Entries
-            .Single().Lines.ShouldBe(["See LinkedIn for my education and recommendations."]);
+            .Single().Lines.ShouldBe(["See the attached portfolio for references."]);
 
         var parsed = ParsedResume.Create(
             JobSeekerId.New(), "cv.pdf", "application/pdf", result.DetectedLanguage, result.Content, cv,
@@ -603,16 +603,16 @@ public class EntryBoundariesSegmentationTests
     private const string CompactEnglishCv =
         """
         ALEX EXAMPLE
-        QA consultant. Scrum master for more than 3 years.
-        Senior QA professional with 10+ years of experience in agile software development.
-        Experience: See LinkedIn for my education and recommendations.
-        QA consultant Uppsala, Sweden Example Consulting AB 08/2025 - Present
-        I performance tested web applications and APIs.
-        Scrum Master Stockholm, Sweden Sample Experience AB 08/2022 - 07/2025
-        I was responsible for several web QA projects during 2023-2024.
-        • Automated tests for an e-service, released 2024 - 2025 across agencies.
-        QA Tester Uppsala, Sweden Game Studio AB 11/2018 - 10/2021
-        Tested the 2019 release on three platforms.
+        Example tagline. Example coach for a fictional team.
+        Example summary of a fictional career in software testing.
+        Experience: See the attached portfolio for references.
+        Example Role One Exampletown, Examplia Example Company One AB 01/2021 - Present
+        I tested a fictional booking service.
+        Example Role Two Exampleville, Examplia Example Company Two AB 01/2019 - 12/2020
+        I ran tests for a fictional web shop during 2019-2020.
+        • Automated tests for a fictional e-service, released 2019 - 2020 in two regions.
+        Example Role Three Exampletown, Examplia Example Company Three AB 01/2017 - 12/2018
+        Tested the 2018 release on two platforms.
         """;
 
     [Fact]
@@ -641,7 +641,7 @@ public class EntryBoundariesSegmentationTests
     [Fact]
     public void Segment_DatedHeadersWithoutAnyExperienceHeading_InventNoSection()
     {
-        var cv = CompactEnglishCv.Replace("Experience: See LinkedIn", "Experience only. See LinkedIn", StringComparison.Ordinal);
+        var cv = CompactEnglishCv.Replace("Experience: See the attached", "Experience only. See the attached", StringComparison.Ordinal);
 
         var result = _sut.Segment(cv);
 

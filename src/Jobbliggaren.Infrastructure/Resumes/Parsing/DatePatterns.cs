@@ -263,7 +263,7 @@ internal static partial class DatePatterns
     /// <summary>
     /// The RANGE half of <see cref="StripTrailingDate"/>: true when <paramref name="line"/> ends in a
     /// date range (row grammar, optional parenthesised qualifier), with <paramref name="head"/> the
-    /// text before it. A trailing BARE year does not count — "Scrum.org, 2024" is a certificate
+    /// text before it. A trailing BARE year does not count — "Exempelinstitutet, 2016" is a certificate
     /// line, not an entry header (#2249, <see cref="EntryBoundaries"/>).
     /// </summary>
     public static bool TryStripTrailingDateRange(string line, out string head)

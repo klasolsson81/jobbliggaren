@@ -248,6 +248,21 @@ public class CvImprovementEngineTests
     }
 
     [Fact]
+    public async Task SuggestAsync_ShouldProposeWeakVerbUpgrade_PastALeadGlyph_AndKeepTheGlyphOutsideTheSpan()
+    {
+        var mapping = RealVerbMapping().WeakVerbs[0]; // "var ansvarig för" → "ansvarade för"
+        var resume = Resume(experience:
+        [
+            Experience(bullets: [$"• {Capitalize(mapping.Weak)} ett område utan tydligt resultat."]),
+        ]);
+
+        var change = Single(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
+
+        change.Replacement!.Before.ShouldBe(Capitalize(mapping.Weak));
+        change.Evidence.ShouldBeOfType<TextSpanEvidence>().Span.Quote.ShouldBe(change.Replacement.Before);
+    }
+
+    [Fact]
     public async Task SuggestAsync_ShouldNeverFlagCitedEvidenceAsAnExcerpt_OnAnyProposedChange()
     {
         // #1062 B2 carried TextSpan.IsExcerpt across ImprovementEvidenceRedactor's fork 3B in

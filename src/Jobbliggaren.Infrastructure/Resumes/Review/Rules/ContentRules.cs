@@ -88,17 +88,17 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
         string? nonStrongOpener = null;
         foreach (var bullet in bullets)
         {
-            if (StartsWithStrongVerb(context, bullet, strongOpeners))
+            switch (Classify(context, bullet, weakVerbs, strongOpeners))
             {
-                strong++;
-            }
-            else if (weakVerbs.Any(v => ReviewText.StartsWithWord(bullet, v)))
-            {
-                weakOpener ??= bullet;
-            }
-            else
-            {
-                nonStrongOpener ??= bullet;
+                case Opener.Strong:
+                    strong++;
+                    break;
+                case Opener.Weak:
+                    weakOpener ??= bullet;
+                    break;
+                default:
+                    nonStrongOpener ??= bullet;
+                    break;
             }
         }
 
@@ -107,7 +107,7 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
         var ratio = (double)strong / bullets.Count;
         if (ratio >= context.Criterion.RequiredThreshold(RubricThresholdKeys.PassRatio))
         {
-            var strongBullet = bullets.First(b => StartsWithStrongVerb(context, b, strongOpeners));
+            var strongBullet = bullets.First(b => Classify(context, b, weakVerbs, strongOpeners) == Opener.Strong);
             return CvCriterionVerdict.Assessed("A2", category, CriterionVerdict.Pass,
                 ReviewText.Cite(ReviewText.Span(context.RawText, strongBullet, "inleds med starkt handlingsverb")));
         }
@@ -123,11 +123,34 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
             ReviewText.Cite(ReviewText.Span(context.RawText, cite, note)));
     }
 
-    private static bool StartsWithStrongVerb(
-        CriterionEvaluationContext context, string bullet, IReadOnlyCollection<string> strongOpeners)
+    private enum Opener
     {
-        var first = FirstLexeme(context, bullet);
-        return first.Length > 0 && strongOpeners.Contains(first);
+        Strong,
+        Weak,
+        Other,
+    }
+
+    // A weak phrase is read first: stopword removal and stemming can collapse it onto a strong
+    // verb ("var ansvarig för" and "ansvarade för" both lexemise to "ansvar"), and only the opener
+    // word's own stem makes a bullet strong, so a stopword opener never does.
+    private static Opener Classify(
+        CriterionEvaluationContext context, string bullet, IReadOnlyList<string> weakVerbs,
+        IReadOnlyCollection<string> strongOpeners)
+    {
+        var opener = ReviewText.FromFirstWord(bullet);
+        if (weakVerbs.Any(v => ReviewText.StartsWithWord(opener, v)))
+        {
+            return Opener.Weak;
+        }
+
+        var end = 0;
+        while (end < opener.Length && !char.IsWhiteSpace(opener[end]))
+        {
+            end++;
+        }
+
+        var first = FirstLexeme(context, opener[..end]);
+        return first.Length > 0 && strongOpeners.Contains(first) ? Opener.Strong : Opener.Other;
     }
 
     private static string FirstLexeme(CriterionEvaluationContext context, string text)

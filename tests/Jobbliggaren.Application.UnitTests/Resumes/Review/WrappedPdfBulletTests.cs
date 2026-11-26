@@ -186,6 +186,23 @@ public class WrappedPdfBulletTests
     }
 
     [Fact]
+    public void DescriptionBullets_ShouldNotJoinAcrossAnOrganisationLine_ThatTheUnitSuppresses()
+    {
+        // The "Title / Company / Dates" layout, with the employer repeated on a line of its own
+        // between a line that reaches the measure and a lower-case line.
+        const string next = "var ansvarig för att alla avvikelser rapporterades.";
+        var parsed = ResumeFromCvText(string.Join('\n',
+        [
+            "Testa Testsson", "Profil", SwedishProfile, "Erfarenhet",
+            "Lagerarbetare", "Exempellagret AB", "2018 – 2024", FullSwedishLine, "Exempellagret AB", next,
+        ]));
+
+        parsed.Content.Experience.ShouldHaveSingleItem().Organization.ShouldBe("Exempellagret AB",
+            "premise: the repeated line is the entry's organisation");
+        Units(parsed).ShouldBe([FullSwedishLine, next]);
+    }
+
+    [Fact]
     public void DescriptionBullets_ShouldNeverJoinALineToTheHeader()
     {
         // The header is line 0 of the entry and is never part of a unit, even where the line

@@ -101,6 +101,24 @@ public class A2ActionVerbsRuleTests
         Evidence(a2).Span.Quote.ShouldBe(stopwordLed);
     }
 
+    // A number is a bullet's first word, so a number-led bullet does not open with a verb, even when
+    // its next word is spelled like a bank verb: "automatiserade" and "automated" are bank entries,
+    // and here they are participles. The year row is accepted and known (ADR 0191 D7): no rule
+    // tells a year from a quantity by its digits, so "2021 Ledde …" opens with its year.
+    [Theory]
+    [InlineData("Sv", "35 automatiserade regressionstester per release.", "Ledde teamet om åtta personer.", "Ledde inköpen.")]
+    [InlineData("En", "35 automated regression tests per release.", "Led the team of eight people.", "Led the purchasing.")]
+    [InlineData("Sv", "2021 Ledde teamet om åtta personer.", "Ledde inköpen.", "Ledde flytten till nya lokaler.")]
+    public async Task A2_ShouldReadANumberLedBullet_AsOpeningWithItsNumber(
+        string language, string numberLed, string strong, string alsoStrong)
+    {
+        var a2 = await A2FromParsedAsync(ResumeLanguage.FromName(language), numberLed, strong, alsoStrong);
+
+        a2.Verdict.ShouldBe(CriterionVerdict.Warn, "premise: two strong openers in three, between the two ratios");
+        Evidence(a2).Note.ShouldBe("inleds inte med ett starkt handlingsverb");
+        Evidence(a2).Span.Quote.ShouldBe(numberLed);
+    }
+
     [Theory]
     [MemberData(nameof(WeakPhrases))]
     public async Task A2_ShouldReadEveryWeakPhraseInTheBank_AsAWeakOpener(string language, string weak)

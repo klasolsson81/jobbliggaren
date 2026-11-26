@@ -57,7 +57,7 @@ The `VerbMapping` and `ClicheList` records carry a `Source`. The Swedish sources
 
 ### D7 — The opener (#2352; A2, A6 and `WeakVerbTransform`)
 
-A bullet's opener is the bullet from its first letter or digit (`ReviewText.FromFirstWord`), so every non-letter lead glyph is skipped. A2 tests the bank's weak phrase at the opener first, then the stem of the opener's first word alone against the strong set for the CV's language; a stopword opener has no lexeme and is never strong. A6's concreteness scan reads from the opener. `WeakVerbTransform`'s `Before` is the verbatim span at the opener, so a glyph stays outside the replacement. A letter used as a list marker (for example Word's second-level "o") is not covered yet; it needs a shared marker set from a measured exporter.
+A bullet's opener is the bullet from its first letter or digit (`ReviewText.FromFirstWord`), so every non-letter lead glyph is skipped. A2 tests the bank's weak phrase at the opener first, then the stem of the opener's first word alone against the strong set for the CV's language; a stopword opener has no lexeme and is never strong. A6's concreteness scan reads from the opener. `WeakVerbTransform`'s `Before` is the verbatim span at the opener, so a glyph stays outside the replacement. A number is a first word, so a number-led bullet does not open with a verb even when its next word is spelled like a bank verb ("35 automatiserade regressionstester …"). A year-led bullet ("2021 Ledde teamet") therefore opens with its year; no rule tells a year from a quantity by its digits, so this stays accepted and known. A letter used as a list marker (for example Word's second-level "o") and a numbered-list marker ("1. ") are not covered yet; they need the shared marker set from a measured exporter, in #2353.
 
 ### D8 — Language at promotion
 
@@ -79,7 +79,7 @@ The rubric's internal `atsPassSignal` for A2 says "starkt svenskt handlingsverb"
 
 - **The effect of this change on the review corpus and on the probes.** It is measured after the change and recorded in the PR body.
 - **Canonical A2 and A6 findings can re-key at an unchanged rubric version.** Derived, not measured.
-- **A letter as a list marker.** Not covered yet; it needs a shared marker set from a measured exporter (D7).
+- **A letter or a number as a list marker.** Not covered yet; it needs the shared marker set from a measured exporter, in #2353 (D7).
 
 ## Alternatives considered and items left out
 
@@ -112,7 +112,8 @@ Not done (D5): no route reaches the frames since ADR 0112. They are gated in the
 - **The English lists are a curated v1, not exhaustive.** An English strong verb that is not listed reads as "other", not strong.
 - **Canonical A2 and A6 findings can re-key at an unchanged rubric version** (derived, not measured).
 - **Staging verdicts may move** (D9).
-- **A letter used as a list marker is not covered** (D7).
+- **A letter or a number used as a list marker is not covered** (D7, #2353).
+- **A year-led bullet opens with its year** (D7), accepted and known.
 - **The Swedish lists are unchanged,** pure renames (D1). What can change a Swedish verdict is D7's opener rule and D9's corpus, not the list.
 - **The rubric's `atsPassSignal` still says "svenskt"** until the next rubric bump (*Deferred*).
 

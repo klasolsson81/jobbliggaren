@@ -329,11 +329,10 @@ public class PdfPigOpenXmlCvTextExtractorTests
 
     // #1060 PR E — THE BASE, pinned. Three documents with the same words and three different
     // authored spacings. `ContentOrderTextExtractor.GetText(page)` emits one newline per visual
-    // line regardless, so all three produce the same shape — zero blank lines — and the segmenter,
-    // which splits entries on blank lines and nothing else, cannot tell them apart. That is #1060
+    // line regardless, so all three produce the same shape — zero blank lines. That is #1060
     // stated at the layer that owns it.
     //
-    // WHAT A FUTURE BOUNDARY FIX MUST DO TO THESE ROWS, stated precisely because getting it wrong
+    // WHAT A FUTURE BLANK-LINE FIX MUST DO TO THESE ROWS, stated precisely because getting it wrong
     // is how the next attempt repeats this one:
     //
     //   BetweenEntries          MUST go red. The document states a boundary; a fix must find it.

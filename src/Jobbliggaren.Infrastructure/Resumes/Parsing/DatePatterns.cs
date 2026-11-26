@@ -250,15 +250,33 @@ internal static partial class DatePatterns
     /// </summary>
     public static string StripTrailingDate(string line)
     {
-        var range = DateRowRange().Match(line);
-        if (range.Success && IsIgnorableTail(line[(range.Index + range.Length)..], allowQualifier: true))
-            return TrimTrailingSeparators(line[..range.Index]);
+        if (TryStripTrailingDateRange(line, out var head))
+            return head;
 
         var year = Year().Match(line);
         if (year.Success && IsIgnorableTail(line[(year.Index + year.Length)..], allowQualifier: false))
             return TrimTrailingSeparators(line[..year.Index]);
 
         return line;
+    }
+
+    /// <summary>
+    /// The RANGE half of <see cref="StripTrailingDate"/>: true when <paramref name="line"/> ends in a
+    /// date range (row grammar, optional parenthesised qualifier), with <paramref name="head"/> the
+    /// text before it. A trailing BARE year does not count — "Exempelinstitutet, 2016" is a certificate
+    /// line, not an entry header (#2249, <see cref="EntryBoundaries"/>).
+    /// </summary>
+    public static bool TryStripTrailingDateRange(string line, out string head)
+    {
+        var range = DateRowRange().Match(line);
+        if (range.Success && IsIgnorableTail(line[(range.Index + range.Length)..], allowQualifier: true))
+        {
+            head = TrimTrailingSeparators(line[..range.Index]);
+            return true;
+        }
+
+        head = line;
+        return false;
     }
 
     // What may follow the match and still leave the line "nothing but a date".

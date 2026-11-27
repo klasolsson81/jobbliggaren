@@ -444,6 +444,8 @@ public static class ResumesEndpoints
                 : result.Error.ToProblemResult();
         }).RequireAuthorization();
 
+        // #2353: the review page's language choice writes here, and every write re-runs the review
+        // under both profiles to reconcile the finding ledger, so it carries the resume writes' limit.
         group.MapPut("/{id:guid}/language", async (
             Guid id, SetLanguageBody body, IMediator mediator, CancellationToken ct) =>
         {
@@ -451,7 +453,8 @@ public static class ResumesEndpoints
             return result.IsSuccess
                 ? Results.NoContent()
                 : result.Error.ToProblemResult();
-        }).RequireAuthorization();
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.MeWritePolicy);
 
         // PUT /{id}/template-options (the CvTemplateOptions write-half, 8b.2) was REMOVED with
         // the builder's deferral (CV-pivot 2026-07-16, ADR 0112): its only consumer was the

@@ -405,8 +405,22 @@ describe("resumeDetailDtoSchema", () => {
         },
       ],
       templateOptions: validTemplateOptions,
+      language: "En",
     };
     expect(resumeDetailDtoSchema.safeParse(detail).success).toBe(true);
+  });
+
+  it("rejects when language is missing or unknown (#2353: BE always emits Sv or En)", () => {
+    const detail = {
+      id: "33333333-3333-3333-3333-333333333333",
+      name: "Master CV",
+      createdAt: "2026-05-11T10:00:00Z",
+      updatedAt: "2026-05-11T10:00:00Z",
+      versions: [],
+      templateOptions: validTemplateOptions,
+    };
+    expect(resumeDetailDtoSchema.safeParse(detail).success).toBe(false);
+    expect(resumeDetailDtoSchema.safeParse({ ...detail, language: "sv" }).success).toBe(false);
   });
 
   it("rejects when templateOptions is missing (BE always emits it)", () => {

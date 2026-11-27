@@ -44,6 +44,7 @@ describe("findMasterVersion", () => {
       updatedAt: "2026-01-01T00:00:00Z",
       versions: [makeVersion("Tailored", "t1"), makeVersion("Master", "m1")],
       templateOptions,
+      language: "Sv",
     };
     expect(findMasterVersion(resume)?.id).toBe("m1");
   });
@@ -56,6 +57,7 @@ describe("findMasterVersion", () => {
       updatedAt: "2026-01-01T00:00:00Z",
       versions: [],
       templateOptions,
+      language: "Sv",
     };
     expect(findMasterVersion(resume)).toBeNull();
   });

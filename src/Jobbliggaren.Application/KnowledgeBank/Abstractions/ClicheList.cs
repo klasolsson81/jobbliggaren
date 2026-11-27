@@ -19,8 +19,7 @@ public enum ClicheKind
 }
 
 /// <summary>
-/// One curated Swedish CV lexicon entry (research §6.1) with its diagnosis and constructive
-/// guidance. Versioned DATA (CLAUDE.md §5: "cliché lists ... versioned data/config per the
+/// One curated CV lexicon entry with its diagnosis and constructive guidance. Versioned DATA (CLAUDE.md §5: "cliché lists ... versioned data/config per the
 /// knowledge bank, not inline strings"). Every entry carries <see cref="Why"/> (so the
 /// determinism can cite why it flagged) and advisory <see cref="Guidance"/> (intended for
 /// display as an example the job-seeker adapts, never applied verbatim; no consumer renders it
@@ -44,4 +43,6 @@ public sealed record ClicheEntry(
 /// (senior-cto-advisor DQ3 — cliché/verb evolve at a different cadence than the rubric
 /// and keep parity with the existing <c>TaxonomyVersion</c> string convention).
 /// </summary>
-public sealed record ClicheList(string Version, IReadOnlyList<ClicheEntry> Entries);
+/// <param name="Source">The asset name a change proposed from this list cites as its
+/// provenance (<c>KnowledgeBankProvenance.Source</c>).</param>
+public sealed record ClicheList(string Version, IReadOnlyList<ClicheEntry> Entries, string Source);

@@ -22,7 +22,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// rendered-copy tree has no such literal by construction.</para>
 ///
 /// <para>The KB-DATA side of the same sweep (the rendered cliché <c>why</c> field in
-/// <c>cliche-list.v2.json</c>) is pinned separately, at its own invariant home, by
+/// <c>cliche-list.sv.v2.json</c>) is pinned separately, at its own invariant home, by
 /// <c>ClicheLexiconTests</c> — a source-scan cannot know KB projection semantics (<c>why</c> renders,
 /// <c>guidance</c> does not), so that knowledge stays where the projection lives.</para>
 ///

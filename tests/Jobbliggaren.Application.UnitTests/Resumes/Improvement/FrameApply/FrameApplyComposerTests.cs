@@ -262,4 +262,26 @@ public class FrameApplyComposerTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.Line.ShouldBe(line);
     }
+
+    // ADR 0191 D5: each CV language has its own verb list, so the catalogue's list is named by its
+    // Source as well as its version; a list from another language at the same version is refused.
+    [Fact]
+    public void BuildStrongVerbSet_ShouldRefuseAnotherList_AtTheCatalogsVersion()
+    {
+        var english = new VerbMapping(
+            FrameFixtures.VerbMappingVersion, [new StrongVerbGroup("Ledarskap & ansvar", ["led"])], [],
+            "verb-mapping.en", StrongVerbMatch: StrongVerbMatch.ListedForm);
+
+        Should.Throw<InvalidOperationException>(() =>
+            FrameApplyComposer.BuildStrongVerbSet(english, FrameFixtures.Catalog()));
+    }
+
+    [Fact]
+    public void BuildStrongVerbSet_ShouldServeTheCatalogsOwnList()
+    {
+        var swedish = FrameFixtures.VerbMappingWith("ledde", "ansvarade för");
+
+        FrameApplyComposer.BuildStrongVerbSet(swedish, FrameFixtures.Catalog())
+            .ShouldBe(["ledde", "ansvarade för"], ignoreOrder: true);
+    }
 }

@@ -39,7 +39,7 @@ public class ResumePreambleTests
 
     private static Resume Imported(string? preamble = Preamble) =>
         Resume.CreateFromParsed(
-            Owner, "Importerat CV", Content(preamble), new ParsedResumeId(Guid.NewGuid()), Clock).Value;
+            Owner, "Importerat CV", Content(preamble), new ParsedResumeId(Guid.NewGuid()), ResumeLanguage.Sv, Clock).Value;
 
     // ---------------------------------------------------------------
     // Ingress — CreateFromParsed is the only one
@@ -173,7 +173,7 @@ public class ResumePreambleTests
     {
         var result = Resume.CreateFromParsed(
             Owner, "Importerat CV", Content(preamble: new string('a', 2_001)),
-            new ParsedResumeId(Guid.NewGuid()), Clock);
+            new ParsedResumeId(Guid.NewGuid()), ResumeLanguage.Sv, Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.PreambleTooLong");
@@ -187,7 +187,7 @@ public class ResumePreambleTests
         // writer is allowed to produce. The boundary is still the right place to pin.
         var result = Resume.CreateFromParsed(
             Owner, "Importerat CV", Content(preamble: new string('a', 2_000)),
-            new ParsedResumeId(Guid.NewGuid()), Clock);
+            new ParsedResumeId(Guid.NewGuid()), ResumeLanguage.Sv, Clock);
 
         result.IsSuccess.ShouldBeTrue();
     }

@@ -36,18 +36,20 @@ public static class FrameApplyComposer
     /// version in production (PR-5 equality pin); re-checking here means a wiring drift
     /// fails loud on BOTH surfaces — so "a preview that succeeds is an apply that will
     /// succeed" holds for the verb invariant too, instead of preview passing and apply
-    /// throwing.
+    /// throwing. The guard compares the list's Source as well as its version, since each CV
+    /// language has its own list (ADR 0191 D5).
     /// </summary>
     public static HashSet<string> BuildStrongVerbSet(VerbMapping mapping, FrameCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(mapping);
         ArgumentNullException.ThrowIfNull(catalog);
 
-        if (!string.Equals(mapping.Version, catalog.VerbMappingVersion, StringComparison.Ordinal))
+        if (!string.Equals(mapping.Source, catalog.VerbMappingSource, StringComparison.Ordinal)
+            || !string.Equals(mapping.Version, catalog.VerbMappingVersion, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
-                $"Frame catalog pins verb-mapping v{catalog.VerbMappingVersion} but the loaded " +
-                $"mapping is v{mapping.Version} — the ADR 0093 §D2 verb invariant is version-bound.");
+                $"Frame catalog pins {catalog.VerbMappingSource} v{catalog.VerbMappingVersion} but the loaded " +
+                $"mapping is {mapping.Source} v{mapping.Version} — the ADR 0093 §D2 verb invariant is bound to one list at one version.");
         }
 
         return mapping.StrongVerbGroups

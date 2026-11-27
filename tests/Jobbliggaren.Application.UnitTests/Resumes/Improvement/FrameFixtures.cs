@@ -92,9 +92,10 @@ internal static class FrameFixtures
 
     /// <summary>A frame catalog stamped with the committed <see cref="VerbMappingVersion"/>.</summary>
     internal static FrameCatalog Catalog(params CvFrame[] frames) =>
-        new("1.0", VerbMappingVersion, frames);
+        new("1.0", VerbMappingVersion, frames, "verb-mapping");
 
     /// <summary>A verb mapping whose single strong-verb group carries <paramref name="strongVerbs"/>.</summary>
     internal static VerbMapping VerbMappingWith(params string[] strongVerbs) =>
-        new(VerbMappingVersion, [new StrongVerbGroup("Ledarskap & ansvar", strongVerbs)], []);
+        new(VerbMappingVersion, [new StrongVerbGroup("Ledarskap & ansvar", strongVerbs)], [], "verb-mapping",
+            StrongVerbMatch: StrongVerbMatch.Stem);
 }

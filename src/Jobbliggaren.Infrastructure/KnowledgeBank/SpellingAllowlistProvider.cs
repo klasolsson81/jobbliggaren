@@ -9,7 +9,7 @@ namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 /// (<c>spelling-allowlist.v1.json</c>, Fas 4b PR-6, ADR 0093 §D4). Loads + validates the
 /// embedded asset once at construction and serves the cached immutable contract —
 /// registered as a singleton (parity <see cref="RubricProvider"/>/<see cref="ClicheLexicon"/>).
-/// A malformed asset fails the host at startup, never mid-request. The allowlist is the
+/// The allowlist is the
 /// ONLY sanctioned way to suppress a Hunspell false positive: the sv_SE DSSO dictionary is
 /// SHA-256-pinned + shipped unmodified (LGPL-3.0, BUILD §3.1), so adding a word to the
 /// dictionary is forbidden (CLAUDE.md §5 — versioned KB data, never an inline list).

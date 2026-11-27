@@ -63,9 +63,12 @@ public sealed record CvFrame(
 /// parity with the verb mapping). <see cref="VerbMappingVersion"/> pins the verb-mapping
 /// version the frames were authored and validated against — the loader fails loud on a
 /// mismatch, so a verb-list bump forces a deliberate frames re-validation (the §D2
-/// "verb list at a specific version" contract made literal).
+/// "verb list at a specific version" contract made literal). <see cref="VerbMappingSource"/>
+/// names the list itself: with one list per CV language, a version alone no longer
+/// identifies it (ADR 0191 D5).
 /// </summary>
 public sealed record FrameCatalog(
     string Version,
     string VerbMappingVersion,
-    IReadOnlyList<CvFrame> Frames);
+    IReadOnlyList<CvFrame> Frames,
+    string VerbMappingSource);

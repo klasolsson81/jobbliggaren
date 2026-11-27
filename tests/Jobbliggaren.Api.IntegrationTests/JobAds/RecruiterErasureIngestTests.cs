@@ -3399,7 +3399,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                         new Experience("Neutral AB", "Underkonsult åt Malin Öqvist",
                             new DateOnly(2024, 1, 1), null, null),
                     ]),
-                ParsedResumeId.New(), clock).Value);
+                ParsedResumeId.New(), ResumeLanguage.Sv, clock).Value);
 
             // resumes.top_skills — the denormalised skill-name projection.
             db.Resumes.Add(Resume.CreateFromParsed(
@@ -3407,7 +3407,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                 new ResumeContent(
                     new PersonalInfo("Test Person", null, null, null),
                     skills: [new Skill("Rekryteringssystemet Tindra Ekwall", null)]),
-                ParsedResumeId.New(), clock).Value);
+                ParsedResumeId.New(), ResumeLanguage.Sv, clock).Value);
 
             await db.SaveChangesAsync(ct);
         }

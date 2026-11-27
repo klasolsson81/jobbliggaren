@@ -1,8 +1,26 @@
 namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 
 /// <summary>
-/// One family of strong Swedish action verbs in preteritum (research §6.3), e.g.
-/// "Ledarskap &amp; ansvar". The curated vocabulary the determinism endorses.
+/// How a verb list holds its strong verbs, and so how a bullet's opener is matched against them.
+/// The list declares it (ADR 0191 D7). Weak phrases are matched by their listed form in both modes.
+/// </summary>
+public enum StrongVerbMatch
+{
+    /// <summary>The list holds one form per verb, and the verb's stem stands for its inflections:
+    /// an opener is strong when its first word has the stem of a listed verb (the Swedish list).
+    /// </summary>
+    Stem,
+
+    /// <summary>The list holds every inflected form it endorses (base, -s, past, -ing) and no derived
+    /// word: an opener is strong when it starts with a listed form on a word boundary (the English
+    /// list). The English stemmer reads a derived noun as its verb ("development" as "develop").
+    /// </summary>
+    ListedForm,
+}
+
+/// <summary>
+/// One family of strong action verbs, e.g. "Ledarskap &amp; ansvar". The curated vocabulary the
+/// determinism endorses; what a verb string is depends on the list's <see cref="StrongVerbMatch"/>.
 /// </summary>
 public sealed record StrongVerbGroup(string Group, IReadOnlyList<string> Verbs);
 
@@ -30,7 +48,12 @@ public sealed record WeakVerbMapping(string Weak, string SuggestedStrong, string
 /// here). Versioned DATA (CLAUDE.md §5: "action-verb lists ... versioned data/config
 /// ... not inline strings"). Plain-string version (DQ3).
 /// </summary>
+/// <param name="Source">The asset name a change proposed from this mapping cites as its
+/// provenance (<c>KnowledgeBankProvenance.Source</c>).</param>
+/// <param name="StrongVerbMatch">How the strong verbs are listed and matched.</param>
 public sealed record VerbMapping(
     string Version,
     IReadOnlyList<StrongVerbGroup> StrongVerbGroups,
-    IReadOnlyList<WeakVerbMapping> WeakVerbs);
+    IReadOnlyList<WeakVerbMapping> WeakVerbs,
+    string Source,
+    StrongVerbMatch StrongVerbMatch);

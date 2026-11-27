@@ -175,7 +175,7 @@ public class A8PreambleHonestyTests
     /// thing the carrier exists to refuse.</para>
     /// </summary>
     // The cliché is DERIVED from the shipped lexicon, never guessed. A first attempt at this test
-    // invented a phrase ("Teamplayer") that is not in cliche-list.v2.json, so A7 could never have
+    // invented a phrase ("Teamplayer") that is not in cliche-list.sv.v2.json, so A7 could never have
     // fired on it and the test passed for the wrong reason — it survived the very mutation it exists
     // to catch. A guard whose trigger is imagined does not guard anything.
     private const string RealCliche = "Driven lagspelare";

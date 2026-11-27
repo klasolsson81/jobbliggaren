@@ -268,7 +268,9 @@ internal static class ReviewText
             experience.Title, experience.Organization, experience.Period,
             null, null, experience.RawText, TextIsDescriptionOnly: false), measure);
 
-    /// <summary>Profile + all experience text joined, for whole-CV prose scans (lowercased on demand).
+    /// <summary>Profile + each experience's description lines joined, for whole-CV prose scans
+    /// (lowercased on demand). Both arms scan the same text: the staging block's header, period and
+    /// organisation lines are not prose.
     /// <para>NB (#478 Low, v1 scope): a citation resolved against this concatenation carries an offset
     /// into the SYNTHETIC joined string, not into any single <c>RawText</c> field. The verbatim
     /// <c>Quote</c> is the ground truth the UI highlights by; the offset is a positional hint only and
@@ -284,9 +286,12 @@ internal static class ReviewText
 
         foreach (var experience in context.Content.Experience)
         {
-            if (!string.IsNullOrWhiteSpace(experience.Text))
+            var text = experience.TextIsDescriptionOnly
+                ? experience.Text
+                : string.Join('\n', DescriptionBullets(experience, context.WrapMeasure));
+            if (!string.IsNullOrWhiteSpace(text))
             {
-                sb.AppendLine(experience.Text);
+                sb.AppendLine(text);
             }
         }
 
@@ -326,19 +331,32 @@ internal static class ReviewText
     public static bool ContainsMeasurableDigit(string text) =>
         ContainsDigit(DatePatterns.StripDates(text));
 
-    /// <summary>True if <paramref name="text"/> (lowercased) starts with <paramref name="phrase"/>
-    /// on a word boundary (so "ledde" matches "ledde teamet" but not "ledning").</summary>
-    public static bool StartsWithWord(string text, string phrase)
+    /// <summary>The bullet from its first word on. A bullet's first word is its first token that
+    /// carries a letter or a digit, the token the analyzer gives A2 as the opener, so a lead glyph
+    /// is never a word (#2352).</summary>
+    public static string FromFirstWord(string bullet)
     {
-        var t = text.TrimStart().ToLowerInvariant();
-        var p = phrase.ToLowerInvariant();
-        if (!t.StartsWith(p, StringComparison.Ordinal))
+        for (var i = 0; i < bullet.Length; i++)
         {
-            return false;
+            if (char.IsLetterOrDigit(bullet[i]))
+            {
+                return bullet[i..];
+            }
         }
 
-        return t.Length == p.Length || !char.IsLetter(t[p.Length]);
+        return string.Empty;
     }
+
+    /// <summary>True if <paramref name="text"/> (lowercased) starts with <paramref name="phrase"/>
+    /// on a word boundary (so "ledde" matches "ledde teamet" but not "ledning").</summary>
+    public static bool StartsWithWord(string text, string phrase) =>
+        StartsWithLoweredWord(text.TrimStart().ToLowerInvariant(), phrase.ToLowerInvariant());
+
+    /// <summary>The <see cref="StartsWithWord"/> test on a text and a phrase that are both already
+    /// lower-cased, so a caller testing one text against many phrases lower-cases each once.</summary>
+    public static bool StartsWithLoweredWord(string loweredText, string loweredPhrase) =>
+        loweredText.StartsWith(loweredPhrase, StringComparison.Ordinal)
+        && (loweredText.Length == loweredPhrase.Length || !char.IsLetter(loweredText[loweredPhrase.Length]));
 
     // ── Word-boundary phrase matching on RAW prose (NOT lexemes) ──────────
     // A shared, hand-rolled boundary helper for the cliché/soft-skill rules + the cliché

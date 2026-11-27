@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
+using Jobbliggaren.Domain.Resumes;
 
 namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 
@@ -8,12 +9,12 @@ namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 /// asset once at construction — including the cross-asset invariant that every sentence
 /// frame's lead verb resolves in the injected verb mapping at the pinned version — and
 /// serves the cached immutable contract. Registered as a singleton (parity
-/// <see cref="RubricProvider"/>); a malformed or drifted asset fails the host at
-/// startup, never mid-request.
+/// <see cref="RubricProvider"/>).
 /// </summary>
 internal sealed class FrameProvider(IVerbMapper verbMapper) : IFrameProvider
 {
-    private readonly FrameCatalog _catalog = FramesLoader.Load(verbMapper.GetVerbMapping());
+    // The frames are Swedish sentences, so they bind to the Swedish verb mapping (#2341).
+    private readonly FrameCatalog _catalog = FramesLoader.Load(verbMapper.GetVerbMapping(ResumeLanguage.Sv));
 
     public FrameCatalog GetFrameCatalog() => _catalog;
 }

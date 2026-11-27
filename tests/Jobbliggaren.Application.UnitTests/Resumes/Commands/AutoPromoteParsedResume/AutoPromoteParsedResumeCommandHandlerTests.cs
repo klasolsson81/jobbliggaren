@@ -102,9 +102,10 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         ParsedResumeContent? content = null,
         ParseConfidence? confidence = null,
         PersonnummerScanOutcome? pnr = null,
-        string sourceFileName = "anna-cv.pdf") =>
+        string sourceFileName = "anna-cv.pdf",
+        ResumeLanguage? language = null) =>
         ParsedResume.Create(
-            owner, sourceFileName, "application/pdf", ResumeLanguage.Sv,
+            owner, sourceFileName, "application/pdf", language ?? ResumeLanguage.Sv,
             content ?? CleanParsedContent(),
             "raw text",
             confidence ?? Confident(),
@@ -117,11 +118,12 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         ParsedResumeContent? content = null,
         ParseConfidence? confidence = null,
         PersonnummerScanOutcome? pnr = null,
-        string sourceFileName = "anna-cv.pdf")
+        string sourceFileName = "anna-cv.pdf",
+        ResumeLanguage? language = null)
     {
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        var parsed = BuildParsed(seeker.Id, content, confidence, pnr, sourceFileName);
+        var parsed = BuildParsed(seeker.Id, content, confidence, pnr, sourceFileName, language);
         db.ParsedResumes.Add(parsed);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return (parsed, seeker);
@@ -174,6 +176,22 @@ public class AutoPromoteParsedResumeCommandHandlerTests
 
         parsed.Status.ShouldBe(ParsedResumeStatus.Promoted);
         parsed.DeletedAt.ShouldBe(FakeDateTimeProvider.Default.UtcNow);
+    }
+
+    [Theory]
+    [InlineData("Sv")]
+    [InlineData("En")]
+    public async Task Handle_CleanParse_PromotesTheCvInTheLanguageTheImportDetected(string language)
+    {
+        var db = TestAppDbContextFactory.Create();
+        var detected = ResumeLanguage.FromName(language);
+        var (parsed, _) = await SeedOwnedAsync(db, _userId, language: detected);
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        result.Value.ShouldBeOfType<AutoPromoteOutcome.Promoted>();
+        db.Resumes.Local.ShouldHaveSingleItem().Language.ShouldBe(detected);
     }
 
     [Fact]

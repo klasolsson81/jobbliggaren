@@ -159,6 +159,27 @@ public class ReviewResumeQueryHandlerTests
         captured!.Source.ShouldBe(CvReviewSourceKind.Canonical);
     }
 
+    // ADR 0191 D8: a saved CV keeps its language, and the engine reads the lists of the language it
+    // is handed, so the handler hands it the resume's own.
+    [Fact]
+    public async Task Handle_ShouldReviewTheResumeInItsOwnLanguage()
+    {
+        var db = CreateDb();
+        var resume = await SeedOwnedResumeAsync(db, _userId,
+            r => r.SetLanguage(ResumeLanguage.En, FakeDateTimeProvider.Default).IsSuccess.ShouldBeTrue());
+        CvReviewContext? captured = null;
+        _engine.ReviewAsync(
+                Arg.Do<CvReviewContext>(c => captured = c),
+                Arg.Any<RenderProfile>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<CvReviewResult>(ResultWith(A7Fail())));
+
+        await CreateSut(db).Handle(
+            new ReviewResumeQuery(resume.Id.Value, "Ats"), TestContext.Current.CancellationToken);
+
+        captured.ShouldNotBeNull();
+        captured!.Language.ShouldBe(ResumeLanguage.En);
+    }
+
     [Fact]
     public async Task Handle_ShouldPassVisualProfileToEngine_WhenProfileIsVisual()
     {

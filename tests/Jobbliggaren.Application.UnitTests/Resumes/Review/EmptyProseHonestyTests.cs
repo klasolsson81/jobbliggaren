@@ -117,6 +117,37 @@ public class EmptyProseHonestyTests
         verdict.NotAssessedKind.ShouldBe(NotAssessedKind.InsufficientData);
     }
 
+    // ADR 0191 D9: both arms read the same prose, so a CV whose entries carry only a header and a
+    // period has none on either arm. The staging arm used to read those header lines as prose.
+    private const string HeaderOnlyCv =
+        "Anna Andersson\nanna.andersson@example.com\n\nErfarenhet\nSäljare, Exempelbutiken AB\n2019–2021\n" +
+        "Lagerarbetare, Exempellagret AB\n2016–2019";
+
+    [Theory]
+    [MemberData(nameof(ProseCriteria))]
+    public async Task ProseRule_OnEntriesWithOnlyAHeaderAndAPeriod_IsNotAssessedOnBothArms(string criterionId)
+    {
+        var parsed = ResumeFromCvText(HeaderOnlyCv);
+        parsed.Content.Profile.ShouldBeNull("premise: no profile");
+        parsed.Content.Experience.Count.ShouldBe(2, "premise: two entries, each a header and a period");
+        var content = new ResumeContent(
+            new PersonalInfo("Anna Andersson", "anna.andersson@example.com", null, null),
+            experiences:
+            [
+                new Experience("Exempelbutiken AB", "Säljare", new DateOnly(2019, 1, 1), new DateOnly(2021, 1, 1), null),
+                new Experience("Exempellagret AB", "Lagerarbetare", new DateOnly(2016, 1, 1), new DateOnly(2019, 1, 1), null),
+            ]);
+
+        var staging = await Engine().ReviewAsync(
+            CvReviewContext.FromParsed(parsed), RenderProfile.Ats, TestContext.Current.CancellationToken);
+        var canonical = await Engine().ReviewAsync(
+            CvReviewContext.FromCanonical(content, ResumeContentLinearizer.Linearize(content), ResumeLanguage.Sv),
+            RenderProfile.Ats, TestContext.Current.CancellationToken);
+
+        VerdictOf(staging, criterionId).ShouldBe(CriterionVerdict.NotAssessed);
+        VerdictOf(canonical, criterionId).ShouldBe(CriterionVerdict.NotAssessed);
+    }
+
     [Fact]
     public async Task ContentFreeCv_TheEarnedFailsSurvive()
     {

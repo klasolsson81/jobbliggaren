@@ -6,6 +6,7 @@ using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Improvement.Transforms;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.TextAnalysis;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Improvement;
 
@@ -54,12 +55,10 @@ internal sealed class CvImprovementEngine : ICvImprovementEngine
     {
         ArgumentNullException.ThrowIfNull(parsedResume);
 
-        var cliches = _clicheLexicon.GetClicheList();
-        var verbs = _verbMapper.GetVerbMapping();
+        var cliches = _clicheLexicon.GetClicheList(parsedResume.DetectedLanguage);
+        var verbs = _verbMapper.GetVerbMapping(parsedResume.DetectedLanguage);
         var rubric = _rubricProvider.GetRubric();
-        var language = parsedResume.DetectedLanguage == ResumeLanguage.En
-            ? TextLanguage.English
-            : TextLanguage.Swedish;
+        var language = TextLanguageMap.For(parsedResume.DetectedLanguage);
 
         var context = new CvImprovementContext(
             parsedResume, review, profile, language, cliches, verbs, _analyzer);

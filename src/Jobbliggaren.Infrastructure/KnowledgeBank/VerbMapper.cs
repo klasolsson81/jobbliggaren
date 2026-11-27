@@ -48,7 +48,8 @@ internal sealed class VerbMapper : IVerbMapper
             .Select(w => new WeakVerbMapping(w.Weak, w.SuggestedStrong, w.Group, w.DropInSafe))
             .ToList();
 
-        return new VerbMapping(file.Version, groups, weak, asset.Source);
+        return new VerbMapping(
+            file.Version, groups, weak, asset.Source, KnowledgeBankTokens.VerbMatch(file.StrongVerbMatch));
     }
 }
 
@@ -57,6 +58,9 @@ internal sealed record VerbMappingFile
 {
     [JsonPropertyName("verbMappingVersion")]
     public string Version { get; init; } = "unknown";
+
+    [JsonPropertyName("strongVerbMatch")]
+    public string? StrongVerbMatch { get; init; }
 
     [JsonPropertyName("strongVerbGroups")]
     public IReadOnlyList<StrongVerbGroupFile> StrongVerbGroups { get; init; } = [];

@@ -7,6 +7,7 @@ using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 using Jobbliggaren.Infrastructure.Resumes.Sections;
+using Jobbliggaren.Infrastructure.TextAnalysis;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Review;
 
@@ -86,7 +87,7 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         var cliches = _clicheLexicon.GetClicheList(context.Language);
         var verbs = _verbMapper.GetVerbMapping(context.Language);
         var allowlist = _spellingAllowlist.GetAllowlist();
-        var language = context.Language == ResumeLanguage.En ? TextLanguage.English : TextLanguage.Swedish;
+        var language = TextLanguageMap.For(context.Language);
         var datedExperiences = BuildDatedExperiences(context);
 
         // Fas 4b 8b.4b (ADR 0108) — B1's ORDER half, computed ONCE per review (not per criterion)

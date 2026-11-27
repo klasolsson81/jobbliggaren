@@ -87,7 +87,7 @@ public class A2ActionVerbsRuleTests
 
     // A stopword opener has no lexeme of its own, so it is never strong, even when a later word
     // carries a strong verb's stem: "ansvarig" stems to "ansvar", the stem of the strong
-    // "ansvarade för", and "manager" to "manag", the stem of the strong "managed".
+    // "ansvarade för". The English list matches listed forms, and its row holds the same.
     [Theory]
     [InlineData("Sv", "Som ansvarig för budgeten minskade jag kostnaderna.", "Ledde teamet om åtta personer.", "Ledde inköpen.")]
     [InlineData("En", "As manager of the budget, cut costs by a tenth.", "Led the team of eight people.", "Led the purchasing.")]
@@ -99,6 +99,41 @@ public class A2ActionVerbsRuleTests
         a2.Verdict.ShouldBe(CriterionVerdict.Warn, "premise: two strong openers in three, between the two ratios");
         Evidence(a2).Note.ShouldBe("inleds inte med ett starkt handlingsverb");
         Evidence(a2).Span.Quote.ShouldBe(stopwordLed);
+    }
+
+    // ADR 0191 D7: the English list matches its listed forms, so a derived noun at the opener is not
+    // a strong verb, though the stemmer reads it as one ("development" as "develop").
+    [Theory]
+    [InlineData("Development of an internal reporting tool.")]
+    [InlineData("Management of the release calendar.")]
+    [InlineData("Manager of the support desk for two years.")]
+    [InlineData("Developer in the payments team.")]
+    [InlineData("Implementation of a new test framework.")]
+    public async Task A2_ShouldNeverReadAnEnglishDerivedNoun_AsAStrongOpener(string nounLed)
+    {
+        var a2 = await A2FromParsedAsync(
+            ResumeLanguage.En, nounLed, "Led the team of eight people.", "Led the purchasing.");
+
+        a2.Verdict.ShouldBe(CriterionVerdict.Warn, "premise: two strong openers in three, between the two ratios");
+        Evidence(a2).Note.ShouldBe("inleds inte med ett starkt handlingsverb");
+        Evidence(a2).Span.Quote.ShouldBe(nounLed);
+    }
+
+    // Accepted and known (ADR 0191 D7): an inflected form that is also a noun reads as its verb, and
+    // so does a Swedish agent noun whose stem is a strong verb's. A pronoun opener is never strong.
+    [Theory]
+    [InlineData("En", "Test Analyst at Fiktiva Konsult AB.", true)]
+    [InlineData("En", "Testing of the checkout flow for the web shop.", true)]
+    [InlineData("En", "Design of the test framework.", true)]
+    [InlineData("En", "Lead developer for the payment service.", true)]
+    [InlineData("Sv", "Utvecklare i teamet för betalningar.", true)]
+    [InlineData("Sv", "Jag ledde teamet om åtta personer.", false)]
+    [InlineData("En", "I led the team of eight people.", false)]
+    public async Task A2_ShouldReadTheAcceptedOpeners_AsAdr0191RecordsThem(string language, string bullet, bool strong)
+    {
+        var a2 = await A2FromParsedAsync(ResumeLanguage.FromName(language), bullet);
+
+        a2.Verdict.ShouldBe(strong ? CriterionVerdict.Pass : CriterionVerdict.Fail);
     }
 
     // A number is a bullet's first word, so a number-led bullet does not open with a verb, even when

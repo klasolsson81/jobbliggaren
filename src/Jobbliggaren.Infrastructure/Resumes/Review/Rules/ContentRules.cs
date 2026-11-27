@@ -72,16 +72,17 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
             return ReviewText.NoBullets(context, "handlingsverb");
         }
 
-        // Strong-verb openers via the F4-2 NLP tier: reduce each mapping verb to its first
-        // stemmed lexeme so an inflected bullet opener still matches the preteritum form
-        // (analyzer owns lowercase→stopword→stem; language-aware). Weak verbs are multi-word
-        // phrases that don't lexemise cleanly, so they keep a word-boundary prefix match.
+        // The strong openers as the list declares them (ADR 0191 D7): a Stem list's verbs reduce to
+        // their first stemmed lexeme so an inflected opener still matches the listed form; a
+        // ListedForm list's verbs are the forms themselves, lower-cased once here. Weak verbs are
+        // multi-word phrases that don't lexemise cleanly, so they keep a word-boundary prefix match.
+        var listedForms = context.Verbs.StrongVerbMatch == StrongVerbMatch.ListedForm;
         var strongOpeners = context.Verbs.StrongVerbGroups
             .SelectMany(g => g.Verbs)
-            .Select(v => FirstLexeme(context, v))
+            .Select(v => listedForms ? v.ToLowerInvariant() : FirstLexeme(context, v))
             .Where(l => l.Length > 0)
             .ToHashSet(StringComparer.Ordinal);
-        var weakVerbs = context.Verbs.WeakVerbs.Select(w => w.Weak).ToList();
+        var weakVerbs = context.Verbs.WeakVerbs.Select(w => w.Weak.ToLowerInvariant()).ToList();
 
         var strong = 0;
         string? weakOpener = null;
@@ -138,9 +139,15 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
         IReadOnlyCollection<string> strongOpeners)
     {
         var opener = ReviewText.FromFirstWord(bullet);
-        if (weakVerbs.Any(v => ReviewText.StartsWithWord(opener, v)))
+        var lowered = opener.ToLowerInvariant();
+        if (weakVerbs.Any(v => ReviewText.StartsWithLoweredWord(lowered, v)))
         {
             return Opener.Weak;
+        }
+
+        if (context.Verbs.StrongVerbMatch == StrongVerbMatch.ListedForm)
+        {
+            return strongOpeners.Any(f => ReviewText.StartsWithLoweredWord(lowered, f)) ? Opener.Strong : Opener.Other;
         }
 
         var end = 0;

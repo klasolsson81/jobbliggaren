@@ -18,8 +18,9 @@ public abstract record ChangeProvenance;
 /// <c>DropInReplacement</c> (cliché), <c>SuggestedStrong</c> (verb), or canonical heading
 /// <c>displayForm</c> (parsing lexicon, #893) resolved for <paramref name="Key"/> in asset
 /// <paramref name="Source"/>@<paramref name="Version"/>. <paramref name="Source"/> ∈
-/// {"cliche-list", "verb-mapping", "cv-parsing-lexicon"} (the KB assets that carry replacement
-/// strings), with an English list named by its language ("cliche-list.en", "verb-mapping.en"). For "cv-parsing-lexicon" the value is a pure RE-CASING of the recognised synonym
+/// {"cliche-list", "cliche-list.en", "verb-mapping", "verb-mapping.en", "cv-parsing-lexicon"},
+/// the KB assets that carry replacement strings. For "cv-parsing-lexicon" the value is a pure
+/// RE-CASING of the recognised synonym
 /// <paramref name="Key"/> — the loader pins the form to differ from <paramref name="Key"/> only by
 /// letter case, so it is never a synonym remap or added punctuation: the no-synthesis guarantee D6
 /// gives up by leaving <see cref="StructuralTransformProvenance"/> is re-established in the lexicon

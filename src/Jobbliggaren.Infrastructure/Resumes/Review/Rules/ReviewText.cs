@@ -324,17 +324,14 @@ internal static class ReviewText
 
     /// <summary>True if <paramref name="text"/> (lowercased) starts with <paramref name="phrase"/>
     /// on a word boundary (so "ledde" matches "ledde teamet" but not "ledning").</summary>
-    public static bool StartsWithWord(string text, string phrase)
-    {
-        var t = text.TrimStart().ToLowerInvariant();
-        var p = phrase.ToLowerInvariant();
-        if (!t.StartsWith(p, StringComparison.Ordinal))
-        {
-            return false;
-        }
+    public static bool StartsWithWord(string text, string phrase) =>
+        StartsWithLoweredWord(text.TrimStart().ToLowerInvariant(), phrase.ToLowerInvariant());
 
-        return t.Length == p.Length || !char.IsLetter(t[p.Length]);
-    }
+    /// <summary>The <see cref="StartsWithWord"/> test on a text and a phrase that are both already
+    /// lower-cased, so a caller testing one text against many phrases lower-cases each once.</summary>
+    public static bool StartsWithLoweredWord(string loweredText, string loweredPhrase) =>
+        loweredText.StartsWith(loweredPhrase, StringComparison.Ordinal)
+        && (loweredText.Length == loweredPhrase.Length || !char.IsLetter(loweredText[loweredPhrase.Length]));
 
     // ── Word-boundary phrase matching on RAW prose (NOT lexemes) ──────────
     // A shared, hand-rolled boundary helper for the cliché/soft-skill rules + the cliché

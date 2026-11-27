@@ -71,9 +71,10 @@ internal sealed class ClicheTransform : ICvTransform
 
         foreach (var experience in context.Content.Experience)
         {
-            if (!string.IsNullOrWhiteSpace(experience.RawText))
+            var text = string.Join('\n', ReviewText.DescriptionLines(experience));
+            if (!string.IsNullOrWhiteSpace(text))
             {
-                sb.AppendLine(experience.RawText);
+                sb.AppendLine(text);
             }
         }
 

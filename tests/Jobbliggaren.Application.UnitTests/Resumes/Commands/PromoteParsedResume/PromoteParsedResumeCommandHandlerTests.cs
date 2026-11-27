@@ -310,6 +310,46 @@ public class PromoteParsedResumeCommandHandlerTests
         db.Resumes.Local.ShouldHaveSingleItem().Language.ShouldBe(detected);
     }
 
+    // The reported defect end to end (ADR 0191 D8): an English import is promoted by this handler,
+    // and the saved CV is then reviewed as the review query does (`ReviewResumeQueryHandler`), with
+    // the real lists, analyzer and dictionary. Before, the saved CV was Swedish: A2 found no strong
+    // verb, and C7 read English words against the Swedish dictionary.
+    [Fact]
+    public async Task Handle_AnEnglishImport_IsReviewedWithTheEnglishListsAndDictionaryOnceSaved()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(db, _userId, language: ResumeLanguage.En);
+        var english = new ResumeContentDto(
+            new PersonalInfoDto("Testa Testsson", "testa.testsson@example.com", "070-000 00 00", "Exempelstad"),
+            Experiences:
+            [
+                new ExperienceDto("Exempelbolaget AB", "QA Engineer", new DateOnly(2021, 1, 1), new DateOnly(2024, 1, 1),
+                    "Automated 35 regression tests with Selenium.\nDesigned a test strategy for the payment service.\nLed the migration of the test suite."),
+            ],
+            Educations: [],
+            Skills: [],
+            Summary: "Quality assurance engineer with a strong interest in test automation.");
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value, english), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        var resume = db.Resumes.Local.ShouldHaveSingleItem();
+        var content = resume.MasterVersion.Content;
+        var engine = new Infrastructure.Resumes.Review.CvReviewEngine(
+            Review.CvReviewFixtures.RealRubricProvider(), Review.CvReviewFixtures.RealClicheLexicon(),
+            Review.CvReviewFixtures.RealVerbMapper(),
+            new Infrastructure.TextAnalysis.LocalTextAnalyzer(new Infrastructure.TextAnalysis.SnowballStemmer()),
+            new Infrastructure.TextAnalysis.HunspellSpellChecker(), Review.CvReviewFixtures.RealAllowlist(),
+            Review.CvReviewFixtures.RealCvConventionsProvider(), Review.CvReviewFixtures.RealParsingLexicon());
+        var review = await engine.ReviewAsync(
+            CvReviewContext.FromCanonical(content, ResumeContentLinearizer.Linearize(content), resume.Language),
+            RenderProfile.Ats, TestContext.Current.CancellationToken);
+
+        Review.CvReviewFixtures.Verdict(review, "A2").Verdict.ShouldBe(CriterionVerdict.Pass);
+        Review.CvReviewFixtures.Verdict(review, "C7").Verdict.ShouldBe(CriterionVerdict.Pass);
+    }
+
     // ===============================================================
     // Auth / not-found
     // ===============================================================

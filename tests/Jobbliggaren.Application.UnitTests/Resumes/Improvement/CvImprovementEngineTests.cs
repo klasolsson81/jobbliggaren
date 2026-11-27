@@ -262,6 +262,22 @@ public class CvImprovementEngineTests
         change.Evidence.ShouldBeOfType<TextSpanEvidence>().Span.Quote.ShouldBe(change.Replacement.Before);
     }
 
+    // ADR 0191 D4: an English CV's proposal comes from the English list and cites it by name.
+    [Fact]
+    public async Task SuggestAsync_ShouldProposeFromTheEnglishList_AndCiteIt_OnAnEnglishCv()
+    {
+        var resume = Resume(
+            experience: [Experience(bullets: ["Was responsible for the release calendar of the web shop."])],
+            detectedLanguage: ResumeLanguage.En);
+
+        var change = Single(await SuggestAsync(resume), ProposedChangeKind.WeakVerbUpgrade);
+
+        change.Replacement!.After.ShouldBe("managed");
+        var kb = change.Provenance.ShouldBeOfType<KnowledgeBankProvenance>();
+        kb.Source.ShouldBe("verb-mapping.en");
+        kb.Key.ShouldBe("was responsible for");
+    }
+
     [Fact]
     public async Task SuggestAsync_ShouldNeverFlagCitedEvidenceAsAnExcerpt_OnAnyProposedChange()
     {

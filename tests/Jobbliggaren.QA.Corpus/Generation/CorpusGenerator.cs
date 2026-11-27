@@ -292,7 +292,7 @@ public sealed class CorpusGenerator(CorpusConfig? config = null)
         var content = new ParsedResumeContent(
             new ParsedContact(name, "newcomer@example.com", null, location),
             "Recently arrived. Söker arbete. Open to work.",
-            [new ParsedExperience(track, null, null, $"{track}\nTidigare arbete utomlands")],
+            [new ParsedExperience(track, "Tidigare arbete utomlands", null, $"{track}\nTidigare arbete utomlands")],
             [], [Pick(SwedishCorpusLexicon.Skills, rng)], ["Engelska", "Arabiska"]);
         return (content, $"{name}\nSöker arbete", ResumeLanguage.En);
     }

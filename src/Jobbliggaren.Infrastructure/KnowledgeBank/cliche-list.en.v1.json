@@ -19,13 +19,10 @@
     { "phrase": "hardworking", "kind": "softSkill", "why": "Förväntas av alla", "guidance": "Beskriv en konkret prestation som visar det" },
     { "phrase": "flexible", "kind": "softSkill", "why": "Säger inget om vad du gör annorlunda", "guidance": "\"Rotated between three roles during a reorganisation, from developer to tech lead\"" },
     { "phrase": "adaptable", "kind": "softSkill", "why": "Säger inget om vad du gör annorlunda", "guidance": "Beskriv en förändring du hanterade och vad den gav" },
-    { "phrase": "organised", "kind": "softSkill", "why": "Förväntas av alla", "guidance": "Beskriv vad du organiserade och med vilket resultat" },
-    { "phrase": "organized", "kind": "softSkill", "why": "Förväntas av alla", "guidance": "Beskriv vad du organiserade och med vilket resultat" },
     { "phrase": "proactive", "kind": "softSkill", "why": "Påstående utan exempel", "guidance": "Beskriv något du gjorde innan någon bad om det och vad det gav" },
     { "phrase": "passionate", "kind": "softSkill", "why": "Tom passion-signal som alla använder", "guidance": "Beskriv ett konkret projekt eller initiativ" },
     { "phrase": "highly motivated", "kind": "softSkill", "why": "Påstående utan exempel", "guidance": "Visa motivationen med något du åstadkom" },
     { "phrase": "self-motivated", "kind": "softSkill", "why": "Påstående utan exempel", "guidance": "Visa motivationen med något du åstadkom" },
-    { "phrase": "dedicated", "kind": "softSkill", "why": "Förväntas av alla", "guidance": "Beskriv vad du lade tid på och vad det gav" },
     { "phrase": "creative", "kind": "softSkill", "why": "Påstående utan exempel", "guidance": "Beskriv en idé du genomförde och vad den gav" }
   ]
 }

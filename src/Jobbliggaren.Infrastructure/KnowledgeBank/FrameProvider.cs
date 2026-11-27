@@ -9,8 +9,7 @@ namespace Jobbliggaren.Infrastructure.KnowledgeBank;
 /// asset once at construction — including the cross-asset invariant that every sentence
 /// frame's lead verb resolves in the injected verb mapping at the pinned version — and
 /// serves the cached immutable contract. Registered as a singleton (parity
-/// <see cref="RubricProvider"/>); a malformed or drifted asset fails the host at
-/// startup, never mid-request.
+/// <see cref="RubricProvider"/>).
 /// </summary>
 internal sealed class FrameProvider(IVerbMapper verbMapper) : IFrameProvider
 {

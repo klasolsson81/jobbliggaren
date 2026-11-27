@@ -19,66 +19,99 @@ public class VerbMapperTests
 {
     private static VerbMapping LoadMapping() => new VerbMapper().GetVerbMapping(ResumeLanguage.Sv);
 
-    [Fact]
-    public void GetVerbMapping_ShouldLoadVersionedEmbeddedResource_WhenCalled()
+    private static VerbMapping LoadMapping(string language) =>
+        new VerbMapper().GetVerbMapping(ResumeLanguage.FromName(language));
+
+    public static TheoryData<string> Languages()
     {
-        var mapping = LoadMapping();
+        var data = new TheoryData<string>();
+        foreach (var language in ResumeLanguage.List)
+        {
+            data.Add(language.Name);
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void GetVerbMapping_ShouldLoadVersionedEmbeddedResource_WhenCalled(string language)
+    {
+        var mapping = LoadMapping(language);
 
         mapping.ShouldNotBeNull();
         mapping.Version.ShouldNotBeNullOrWhiteSpace();
         mapping.Version.ShouldNotBe("unknown");
     }
 
-    [Fact]
-    public void GetVerbMapping_ShouldContainSevenStrongGroups_WhenCalled()
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void GetVerbMapping_ShouldContainSevenStrongGroups_WhenCalled(string language)
     {
         // Architect: exactly 7 strong-verb groups (a curated, stable taxonomy of verb
         // families). Pinned exact — the group taxonomy is a deliberate fixed structure,
         // not a growing corpus.
-        var mapping = LoadMapping();
+        var mapping = LoadMapping(language);
 
         mapping.StrongVerbGroups.Count.ShouldBe(7);
         mapping.StrongVerbGroups.ShouldAllBe(g =>
             !string.IsNullOrWhiteSpace(g.Group) && g.Verbs.Count > 0);
     }
 
-    [Fact]
-    public void GetVerbMapping_ShouldHaveAtLeastFortyFiveStrongVerbs_WhenCalled()
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void GetVerbMapping_ShouldHaveAtLeastFortyFiveStrongVerbs_WhenCalled(string language)
     {
         // Drift-robust floor (architect: >=45 strong verbs total across the groups).
-        var mapping = LoadMapping();
+        var mapping = LoadMapping(language);
 
         var totalStrong = mapping.StrongVerbGroups.Sum(g => g.Verbs.Count);
         totalStrong.ShouldBeGreaterThanOrEqualTo(45);
     }
 
-    [Fact]
-    public void GetVerbMapping_ShouldHaveExactlyEightWeakVerbs_WhenCalled()
+    [Theory]
+    [InlineData("Sv", 60, 8)]
+    [InlineData("En", 332, 12)]
+    public void GetVerbMapping_ShouldHoldItsCuratedCount_PerLanguage(string language, int strong, int weak)
     {
-        // Architect: exactly 8 weak verbs (a small, deliberate "avoid these" set).
-        var mapping = LoadMapping();
+        var mapping = LoadMapping(language);
 
-        mapping.WeakVerbs.Count.ShouldBe(8);
+        mapping.StrongVerbGroups.Sum(g => g.Verbs.Count).ShouldBe(strong);
+        mapping.WeakVerbs.Count.ShouldBe(weak);
     }
 
-    [Fact]
-    public void GetVerbMapping_ShouldHaveNonEmptySuggestedStrongOnEveryWeakVerb_WhenCalled()
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void GetVerbMapping_ShouldHaveUniqueStrongVerbs_WhenCalled(string language)
     {
-        var mapping = LoadMapping();
+        var strong = LoadMapping(language).StrongVerbGroups
+            .SelectMany(g => g.Verbs)
+            .Select(v => v.Trim().ToLowerInvariant())
+            .ToList();
+
+        strong.Distinct().Count().ShouldBe(strong.Count);
+    }
+
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void GetVerbMapping_ShouldHaveNonEmptySuggestedStrongOnEveryWeakVerb_WhenCalled(string language)
+    {
+        var mapping = LoadMapping(language);
 
         mapping.WeakVerbs.ShouldAllBe(w =>
             !string.IsNullOrWhiteSpace(w.Weak)
             && !string.IsNullOrWhiteSpace(w.SuggestedStrong));
     }
 
-    [Fact]
-    public void GetVerbMapping_ShouldHaveEveryWeakVerbSuggestionExistAmongStrongVerbs_WhenCalled()
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void GetVerbMapping_ShouldHaveEveryWeakVerbSuggestionExistAmongStrongVerbs_WhenCalled(string language)
     {
         // CLOSURE invariant (load-bearing): each weak verb's SuggestedStrong must be a
         // verb the knowledge bank actually lists as strong — otherwise the propose step
         // would recommend an unendorsed verb. Case-insensitive membership across all
         // groups' verbs.
-        var mapping = LoadMapping();
+        var mapping = LoadMapping(language);
 
         var strongVerbs = mapping.StrongVerbGroups
             .SelectMany(g => g.Verbs)
@@ -94,13 +127,14 @@ public class VerbMapperTests
         }
     }
 
-    [Fact]
-    public void GetVerbMapping_ShouldHaveWeakVerbGroupReferenceAValidGroupWhenSet_WhenCalled()
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void GetVerbMapping_ShouldHaveWeakVerbGroupReferenceAValidGroupWhenSet_WhenCalled(string language)
     {
         // Optional Group on a weak verb (nullable). When set, it must reference one of
         // the declared strong-verb group names — a dangling group reference would be a
         // data bug. Null is allowed (ungrouped weak verb).
-        var mapping = LoadMapping();
+        var mapping = LoadMapping(language);
 
         var groupNames = mapping.StrongVerbGroups
             .Select(g => g.Group.Trim().ToLowerInvariant())
@@ -111,10 +145,11 @@ public class VerbMapperTests
             .ShouldAllBe(w => groupNames.Contains(w.Group!.Trim().ToLowerInvariant()));
     }
 
-    [Fact]
-    public void GetVerbMapping_ShouldHaveUniqueWeakVerbs_WhenCalled()
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void GetVerbMapping_ShouldHaveUniqueWeakVerbs_WhenCalled(string language)
     {
-        var mapping = LoadMapping();
+        var mapping = LoadMapping(language);
 
         var weak = mapping.WeakVerbs
             .Select(w => w.Weak.Trim().ToLowerInvariant())
@@ -138,12 +173,13 @@ public class VerbMapperTests
             .ShouldBe(["var ansvarig för", "hade hand om"], ignoreOrder: true);
     }
 
-    [Fact]
-    public void GetVerbMapping_ShouldKeepEveryDropInSafeSuggestionAmongTheStrongVerbs_WhenCalled()
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void GetVerbMapping_ShouldKeepEveryDropInSafeSuggestionAmongTheStrongVerbs_WhenCalled(string language)
     {
         // A drop-in-safe pair still obeys the closure invariant (its suggestion is an endorsed
         // strong verb) — belt-and-suspenders over the general closure test above.
-        var mapping = LoadMapping();
+        var mapping = LoadMapping(language);
         var strong = mapping.StrongVerbGroups
             .SelectMany(g => g.Verbs)
             .Select(v => v.Trim().ToLowerInvariant())
@@ -184,19 +220,42 @@ public class VerbMapperTests
 
         mapper.GetVerbMapping(ResumeLanguage.Sv).Source.ShouldBe("verb-mapping");
         mapper.GetVerbMapping(ResumeLanguage.Sv).Version.ShouldBe("1.1");
+        mapper.GetVerbMapping(ResumeLanguage.Sv).StrongVerbMatch.ShouldBe(StrongVerbMatch.Stem);
         mapper.GetVerbMapping(ResumeLanguage.En).Source.ShouldBe("verb-mapping.en");
         mapper.GetVerbMapping(ResumeLanguage.En).Version.ShouldBe("1.0");
+        mapper.GetVerbMapping(ResumeLanguage.En).StrongVerbMatch.ShouldBe(StrongVerbMatch.ListedForm);
     }
 
     [Fact]
-    public void GetVerbMapping_English_ShouldSuggestOnlyItsOwnStrongVerbs()
+    public void GetVerbMapping_English_ShouldOfferOnlyTheSameValencyPairAsADropIn()
     {
+        // The drop-in is written into the CV verbatim, and the closure test accepts any listed form,
+        // so the suggested form itself is pinned.
         var english = new VerbMapper().GetVerbMapping(ResumeLanguage.En);
-        var strong = english.StrongVerbGroups.SelectMany(g => g.Verbs).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        english.StrongVerbGroups.Count.ShouldBe(7);
-        english.WeakVerbs.ShouldAllBe(w => strong.Contains(w.SuggestedStrong));
-        english.WeakVerbs.Where(w => w.DropInSafe).Select(w => w.Weak).ShouldBe(["was responsible for"]);
+        var dropIn = english.WeakVerbs.Where(w => w.DropInSafe).ToList().ShouldHaveSingleItem();
+        dropIn.Weak.ShouldBe("was responsible for");
+        dropIn.SuggestedStrong.ShouldBe("managed");
+    }
+
+    [Fact]
+    public void VerbMatch_ShouldDefaultToStem_WhenTheAssetOmitsTheKey()
+    {
+        // House rule: a JSON key mapping to a CLR default carries a back-compat test. The Swedish
+        // asset predates the key.
+        KnowledgeBankTokens.VerbMatch(null).ShouldBe(StrongVerbMatch.Stem);
+
+        var legacy = System.Text.Json.JsonSerializer.Deserialize<VerbMappingFile>(
+            """{ "verbMappingVersion": "1.1", "strongVerbGroups": [], "weakVerbs": [] }""",
+            KnowledgeBankJson.Options);
+        legacy.ShouldNotBeNull();
+        legacy!.StrongVerbMatch.ShouldBeNull();
+    }
+
+    [Fact]
+    public void VerbMatch_ShouldFailLoud_WhenTheTokenIsUnknown()
+    {
+        Should.Throw<InvalidOperationException>(() => KnowledgeBankTokens.VerbMatch("forms"));
     }
 
     [Fact]

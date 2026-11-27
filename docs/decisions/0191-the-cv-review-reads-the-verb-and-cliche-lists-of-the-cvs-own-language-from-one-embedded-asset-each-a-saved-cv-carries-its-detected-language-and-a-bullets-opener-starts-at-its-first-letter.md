@@ -3,7 +3,7 @@
 **Date:** 2026-11-26
 **Status:** Accepted 2026-11-26 (the ruling of `senior-cto-advisor` named under *Deciders*, under Klas's directive of the same day).
 **Deciders:** Klas Olsson (controller and product owner), by his directive of 2026-11-26 that a defect with the same root cause or in the same area is fixed in the same PR and not filed ·
-`senior-cto-advisor` (ruling D2, D3 (its denominator half), D6 and D9 of 2026-11-26, `docs/reviews/2026-11-26-cv-user-senior-cto-advisor.md`, report-only, local and gitignored; the ruling's numbers are its own and are not this ADR's D1–D10)
+`senior-cto-advisor` (ruling D2, D3 (its denominator half), D6 and D9 of 2026-11-26, `docs/reviews/2026-11-26-cv-user-senior-cto-advisor.md`; rulings A, B and C of 2026-11-27, `docs/reviews/2026-11-27-prx-senior-cto-advisor.md`; and the routing of PR #2354's first review round, 2026-11-27, `docs/reviews/2026-11-27-2354-senior-cto-advisor.md`; all report-only, local and gitignored; the rulings' numbers are their own and are not this ADR's D1–D10)
 **Amends:** nothing formally.
 **Related:** [#2341](https://github.com/klasolsson81/jobbliggaren/issues/2341) (English lists) · [#2352](https://github.com/klasolsson81/jobbliggaren/issues/2352) (a lead glyph defeats A6 and A2) · ADR 0071 (deterministic CV engines, no AI) · ADR 0093 and ADR 0112 (the improvement surface was removed from the API) · ADR 0043 (embedded versioned data)
 **Measured against:** branch `fix/cv-review-opener-and-english` in the worktree `C:/tmp/jbl-cv-x`, read on 2026-11-26. The findings under *Context* were measured the same day on synthetic English CV fixtures rendered to PDF with headless Chrome, through the production chain `CvChainProbe` → `CvReviewEngine`.
@@ -39,29 +39,29 @@ The review is deterministic and uses no AI (ADR 0071). Six defects in the CV rev
 
 ### D3 — A host without a list for a language does not start
 
-The Infrastructure DI root constructs both lexicons eagerly, and `KnowledgeBankAsset.LoadForEveryLanguage` throws an `InvalidOperationException` naming the missing language(s). An asset that is declared but not embedded also throws.
+The Infrastructure DI root constructs both lexicons eagerly, and `KnowledgeBankAsset.LoadForEveryLanguage` throws an `InvalidOperationException` naming the missing language(s). An asset that is declared but not embedded also throws. The text analysis and the rendered labels for a CV language come from total maps (`TextLanguageMap.For`, `CvRenderStrings.For`) that throw for a language they do not know, and a test over every `ResumeLanguage` pins both, so a language added without them fails in CI instead of being read as Swedish.
 
 ### D4 — Provenance
 
-The `VerbMapping` and `ClicheList` records carry a `Source`. The Swedish sources stay "verb-mapping" and "cliche-list", because provenance values already stored are not re-keyed; the English sources are "verb-mapping.en" and "cliche-list.en". Improvement transforms cite `Source` and `Version`.
+The `VerbMapping` and `ClicheList` records carry a `Source`. The Swedish sources stay "verb-mapping" and "cliche-list"; the English sources are "verb-mapping.en" and "cliche-list.en". Improvement transforms cite `Source` and `Version`.
 
 ### D5 — Frames stay bound to the Swedish mapping
 
-`frames.v1.json`'s `verbMappingVersion` still names the Swedish mapping. No Swedish frame can reach an English CV today, because no API endpoint maps the improvement engine, the frames or the preview and apply handlers since ADR 0112 (measured 2026-11-26 in `src/Jobbliggaren.Api/Endpoints/ResumesEndpoints.cs`, whose comments at lines 253–258 and 489–495 record the removed routes; no route maps them). `FrameProvider` and the Preview and Apply handlers pass `ResumeLanguage.Sv` explicitly; `CvImprovementEngine` reads the parse's `DetectedLanguage`. If the improvement surface returns, frames are gated by language in that same change.
+`frames.v1.json`'s `verbMappingVersion` still names the Swedish mapping, and the frame catalogue records the Source of the list it was validated against; `FrameApplyComposer.BuildStrongVerbSet` refuses a list whose Source or version differs, since a version alone no longer names a list. No Swedish frame can reach an English CV today, because no API endpoint maps the improvement engine, the frames or the preview and apply handlers since ADR 0112 (measured 2026-11-26 in `src/Jobbliggaren.Api/Endpoints/ResumesEndpoints.cs`, whose comments at lines 253–258 and 489–495 record the removed routes; no route maps them). `FrameProvider` and the Preview and Apply handlers pass `ResumeLanguage.Sv` explicitly; `CvImprovementEngine` reads the parse's `DetectedLanguage`. If the improvement surface returns, frames are gated by language in that same change.
 
 ### D6 — The English lists
 
-- **Verb mapping.** The same seven groups under their Swedish group names. Irregular pasts (led, built, wrote, won, grew, sold, taught) are listed beside their present forms, because the stemmer does not unify them. Twelve weak openers. Only "was responsible for" → "managed" is `dropInSafe` (same valency). The closure rule, that every weak phrase's suggestion is one of the list's own strong verbs, holds per language.
-- **Cliché list.** Twelve clichés and fourteen soft skills. Their `why` and `guidance` stay civic Swedish, because the user reads them (AGENTS.md §10). Deliberately left out of the soft skills: "responsible" (it is also the weak opener "responsible for"), "driven" (it sits inside "data-driven" and "results-driven" at a word boundary), "dynamic" ("dynamic pricing"), "committed" ("committed code") and "motivated" alone (also a verb).
+- **Verb mapping.** The same seven groups under their Swedish group names. Every inflected form of each verb is listed (D7). Twelve weak openers. Only "was responsible for" → "managed" is `dropInSafe` (same valency). The closure rule, that every weak phrase's suggestion is one of the list's own strong verbs, holds per language.
+- **Cliché list.** Twelve clichés and eleven soft skills. Their `why` and `guidance` stay civic Swedish. Deliberately left out of the soft skills: "responsible" (it is also the weak opener "responsible for"), "driven" (it sits inside "data-driven" and "results-driven" at a word boundary), "dynamic" ("dynamic pricing"), "committed" ("committed code"), "motivated" alone (also a verb), "organised" and "organized" (also a common past-tense verb), and "dedicated" (the attribute in "dedicated team" and the verb in "Dedicated a weekly session to …"). Each would draw an A9 note that says something false about the text it cites.
 - **What the content rests on.** The lists are our own curation, not copies of a published list. The sources give the principle: strong past-tense action verbs for finished roles, and no self-descriptions nobody can check. They are listed under *References*, Swedish ones first, the international ones flagged as such, all read 2026-11-26. The local research record is `docs/research/fas4-cv-kunskapsbank-sverige.md` §6.4 (gitignored).
 
 ### D7 — The opener (#2352; A2, A6 and `WeakVerbTransform`)
 
-A bullet's opener is the bullet from its first letter or digit (`ReviewText.FromFirstWord`), so every non-letter lead glyph is skipped. A2 tests the bank's weak phrase at the opener first, then the stem of the opener's first word alone against the strong set for the CV's language; a stopword opener has no lexeme and is never strong. A6's concreteness scan reads from the opener. `WeakVerbTransform`'s `Before` is the verbatim span at the opener, so a glyph stays outside the replacement. A number is a first word, so a number-led bullet does not open with a verb even when its next word is spelled like a bank verb ("35 automatiserade regressionstester …"). A year-led bullet ("2021 Ledde teamet") therefore opens with its year; no rule tells a year from a quantity by its digits, so this stays accepted and known. A letter used as a list marker (for example Word's second-level "o") and a numbered-list marker ("1. ") are not covered yet; they need the shared marker set from a measured exporter, in #2353.
+A bullet's opener is the bullet from its first letter or digit (`ReviewText.FromFirstWord`), so every non-letter lead glyph is skipped. A2 tests the bank's weak phrase at the opener first, then the strong verbs as the list declares them (`StrongVerbMatch`). The Swedish list has no key and matches by stem: the stem of the opener's first word alone against the stems of the listed verbs; a stopword opener has no lexeme and is never strong. The English list declares `"strongVerbMatch": "listedForm"`: it lists every inflected form it endorses (base, -s, past and -ing, 332 forms of 83 verbs) and no derived word, and A2 tests the opener against those forms with the weak phrases' matcher (`StartsWithWord`), because the English stemmer reads a derived noun as its verb ("development" as "develop", "manager" as "manage"). The Swedish list file is unchanged. A6's concreteness scan reads from the opener. `WeakVerbTransform`'s `Before` is the verbatim span at the opener, so a glyph stays outside the replacement. A number is a first word, so a number-led bullet does not open with a verb even when its next word is spelled like a bank verb ("35 automatiserade regressionstester …"). A year-led bullet ("2021 Ledde teamet") therefore opens with its year; no rule tells a year from a quantity by its digits, so this stays accepted and known. Also accepted and known: an inflected form that is also a noun reads as its verb ("Test Analyst at …", "Testing of …", "Design of …", "Lead developer …"), and so does a Swedish agent noun whose stem is a strong verb's ("Utvecklare i teamet …"); a bullet that opens with a pronoun ("Jag ledde …", "I led …") does not open with a strong verb, which is A2's own criterion. A letter used as a list marker (for example Word's second-level "o") and a numbered-list marker ("1. ") are not covered yet; they need the shared marker set from a measured exporter, in #2353.
 
 ### D8 — Language at promotion
 
-`Resume.CreateFromParsed` takes a required `ResumeLanguage`, and a null fails with `Resume.LanguageRequired`, so the aggregate is valid in one step. Both callers, `PromoteParsedResumeCommandHandler` and `AutoPromoteGate`, pass the parse's `DetectedLanguage`. There is no backfill: it would rewrite saved CVs without the owner acting, and the owner can already change the language (`SetResumeLanguage`).
+`Resume.CreateFromParsed` takes a required `ResumeLanguage`, and a null fails with `Resume.LanguageRequired`, so the aggregate is valid in one step. Both callers, `PromoteParsedResumeCommandHandler` and `AutoPromoteGate`, pass the parse's `DetectedLanguage`. There is no backfill: it would rewrite saved CVs without the owner acting.
 
 ### D9 — One prose corpus on both arms
 
@@ -73,7 +73,7 @@ A8's Objective note drops "svensk" ("skriv en kort sammanfattning"). C4's pronou
 
 ## Deferred (recorded, not done)
 
-The rubric's internal `atsPassSignal` for A2 says "starkt svenskt handlingsverb" (`rubric.v2.3.0.json`, line 72). Correcting it needs a rubric version bump, which creates a new finding-ledger key (`ResumeFindingStatus.cs:28`) and so resets every user's finding statuses on every criterion; no client renders the signal (grep of the web app, 2026-11-26). The correction rides the next rubric bump that has its own reason. The user-facing `passCriterion` is outside the rubric version and already language-neutral.
+The rubric's internal `atsPassSignal` for A2 says "starkt svenskt handlingsverb" (`rubric.v2.3.0.json`, line 72), and C4's names a "svensk standard" (line 380). Correcting them needs a rubric version bump, which creates a new finding-ledger key (`ResumeFindingStatus.cs:28`) and so resets every user's finding statuses on every criterion; no client renders the signal (grep of the web app, 2026-11-26). The correction rides the next rubric bump that has its own reason. The user-facing `passCriterion` is outside the rubric version and already language-neutral.
 
 ## What is not measured
 
@@ -90,7 +90,7 @@ This section lists only what the rulings record as weighed or left out.
 **Against:** see *Consequences*.
 
 ### Backfilling the language of saved CVs
-Not done (D8): it would rewrite saved CVs without the owner acting, and the owner can already change the language.
+Not done (D8): it would rewrite saved CVs without the owner acting.
 
 ### Correcting the rubric's `atsPassSignal` now
 Deferred: it needs a rubric version bump, which resets every user's finding statuses on every criterion, for a signal no client renders (*Deferred*).
@@ -114,8 +114,9 @@ Not done (D5): no route reaches the frames since ADR 0112. They are gated in the
 - **Staging verdicts may move** (D9).
 - **A letter or a number used as a list marker is not covered** (D7, #2353).
 - **A year-led bullet opens with its year** (D7), accepted and known.
+- **An inflected English form that is also a noun reads as its verb, so does a Swedish agent noun, and a pronoun opener is not strong** (D7), accepted and known.
 - **The Swedish lists are unchanged,** pure renames (D1). What can change a Swedish verdict is D7's opener rule and D9's corpus, not the list.
-- **The rubric's `atsPassSignal` still says "svenskt"** until the next rubric bump (*Deferred*).
+- **The rubric's `atsPassSignal` for A2 and for C4 still name Swedish** until the next rubric bump (*Deferred*).
 
 ## Implementation
 
@@ -123,7 +124,7 @@ One PR on `fix/cv-review-opener-and-english` for #2341 and #2352. The members it
 
 ## References
 
-- **Local reports and research (gitignored):** `docs/reviews/2026-11-26-cv-user-senior-cto-advisor.md`; `docs/research/fas4-cv-kunskapsbank-sverige.md` §6.4.
+- **Local reports and research (gitignored):** `docs/reviews/2026-11-26-cv-user-senior-cto-advisor.md`; `docs/reviews/2026-11-27-prx-senior-cto-advisor.md`; `docs/reviews/2026-11-27-2354-senior-cto-advisor.md`; `docs/research/fas4-cv-kunskapsbank-sverige.md` §6.4.
 - **Issues:** #2341, #2352.
 - **ADRs:** ADR 0043 · ADR 0071 · ADR 0093 · ADR 0112.
 - **Sources for the English lists (D6), all read 2026-11-26.** Swedish sources first:

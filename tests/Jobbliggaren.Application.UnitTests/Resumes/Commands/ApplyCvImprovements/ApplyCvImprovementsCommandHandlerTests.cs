@@ -52,7 +52,7 @@ public class ApplyCvImprovementsCommandHandlerTests
         _currentUser.UserId.Returns(_userId);
         _frameProvider.GetFrameCatalog().Returns(FrameFixtures.Catalog(
             FrameFixtures.SentenceLedde(), FrameFixtures.MeasureAntalPerPeriod()));
-        _verbMapper.GetVerbMapping(Arg.Any<ResumeLanguage>()).Returns(
+        _verbMapper.GetVerbMapping(ResumeLanguage.Sv).Returns(
             FrameFixtures.VerbMappingWith("ledde", "skickade", "levererade"));
     }
 

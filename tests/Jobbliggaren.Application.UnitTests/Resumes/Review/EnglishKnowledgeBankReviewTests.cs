@@ -20,10 +20,14 @@ public class EnglishKnowledgeBankReviewTests
         new(RealRubricProvider(), RealClicheLexicon(), RealVerbMapper(), Analyzer(),
             AllCorrectSpellChecker(), RealAllowlist(), RealCvConventionsProvider(), RealParsingLexicon());
 
-    private static async Task<CvCriterionVerdict> VerdictAsync(string criterionId, string profile, ResumeLanguage language)
+    private static Task<CvCriterionVerdict> VerdictAsync(string criterionId, string profile, ResumeLanguage language) =>
+        VerdictAsync(criterionId, profile, NeutralBullets, language);
+
+    private static async Task<CvCriterionVerdict> VerdictAsync(
+        string criterionId, string profile, IReadOnlyList<string> bullets, ResumeLanguage language)
     {
         var parsed = Resume(
-            profile: profile, experience: [Experience(bullets: NeutralBullets)], detectedLanguage: language);
+            profile: profile, experience: [Experience(bullets: bullets)], detectedLanguage: language);
         var result = await Engine().ReviewAsync(
             CvReviewContext.FromParsed(parsed), RenderProfile.Ats, TestContext.Current.CancellationToken);
         return Verdict(result, criterionId);
@@ -68,6 +72,39 @@ public class EnglishKnowledgeBankReviewTests
             "A9", "Reliable QA engineer who cut the time to a verified fix from 9 to 3 days.", ResumeLanguage.En);
 
         a9.Verdict.ShouldBe(CriterionVerdict.Pass);
+        a9.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation
+            .ShouldBe("Personlighetsadjektiv styrks med konkret exempel i samma mening.");
+    }
+
+    // "organised", "organized" and "dedicated" are not in the English list (ADR 0191 D6): each is
+    // also a verb or an attribute that says nothing about the person, so A9 finds no soft skill.
+    [Theory]
+    [InlineData("Organised weekly retrospectives with the client.")]
+    [InlineData("Organized the handover between the support teams.")]
+    [InlineData("Dedicated a weekly session to onboarding new testers.")]
+    [InlineData("Moved the dedicated test environment to a new cluster.")]
+    public async Task A9_ShouldFindNoSoftSkill_InAVerbOrAnAttributeThatAlsoNamesOne(string bullet)
+    {
+        var a9 = await VerdictAsync(
+            "A9", "QA engineer with a background in test automation.", [bullet], ResumeLanguage.En);
+
+        a9.Verdict.ShouldBe(CriterionVerdict.Pass);
+        a9.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>().Observation
+            .ShouldBe("Inga obestyrkta personlighetsadjektiv funna.");
+    }
+
+    [Theory]
+    [InlineData("En", CriterionVerdict.Fail)]
+    [InlineData("Sv", CriterionVerdict.Pass)]
+    public async Task A8_ShouldReadABareAdjectiveList_WithTheCvsOwnList(string language, CriterionVerdict expected)
+    {
+        var a8 = await VerdictAsync("A8", "Reliable, flexible and proactive.", ResumeLanguage.FromName(language));
+
+        a8.Verdict.ShouldBe(expected);
+        if (expected == CriterionVerdict.Fail)
+        {
+            Note(a8).ShouldBe("profiltext är en ren adjektivlista utan konkret innehåll");
+        }
     }
 
     [Fact]

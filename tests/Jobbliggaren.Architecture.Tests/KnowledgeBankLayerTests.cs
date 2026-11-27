@@ -504,4 +504,20 @@ public class KnowledgeBankLayerTests
                 d.ServiceType == typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IBranschgruppProvider))
             .ImplementationInstance.ShouldNotBeNull();
     }
+
+    [Fact]
+    public void AddCvReview_ShouldRegisterTheLanguageListsByInstance_SoAMissingListStopsTheHost()
+    {
+        // Both lexicons refuse to construct when a CV language has no list (ADR 0191 D3), and only
+        // an instance registration runs that check while the host is being built.
+        var services = new ServiceCollection().AddCvReview();
+
+        services.Single(d =>
+                d.ServiceType == typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon))
+            .ImplementationInstance.ShouldNotBeNull();
+
+        services.Single(d =>
+                d.ServiceType == typeof(Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper))
+            .ImplementationInstance.ShouldNotBeNull();
+    }
 }

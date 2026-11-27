@@ -18,7 +18,8 @@ public class FramesLoaderTests
         "1.1",
         [new StrongVerbGroup("Ledarskap & ansvar", ["ledde", "ansvarade för"])],
         [],
-        "verb-mapping");
+        "verb-mapping",
+        StrongVerbMatch: StrongVerbMatch.Stem);
 
     private static FrameCatalog Load(string json, VerbMapping? mapping = null)
     {

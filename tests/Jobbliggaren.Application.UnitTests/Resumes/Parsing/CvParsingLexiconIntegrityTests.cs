@@ -57,7 +57,21 @@ public class CvParsingLexiconIntegrityTests
     /// </summary>
     [Fact]
     public void ShippedLexicon_CarriesTheExpectedVersion() =>
-        CvParsingLexiconFixture.ReadFile().Version.ShouldBe(7);
+        CvParsingLexiconFixture.ReadFile().Version.ShouldBe(8);
+
+    /// <summary>
+    /// The shipped organisation forms (v8, #2353) load whole: the loader refuses a form that can never
+    /// match and a form listed twice, so loading the asset is the check, and the counts pin that no
+    /// form was dropped on the way. A deliberate edit of the list changes these numbers deliberately.
+    /// </summary>
+    [Fact]
+    public void ShippedOrganisationForms_LoadEveryAuthoredForm()
+    {
+        var lexicon = CvParsingLexiconFixture.Load();
+
+        lexicon.OrganisationSuffixes.Count.ShouldBe(41);
+        lexicon.OrganisationPrefixes.Count.ShouldBe(5);
+    }
 
     /// <summary>
     /// The shipped name particles (v7, #898) must be authored in the form the recogniser can match:

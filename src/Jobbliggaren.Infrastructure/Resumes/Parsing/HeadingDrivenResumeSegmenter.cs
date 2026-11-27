@@ -38,6 +38,9 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // #2343: the place vocabulary (SCB kommuner and tätorter), one DI-registered instance like the lexicon.
     private readonly CvPlaceLexicon _places = places ?? throw new ArgumentNullException(nameof(places));
 
+    // #2353: what an entry header is read against, built once from the two vocabularies above.
+    private readonly EntryVocabulary _vocabulary = new(lexicon, places);
+
     /// <summary>Segments text that carries no extractor provenance.</summary>
     public ResumeSegmentationResult Segment(string rawText) => Segment(rawText, CvTextProvenance.None);
 
@@ -50,7 +53,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // A provenance that does not index exactly these lines is not read.
         var lineProvenance = provenance.LineCount == lines.Length ? provenance : CvTextProvenance.None;
         var headings = CvHeadingDetector.Detect(lines, _lexicon);
-        var (blocks, segments, freeSections) = BuildSectionBlocks(lines, lineProvenance, headings);
+        var (blocks, segments, freeSections) = BuildSectionBlocks(lines, lineProvenance, headings, _vocabulary);
         var preamble = PreambleLines(lines, headings);
         var language = DetectLanguage(rawText);
 
@@ -96,10 +99,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         var preambleText = PreambleResidue.ToText(residue, out var droppedLineCount);
 
         var profileText = SectionText(blocks, ParsedSectionKind.Profile);
-        var experienceParse = TypedEntries(segments, ParsedSectionKind.Experience, fullName);
-        var educationParse = TypedEntries(segments, ParsedSectionKind.Education, fullName);
-        var experiences = ParseExperiences(experienceParse.Entries);
-        var educations = ParseEducations(educationParse.Entries);
+        var experienceParse = TypedEntries(segments, ParsedSectionKind.Experience, fullName, _vocabulary);
+        var educationParse = TypedEntries(segments, ParsedSectionKind.Education, fullName, _vocabulary);
+        var experiences = ParseExperiences(experienceParse.Entries, _vocabulary);
+        var educations = ParseEducations(educationParse.Entries, _vocabulary);
         var skillsParse = ParseList(blocks, ParsedSectionKind.Skills, MaxSkills);
         var languagesParse = ParseList(blocks, ParsedSectionKind.Languages, MaxLanguages);
 
@@ -176,7 +179,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     /// stay two sections.</para>
     /// </summary>
     private static (Dictionary<ParsedSectionKind, string> Typed, List<TypedSegment> Segments, List<ParsedSection> Free)
-        BuildSectionBlocks(string[] lines, CvTextProvenance provenance, List<DetectedHeading> headings)
+        BuildSectionBlocks(
+            string[] lines, CvTextProvenance provenance, List<DetectedHeading> headings, EntryVocabulary vocabulary)
     {
         var blocks = new Dictionary<ParsedSectionKind, string>();
         var segments = new List<TypedSegment>();
@@ -214,7 +218,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             if (free.Count >= MaxSections)
                 continue;
 
-            free.Add(new ParsedSection(headings[h].Heading, BuildSectionEntries(block, bodyLines)));
+            free.Add(new ParsedSection(headings[h].Heading, BuildSectionEntries(block, bodyLines, vocabulary)));
         }
 
         return (blocks, segments, free);
@@ -231,13 +235,14 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     /// the entry has more than one line; a lone line, or a bullet, is content, and the parser will
     /// not promote it into a title it did not write.
     /// </summary>
-    private static List<ParsedSectionEntry> BuildSectionEntries(string block, IReadOnlyList<CvLine> bodyLines)
+    private static List<ParsedSectionEntry> BuildSectionEntries(
+        string block, IReadOnlyList<CvLine> bodyLines, EntryVocabulary vocabulary)
     {
         var entries = new List<ParsedSectionEntry>();
         if (block.Length == 0)
             return entries;
 
-        var split = SplitEntries(bodyLines, excludedName: null);
+        var split = SplitEntries(bodyLines, excludedName: null, vocabulary);
         IEnumerable<Entry> all = split.Lead.Count > 0
             ? split.Entries.Prepend(ToEntry(split.Lead))
             : split.Entries;
@@ -369,7 +374,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // untouched: ContactPatterns.Phone/IsPhoneShaped and DatePatterns.DateRange are still the single
     // owners, still read by FirstPhone and by the entry parsers below.
 
-    private static List<ParsedExperience> ParseExperiences(IReadOnlyList<Entry> entries)
+    private static List<ParsedExperience> ParseExperiences(IReadOnlyList<Entry> entries, EntryVocabulary vocabulary)
     {
         var result = new List<ParsedExperience>();
         foreach (var entry in entries)
@@ -377,14 +382,14 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             if (result.Count >= MaxEntries)
                 break;
 
-            var (title, organization) = SplitTitleOrganization(entry);
+            var (title, organization) = SplitTitleOrganization(entry, vocabulary);
             result.Add(new ParsedExperience(title, organization, ExtractPeriod(entry), entry.Text));
         }
 
         return result;
     }
 
-    private static List<ParsedEducation> ParseEducations(IReadOnlyList<Entry> entries)
+    private static List<ParsedEducation> ParseEducations(IReadOnlyList<Entry> entries, EntryVocabulary vocabulary)
     {
         var result = new List<ParsedEducation>();
         foreach (var entry in entries)
@@ -392,7 +397,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             if (result.Count >= MaxEntries)
                 break;
 
-            var (degree, institution) = SplitTitleOrganization(entry);
+            var (degree, institution) = SplitTitleOrganization(entry, vocabulary);
             result.Add(new ParsedEducation(institution, degree, ExtractPeriod(entry), entry.Text));
         }
 
@@ -406,7 +411,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // header.
     private readonly record struct TypedEntryParse(IReadOnlyList<Entry> Entries, IReadOnlyList<ParsedSection> Routed);
 
-    private static TypedEntryParse TypedEntries(List<TypedSegment> segments, ParsedSectionKind kind, string? fullName)
+    private static TypedEntryParse TypedEntries(
+        List<TypedSegment> segments, ParsedSectionKind kind, string? fullName, EntryVocabulary vocabulary)
     {
         var entries = new List<Entry>();
         var routed = new List<ParsedSection>();
@@ -415,7 +421,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             if (segment.Kind != kind || segment.Body.Length == 0)
                 continue;
 
-            var split = SplitEntries(segment.BodyLines, fullName);
+            var split = SplitEntries(segment.BodyLines, fullName, vocabulary);
             if (split.Lead.Count > 0)
                 routed.Add(new ParsedSection(segment.Heading, [new ParsedSectionEntry(null, split.Lead)]));
 
@@ -522,7 +528,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // Split a section block into entries on blank lines. Only a block with no blank line at all is
     // read for its dated-entry structure (#2249): PDF text and a paragraph-spaced DOCX carry none,
     // while a block whose author wrote blank lines keeps them as its only boundary.
-    private static SegmentSplit SplitEntries(IReadOnlyList<CvLine> lines, string? excludedName)
+    private static SegmentSplit SplitEntries(
+        IReadOnlyList<CvLine> lines, string? excludedName, EntryVocabulary vocabulary)
     {
         var runs = new List<List<CvLine>>();
         var current = new List<CvLine>();
@@ -546,7 +553,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         if (current.Count > 0)
             runs.Add(current);
 
-        if (runs.Count == 1 && EntryBoundaries.Split(runs[0], excludedName) is { } split)
+        if (runs.Count == 1 && EntryBoundaries.Split(runs[0], excludedName, vocabulary) is { } split)
             return new SegmentSplit([.. split.Entries.Select(ToEntry)], [.. split.Lead.Select(l => l.Text)]);
 
         return new SegmentSplit([.. runs.Select(ToEntry)], []);
@@ -559,10 +566,23 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // Header line → (title, organization) best-effort, the split reading the SECOND line when the
     // first carries nothing but a period; falls back to the second line as the organization for
     // the common "Title / Company / Dates" layout.
-    private static (string? Title, string? Organization) SplitTitleOrganization(Entry entry)
+    private static (string? Title, string? Organization) SplitTitleOrganization(Entry entry, EntryVocabulary vocabulary)
     {
         if (entry.Lines.Count == 0)
             return (null, null);
+
+        // #2353 (senior-cto-advisor D8): a role line above an organisation line above the period. The
+        // vocabularies read the second line as the organisation, so each line is one field, read whole
+        // ("Test Analyst, QA" is one role). A first line that names an organisation itself keeps the
+        // reading below, so "Employer, City" / role / period reads as it did.
+        if (entry.Lines.Count >= 3
+            && !DatePatterns.IsDateOnlyLine(entry.Lines[0])
+            && !vocabulary.Lexicon.IsOrganisation(entry.Lines[0])
+            && vocabulary.IsOrganisationLine(entry.Lines[1])
+            && DatePatterns.IsDateOnlyLine(entry.Lines[2]))
+        {
+            return (NullIfEmpty(entry.Lines[0].Trim()), NullIfEmpty(entry.Lines[1].Trim()));
+        }
 
         // Strip a TRAILING period from the header line BEFORE the title/organization split
         // so a header that packs the dates on the same line as the role/company
@@ -616,7 +636,19 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // from any non-blank line delimited by blanks, and StripTrailingPeriod consumes a bare
         // "2005 - 2010" or a bare "2005" whole). Without it, Lines[1] throws — and Segment is
         // called unguarded from ImportResumeCommandHandler, so that is a 500 on CV import.
-        var splitLine = first.Length == 0 && entry.Lines.Count >= 2 ? entry.Lines[1] : entry.Lines[0];
+        var splitIndex = first.Length == 0 && entry.Lines.Count >= 2 ? 1 : 0;
+        var splitLine = entry.Lines[splitIndex];
+
+        // #2353 (senior-cto-advisor D8, point 4 (ii)): an employer line beside its period
+        // ("Exempel AB, Göteborg" / "2020 – 2023", in either order) names the organisation and no
+        // role. Its organisation form and its place say which side is which, so the company is never
+        // read as the title; the 2026-06-23 bind below protects an order that nothing in a line decides.
+        if (entry.Lines.Count >= 2
+            && vocabulary.IsEmployerLine(splitLine)
+            && DatePatterns.IsDateOnlyLine(entry.Lines[1 - splitIndex]))
+        {
+            return (null, NullIfEmpty(splitLine.Trim()));
+        }
 
         if (CvLineShapes.TryReadHeaderFields(splitLine, out var title, out var organization, out _))
             return (NullIfEmpty(title), NullIfEmpty(organization));

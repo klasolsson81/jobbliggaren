@@ -357,6 +357,40 @@ public class ReviewResumeQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ShouldClearFreshResolvedRow_WhenFingerprintNoLongerMatches()
+    {
+        var db = CreateDb();
+        // A shape-valid fingerprint that cannot be the current finding's digest. No content write
+        // follows, so the row is not stale: the finding was replaced at an unchanged rubric version.
+        var mismatch = new string('0', 64);
+        var resume = await SeedOwnedResumeAsync(db, _userId, r =>
+            r.SetFindingStatus("1.0.0", "A7", ReviewFindingStatus.Resolved, mismatch, FakeDateTimeProvider.Default));
+        StubEngine(ResultWith(A7Fail()));
+
+        var result = await CreateSut(db).Handle(
+            new ReviewResumeQuery(resume.Id.Value, "Ats"), TestContext.Current.CancellationToken);
+
+        result.ShouldNotBeNull();
+        result.Verdicts.Single(v => v.CriterionId == "A7").UserStatus.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_ShouldSurfaceIgnoredRow_WhenFingerprintNoLongerMatches()
+    {
+        var db = CreateDb();
+        var mismatch = new string('0', 64);
+        var resume = await SeedOwnedResumeAsync(db, _userId, r =>
+            r.SetFindingStatus("1.0.0", "E3", ReviewFindingStatus.Ignored, mismatch, FakeDateTimeProvider.Default));
+        StubEngine(ResultWith(E3StyleWarn()));
+
+        var result = await CreateSut(db).Handle(
+            new ReviewResumeQuery(resume.Id.Value, "Visual"), TestContext.Current.CancellationToken);
+
+        result.ShouldNotBeNull();
+        result.Verdicts.Single(v => v.CriterionId == "E3").UserStatus.ShouldBe("Ignored");
+    }
+
+    [Fact]
     public async Task Handle_ShouldSurfaceStaleResolvedRow_WhenFingerprintStillMatches()
     {
         var db = CreateDb();

@@ -33,14 +33,14 @@ internal static class EntryBoundaries
     private readonly record struct Anchor(Layout Layout, int Start, int DateLine);
 
     /// <summary>The entries of a split run, and the lines above its first entry.</summary>
-    internal sealed record RunSplit(IReadOnlyList<string> Lead, IReadOnlyList<IReadOnlyList<string>> Entries);
+    internal sealed record RunSplit(IReadOnlyList<CvLine> Lead, IReadOnlyList<IReadOnlyList<CvLine>> Entries);
 
     /// <summary>
     /// The run's entries, or null when it is not split: fewer than two anchors, a first anchor that
     /// admits more than one reading, or a dated line above the first anchor. A line containing
     /// <paramref name="excludedName"/> is never a header.
     /// </summary>
-    internal static RunSplit? Split(IReadOnlyList<string> lines, string? excludedName)
+    internal static RunSplit? Split(IReadOnlyList<CvLine> lines, string? excludedName)
     {
         ArgumentNullException.ThrowIfNull(lines);
 
@@ -49,7 +49,7 @@ internal static class EntryBoundaries
 
         for (var i = 0; i < first.Start; i++)
         {
-            if (IsDated(lines[i]))
+            if (IsDated(lines[i].Text))
                 return null;
         }
 
@@ -67,7 +67,7 @@ internal static class EntryBoundaries
         if (starts.Count < 2)
             return null;
 
-        var entries = new List<IReadOnlyList<string>>(starts.Count);
+        var entries = new List<IReadOnlyList<CvLine>>(starts.Count);
         for (var s = 0; s < starts.Count; s++)
         {
             var end = s + 1 < starts.Count ? starts[s + 1] : lines.Count;
@@ -80,30 +80,30 @@ internal static class EntryBoundaries
     // A bulleted line is content, never a header.
     private static bool IsBulletLine(string line) => CvLineShapes.IsMarkerLed(line);
 
-    private static Anchor? FirstAnchor(IReadOnlyList<string> lines, string? excludedName)
+    private static Anchor? FirstAnchor(IReadOnlyList<CvLine> lines, string? excludedName)
     {
         var f = 0;
-        while (f < lines.Count && !IsRangeRow(lines[f]) && !EndsInRange(lines[f]))
+        while (f < lines.Count && !IsRangeRow(lines[f].Text) && !EndsInRange(lines[f].Text))
             f++;
 
         if (f == lines.Count)
             return null;
 
-        if (!IsRangeRow(lines[f]))
+        if (!IsRangeRow(lines[f].Text))
         {
-            return IsDatedHeader(lines[f], excludedName) && HasOneReading(lines, f, -1, excludedName)
+            return IsDatedHeader(lines[f].Text, excludedName) && HasOneReading(lines, f, -1, excludedName)
                 ? new Anchor(Layout.DatedHeader, f, f)
                 : null;
         }
 
         if (f == 0)
         {
-            return lines.Count > 1 && IsCompleteHeader(lines[1], excludedName)
+            return lines.Count > 1 && IsCompleteHeader(lines[1].Text, excludedName)
                 ? new Anchor(Layout.PeriodFirst, 0, 0)
                 : null;
         }
 
-        if (IsCompleteHeader(lines[f - 1], excludedName))
+        if (IsCompleteHeader(lines[f - 1].Text, excludedName))
         {
             return HasOneReading(lines, f - 1, -1, excludedName)
                 ? new Anchor(Layout.OneLineHeader, f - 1, f)
@@ -111,42 +111,42 @@ internal static class EntryBoundaries
         }
 
         return f == 2
-            && IsHeaderShaped(lines[0], excludedName)
-            && IsHeaderShaped(lines[1], excludedName)
-            && !SplitsIntoFields(lines[1])
+            && IsHeaderShaped(lines[0].Text, excludedName)
+            && IsHeaderShaped(lines[1].Text, excludedName)
+            && !SplitsIntoFields(lines[1].Text)
                 ? new Anchor(Layout.TwoLineHeader, 0, 2)
                 : null;
     }
 
     // Where the entry whose date sits on line i starts, read in the run's layout — or null.
     private static int? StartAt(
-        IReadOnlyList<string> lines, int i, Layout layout, int previousDateLine, string? excludedName) =>
+        IReadOnlyList<CvLine> lines, int i, Layout layout, int previousDateLine, string? excludedName) =>
         layout switch
         {
-            Layout.DatedHeader when IsDatedHeader(lines[i], excludedName)
+            Layout.DatedHeader when IsDatedHeader(lines[i].Text, excludedName)
                 && HasOneReading(lines, i, previousDateLine, excludedName) => i,
-            Layout.PeriodFirst when IsRangeRow(lines[i])
+            Layout.PeriodFirst when IsRangeRow(lines[i].Text)
                 && i - previousDateLine >= 2
                 && i + 1 < lines.Count
-                && IsCompleteHeader(lines[i + 1], excludedName)
-                && (i - 1 == previousDateLine + 1 || !CouldHeadTheRange(lines[i - 1], excludedName)) => i,
-            Layout.OneLineHeader when IsRangeRow(lines[i])
+                && IsCompleteHeader(lines[i + 1].Text, excludedName)
+                && (i - 1 == previousDateLine + 1 || !CouldHeadTheRange(lines[i - 1].Text, excludedName)) => i,
+            Layout.OneLineHeader when IsRangeRow(lines[i].Text)
                 && i - 1 > previousDateLine
-                && IsCompleteHeader(lines[i - 1], excludedName)
+                && IsCompleteHeader(lines[i - 1].Text, excludedName)
                 && HasOneReading(lines, i - 1, previousDateLine, excludedName) => i - 1,
-            Layout.TwoLineHeader when IsRangeRow(lines[i])
+            Layout.TwoLineHeader when IsRangeRow(lines[i].Text)
                 && i - 2 > previousDateLine
-                && IsHeaderShaped(lines[i - 1], excludedName)
-                && !SplitsIntoFields(lines[i - 1])
-                && IsHeaderShaped(lines[i - 2], excludedName) => i - 2,
+                && IsHeaderShaped(lines[i - 1].Text, excludedName)
+                && !SplitsIntoFields(lines[i - 1].Text)
+                && IsHeaderShaped(lines[i - 2].Text, excludedName) => i - 2,
             _ => null,
         };
 
     // A one-line header admits one reading only when the line above it cannot be the upper line of
     // a two-line header. Otherwise intro + "Role — Employer" and "Role" / "Employer, City" read alike.
     private static bool HasOneReading(
-        IReadOnlyList<string> lines, int headerLine, int previousDateLine, string? excludedName) =>
-        headerLine - 1 <= previousDateLine || !CouldHeadTheRange(lines[headerLine - 1], excludedName);
+        IReadOnlyList<CvLine> lines, int headerLine, int previousDateLine, string? excludedName) =>
+        headerLine - 1 <= previousDateLine || !CouldHeadTheRange(lines[headerLine - 1].Text, excludedName);
 
     private static bool CouldHeadTheRange(string line, string? excludedName) =>
         IsHeaderShaped(line, excludedName) && !IsDated(line);

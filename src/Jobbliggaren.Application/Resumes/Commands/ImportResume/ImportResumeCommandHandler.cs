@@ -106,7 +106,7 @@ public sealed class ImportResumeCommandHandler(
         if (extraction.Status == CvExtractionStatus.Extracted
             && !string.IsNullOrWhiteSpace(extraction.RawText))
         {
-            var segmentation = segmenter.Segment(extraction.RawText);
+            var segmentation = segmenter.Segment(extraction.RawText, extraction.Provenance);
             content = segmentation.Content;
             language = segmentation.DetectedLanguage;
             confidence = segmentation.Confidence;

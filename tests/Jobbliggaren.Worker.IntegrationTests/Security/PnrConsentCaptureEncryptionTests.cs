@@ -97,7 +97,7 @@ public class PnrConsentCaptureEncryptionTests(WorkerTestFixture fixture)
             .Returns(CvLayoutMetrics.NotApplicable(UploadBytes.Length));
 
         var segmenter = Substitute.For<IResumeSegmenter>();
-        segmenter.Segment(Arg.Any<string>()).Returns(new ResumeSegmentationResult(
+        segmenter.Segment(Arg.Any<string>(), Arg.Any<CvTextProvenance>()).Returns(new ResumeSegmentationResult(
             new ParsedResumeContent(
                 new ParsedContact("Anna Andersson", "anna@example.com", "070-1234567", null)),
             ResumeLanguage.Sv,

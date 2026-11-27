@@ -43,6 +43,11 @@ public sealed record CvExtractionResult(
     string AuxiliaryText,
     string RevisionText)
 {
+    /// <summary>Per-line geometry of <see cref="RawText"/> for a PDF the extractor could measure;
+    /// <see cref="CvTextProvenance.None"/> otherwise. The segmenter reads it at import; it is never
+    /// persisted.</summary>
+    public CvTextProvenance Provenance { get; init; } = CvTextProvenance.None;
+
     /// <summary>What the personnummer scan reads: <see cref="RawText"/>, then
     /// <see cref="AuxiliaryText"/>, then <see cref="RevisionText"/>, each that is not empty on a
     /// line of its own, so no candidate spans a seam.</summary>

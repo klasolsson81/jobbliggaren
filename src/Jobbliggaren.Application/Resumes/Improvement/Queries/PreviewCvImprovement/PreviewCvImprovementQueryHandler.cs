@@ -82,7 +82,7 @@ public sealed class PreviewCvImprovementQueryHandler(
         // Shared builder incl. the version guard (code review Minor 2) — a verb-mapping/
         // catalog wiring drift fails loud on the preview surface too, keeping "a preview
         // that succeeds is an apply that will succeed" true for the verb invariant.
-        var strongVerbs = FrameApplyComposer.BuildStrongVerbSet(verbMapper.GetVerbMapping(), catalog);
+        var strongVerbs = FrameApplyComposer.BuildStrongVerbSet(verbMapper.GetVerbMapping(ResumeLanguage.Sv), catalog);
 
         // Server recompute over the CURRENT canonical content (ADR 0074 — no client text).
         var content = resume.MasterVersion.Content;

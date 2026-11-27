@@ -159,8 +159,12 @@
     <EmbeddedResource Include="KnowledgeBank\rubric.v2.3.0.json">
       <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.rubric.v2.3.0.json</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="KnowledgeBank\cliche-list.v2.json">
-      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.v2.json</LogicalName>
+    <EmbeddedResource Include="KnowledgeBank\cliche-list.sv.v2.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.sv.v2.json</LogicalName>
+    </EmbeddedResource>
+    <!-- #2341: an English CV is read with its own lists, chosen by the CV's language. -->
+    <EmbeddedResource Include="KnowledgeBank\cliche-list.en.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.cliche-list.en.v1.json</LogicalName>
     </EmbeddedResource>
     <!-- Fas 4b PR-6 (ADR 0093 §D4) — the versioned spelling allowlist (proper nouns +
          technical terms the sv_SE DSSO dictionary lacks) the C7 spelling criterion suppresses.
@@ -169,8 +173,11 @@
     <EmbeddedResource Include="KnowledgeBank\spelling-allowlist.v1.json">
       <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.spelling-allowlist.v1.json</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="KnowledgeBank\verb-mapping.v1.json">
-      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.verb-mapping.v1.json</LogicalName>
+    <EmbeddedResource Include="KnowledgeBank\verb-mapping.sv.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.verb-mapping.sv.v1.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="KnowledgeBank\verb-mapping.en.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.KnowledgeBank.verb-mapping.en.v1.json</LogicalName>
     </EmbeddedResource>
     <!-- Fas 4b PR-5 (ADR 0093 §D3) — the versioned sentence/measure-frame catalog the
          PR-7 apply-half consumes (built FIRST, the hard sequencing dependency).

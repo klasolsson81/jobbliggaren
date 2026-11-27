@@ -1,0 +1,138 @@
+{
+  "verbMappingVersion": "1.0",
+  "strongVerbMatch": "listedForm",
+  "strongVerbGroups": [
+    {
+      "group": "Ledarskap & ansvar",
+      "verbs": [
+        "led", "lead", "leads", "leading",
+        "managed", "manage", "manages", "managing",
+        "directed", "direct", "directs", "directing",
+        "headed", "head", "heads", "heading",
+        "oversaw", "oversee", "oversees", "overseeing",
+        "coordinated", "coordinate", "coordinates", "coordinating",
+        "supervised", "supervise", "supervises", "supervising",
+        "mentored", "mentor", "mentors", "mentoring",
+        "coached", "coach", "coaches", "coaching",
+        "delegated", "delegate", "delegates", "delegating",
+        "prioritised", "prioritise", "prioritises", "prioritising",
+        "prioritized", "prioritize", "prioritizes", "prioritizing",
+        "chaired", "chair", "chairs", "chairing",
+        "spearheaded", "spearhead", "spearheads", "spearheading"
+      ]
+    },
+    {
+      "group": "Bygga & skapa",
+      "verbs": [
+        "built", "build", "builds", "building",
+        "designed", "design", "designs", "designing",
+        "developed", "develop", "develops", "developing",
+        "created", "create", "creates", "creating",
+        "established", "establish", "establishes", "establishing",
+        "founded", "found", "founds", "founding",
+        "launched", "launch", "launches", "launching",
+        "introduced", "introduce", "introduces", "introducing",
+        "implemented", "implement", "implements", "implementing",
+        "initiated", "initiate", "initiates", "initiating",
+        "engineered", "engineer", "engineers", "engineering",
+        "architected", "architect", "architects", "architecting",
+        "prototyped", "prototype", "prototypes", "prototyping"
+      ]
+    },
+    {
+      "group": "Förbättra & optimera",
+      "verbs": [
+        "improved", "improve", "improves", "improving",
+        "increased", "increase", "increases", "increasing",
+        "reduced", "reduce", "reduces", "reducing",
+        "optimised", "optimise", "optimises", "optimising",
+        "optimized", "optimize", "optimizes", "optimizing",
+        "streamlined", "streamline", "streamlines", "streamlining",
+        "automated", "automate", "automates", "automating",
+        "accelerated", "accelerate", "accelerates", "accelerating",
+        "simplified", "simplify", "simplifies", "simplifying",
+        "doubled", "double", "doubles", "doubling",
+        "halved", "halve", "halves", "halving",
+        "consolidated", "consolidate", "consolidates", "consolidating",
+        "modernised", "modernise", "modernises", "modernising",
+        "modernized", "modernize", "modernizes", "modernizing",
+        "refactored", "refactor", "refactors", "refactoring"
+      ]
+    },
+    {
+      "group": "Leverera & genomföra",
+      "verbs": [
+        "delivered", "deliver", "delivers", "delivering",
+        "completed", "complete", "completes", "completing",
+        "executed", "execute", "executes", "executing",
+        "achieved", "achieve", "achieves", "achieving",
+        "shipped", "ship", "ships", "shipping",
+        "deployed", "deploy", "deploys", "deploying",
+        "migrated", "migrate", "migrates", "migrating",
+        "released", "release", "releases", "releasing",
+        "resolved", "resolve", "resolves", "resolving",
+        "produced", "produce", "produces", "producing"
+      ]
+    },
+    {
+      "group": "Analys & beslut",
+      "verbs": [
+        "analysed", "analyse", "analyses", "analysing",
+        "analyzed", "analyze", "analyzes", "analyzing",
+        "evaluated", "evaluate", "evaluates", "evaluating",
+        "assessed", "assess", "assesses", "assessing",
+        "identified", "identify", "identifies", "identifying",
+        "defined", "define", "defines", "defining",
+        "validated", "validate", "validates", "validating",
+        "tested", "test", "tests", "testing",
+        "investigated", "investigate", "investigates", "investigating",
+        "researched", "research", "researches", "researching",
+        "audited", "audit", "audits", "auditing",
+        "diagnosed", "diagnose", "diagnoses", "diagnosing",
+        "mapped", "map", "maps", "mapping"
+      ]
+    },
+    {
+      "group": "Sälj & relation",
+      "verbs": [
+        "sold", "sell", "sells", "selling",
+        "negotiated", "negotiate", "negotiates", "negotiating",
+        "secured", "secure", "secures", "securing",
+        "won", "win", "wins", "winning",
+        "closed", "close", "closes", "closing",
+        "acquired", "acquire", "acquires", "acquiring",
+        "grew", "grow", "grows", "growing",
+        "expanded", "expand", "expands", "expanding",
+        "generated", "generate", "generates", "generating",
+        "retained", "retain", "retains", "retaining"
+      ]
+    },
+    {
+      "group": "Kommunikation",
+      "verbs": [
+        "presented", "present", "presents", "presenting",
+        "trained", "train", "trains", "training",
+        "taught", "teach", "teaches", "teaching",
+        "wrote", "write", "writes", "writing",
+        "authored", "author", "authors", "authoring",
+        "documented", "document", "documents", "documenting",
+        "facilitated", "facilitate", "facilitates", "facilitating",
+        "advocated", "advocate", "advocates", "advocating"
+      ]
+    }
+  ],
+  "weakVerbs": [
+    { "weak": "was responsible for", "suggestedStrong": "managed", "group": "Ledarskap & ansvar", "dropInSafe": true },
+    { "weak": "responsible for", "suggestedStrong": "managed", "group": "Ledarskap & ansvar", "dropInSafe": false },
+    { "weak": "in charge of", "suggestedStrong": "led", "group": "Ledarskap & ansvar", "dropInSafe": false },
+    { "weak": "worked on", "suggestedStrong": "developed", "group": "Bygga & skapa", "dropInSafe": false },
+    { "weak": "worked with", "suggestedStrong": "coordinated", "group": "Ledarskap & ansvar", "dropInSafe": false },
+    { "weak": "helped", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "assisted with", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "participated in", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "was involved in", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "involved in", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "tasked with", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false },
+    { "weak": "duties included", "suggestedStrong": "delivered", "group": "Leverera & genomföra", "dropInSafe": false }
+  ]
+}

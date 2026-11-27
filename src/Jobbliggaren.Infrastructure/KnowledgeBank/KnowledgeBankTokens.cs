@@ -87,6 +87,12 @@ internal static class KnowledgeBankTokens
         ["softSkill"] = ClicheKind.SoftSkill,
     };
 
+    private static readonly Dictionary<string, StrongVerbMatch> StrongVerbMatchTokens = new(StringComparer.Ordinal)
+    {
+        ["stem"] = StrongVerbMatch.Stem,
+        ["listedForm"] = StrongVerbMatch.ListedForm,
+    };
+
     public static CriterionWeight Weight(string token) =>
         Resolve(WeightTokens, token, "vikt");
 
@@ -125,6 +131,15 @@ internal static class KnowledgeBankTokens
         token is null
             ? ClicheKind.Cliche
             : Resolve(ClicheKindTokens, token, "cliché-kind");
+
+    /// <summary>Maps the strong-verb-match token. A missing/null token maps to
+    /// <see cref="StrongVerbMatch.Stem"/> for back-compat: the Swedish list predates the key and is
+    /// curated as one form per verb. That is the permissive mode for a list curated as forms, so a
+    /// form list must declare itself. A present-but-unknown token fails loud.</summary>
+    public static StrongVerbMatch VerbMatch(string? token) =>
+        token is null
+            ? StrongVerbMatch.Stem
+            : Resolve(StrongVerbMatchTokens, token, "strongVerbMatch");
 
     private static TEnum Resolve<TEnum>(Dictionary<string, TEnum> table, string token, string kind)
         where TEnum : struct, Enum =>

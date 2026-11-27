@@ -21,8 +21,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Improvement;
 /// <item>The knowledge-bank ports are wired to the REAL committed Infrastructure loaders
 /// (<see cref="RubricProvider"/> / <see cref="ClicheLexicon"/> / <see cref="VerbMapper"/>),
 /// so the golden <c>After</c>-text (the EXACT cliché <c>DropInReplacement</c> /
-/// verb <c>SuggestedStrong</c>) is read from <c>cliche-list.v2.json</c> /
-/// <c>verb-mapping.v1.json</c> — never guessed
+/// verb <c>SuggestedStrong</c>) is read from <c>cliche-list.sv.v2.json</c> /
+/// <c>verb-mapping.sv.v1.json</c> — never guessed
 /// (CLAUDE.md §5: "a CV verdict without cited textual evidence" and "synthesising prose the
 /// user did not write" are forbidden; the propose step may only resolve a KB-endorsed value).</item>
 /// <item>The <see cref="ITextAnalyzer"/> is the same deterministic lowercase+whitespace stub
@@ -55,8 +55,8 @@ internal static class CvImprovementFixtures
     internal static IClicheLexicon RealClicheLexicon() => new ClicheLexicon();
     internal static IVerbMapper RealVerbMapper() => new VerbMapper();
     internal static Rubric RealRubric() => RealRubricProvider().GetRubric();
-    internal static ClicheList RealClicheList() => RealClicheLexicon().GetClicheList();
-    internal static VerbMapping RealVerbMapping() => RealVerbMapper().GetVerbMapping();
+    internal static ClicheList RealClicheList() => RealClicheLexicon().GetClicheList(ResumeLanguage.Sv);
+    internal static VerbMapping RealVerbMapping() => RealVerbMapper().GetVerbMapping(ResumeLanguage.Sv);
 
     // Fas 4b 8b.4b — the parsing lexicon (heading RECOGNITION, D6 + B1 transforms) and the
     // conventions asset (section-order RECOMMENDATION, B1 transform). Real committed assets, loaded

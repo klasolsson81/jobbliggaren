@@ -72,33 +72,34 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
             return ReviewText.NoBullets(context, "handlingsverb");
         }
 
-        // Strong-verb openers via the F4-2 NLP tier: reduce each mapping verb to its first
-        // stemmed lexeme so an inflected bullet opener still matches the preteritum form
-        // (analyzer owns lowercase→stopword→stem; language-aware). Weak verbs are multi-word
-        // phrases that don't lexemise cleanly, so they keep a word-boundary prefix match.
+        // The strong openers as the list declares them (ADR 0191 D7): a Stem list's verbs reduce to
+        // their first stemmed lexeme so an inflected opener still matches the listed form; a
+        // ListedForm list's verbs are the forms themselves, lower-cased once here. Weak verbs are
+        // multi-word phrases that don't lexemise cleanly, so they keep a word-boundary prefix match.
+        var listedForms = context.Verbs.StrongVerbMatch == StrongVerbMatch.ListedForm;
         var strongOpeners = context.Verbs.StrongVerbGroups
             .SelectMany(g => g.Verbs)
-            .Select(v => FirstLexeme(context, v))
+            .Select(v => listedForms ? v.ToLowerInvariant() : FirstLexeme(context, v))
             .Where(l => l.Length > 0)
             .ToHashSet(StringComparer.Ordinal);
-        var weakVerbs = context.Verbs.WeakVerbs.Select(w => w.Weak).ToList();
+        var weakVerbs = context.Verbs.WeakVerbs.Select(w => w.Weak.ToLowerInvariant()).ToList();
 
         var strong = 0;
         string? weakOpener = null;
         string? nonStrongOpener = null;
         foreach (var bullet in bullets)
         {
-            if (StartsWithStrongVerb(context, bullet, strongOpeners))
+            switch (Classify(context, bullet, weakVerbs, strongOpeners))
             {
-                strong++;
-            }
-            else if (weakVerbs.Any(v => ReviewText.StartsWithWord(bullet, v)))
-            {
-                weakOpener ??= bullet;
-            }
-            else
-            {
-                nonStrongOpener ??= bullet;
+                case Opener.Strong:
+                    strong++;
+                    break;
+                case Opener.Weak:
+                    weakOpener ??= bullet;
+                    break;
+                default:
+                    nonStrongOpener ??= bullet;
+                    break;
             }
         }
 
@@ -107,7 +108,7 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
         var ratio = (double)strong / bullets.Count;
         if (ratio >= context.Criterion.RequiredThreshold(RubricThresholdKeys.PassRatio))
         {
-            var strongBullet = bullets.First(b => StartsWithStrongVerb(context, b, strongOpeners));
+            var strongBullet = bullets.First(b => Classify(context, b, weakVerbs, strongOpeners) == Opener.Strong);
             return CvCriterionVerdict.Assessed("A2", category, CriterionVerdict.Pass,
                 ReviewText.Cite(ReviewText.Span(context.RawText, strongBullet, "inleds med starkt handlingsverb")));
         }
@@ -123,11 +124,37 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
             ReviewText.Cite(ReviewText.Span(context.RawText, cite, note)));
     }
 
-    private static bool StartsWithStrongVerb(
-        CriterionEvaluationContext context, string bullet, IReadOnlyCollection<string> strongOpeners)
+    private enum Opener
     {
-        var first = FirstLexeme(context, bullet);
-        return first.Length > 0 && strongOpeners.Contains(first);
+        Strong,
+        Weak,
+        Other,
+    }
+
+    private static Opener Classify(
+        CriterionEvaluationContext context, string bullet, IReadOnlyList<string> weakVerbs,
+        IReadOnlyCollection<string> strongOpeners)
+    {
+        var opener = ReviewText.FromFirstWord(bullet);
+        var lowered = opener.ToLowerInvariant();
+        if (weakVerbs.Any(v => ReviewText.StartsWithLoweredWord(lowered, v)))
+        {
+            return Opener.Weak;
+        }
+
+        if (context.Verbs.StrongVerbMatch == StrongVerbMatch.ListedForm)
+        {
+            return strongOpeners.Any(f => ReviewText.StartsWithLoweredWord(lowered, f)) ? Opener.Strong : Opener.Other;
+        }
+
+        var end = 0;
+        while (end < opener.Length && !char.IsWhiteSpace(opener[end]))
+        {
+            end++;
+        }
+
+        var first = FirstLexeme(context, opener[..end]);
+        return first.Length > 0 && strongOpeners.Contains(first) ? Opener.Strong : Opener.Other;
     }
 
     private static string FirstLexeme(CriterionEvaluationContext context, string text)
@@ -248,7 +275,8 @@ internal sealed class A6ConcretionRule : ICriterionRule
             return true;
         }
 
-        var words = bullet.Split([' ', ',', ';', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var words = ReviewText.FromFirstWord(bullet)
+            .Split([' ', ',', ';', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         for (var i = 1; i < words.Length; i++)
         {
             if (words[i].Length > 1 && char.IsUpper(words[i][0]))
@@ -362,14 +390,14 @@ internal sealed class A8ProfileRule : ICriterionRule
                     context.RawText, profile, $"profiltext är för lång ({words} ord, gränsen är {maxWords:0})")));
         }
 
-        // #489: the rubric's "Objective: To obtain..."-USA-style clause. A Swedish CV profile opening
-        // with the English "Objective" heading is the objective-statement anti-pattern the rubric
-        // fails (deterministic prefix, never a Swedish false positive; agent review completeness).
+        // #489: the rubric's "Objective: To obtain..."-USA-style clause. A profile opening with the
+        // "Objective" heading is the objective-statement anti-pattern the rubric fails, whatever the
+        // CV's language (deterministic prefix, never a Swedish false positive).
         if (profile.TrimStart().StartsWith("Objective", StringComparison.OrdinalIgnoreCase))
         {
             return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Fail,
                 ReviewText.Cite(ReviewText.SpanExcerpt(
-                    context.RawText, profile, "profiltext i \"Objective\"-USA-stil, skriv en kort svensk sammanfattning")));
+                    context.RawText, profile, "profiltext i \"Objective\"-USA-stil, skriv en kort sammanfattning")));
         }
 
         // #489: "ren adjektivlista" is a rubric Fail. Detect a bare list DOMINATED by curated

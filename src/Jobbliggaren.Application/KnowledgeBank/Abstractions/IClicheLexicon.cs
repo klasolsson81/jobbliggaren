@@ -1,3 +1,5 @@
+using Jobbliggaren.Domain.Resumes;
+
 namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 
 /// <summary>
@@ -7,6 +9,8 @@ namespace Jobbliggaren.Application.KnowledgeBank.Abstractions;
 /// </summary>
 public interface IClicheLexicon
 {
-    /// <summary>The current committed cliché list (<c>cliche-list.v2.json</c>).</summary>
-    ClicheList GetClicheList();
+    /// <summary>The committed cliché list for a CV written in <paramref name="language"/>
+    /// (<c>cliche-list.sv.v2.json</c>, <c>cliche-list.en.v1.json</c>). Every
+    /// <see cref="ResumeLanguage"/> has one.</summary>
+    ClicheList GetClicheList(ResumeLanguage language);
 }

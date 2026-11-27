@@ -193,7 +193,7 @@ public class DeleteResumeCommandHandlerTests
 
         var parsedId = new ParsedResumeId(Guid.NewGuid());
         var resume = Resume.CreateFromParsed(
-            seeker.Id, "Importerat CV", GapFilledContent(), parsedId, FakeDateTimeProvider.Default).Value;
+            seeker.Id, "Importerat CV", GapFilledContent(), parsedId, ResumeLanguage.Sv, FakeDateTimeProvider.Default).Value;
         db.Resumes.Add(resume);
 
         var file = ResumeFile.CaptureOriginal(
@@ -262,7 +262,7 @@ public class DeleteResumeCommandHandlerTests
         // no throw (F2 residual: those originals stay erasable via account-hard-delete only).
         var parsedId = new ParsedResumeId(Guid.NewGuid());
         var resume = Resume.CreateFromParsed(
-            seeker.Id, "Importerat CV", GapFilledContent(), parsedId, FakeDateTimeProvider.Default).Value;
+            seeker.Id, "Importerat CV", GapFilledContent(), parsedId, ResumeLanguage.Sv, FakeDateTimeProvider.Default).Value;
         db.Resumes.Add(resume);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -285,7 +285,7 @@ public class DeleteResumeCommandHandlerTests
 
         var parsedId = new ParsedResumeId(Guid.NewGuid());
         var otherResume = Resume.CreateFromParsed(
-            otherSeeker.Id, "Andras CV", GapFilledContent(), parsedId, FakeDateTimeProvider.Default).Value;
+            otherSeeker.Id, "Andras CV", GapFilledContent(), parsedId, ResumeLanguage.Sv, FakeDateTimeProvider.Default).Value;
         db.Resumes.Add(otherResume);
 
         var otherFile = ResumeFile.CaptureOriginal(
@@ -319,7 +319,7 @@ public class DeleteResumeCommandHandlerTests
 
         var parsedId = new ParsedResumeId(Guid.NewGuid());
         var resume = Resume.CreateFromParsed(
-            seeker.Id, "Importerat CV", GapFilledContent(), parsedId, FakeDateTimeProvider.Default).Value;
+            seeker.Id, "Importerat CV", GapFilledContent(), parsedId, ResumeLanguage.Sv, FakeDateTimeProvider.Default).Value;
         db.Resumes.Add(resume);
 
         // A ResumeFile whose ParsedResumeId matches the deleted CV's SourceParsedResumeId, but

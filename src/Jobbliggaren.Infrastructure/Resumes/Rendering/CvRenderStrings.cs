@@ -38,9 +38,13 @@ internal static class CvRenderStrings
     private static readonly Labels English =
         new("Contact", "Profile", "Experience", "Education", "Skills", "Languages", "present");
 
-    /// <summary>The label set for the CV's detected language (English → English, else Swedish).</summary>
-    public static Labels For(ResumeLanguage language) =>
-        language == ResumeLanguage.En ? English : Swedish;
+    /// <summary>The label set for the CV's language.</summary>
+    public static Labels For(ResumeLanguage language) => language.Name switch
+    {
+        nameof(ResumeLanguage.Sv) => Swedish,
+        nameof(ResumeLanguage.En) => English,
+        _ => throw new InvalidOperationException($"Etiketter saknas för språk: {language.Name}."),
+    };
 
     /// <summary>
     /// The localised display label for a self-declared language proficiency, or <c>null</c> when the
@@ -54,7 +58,7 @@ internal static class CvRenderStrings
         if (proficiency == LanguageProficiency.NotStated)
             return null;
 
-        var swedish = language != ResumeLanguage.En;
+        var swedish = For(language) == Swedish;
         return proficiency.Name switch
         {
             nameof(LanguageProficiency.Basic) => swedish ? "Grundläggande" : "Basic",

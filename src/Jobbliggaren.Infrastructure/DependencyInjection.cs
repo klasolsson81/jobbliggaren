@@ -681,12 +681,11 @@ public static class DependencyInjection
         services.AddSingleton<
             Jobbliggaren.Application.KnowledgeBank.Abstractions.IRubricProvider,
             Jobbliggaren.Infrastructure.KnowledgeBank.RubricProvider>();
-        services.AddSingleton<
-            Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon,
-            Jobbliggaren.Infrastructure.KnowledgeBank.ClicheLexicon>();
-        services.AddSingleton<
-            Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper,
-            Jobbliggaren.Infrastructure.KnowledgeBank.VerbMapper>();
+        // Constructed here, so a CV language without its list stops the host at startup (#2341).
+        services.AddSingleton<Jobbliggaren.Application.KnowledgeBank.Abstractions.IClicheLexicon>(
+            new Jobbliggaren.Infrastructure.KnowledgeBank.ClicheLexicon());
+        services.AddSingleton<Jobbliggaren.Application.KnowledgeBank.Abstractions.IVerbMapper>(
+            new Jobbliggaren.Infrastructure.KnowledgeBank.VerbMapper());
         // The spelling criterion's allow-list of proper nouns and technical terms (ADR 0093 §D4).
         services.AddSingleton<
             Jobbliggaren.Application.KnowledgeBank.Abstractions.ISpellingAllowlist,

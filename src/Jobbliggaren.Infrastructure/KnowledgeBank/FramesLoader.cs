@@ -88,7 +88,7 @@ internal static partial class FramesLoader
             throw new InvalidOperationException("frames-asset innehåller inga frames (fail-loud).");
         }
 
-        return new FrameCatalog(file.Version, file.VerbMappingVersion, frames);
+        return new FrameCatalog(file.Version, file.VerbMappingVersion, frames, verbMapping.Source);
     }
 
     private static CvFrame MapFrame(

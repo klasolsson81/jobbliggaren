@@ -228,7 +228,7 @@ public class ResumeTests
         var content = GapFilledContent();
 
         var result = Resume.CreateFromParsed(
-            ValidJobSeekerId, ValidName, content, ValidSourceParsedId, Clock);
+            ValidJobSeekerId, ValidName, content, ValidSourceParsedId, ResumeLanguage.Sv, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         var resume = result.Value;
@@ -247,11 +247,35 @@ public class ResumeTests
         master.Content.Experiences.Count.ShouldBe(2);
     }
 
+    [Theory]
+    [InlineData("Sv")]
+    [InlineData("En")]
+    public void CreateFromParsed_ShouldTakeTheLanguageItIsGiven(string language)
+    {
+        var expected = ResumeLanguage.FromName(language);
+
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, ValidName, GapFilledContent(), ValidSourceParsedId, expected, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Language.ShouldBe(expected);
+    }
+
+    [Fact]
+    public void CreateFromParsed_ShouldFail_WithoutALanguage()
+    {
+        var result = Resume.CreateFromParsed(
+            ValidJobSeekerId, ValidName, GapFilledContent(), ValidSourceParsedId, null!, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.LanguageRequired");
+    }
+
     [Fact]
     public void CreateFromParsed_TrimsName()
     {
         var result = Resume.CreateFromParsed(
-            ValidJobSeekerId, "  Mitt CV  ", GapFilledContent(), ValidSourceParsedId, Clock);
+            ValidJobSeekerId, "  Mitt CV  ", GapFilledContent(), ValidSourceParsedId, ResumeLanguage.Sv, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Name.ShouldBe("Mitt CV");
@@ -263,7 +287,7 @@ public class ResumeTests
         // The projection must reflect the gap-filled content (NOT remain at the
         // empty-Master defaults that Create leaves).
         var result = Resume.CreateFromParsed(
-            ValidJobSeekerId, ValidName, GapFilledContent(), ValidSourceParsedId, Clock);
+            ValidJobSeekerId, ValidName, GapFilledContent(), ValidSourceParsedId, ResumeLanguage.Sv, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         var resume = result.Value;
@@ -280,7 +304,7 @@ public class ResumeTests
     public void CreateFromParsed_RaisesCreatedVersionCreatedAndProvenanceEvents()
     {
         var result = Resume.CreateFromParsed(
-            ValidJobSeekerId, ValidName, GapFilledContent(), ValidSourceParsedId, Clock);
+            ValidJobSeekerId, ValidName, GapFilledContent(), ValidSourceParsedId, ResumeLanguage.Sv, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         var resume = result.Value;
@@ -310,7 +334,7 @@ public class ResumeTests
     public void CreateFromParsed_WithDefaultJobSeekerId_ReturnsFailure()
     {
         var result = Resume.CreateFromParsed(
-            default, ValidName, GapFilledContent(), ValidSourceParsedId, Clock);
+            default, ValidName, GapFilledContent(), ValidSourceParsedId, ResumeLanguage.Sv, Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.JobSeekerIdRequired");
@@ -320,7 +344,7 @@ public class ResumeTests
     public void CreateFromParsed_WithEmptyName_ReturnsFailure()
     {
         var result = Resume.CreateFromParsed(
-            ValidJobSeekerId, string.Empty, GapFilledContent(), ValidSourceParsedId, Clock);
+            ValidJobSeekerId, string.Empty, GapFilledContent(), ValidSourceParsedId, ResumeLanguage.Sv, Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.NameRequired");
@@ -332,7 +356,7 @@ public class ResumeTests
         var tooLong = new string('A', 201);
 
         var result = Resume.CreateFromParsed(
-            ValidJobSeekerId, tooLong, GapFilledContent(), ValidSourceParsedId, Clock);
+            ValidJobSeekerId, tooLong, GapFilledContent(), ValidSourceParsedId, ResumeLanguage.Sv, Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.NameTooLong");
@@ -345,7 +369,7 @@ public class ResumeTests
         var content = new ResumeContent(new PersonalInfo(null, null, null, null));
 
         var result = Resume.CreateFromParsed(
-            ValidJobSeekerId, ValidName, content, ValidSourceParsedId, Clock);
+            ValidJobSeekerId, ValidName, content, ValidSourceParsedId, ResumeLanguage.Sv, Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
@@ -364,7 +388,7 @@ public class ResumeTests
             });
 
         var result = Resume.CreateFromParsed(
-            ValidJobSeekerId, ValidName, content, ValidSourceParsedId, Clock);
+            ValidJobSeekerId, ValidName, content, ValidSourceParsedId, ResumeLanguage.Sv, Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.ExperienceCompanyRequired");
@@ -471,7 +495,7 @@ public class ResumeTests
     public void CreateFromParsed_WithPersonnummerShapedName_ReturnsFailure(string pnrName)
     {
         var result = Resume.CreateFromParsed(
-            ValidJobSeekerId, pnrName, GapFilledContent(), ValidSourceParsedId, Clock);
+            ValidJobSeekerId, pnrName, GapFilledContent(), ValidSourceParsedId, ResumeLanguage.Sv, Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.NamePersonnummerMustBeRemoved");

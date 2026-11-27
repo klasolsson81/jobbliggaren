@@ -170,7 +170,7 @@ internal sealed partial class C4PerspectiveRule : ICriterionRule
         if (match.Success)
         {
             return CvCriterionVerdict.Assessed("C4", category, CriterionVerdict.Warn,
-                ReviewText.Cite(ReviewText.Span(prose, match.Value, "tredje person: använd konsekvent perspektiv (svensk standard: utan pronomen)")));
+                ReviewText.Cite(ReviewText.Span(prose, match.Value, "tredje person: använd konsekvent perspektiv (CV-standard: utan pronomen)")));
         }
 
         // Pass is scoped to what C4 actually checks — third-person PRONOUNS. Name-as-subject

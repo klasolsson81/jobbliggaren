@@ -55,7 +55,7 @@ internal sealed class ClicheTransform : ICvTransform
                     evidence: evidence,
                     replacement: new ProposedReplacement(span.Quote, entry.DropInReplacement),
                     rationale: entry.Why,
-                    provenance: new KnowledgeBankProvenance("cliche-list", context.Cliches.Version, entry.Phrase),
+                    provenance: new KnowledgeBankProvenance(context.Cliches.Source, context.Cliches.Version, entry.Phrase),
                     resolvedKbValue: entry.DropInReplacement);
             }
         }
@@ -71,9 +71,10 @@ internal sealed class ClicheTransform : ICvTransform
 
         foreach (var experience in context.Content.Experience)
         {
-            if (!string.IsNullOrWhiteSpace(experience.RawText))
+            var text = string.Join('\n', ReviewText.DescriptionLines(experience));
+            if (!string.IsNullOrWhiteSpace(text))
             {
-                sb.AppendLine(experience.RawText);
+                sb.AppendLine(text);
             }
         }
 

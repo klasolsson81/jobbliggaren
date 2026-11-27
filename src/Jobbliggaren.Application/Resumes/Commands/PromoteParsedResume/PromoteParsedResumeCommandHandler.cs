@@ -109,7 +109,7 @@ public sealed class PromoteParsedResumeCommandHandler(
         // Build the Resume from the approved payload (content validated by ValidateContent
         // inside the factory). No mutation of the staging artifact yet.
         var content = ResumeContentMapper.ToDomain(submitted);
-        var created = Resume.CreateFromParsed(jobSeekerId, command.Name, content, parsed.Id, clock);
+        var created = Resume.CreateFromParsed(jobSeekerId, command.Name, content, parsed.Id, parsed.DetectedLanguage, clock);
         if (created.IsFailure)
             return Result.Failure<Guid>(created.Error);
 

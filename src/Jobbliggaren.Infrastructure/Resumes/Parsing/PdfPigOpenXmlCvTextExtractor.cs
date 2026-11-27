@@ -83,6 +83,11 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             var builder = new StringBuilder();
             var pageCount = 0;
 
+            // #2353 D4: the physical lines of every appended page, read in the same pass as the text.
+            // Wraps are joined only when every appended page was measured whole.
+            var physicalLines = new List<PdfPageLines.PhysicalLine>();
+            var measuredWhole = true;
+
             foreach (var page in document.GetPages())
             {
                 // #272 SEC-2: cancellable BETWEEN pages (PdfPig's GetText is not itself
@@ -103,10 +108,12 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                     if (pageText.Length >= remaining)
                     {
                         builder.Append(pageText.AsSpan(0, remaining));
+                        measuredWhole = false;
                         break;
                     }
 
                     builder.Append(pageText).Append('\n');
+                    measuredWhole = measuredWhole && TryMeasure(page, pageText, physicalLines);
                     if (builder.Length >= MaxOutputChars)
                         break;
                 }
@@ -124,6 +131,14 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                         : CvExtractionStatus.Empty, AuxiliaryText: string.Empty, RevisionText: string.Empty);
             }
 
+            if (measuredWhole && TryJoinWraps(text, physicalLines) is { } joined)
+            {
+                return new CvExtractionResult(joined.Text, CvExtractionStatus.Extracted, string.Empty, string.Empty)
+                {
+                    Provenance = joined.Provenance,
+                };
+            }
+
             return new CvExtractionResult(text, CvExtractionStatus.Extracted, string.Empty, string.Empty);
         }
         catch (OperationCanceledException)
@@ -137,6 +152,36 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             // Encrypted/corrupt/malformed PDF — never surface the library exception or
             // any file content; route to manual fallback (OQ5).
             return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty, string.Empty, string.Empty);
+        }
+    }
+
+    // #2353 D4: the geometry is read beside the text and never changes what GetText returned. A page it
+    // cannot measure (or a failure inside the pass) leaves the document unjoined, as before D4.
+    private static bool TryMeasure(UglyToad.PdfPig.Content.Page page, string pageText, List<PdfPageLines.PhysicalLine> lines)
+    {
+        try
+        {
+            if (PdfPageLines.Read(page, pageText) is not { } pageLines)
+                return false;
+
+            lines.AddRange(pageLines);
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    private static PdfLineJoiner.Joined? TryJoinWraps(string text, List<PdfPageLines.PhysicalLine> lines)
+    {
+        try
+        {
+            return PdfLineJoiner.Join(text, lines);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
         }
     }
 

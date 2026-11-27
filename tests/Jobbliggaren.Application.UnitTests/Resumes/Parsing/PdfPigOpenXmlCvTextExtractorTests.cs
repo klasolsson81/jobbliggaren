@@ -157,6 +157,17 @@ public class PdfPigOpenXmlCvTextExtractorTests
     }
 
     [Fact]
+    public void Extract_Docx_CarriesNoLineProvenance()
+    {
+        // #2353 D4: a DOCX's line ends are the author's paragraphs and breaks; only a PDF is measured.
+        var bytes = BuildDocx("Anna Andersson", "Backend-utvecklare på Acme AB");
+
+        var result = _sut.Extract(bytes, CvFileKind.Docx, CancellationToken.None);
+
+        result.Provenance.ShouldBeSameAs(CvTextProvenance.None);
+    }
+
+    [Fact]
     public void Extract_DocxWithSwedishCharacters_PreservesAaO()
     {
         // åäö must survive extraction/serialization (CLAUDE.md §10 — UTF-8 everywhere).

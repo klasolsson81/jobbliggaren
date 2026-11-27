@@ -34,7 +34,7 @@ public class GeneratedBlockShapeTests
     [MemberData(nameof(StrataWithADescription))]
     public void EveryGeneratedEntry_IsTheEntryTheSegmenterReadsFromItsBlock(CorpusStratum stratum)
     {
-        var segmenter = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load());
+        var segmenter = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvPlaceLexiconLoader.Load());
         var cases = new CorpusGenerator().GenerateCvCorpus(CorpusGroundTruth()).Where(c => c.Stratum == stratum).ToList();
         cases.ShouldNotBeEmpty();
 

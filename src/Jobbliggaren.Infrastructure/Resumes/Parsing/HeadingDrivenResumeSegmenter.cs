@@ -13,7 +13,8 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 /// derive an explainable per-section + document confidence (OQ5). Nothing is
 /// synthesised — every field is what was found or honestly absent.
 /// </summary>
-internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData lexicon) : IResumeSegmenter
+internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData lexicon, CvPlaceLexicon places)
+    : IResumeSegmenter
 {
     private const int MaxSkills = 200;
     private const int MaxLanguages = 50;
@@ -33,6 +34,9 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // with ICvParsingLexicon, so RECOGNITION and section-id RESOLUTION cannot disagree.
     private readonly CvParsingLexiconData _lexicon =
         lexicon ?? throw new ArgumentNullException(nameof(lexicon));
+
+    // #2343: the place vocabulary (SCB kommuner and tätorter), one DI-registered instance like the lexicon.
+    private readonly CvPlaceLexicon _places = places ?? throw new ArgumentNullException(nameof(places));
 
     /// <summary>Segments text that carries no extractor provenance.</summary>
     public ResumeSegmentationResult Segment(string rawText) => Segment(rawText, CvTextProvenance.None);
@@ -62,7 +66,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // After subtraction the surviving fragment is just "Anna Andersson", and the name is found.
         // The ordering is therefore not a preference: reading the RAW preamble here would also leak
         // the name into the carrier, which is the thing the carrier must not contain.
-        var residue = PreambleResidue.Subtract(preamble, _lexicon);
+        var residue = PreambleResidue.Subtract(preamble, _lexicon, _places);
         var fullName = DetectName(PreambleResidue.NameCandidates(residue), blocks);
 
         // #815: Location was `null` here, hardcoded — city extraction did not exist, so every CV
@@ -74,7 +78,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // kommun (it is one of its consumption terms), so feeding it here would leave the city
         // claimed by the subtraction and harvested by nobody.
         var contactScope = ContactScopeLines(preamble, blocks);
-        var location = ContactLocationExtractor.Extract(rawText, contactScope, _lexicon.LocationLabels);
+        var location = ContactLocationExtractor.Extract(rawText, contactScope, _lexicon.LocationLabels, _places);
 
         var contact = new ParsedContact(fullName, email, phone, location);
 

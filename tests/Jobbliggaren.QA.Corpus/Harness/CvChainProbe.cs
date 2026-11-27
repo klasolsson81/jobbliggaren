@@ -81,7 +81,7 @@ internal static class CvChainProbe
     /// <c>AddCvParsing</c>). Resolving through a <c>ServiceCollection</c> would drag in the whole
     /// CV-review composition for no gain.</summary>
     private static readonly IResumeSegmenter RealSegmenter =
-        new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load());
+        new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvPlaceLexiconLoader.Load());
 
     private static readonly PdfPigOpenXmlCvTextExtractor RealExtractor = new();
     private static readonly PdfPigCvLayoutAnalyzer RealLayoutAnalyzer = new();

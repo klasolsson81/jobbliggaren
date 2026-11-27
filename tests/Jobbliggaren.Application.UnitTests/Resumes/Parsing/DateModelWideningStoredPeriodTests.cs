@@ -56,7 +56,7 @@ public class DateModelWideningStoredPeriodTests
             Ökade konverteringen med 23 procent.
             """;
 
-        return new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+        return new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem().Period;
     }
 
@@ -227,7 +227,7 @@ public class DateModelWideningStoredPeriodTests
             Ökade konverteringen med 23 procent.
             """;
 
-        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
 
         exp.Period.ShouldBeNull(
@@ -302,7 +302,7 @@ public class DateModelWideningStoredPeriodTests
             Ökade konverteringen med 23 procent.
             """;
 
-        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
 
         var period = exp.Period.ShouldNotBeNull();

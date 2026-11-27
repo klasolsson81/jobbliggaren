@@ -146,7 +146,7 @@ internal static partial class ContactPatterns
     /// deliberately unconstrained: "ANNA ANDERSSON" is a very common CV header and must pass.</para>
     ///
     /// <para><b>It owns its FRAGMENTATION, and that is not a detail</b> — it is the same lesson
-    /// <see cref="TryBareMunicipalityLine"/> was rewritten for: <b>fragmentation IS a normaliser</b>.
+    /// <see cref="TryBarePlaceLine"/> was rewritten for: <b>fragmentation IS a normaliser</b>.
     /// Without it this method had two call sites asking different questions. The preamble arm passes
     /// residue FRAGMENTS, so "Anna Andersson, Undersköterska" arrives split and resolves to the name;
     /// the Kontakt-block arm passes RAW LINES, so the same text resolved to
@@ -208,7 +208,7 @@ internal static partial class ContactPatterns
         // something else ("Andersson, Anna", "Anna Andersson | anna@x.se", "Göteborg, Sverige"), and a
         // recogniser that answered from the first fragment would be doing the caller's splitting with
         // the caller's luck — which is exactly how the preamble arm and the Kontakt-block arm came to
-        // disagree about the same text. Identical shape to TryBareMunicipalityLine, for the identical
+        // disagree about the same text. Identical shape to TryBarePlaceLine, for the identical
         // reason. Idempotent for the preamble arm, which already passes single fragments.
         string? candidate = null;
         foreach (var fragment in InlineSeparators.Split(line))
@@ -262,19 +262,19 @@ internal static partial class ContactPatterns
     }
 
     /// <summary>
-    /// Is this a BARE kommun ("Göteborg", "• Göteborg", "- Göteborg")? The taxonomy lookup (ADR 0043)
-    /// with its normalisation attached, for the same reason as <see cref="TryLabelledValue"/>: the
+    /// Is this a BARE place, a kommun or a tätort ("Göteborg", "• Åkersberga", "- Göteborg")? The place
+    /// lexicon's lookup (#2343) with its normalisation attached, for the same reason as <see cref="TryLabelledValue"/>: the
     /// subtraction and <see cref="ContactLocationExtractor"/>'s rung 3 must ask the question in exactly
     /// the same way, or a city ends up consumed by one and harvested by neither.
     ///
-    /// <para>Every call site goes through THIS method. Calling <c>MunicipalityLexicon.IsMunicipality</c>
+    /// <para>Every call site goes through THIS method. Calling <see cref="CvPlaceLexicon.Contains"/>
     /// directly on un-normalised text is how the two sides drifted apart in the first place.</para>
     /// </summary>
-    internal static bool IsBareMunicipality(string candidate) =>
-        MunicipalityLexicon.IsMunicipality(InlineSeparators.TrimGlue(candidate));
+    internal static bool IsBarePlace(string candidate, CvPlaceLexicon places) =>
+        places.Contains(InlineSeparators.TrimGlue(candidate));
 
     /// <summary>
-    /// Is this whole LINE nothing but a bare kommun? ("Göteborg", "• Göteborg", "Göteborg,",
+    /// Is this whole LINE nothing but a bare place? ("Göteborg", "• Göteborg", "Göteborg,",
     /// "· Göteborg ·" — all yes; "Göteborg, Sverige" — no, that is two items.)
     ///
     /// <para><b>It owns its own FRAGMENTATION, and that is the entire point.</b> Sharing the lookup was
@@ -294,9 +294,9 @@ internal static partial class ContactPatterns
     /// question, the split and the normalisation now live in ONE place, and both call sites pass the
     /// same argument: the raw line.</para>
     /// </summary>
-    internal static bool TryBareMunicipalityLine(string line, out string municipality)
+    internal static bool TryBarePlaceLine(string line, CvPlaceLexicon places, out string place)
     {
-        municipality = string.Empty;
+        place = string.Empty;
 
         string? single = null;
         foreach (var fragment in InlineSeparators.Split(line))
@@ -305,7 +305,7 @@ internal static partial class ContactPatterns
             if (candidate.Length == 0)
                 continue;
 
-            // A second item ⇒ this line is not a BARE kommun ("Göteborg, Sverige"). Both sides must
+            // A second item ⇒ this line is not a BARE place ("Göteborg, Sverige"). Both sides must
             // decline, and they do, because both ask this method.
             if (single is not null)
                 return false;
@@ -313,10 +313,10 @@ internal static partial class ContactPatterns
             single = candidate;
         }
 
-        if (single is null || !MunicipalityLexicon.IsMunicipality(single))
+        if (single is null || !places.Contains(single))
             return false;
 
-        municipality = single;
+        place = single;
         return true;
     }
 }

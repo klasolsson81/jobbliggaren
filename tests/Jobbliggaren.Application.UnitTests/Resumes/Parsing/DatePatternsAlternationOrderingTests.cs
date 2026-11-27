@@ -172,7 +172,7 @@ public class DatePatternsAlternationOrderingTests
             Vårdade patienter.
             """;
 
-        var result = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load()).Segment(cv);
+        var result = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places()).Segment(cv);
 
         var exp = result.Content.Experience.ShouldHaveSingleItem();
         exp.Period.ShouldBe(IsoRange, "the end month must survive into the stored period.");

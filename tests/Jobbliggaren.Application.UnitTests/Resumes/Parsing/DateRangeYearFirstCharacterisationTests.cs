@@ -53,7 +53,7 @@ public class DateRangeYearFirstCharacterisationTests
             {dateLine}
             {Bullet}
             """;
-        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
         return (DatePatterns.IsDateOnlyLine(dateLine), exp.Period,
             PeriodParser.TryParse(exp.Period, out _, out _, out _));
@@ -73,7 +73,7 @@ public class DateRangeYearFirstCharacterisationTests
             Acme AB
             {Bullet}
             """;
-        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
         return (DatePatterns.IsDateOnlyLine(dateLine), exp.Period,
             PeriodParser.TryParse(exp.Period, out _, out _, out _));
@@ -152,7 +152,7 @@ public class DateRangeYearFirstCharacterisationTests
             {Bullet}
             """;
 
-        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
 
         exp.Title.ShouldBe("Systemutvecklare");
@@ -296,7 +296,7 @@ public class DateRangeYearFirstCharacterisationTests
             Ansvarig för perioden 2021 – 2023 av budgeten.
             """;
 
-        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
 
         exp.Period.ShouldBeNull(
@@ -324,7 +324,7 @@ public class DateRangeYearFirstCharacterisationTests
             2020/01 – 2024/12
             """;
 
-        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
 
         exp.Period.ShouldBeNull();
@@ -340,7 +340,7 @@ public class DateRangeYearFirstCharacterisationTests
             2013 - 2021
             """;
 
-        new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+        new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places())
             .Segment(control).Content.Experience.ShouldHaveSingleItem()
             .Period.ShouldBe("2013 - 2021");
     }
@@ -378,7 +378,7 @@ public class DateRangeYearFirstCharacterisationTests
             {Bullet}
             """;
 
-        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
 
         exp.Period.ShouldBe(expectedPeriod,
@@ -410,7 +410,7 @@ public class DateRangeYearFirstCharacterisationTests
             {Bullet}
             """;
 
-        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), CvParsingLexiconFixture.Places())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
 
         exp.Organization.ShouldBe(line,

@@ -769,7 +769,7 @@ public class PreambleResidueTests
     // Five separate defects in this PR had ONE root: the subtraction and the extractor asked the same
     // question with different normalisation. Every time the agreement was ASSERTED in a comment instead
     // of DERIVED from the form, it broke. Normalisation now travels INSIDE the recogniser
-    // (ContactPatterns.TryLabelledValue / IsBareMunicipality), so a call site cannot forget it.
+    // (ContactPatterns.TryLabelledValue / IsBarePlace), so a call site cannot forget it.
 
     [Fact]
     public void Segment_HyphenBulletedLabel_TheCityReachesTheLocationField()

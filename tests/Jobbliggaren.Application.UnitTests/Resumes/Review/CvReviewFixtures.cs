@@ -226,7 +226,7 @@ internal static class CvReviewFixtures
     internal static ParsedResume ResumeFromCvText(
         string cvText, string sourceFileName = "CV_Anna_Andersson.pdf")
     {
-        var segmented = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load()).Segment(cvText);
+        var segmented = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load(), Parsing.CvParsingLexiconFixture.Places()).Segment(cvText);
         var created = ParsedResume.Create(
             JobSeekerId.New(),
             sourceFileName,

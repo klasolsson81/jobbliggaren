@@ -33,7 +33,7 @@ internal sealed record CvParsingLexiconData(
     /// either end. So "- Curriculum Vitae" (an ASCII hyphen is exactly what a PDF extractor emits for a
     /// sidebar bullet) was a banner to one side and content to the other. A rule with two normalisers
     /// is two rules — the same defect class <see cref="ContactPatterns.TryLabelledValue"/> and
-    /// <see cref="ContactPatterns.TryBareMunicipalityLine"/> were written to end for the location
+    /// <see cref="ContactPatterns.TryBarePlaceLine"/> were written to end for the location
     /// question. It is now asked in ONE place, of the data that owns the vocabulary.</para>
     ///
     /// <para><b>Deliberately NOT generalised.</b> The glue trim belongs to the BANNER question only.

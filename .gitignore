@@ -182,6 +182,10 @@ loadtest-reports/
 # is the source of truth; this is 6 MB of scraped HTML that any run can rebuild.
 tools/sni-aliases/.cache/
 
+# #2343 — the SCB PxWeb responses the tätort generator fetches into. The committed JSON asset is
+# the source of truth.
+tools/scb-tatorter/.cache/
+
 .redis-dev/
 .redis-dev.staging-*/
 

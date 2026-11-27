@@ -180,7 +180,7 @@ public class HeadingDrivenResumeSegmenterTests
     }
 
     [Fact]
-    public void Segment_BareCityInTheContactBlock_ExtractsItFromTheMunicipalityLexicon()
+    public void Segment_BareCityInTheContactBlock_ExtractsItFromThePlaceLexicon()
     {
         // Klas's CV: "Göteborg" stands alone in the contact rail, with no label and no postal
         // code. The kommun vocabulary comes from the versioned taxonomy snapshot (ADR 0043) —

@@ -21,11 +21,11 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 /// <para><b>What deliberately did NOT move here</b>, because sharing it would be a false DRY that
 /// couples unrelated change-reasons:</para>
 /// <list type="bullet">
-/// <item><c>TitleOrgSeparators</c> splits an entry HEADER into two FIELDS and therefore contains
-/// prose prepositions (<c>" at "</c>, <c>" på "</c>, <c>" hos "</c>). Subtracting "på" from a
-/// preamble would be nonsense.</item>
-/// <item><c>BulletMarkers</c> answers "is the FIRST character of this line a bullet?" — a
-/// line-leading marker rule, not glue between items.</item>
+/// <item>The header separators (<see cref="CvLineShapes"/>) split an entry HEADER into two FIELDS
+/// and therefore contain prose prepositions (<c>" at "</c>, <c>" på "</c>, <c>" hos "</c>).
+/// Subtracting "på" from a preamble would be nonsense.</item>
+/// <item>The list-item glyphs (<see cref="CvLineShapes"/>) answer "is the FIRST character of this
+/// line a bullet?" — a line-leading marker rule, not glue between items.</item>
 /// </list>
 /// FORM, so it lives in C# and not in the lexicon (ADR 0108 §2).
 /// </summary>
@@ -44,10 +44,7 @@ internal static partial class InlineSeparators
     internal static string[] Split(string text) => Pattern().Split(text);
 
     /// <summary>
-    /// Strips leading/trailing glue glyphs from one item. Promoted together with
-    /// <see cref="Pattern"/> because the two are always applied at the same call site
-    /// (<c>ParseList</c> split, then trimmed each token) — they are one rule in two statements, and
-    /// separating them is how the halves drift apart.
+    /// Strips leading/trailing glue glyphs from one item.
     /// </summary>
     /// <remarks>
     /// <para>Trims BOTH ends. It used to trim only the leading end while its own documentation said
@@ -80,5 +77,5 @@ internal static partial class InlineSeparators
         return current;
     }
 
-    private static readonly char[] GlueGlyphs = ['•', '-', '*', '·', '–', '—', '|'];
+    internal static readonly char[] GlueGlyphs = ['•', '-', '*', '·', '–', '—', '|'];
 }

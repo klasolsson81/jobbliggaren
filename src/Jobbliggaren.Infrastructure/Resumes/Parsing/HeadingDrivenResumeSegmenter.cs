@@ -244,9 +244,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         return entries;
     }
 
-    // A bulleted first line is content, never a title. One glyph set with EntryBoundaries, which
-    // asks the same question of a header line.
-    private static bool IsBulletLine(string line) => EntryBoundaries.IsBulletLine(line);
+    // A bulleted first line is content, never a title.
+    private static bool IsBulletLine(string line) => CvLineShapes.IsMarkerLed(line);
 
     private static List<string> PreambleLines(
         string[] lines,
@@ -419,6 +418,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // Segment consumes it twice (Skills + Languages) and routing is a first-class part of the result.
     private readonly record struct ListParse(IReadOnlyList<string> Kept, IReadOnlyList<string> Routed);
 
+    // A list item may lead with a list-item glyph or with glue; the leading run is stripped once.
+    private static readonly char[] ListLeadGlyphs =
+        [.. CvLineShapes.MarkerGlyphList.Union(InlineSeparators.GlueGlyphs)];
+
     private static ListParse ParseList(
         Dictionary<ParsedSectionKind, string> blocks, ParsedSectionKind kind, int cap)
     {
@@ -429,7 +432,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
 
         foreach (var token in ListSeparatorRegex().Split(block))
         {
-            var trimmed = token.Trim().TrimStart('•', '-', '*', '·', '–', '—', '|').Trim();
+            var trimmed = token.Trim().TrimStart(ListLeadGlyphs).Trim();
             if (trimmed.Length == 0)
                 continue;
 
@@ -599,7 +602,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // called unguarded from ImportResumeCommandHandler, so that is a 500 on CV import.
         var splitLine = first.Length == 0 && entry.Lines.Count >= 2 ? entry.Lines[1] : entry.Lines[0];
 
-        if (TryReadHeaderFields(splitLine, out var title, out var organization, out _))
+        if (CvLineShapes.TryReadHeaderFields(splitLine, out var title, out var organization, out _))
             return (NullIfEmpty(title), NullIfEmpty(organization));
 
         // #1060 β-3: a line that carries no fields must not BECOME a field — the mirror of β-1's
@@ -740,30 +743,6 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // reduction instead of as a second copy of it. This method stays because the paragraph above
     // is about the SEGMENTER's use of it, not about the reduction.
     private static string StripTrailingPeriod(string line) => DatePatterns.StripTrailingDate(line);
-
-    private static readonly string[] TitleOrgSeparators =
-        [" — ", " – ", " - ", ", ", " | ", " @ ", " at ", " på ", " hos "];
-
-    internal static bool TryReadHeaderFields(string line, out string title, out string organization, out string separator) =>
-        TrySplitFields(StripTrailingPeriod(line.Trim()), out title, out organization, out separator);
-
-    private static bool TrySplitFields(string line, out string title, out string organization, out string separator)
-    {
-        foreach (var candidate in TitleOrgSeparators)
-        {
-            var index = line.IndexOf(candidate, StringComparison.OrdinalIgnoreCase);
-            if (index > 0 && index + candidate.Length < line.Length)
-            {
-                title = line[..index].Trim();
-                organization = line[(index + candidate.Length)..].Trim();
-                separator = candidate;
-                return true;
-            }
-        }
-
-        title = organization = separator = string.Empty;
-        return false;
-    }
 
     // #428: a full DATE RANGE is unambiguous anywhere in the entry, but a BARE YEAR is only a
     // reliable period signal on the FIRST line (Lines[0]). Scanning the full entry text for a bare

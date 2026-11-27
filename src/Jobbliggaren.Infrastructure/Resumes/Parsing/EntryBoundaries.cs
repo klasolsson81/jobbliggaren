@@ -12,16 +12,8 @@ internal static class EntryBoundaries
 {
     private const int MaxHeaderLength = 120;
 
-    // Bullet glyphs a CV realistically uses. A bulleted line is content, never a header.
-    private static readonly SearchValues<char> BulletMarkers =
-        SearchValues.Create(['-', '*', '•', '–', '—', '·', '●', '▪']);
-
     private static readonly SearchValues<char> SentenceEnds =
         SearchValues.Create(['.', '!', '?', ':', ';', ',']);
-
-    // A comma joins two prose clauses as readily as a role and an employer, so a header that starts
-    // in lower case ("iOS-utvecklare — Acme AB") is read only on these separators.
-    private static readonly string[] LowercaseHeaderSeparators = [" — ", " – ", " - ", " | ", " @ "];
 
     private enum Layout
     {
@@ -85,11 +77,8 @@ internal static class EntryBoundaries
         return new RunSplit([.. lines.Take(first.Start)], entries);
     }
 
-    internal static bool IsBulletLine(string line)
-    {
-        var trimmed = line.TrimStart();
-        return trimmed.Length > 0 && BulletMarkers.Contains(trimmed[0]);
-    }
+    // A bulleted line is content, never a header.
+    private static bool IsBulletLine(string line) => CvLineShapes.IsMarkerLed(line);
 
     private static Anchor? FirstAnchor(IReadOnlyList<string> lines, string? excludedName)
     {
@@ -208,10 +197,10 @@ internal static class EntryBoundaries
     {
         var trimmed = line.Trim();
         return IsHeaderShaped(trimmed, excludedName)
-            && HeadingDrivenResumeSegmenter.TryReadHeaderFields(trimmed, out _, out _, out var separator)
-            && (!char.IsLower(trimmed[0]) || LowercaseHeaderSeparators.Contains(separator));
+            && CvLineShapes.TryReadHeaderFields(trimmed, out _, out _, out var separator)
+            && (!char.IsLower(trimmed[0]) || CvLineShapes.ReadsLowercaseHeader(separator));
     }
 
     private static bool SplitsIntoFields(string line) =>
-        HeadingDrivenResumeSegmenter.TryReadHeaderFields(line, out _, out _, out _);
+        CvLineShapes.TryReadHeaderFields(line, out _, out _, out _);
 }

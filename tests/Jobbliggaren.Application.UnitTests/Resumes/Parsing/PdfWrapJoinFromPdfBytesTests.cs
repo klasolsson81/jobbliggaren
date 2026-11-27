@@ -204,6 +204,46 @@ public class PdfWrapJoinFromPdfBytesTests
         lines[^3..].ShouldBe([mainLastLine, "selenium and playwright", "azure devops"]);
     }
 
+    // Every word is capitalised, so wherever the layout wraps it, the continuation opens upper-case
+    // and only #2349's hanging-indent rule can join it.
+    private const string CapitalisedItem =
+        "Handled Tickets For The Municipal School Network With About Twelve Hundred Users In Total Across All Schools";
+
+    [Fact]
+    public void AListItemWithAGlyphAndAHangingIndent_IsJoinedAcrossAnUpperCaseWrap()
+    {
+        // Google Docs and Word both put the glyph in the text layer and the wrapped line at the item's
+        // text indent (measured 2026-11-27); this renders that shape.
+        var pdf = Pdf(col =>
+        {
+            col.Item().Text(LowerCaseParagraph);
+            col.Item().PaddingLeft(18).Row(row =>
+            {
+                row.ConstantItem(18).Text("•");
+                row.RelativeItem().Text(CapitalisedItem);
+            });
+        });
+        UnjoinedText(pdf).Split('\n').Length.ShouldBeGreaterThan(2);
+
+        Extract(pdf).RawText.Split('\n')[^1].ShouldBe("• " + CapitalisedItem);
+    }
+
+    [Fact]
+    public void AListItemWhoseWrapReturnsToTheGlyphsIndent_IsNotJoinedAcrossAnUpperCaseWrap()
+    {
+        // The same item typed as one paragraph: its wrapped line starts under the glyph, not at the
+        // item's text, so the hanging-indent rule does not apply and the upper case keeps it split.
+        var pdf = Pdf(col =>
+        {
+            col.Item().Text(LowerCaseParagraph);
+            col.Item().PaddingLeft(18).Text("• " + CapitalisedItem);
+        });
+        var unjoined = UnjoinedText(pdf);
+        unjoined.Split('\n').Length.ShouldBeGreaterThan(2);
+
+        Extract(pdf).RawText.ShouldBe(LowerCaseParagraph + "\n" + string.Join('\n', unjoined.Split('\n')[^2..]));
+    }
+
     [Fact]
     public void ThePersonnummerScan_FindsTheSameCandidates_InTheJoinedAndTheUnjoinedText()
     {

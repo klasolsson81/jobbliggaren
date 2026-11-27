@@ -97,6 +97,45 @@ public class PdfLineJoinerTests
         joined.Provenance[1].Joined.ShouldBeFalse();
     }
 
+    // "● Handled tickets for …" with the glyph at 90 and the item's text at 108, ending at 480.
+    private static PhysicalLine ItemLine() =>
+        new(1, [new Word(90, 96), new Word(108, 470), new Word(473, 480)]);
+
+    [Theory]
+    [InlineData("● Handled tickets for the school network with about", "1,200 users")]
+    [InlineData("● Handled tickets for the school network with about", "Twelve hundred users")]
+    [InlineData("● Handled tickets for the school network.", "and closed them")]
+    public void AWrapAtAListItemsTextIndent_ContinuesTheItem_WhateverItOpensWith(string previous, string next)
+    {
+        var item = PdfLineJoiner.ItemOf(ItemLine(), previous).ShouldNotBeNull();
+
+        PdfLineJoiner.IsWrap(ItemLine(), previous, Line(1, 108, 40, 20), next, Edge, item).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ALineAtTheGlyphsIndent_IsNotAContinuationOfTheItem()
+    {
+        var item = PdfLineJoiner.ItemOf(ItemLine(), "● Handled tickets for the school network with about").ShouldNotBeNull();
+
+        PdfLineJoiner.IsWrap(ItemLine(), "● Handled tickets for the school network with about", Line(1, 90, 40, 20),
+            "Twelve hundred users", Edge, item).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ALineWithoutALeadGlyph_StartsNoItem() =>
+        PdfLineJoiner.ItemOf(Full(), "the time from a reported defect to a").ShouldBeNull();
+
+    [Fact]
+    public void Join_ContinuesAListItemAcrossADigitLedWrap_AndStartsTheNextItemAfresh()
+    {
+        const string text = "● Handled tickets for the school network with about\n1,200 users\n● Mentored two testers";
+        var lines = new[] { ItemLine(), Line(1, 108, 30, 30), new PhysicalLine(1, [new Word(90, 96), new Word(108, 160)]) };
+
+        var joined = PdfLineJoiner.Join(text, lines).ShouldNotBeNull();
+
+        joined.Text.ShouldBe("● Handled tickets for the school network with about 1,200 users\n● Mentored two testers");
+    }
+
     [Fact]
     public void Join_IsNull_WhenTheLinesDoNotIndexTheText() =>
         PdfLineJoiner.Join("one\ntwo", [Full()]).ShouldBeNull();

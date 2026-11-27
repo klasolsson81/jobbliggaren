@@ -91,19 +91,19 @@ internal static class EntryBoundaries
 
         if (!IsRangeRow(lines[f].Text))
         {
-            return IsDatedHeader(lines[f].Text, excludedName) && HasOneReading(lines, f, -1, excludedName)
+            return IsDatedHeader(lines[f], excludedName) && HasOneReading(lines, f, -1, excludedName)
                 ? new Anchor(Layout.DatedHeader, f, f)
                 : null;
         }
 
         if (f == 0)
         {
-            return lines.Count > 1 && IsCompleteHeader(lines[1].Text, excludedName)
+            return lines.Count > 1 && IsCompleteHeader(lines[1], excludedName)
                 ? new Anchor(Layout.PeriodFirst, 0, 0)
                 : null;
         }
 
-        if (IsCompleteHeader(lines[f - 1].Text, excludedName))
+        if (IsCompleteHeader(lines[f - 1], excludedName))
         {
             return HasOneReading(lines, f - 1, -1, excludedName)
                 ? new Anchor(Layout.OneLineHeader, f - 1, f)
@@ -111,8 +111,8 @@ internal static class EntryBoundaries
         }
 
         return f == 2
-            && IsHeaderShaped(lines[0].Text, excludedName)
-            && IsHeaderShaped(lines[1].Text, excludedName)
+            && IsHeaderShaped(lines[0], excludedName)
+            && IsHeaderShaped(lines[1], excludedName)
             && !SplitsIntoFields(lines[1].Text)
                 ? new Anchor(Layout.TwoLineHeader, 0, 2)
                 : null;
@@ -123,22 +123,22 @@ internal static class EntryBoundaries
         IReadOnlyList<CvLine> lines, int i, Layout layout, int previousDateLine, string? excludedName) =>
         layout switch
         {
-            Layout.DatedHeader when IsDatedHeader(lines[i].Text, excludedName)
+            Layout.DatedHeader when IsDatedHeader(lines[i], excludedName)
                 && HasOneReading(lines, i, previousDateLine, excludedName) => i,
             Layout.PeriodFirst when IsRangeRow(lines[i].Text)
                 && i - previousDateLine >= 2
                 && i + 1 < lines.Count
-                && IsCompleteHeader(lines[i + 1].Text, excludedName)
-                && (i - 1 == previousDateLine + 1 || !CouldHeadTheRange(lines[i - 1].Text, excludedName)) => i,
+                && IsCompleteHeader(lines[i + 1], excludedName)
+                && (i - 1 == previousDateLine + 1 || !CouldHeadTheRange(lines[i - 1], excludedName)) => i,
             Layout.OneLineHeader when IsRangeRow(lines[i].Text)
                 && i - 1 > previousDateLine
-                && IsCompleteHeader(lines[i - 1].Text, excludedName)
+                && IsCompleteHeader(lines[i - 1], excludedName)
                 && HasOneReading(lines, i - 1, previousDateLine, excludedName) => i - 1,
             Layout.TwoLineHeader when IsRangeRow(lines[i].Text)
                 && i - 2 > previousDateLine
-                && IsHeaderShaped(lines[i - 1].Text, excludedName)
+                && IsHeaderShaped(lines[i - 1], excludedName)
                 && !SplitsIntoFields(lines[i - 1].Text)
-                && IsHeaderShaped(lines[i - 2].Text, excludedName) => i - 2,
+                && IsHeaderShaped(lines[i - 2], excludedName) => i - 2,
             _ => null,
         };
 
@@ -146,10 +146,10 @@ internal static class EntryBoundaries
     // a two-line header. Otherwise intro + "Role — Employer" and "Role" / "Employer, City" read alike.
     private static bool HasOneReading(
         IReadOnlyList<CvLine> lines, int headerLine, int previousDateLine, string? excludedName) =>
-        headerLine - 1 <= previousDateLine || !CouldHeadTheRange(lines[headerLine - 1].Text, excludedName);
+        headerLine - 1 <= previousDateLine || !CouldHeadTheRange(lines[headerLine - 1], excludedName);
 
-    private static bool CouldHeadTheRange(string line, string? excludedName) =>
-        IsHeaderShaped(line, excludedName) && !IsDated(line);
+    private static bool CouldHeadTheRange(CvLine line, string? excludedName) =>
+        IsHeaderShaped(line, excludedName) && !IsDated(line.Text);
 
     private static bool IsRangeRow(string line)
     {
@@ -172,14 +172,23 @@ internal static class EntryBoundaries
         return trimmed.Length > 0 && (DatePatterns.IsDateOnlyLine(trimmed) || EndsInRange(trimmed));
     }
 
-    private static bool IsDatedHeader(string line, string? excludedName)
+    private static bool IsDatedHeader(CvLine line, string? excludedName)
     {
-        var trimmed = line.Trim();
+        var trimmed = line.Text.Trim();
         return DatePatterns.TryStripTrailingDateRange(trimmed, out var head)
             && head.Length > 0
-            && IsHeaderShaped(head, excludedName)
-            && IsCompleteHeader(trimmed, excludedName);
+            && IsHeaderShaped(ShapeText(line, head), excludedName)
+            && IsCompleteHeader(line, excludedName);
     }
+
+    // #2351 (senior-cto-advisor D5): a line the extractor joined from a layout wrap has the shape of
+    // its first physical segment, which is what these predicates read before the join. Its fields
+    // are read on the whole line, so the organisation is the whole second field.
+    private static string ShapeText(CvLine line, string text) =>
+        line.Provenance.FirstSegmentLength is { } length && length < text.Length ? text[..length] : text;
+
+    private static bool IsHeaderShaped(CvLine line, string? excludedName) =>
+        IsHeaderShaped(ShapeText(line, line.Text.Trim()), excludedName);
 
     private static bool IsHeaderShaped(string line, string? excludedName)
     {
@@ -193,10 +202,10 @@ internal static class EntryBoundaries
             && (excludedName is null || !trimmed.Contains(excludedName, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool IsCompleteHeader(string line, string? excludedName)
+    private static bool IsCompleteHeader(CvLine line, string? excludedName)
     {
-        var trimmed = line.Trim();
-        return IsHeaderShaped(trimmed, excludedName)
+        var trimmed = line.Text.Trim();
+        return IsHeaderShaped(line, excludedName)
             && CvLineShapes.TryReadHeaderFields(trimmed, out _, out _, out var separator)
             && (!char.IsLower(trimmed[0]) || CvLineShapes.ReadsLowercaseHeader(separator));
     }

@@ -245,6 +245,41 @@ public class PdfWrapJoinFromPdfBytesTests
     }
 
     [Fact]
+    public void AWrappedEntryHeader_KeepsItsWholeOrganisation_AndItsAnchor_WithoutATailBullet()
+    {
+        // #2351 (senior-cto-advisor D5): joined, the header is longer than a header may be, so its
+        // shape is read on its first physical segment and its fields on the whole line.
+        const string header =
+            "Lagerarbetare — Exempellagret AB i Exempelstad med ansvar för inventering, beställningar och "
+            + "planering av leveranser till butikerna";
+        var pdf = Pdf(col =>
+        {
+            col.Item().Text("Erfarenhet");
+            col.Item().Text(header);
+            col.Item().Text("2018 – 2024");
+            col.Item().Text("Plockade och packade order till butiker i regionen.");
+            col.Item().Text("Kassabiträde — Exempelbutiken AB");
+            col.Item().Text("2015 – 2018");
+            col.Item().Text("Hanterade kassan och kundservice.");
+        });
+        var extraction = Extract(pdf);
+        var headerLine = Array.IndexOf(extraction.RawText.Split('\n'), header);
+        headerLine.ShouldBeGreaterThan(0);
+        extraction.Provenance[headerLine].Joined.ShouldBeTrue();
+        header.Length.ShouldBeGreaterThan(120);
+
+        var experience = CvParsingLexiconFixture.Segmenter()
+            .Segment(extraction.RawText, extraction.Provenance).Content.Experience;
+
+        experience.Count.ShouldBe(2);
+        experience[0].Title.ShouldBe("Lagerarbetare");
+        experience[0].Organization.ShouldBe(
+            "Exempellagret AB i Exempelstad med ansvar för inventering, beställningar och planering av leveranser till butikerna");
+        experience[0].RawText.Split('\n').ShouldNotContain("planering av leveranser till butikerna");
+        experience[1].Organization.ShouldBe("Exempelbutiken AB");
+    }
+
+    [Fact]
     public void ThePersonnummerScan_FindsTheSameCandidates_InTheJoinedAndTheUnjoinedText()
     {
         // A join only ever replaces a line end before a lower-case letter, so it cannot glue digits.

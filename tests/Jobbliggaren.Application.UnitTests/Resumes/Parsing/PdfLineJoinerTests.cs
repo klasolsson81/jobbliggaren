@@ -121,6 +121,19 @@ public class PdfLineJoinerTests
             "Twelve hundred users", Edge, item).ShouldBeFalse();
     }
 
+    // A nested item whose glyph sits at its parent's text indent starts an item of its own, even
+    // though its left edge is where a continuation of the parent would start and the parent's line
+    // ends so near the edge that not even the glyph would have fitted.
+    [Fact]
+    public void ANestedItemWhoseGlyphSitsAtTheParentsTextIndent_IsNotAContinuation()
+    {
+        var fullItem = new PhysicalLine(1, [new Word(90, 96), new Word(108, 470), new Word(473, 495)]);
+        var item = PdfLineJoiner.ItemOf(fullItem, "● Handled tickets for the school network with about").ShouldNotBeNull();
+
+        PdfLineJoiner.IsWrap(fullItem, "● Handled tickets for the school network with about", Line(1, 108, 6, 60),
+            "◦ escalations to the vendor", Edge, item).ShouldBeFalse();
+    }
+
     [Fact]
     public void ALineWithoutALeadGlyph_StartsNoItem() =>
         PdfLineJoiner.ItemOf(Full(), "the time from a reported defect to a").ShouldBeNull();

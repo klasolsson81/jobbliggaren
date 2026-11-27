@@ -580,7 +580,7 @@ describe("cvCriterionVerdictDtoSchema: notAssessedKind and passCriterion (#2083)
     category: "Structure",
     verdict: "NotAssessed",
     evidence: [],
-    notAssessedReason: "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+    notAssessedReason: "Det här gäller filen, inte texten i ditt CV.",
   };
 
   it.each(NOT_ASSESSED_KINDS)("keeps the kind %s", (kind) => {

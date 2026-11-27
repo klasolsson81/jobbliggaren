@@ -17,7 +17,7 @@ describe("CvPreamble", () => {
     expect(screen.getByText("Text ovanför första rubriken.")).toBeInTheDocument();
     expect(screen.getByText(/Vi tolkar den inte som ett avsnitt\./)).toBeInTheDocument();
     // The honest path to adopt it is the re-upload, not an in-app rewrite.
-    expect(screen.getByText(/ladda upp filen igen/i)).toBeInTheDocument();
+    expect(screen.getByText(/som ett nytt CV/i)).toBeInTheDocument();
   });
 
   it("folds the text away until the user asks for it, and folds it back", async () => {

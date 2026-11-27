@@ -232,7 +232,7 @@
       "visualPassSignal": "Samma längd, men whitespace räknas inte som \"tomt\"",
       "visualFailSignal": "Samma men 2,5 sidor accepteras om designen är skanbar",
       "passCriterion": "CV:t är högst 2\u00a0sidor långt.",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only",
       "thresholds": {
         "maxPages": 2
@@ -275,7 +275,7 @@
       "atsFailSignal": "Blandning av punkter, fonter, storlekar",
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only",
       "styleOnly": true
     },
@@ -320,7 +320,7 @@
       "visualPassSignal": "Samma",
       "visualFailSignal": "Samma",
       "passCriterion": "Filnamnet har formen CV_Förnamn_Efternamn och slutar på .pdf eller .docx.",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only",
       "styleOnly": true
     },
@@ -449,7 +449,7 @@
       "assessability": "deterministic",
       "atsPassSignal": "1 kolumn, läses uppifrån och ned. Testar PASS i Workday, Greenhouse, Lever, Teamtailor (resumeadapter.com 2026)",
       "atsFailSignal": "2- eller 3-spaltig, särskilt med textboxar; Workday/Taleo kraschar även med native columns",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only"
     },
     {
@@ -462,7 +462,7 @@
       "atsPassSignal": "Arial, Calibri, Helvetica, Roboto, Times New Roman, Georgia, Verdana. 10–12 pt brödtext",
       "atsFailSignal": "Custom-fonter; <9 pt; ikonfonter",
       "passCriterion": "Brödtexten är satt i ett vanligt standardtypsnitt i minst 10\u00a0punkter.",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only",
       "thresholds": {
         "fontBodyPtWarnBelow": 10
@@ -477,7 +477,7 @@
       "assessability": "deterministic",
       "atsPassSignal": "Telefon, e-post, ort som klartext. Ikoner får finnas men data måste finnas i textform",
       "atsFailSignal": "Telefonikon utan textnummer; e-post bara som ikonlänk",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only"
     },
     {
@@ -489,7 +489,7 @@
       "assessability": "deterministic",
       "atsPassSignal": "Linjär flow, inga celler eller textrutor",
       "atsFailSignal": "Tabellbaserad layout (cell-skifte i parser)",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only"
     },
     {
@@ -512,7 +512,7 @@
       "assessability": "deterministic",
       "atsPassSignal": "Kontakt i main body",
       "atsFailSignal": "Namn/kontakt i sidhuvud — ignoreras av många ATS (jobscan.co 2026)",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only"
     },
     {
@@ -537,7 +537,7 @@
       "atsPassSignal": "<2 MB",
       "atsFailSignal": ">5 MB (komprimera bilder)",
       "passCriterion": "Filen är mindre än 2\u00a0MB.",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only",
       "thresholds": {
         "fileSizeWarnBytes": 2097152,
@@ -553,7 +553,7 @@
       "assessability": "deterministic",
       "atsPassSignal": "LinkedIn och portfolio som korta, klickbara URL:er",
       "atsFailSignal": "Tracking-URL:er; URL som bild",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only"
     },
     {
@@ -565,7 +565,7 @@
       "assessability": "deterministic",
       "visualPassSignal": "Tydlig nivåskillnad: namn > sektionsrubrik > rolltitel > företag/datum > bullets. Min 30 % storleksdiff mellan nivåer",
       "visualFailSignal": "Allt samma storlek; namn för litet; rolltitel försvinner",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only"
     },
     {
@@ -577,7 +577,7 @@
       "assessability": "deterministic",
       "visualPassSignal": "Marginaler 1,5–2,5 cm; radavstånd 1,15–1,3; ≥8 pt mellan sektioner. F-mönster-skanbar",
       "visualFailSignal": "Marginaler <1 cm; tätpackat; ingen luft",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only",
       "thresholds": {
         "minMarginPointsFloor": 28.35
@@ -592,7 +592,7 @@
       "assessability": "deterministic",
       "visualPassSignal": "Max 2 typsnitt (1 rubrik, 1 brödtext); max 3 textstilar (vanlig/fet/kursiv)",
       "visualFailSignal": "≥3 typsnitt; blandning versaler/kapitäler",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only",
       "styleOnly": true
     },
@@ -605,7 +605,7 @@
       "assessability": "deterministic",
       "visualPassSignal": "Max 2–3 färger inkl. svart/vit. Accentfärg i rubriker. WCAG AA-kontrast ≥4,5:1",
       "visualFailSignal": "≥4 färger; ljus färg på vit bakgrund",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only",
       "styleOnly": true
     },
@@ -618,7 +618,7 @@
       "assessability": "deterministic",
       "visualPassSignal": "SE-default: utelämna foto. Om opt-in: professionellt porträtt, neutral bakgrund, skarpt, ansikte ~60 % av bilden",
       "visualFailSignal": "Selfie; semesterbild; foto skickat till TNG eller annan anonymiserad process (kasseras)",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only"
     },
     {
@@ -630,7 +630,7 @@
       "assessability": "deterministic",
       "visualPassSignal": "Titel/företag/period fångas i en F-svep. Datum tydligt höger. Bullets max 2 rader",
       "visualFailSignal": "Datum inbäddat i löptext; bullets 4+ rader; ingen ankarpunkt",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only"
     },
     {
@@ -642,7 +642,7 @@
       "assessability": "deterministic",
       "visualPassSignal": "Konsekventa symboler (• eller –); enhetlig indrag; vänsterjusterad",
       "visualFailSignal": "Center; höger-justerade bullets; emoji som bullets",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only",
       "styleOnly": true
     },
@@ -655,7 +655,7 @@
       "assessability": "deterministic",
       "visualPassSignal": "Inget halvtomt sista-blad; ingen bullet bruten över sida",
       "visualFailSignal": "Stort tomrum sist; sektion delad olämpligt",
-      "notAssessedReason": "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.",
+      "notAssessedReason": "Det här gäller filen, inte texten i ditt CV.",
       "notAssessedKind": "text_only",
       "styleOnly": true
     }

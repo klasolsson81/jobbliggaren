@@ -1228,7 +1228,7 @@ public class CvReviewEngineTests
         b8.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         b8.Evidence.ShouldBeEmpty();
         b8.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
-        b8.NotAssessedReason.ShouldBe("Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.");
+        b8.NotAssessedReason.ShouldBe("Det här gäller filen, inte texten i ditt CV.");
     }
 
     [Fact]
@@ -1362,7 +1362,7 @@ public class CvReviewEngineTests
 
         verdict.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         verdict.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
-        verdict.NotAssessedReason.ShouldBe("Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.");
+        verdict.NotAssessedReason.ShouldBe("Det här gäller filen, inte texten i ditt CV.");
     }
 
     [Fact]
@@ -1495,7 +1495,7 @@ public class CvReviewEngineTests
         e1.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         e1.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
         e1.NotAssessedReason.ShouldBe(
-            "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.");
+            "Det här gäller filen, inte texten i ditt CV.");
     }
 
     [Fact]
@@ -1509,7 +1509,7 @@ public class CvReviewEngineTests
         d9.Verdict.ShouldBe(CriterionVerdict.NotAssessed);
         d9.NotAssessedKind.ShouldBe(NotAssessedKind.TextOnly);
         d9.NotAssessedReason.ShouldBe(
-            "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV.");
+            "Det här gäller filen, inte texten i ditt CV.");
     }
 
     // Test F — the engine's code-side FALLBACK pair on an older (N-1) asset (#2083 CTO F2). The

@@ -4,12 +4,12 @@
     "description": "Hur Jobbliggarens CV-granskning fungerar: helt regelstyrd, ingen AI. Fyra omdömen med citerade bevis, inget hemligt betyg, och förbättringsförslag du själv arbetar in."
   },
   "title": "Så granskar vi ditt CV",
-  "updated": "Senast uppdaterad: 2026-06-29",
+  "updated": "Senast uppdaterad: 2026-11-27",
   "intro": "Jobbliggaren granskar ditt CV med fasta regler, utan AI, och visar exakt var i texten varje omdöme kommer ifrån. Här förklarar vi hur granskningen går till och hur förbättringsförslagen ges.",
   "deterministic": {
     "heading": "Helt regelstyrt, ingen AI",
     "paragraphs": [
-      "Granskningen är regelstyrd. Vi läser texten i ditt uppladdade CV (PDF eller Word) och jämför den mot en versionerad kunskapsbank med kriterier, med hjälp av lokala svenska språkverktyg på vår server. Ingen AI, inga språkmodeller, inget skickas till någon extern tjänst.",
+      "Granskningen är regelstyrd. Vi läser texten i ditt uppladdade CV (PDF eller Word) och jämför den mot en versionerad kunskapsbank med kriterier, med hjälp av lokala språkverktyg på vår server. Ingen AI, inga språkmodeller, inget skickas till någon extern tjänst.",
       "Eftersom motorn bara jämför regler kan den bara peka på det som faktiskt står i ditt CV. Den gissar inte och hittar aldrig på meriter du inte har skrivit."
     ],
     "pipelineLabel": "Så går granskningen till",
@@ -59,7 +59,7 @@
         "quote": null,
         "observation": null,
         "note": null,
-        "reason": "Den här versionen läser texten i ditt CV, inte sidans layout, så typsnitt och färger bedöms inte. Vi säger det öppet i stället för att gissa."
+        "reason": "Det här gäller filen, inte texten i ditt CV."
       }
     ]
   },
@@ -78,8 +78,8 @@
     ]
   },
   "assessable": {
-    "heading": "Vad vi kan och inte kan bedöma från text",
-    "intro": "Eftersom vi läser texten i ditt CV, inte sidans utseende, bedöms vissa saker inte i den här versionen. Vi markerar dem som ej bedömda i stället för att låtsas.",
+    "heading": "Vad vi bedömer och inte bedömer",
+    "intro": "Vissa saker bedöms inte i den här versionen. Vi markerar dem som ej bedömda.",
     "assessedLabel": "Bedöms",
     "assessed": [
       "Innehåll, till exempel mätbara resultat och konkreta exempel",
@@ -89,7 +89,7 @@
     ],
     "notAssessedLabel": "Ej bedömt i den här versionen",
     "notAssessed": [
-      "Visuell hierarki, typsnitt och färger",
+      "Visuell hierarki och färger",
       "Djupare grammatik",
       "Karriärsprogression över tid"
     ]

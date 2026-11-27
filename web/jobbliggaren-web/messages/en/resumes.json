@@ -111,7 +111,7 @@
     },
     "passCriterionLabel": "Passes when",
     "notAssessedKind": {
-      "TextOnly": "Can't be read from the CV's text",
+      "TextOnly": "About the file, not the text",
       "InsufficientData": "Too little to go on in the CV",
       "NotInVersion": "Not part of this version",
       "RequiresJobAd": "Assessed against a job ad"
@@ -153,7 +153,7 @@
   "preamble": {
     "title": "Text above the first heading.",
     "body": "We do not read it as a section.",
-    "useHint": "Want to use it? Give it a heading in your file, for example Profile, and upload the file again.",
+    "useHint": "If it is profile text, give it a heading in your file, for example Profile, and upload the file as a new CV.",
     "show": "Show the text",
     "hide": "Hide the text"
   },

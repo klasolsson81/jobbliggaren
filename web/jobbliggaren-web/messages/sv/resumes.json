@@ -111,7 +111,7 @@
     },
     "passCriterionLabel": "Godkänns när",
     "notAssessedKind": {
-      "TextOnly": "Går inte att läsa ur CV:ts text",
+      "TextOnly": "Gäller filen, inte texten",
       "InsufficientData": "För lite underlag i CV:t",
       "NotInVersion": "Ingår inte i den här versionen",
       "RequiresJobAd": "Bedöms mot en jobbannons"
@@ -153,7 +153,7 @@
   "preamble": {
     "title": "Text ovanför första rubriken.",
     "body": "Vi tolkar den inte som ett avsnitt.",
-    "useHint": "Vill du använda den? Ge den en rubrik i din fil, till exempel Profil, och ladda upp filen igen.",
+    "useHint": "Om det är en profiltext, ge den en rubrik i din fil, till exempel Profil, och ladda upp filen som ett nytt CV.",
     "show": "Visa texten",
     "hide": "Dölj texten"
   },

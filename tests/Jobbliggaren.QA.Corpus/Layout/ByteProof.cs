@@ -316,6 +316,31 @@ public sealed partial class ByteProofContext(string caseId, ReadOnlyMemory<byte>
         return columns;
     }
 
+    /// <summary>Page 1's lines, top to bottom: the words on one baseline, ordered left to right and
+    /// joined with a space, with the line's leftmost x.</summary>
+    public IReadOnlyList<(double Left, string Text)> PdfLines() =>
+    [
+        .. PdfBlockAnchors()
+            .GroupBy(a => Math.Round(a.Y, 1))
+            .OrderByDescending(g => g.Key)
+            .Select(g => (g.Min(a => a.X), string.Join(' ', g.OrderBy(a => a.X).Select(a => a.Text)))),
+    ];
+
+    /// <summary>Proves page 1 carries a line reading exactly <paramref name="text"/>.</summary>
+    public void RequireLine(string text) =>
+        Require(PdfLines().Any(l => l.Text == text), $"expected a line reading '{text}'");
+
+    /// <summary>Proves exactly <paramref name="count"/> lines on page 1 start at least
+    /// <paramref name="minIndent"/> points right of the leftmost line start.</summary>
+    public void RequireIndentedLines(double minIndent, int count)
+    {
+        var lines = PdfLines();
+        var margin = lines.Min(l => l.Left);
+        var indented = lines.Count(l => l.Left - margin >= minIndent);
+        Require(indented == count, Invariant(
+            $"expected exactly {count} lines indented at least {minIndent} pt, found {indented}"));
+    }
+
     private double WidestGutter()
     {
         var anchors = PdfBlockAnchors();

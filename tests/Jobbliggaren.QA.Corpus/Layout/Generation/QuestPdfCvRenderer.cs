@@ -372,6 +372,82 @@ internal static class QuestPdfCvRenderer
             Section(col, m.Headings.Skills, m.Skills);
         }));
 
+    /// <summary>
+    /// #2353: the layout of a real test user's CV, rebuilt over the corpus model. One column and
+    /// two header layouts in one experience section: "Role - Employer" over the period, and for
+    /// one employment "Role" over "Employer, City" over the period. The list items carry no glyph
+    /// in the text layer and no full stop, and are indented under the headers, the way a browser
+    /// prints an HTML list.
+    /// </summary>
+    internal static byte[] MixedHeaderLayoutsIndentedList(CvModel m) =>
+        MixedHeaderLayouts(m, item => (item.TrimEnd('.'), ListIndentPoints));
+
+    /// <summary>The glyph-led twin of <see cref="MixedHeaderLayoutsIndentedList"/>: the same header
+    /// layouts, with each list item led by a bullet glyph at the margin instead of indented.</summary>
+    internal static byte[] MixedHeaderLayoutsGlyphList(CvModel m) =>
+        MixedHeaderLayouts(m, item => ("• " + item.TrimEnd('.'), 0f));
+
+    /// <summary>The employment rendered as "Role" over "Employer, City" in the mixed-layout arms.
+    /// The fourth, because its employer carries an organisation form.</summary>
+    internal const int TwoLineHeaderEmployment = 3;
+
+    private const float ListIndentPoints = 18f;
+
+    private static byte[] MixedHeaderLayouts(CvModel m, Func<string, (string Text, float Indent)> item) =>
+        Render(page => page.Content().Column(col =>
+        {
+            Identity(col, m);
+            Section(col, m.Headings.Profile, m.ProfileLines);
+            col.Item().Text(m.Headings.Experience);
+            for (var i = 0; i < m.Employments.Count; i++)
+            {
+                var e = m.Employments[i];
+                if (i == TwoLineHeaderEmployment)
+                {
+                    col.Item().Text(e.Role);
+                    col.Item().Text($"{e.Marker}, {m.City}");
+                }
+                else
+                {
+                    col.Item().Text($"{e.Role} - {e.Marker}");
+                }
+
+                col.Item().Text(e.Period);
+                var (text, indent) = item(e.Bullet);
+                col.Item().PaddingLeft(indent).Text(text);
+            }
+
+            Education(col, m);
+            Section(col, m.Headings.Skills, m.Skills);
+            Section(col, m.Headings.Languages, m.Languages);
+            Section(col, m.Headings.UnknownProjects, m.ProjectLines);
+        }));
+
+    /// <summary>
+    /// #2353 (senior-cto-advisor 2026-11-27, point 4): the first employment is headed by its
+    /// employer line alone, "Employer, City" over the period, with no role line. Every other line
+    /// is <see cref="SingleColumn"/>'s.
+    /// </summary>
+    internal static byte[] RolelessEmployerLine(CvModel m) =>
+        Render(page => page.Content().Column(col =>
+        {
+            Identity(col, m);
+            Section(col, m.Headings.Profile, m.ProfileLines);
+            col.Item().Text(m.Headings.Experience);
+            for (var i = 0; i < m.Employments.Count; i++)
+            {
+                var e = m.Employments[i];
+                col.Item().Text(i == 0 ? $"{e.Marker}, {m.City}" : $"{e.Role} - {e.Marker}");
+                col.Item().Text(e.Period);
+                col.Item().Text(e.Bullet);
+            }
+
+            Education(col, m);
+            Section(col, m.Headings.Skills, m.Skills);
+            Section(col, m.Headings.Languages, m.Languages);
+            Section(col, m.Headings.UnknownProjects, m.ProjectLines);
+        }));
+
     // ── shared building blocks ───────────────────────────────────────────────
 
     private static byte[] Render(Action<PageDescriptor> build) =>

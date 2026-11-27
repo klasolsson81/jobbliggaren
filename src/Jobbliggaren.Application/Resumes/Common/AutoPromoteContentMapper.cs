@@ -19,12 +19,13 @@ namespace Jobbliggaren.Application.Resumes.Common;
 /// honestly absent (null/null) and the verbatim <c>Period</c> rides <c>RawPeriod</c>
 /// UNTRUNCATED — an over-long period is for the buildability gate to reject, not for this
 /// projection to silently shorten (#914 honest-date-absence).</item>
-/// <item><b>Description = null:</b> the segmenter's <c>RawText</c> is the WHOLE entry block
-/// (title/org/period lines included) — promoting it as a description would double those
-/// lines in render and feed them to the review engine as <c>TextIsDescriptionOnly</c> prose
-/// (scoring corruption), and computing the residual would be re-parsing the engine never
-/// does. The parse has no structured description, so the canonical entry honestly has none;
-/// the raw text stays citable on the retained staging artifact (CTO-bind §1 fork (a)).</item>
+/// <item><b>Description:</b> the segmenter's own description of the entry (#2353, senior-cto-advisor
+/// D11): the block without its header, period and organisation lines, verbatim. Never the
+/// <c>RawText</c> block itself, which would double those lines in render and feed them to the review
+/// engine as <c>TextIsDescriptionOnly</c> prose. Over <see cref="Experience.DescriptionMaxLength"/> the
+/// entry promotes with no description, so a description never moves an entry from Promoted to
+/// Blocked. An entry parsed before the segmenter read descriptions promotes with none; nothing is
+/// re-parsed or backfilled (CTO-bind §1 fork (a), whose premise D11 retired).</item>
 /// </list>
 ///
 /// <para>Entries are NEVER filtered or dropped: an entry missing its organization projects
@@ -45,7 +46,9 @@ internal static class AutoPromoteContentMapper
                 Role: e.Title ?? string.Empty,
                 StartDate: null,
                 EndDate: null,
-                Description: null,
+                Description: e.Description is { Length: <= Experience.DescriptionMaxLength } description
+                    ? description
+                    : null,
                 RawPeriod: e.Period))
             .ToList();
 

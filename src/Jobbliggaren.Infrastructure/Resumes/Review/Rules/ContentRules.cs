@@ -131,9 +131,6 @@ internal sealed class A2ActionVerbsRule : ICriterionRule
         Other,
     }
 
-    // A weak phrase is read first: stopword removal and stemming can collapse it onto a strong
-    // verb ("var ansvarig för" and "ansvarade för" both lexemise to "ansvar"), and only the opener
-    // word's own stem makes a bullet strong, so a stopword opener never does.
     private static Opener Classify(
         CriterionEvaluationContext context, string bullet, IReadOnlyList<string> weakVerbs,
         IReadOnlyCollection<string> strongOpeners)

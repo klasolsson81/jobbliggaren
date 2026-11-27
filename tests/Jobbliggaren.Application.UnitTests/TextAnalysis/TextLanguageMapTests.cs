@@ -39,4 +39,11 @@ public class TextLanguageMapTests
         TextLanguageMap.For(ResumeLanguage.Sv).ShouldBe(TextLanguage.Swedish);
         TextLanguageMap.For(ResumeLanguage.En).ShouldBe(TextLanguage.English);
     }
+
+    [Fact]
+    public void For_ShouldRenderEachLanguageWithItsOwnLabels()
+    {
+        CvRenderStrings.For(ResumeLanguage.Sv).Experience.ShouldBe("Arbetslivserfarenhet");
+        CvRenderStrings.For(ResumeLanguage.En).Experience.ShouldBe("Experience");
+    }
 }

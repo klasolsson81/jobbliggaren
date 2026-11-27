@@ -219,7 +219,7 @@ public sealed class CorpusGenerator(CorpusConfig? config = null)
             new ParsedContact("Anna Andersson", "anna@example.com", "070-123 45 67",
                 Pick(SwedishCorpusLexicon.Locations, rng)),
             $"Erfaren {title.ToLowerInvariant()} med åtta års erfarenhet.",
-            [new ParsedExperience(title, org, "2021–2024", $"{title}, {org}, 2021–2024\n{bullet}")],
+            [new ParsedExperience(title, org, "2021–2024", $"{title} — {org}\n2021–2024\n{bullet}")],
             [new ParsedEducation("KTH", "Civilingenjör", "2016–2021", "KTH Civilingenjör 2016–2021")],
             [.. SwedishCorpusLexicon.Skills.Take(3)],
             ["Svenska", "Engelska"]);

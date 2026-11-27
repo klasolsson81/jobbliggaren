@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Taxonomy;
 using Jobbliggaren.QA.Corpus.Generation;
 using Shouldly;
 
@@ -9,17 +11,15 @@ namespace Jobbliggaren.QA.Corpus;
 /// The generator builds each experience entry the way the segmenter reads its block (AGENTS.md §5
 /// `Tests:`): the actor that produces the state is callable here, so this runs it. The review reads
 /// a staging entry through the segmenter's fields, so a block the segmenter reads differently makes
-/// the findings corpus measure a CV production never produces. Adversarial stays out: its fields
-/// are hostile by design.
+/// the findings corpus measure a CV production never produces. It runs on the corpus's own ground
+/// truth, read from the same embedded taxonomy and frozen map the findings report reads through its
+/// database. Adversarial stays out: its fields are hostile by design.
 /// </summary>
 public class GeneratedBlockShapeTests
 {
-    private static readonly IReadOnlyList<OccupationGroundTruth> GroundTruth =
-    [
-        new("Mjukvaruutvecklare", "DJh5_yyF_hEM"),
-        new("Advokat", "q8wL_kdi_WaW"),
-        new("Snickare", "synthetic_grp_1"),
-    ];
+    private const string FrozenMapResource =
+        "Jobbliggaren.Infrastructure.Persistence.Migrations.Resources." +
+        "occupation-name-to-ssyk-level-4.v30.json";
 
     public static TheoryData<CorpusStratum> StrataWithADescription() =>
     [
@@ -35,7 +35,7 @@ public class GeneratedBlockShapeTests
     public void EveryGeneratedEntry_IsTheEntryTheSegmenterReadsFromItsBlock(CorpusStratum stratum)
     {
         var segmenter = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load());
-        var cases = new CorpusGenerator().GenerateCvCorpus(GroundTruth).Where(c => c.Stratum == stratum).ToList();
+        var cases = new CorpusGenerator().GenerateCvCorpus(CorpusGroundTruth()).Where(c => c.Stratum == stratum).ToList();
         cases.ShouldNotBeEmpty();
 
         foreach (var generated in cases)
@@ -49,5 +49,32 @@ public class GeneratedBlockShapeTests
             read.Organization.ShouldBe(entry.Organization, $"{stratum} #{generated.Index}");
             read.Period.ShouldBe(entry.Period, $"{stratum} #{generated.Index}");
         }
+    }
+
+    // The pairs CorpusFindingsReportTests builds from the seeded database, read from the embedded
+    // files that seed it.
+    private static List<OccupationGroundTruth> CorpusGroundTruth()
+    {
+        var snapshot = TaxonomySnapshotLoader.Load();
+        var occLabelById = snapshot.OccupationFields.SelectMany(f => f.Occupations)
+            .GroupBy(o => o.ConceptId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Label, StringComparer.Ordinal);
+        var groupIds = snapshot.OccupationFields.SelectMany(f => f.OccupationGroups ?? [])
+            .Select(g => g.ConceptId).ToHashSet(StringComparer.Ordinal);
+
+        using var stream = typeof(TaxonomyReadModel).Assembly.GetManifestResourceStream(FrozenMapResource)!;
+        using var doc = JsonDocument.Parse(stream);
+        var pairs = new List<OccupationGroundTruth>();
+        foreach (var entry in doc.RootElement.GetProperty("mappings").EnumerateObject())
+        {
+            var groupId = entry.Value.GetString()!;
+            if (occLabelById.TryGetValue(entry.Name, out var label) && groupIds.Contains(groupId))
+            {
+                pairs.Add(new OccupationGroundTruth(label, groupId));
+            }
+        }
+
+        pairs.Count.ShouldBeGreaterThan(1000, "premise: the corpus's ground truth, not a sample");
+        return pairs;
     }
 }

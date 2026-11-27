@@ -312,6 +312,29 @@ public class WrappedPdfBulletTests
         }
     }
 
+    private const string LoneCapitalLine =
+        "Utbildade nya kollegor i säker körning av motviktstruckar och skjutstativtruckar enligt truckklass A";
+
+    private const string NamedSystemLine =
+        "Förde in varje inleverans och varje avvikelse i lagret tillsammans med två inköpare i Exempelsystemet";
+
+    [Theory]
+    [InlineData(LoneCapitalLine, CriterionVerdict.Fail)]
+    [InlineData(NamedSystemLine, CriterionVerdict.Pass)]
+    public async Task A6_ShouldReadTheWordsOfAWrappedBullet_AsItsLinesReadThem(
+        string firstLine, CriterionVerdict expected)
+    {
+        const string continuation = "och tog över utbildningen av nya kollegor.";
+        var parsed = ResumeFromCvText(SwedishCv(firstLine, continuation));
+        var bullet = $"{firstLine}\n{continuation}";
+        Units(parsed).ShouldBe([bullet], "premise: the two lines are one wrapped bullet");
+
+        var result = await ReviewAsync(parsed);
+
+        Verdict(result, "A6").Verdict.ShouldBe(expected);
+        QuotesOf(result, "A6").Select(s => s.Quote).ShouldBe([bullet]);
+    }
+
     // ── 10. B5 sees the same lead glyphs ──────────────────────────────────
 
     [Fact]

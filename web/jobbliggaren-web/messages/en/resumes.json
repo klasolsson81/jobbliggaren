@@ -162,6 +162,13 @@
     "ats": "ATS profile",
     "visual": "Visual profile"
   },
+  "languageChoice": {
+    "label": "The CV is written in",
+    "swedish": "Swedish",
+    "english": "English",
+    "saving": "Saving…",
+    "savedAt": "Saved {time}"
+  },
   "preview": {
     "trigger": "Open your CV file",
     "title": "Your CV file",
@@ -424,7 +431,8 @@
     "deleteFailed": "Could not delete the CV.",
     "deleteVersionFailed": "Could not delete the version.",
     "discardFailed": "Could not remove the draft.",
-    "statusUpdateFailed": "Could not update the finding status. Reload the review and try again."
+    "statusUpdateFailed": "Could not update the finding status. Reload the review and try again.",
+    "languageUpdateFailed": "Could not change the language. Try again in a moment."
   },
   "enums": {
     "verdict": {

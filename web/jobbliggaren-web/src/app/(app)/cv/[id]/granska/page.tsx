@@ -11,6 +11,7 @@ import {
   type RenderProfile,
 } from "@/lib/dto/parsed-resume";
 import { CvReviewPanel } from "@/components/resumes/cv-review-panel";
+import { CvLanguageChoice } from "@/components/resumes/cv-language-choice";
 import { CvPreamble } from "@/components/resumes/cv-preamble";
 import { findMasterVersion } from "@/lib/resumes/content-utils";
 import type { Metadata } from "next";
@@ -167,6 +168,7 @@ export default async function CanonicalCvReviewPage({
           profile={profile}
           documentName={resume.name}
           notice={<CvPreamble preamble={findMasterVersion(resume)?.content.preamble ?? null} />}
+          languageChoice={<CvLanguageChoice resumeId={id} initialLanguage={resume.language} />}
         />
       </div>
       <PageFeedback pageKey="cv-review" />

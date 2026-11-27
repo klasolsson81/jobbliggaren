@@ -162,6 +162,13 @@
     "ats": "ATS-profil",
     "visual": "Visuell profil"
   },
+  "languageChoice": {
+    "label": "CV:t är skrivet på",
+    "swedish": "Svenska",
+    "english": "Engelska",
+    "saving": "Sparar…",
+    "savedAt": "Sparat {time}"
+  },
   "preview": {
     "trigger": "Öppna CV-filen",
     "title": "Din CV-fil",
@@ -424,7 +431,8 @@
     "deleteFailed": "Kunde inte radera CV:t.",
     "deleteVersionFailed": "Kunde inte radera versionen.",
     "discardFailed": "Kunde inte ta bort utkastet.",
-    "statusUpdateFailed": "Det gick inte att uppdatera åtgärdsstatusen. Ladda om granskningen och försök igen."
+    "statusUpdateFailed": "Det gick inte att uppdatera åtgärdsstatusen. Ladda om granskningen och försök igen.",
+    "languageUpdateFailed": "Det gick inte att byta språk. Försök igen om en stund."
   },
   "enums": {
     "verdict": {

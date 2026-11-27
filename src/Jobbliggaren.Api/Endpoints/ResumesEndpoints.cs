@@ -445,7 +445,8 @@ public static class ResumesEndpoints
         }).RequireAuthorization();
 
         // #2353: the review page's language choice writes here, and every write re-runs the review
-        // under both profiles to reconcile the finding ledger, so it carries the resume writes' limit.
+        // under both profiles to reconcile the finding ledger, so it carries MeWritePolicy, as the
+        // finding-status write does.
         group.MapPut("/{id:guid}/language", async (
             Guid id, SetLanguageBody body, IMediator mediator, CancellationToken ct) =>
         {

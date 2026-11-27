@@ -1221,7 +1221,7 @@ public class HeadingDrivenResumeSegmenterTests
         // ROW 3 FLIPPED in #2353 (senior-cto-advisor D8, point 4 (ii)). "Verkstaden AB, Göteborg" is
         // an organisation form and a known place, so the line names the employer and no role, and the
         // whole line is the organisation. That is the vocabulary deciding which side is which, not an
-        // inference about slot order; the vocabularies ADR ratifies it against the 2026-06-23 bind.
+        // inference about slot order; ADR 0193 ratifies it against the 2026-06-23 bind.
         // Row 2 has no such evidence: an organisation form on the first side only was rejected as a
         // rule (senior-cto-advisor 2026-11-27, point 3 (b)).
         //

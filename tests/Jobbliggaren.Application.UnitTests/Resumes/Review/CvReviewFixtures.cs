@@ -224,14 +224,13 @@ internal static class CvReviewFixtures
     /// rawText the parser would never emit (the header line + own-line period are real).
     /// </summary>
     internal static ParsedResume ResumeFromCvText(
-        string cvText, string sourceFileName = "CV_Anna_Andersson.pdf",
-        string sourceContentType = "application/pdf")
+        string cvText, string sourceFileName = "CV_Anna_Andersson.pdf")
     {
         var segmented = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load()).Segment(cvText);
         var created = ParsedResume.Create(
             JobSeekerId.New(),
             sourceFileName,
-            sourceContentType,
+            "application/pdf",
             segmented.DetectedLanguage,
             segmented.Content,
             cvText,
@@ -259,14 +258,6 @@ internal static class CvReviewFixtures
             new SectionConfidence(ParsedSectionKind.Contact, SectionConfidenceLevel.Confident, ["kontakt hittad"]),
             new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, ["1 post"]),
         ]);
-
-    // A real import's RawText holds every entry it was segmented from, so a default RawText
-    // carries the profile and the entries after the fixed prefix (#2342: the PDF line-wrap
-    // measure is the longest line of RawText).
-    private static string DefaultRawText(ParsedResumeContent content) =>
-        string.Join('\n', new[] { "Anna Andersson", "Ledde teamet om 8 personer.", content.Profile }
-            .Concat(content.Experience.Select(e => e.RawText))
-            .Where(s => !string.IsNullOrEmpty(s)));
 
     /// <summary>
     /// Builds a parsed CV with full control over the fields each criterion reads. Defaults
@@ -306,7 +297,7 @@ internal static class CvReviewFixtures
             sourceContentType,
             detectedLanguage ?? ResumeLanguage.Sv,
             content,
-            rawText ?? DefaultRawText(content),
+            rawText ?? "Anna Andersson\nLedde teamet om 8 personer.",
             confidence ?? ConfidentConfidence(),
             personnummer ?? PersonnummerScanOutcome.None,
             [],

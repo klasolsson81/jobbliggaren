@@ -31,7 +31,7 @@ internal sealed class WeakVerbTransform : ICvTransform
             // RawText opens with the title/organisation header, so reading the block matched the job
             // TITLE and the rewrite never fired in production. DescriptionBullets already excludes the
             // header, the period line, and the organisation-on-its-own line, and trims each line.
-            foreach (var bullet in ReviewText.DescriptionBullets(experience, context.WrapMeasure))
+            foreach (var bullet in ReviewText.DescriptionBullets(experience))
             {
                 // Language-aware NLP-tier tokenisation (dispatches sv/en; never throws for either).
                 if (context.Analyzer.ToLexemes(bullet, context.Language).Count == 0)

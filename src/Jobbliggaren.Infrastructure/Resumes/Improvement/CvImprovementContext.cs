@@ -2,7 +2,6 @@ using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Resumes.Parsing;
-using Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Improvement;
 
@@ -27,10 +26,6 @@ internal sealed record CvImprovementContext(
 
     /// <summary>The raw extracted CV text — the source for cited text spans (Invariant 2).</summary>
     public string RawText => Resume.RawText;
-
-    /// <summary>The PDF line-wrap measure the bullet unit reads (#2342), from the same inputs the
-    /// review takes it from.</summary>
-    public LineWrapMeasure? WrapMeasure { get; } = LineWrapMeasure.For(Resume.SourceContentType, Resume.RawText);
 
     /// <summary>
     /// The review criterion id to attribute a change to — returns <paramref name="criterionId"/>

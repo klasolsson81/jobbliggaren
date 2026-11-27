@@ -71,7 +71,7 @@ internal sealed class ClicheTransform : ICvTransform
 
         foreach (var experience in context.Content.Experience)
         {
-            var text = string.Join('\n', ReviewText.DescriptionBullets(experience, context.WrapMeasure));
+            var text = string.Join('\n', ReviewText.DescriptionBullets(experience));
             if (!string.IsNullOrWhiteSpace(text))
             {
                 sb.AppendLine(text);

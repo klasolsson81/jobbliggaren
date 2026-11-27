@@ -150,14 +150,6 @@ internal static class CvImprovementFixtures
             new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, ["1 post"]),
         ]);
 
-    // A real import's RawText holds every entry it was segmented from, so a default RawText
-    // carries the profile and the entries after the fixed prefix (#2342: the PDF line-wrap
-    // measure is the longest line of RawText).
-    private static string DefaultRawText(ParsedResumeContent content) =>
-        string.Join('\n', new[] { "Anna Andersson", "Ledde teamet om 8 personer.", content.Profile }
-            .Concat(content.Experience.Select(e => e.RawText))
-            .Where(s => !string.IsNullOrEmpty(s)));
-
     /// <summary>
     /// Builds a parsed CV with full control over the fields each transform reads. Defaults
     /// describe a CLEAN CV (no clichés, strong verbs, normalized dates/headings, no
@@ -192,7 +184,7 @@ internal static class CvImprovementFixtures
             sourceContentType,
             detectedLanguage ?? ResumeLanguage.Sv,
             content,
-            rawText ?? DefaultRawText(content),
+            rawText ?? "Anna Andersson\nLedde teamet om 8 personer.",
             confidence ?? ConfidentConfidence(),
             personnummer ?? PersonnummerScanOutcome.None,
             [],

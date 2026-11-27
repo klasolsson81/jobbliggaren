@@ -327,7 +327,7 @@ internal sealed class B5ConsistentFormattingRule : ICriterionRule
         var markers = new SortedSet<char>();
         foreach (var experience in context.Content.Experience)
         {
-            foreach (var line in ReviewText.DescriptionBullets(experience, context.WrapMeasure))
+            foreach (var line in ReviewText.DescriptionBullets(experience))
             {
                 if (LeadMarker(line) is { } marker)
                 {

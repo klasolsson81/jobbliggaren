@@ -96,7 +96,6 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         // criterion that JUDGES and the transform that PROPOSES cannot contradict each other.
         var sectionOrder = SectionOrderAnalyzer.Analyze(
             context.LinearText, _parsingLexicon, _conventions);
-        var wrapMeasure = LineWrapMeasure.For(context.SourceContentType, context.LinearText);
 
         var inProfile = rubric.Criteria.Where(c => InProfile(c.Profile, profile)).ToList();
 
@@ -105,7 +104,7 @@ internal sealed class CvReviewEngine : ICvReviewEngine
         {
             var evaluation = new CriterionEvaluationContext(
                 context, criterion, profile, language, cliches, verbs, _analyzer,
-                _spellChecker, allowlist, datedExperiences, sectionOrder, _conventions.FontAllowlist, wrapMeasure);
+                _spellChecker, allowlist, datedExperiences, sectionOrder, _conventions.FontAllowlist);
             scored.Add(Evaluate(evaluation));
         }
 

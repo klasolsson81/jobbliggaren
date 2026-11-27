@@ -276,7 +276,7 @@ internal sealed class A6ConcretionRule : ICriterionRule
         }
 
         var words = ReviewText.FromFirstWord(bullet)
-            .Split([' ', '\n', ',', ';', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            .Split([' ', ',', ';', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         for (var i = 1; i < words.Length; i++)
         {
             if (words[i].Length > 1 && char.IsUpper(words[i][0]))

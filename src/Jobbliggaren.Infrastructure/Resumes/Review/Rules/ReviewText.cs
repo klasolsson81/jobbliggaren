@@ -46,7 +46,7 @@ internal static class ReviewText
         var bullets = new List<string>();
         foreach (var experience in context.Content.Experience)
         {
-            bullets.AddRange(DescriptionBullets(experience, context.WrapMeasure));
+            bullets.AddRange(DescriptionBullets(experience));
         }
 
         return bullets;
@@ -96,14 +96,12 @@ internal static class ReviewText
     /// entry's <c>Text</c> is the segmenter's verbatim block, so the header line
     /// (title/organisation — always the first line the segmenter emits) and any line
     /// that is purely the period or the organisation on its own line (the
-    /// "Title\nCompany\nDates" layout) are excluded (#487). On a PDF, a line that
-    /// <paramref name="measure"/> reads as a layout wrap continues the bullet above it, joined
-    /// with its line end kept, so a bullet stays a verbatim slice of the block (#2342). Shared with the improve
+    /// "Title\nCompany\nDates" layout) are excluded (#487). Shared with the improve
     /// engine's <c>WeakVerbTransform</c> (via the <see cref="ParsedExperience"/>
     /// overload) so the review (A2) and improve sides score the SAME bullet unit
     /// (#487 review side, #534 improve side).
     /// </summary>
-    internal static IEnumerable<string> DescriptionBullets(ReviewableExperience experience, LineWrapMeasure? measure)
+    internal static IEnumerable<string> DescriptionBullets(ReviewableExperience experience)
     {
         var lines = experience.Text
             .Split('\n')
@@ -123,8 +121,6 @@ internal static class ReviewText
 
         // lines[0] is the header (title/organisation, possibly with a trailing period the
         // segmenter recovered separately) — never a description bullet.
-        string? bullet = null;
-        string? previous = null;
         for (var i = 1; i < lines.Count; i++)
         {
             var line = lines[i];
@@ -166,7 +162,6 @@ internal static class ReviewText
             // derived.
             if (PeriodParser.TryParse(line, out _, out _, out _) || DatePatterns.IsDateOnlyLine(line))
             {
-                previous = null;
                 continue;
             }
 
@@ -174,7 +169,6 @@ internal static class ReviewText
             if (!string.IsNullOrWhiteSpace(experience.Organization)
                 && string.Equals(line, experience.Organization, StringComparison.OrdinalIgnoreCase))
             {
-                previous = null;
                 continue;
             }
 
@@ -235,26 +229,7 @@ internal static class ReviewText
             // verdicts in DateModelWideningReviewSideTests (senior-cto-advisor bind 2026-08-02 §2,
             // qualified by test-writer's measurement the same day, closed by road 3).
 
-            if (previous is not null && measure?.Continues(previous, line) == true)
-            {
-                bullet = string.Concat(bullet, "\n", line);
-            }
-            else
-            {
-                if (bullet is not null)
-                {
-                    yield return bullet;
-                }
-
-                bullet = line;
-            }
-
-            previous = line;
-        }
-
-        if (bullet is not null)
-        {
-            yield return bullet;
+            yield return line;
         }
     }
 
@@ -263,10 +238,10 @@ internal static class ReviewText
     /// (#534 — the improve flow stays <c>ParsedResume</c>-scoped until PR-7). Delegates to
     /// the unified-view logic above so the bullet unit stays ONE definition (#487).
     /// </summary>
-    internal static IEnumerable<string> DescriptionBullets(ParsedExperience experience, LineWrapMeasure? measure) =>
+    internal static IEnumerable<string> DescriptionBullets(ParsedExperience experience) =>
         DescriptionBullets(new ReviewableExperience(
             experience.Title, experience.Organization, experience.Period,
-            null, null, experience.RawText, TextIsDescriptionOnly: false), measure);
+            null, null, experience.RawText, TextIsDescriptionOnly: false));
 
     /// <summary>Profile + each experience's description lines joined, for whole-CV prose scans
     /// (lowercased on demand). Both arms scan the same text: the staging block's header, period and
@@ -288,7 +263,7 @@ internal static class ReviewText
         {
             var text = experience.TextIsDescriptionOnly
                 ? experience.Text
-                : string.Join('\n', DescriptionBullets(experience, context.WrapMeasure));
+                : string.Join('\n', DescriptionBullets(experience));
             if (!string.IsNullOrWhiteSpace(text))
             {
                 sb.AppendLine(text);

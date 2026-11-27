@@ -90,18 +90,4 @@ public class CvFileSignatureTests
 
         ok.ShouldBeFalse();
     }
-
-    // #2342 — the one reading of a declared media type, shared by the resolver above and the
-    // review's PDF-only line-wrap gate.
-    [Theory]
-    [InlineData("application/pdf", true)]
-    [InlineData("APPLICATION/PDF", true)]
-    [InlineData("  application/pdf ; charset=binary", true)]
-    [InlineData("application/octet-stream", false)]
-    [InlineData(CvFileSignature.DocxContentType, false)]
-    [InlineData("application/pdfx", false)]
-    [InlineData("", false)]
-    [InlineData(null, false)]
-    public void DeclaresMediaType_ReadsTheDeclaredTypeWithoutItsParameters(string? contentType, bool expected) =>
-        CvFileSignature.DeclaresMediaType(contentType, CvFileSignature.PdfContentType).ShouldBe(expected);
 }

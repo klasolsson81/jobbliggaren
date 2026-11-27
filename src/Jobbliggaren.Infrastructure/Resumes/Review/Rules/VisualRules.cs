@@ -47,9 +47,9 @@ internal sealed class E2WhitespaceRule : ICriterionRule
         // Margins look adequate, but line spacing and section spacing are not measured from a
         // margin alone — report NotAssessed rather than over-claim the full whitespace criterion.
         // Deliberately a BESPOKE reason, NOT context.Criterion.NotAssessedReason (architect PR-6b
-        // Minor): the rubric's data reason ("Vi kan inte läsa det här ur en textbaserad tolkning")
-        // would be UNTRUE here — the geometry WAS read; the margin just does not settle the whole
-        // criterion. An honest partial-assessment reason; a second rubric data key for one
+        // Minor): the rubric's data reason ("Det här gäller filen, inte texten i ditt CV.") would
+        // not say what happened here — the geometry WAS read; the margin just does not settle the
+        // whole criterion. An honest partial-assessment reason; a second rubric data key for one
         // criterion would be over-engineering.
         return CvCriterionVerdict.NotAssessed("E2", category, NotAssessedKind.NotInVersion,
             "Marginalerna ser rimliga ut. Radavstånd och luft mellan sektioner bedöms inte i den här versionen.");

@@ -85,7 +85,7 @@ describe("CvCriterionRow", () => {
   // only repeats the tag, so the tag stands alone; the other two kinds keep the reason, which says
   // what is missing.
   it.each([
-    ["TextOnly", "Går inte att läsa ur CV:ts text", "Vi kan inte läsa det här ur en textbaserad tolkning av ditt CV."],
+    ["TextOnly", "Gäller filen, inte texten", "Det här gäller filen, inte texten i ditt CV."],
     ["RequiresJobAd", "Bedöms mot en jobbannons", "Det här bedöms mot en specifik jobbannons, inte i den allmänna granskningen."],
   ] as const)("Ej bedömt of kind %s shows the tag alone", (kind, tag, reason) => {
     renderRow({

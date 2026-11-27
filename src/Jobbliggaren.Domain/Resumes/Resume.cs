@@ -488,9 +488,10 @@ public sealed class Resume : AggregateRoot<ResumeId>
     /// content write (Fas 4b PR-8, ADR 0093 §D5(b); ADR 0097 amendment 2026-07-09). The
     /// engine-driven counterpart to the user-driven <see cref="SetFindingStatus"/>:
     /// seeds an Open row per actionable finding that has no row yet, refreshes the
-    /// fingerprint on an Open row whose finding moved, drops Open rows whose finding is
-    /// gone, and NEVER touches a user decision (Resolved/Ignored rows keep their
-    /// lifecycle: <see cref="SetFindingStatus"/> + <c>MarkStaleIfResolved</c>). Scoped
+    /// fingerprint on an Open row whose finding moved, reopens a Resolved row whose
+    /// finding this review replaced, and drops Open rows whose finding is gone. An Ignored
+    /// row, and a Resolved row whose finding is unchanged, keep their lifecycle
+    /// (<see cref="SetFindingStatus"/> + <c>MarkStaleIfResolved</c>). Scoped
     /// strictly to <paramref name="rubricVersion"/> — rows of other versions are never
     /// read or written (ADR 0097 §5 version-non-carry). Stamps
     /// <see cref="ReviewedRubricVersion"/> even when the actionable set is empty:
@@ -543,13 +544,12 @@ public sealed class Resume : AggregateRoot<ResumeId>
                     rubricVersion!, snapshot.CriterionId, ReviewFindingStatus.Open,
                     snapshot.TargetFingerprint, now));
             }
-            else if (existing.Status == ReviewFindingStatus.Open
+            else if ((existing.Status == ReviewFindingStatus.Open || existing.Status == ReviewFindingStatus.Resolved)
                 && existing.TargetFingerprint != snapshot.TargetFingerprint)
             {
-                // The finding moved (same criterion, new evidence) — refresh the
-                // identity, keep it Open. Resolved/Ignored rows are user decisions and
-                // are NEVER touched here (their lifecycle is SetFindingStatus +
-                // MarkStaleIfResolved).
+                // Same criterion, another finding. An Open row takes the new identity. A
+                // Resolved decision was about the finding its fingerprint names, which this
+                // review replaced (e.g. after a language change), so the current one is open.
                 existing.ChangeStatus(ReviewFindingStatus.Open, snapshot.TargetFingerprint, now);
             }
         }

@@ -9,7 +9,7 @@ namespace Jobbliggaren.Infrastructure.Resumes.Improvement.Transforms;
 /// A2/C3 weak→strong verb (Fas 4 STEG 10, F4-10): for each DESCRIPTION bullet that OPENS with a
 /// weak verb from the F4-7 verb mapping, proposes its curated <c>SuggestedStrong</c>.
 /// KnowledgeBank provenance — the <c>After</c> is the verbatim KB value, never synthesised.
-/// The scored bullets are <see cref="ReviewText.DescriptionLines"/> — the SAME unit the F4-9 A2
+/// The scored bullets are <see cref="ReviewText.DescriptionBullets"/> — the SAME unit the F4-9 A2
 /// review rule reads (#487 review side, #534 improve side) — so the header/period/organisation
 /// lines are excluded. Reading the whole RawText block matched the job TITLE and so the rewrite
 /// never fired in production (#534). Weak verbs are multi-word phrases that don't lexemise
@@ -27,11 +27,11 @@ internal sealed class WeakVerbTransform : ICvTransform
         foreach (var experience in context.Content.Experience)
         {
             // #534: score the DESCRIPTION bullets (the same unit the F4-9 A2 review rule reads via
-            // ReviewText.DescriptionLines, #487) — NOT the whole RawText block. On a real parsed CV
+            // ReviewText.DescriptionBullets, #487) — NOT the whole RawText block. On a real parsed CV
             // RawText opens with the title/organisation header, so reading the block matched the job
-            // TITLE and the rewrite never fired in production. DescriptionLines already excludes the
+            // TITLE and the rewrite never fired in production. DescriptionBullets already excludes the
             // header, the period line, and the organisation-on-its-own line, and trims each line.
-            foreach (var bullet in ReviewText.DescriptionLines(experience))
+            foreach (var bullet in ReviewText.DescriptionBullets(experience))
             {
                 // Language-aware NLP-tier tokenisation (dispatches sv/en; never throws for either).
                 if (context.Analyzer.ToLexemes(bullet, context.Language).Count == 0)

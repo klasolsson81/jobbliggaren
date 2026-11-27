@@ -12,7 +12,9 @@ public interface IResumeSegmenter
     /// <summary>
     /// Segments <paramref name="rawText"/> (the original extracted text, NOT the
     /// personnummer-normalized scan-copy) into a <see cref="ResumeSegmentationResult"/>.
-    /// Deterministic: identical text yields identical content, confidence and language.
+    /// <paramref name="provenance"/> is the extractor's per-line geometry, or
+    /// <see cref="CvTextProvenance.None"/>. Deterministic: identical text and provenance yield
+    /// identical content, confidence and language.
     /// </summary>
-    ResumeSegmentationResult Segment(string rawText);
+    ResumeSegmentationResult Segment(string rawText, CvTextProvenance provenance);
 }

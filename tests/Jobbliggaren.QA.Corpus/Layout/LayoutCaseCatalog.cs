@@ -212,6 +212,68 @@ public static class LayoutCaseCatalog
             OneVariableStepFrom: "pdf-sidebar-emitted-first",
             ProjectHeadingRendered: UnknownProjectHeading),
 
+        // #2353 — the layout of a real test user's CV, rebuilt over the corpus model: one-line and
+        // two-line headers in one section, under list items that carry no glyph and no full stop.
+        // Before #2353 no arm authored either the mixed layout or a "Company, City" employer line.
+        new("pdf-mixed-header-layouts-indented-list",
+            "one column, \"Role - Employer\" and \"Role\" / \"Employer, City\" headers in one section, "
+            + "list items indented with no glyph and no full stop",
+            "(b) single-column chronological — #2353: the test user's layout",
+            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.MixedHeaderLayoutsIndentedList, CvModel.English,
+            p =>
+            {
+                var twoLine = CvModel.English.Employments[QuestPdfCvRenderer.TwoLineHeaderEmployment];
+                p.RequireNoVerticalGutter(15);
+                p.RequireLine(twoLine.Role);
+                p.RequireLine($"{twoLine.Marker}, {CvModel.English.City}");
+                p.RequireIndentedLines(12, CvModel.English.Employments.Count);
+                p.Require(p.PdfLines().All(l => !l.Text.StartsWith('•')), "found a bullet glyph in the text layer");
+            },
+            "one column; one employment headed by a role line over an \"Employer, City\" line; every "
+            + "list item indented at least 12 pt and none led by a glyph",
+            SpikeMeasuredExtractSegment: false,
+            ProjectHeadingRendered: UnknownProjectHeading),
+
+        new("pdf-mixed-header-layouts-glyph-list",
+            "the indented-list arm with each list item led by a bullet glyph at the margin instead",
+            "(b) single-column chronological — #2353: the glyph-led twin",
+            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.MixedHeaderLayoutsGlyphList, CvModel.English,
+            p =>
+            {
+                p.RequireNoVerticalGutter(15);
+                p.RequireIndentedLines(12, 0);
+                p.Require(
+                    p.PdfLines().Count(l => l.Text.StartsWith("• ", StringComparison.Ordinal))
+                        == CvModel.English.Employments.Count,
+                    "expected every list item led by a bullet glyph in the text layer");
+            },
+            "one column; no line indented; every list item led by a bullet glyph",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "pdf-mixed-header-layouts-indented-list",
+            ProjectHeadingRendered: UnknownProjectHeading),
+
+        // #2353 (senior-cto-advisor 2026-11-27, point 4): an employer line with no role line above
+        // it heads its entry with no title, so a CV in this shape stops at the gate where it used to
+        // save the company name as a job title. This arm measures the move.
+        new("pdf-roleless-employer-line",
+            "single-column chronological whose first employment is headed by \"Employer, City\" alone, "
+            + "with no role line",
+            "(b) single-column chronological — #2353: the role-less employer line",
+            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.RolelessEmployerLine, CvModel.Swedish,
+            p =>
+            {
+                var first = CvModel.Swedish.Employments[0];
+                p.RequireNoVerticalGutter(15);
+                p.RequireLine($"{first.Marker}, {CvModel.Swedish.City}");
+                p.Require(p.PdfLines().All(l => !l.Text.Contains(first.Role, StringComparison.Ordinal)),
+                    "found the first employment's role line, which this arm omits");
+            },
+            "one column; the first employment's header is its \"Employer, City\" line and its role "
+            + "line is absent",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "pdf-single-column-sv",
+            ProjectHeadingRendered: UnknownProjectHeading),
+
         new("pdf-single-column-en",
             "single-column chronological, English heading vocabulary (same renderer, same order)",
             "(e) English headings — answered as a RECOGNITION class, not a layout class",

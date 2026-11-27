@@ -41,6 +41,7 @@ export function CvReviewPanel({
   profile,
   documentName,
   notice,
+  languageChoice,
 }: {
   review: CvReviewDto | null;
   target: CvReviewTarget;
@@ -49,6 +50,8 @@ export function CvReviewPanel({
   documentName?: string;
   /** The preamble notice, placed between the strip and the filter. */
   notice?: React.ReactNode;
+  /** The saved CV's language choice (#2353): its own row, last in the identity row. */
+  languageChoice?: React.ReactNode;
 }) {
   const t = useTranslations("resumes");
 
@@ -86,6 +89,7 @@ export function CvReviewPanel({
         )}
       </div>
       <CvReviewProfileToggle basePath={toggleBasePath(target)} profile={profile} />
+      {languageChoice}
     </div>
   );
 

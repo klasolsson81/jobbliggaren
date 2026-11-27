@@ -108,8 +108,31 @@ public class ImportResumeCommandHandlerTests
         _extractor.Extract(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>(), Arg.Any<CancellationToken>())
             .Returns(new CvExtractionResult(rawText, status, string.Empty, string.Empty));
 
+    [Fact]
+    public async Task Handle_PassesTheExtractorsLineProvenanceToTheSegmenter()
+    {
+        // The extractor measures geometry in the same pass as the text (#2353); the segmenter reads
+        // it at import only, so the handler is the one place that can lose it.
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        const string rawText = "Anna Andersson\nanna@example.com";
+        var provenance = CvTextProvenance.For(rawText,
+            [new CvLineProvenance(null, 72.0, 3.05), new CvLineProvenance(null, 72.0, 3.05)]);
+        _extractor.Extract(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>(), Arg.Any<CancellationToken>())
+            .Returns(new CvExtractionResult(rawText, CvExtractionStatus.Extracted, string.Empty, string.Empty)
+            {
+                Provenance = provenance,
+            });
+        StubSegmenter(ConfidentSegmentation());
+        StubDeriver();
+
+        await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
+
+        _segmenter.Received(1).Segment(rawText, Arg.Is<CvTextProvenance>(p => ReferenceEquals(p, provenance)));
+    }
+
     private void StubSegmenter(ResumeSegmentationResult result) =>
-        _segmenter.Segment(Arg.Any<string>()).Returns(result);
+        _segmenter.Segment(Arg.Any<string>(), Arg.Any<CvTextProvenance>()).Returns(result);
 
     private void StubDeriver(params OccupationCandidate[] candidates) =>
         _deriver.DeriveManyAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
@@ -859,7 +882,7 @@ public class ImportResumeCommandHandlerTests
         var added = db.ParsedResumes.Local.ShouldHaveSingleItem();
         added.Content.Experience.ShouldBeEmpty();
         // The segmenter is never invoked when there is no usable text.
-        _segmenter.DidNotReceive().Segment(Arg.Any<string>());
+        _segmenter.DidNotReceive().Segment(Arg.Any<string>(), Arg.Any<CvTextProvenance>());
     }
 
     [Fact]
@@ -951,7 +974,7 @@ public class ImportResumeCommandHandlerTests
 
         result.Value.Personnummer.Found.ShouldBeTrue();
         db.ParsedResumes.Local.ShouldHaveSingleItem().RawText.ShouldBe("Anna Andersson");
-        _segmenter.Received(1).Segment("Anna Andersson");
+        _segmenter.Received(1).Segment("Anna Andersson", Arg.Any<CvTextProvenance>());
     }
 
     [Fact]
@@ -966,7 +989,7 @@ public class ImportResumeCommandHandlerTests
         result.Value.Personnummer.Found.ShouldBeTrue();
         result.Value.Confidence.Fallback.ShouldBe(ParseFallbackReason.ExtractionFailed.ToString());
         db.ParsedResumes.Local.ShouldHaveSingleItem().RawText.ShouldBeEmpty();
-        _segmenter.DidNotReceive().Segment(Arg.Any<string>());
+        _segmenter.DidNotReceive().Segment(Arg.Any<string>(), Arg.Any<CvTextProvenance>());
     }
 
     // ===============================================================
@@ -993,7 +1016,7 @@ public class ImportResumeCommandHandlerTests
 
         result.Value.Personnummer.Found.ShouldBeTrue();
         db.ParsedResumes.Local.ShouldHaveSingleItem().RawText.ShouldBe("Anna Andersson");
-        _segmenter.Received(1).Segment("Anna Andersson");
+        _segmenter.Received(1).Segment("Anna Andersson", Arg.Any<CvTextProvenance>());
         db.ResumeFiles.Local.ShouldBeEmpty();
         _sealer.DidNotReceive().Seal(Arg.Any<ReadOnlyMemory<byte>>());
     }
@@ -1032,7 +1055,7 @@ public class ImportResumeCommandHandlerTests
         result.Value.Personnummer.Found.ShouldBeTrue();
         result.Value.Confidence.Fallback.ShouldBe(ParseFallbackReason.ExtractionFailed.ToString());
         db.ParsedResumes.Local.ShouldHaveSingleItem().RawText.ShouldBeEmpty();
-        _segmenter.DidNotReceive().Segment(Arg.Any<string>());
+        _segmenter.DidNotReceive().Segment(Arg.Any<string>(), Arg.Any<CvTextProvenance>());
     }
 
     [Fact]
@@ -1047,7 +1070,7 @@ public class ImportResumeCommandHandlerTests
 
         await CreateSutWithTheRealExtractor(db).Handle(DocxCommand(docx), CancellationToken.None);
 
-        _segmenter.Received(1).Segment("Anna Andersson\nFlyttad");
+        _segmenter.Received(1).Segment("Anna Andersson\nFlyttad", Arg.Any<CvTextProvenance>());
         db.ParsedResumes.Local.ShouldHaveSingleItem().RawText.ShouldBe("Anna Andersson\nFlyttad");
     }
 }

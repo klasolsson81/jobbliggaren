@@ -15,4 +15,8 @@ public sealed record Experience(
     DateOnly? StartDate,
     DateOnly? EndDate,
     string? Description,
-    string? RawPeriod = null);
+    string? RawPeriod = null)
+{
+    /// <summary>The longest description an entry may carry (#855, the client form's own limit).</summary>
+    public const int DescriptionMaxLength = 2_000;
+}

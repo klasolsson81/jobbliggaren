@@ -6,6 +6,7 @@ import svPages from "../../../../../../messages/sv/pages.json";
 import type { CvReviewDto } from "@/lib/dto/parsed-resume";
 import type { ResumeDetailDto } from "@/lib/dto/resumes";
 import { CvPreamble } from "@/components/resumes/cv-preamble";
+import { CvLanguageChoice } from "@/components/resumes/cv-language-choice";
 import CanonicalCvReviewPage from "./page";
 
 /**
@@ -77,6 +78,7 @@ const RESUME = {
       updatedAt: "2026-08-29T09:00:00Z",
     },
   ],
+  language: "En",
 } as unknown as ResumeDetailDto;
 
 const REVIEW = { rubricVersion: "2.3.0" } as unknown as CvReviewDto;
@@ -133,6 +135,23 @@ describe("/cv/[id]/granska — what the page hands the ledger", () => {
     getResumeReview.mockResolvedValue({ kind: "error" });
     render(await invoke());
     expect(lastPanelProps().review).toBeNull();
+  });
+
+  // #2353: the language choice gets the CV and its saved language, and stays when the review fails.
+  it("hands the language choice the CV and its saved language, with or without a review", async () => {
+    for (const review of [{ kind: "ok", data: REVIEW }, { kind: "error" }]) {
+      getResumeReview.mockResolvedValue(review);
+      render(await invoke());
+
+      const choice = lastPanelProps().languageChoice as React.ReactElement<{
+        resumeId: string;
+        initialLanguage: string;
+      }>;
+      expect(isValidElement(choice)).toBe(true);
+      expect(choice.type).toBe(CvLanguageChoice);
+      expect(choice.props.resumeId).toBe(RESUME_ID);
+      expect(choice.props.initialLanguage).toBe("En");
+    }
   });
 });
 

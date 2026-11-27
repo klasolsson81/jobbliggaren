@@ -22,7 +22,9 @@ internal sealed record CvParsingLexiconData(
     FrozenSet<string> EnglishHints,
     FrozenSet<string> NameBanners,
     FrozenSet<string> NameParticles,
-    FrozenSet<string> LocationLabels)
+    FrozenSet<string> LocationLabels,
+    FrozenSet<string> OrganisationSuffixes,
+    FrozenSet<string> OrganisationPrefixes)
 {
     /// <summary>
     /// Is this line a CV-title BANNER ("Curriculum Vitae", "Meritförteckning", "- CV")? (#428, #898.)
@@ -33,7 +35,7 @@ internal sealed record CvParsingLexiconData(
     /// either end. So "- Curriculum Vitae" (an ASCII hyphen is exactly what a PDF extractor emits for a
     /// sidebar bullet) was a banner to one side and content to the other. A rule with two normalisers
     /// is two rules — the same defect class <see cref="ContactPatterns.TryLabelledValue"/> and
-    /// <see cref="ContactPatterns.TryBareMunicipalityLine"/> were written to end for the location
+    /// <see cref="ContactPatterns.TryBarePlaceLine"/> were written to end for the location
     /// question. It is now asked in ONE place, of the data that owns the vocabulary.</para>
     ///
     /// <para><b>Deliberately NOT generalised.</b> The glue trim belongs to the BANNER question only.
@@ -42,6 +44,35 @@ internal sealed record CvParsingLexiconData(
     /// </summary>
     internal bool IsNameBanner(string line) =>
         NameBanners.Contains(CvParsingLexiconLoader.NormalizeBanner(line));
+
+    /// <summary>
+    /// Does this entry-header field name an organisation (#2353, senior-cto-advisor D8)? It does when
+    /// one of its items ends in a legal-form or public-body word ("Exempel AB", "Exempel AB, Göteborg",
+    /// "Lerums kommun") or opens with a prefix form and goes on ("Region Skåne", "AB Volvo").
+    ///
+    /// <para>A form matches whole words, case-sensitively, and never alone. "Karlstad" does not end in
+    /// the word "stad", "as" is not "AS", and a lone "SE" names no company.</para>
+    /// </summary>
+    internal bool IsOrganisation(string field)
+    {
+        foreach (var item in InlineSeparators.Split(field))
+        {
+            var words = CvParsingLexiconLoader.OrganisationWords(item);
+            if (words.Length < 2)
+                continue;
+
+            if (OrganisationPrefixes.Contains(words[0]))
+                return true;
+
+            for (var count = 1; count < words.Length; count++)
+            {
+                if (OrganisationSuffixes.Contains(string.Join(' ', words[^count..])))
+                    return true;
+            }
+        }
+
+        return false;
+    }
 }
 
 /// <summary>
@@ -210,8 +241,57 @@ internal static partial class CvParsingLexiconLoader
             LoadNameBanners(file),
             LoadNameParticles(file),
             (file.ContactLabels?.Location ?? []).Select(l => l.Trim().ToLowerInvariant())
-                .Where(l => l.Length > 0).ToFrozenSet(StringComparer.Ordinal));
+                .Where(l => l.Length > 0).ToFrozenSet(StringComparer.Ordinal),
+            LoadOrganisationForms(file, file.OrganisationForms?.Suffixes, "suffix"),
+            LoadOrganisationForms(file, file.OrganisationForms?.Prefixes, "prefix"));
     }
+
+    /// <summary>
+    /// v8 (#2353): the organisation forms, stored through <see cref="OrganisationWords"/>, the same
+    /// function <see cref="CvParsingLexiconData.IsOrganisation"/> reads a field through (#898).
+    ///
+    /// <para>The dead-entry rule of <see cref="LoadNameBanners"/> applies: a visibly empty entry is
+    /// skipped and an entry that can never match fails loud. Three shapes can never match. A form that
+    /// normalises to nothing; a form holding a glyph the field is split on before it is read
+    /// (<see cref="InlineSeparators.Split"/>); and a prefix of more than one word, because a prefix is
+    /// compared with a field's first word. A form listed twice also fails loud, since the set would
+    /// swallow it. An absent block is not an error: it only narrows what is recognised.</para>
+    /// </summary>
+    private static FrozenSet<string> LoadOrganisationForms(LexiconFile file, string[]? forms, string kind)
+    {
+        var stored = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var raw in forms ?? [])
+        {
+            if (raw.Trim().Length == 0)
+                continue;
+
+            var words = OrganisationWords(raw);
+            if (words.Length == 0 || InlineSeparators.Split(raw).Length > 1 || (kind == "prefix" && words.Length > 1))
+            {
+                throw new InvalidOperationException(
+                    $"CV-parsing lexicon v{file.Version}: the organisation {kind} '{raw}' can never match a " +
+                    "field. A form must keep at least one word after the glue is trimmed, hold none of the " +
+                    "glyphs a field is split on, and a prefix must be one word. Fail loud, not silently dead.");
+            }
+
+            if (!stored.Add(string.Join(' ', words)))
+            {
+                throw new InvalidOperationException(
+                    $"CV-parsing lexicon v{file.Version}: the organisation {kind} '{raw}' is listed twice.");
+            }
+        }
+
+        return stored.ToFrozenSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// THE organisation-form normaliser (#2353): the glue trimmed, then the whitespace-separated words.
+    /// The loader stores every form through it and <see cref="CvParsingLexiconData.IsOrganisation"/>
+    /// reads every field through it, so the two sides cannot disagree (#898).
+    /// </summary>
+    internal static string[] OrganisationWords(string text) =>
+        InlineSeparators.TrimGlue(text).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 
     /// <summary>
     /// The CV-title banners, stored through <see cref="NormalizeBanner"/> — the same function the ASK
@@ -384,8 +464,12 @@ internal static partial class CvParsingLexiconLoader
         string[]? NameParticles,
         ContactLabelsFile? ContactLabels,
         Dictionary<string, string[]>? FreeSections,
-        Dictionary<string, string>? DisplayForms);
+        Dictionary<string, string>? DisplayForms,
+        OrganisationFormsFile? OrganisationForms);
 
     /// <summary>Contact-field label vocabulary — versioned data, never inline C# strings (§5).</summary>
     private sealed record ContactLabelsFile(string[]? Location);
+
+    /// <summary>v8 (#2353): the legal-form and public-body words an employer field ends in or opens with.</summary>
+    private sealed record OrganisationFormsFile(string[]? Suffixes, string[]? Prefixes);
 }

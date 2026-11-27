@@ -299,22 +299,27 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     /// <summary>
-    /// The Description fork, bound Option (a): the parse has no structured description —
-    /// RawText is the WHOLE entry block (title/org/period lines included), so promoting it
-    /// as Description would double those lines in render and corrupt the review engine's
-    /// TextIsDescriptionOnly scoring. The canonical entry honestly carries none.
+    /// #2353 (senior-cto-advisor D11): the segmenter's description of an entry is promoted, so the
+    /// saved CV's review reads the bullets the user wrote. RawText, the whole entry block with its
+    /// title, organisation and period lines, is never promoted as the description.
     /// </summary>
     [Fact]
-    public async Task Handle_CleanParse_ExperienceDescriptionIsNull_RawTextNeverPromoted()
+    public async Task Handle_CleanParse_PromotesTheSegmentersDescription_NeverTheBlock()
     {
+        const string block = "Backend-utvecklare, Beta AB\n2019–2022\nByggde betaltjänster.";
+        var entry = new ParsedExperience("Backend-utvecklare", "Beta AB", "2019–2022", block);
+        var described = entry with
+        {
+            Description = string.Join('\n', Infrastructure.Resumes.Parsing.EntryDescription.Lines(block, "Beta AB")),
+        };
         var db = TestAppDbContextFactory.Create();
-        var (parsed, _) = await SeedOwnedAsync(db, _userId);
+        var (parsed, _) = await SeedOwnedAsync(db, _userId, CleanParsedContent(experience: [described]));
 
         await CreateSut(db).Handle(Command(parsed.Id.Value), TestContext.Current.CancellationToken);
 
         var exp = db.Resumes.Local.ShouldHaveSingleItem()
             .MasterVersion.Content.Experiences.ShouldHaveSingleItem();
-        exp.Description.ShouldBeNull();
+        exp.Description.ShouldBe("Byggde betaltjänster.");
     }
 
     // ===============================================================

@@ -38,8 +38,13 @@ internal static class CvParsingLexiconFixture
     /// <summary>The LOADED lexicon — what production actually runs on.</summary>
     internal static CvParsingLexiconData Load() => CvParsingLexiconLoader.Load();
 
-    /// <summary>A segmenter over the real shipped lexicon (the DI wiring, in one line).</summary>
-    internal static HeadingDrivenResumeSegmenter Segmenter() => new(Load());
+    private static readonly Lazy<CvPlaceLexicon> LazyPlaces = new(CvPlaceLexiconLoader.Load);
+
+    /// <summary>The LOADED place vocabulary (SCB kommuner and tätorter), loaded once per test run.</summary>
+    internal static CvPlaceLexicon Places() => LazyPlaces.Value;
+
+    /// <summary>A segmenter over the real shipped lexicon and places (the DI wiring, in one line).</summary>
+    internal static HeadingDrivenResumeSegmenter Segmenter() => new(Load(), Places());
 
     /// <summary>Every shipped (synonym, sectionId) pair, read from the asset — never a copy of it.</summary>
     internal static List<(string Synonym, string SectionId)> ShippedPairs()

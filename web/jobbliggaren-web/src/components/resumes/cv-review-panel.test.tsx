@@ -187,6 +187,25 @@ describe("CvReviewPanel — identity row", () => {
     await user.click(screen.getByRole("radio", { name: /Att åtgärda/ }));
     expect(visual()).toHaveAttribute("href", "/cv/resume-1/granska?profile=Visual&visa=todo");
   });
+
+  // #2353: the language choice is the head's last row, after the profile switch in DOM order too.
+  it("places the language choice last in the identity row, after the profile switch", () => {
+    render(
+      <CvReviewPanel
+        review={makeReview()}
+        target={{ kind: "canonical", resumeId: "resume-1" }}
+        profile="Ats"
+        documentName="Mitt CV"
+        languageChoice={<div data-testid="language-choice" />}
+      />,
+    );
+    const head = document.querySelector(".jp-cvledger__head");
+    expect(head?.lastElementChild).toBe(screen.getByTestId("language-choice"));
+    const toggle = screen.getByRole("link", { name: "Visuell profil" });
+    expect(
+      toggle.compareDocumentPosition(screen.getByTestId("language-choice")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });
 
 describe("CvReviewPanel — headings and the table's name", () => {

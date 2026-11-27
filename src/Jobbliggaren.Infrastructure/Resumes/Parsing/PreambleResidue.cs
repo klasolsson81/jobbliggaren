@@ -20,7 +20,7 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 ///
 /// <para><b>Why it cannot fork a rule: it owns none.</b> The residue is defined by SUBTRACTION over
 /// recognisers that already existed and already ate the preamble — <c>NameBanners</c> (lexicon),
-/// <see cref="MunicipalityLexicon"/> (taxonomy, ADR 0043), and the shapes in
+/// <see cref="CvPlaceLexicon"/> (SCB kommuner and tätorter, #2343), and the shapes in
 /// <see cref="ContactPatterns"/> (which <see cref="HeadingDrivenResumeSegmenter"/> and
 /// <see cref="ContactLocationExtractor"/> now share). No <c>IsProse</c> predicate is written and no
 /// threshold is invented. A non-empty residue is therefore NOT a claim that the text is prose — it is
@@ -102,14 +102,15 @@ internal static class PreambleResidue
     /// <see cref="ToText"/>.</para>
     /// </summary>
     internal static List<PreambleLine> Subtract(
-        IReadOnlyList<string> preambleLines, CvParsingLexiconData lexicon)
+        IReadOnlyList<string> preambleLines, CvParsingLexiconData lexicon, CvPlaceLexicon places)
     {
         ArgumentNullException.ThrowIfNull(preambleLines);
         ArgumentNullException.ThrowIfNull(lexicon);
+        ArgumentNullException.ThrowIfNull(places);
 
         var residue = new List<PreambleLine>(preambleLines.Count);
         foreach (var line in preambleLines)
-            residue.Add(SubtractLine(line, lexicon));
+            residue.Add(SubtractLine(line, lexicon, places));
 
         return residue;
     }
@@ -336,7 +337,7 @@ internal static class PreambleResidue
     /// case), and otherwise the original line with the consumed fragments and the glue that attached
     /// them cut out — so what survives is still the user's own text, never a rewrite.
     /// </summary>
-    private static PreambleLine SubtractLine(string line, CvParsingLexiconData lexicon)
+    private static PreambleLine SubtractLine(string line, CvParsingLexiconData lexicon, CvPlaceLexicon places)
     {
         var empty = new PreambleLine(string.Empty, string.Empty, Consumed: false);
 
@@ -374,7 +375,7 @@ internal static class PreambleResidue
         // the same fact from the UN-SPLIT line, and a trailing comma was enough to make them disagree
         // ("Göteborg," → consumed by one side, declined by the other → the city reached no field).
         // FRAGMENTATION IS A NORMALISER. One question, one owner, one argument: the raw line.
-        var lineIsBareMunicipality = ContactPatterns.TryBareMunicipalityLine(line, out _);
+        var lineIsBarePlace = ContactPatterns.TryBarePlaceLine(line, places, out _);
 
         var consumed = new bool[fragments.Count];
         var lastConsumed = -1;
@@ -387,7 +388,7 @@ internal static class PreambleResidue
                 continue;
 
             sawRealFragment = true;
-            consumed[i] = IsConsumed(text, lexicon, isRail, lineIsBareMunicipality);
+            consumed[i] = IsConsumed(text, lexicon, places, isRail, lineIsBarePlace);
             if (consumed[i])
                 lastConsumed = i;
         }
@@ -450,8 +451,9 @@ internal static class PreambleResidue
     private static bool IsConsumed(
         string fragment,
         CvParsingLexiconData lexicon,
+        CvPlaceLexicon places,
         bool lineIsContactRail,
-        bool lineIsBareMunicipality)
+        bool lineIsBarePlace)
     {
         var candidate = InlineSeparators.TrimGlue(fragment);
 
@@ -474,7 +476,7 @@ internal static class PreambleResidue
         // school's — and reading it as the person's home would be a fabrication (ADR 0071). This case
         // is not exotic: a CV whose headings the lexicon does not know detects ZERO headings, and then
         // the "preamble" is the WHOLE DOCUMENT, experience lines included.
-        if (ContactPatterns.IsBareMunicipality(candidate) && (lineIsBareMunicipality || lineIsContactRail))
+        if (ContactPatterns.IsBarePlace(candidate, places) && (lineIsBarePlace || lineIsContactRail))
             return true;
 
         // "Ort: Göteborg" — the lexicon's labelled-value rule, whole.

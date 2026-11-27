@@ -185,6 +185,9 @@ export const resumeDetailDtoSchema = z.object({
   // emitterar ALLTID fältet (`ToDetailDto` mappar `r.TemplateOptions`) → required,
   // inte optional. Hydratiserar mallbyggarens val + den persisterade ATS-etiketten.
   templateOptions: cvTemplateOptionsDtoSchema,
+  // The CV's saved language (#2353, ADR 0191). The backend always emits it (`ToDetailDto` maps
+  // `r.Language.Name`), so it is required: the review page's language choice shows it.
+  language: resumeLanguageSchema,
 });
 export type ResumeDetailDto = z.infer<typeof resumeDetailDtoSchema>;
 

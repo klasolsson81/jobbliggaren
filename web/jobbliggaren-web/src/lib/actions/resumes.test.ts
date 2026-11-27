@@ -49,6 +49,7 @@ import {
   deleteResumeAction,
   discardParsedResumeAction,
   setFindingStatusAction,
+  setResumeLanguageAction,
   updateTemplateOptionsAction,
   type FindingStatusValue,
   type TemplateOptionsInput,
@@ -508,6 +509,94 @@ describe("setFindingStatusAction", () => {
     const result = await setFindingStatusAction(VALID_ID, "A7", "Open");
 
     expect(result).toEqual({
+      success: false,
+      error: "Kunde inte nå servern. Försök igen.",
+    });
+  });
+});
+
+// #2353 — the review page's language choice: PUT /api/v1/resumes/{id}/language with "Sv" or "En".
+describe("setResumeLanguageAction", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    getSessionIdMock.mockResolvedValue("sess-1");
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+    getSessionIdMock.mockReset();
+    revalidatePathMock.mockReset();
+    redirectMock.mockClear();
+  });
+
+  it("refuses without a session, and the backend is never reached", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await setResumeLanguageAction(VALID_ID, "En")).toEqual({
+      success: false,
+      error: "Du är inte inloggad.",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a malformed id or a language outside Sv and En before any request", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await setResumeLanguageAction("inte-en-guid", "En")).toEqual({
+      success: false,
+      error: "Ogiltigt CV-ID.",
+    });
+    expect(await setResumeLanguageAction(VALID_ID, "en" as unknown as "En")).toEqual({
+      success: false,
+      error: "Ogiltiga uppgifter.",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("204 → PUTs {language} to the CV, and revalidates the review page and /cv", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    global.fetch = fetchMock;
+
+    expect(await setResumeLanguageAction(VALID_ID, "En")).toEqual({ success: true });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`http://test-backend/api/v1/resumes/${VALID_ID}/language`);
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ language: "En" });
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/cv/${VALID_ID}/granska`);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/cv");
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("500 → the choice's own message, never the body, and no revalidation", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "boom" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const result = await setResumeLanguageAction(VALID_ID, "Sv");
+
+    expect(result).toEqual({
+      success: false,
+      error: "Det gick inte att byta språk. Försök igen om en stund.",
+    });
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("429 → mapActionError's tooManyAttempts, and a network error → serverUnreachable", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 429 }));
+    const limited = await setResumeLanguageAction(VALID_ID, "Sv");
+    expect(limited.success).toBe(false);
+    if (!limited.success) expect(limited.error).not.toBe("Det gick inte att byta språk. Försök igen om en stund.");
+
+    global.fetch = vi.fn().mockRejectedValue(new Error("network"));
+    expect(await setResumeLanguageAction(VALID_ID, "Sv")).toEqual({
       success: false,
       error: "Kunde inte nå servern. Försök igen.",
     });

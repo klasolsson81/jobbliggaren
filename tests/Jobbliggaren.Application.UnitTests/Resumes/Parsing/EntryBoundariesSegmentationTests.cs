@@ -301,11 +301,12 @@ public class EntryBoundariesSegmentationTests
         experiences.Select(e => e.Organization).ShouldBe(["Acme AB", "Volvo"]);
     }
 
-    // A later entry written in another layout than the first is read in neither: "Utvecklare" /
-    // "Beta AB, Stockholm" over a range is a two-line header and an intro over a one-line header
-    // alike, so no title or organization is read off it.
+    // A later entry written in another layout than the first is read in neither when nothing in its
+    // lines says which reading holds: "Utvecklare" / "Beta Konsult, Exempelstad" over a range is a
+    // two-line header and an intro over a one-line header alike, and a dated two-line header is no
+    // layout at all, so no title or organization is read off it.
     [Theory]
-    [InlineData("Testledare — Acme AB|2020 – 2023|Testade betalflöden.|Utvecklare|Beta AB, Stockholm|2016 – 2020|Byggde tjänster.")]
+    [InlineData("Testledare — Acme AB|2020 – 2023|Testade betalflöden.|Utvecklare|Beta Konsult, Exempelstad|2016 – 2020|Byggde tjänster.")]
     [InlineData("Testledare — Acme AB 2020 – 2023|Testade betalflöden.|Utvecklare|Beta AB, Stockholm 2016 – 2020|Byggde tjänster.")]
     public void Segment_LaterEntryInAnotherLayout_IsNotCut(string entryLines)
     {
@@ -313,6 +314,21 @@ public class EntryBoundariesSegmentationTests
 
         experiences.Count.ShouldBe(1);
         experiences[0].Organization.ShouldBe("Acme AB");
+    }
+
+    // #2353 (senior-cto-advisor D8, rule B): "Beta AB, Stockholm" is an organisation form and a known
+    // place, so it is an employer line, and the header-shaped line above it is its role. The reading
+    // is unique, so the later two-line entry is cut whatever the first entry's layout.
+    [Fact]
+    public void Segment_LaterTwoLineEntryWithAnEmployerLine_IsCut()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Testledare — Acme AB", "2020 – 2023", "Testade betalflöden."],
+            ["Utvecklare", "Beta AB, Stockholm", "2016 – 2020", "Byggde tjänster."])).Content.Experience;
+
+        experiences.Select(e => e.Title).ShouldBe(["Testledare", "Utvecklare"]);
+        experiences.Select(e => e.Organization).ShouldBe(["Acme AB", "Beta AB, Stockholm"]);
+        experiences.Select(e => e.Period).ShouldBe(["2020 – 2023", "2016 – 2020"]);
     }
 
     // A dated line whose text before the date ends a sentence is description, never a dated header.
@@ -386,12 +402,29 @@ public class EntryBoundariesSegmentationTests
     public void Segment_UnpunctuatedIntroAboveTheFirstHeader_StaysFused()
     {
         var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
-            ["Konsultuppdrag via Konsultbolaget Alfa AB"],
-            ["Testledare — Kund Ett AB", "2020 – 2023", "Teknik: Playwright, Azure DevOps"],
-            ["Utvecklare — Kund Två AB", "2018 – 2020", "Teknik: Java, Spring"])).Content.Experience;
+            ["Konsultuppdrag via Konsultbolaget Alfa"],
+            ["Testledare — Kund Ett", "2020 – 2023", "Teknik: Playwright, Azure DevOps"],
+            ["Utvecklare — Kund Två", "2018 – 2020", "Teknik: Java, Spring"])).Content.Experience;
 
         experiences.Count.ShouldBe(1);
         experiences.ShouldNotContain(e => e.Title != null && e.Title.StartsWith("Teknik", StringComparison.Ordinal));
+    }
+
+    // #2353 (senior-cto-advisor D8, rule A): a header whose second field names an organisation and
+    // whose first does not is a role and its employer, so the unpunctuated line above it is no role.
+    // The intro is routed, as in the punctuated twin below.
+    [Fact]
+    public void Segment_UnpunctuatedIntroAboveARoleAndOrganisationHeader_IsRoutedAndTheEntriesAreCut()
+    {
+        var content = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Konsultuppdrag via Konsultbolaget Alfa AB"],
+            ["Testledare — Kund Ett AB", "2020 – 2023", "Teknik: Playwright, Azure DevOps"],
+            ["Utvecklare — Kund Två AB", "2018 – 2020", "Teknik: Java, Spring"])).Content;
+
+        content.Experience.Select(e => e.Title).ShouldBe(["Testledare", "Utvecklare"]);
+        content.Experience.Select(e => e.Organization).ShouldBe(["Kund Ett AB", "Kund Två AB"]);
+        content.Sections.Single(s => s.Heading == "Arbetslivserfarenhet").Entries
+            .Single().Lines.ShouldBe(["Konsultuppdrag via Konsultbolaget Alfa AB"]);
     }
 
     [Fact]
@@ -467,14 +500,145 @@ public class EntryBoundariesSegmentationTests
         experiences[0].Title.ShouldBe("Testledare");
     }
 
-    // Accepted and known: "Role" / "Employer, City" reads as a two-line header and as an intro over a
-    // one-line header alike, so the run is not cut.
+    // Accepted and known (#2346, re-scoped 2026-11-27): "Role" / "Employer, City" reads as a two-line
+    // header and as an intro over a one-line header alike unless the vocabularies decide it. "Acme AB,
+    // Göteborg" is an employer line, so the first entry is read (rule B). "Volvo Cars" carries no
+    // organisation form and Torslanda is not a tätort in SCB's 2025 data, so neither rule B nor rule C
+    // reads the second, and the run stays one entry.
     [Fact]
     public void Segment_TwoLineHeaderWhoseEmployerLineCarriesACity_StaysFused()
     {
         var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
             ["Systemutvecklare", "Acme AB, Göteborg", "2019 – 2024", "Byggde integrationer."],
             ["Backend-utvecklare", "Volvo Cars, Torslanda", "2015 – 2019", "Byggde tjänster."])).Content.Experience;
+
+        experiences.Count.ShouldBe(1);
+        experiences[0].Title.ShouldBe("Systemutvecklare");
+        experiences[0].Organization.ShouldBe("Acme AB, Göteborg");
+    }
+
+    // #2353 rule C: in a run whose first entry fixed the two-line layout, "Employer, known place" is
+    // an organisation line even without an organisation form.
+    [Fact]
+    public void Segment_TwoLineRunWhoseLaterEmployerLineNamesAKnownPlace_IsCut()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Systemutvecklare", "Acme AB, Göteborg", "2019 – 2024", "Byggde integrationer."],
+            ["Backend-utvecklare", "Volvo Cars, Göteborg", "2015 – 2019", "Byggde tjänster."])).Content.Experience;
+
+        experiences.Select(e => e.Title).ShouldBe(["Systemutvecklare", "Backend-utvecklare"]);
+        experiences.Select(e => e.Organization).ShouldBe(["Acme AB, Göteborg", "Volvo Cars, Göteborg"]);
+    }
+
+    // Rule C admits a comma before the place only: "Volvo Cars — Göteborg" may be a role and a city.
+    [Fact]
+    public void Segment_TwoLineRunWhoseLaterLowerLineDashesAPlace_StaysFused()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Systemutvecklare", "Acme AB, Göteborg", "2019 – 2024", "Byggde integrationer."],
+            ["Backend-utvecklare", "Volvo Cars — Göteborg", "2015 – 2019", "Byggde tjänster."])).Content.Experience;
+
+        experiences.Count.ShouldBe(1);
+    }
+
+    // Rule D on a two-line header's upper line, at the first anchor and at a later one: a line the
+    // extractor joined from a wrap, or one indented under the organisation line by more than a space,
+    // is no role, so no two-line header starts there.
+    [Theory]
+    [InlineData(1, null, 72.0, 2)]
+    [InlineData(1, 7, 72.0, 1)]
+    [InlineData(1, null, 90.0, 1)]
+    [InlineData(5, null, 72.0, 2)]
+    [InlineData(5, 7, 72.0, 1)]
+    [InlineData(5, null, 90.0, 1)]
+    public void Segment_TwoLineHeaderWhoseUpperLineCannotHeadTheRange_IsNotCut(
+        int upperLine, int? firstSegmentLength, double left, int expectedEntries)
+    {
+        string[] lines =
+        [
+            "Arbetslivserfarenhet",
+            "Systemutvecklare", "Exempel Konsult", "2019 – 2024", "Byggde integrationer.",
+            "Backend-utvecklare", "Exempel Data", "2015 – 2019", "Byggde tjänster.",
+        ];
+        var text = string.Join('\n', lines);
+        var margin = new CvLineProvenance(null, 72.0, 3.0);
+        var provenance = CvTextProvenance.For(text,
+            [.. lines.Select((_, i) => i == upperLine ? new CvLineProvenance(firstSegmentLength, left, 3.0) : margin)]);
+
+        _sut.Segment(text, provenance).Content.Experience.Count.ShouldBe(expectedEntries);
+    }
+
+    // In a period-first run the line below a date is that date's header, so an employer line never
+    // heads the date below it there (rule B), and each period keeps its own employer.
+    [Fact]
+    public void Segment_PeriodFirstRunOfEmployerLines_CutsAtEachPeriod()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["2020 – 2023", "Acme AB, Göteborg"],
+            ["2016 – 2020", "Beta AB, Stockholm", "Byggde tjänster."])).Content.Experience;
+
+        experiences.Select(e => e.Period).ShouldBe(["2020 – 2023", "2016 – 2020"]);
+        experiences.Select(e => e.Organization).ShouldBe(["Acme AB, Göteborg", "Beta AB, Stockholm"]);
+        experiences.ShouldAllBe(e => e.Title == null);
+    }
+
+    // Rule D in a period-first run: an unpunctuated description line indented under the next date is
+    // no header for it, so the date starts the next entry.
+    [Theory]
+    [InlineData(72.0, 1)]
+    [InlineData(90.0, 2)]
+    public void Segment_PeriodFirstRunWhoseLineAboveADateIsIndented_IsCutAtTheDate(double left, int expectedEntries)
+    {
+        string[] lines =
+        [
+            "Arbetslivserfarenhet",
+            "2020 – 2023", "Testledare — Acme AB", "Testade betalflöden",
+            "2016 – 2020", "Utvecklare — Beta AB", "Byggde tjänster.",
+        ];
+        var text = string.Join('\n', lines);
+        var margin = new CvLineProvenance(null, 72.0, 3.0);
+        var provenance = CvTextProvenance.For(text,
+            [.. lines.Select((_, i) => i == 3 ? new CvLineProvenance(null, left, 3.0) : margin)]);
+
+        _sut.Segment(text, provenance).Content.Experience.Count.ShouldBe(expectedEntries);
+    }
+
+    // A bulleted line is content, never an employer line, even when it names an organisation and a place.
+    [Fact]
+    public void Segment_BulletNamingAnOrganisationAndAPlaceAboveADate_IsNoHeader()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Testledare — Acme AB", "2020 – 2023", "• Uppdrag hos Exempel AB, Göteborg", "2021 – 2022",
+             "Testade betalflöden."])).Content.Experience;
+
+        experiences.ShouldHaveSingleItem().Organization.ShouldBe("Acme AB");
+    }
+
+    // The field reader's "role / organisation line / period" reading holds only for that shape. A date
+    // above the organisation line, a first line that names an organisation itself, or a period that is
+    // not the third line keeps the reading the entry had.
+    [Theory]
+    [InlineData("2020 – 2023|Exempel AB|2016 – 2020|Beta AB", null, "Exempel AB")]
+    [InlineData("Testare — Acme AB|Beta AB, Stockholm|2020 – 2023|Testade betalflöden.", "Testare", "Acme AB")]
+    [InlineData("Utvecklare, backend|Acme AB|Byggde integrationer.|2019 – 2024", "Utvecklare", "backend")]
+    public void Segment_EntryOutsideTheRoleOrganisationPeriodShape_ReadsAsBefore(
+        string entryLines, string? expectedTitle, string expectedOrganization)
+    {
+        var experience = _sut.Segment(Cv(false, "Arbetslivserfarenhet", entryLines.Split('|'))).Content.Experience
+            .ShouldHaveSingleItem();
+
+        experience.Title.ShouldBe(expectedTitle);
+        experience.Organization.ShouldBe(expectedOrganization);
+    }
+
+    // Rule A reads a role and its employer. An organisation on both sides is neither, so the
+    // unpunctuated line above keeps the run fused.
+    [Fact]
+    public void Segment_OrganisationOnBothSidesBelowAnUnpunctuatedLine_StaysFused()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Testledare — Kund Ett AB", "2020 – 2023", "Testade betalflöden"],
+            ["Konsultbolaget Alfa AB — Kund Två AB", "2018 – 2020", "Byggde tjänster."])).Content.Experience;
 
         experiences.Count.ShouldBe(1);
     }
@@ -649,6 +813,216 @@ public class EntryBoundariesSegmentationTests
         result.Content.Experience.ShouldBeEmpty();
     }
 
+    // ── #2353: organisation identity (senior-cto-advisor D8) ─────────────────────────
+    //
+    // The test user's CV, rebuilt with an invented person and invented employers: three roles in
+    // three layouts, as a browser prints a list with no glyph in the text layer.
+
+    private static readonly string[] TestUserExperience =
+    [
+        "QA Engineer — Exempelbolaget AB",
+        "2021 – 2024",
+        "Automated 35 regression tests with Selenium and C#, reducing the regression cycle from two days to four hours",
+        "Designed a test strategy for the payment service together with three development teams",
+        "Mentored two junior testers",
+        "Test Analyst",
+        "Fiktiva Konsult AB, Malmö",
+        "2018 – 2021",
+        "Responsible for manual test cases for an insurance portal used by customers of an insurer",
+        "Reported defects in Jira and followed them up with the developers until they were closed",
+        "Support Technician — Exempel IT AB",
+        "2016 – 2018",
+        "Handled 40 support tickets a week for a municipal school network with about 1,200 users",
+    ];
+
+    private static string TestUserCv(IEnumerable<string> experience, string terminator) =>
+        string.Join('\n', [
+            "TESTA TESTSSON", "070-000 00 00 | testa.testsson@example.com | Åkersberga",
+            "EXPERIENCE",
+            .. experience.Select(l => l.Length > 40 || l.StartsWith("Mentored", StringComparison.Ordinal) ? l + terminator : l),
+            "EDUCATION", "BSc Computer Science — Exempeluniversitetet", "2015 – 2018"]);
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(".")]
+    public void Segment_TheTestUsersThreeRoles_AreThreeEntries(string terminator)
+    {
+        var experiences = _sut.Segment(TestUserCv(TestUserExperience, terminator)).Content.Experience;
+
+        experiences.Select(e => e.Title).ShouldBe(["QA Engineer", "Test Analyst", "Support Technician"]);
+        experiences.Select(e => e.Organization)
+            .ShouldBe(["Exempelbolaget AB", "Fiktiva Konsult AB, Malmö", "Exempel IT AB"]);
+        experiences.Select(e => e.Period).ShouldBe(["2021 – 2024", "2018 – 2021", "2016 – 2018"]);
+        experiences[0].RawText.ShouldEndWith("Mentored two junior testers" + terminator);
+    }
+
+    // Rule A on a Swedish CV whose list items are lower-case and unpunctuated.
+    [Fact]
+    public void Segment_RoleAndOrganisationHeaderBelowAnUnpunctuatedItem_IsCut()
+    {
+        var experiences = _sut.Segment(Cv(false, "Erfarenhet",
+            ["Säljare — Exempelbutiken AB", "2020 – 2024", "kassa", "kundservice", "varuplock och beställningar"],
+            ["Lagerarbetare — Fiktiva Lager AB", "2018 – 2020", "Plockade order."])).Content.Experience;
+
+        experiences.Select(e => e.Organization).ShouldBe(["Exempelbutiken AB", "Fiktiva Lager AB"]);
+        experiences[0].RawText.ShouldEndWith("varuplock och beställningar");
+    }
+
+    // "Role, City" reads as it always has, and "Karlstad" does not end in the word "stad", so the
+    // unpunctuated line above it keeps the run fused.
+    [Fact]
+    public void Segment_RoleAndCityHeaders_ReadAsBefore()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Testare, Göteborg", "2020 – 2023", "Testade betalflöden."],
+            ["Utvecklare, Halmstad", "2016 – 2020", "Byggde tjänster"],
+            ["Supporttekniker, Karlstad", "2014 – 2016", "Svarade på ärenden."])).Content.Experience;
+
+        experiences.Select(e => e.Title).ShouldBe(["Testare", "Utvecklare"]);
+        experiences.Select(e => e.Organization).ShouldBe(["Göteborg", "Halmstad"]);
+        experiences[1].RawText.ShouldContain("Supporttekniker, Karlstad");
+    }
+
+    // A foreign organisation form over a Swedish place is an employer line too.
+    [Fact]
+    public void Segment_ForeignOrganisationFormAndASwedishPlace_IsAnEmployerLine()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Testledare — Acme AB", "2020 – 2023", "Testade betalflöden"],
+            ["Utvecklare", "Beta Ltd, Göteborg", "2016 – 2020", "Byggde tjänster."])).Content.Experience;
+
+        experiences.Select(e => e.Title).ShouldBe(["Testledare", "Utvecklare"]);
+        experiences.Select(e => e.Organization).ShouldBe(["Acme AB", "Beta Ltd, Göteborg"]);
+    }
+
+    // Accepted and known: a place outside SCB's Swedish data is no known place, so an employer
+    // there reads as it did before, with or without an organisation form.
+    [Theory]
+    [InlineData("Beta Ltd, Reading")]
+    [InlineData("Google, Dublin")]
+    public void Segment_EmployerLineNamingAPlaceOutsideSweden_StaysFused(string employerLine)
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Testledare — Acme AB", "2020 – 2023", "Testade betalflöden"],
+            ["Utvecklare", employerLine, "2016 – 2020", "Byggde tjänster."])).Content.Experience;
+
+        experiences.Count.ShouldBe(1);
+        experiences[0].Organization.ShouldBe("Acme AB");
+    }
+
+    // A role line above an organisation line above the period is read whole, separator and all,
+    // whether the run was split or the entry stands alone.
+    [Fact]
+    public void Segment_TwoLineHeaderWhoseRoleCarriesASeparator_KeepsTheRoleWhole()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Testledare — Acme AB", "2020 – 2023", "Testade betalflöden."],
+            ["Test Analyst, QA", "Beta AB, Stockholm", "2016 – 2020", "Byggde tjänster."])).Content.Experience;
+        var alone = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Utvecklare, backend", "Acme AB", "2019 – 2024", "Byggde integrationer."])).Content.Experience
+            .ShouldHaveSingleItem();
+        var commaPlace = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Utvecklare, backend", "Volvo Cars, Göteborg", "2015 – 2019", "Byggde tjänster."])).Content.Experience
+            .ShouldHaveSingleItem();
+
+        experiences[1].Title.ShouldBe("Test Analyst, QA");
+        experiences[1].Organization.ShouldBe("Beta AB, Stockholm");
+        alone.Title.ShouldBe("Utvecklare, backend");
+        alone.Organization.ShouldBe("Acme AB");
+        commaPlace.Title.ShouldBe("Utvecklare, backend");
+        commaPlace.Organization.ShouldBe("Volvo Cars, Göteborg");
+    }
+
+    // Point 4 (ii): an employer line with no line above it that can be its role heads the entry
+    // alone. The whole line is the organisation and no title is read.
+    [Fact]
+    public void Segment_EmployerLineWithNoRoleAboveIt_IsCutWithNoTitle()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["QA Engineer — Exempelbolaget AB", "2021 – 2024", "Mentored two junior testers."],
+            ["Fiktiva Konsult AB, Malmö", "2018 – 2021", "Reported defects in Jira."])).Content.Experience;
+
+        experiences.Count.ShouldBe(2);
+        experiences[1].Title.ShouldBeNull();
+        experiences[1].Organization.ShouldBe("Fiktiva Konsult AB, Malmö");
+        experiences[1].Period.ShouldBe("2018 – 2021");
+    }
+
+    // "Employer, City" / "Role" / period keeps the reading it had: the employer line is not beside
+    // its period, so nothing decides that its second line is the role.
+    [Fact]
+    public void Segment_EmployerLineAboveARoleLine_ReadsAsBefore()
+    {
+        var experience = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["Exempel AB, Göteborg", "Testare", "2020 – 2023", "Testade betalflöden."])).Content.Experience
+            .ShouldHaveSingleItem();
+
+        experience.Title.ShouldBe("Exempel AB");
+        experience.Organization.ShouldBe("Göteborg");
+    }
+
+    // Accepted and known (senior-cto-advisor 2026-11-27, point 2): with no geometry, as in a DOCX, an
+    // unmarked and unpunctuated last item directly above a role-less employer line is read as that
+    // job's role. From PDF bytes the item's indent or glyph excludes it (see the bytes tests below).
+    [Fact]
+    public void Segment_UnmarkedLastItemAboveARolelessEmployerLine_IsReadAsItsRole()
+    {
+        var experiences = _sut.Segment(Cv(false, "Arbetslivserfarenhet",
+            ["QA Engineer — Exempelbolaget AB", "2021 – 2024", "Mentored two junior testers"],
+            ["Fiktiva Konsult AB, Malmö", "2018 – 2021", "Reported defects in Jira."])).Content.Experience;
+
+        experiences[1].Title.ShouldBe("Mentored two junior testers");
+        experiences[1].Organization.ShouldBe("Fiktiva Konsult AB, Malmö");
+    }
+
+    // Rule D from the extractor's geometry: a line joined from a wrap, or one indented under the
+    // employer line by more than the employer line's own space width, cannot be its role.
+    [Theory]
+    [InlineData(12, 72.0, 3.0, null)]
+    [InlineData(null, 90.0, 3.0, null)]
+    [InlineData(null, 90.0, 20.0, null)]
+    [InlineData(null, 75.0, 3.0, "Mentored two junior testers")]
+    [InlineData(null, 73.0, 3.0, "Mentored two junior testers")]
+    public void Segment_LineAboveARolelessEmployerLine_IsItsRoleOnlyWhenItCanHeadTheRange(
+        int? firstSegmentLength, double left, double space, string? expectedTitle)
+    {
+        string[] lines =
+        [
+            "Arbetslivserfarenhet",
+            "QA Engineer — Exempelbolaget AB", "2021 – 2024", "Mentored two junior testers",
+            "Fiktiva Konsult AB, Malmö", "2018 – 2021", "Reported defects in Jira.",
+        ];
+        var text = string.Join('\n', lines);
+        var margin = new CvLineProvenance(null, 72.0, 3.0);
+        var provenance = CvTextProvenance.For(text,
+        [
+            margin, margin, margin, new CvLineProvenance(firstSegmentLength, left, space), margin, margin, margin,
+        ]);
+
+        var experiences = _sut.Segment(text, provenance).Content.Experience;
+
+        experiences.Count.ShouldBe(2);
+        experiences[1].Title.ShouldBe(expectedTitle);
+        experiences[1].Organization.ShouldBe("Fiktiva Konsult AB, Malmö");
+    }
+
+    // The boundary reader asks the same place question as the contact block: a tätort that is no
+    // kommun is the CV's location in the contact block and an employer's place in an entry.
+    [Fact]
+    public void Segment_ATätortIsAPlaceForTheContactBlockAndForAnEmployerLineAlike()
+    {
+        var content = _sut.Segment(string.Join('\n',
+            "Testa Testsson", "testa@example.com | 070-000 00 00 | Hjärup", "",
+            "Erfarenhet",
+            "Testare — Exempelbolaget AB", "2020 – 2024", "Testade betalflöden",
+            "Utvecklare", "Fiktiva Konsult AB, Bunkeflostrand", "2016 – 2020", "Byggde tjänster.")).Content;
+
+        content.Contact.Location.ShouldBe("Hjärup");
+        (content.Preamble ?? string.Empty).ShouldNotContain("Hjärup");
+        content.Experience.Select(e => e.Organization)
+            .ShouldBe(["Exempelbolaget AB", "Fiktiva Konsult AB, Bunkeflostrand"]);
+    }
+
     // ── From real bytes, through the production extractor ─────────────────────────
 
     [Fact]
@@ -685,6 +1059,78 @@ public class EntryBoundariesSegmentationTests
             experiences[i].Title.ShouldBe(Expected[i].Role, $"entry {i}");
             experiences[i].Organization.ShouldBe(Expected[i].Organization, $"entry {i}");
         }
+    }
+
+    // #2353: the test user's CV as a browser prints it — list items indented, with no glyph in the
+    // text layer — through the production extractor and its line geometry.
+    private static readonly HashSet<string> TestUserHeaders = new(StringComparer.Ordinal)
+    {
+        "QA Engineer — Exempelbolaget AB", "2021 – 2024", "Test Analyst", "Fiktiva Konsult AB, Malmö",
+        "2018 – 2021", "Support Technician — Exempel IT AB", "2016 – 2018",
+    };
+
+    private static byte[] RenderTestUserCv(IEnumerable<string> experience, Func<string, bool> indented) =>
+        QuestDocument.Create(container =>
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(2, Unit.Centimetre);
+                page.DefaultTextStyle(t => t.FontSize(9));
+                page.Content().Column(col =>
+                {
+                    foreach (var line in (string[])["Testa Testsson", "testa@example.com | 070-000 00 00", "Experience"])
+                        col.Item().Text(line);
+                    foreach (var line in experience)
+                        col.Item().PaddingLeft(indented(line) ? 18 : 0).Text(line);
+                    foreach (var line in (string[])["Education", "BSc Computer Science — Exempeluniversitetet", "2015 – 2018"])
+                        col.Item().Text(line);
+                });
+            })).GeneratePdf();
+
+    private (IReadOnlyList<ParsedExperience> Experiences, CvExtractionResult Extraction) ExtractAndSegment(byte[] bytes)
+    {
+        var extraction = _extractor.Extract(bytes, CvFileKind.Pdf, CancellationToken.None);
+        extraction.Status.ShouldBe(CvExtractionStatus.Extracted);
+        return (_sut.Segment(extraction.RawText, extraction.Provenance).Content.Experience, extraction);
+    }
+
+    [Fact]
+    public void ExtractAndSegment_TheTestUsersThreeRolesFromPdfBytes_AreThreeEntries()
+    {
+        var (experiences, _) = ExtractAndSegment(
+            RenderTestUserCv(TestUserExperience, line => !TestUserHeaders.Contains(line)));
+
+        experiences.Select(e => e.Title).ShouldBe(["QA Engineer", "Test Analyst", "Support Technician"]);
+        experiences.Select(e => e.Organization)
+            .ShouldBe(["Exempelbolaget AB", "Fiktiva Konsult AB, Malmö", "Exempel IT AB"]);
+        experiences.Select(e => e.Period).ShouldBe(["2021 – 2024", "2018 – 2021", "2016 – 2018"]);
+    }
+
+    // The PDF twin of the text residual above (senior-cto-advisor 2026-11-27, point 2): the last item
+    // above a role-less employer line is excluded by its indent or by its glyph, so the employer line
+    // heads the entry alone, with no title (point 4 (ii)).
+    [Theory]
+    [InlineData(true, "Mentored two junior testers")]
+    [InlineData(false, "• Mentored two junior testers")]
+    public void ExtractAndSegment_IndentedOrMarkedItemAboveARolelessEmployerLine_IsNoRole(
+        bool indent, string lastItem)
+    {
+        string[] experience =
+        [
+            "QA Engineer — Exempelbolaget AB", "2021 – 2024", lastItem,
+            "Fiktiva Konsult AB, Malmö", "2018 – 2021", "Reported defects in Jira.",
+        ];
+
+        var (experiences, extraction) = ExtractAndSegment(RenderTestUserCv(experience, line => indent && line == lastItem));
+
+        var lines = extraction.RawText.Split('\n');
+        var item = Array.FindIndex(lines, l => l.Trim() == lastItem);
+        item.ShouldBeGreaterThan(0, "the fixture's last item is one extracted line");
+        extraction.Provenance[item].Measured.ShouldBeTrue("the premise: the extractor measured the item's line");
+        experiences.Count.ShouldBe(2);
+        experiences[1].Title.ShouldBeNull();
+        experiences[1].Organization.ShouldBe("Fiktiva Konsult AB, Malmö");
+        experiences[1].Period.ShouldBe("2018 – 2021");
     }
 
     [Fact]

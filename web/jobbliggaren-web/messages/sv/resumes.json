@@ -111,7 +111,7 @@
     },
     "passCriterionLabel": "Godkänns när",
     "notAssessedKind": {
-      "TextOnly": "Går inte att läsa ur CV:ts text",
+      "TextOnly": "Gäller filen, inte texten",
       "InsufficientData": "För lite underlag i CV:t",
       "NotInVersion": "Ingår inte i den här versionen",
       "RequiresJobAd": "Bedöms mot en jobbannons"
@@ -153,7 +153,7 @@
   "preamble": {
     "title": "Text ovanför första rubriken.",
     "body": "Vi tolkar den inte som ett avsnitt.",
-    "useHint": "Vill du använda den? Ge den en rubrik i din fil, till exempel Profil, och ladda upp filen igen.",
+    "useHint": "Om det är en profiltext, ge den en rubrik i din fil, till exempel Profil, och ladda upp filen som ett nytt CV.",
     "show": "Visa texten",
     "hide": "Dölj texten"
   },
@@ -161,6 +161,13 @@
     "groupLabel": "Välj granskningsprofil",
     "ats": "ATS-profil",
     "visual": "Visuell profil"
+  },
+  "languageChoice": {
+    "label": "CV:t är skrivet på",
+    "swedish": "Svenska",
+    "english": "Engelska",
+    "saving": "Sparar…",
+    "savedAt": "Sparat {time}"
   },
   "preview": {
     "trigger": "Öppna CV-filen",
@@ -424,7 +431,8 @@
     "deleteFailed": "Kunde inte radera CV:t.",
     "deleteVersionFailed": "Kunde inte radera versionen.",
     "discardFailed": "Kunde inte ta bort utkastet.",
-    "statusUpdateFailed": "Det gick inte att uppdatera åtgärdsstatusen. Ladda om granskningen och försök igen."
+    "statusUpdateFailed": "Det gick inte att uppdatera åtgärdsstatusen. Ladda om granskningen och försök igen.",
+    "languageUpdateFailed": "Det gick inte att byta språk. Försök igen om en stund."
   },
   "enums": {
     "verdict": {

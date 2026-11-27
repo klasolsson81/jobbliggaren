@@ -67,8 +67,7 @@ public sealed record CvReviewContext(
                     : null,
                 content.Profile,
                 content.Experience
-                    .Select(e => new ReviewableExperience(
-                        e.Title, e.Organization, e.Period, null, null, e.RawText, TextIsDescriptionOnly: false))
+                    .Select(ReviewableExperience.FromParsed)
                     .ToList(),
                 content.Education
                     .Select(e => new ReviewableEducation(e.Institution, e.Degree))

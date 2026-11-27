@@ -4,12 +4,12 @@
     "description": "How Jobbliggaren's CV review works: fully rule-based, no AI. Four verdicts with cited evidence, no hidden score, and improvement suggestions you work in yourself."
   },
   "title": "How we review your CV",
-  "updated": "Last updated: 2026-06-29",
+  "updated": "Last updated: 2026-11-27",
   "intro": "Jobbliggaren reviews your CV with fixed rules, without AI, and shows exactly where in the text each verdict comes from. Here we explain how the review works and how the improvement suggestions are given.",
   "deterministic": {
     "heading": "Fully rule-based, no AI",
     "paragraphs": [
-      "The review is rule-based. We read the text in your uploaded CV (PDF or Word) and compare it against a versioned knowledge bank of criteria, using local Swedish language tools on our server. No AI, no language models, nothing is sent to any external service.",
+      "The review is rule-based. We read the text in your uploaded CV (PDF or Word) and compare it against a versioned knowledge bank of criteria, using local language tools on our server. No AI, no language models, nothing is sent to any external service.",
       "Because the engine only compares rules, it can only point to what your CV actually says. It does not guess and never invents qualifications you have not written."
     ],
     "pipelineLabel": "How the review works",
@@ -59,7 +59,7 @@
         "quote": null,
         "observation": null,
         "note": null,
-        "reason": "This version reads the text in your CV, not the page layout, so fonts and colors are not assessed. We say so openly instead of guessing."
+        "reason": "This is about the file, not the text in your CV."
       }
     ]
   },
@@ -78,8 +78,8 @@
     ]
   },
   "assessable": {
-    "heading": "What we can and cannot assess from text",
-    "intro": "Because we read the text in your CV, not the page's appearance, some things are not assessed in this version. We mark them as not assessed instead of pretending.",
+    "heading": "What we assess and what we do not",
+    "intro": "Some things are not assessed in this version. We mark them as not assessed.",
     "assessedLabel": "Assessed",
     "assessed": [
       "Content, for example measurable results and concrete examples",
@@ -89,7 +89,7 @@
     ],
     "notAssessedLabel": "Not assessed in this version",
     "notAssessed": [
-      "Visual hierarchy, fonts and colors",
+      "Visual hierarchy and colors",
       "Deeper grammar",
       "Career progression over time"
     ]

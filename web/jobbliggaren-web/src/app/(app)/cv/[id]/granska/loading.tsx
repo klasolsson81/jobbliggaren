@@ -47,6 +47,9 @@ export default function Loading() {
           <div className="jp-cvledger__head">
             <span className="jp-skeleton block h-7 w-80 max-w-full" />
             <span className="jp-skeleton block h-9 w-56 max-w-full" />
+            <span className="jp-cvledger__language">
+              <span className="jp-skeleton block h-9 w-72 max-w-full" />
+            </span>
           </div>
           <div className="jp-cvstrip">
             {DIMENSIONS.map((dimension) => (

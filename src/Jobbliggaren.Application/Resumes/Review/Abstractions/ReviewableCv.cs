@@ -1,3 +1,5 @@
+using Jobbliggaren.Domain.Resumes.Parsing;
+
 namespace Jobbliggaren.Application.Resumes.Review.Abstractions;
 
 /// <summary>
@@ -48,12 +50,12 @@ public sealed record ReviewableContact(
 /// <summary>
 /// One work-experience entry in the unified view. The two arms fill it differently and
 /// <see cref="TextIsDescriptionOnly"/> records which contract <see cref="Text"/> honors:
-/// staging supplies the segmenter's verbatim block (header line + period line +
-/// description; <c>false</c>) with the freeform <see cref="PeriodText"/>; canonical
-/// supplies the pure description (<c>true</c>) with structured
-/// <see cref="StartDate"/>/<see cref="EndDate"/> (open end = ongoing) — and, since
-/// honest date absence (CTO-bind 5a-pre), a date-less canonical entry also carries
-/// <see cref="PeriodText"/> (the verbatim RawPeriod) so the period stays recoverable.
+/// staging supplies the entry's description when the segmenter read one (<c>true</c>), and
+/// otherwise the segmenter's verbatim block (header line + period line + description;
+/// <c>false</c>), with the freeform <see cref="PeriodText"/>; canonical supplies the pure
+/// description (<c>true</c>) with structured <see cref="StartDate"/>/<see cref="EndDate"/> (open
+/// end = ongoing) — and, since honest date absence (CTO-bind 5a-pre), a date-less canonical entry
+/// also carries <see cref="PeriodText"/> (the verbatim RawPeriod) so the period stays recoverable.
 /// </summary>
 public sealed record ReviewableExperience(
     string? Title,
@@ -62,7 +64,21 @@ public sealed record ReviewableExperience(
     DateOnly? StartDate,
     DateOnly? EndDate,
     string Text,
-    bool TextIsDescriptionOnly);
+    bool TextIsDescriptionOnly)
+{
+    /// <summary>A parsed entry on the staging arm (#2353): its description when the segmenter read
+    /// one, otherwise the verbatim block of an entry parsed before it did.</summary>
+    public static ReviewableExperience FromParsed(ParsedExperience experience)
+    {
+        ArgumentNullException.ThrowIfNull(experience);
+
+        return experience.Description is { } description
+            ? new(experience.Title, experience.Organization, experience.Period, null, null, description,
+                TextIsDescriptionOnly: true)
+            : new(experience.Title, experience.Organization, experience.Period, null, null, experience.RawText,
+                TextIsDescriptionOnly: false);
+    }
+}
 
 /// <summary>One education entry — A10 verdicts on institution + degree presence.</summary>
 public sealed record ReviewableEducation(

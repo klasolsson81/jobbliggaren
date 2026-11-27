@@ -14,6 +14,7 @@ import {
 } from "./resume-schemas";
 import type { ResumeContentDto } from "@/lib/types/resumes";
 import { createdResourceSchema } from "@/lib/dto/common";
+import { resumeLanguageSchema, type ResumeLanguage } from "@/lib/dto/resumes";
 import { parseResponse } from "@/lib/dto/_helpers";
 import { mapActionError } from "./_action-error";
 import { isValidId } from "@/lib/validation/guid";
@@ -465,6 +466,53 @@ export async function setFindingStatusAction(
       return {
         success: false,
         error: mapActionError(res, tr("statusUpdateFailed"), te),
+      };
+    }
+  } catch {
+    return { success: false, error: tr("serverUnreachable") };
+  }
+
+  revalidatePath(`/cv/${resumeId}/granska`);
+  revalidatePath("/cv");
+  return { success: true };
+}
+
+/**
+ * Sets the saved CV's language (#2353, ADR 0191): the review page's language choice. The backend
+ * re-runs the review in that language to reconcile the finding ledger, so the review page and the
+ * CV list are revalidated. A refusal is mapped by `mapActionError`, which never reads the
+ * ProblemDetails body; a 5xx gets the choice's own message.
+ */
+export async function setResumeLanguageAction(
+  resumeId: string,
+  language: ResumeLanguage
+): Promise<ActionResult> {
+  const tr = await getTranslations("resumes.actions");
+  const te = await getTranslations("errors");
+  const sessionId = await getSessionId();
+  if (!sessionId) return { success: false, error: tr("notLoggedIn") };
+
+  if (!isValidId(resumeId)) {
+    return { success: false, error: tr("invalidResumeId") };
+  }
+  if (!resumeLanguageSchema.safeParse(language).success) {
+    return { success: false, error: tr("invalidData") };
+  }
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `/api/v1/resumes/${encodeURIComponent(resumeId)}/language`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ language }),
+      }
+    );
+
+    if (!res.ok) {
+      return {
+        success: false,
+        error: mapActionError(res, tr("languageUpdateFailed"), te),
       };
     }
   } catch {

@@ -137,3 +137,23 @@ One PR on `fix/cv-review-opener-and-english` for #2341 and #2352. The members it
   - International, verbs: Careers New Zealand: https://careers.govt.nz/articles/improve-your-cv-by-using-action-words
   - International, clichés: Monster: https://www.monster.com/career-advice/resume/resume-buzzwords
   - International, clichés: Hays: https://www.hays.com.au/career-advice/resumes-cover-letters/cv-cliches-to-avoid
+
+## Amendment 2026-11-27 (#2353) — a saved CV's review page carries a language choice, and the write is rate limited
+
+> **Provenance.** Written by `adr-keeper` for the driving session from its brief; it adds no decision of its own. Additive: nothing above this heading is rewritten. It records Klas's answer and `design-reviewer`'s pre-code ruling (`docs/reviews/2026-11-27-2353-r3-design-reviewer-precode.md`, decision 4; local and gitignored). Code facts were read at the head `ef2d6584f` of `fix/cv-user-feedback` in `C:/tmp/jbl-cv-user` on 2026-11-27.
+
+**The answer.** On 2026-11-27 Klas answered, to whether a saved CV's review page gets a language choice in #2353, verbatim: "Ja, språkval i #2353 (Rek.)".
+
+**Why.** D8 gave a saved CV the language its parse detected and refused a backfill, because it would rewrite saved CVs without the owner acting. A CV whose language was detected wrongly, or that was saved as Swedish before D8, had no screen on which its owner could act. This control is that screen. D8 stands: nothing is backfilled.
+
+**What is built.**
+- **A choice** labelled "CV:t är skrivet på", with the options "Svenska" and "Engelska", on the saved CV's review page (`/cv/[id]/granska`). It writes `PUT /api/v1/resumes/{id}/language` with the body `{ "language": "Sv" | "En" }` (`SetResumeLanguageCommand`; 204 on success).
+- **`ResumeDetailDto.Language`** carries the saved language, spelled as `ResumeListItemDto.Language` spells it (`ResumeLanguage.Name`). The web's schema requires it, so a response without it is refused and the field cannot be silently absent.
+- **The write carries `MeWritePolicy`** (and `RequireAuthorization()`), as `PUT …/review/findings/{criterionId}/status` and the parsed-CV promote and discard writes do, because each call re-runs the review under both profiles to reconcile the finding ledger. Two other resume writes that also reconcile, `PUT /api/v1/resumes/{id}/master` and `POST /api/v1/resumes`, carry no such limit. `senior-cto-advisor` (2026-11-27) put that to `security-auditor` as a question for her to grade; this amendment decides nothing about it.
+- **Placement and states** (design-reviewer's ruling): the choice has its own row, last in the review's identity row (`.jp-cvledger__head`), full width and left-aligned. It is a `Segment` radio group whose visible label is also the group's accessible name. It applies directly and optimistically: the chosen option shows at once, "Sparar…" shows while the write runs and "Sparat {time}" after it, and on a refusal the previous choice is restored and the error shows as an alert. The options stay focusable while the write is in flight (`aria-disabled`, not `disabled`). A click on the chosen option sends nothing. The hub card is not the place: the effect shows under the control on the review page, where the defect is found, and the card's action row is already full; the card's "SV" and "EN" stay as status.
+
+**A switch changes which finding a criterion carries.** Re-running the review with the other language's lists and dictionary can replace a criterion's finding. ADR 0097's Amendment 2026-11-27 keeps an "Åtgärdad" mark on the finding it was set on, and lands before this control.
+
+**D7's list markers.** D7 left a letter or a number used as a list marker to #2353's shared marker set. #2353 built that set (`CvLineShapes`) from the exporters it measured on 2026-11-27: the synthetic Google Docs export carries "●" and the Word export "•" in the PDF's text layer, both already in the set, and U+F0B7 appeared in neither. No code point was added. A letter marker (Word's second-level "o") and a numbered marker ("1. ") remain not covered and not measured.
+
+ADR 0191 remains **Accepted**.

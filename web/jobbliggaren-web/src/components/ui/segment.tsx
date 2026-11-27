@@ -27,29 +27,43 @@ export interface SegmentOption<T extends string> {
   disabled?: boolean;
 }
 
-interface SegmentProps<T extends string> {
+/**
+ * The group's accessible name, required (radiogroup contract): a label of its own, or the id of a
+ * visible label that names it (#2353), so the visible text and the name cannot drift apart.
+ */
+type SegmentName =
+  | { "aria-label": string; "aria-labelledby"?: never }
+  | { "aria-labelledby": string; "aria-label"?: never };
+
+type SegmentProps<T extends string> = SegmentName & {
   value: T;
   onChange: (value: T) => void;
   options: ReadonlyArray<SegmentOption<T>>;
-  /** Tillgänglighets-label för hela gruppen. Krävs (radiogroup-kontrakt). */
-  "aria-label": string;
   /** Sätt true för att stänga av alla optioner (t.ex. under spar-pending). */
   disabled?: boolean;
+  /**
+   * A save is in flight (#2353): the options are announced as unavailable and ignore input, but
+   * stay focusable. `disabled` would drop focus to the body and dim the checked option below its
+   * contrast (DESIGN.md §6, #1391).
+   */
+  pending?: boolean;
   /**
    * Space-separated ids of the text describing the group — hint and, when the value was
    * refused, the error (a11y skill §5). Lands on the `radiogroup`, which is where a
    * screen reader reads a description for the whole set of options.
    */
   "aria-describedby"?: string;
-}
+};
 
 export function Segment<T extends string>({
   value,
   onChange,
   options,
   "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
   "aria-describedby": ariaDescribedBy,
   disabled = false,
+  pending = false,
 }: SegmentProps<T>) {
   const groupRef = useRef<HTMLDivElement>(null);
 
@@ -59,6 +73,7 @@ export function Segment<T extends string>({
       return;
     }
     e.preventDefault();
+    if (pending) return;
     const enabled = options
       .map((o, i) => ({ o, i }))
       .filter(({ o }) => !o.disabled && !disabled);
@@ -93,9 +108,12 @@ export function Segment<T extends string>({
       ref={groupRef}
       role="radiogroup"
       aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
       aria-describedby={ariaDescribedBy}
+      aria-busy={pending || undefined}
       onKeyDown={handleKeyDown}
       className="jp-segment"
+      data-pending={pending || undefined}
     >
       {options.map((opt) => {
         const isActive = opt.value === value;
@@ -106,13 +124,13 @@ export function Segment<T extends string>({
             type="button"
             role="radio"
             aria-checked={isActive}
-            aria-disabled={isDisabled || undefined}
+            aria-disabled={isDisabled || pending || undefined}
             disabled={isDisabled}
             tabIndex={isActive ? 0 : -1}
             className="jp-segment__opt"
             data-active={isActive}
             onClick={() => {
-              if (!isDisabled) onChange(opt.value);
+              if (!isDisabled && !pending) onChange(opt.value);
             }}
           >
             {opt.icon && (

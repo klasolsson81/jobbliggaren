@@ -349,11 +349,10 @@ internal static partial class DatePatterns
     /// implementation: one knowledge piece, one home (DRY, CLAUDE.md §9.1), which is the same move
     /// that gave <see cref="DatePatterns"/> and <see cref="PeriodParser"/> their neutral home.
     ///
-    /// <para><b>Two readers, and they must agree</b> — three call sites across them: the segmenter
-    /// reads the reduction in <c>StripTrailingPeriod</c> and this predicate directly in
-    /// <c>SplitTitleOrganization</c>. The segmenter asks it to refuse a field —
-    /// a line carrying no field must not BECOME one (#1060 β-3) — and
-    /// <see cref="Review.Rules.ReviewText.DescriptionLines"/> asks it to refuse a bullet, so the
+    /// <para><b>Two readers, and they must agree.</b> The segmenter reads the reduction in
+    /// <c>StripTrailingPeriod</c> and <see cref="EntryHeader"/>, and this predicate in
+    /// <c>SplitTitleOrganization</c>, to refuse a field — a line carrying no field must not BECOME
+    /// one (#1060 β-3). <see cref="EntryDescription.Lines"/> asks it to refuse a bullet, so the
     /// review engine never scores the user's date row as prose. Before the promotion those two
     /// agreed only by accident: the review side suppressed such a line via its
     /// organization-equality test, which fired only BECAUSE the segmenter had fabricated the line

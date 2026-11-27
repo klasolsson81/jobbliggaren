@@ -63,5 +63,6 @@ internal static class ResumeMappingExtensions
             .Where(v => v.DeletedAt is null)
             .Select(v => v.ToDto())
             .ToList(),
-        r.TemplateOptions.ToDto());
+        r.TemplateOptions.ToDto(),
+        r.Language.Name);
 }

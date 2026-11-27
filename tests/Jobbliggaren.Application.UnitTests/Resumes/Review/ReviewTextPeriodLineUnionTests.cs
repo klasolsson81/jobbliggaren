@@ -7,7 +7,8 @@ using static Jobbliggaren.Application.UnitTests.Resumes.Review.CvReviewFixtures;
 namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 
 /// <summary>
-/// #1060 β-3 follow-up — <c>ReviewText.DescriptionLines</c>' period test is a UNION
+/// #1060 β-3 follow-up — the period test <c>ReviewText.DescriptionBullets</c> reads a block with
+/// (<c>EntryDescription.Lines</c>, since #2353) is a UNION
 /// (<c>PeriodParser.TryParse(line, …) || DatePatterns.IsDateOnlyLine(line)</c>), and this class
 /// exists to make that union's two halves INDIVIDUALLY load-bearing. Neither predicate subsumes
 /// the other, so a substitution in either direction is a suppression regression. The axes on which
@@ -15,13 +16,13 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// <c>DatePatternsDateOnlyLineTests</c>; no total is published there or here.
 ///
 /// <para><b>What a released row actually reaches, corrected after measurement.</b> An earlier
-/// revision of this docblock said <c>DescriptionLines</c> feeds <c>WeakVerbTransform</c>, "which
+/// revision of this docblock said <c>DescriptionBullets</c> feeds <c>WeakVerbTransform</c>, "which
 /// proposes a rewrite of every bullet", and cited CLAUDE.md §5 "synthesising prose the user did not
 /// write". Both halves are false. <c>WeakVerbTransform.Propose</c> emits a change only for a bullet
 /// OPENING with a drop-in-safe weak verb from the KnowledgeBank mapping, and NO date row opens with
 /// one — it is offered the row and DECLINES it; the replacement is a verbatim KnowledgeBank value,
 /// so it could not synthesise even if it fired. (The transform IS offered the row: its bullet unit
-/// is <c>DescriptionLines</c> itself — read at <c>WeakVerbTransform.cs:34</c>, which iterates this
+/// is <c>DescriptionBullets</c> itself — read at <c>WeakVerbTransform.cs</c>, which iterates this
 /// method; no test HERE calls <c>Propose</c> (<c>CvImprovementEngineTests</c> does, via
 /// <c>SuggestAsync</c> — an unqualified "no test calls it" would be false). What is MEASURED below is that the
 /// <c>ParsedExperience</c> overload suppresses the row. Saying the transform is not offered it
@@ -29,11 +30,11 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 ///
 /// <para>ONE consumer acts on a row this union releases: A1/A2/A6 via
 /// <c>ReviewText.ExperienceBullets</c>. <c>StructureRules</c>' B5 also reads
-/// <c>DescriptionLines</c> and its bullet-marker set does contain the en dash — but it does NOT act
+/// <c>DescriptionBullets</c> and its bullet-marker set does contain the en dash — but it does NOT act
 /// on any form in play here, and <c>LeadMarker</c> has TWO guards that must be kept apart.
-/// <b>Guard one</b> (<c>StructureRules.cs:362</c>) needs a marker glyph followed by whitespace — the
+/// <b>Guard one</b> (<c>StructureRules.cs</c>) needs a marker glyph followed by whitespace — the
 /// forms this union RELEASES all open with a digit or a letter, so B5 never reaches its second
-/// guard on them. <b>Guard two</b> (<c>:372-376</c>, written for exactly "- 2020 – nuvarande") nulls
+/// guard on them. <b>Guard two</b> (written for exactly "- 2020 – nuvarande") nulls
 /// a marker whose remainder <c>PeriodParser</c> parses — that is what disarms the
 /// leading-separator form, which this union SUPPRESSES anyway.</para>
 ///
@@ -64,22 +65,22 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// <c>YYYY/MM</c> form A1 returned an affirmative Pass noting "kvantifierad uppgift". <b>The
 /// widening closed it for three of the four forms it added; the fourth, <c>YYYY/MM</c>, reopened in
 /// round 5 (decision D′) and closed again in ADR 0136</b> — see
-/// <see cref="DescriptionLines_SuppressesTheSlashDateRow_ThroughTheDatePatternsDisjunctAlone"/> below.
+/// <see cref="DescriptionBullets_SuppressesTheSlashDateRow_ThroughTheDatePatternsDisjunctAlone"/> below.
 /// The verdicts live in <c>DateModelWideningReviewSideTests</c>; what is run and pinned HERE is the
 /// bullet unit, which is where the cause is.</para>
 ///
 /// <para><b>The pin's whole purpose is to redden under EITHER substitution</b>, which is why the
 /// two directions are separate test methods with disjoint inputs:
 /// <list type="bullet">
-/// <item>Drop the <c>DatePatterns</c> disjunct → <see cref="DescriptionLines_ShouldSuppressTheDateRow_WhereOnlyDatePatternsReachesIt"/> reddens.</item>
-/// <item>Drop the <c>PeriodParser</c> disjunct → <see cref="DescriptionLines_ShouldStillSuppressTheDateRow_WhereOnlyPeriodParserReachesIt"/> reddens.</item>
+/// <item>Drop the <c>DatePatterns</c> disjunct → <see cref="DescriptionBullets_ShouldSuppressTheDateRow_WhereOnlyDatePatternsReachesIt"/> reddens.</item>
+/// <item>Drop the <c>PeriodParser</c> disjunct → <see cref="DescriptionBullets_ShouldStillSuppressTheDateRow_WhereOnlyPeriodParserReachesIt"/> reddens.</item>
 /// </list>
 /// A pin that passes under both forms measures nothing, so neither method may be merged into the
 /// other or widened to inputs both predicates reach.</para>
 ///
 /// <para><b>Why THIS layout, and it is load-bearing.</b> Every case runs the REAL
 /// <c>HeadingDrivenResumeSegmenter</c> over a "Title / Company / Dates / bullet" CV — the layout
-/// <c>DescriptionLines</c>' own docblock names. The date row is then <c>Lines[2]</c>, the
+/// <c>DescriptionBullets</c>' own docblock names. The date row is then <c>Lines[2]</c>, the
 /// organisation is genuinely "Acme AB", and the organisation-equality test at the call site
 /// CANNOT fire on the date row. That is what isolates the period test: in the two-line
 /// "Title / Dates" layout the segmenter fabricates the date row into <c>Organization</c> and the
@@ -116,8 +117,8 @@ public class ReviewTextPeriodLineUnionTests
         // WeakVerbTransform's (#534). A union that suppressed on one arm only would be a
         // half-closed hole, and (b6) names the improve arm specifically.
         return (
-            ReviewText.DescriptionLines(reviewable).ToList(),
-            ReviewText.DescriptionLines(staging).ToList(),
+            ReviewText.DescriptionBullets(reviewable).ToList(),
+            ReviewText.DescriptionBullets(staging).ToList(),
             staging.Organization);
     }
 
@@ -134,7 +135,7 @@ public class ReviewTextPeriodLineUnionTests
     }
 
     [Fact]
-    public void DescriptionLines_ShouldSuppressTheDateRow_WhereOnlyDatePatternsReachesIt()
+    public void DescriptionBullets_ShouldSuppressTheDateRow_WhereOnlyDatePatternsReachesIt()
     {
         // THE β-3 RESIDUAL THE UNION CLOSED — this line was yielded as a description bullet
         // before the promotion. PeriodParser anchors ^…$ and splits on the first separator, so a
@@ -161,7 +162,7 @@ public class ReviewTextPeriodLineUnionTests
     // ISOLATES the PeriodParser half — this method's whole job — and keeping it would have turned a
     // kill into a row that passes under either substitution. It moved to
     // DatePatternsAlternationOrderingTests. The two rows left are still individually load-bearing.
-    public void DescriptionLines_ShouldStillSuppressTheDateRow_WhereOnlyPeriodParserReachesIt(
+    public void DescriptionBullets_ShouldStillSuppressTheDateRow_WhereOnlyPeriodParserReachesIt(
         string dateLine, string axis)
     {
         // THE TRAP, PINNED. These are the forms a SUBSTITUTION would have lost: PeriodParser is
@@ -183,7 +184,7 @@ public class ReviewTextPeriodLineUnionTests
     }
 
     [Fact]
-    public void DescriptionLines_ShouldStillYieldARealBullet_WhenTheEntryCarriesOne()
+    public void DescriptionBullets_ShouldStillYieldARealBullet_WhenTheEntryCarriesOne()
     {
         // The pin above cannot be satisfied by suppressing everything. A prose bullet carrying a
         // digit — the shape A1 scores as a measurable result — must survive both halves of the
@@ -212,7 +213,7 @@ public class ReviewTextPeriodLineUnionTests
     [InlineData("2018 – 2019/20")]
     [InlineData("2020 – 2024/12")]
     [InlineData("2020-06 – 2024/12")]
-    public void DescriptionLines_ShouldNowSuppressTheDateRow_OnTheLayoutWhereItUsedToEscape(
+    public void DescriptionBullets_ShouldNowSuppressTheDateRow_OnTheLayoutWhereItUsedToEscape(
         string dateLine)
     {
         // THE ESCAPE THIS TEST WAS WRITTEN TO MEASURE IS CLOSED (#1060 road 3, commit 2), and the
@@ -245,7 +246,7 @@ public class ReviewTextPeriodLineUnionTests
     }
 
     [Fact]
-    public void DescriptionLines_SuppressesTheSlashDateRow_ThroughTheDatePatternsDisjunctAlone()
+    public void DescriptionBullets_SuppressesTheSlashDateRow_ThroughTheDatePatternsDisjunctAlone()
     {
         // WHICH HALF OF THE UNION DOES IT, asserted rather than assumed — the property this class
         // exists for. PeriodParser still refuses "2020/01 – 2024/12" (ADR 0136 changed no reading),
@@ -258,7 +259,7 @@ public class ReviewTextPeriodLineUnionTests
             "so the LINE half is what suppresses it, alone.");
 
         // And the suppression is RUN, not inferred from the two predicates above: this method is
-        // named for DescriptionLines, so it calls it.
+        // named for DescriptionBullets, so it calls it.
         var (review, improve, organization) = BulletsFor("2020/01 – 2024/12");
 
         organization.ShouldBe("Acme AB",

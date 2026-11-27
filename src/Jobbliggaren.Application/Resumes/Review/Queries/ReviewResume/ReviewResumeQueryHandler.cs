@@ -16,7 +16,7 @@ namespace Jobbliggaren.Application.Resumes.Review.Queries.ReviewResume;
 /// canonical adapter. Mirrors <c>ReviewParsedResumeQueryHandler</c>: owner-resolve,
 /// FirstOrDefault by Id + JobSeekerId, cross-user attempt logged, null on not-found.
 /// The response merges the persisted finding-status overlay (D2(e)) onto the freshly
-/// computed verdicts — see <see cref="BuildStatusOverlay"/> for the honesty rules.
+/// computed verdicts — see <see cref="FindingStatusOverlay"/> for the honesty rules.
 /// </summary>
 public sealed class ReviewResumeQueryHandler(
     IAppDbContext db,
@@ -71,48 +71,11 @@ public sealed class ReviewResumeQueryHandler(
         var context = CvReviewContext.FromCanonical(content, linearized, resume.Language);
         var result = await engine.ReviewAsync(context, profile, cancellationToken);
 
-        var overlay = BuildStatusOverlay(resume.FindingStatuses, result);
+        var overlay = FindingStatusOverlay.Build(resume.FindingStatuses, result, fingerprinter);
 
         // One GetRubric() materialization feeds every per-criterion projection (heading,
         // IsIgnorable, the "Godkänns när" clause). The canonical review is the one the status UI
         // acts on, so its IsIgnorable drives the Ignorera gate.
         return result.ToDto(rubricProvider.GetRubric().Criteria, overlay);
-    }
-
-    /// <summary>
-    /// Merges the persisted status ledger onto the fresh verdicts (CTO-bind PR-4 Q3
-    /// interaction). Coarse staleness (<c>StaleAt</c>, stamped on content change) is
-    /// resolved by the FINE fingerprint: a Resolved-and-stale decision whose fingerprint
-    /// still matches the criterion's current finding is genuinely unresolved → surfaced
-    /// with its staleness ("marked fixed, still present"); one whose fingerprint no
-    /// longer matches is about a finding that no longer exists → silently cleared (never
-    /// a fabricated lingering warning, CLAUDE.md §5). Fresh decisions pass through as-is;
-    /// statuses keyed to another rubric version never carry over (D2(e) key boundary).
-    /// </summary>
-    private Dictionary<string, (string Status, DateTimeOffset? StaleAt)> BuildStatusOverlay(
-        IReadOnlyList<ResumeFindingStatus> statuses, CvReviewResult result)
-    {
-        var version = result.RubricVersion.ToString();
-        var byCriterion = statuses
-            .Where(s => s.RubricVersion == version)
-            .ToDictionary(s => s.CriterionId, StringComparer.Ordinal);
-
-        var overlay = new Dictionary<string, (string, DateTimeOffset?)>(StringComparer.Ordinal);
-        foreach (var verdict in result.Verdicts)
-        {
-            if (!byCriterion.TryGetValue(verdict.CriterionId, out var row))
-                continue;
-
-            if (row.Status == ReviewFindingStatus.Resolved && row.StaleAt is not null)
-            {
-                var currentFingerprint = fingerprinter.Compute(result.RubricVersion, verdict);
-                if (!string.Equals(currentFingerprint, row.TargetFingerprint, StringComparison.Ordinal))
-                    continue;
-            }
-
-            overlay[verdict.CriterionId] = (row.Status.Name, row.StaleAt);
-        }
-
-        return overlay;
     }
 }

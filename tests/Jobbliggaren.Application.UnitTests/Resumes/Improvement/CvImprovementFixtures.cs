@@ -105,7 +105,7 @@ internal static class CvImprovementFixtures
     // The realistic entry shape HeadingDrivenResumeSegmenter emits (parity CvReviewFixtures,
     // #487/#534): a header line (title — organisation), the period on its own line, then the
     // description bullets one per line. The scored bullet openers (A2 / WeakVerbUpgrade) are the
-    // DESCRIPTION lines — never the header/period (ReviewText.DescriptionLines). Passing `bullets`
+    // DESCRIPTION lines — never the header/period (ReviewText.DescriptionBullets). Passing `bullets`
     // builds that multi-line shape; a null `bullets` keeps the pre-#534 single-line default
     // byte-identical, so every non-WeakVerb default-experience test is unaffected.
     private static string BuildEntryRawText(

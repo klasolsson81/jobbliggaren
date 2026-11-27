@@ -111,7 +111,7 @@
     },
     "passCriterionLabel": "Passes when",
     "notAssessedKind": {
-      "TextOnly": "Can't be read from the CV's text",
+      "TextOnly": "About the file, not the text",
       "InsufficientData": "Too little to go on in the CV",
       "NotInVersion": "Not part of this version",
       "RequiresJobAd": "Assessed against a job ad"
@@ -153,7 +153,7 @@
   "preamble": {
     "title": "Text above the first heading.",
     "body": "We do not read it as a section.",
-    "useHint": "Want to use it? Give it a heading in your file, for example Profile, and upload the file again.",
+    "useHint": "If it is profile text, give it a heading in your file, for example Profile, and upload the file as a new CV.",
     "show": "Show the text",
     "hide": "Hide the text"
   },
@@ -161,6 +161,13 @@
     "groupLabel": "Choose review profile",
     "ats": "ATS profile",
     "visual": "Visual profile"
+  },
+  "languageChoice": {
+    "label": "The CV is written in",
+    "swedish": "Swedish",
+    "english": "English",
+    "saving": "Saving…",
+    "savedAt": "Saved {time}"
   },
   "preview": {
     "trigger": "Open your CV file",
@@ -424,7 +431,8 @@
     "deleteFailed": "Could not delete the CV.",
     "deleteVersionFailed": "Could not delete the version.",
     "discardFailed": "Could not remove the draft.",
-    "statusUpdateFailed": "Could not update the finding status. Reload the review and try again."
+    "statusUpdateFailed": "Could not update the finding status. Reload the review and try again.",
+    "languageUpdateFailed": "Could not change the language. Try again in a moment."
   },
   "enums": {
     "verdict": {

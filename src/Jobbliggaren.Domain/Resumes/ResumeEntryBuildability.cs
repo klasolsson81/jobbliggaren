@@ -101,11 +101,11 @@ public static class ResumeEntryBuildability
             return Result.Failure(DomainError.Validation(
                 "Resume.ExperienceRoleTooLong", "Roll får vara max 200 tecken."));
 
-        // #855: cap the description prose body (2000, client .max parity — and closes an
-        // internal inconsistency: the sibling prose field Summary is already capped 2000).
-        // Length-only; Description is optional. Inline, NOT coupled to Summary's 2000 (they may
-        // diverge — spurious DRY otherwise).
-        if (experience.Description is { Length: > 2_000 })
+        // #855: cap the description prose body (client .max parity — and closes an internal
+        // inconsistency: the sibling prose field Summary is already capped 2000). Length-only;
+        // Description is optional. Its own constant, NOT coupled to Summary's 2000 (they may
+        // diverge — spurious DRY otherwise); the auto-promote mapper reads the same constant.
+        if (experience.Description is { Length: > Experience.DescriptionMaxLength })
             return Result.Failure(DomainError.Validation(
                 "Resume.ExperienceDescriptionTooLong",
                 "Beskrivning får vara max 2 000 tecken."));

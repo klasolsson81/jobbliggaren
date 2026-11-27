@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Resumes.Common;
@@ -11,13 +12,17 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Common;
 // buildability gate downstream owns rejection.
 public class AutoPromoteContentMapperTests
 {
+    // The description the segmenter stores for an entry (#2353): EntryDescription.Lines of its block.
+    private static ParsedExperience Described(ParsedExperience entry) =>
+        entry with { Description = string.Join('\n', EntryDescription.Lines(entry.RawText, entry.Organization)) };
+
     private static ParsedResumeContent FullParse() => new(
         new ParsedContact("Fil Namnsson", "fil@example.com", "070-1234567", "Stockholm"),
         profile: "Erfaren backend-utvecklare.",
         experience:
         [
-            new ParsedExperience("Backend-utvecklare", "Beta AB", "2019–2022",
-                "Backend-utvecklare, Beta AB\n2019–2022\nByggde betaltjänster."),
+            Described(new ParsedExperience("Backend-utvecklare", "Beta AB", "2019–2022",
+                "Backend-utvecklare, Beta AB\n2019–2022\nByggde betaltjänster.")),
         ],
         education: [new ParsedEducation("KTH", "Civilingenjör", "2013–2018", "raw edu")],
         skills: ["C#", "PostgreSQL"],
@@ -127,16 +132,49 @@ public class AutoPromoteContentMapperTests
         exp.RawPeriod.ShouldBe("2019–2022");
     }
 
-    /// <summary>The Description fork, bound Option (a): RawText is the whole entry block —
-    /// header lines included — and must never become the canonical description (render
+    /// <summary>#2353 (senior-cto-advisor D11): the segmenter's description promotes verbatim. RawText,
+    /// the whole entry block with its header lines, is never the canonical description (render
     /// duplication + TextIsDescriptionOnly review corruption; CTO-bind §1).</summary>
     [Fact]
-    public void ToContentDto_ExperienceDescriptionIsNull_RawTextNeverCarried()
+    public void ToContentDto_ExperienceDescription_IsTheSegmentersDescription_NeverTheBlock()
     {
         var exp = AutoPromoteContentMapper.ToContentDto(FullParse())
             .Experiences.ShouldHaveSingleItem();
 
-        exp.Description.ShouldBeNull();
+        exp.Description.ShouldBe("Byggde betaltjänster.");
+    }
+
+    /// <summary>A description over the canonical cap promotes as none, so a description never moves
+    /// an entry from Promoted to Blocked; one at the cap promotes whole.</summary>
+    [Theory]
+    [InlineData(Experience.DescriptionMaxLength, true)]
+    [InlineData(Experience.DescriptionMaxLength + 1, false)]
+    public void ToContentDto_DescriptionAtAndOverTheCap(int length, bool promoted)
+    {
+        var line = "B" + new string('x', length - 1);
+        var parse = FullParse() with
+        {
+            Experience = [Described(new ParsedExperience("Utvecklare", "Beta AB", "2019–2022",
+                "Utvecklare — Beta AB\n2019–2022\n" + line))],
+        };
+
+        var exp = AutoPromoteContentMapper.ToContentDto(parse).Experiences.ShouldHaveSingleItem();
+
+        exp.Description.ShouldBe(promoted ? line : null);
+    }
+
+    /// <summary>An entry stored before the segmenter read descriptions carries none, and promotes
+    /// with none: the block is never re-parsed at promotion.</summary>
+    [Fact]
+    public void ToContentDto_AnEntryParsedBeforeDescriptions_PromotesWithNone()
+    {
+        var parse = FullParse() with
+        {
+            Experience = [new ParsedExperience("Backend-utvecklare", "Beta AB", "2019–2022",
+                "Backend-utvecklare, Beta AB\n2019–2022\nByggde betaltjänster.")],
+        };
+
+        AutoPromoteContentMapper.ToContentDto(parse).Experiences.ShouldHaveSingleItem().Description.ShouldBeNull();
     }
 
     /// <summary>Pure projection: no truncation (an over-cap period reaches the gate

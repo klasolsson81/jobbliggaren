@@ -3335,6 +3335,23 @@ a.jp-settingsnav__item[aria-current="page"] .jp-settingsnav__icon {
   justify-content: space-between;
   gap: 16px;
 }
+/* The saved CV's language (#2353, design-reviewer): its own full-width row, last in the head and
+   left-aligned, so it never sits beside the profile toggle, which is a view and is not saved. */
+.jp-cvledger__language {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.jp-cvledger__language-label {
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-medium);
+  color: var(--jp-ink-1);
+}
+.jp-cvledger__language > p {
+  margin: 0;
+}
 .jp-cvledger__identity {
   display: flex;
   flex-wrap: wrap;

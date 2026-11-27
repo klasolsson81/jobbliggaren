@@ -180,7 +180,7 @@ public class HeadingDrivenResumeSegmenterTests
     }
 
     [Fact]
-    public void Segment_BareCityInTheContactBlock_ExtractsItFromTheMunicipalityLexicon()
+    public void Segment_BareCityInTheContactBlock_ExtractsItFromThePlaceLexicon()
     {
         // Klas's CV: "Göteborg" stands alone in the contact rail, with no label and no postal
         // code. The kommun vocabulary comes from the versioned taxonomy snapshot (ADR 0043) —
@@ -1209,15 +1209,21 @@ public class HeadingDrivenResumeSegmenterTests
     [Theory]
     [InlineData("Operatör - Acme AB", "Operatör", "Acme AB")]
     [InlineData("Klarna AB - Backend-utvecklare", "Klarna AB", "Backend-utvecklare")]
-    [InlineData("Verkstaden AB, Göteborg", "Verkstaden AB", "Göteborg")]
+    [InlineData("Verkstaden AB, Göteborg", null, "Verkstaden AB, Göteborg")]
     public void Segment_SameHeaderLine_SplitsIdentically_WhicheverLineCarriesIt(
-        string headerLine, string expectedTitle, string expectedOrganization)
+        string headerLine, string? expectedTitle, string expectedOrganization)
     {
-        // ACCEPTED-AND-KNOWN, not aspirational. Two of these three inputs produce a WRONG result:
-        // "Klarna AB - Backend-utvecklare" puts the employer in the role slot, and
-        // "Verkstaden AB, Göteborg" puts the city in the company slot. Both are pinned anyway,
-        // because the slot ORDER is deliberately un-guessed (senior-cto-advisor 2026-06-23) and
-        // guessing it is the one thing β-1 must not start doing.
+        // ACCEPTED-AND-KNOWN, not aspirational. Row 2 produces a WRONG result: "Klarna AB -
+        // Backend-utvecklare" puts the employer in the role slot. It is pinned anyway, because the
+        // slot ORDER is deliberately un-guessed (senior-cto-advisor 2026-06-23) and guessing it is
+        // the one thing β-1 must not start doing.
+        //
+        // ROW 3 FLIPPED in #2353 (senior-cto-advisor D8, point 4 (ii)). "Verkstaden AB, Göteborg" is
+        // an organisation form and a known place, so the line names the employer and no role, and the
+        // whole line is the organisation. That is the vocabulary deciding which side is which, not an
+        // inference about slot order; ADR 0193 ratifies it against the 2026-06-23 bind.
+        // Row 2 has no such evidence: an organisation form on the first side only was rejected as a
+        // rule (senior-cto-advisor 2026-11-27, point 3 (b)).
         //
         // WHAT THIS PIN IS FOR is the second assertion, not the first. β-1's defence is that
         // relocating the split adds no new class — the same line yields the same slots wherever it
@@ -1229,11 +1235,11 @@ public class HeadingDrivenResumeSegmenterTests
         // whole line to Organization and blocked on the missing Role. So the block was standing in
         // front of a FUSED field, not a correct one, which is why restoring it was refused.
         //
-        // HOW THIS PIN RETIRES, so it does not read as "never change this". Rows 2 and 3 encode an
+        // HOW THIS PIN RETIRES, so it does not read as "never change this". Row 2 encodes an
         // ACCEPTED defect, not a desired behaviour. The day the engine is given a lawful way to
-        // decide which side of a header line is the role — a ratified change to the 2026-06-23
-        // no-slot-guessing bind, not an inference added to this method — rows 2 and 3 SHOULD flip
-        // and this test should be edited, loudly, in that PR. Row 1 must never flip: it is the
+        // decide which side of such a line is the role — a ratified change to the 2026-06-23
+        // no-slot-guessing bind, not an inference added to this method — row 2 SHOULD flip and this
+        // test should be edited, loudly, in that PR, as row 3 was. Row 1 must never flip: it is the
         // correctly-ordered control and its two positions must always agree.
         var periodFirst = _sut.Segment(
             $"""

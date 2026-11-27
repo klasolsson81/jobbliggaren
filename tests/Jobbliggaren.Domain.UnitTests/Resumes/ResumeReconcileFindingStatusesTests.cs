@@ -147,18 +147,35 @@ public class ResumeReconcileFindingStatusesTests
     }
 
     [Fact]
-    public void ReconcileFindingStatuses_WhenActionableCriterionAlreadyResolved_KeepsResolved_NoSecondRow_NoFlip()
+    public void ReconcileFindingStatuses_WhenTheResolvedFindingIsStillTheSame_KeepsResolved_NoSecondRow()
     {
         var resume = CreateResume();
         resume.SetFindingStatus(Version, "A2", ReviewFindingStatus.Resolved, FpA, Clock);
 
-        // A2 is actionable again in the fresh review, but the user already Resolved it — reconcile
-        // must not add a second Open row and must not flip the decision back to Open.
-        resume.ReconcileFindingStatuses(Version, Actionable(new ReviewFindingSnapshot("A2", FpB)), LaterClock(1));
+        resume.ReconcileFindingStatuses(Version, Actionable(new ReviewFindingSnapshot("A2", FpA)), LaterClock(1));
 
         var row = resume.FindingStatuses.ShouldHaveSingleItem();
         row.CriterionId.ShouldBe("A2");
         row.Status.ShouldBe(ReviewFindingStatus.Resolved);
+        row.TargetFingerprint.ShouldBe(FpA);
+    }
+
+    [Fact]
+    public void ReconcileFindingStatuses_WhenTheResolvedFindingWasReplaced_ReopensAtTheCurrentFinding()
+    {
+        var resume = CreateResume();
+        resume.SetFindingStatus(Version, "A2", ReviewFindingStatus.Resolved, FpA, Clock);
+
+        // The reconciler fingerprints the engine's current verdict. A different fingerprint on the
+        // same criterion is another finding, e.g. after SetResumeLanguage re-reviews the CV with the
+        // other language's lists and dictionary (ADR 0191).
+        resume.ReconcileFindingStatuses(Version, Actionable(new ReviewFindingSnapshot("A2", FpB)), LaterClock(1));
+
+        var row = resume.FindingStatuses.ShouldHaveSingleItem();
+        row.CriterionId.ShouldBe("A2");
+        row.Status.ShouldBe(ReviewFindingStatus.Open);
+        row.TargetFingerprint.ShouldBe(FpB);
+        row.StaleAt.ShouldBeNull();
     }
 
     [Fact]

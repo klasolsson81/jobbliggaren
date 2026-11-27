@@ -620,6 +620,8 @@ public static class DependencyInjection
             Jobbliggaren.Application.Resumes.Abstractions.ICvLayoutAnalyzer,
             Resumes.Parsing.PdfPigCvLayoutAnalyzer>();
         services.AddCvLexicon();
+        // #2343: constructed here, so a missing or malformed place asset stops the host at start.
+        services.AddSingleton(Resumes.Parsing.CvPlaceLexiconLoader.Load());
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Abstractions.IResumeSegmenter,
             Resumes.Parsing.HeadingDrivenResumeSegmenter>();

@@ -85,6 +85,31 @@ public class GetResumeByIdQueryHandlerTests
         master.Content.Experiences.ShouldHaveSingleItem().Company.ShouldBe("Acme AB");
     }
 
+    /// <summary>#2353: the detail carries the CV's saved language, which the review page's language
+    /// choice shows. An imported CV keeps the language the import detected (ADR 0191).</summary>
+    [Theory]
+    [InlineData("Sv")]
+    [InlineData("En")]
+    public async Task Handle_WhenOwned_CarriesTheSavedLanguage(string language)
+    {
+        var content = new ResumeContent(new PersonalInfo("Klas Olsson", null, null, null));
+        var db = TestAppDbContextFactory.Create(new FakeContentHydrationInterceptor(resumeContent: content));
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        db.JobSeekers.Add(seeker);
+        var resume = Resume.CreateFromParsed(
+            seeker.Id, "Importerat CV", content,
+            new Domain.Resumes.Parsing.ParsedResumeId(Guid.NewGuid()), ResumeLanguage.FromName(language),
+            FakeDateTimeProvider.Default).Value;
+        db.Resumes.Add(resume);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await new GetResumeByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>())
+            .Handle(new GetResumeByIdQuery(resume.Id.Value), TestContext.Current.CancellationToken);
+
+        result.ShouldNotBeNull();
+        result.Language.ShouldBe(language);
+    }
+
     [Fact]
     public async Task Handle_WhenUserIdIsNull_ReturnsNull()
     {

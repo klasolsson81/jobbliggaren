@@ -137,4 +137,39 @@ describe("Segment — radiogroup-primitiv (F6 Prompt 2)", () => {
     // Bara "sv" är enabled → wrappar tillbaka till "sv" (samma value)
     expect(onChange).toHaveBeenCalledWith("sv");
   });
+
+  // #2353: a save in flight keeps the options focusable, so focus is never dropped to the body.
+  it("pending announces the options as unavailable, keeps them focusable, and ignores clicks and arrows", () => {
+    const onChange = vi.fn();
+    render(
+      <Segment
+        aria-label="Tema"
+        value="light"
+        onChange={onChange}
+        options={themeOptions}
+        pending
+      />,
+    );
+    const group = screen.getByRole("radiogroup");
+    expect(group).toHaveAttribute("aria-busy", "true");
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).toHaveAttribute("aria-disabled", "true");
+      expect(radio).not.toBeDisabled();
+    }
+    screen.getByRole("radio", { name: "Ljust" }).focus();
+    fireEvent.click(screen.getByRole("radio", { name: "Mörkt" }));
+    fireEvent.keyDown(group, { key: "ArrowRight" });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("radio", { name: "Ljust" })).toHaveFocus();
+  });
+
+  it("takes its accessible name from a visible label when given aria-labelledby", () => {
+    render(
+      <>
+        <span id="segment-label">CV:t är skrivet på</span>
+        <Segment aria-labelledby="segment-label" value="light" onChange={vi.fn()} options={themeOptions} />
+      </>,
+    );
+    expect(screen.getByRole("radiogroup", { name: "CV:t är skrivet på" })).toBeInTheDocument();
+  });
 });

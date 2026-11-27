@@ -297,27 +297,9 @@ internal sealed class B5ConsistentFormattingRule : ICriterionRule
 {
     public string CriterionId => "B5";
 
-    // The lead glyphs that mark a bullet/list item at the START of a trimmed description
-    // line. A detection-shape set (code, ADR 0093 §D3) — NOT a rubric threshold: two
-    // different bullet glyphs is inconsistency BY DEFINITION, not a tunable policy. Includes
-    // the ASCII hyphen/asterisk bullets and the common typographic bullet glyphs.
-    private static readonly HashSet<char> BulletMarkers =
-    [
-        '•', // • bullet
-        '◦', // ◦ white bullet
-        '‣', // ‣ triangular bullet
-        '·', // · middle dot
-        '●', // ● black circle
-        '○', // ○ white circle
-        '▪', // ▪ black small square
-        '▫', // ▫ white small square
-        '■', // ■ black square
-        '–', // – en dash
-        '—', // — em dash
-        '-',      // hyphen-minus (the common ASCII bullet)
-        '*',      // asterisk
-    ];
-
+    // The lead glyphs are CvLineShapes' list-item glyphs. A detection-shape set (code, ADR 0093
+    // §D3) — NOT a rubric threshold: two different bullet glyphs is inconsistency BY DEFINITION,
+    // not a tunable policy.
     public CvCriterionVerdict Evaluate(CriterionEvaluationContext context)
     {
         var category = context.Criterion.Category;
@@ -327,7 +309,7 @@ internal sealed class B5ConsistentFormattingRule : ICriterionRule
         var markers = new SortedSet<char>();
         foreach (var experience in context.Content.Experience)
         {
-            foreach (var line in ReviewText.DescriptionLines(experience))
+            foreach (var line in ReviewText.DescriptionBullets(experience))
             {
                 if (LeadMarker(line) is { } marker)
                 {
@@ -358,8 +340,7 @@ internal sealed class B5ConsistentFormattingRule : ICriterionRule
     // a real bullet is "marker + space + text").
     private static char? LeadMarker(string line)
     {
-        var trimmed = line.TrimStart();
-        if (trimmed.Length < 2 || !BulletMarkers.Contains(trimmed[0]) || !char.IsWhiteSpace(trimmed[1]))
+        if (!CvLineShapes.TryLeadMarker(line, out var marker))
         {
             return null;
         }
@@ -367,15 +348,15 @@ internal sealed class B5ConsistentFormattingRule : ICriterionRule
         // A marker (esp. the ambiguous "-") leading a BARE date range ("- 2020 – nuvarande") is
         // a period line, not a bullet STYLE — excluding it avoids a spurious mixed-marker Warn
         // (architect PR-6a Minor). A date-only line demonstrates no punctuation style, so
-        // dropping it costs nothing. Reuses the SAME parser DescriptionLines filters full
+        // dropping it costs nothing. Reuses the SAME parser DescriptionBullets filters full
         // period lines with (#487).
-        var rest = trimmed[1..].TrimStart();
+        var rest = line.TrimStart()[1..].TrimStart();
         if (PeriodParser.TryParse(rest, out _, out _, out _))
         {
             return null;
         }
 
-        return trimmed[0];
+        return marker;
     }
 }
 

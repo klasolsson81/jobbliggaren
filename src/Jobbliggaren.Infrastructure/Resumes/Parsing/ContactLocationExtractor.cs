@@ -43,11 +43,12 @@ internal static class ContactLocationExtractor
     internal static string? Extract(
         string rawText,
         IEnumerable<string> contactScope,
-        IReadOnlySet<string> locationLabels)
+        IReadOnlySet<string> locationLabels,
+        CvPlaceLexicon places)
     {
         return FromLabel(rawText, locationLabels)
             ?? FromPostalCode(rawText)
-            ?? FromBareMunicipality(contactScope);
+            ?? FromBarePlace(contactScope, places);
     }
 
     /// <summary>
@@ -111,7 +112,7 @@ internal static class ContactLocationExtractor
     }
 
     /// <summary>
-    /// Rung 3 — a bare kommun name, inside contact scope only (see the class remarks: an employer's
+    /// Rung 3 — a bare place name (a kommun or a tätort), inside contact scope only (see the class remarks: an employer's
     /// city must never become the person's home).
     ///
     /// <para><b>Fragment-wise, but ONLY on a line that carries a contact span</b> (#844). A
@@ -132,7 +133,7 @@ internal static class ContactLocationExtractor
     /// <para>A line with NO contact span keeps the original whole-line rule — so a plain "Göteborg" on
     /// its own line in the contact block still resolves, exactly as before.</para>
     /// </summary>
-    private static string? FromBareMunicipality(IEnumerable<string> contactScope)
+    private static string? FromBarePlace(IEnumerable<string> contactScope, CvPlaceLexicon places)
     {
         foreach (var line in contactScope)
         {
@@ -142,11 +143,11 @@ internal static class ContactLocationExtractor
             {
                 // No contact span ⇒ this is not a rail. Whole-line rule only (pre-#844 behaviour) —
                 // but TRIM THE GLUE FIRST, exactly as the subtraction does. A bulleted contact line
-                // ("• Göteborg") is TrimGlue'd before IsMunicipality on the subtraction side and was
+                // ("• Göteborg") is TrimGlue'd before the place lookup on the subtraction side and was
                 // NOT here, so the kommun was consumed by the subtraction and harvested by nobody:
                 // the city reached no field at all. The two sides must normalise identically, or the
                 // agreement is a claim rather than a fact.
-                if (ContactPatterns.TryBareMunicipalityLine(whole, out var bare))
+                if (ContactPatterns.TryBarePlaceLine(whole, places, out var bare))
                     return bare;
 
                 continue;
@@ -154,7 +155,7 @@ internal static class ContactLocationExtractor
 
             foreach (var fragment in InlineSeparators.Split(line))
             {
-                if (ContactPatterns.IsBareMunicipality(fragment))
+                if (ContactPatterns.IsBarePlace(fragment, places))
                     return InlineSeparators.TrimGlue(fragment);
             }
         }

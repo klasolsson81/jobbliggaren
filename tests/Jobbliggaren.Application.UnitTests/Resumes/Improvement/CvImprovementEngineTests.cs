@@ -384,7 +384,7 @@ public class CvImprovementEngineTests
     [Fact]
     public async Task SuggestAsync_ShouldAlignBeforeWithTheVerbatimOpener_WhenBulletHasLeadingWhitespace()
     {
-        // Regression guard on the load-bearing per-line Trim: ReviewText.DescriptionLines trims each
+        // Regression guard on the load-bearing per-line Trim: ReviewText.DescriptionBullets trims each
         // description line BEFORE the transform slices bullet[..Weak.Length], so the cited Before
         // equals the verbatim opener even when the line carries leading whitespace. (The #494 audit
         // called the naive slice a misalignment; it is NOT one while the trim stands — this red-flags
@@ -466,7 +466,7 @@ public class CvImprovementEngineTests
     {
         // #534 (improve-side analog of the review-side #487): on a REAL parsed CV the entry's
         // RawText opens with the title/organisation HEADER, not a description verb. The transform
-        // must score the DESCRIPTION bullets (ReviewText.DescriptionLines), so a weak opener in a
+        // must score the DESCRIPTION bullets (ReviewText.DescriptionBullets), so a weak opener in a
         // bullet is caught even though the header ("Backend-utvecklare — Acme AB") is not a weak
         // verb. Pre-#534 the transform read the whole block and matched the TITLE, so weak-verb
         // rewrites never fired in production. This is the load-bearing regression proof.
@@ -537,7 +537,7 @@ public class CvImprovementEngineTests
     public async Task SuggestAsync_ShouldNotProposeWeakVerbUpgrade_WhenTheEntryHasNoDescriptionBullets()
     {
         // #534: an experience with only a header/period line (no description bullets) yields nothing
-        // to score — even if the TITLE is shaped like a weak verb. Guards the empty-DescriptionLines
+        // to score — even if the TITLE is shaped like a weak verb. Guards the empty-DescriptionBullets
         // loop boundary directly.
         var safe = RealVerbMapping().WeakVerbs[0]; // "var ansvarig för"
         var resume = Resume(experience:

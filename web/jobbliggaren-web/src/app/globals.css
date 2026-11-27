@@ -3661,7 +3661,7 @@ a.jp-hero__quicklink:hover {
 .jp-segment__opt + .jp-segment__opt {
   border-left: 1px solid var(--jp-border-input);
 }
-.jp-segment__opt:hover:not([data-active="true"]):not(:disabled) {
+.jp-segment__opt:hover:not([data-active="true"]):not(:disabled):not([aria-disabled="true"]) {
   background: var(--jp-surface-3);
 }
 .jp-segment__opt:focus-visible {
@@ -3679,6 +3679,10 @@ a.jp-hero__quicklink:hover {
 .jp-segment__opt:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+/* A save in flight (#2353): the options keep focus and full contrast, so only the cursor says so. */
+.jp-segment[data-pending="true"] .jp-segment__opt {
+  cursor: progress;
 }
 .jp-segment__icon {
   display: inline-flex;

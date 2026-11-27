@@ -1293,4 +1293,47 @@ public class PreambleResidueTests
         // line. Observed on a844d7ed: the count reported 2 for one source line.
         profile.Evidence.ShouldContain("text dropped from 1 line(s) as contact-block material");
     }
+
+    // #2353 (senior-cto-advisor D10). Accepted and known: no field holds a profile link, so nothing
+    // recognises one. Since the tätort is a recognised place, a link written before it on the contact
+    // rail sits inside the contact block and is dropped with the counted drop, never silently.
+    [Fact]
+    public void Segment_ProfileLinkBeforeTheRailsPlace_IsDroppedAndCounted()
+    {
+        const string cv =
+            """
+            Testa Testsson | 070-000 00 00 | testa@example.com | LinkedIn: testa-testsson | Åkersberga
+
+            Experience
+            QA Engineer — Exempelbolaget AB
+            2021 – 2024
+            """;
+
+        var result = _sut.Segment(cv);
+        var profile = result.Confidence.Sections.First(s => s.Kind == ParsedSectionKind.Profile);
+
+        result.Content.Contact.Location.ShouldBe("Åkersberga");
+        (result.Content.Preamble ?? string.Empty).ShouldNotContain("LinkedIn");
+        profile.Evidence.ShouldContain("text dropped from 1 line(s) as contact-block material");
+    }
+
+    // A link written after the rail's last recognised fragment has left the contact block, so it is
+    // carried verbatim for the user to see.
+    [Fact]
+    public void Segment_ProfileLinkAfterTheRailsLastRecognisedFragment_StaysInTheCarrier()
+    {
+        const string cv =
+            """
+            Testa Testsson | 070-000 00 00 | testa@example.com | Åkersberga | LinkedIn: testa-testsson
+
+            Experience
+            QA Engineer — Exempelbolaget AB
+            2021 – 2024
+            """;
+
+        var content = _sut.Segment(cv).Content;
+
+        content.Contact.Location.ShouldBe("Åkersberga");
+        content.Preamble.ShouldBe("LinkedIn: testa-testsson");
+    }
 }

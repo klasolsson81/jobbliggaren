@@ -7,9 +7,9 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// #1060 β-3 follow-up — the promoted predicate's OWN surface.
 /// <c>DatePatterns.StripTrailingDate</c> / <c>DatePatterns.IsDateOnlyLine</c> became
 /// assembly-internal API (<c>DatePatterns</c> is <c>internal</c>, so the consumer set is closed
-/// and named) with THREE call sites across two types (<c>HeadingDrivenResumeSegmenter.StripTrailingPeriod</c>
-/// for the reduction, <c>HeadingDrivenResumeSegmenter.SplitTitleOrganization</c> for the predicate
-/// and <c>ReviewText.DescriptionBullets</c>), and until this file it had no direct test of its
+/// and named: <c>HeadingDrivenResumeSegmenter.StripTrailingPeriod</c> and <c>EntryHeader</c> for the
+/// reduction, <c>HeadingDrivenResumeSegmenter.SplitTitleOrganization</c> and
+/// <c>EntryDescription.Lines</c> for the predicate), and until this file it had no direct test of its
 /// own: both readers exercised it only through their own behaviour, so the shared contract was
 /// asserted nowhere. A predicate two engines depend on is pinned where it lives.
 ///
@@ -374,7 +374,7 @@ public class DatePatternsDateOnlyLineTests
         // exists, so nothing is stripped and the line is already empty. DECLARED UNREACHABLE from
         // every reader (CLAUDE.md §5), which is why the value is not a claim about production. No call site
         // can produce it: HeadingDrivenResumeSegmenter's entries carry only non-blank lines, and
-        // ReviewText.DescriptionBullets filters `l.Length > 0` before the period test runs. It is
+        // EntryDescription.Lines filters `l.Length > 0` before the period test runs. It is
         // pinned because the method is shared Infrastructure API that must not throw on the
         // degenerate input, NOT as a claim about what production does with an empty line.
         ShouldReduceTo(string.Empty, string.Empty);

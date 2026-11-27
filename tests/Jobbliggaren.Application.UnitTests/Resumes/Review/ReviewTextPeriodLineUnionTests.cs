@@ -7,7 +7,8 @@ using static Jobbliggaren.Application.UnitTests.Resumes.Review.CvReviewFixtures;
 namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 
 /// <summary>
-/// #1060 β-3 follow-up — <c>ReviewText.DescriptionBullets</c>' period test is a UNION
+/// #1060 β-3 follow-up — the period test <c>ReviewText.DescriptionBullets</c> reads a block with
+/// (<c>EntryDescription.Lines</c>, since #2353) is a UNION
 /// (<c>PeriodParser.TryParse(line, …) || DatePatterns.IsDateOnlyLine(line)</c>), and this class
 /// exists to make that union's two halves INDIVIDUALLY load-bearing. Neither predicate subsumes
 /// the other, so a substitution in either direction is a suppression regression. The axes on which

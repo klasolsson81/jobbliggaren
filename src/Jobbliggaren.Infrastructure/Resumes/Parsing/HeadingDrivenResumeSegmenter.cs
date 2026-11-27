@@ -383,7 +383,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
                 break;
 
             var (title, organization) = SplitTitleOrganization(entry, vocabulary);
-            result.Add(new ParsedExperience(title, organization, ExtractPeriod(entry), entry.Text));
+            var description = EntryDescription.Lines(entry.Text, organization);
+            result.Add(new ParsedExperience(
+                title, organization, ExtractPeriod(entry), entry.Text,
+                description.Count > 0 ? string.Join('\n', description) : null));
         }
 
         return result;
@@ -636,7 +639,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // from any non-blank line delimited by blanks, and StripTrailingPeriod consumes a bare
         // "2005 - 2010" or a bare "2005" whole). Without it, Lines[1] throws — and Segment is
         // called unguarded from ImportResumeCommandHandler, so that is a 500 on CV import.
-        var splitIndex = first.Length == 0 && entry.Lines.Count >= 2 ? 1 : 0;
+        var splitIndex = EntryHeader.LineIndex(entry.Lines);
         var splitLine = entry.Lines[splitIndex];
 
         // #2353 (senior-cto-advisor D8, point 4 (ii)): an employer line beside its period
@@ -722,7 +725,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         //
         // The predicate PROMOTION shipped first (the reduction below now lives in
         // DatePatterns.StripTrailingDate, with DatePatterns.IsDateOnlyLine defined as it, read by
-        // ReviewText.DescriptionBullets). It was necessary but NOT sufficient, exactly as this
+        // the review's description filter). It was necessary but NOT sufficient, exactly as this
         // paragraph said: it factored today's model into a shared home and inherited its blind
         // spot, so it closed the ReviewText residual and left THIS population to the widening.
         // Two deferrals, not one, and the promotion was the first.
@@ -787,7 +790,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // would name a remedy one of the two paths does not have.
     //
     // The reduction itself now lives in DatePatterns.StripTrailingDate, so that
-    // DatePatterns.IsDateOnlyLine — which ReviewText.DescriptionBullets reads — is defined AS this
+    // DatePatterns.IsDateOnlyLine — which EntryDescription.Lines reads — is defined AS this
     // reduction instead of as a second copy of it. This method stays because the paragraph above
     // is about the SEGMENTER's use of it, not about the reduction.
     private static string StripTrailingPeriod(string line) => DatePatterns.StripTrailingDate(line);

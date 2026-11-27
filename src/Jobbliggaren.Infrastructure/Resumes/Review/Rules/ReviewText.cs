@@ -91,157 +91,26 @@ internal static class ReviewText
 
     /// <summary>
     /// The description bullets of one experience entry in the unified view (Fas 4b PR-4,
-    /// ADR 0093 §D8). A canonical entry's <c>Text</c> IS the pure description
-    /// (<c>TextIsDescriptionOnly</c>) — every non-empty line is a bullet. A staging
-    /// entry's <c>Text</c> is the segmenter's verbatim block, so the header line
-    /// (title/organisation — always the first line the segmenter emits) and any line
-    /// that is purely the period or the organisation on its own line (the
-    /// "Title\nCompany\nDates" layout) are excluded (#487). Shared with the improve
-    /// engine's <c>WeakVerbTransform</c> (via the <see cref="ParsedExperience"/>
-    /// overload) so the review (A2) and improve sides score the SAME bullet unit
-    /// (#487 review side, #534 improve side).
+    /// ADR 0093 §D8). When <c>Text</c> is the pure description (<c>TextIsDescriptionOnly</c>: a
+    /// canonical entry, or a parsed entry whose description the segmenter read), every non-empty
+    /// line is a bullet. Otherwise <c>Text</c> is the verbatim block of an entry parsed before the
+    /// segmenter read descriptions, and its bullets are <see cref="EntryDescription.Lines"/>, the
+    /// function the segmenter stores them with (#2353). Shared with the improve engine's
+    /// <c>WeakVerbTransform</c> (via the <see cref="ParsedExperience"/> overload) so the review (A2)
+    /// and improve sides score the SAME bullet unit (#487 review side, #534 improve side).
     /// </summary>
-    internal static IEnumerable<string> DescriptionBullets(ReviewableExperience experience)
-    {
-        var lines = experience.Text
-            .Split('\n')
-            .Select(l => l.Trim())
-            .Where(l => l.Length > 0)
-            .ToList();
-
-        if (experience.TextIsDescriptionOnly)
-        {
-            foreach (var line in lines)
-            {
-                yield return line;
-            }
-
-            yield break;
-        }
-
-        // lines[0] is the header (title/organisation, possibly with a trailing period the
-        // segmenter recovered separately) — never a description bullet.
-        for (var i = 1; i < lines.Count; i++)
-        {
-            var line = lines[i];
-
-            // A line that is purely the period ("2013–2021", "01/2022 – nuvarande") is not a bullet.
-            //
-            // A UNION of two predicates, and it is deliberately not one (#1060 β-3 follow-up).
-            // NEITHER SUBSUMES THE OTHER — each reaches forms the other declines, in BOTH
-            // directions. The axes are not restated here: they live behind ONE pointer,
-            // DatePatterns.IsDateOnlyLine's docblock, which in turn names
-            // DatePatternsDateOnlyLineTests as the adjudicating InlineData. A prose copy of a list
-            // the date-model widening will change would rot in a file that widening does not
-            // otherwise touch. No total is published in either home: the count is emergent from two
-            // independently written grammars.
-            //
-            // Replacing rather than adding is therefore a suppression regression in one direction
-            // or the other, and it releases the line into this method's consumers —
-            // ExperienceBullets below; StructureRules' B5, which reads this method but nulls any
-            // marker whose remainder PeriodParser parses, so it acts on neither released form; and
-            // WeakVerbTransform's bullet unit, which IS this method (measured in
-            // ReviewTextPeriodLineUnionTests). What that transform then does is DECLINE to propose:
-            // it proposes only for a bullet OPENING with a drop-in-safe weak verb from the
-            // KnowledgeBank mapping (WeakVerbTransform.cs), and no date row opens with one
-            // (naming an opening GLYPH instead would be wrong for the leading-separator direction).
-            // That the transform DECLINES is read from its firing condition, not run — same
-            // provenance as the A1/A2/A6 clause below. What IS read directly is that its bullet
-            // unit is this method: WeakVerbTransform.cs iterates DescriptionBullets — read,
-            // not measured by a test that calls Propose. Offered, not
-            // acted on — stating it as "not released into WeakVerbTransform" would over-correct in
-            // the other direction.
-            //
-            // What ExperienceBullets' criteria (A1/A2/A6) do with a released row — score it and
-            // CITE it as though it were prose — WAS derived from reading the rules and is now
-            // MEASURED (#1060 road 3, (S1)). On the three-line layout, before the widening, all
-            // three cited the user's date row; on "2020/01 – 2024/12" A1 returned an affirmative
-            // Pass noting "kvantifierad uppgift" — the product asserting she had quantified a
-            // result out of her employment dates. The run agreed with the derivation and sharpened
-            // it. DateModelWideningReviewSideTests is the adjudicator; do not restate this as
-            // derived.
-            if (PeriodParser.TryParse(line, out _, out _, out _) || DatePatterns.IsDateOnlyLine(line))
-            {
-                continue;
-            }
-
-            // The organisation on its own line (the "Title\nCompany\nDates" layout) is not a bullet.
-            if (!string.IsNullOrWhiteSpace(experience.Organization)
-                && string.Equals(line, experience.Organization, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            // The β-3 residual this union closes, kept because it records WHY the union exists.
-            // The two suppressions above used to overlap: a period line PeriodParser rejects was
-            // often still caught by the organization-equality test, because the segmenter had put
-            // that very line in the organization slot. β-3 stopped that fabrication, so the overlap
-            // went with it and a period line with a LEADING separator ("– 2020 – 2024") escaped
-            // both — and was yielded as a description bullet for the review criteria to score.
-            // Closed by the DatePatterns disjunct above, which suppresses it structurally rather
-            // than as a side effect of a defect.
-            //
-            // WHAT REMAINED WHEN THE UNION LANDED, kept as the record of a prediction that came
-            // TRUE and was then closed: a date line DatePatterns did not MODEL ("jan 2020 – dec
-            // 2024", "2020 – 2024 (heltid)", "2020/01 – 2024/12", "2020 –") was not reduced, so
-            // IsDateOnlyLine declined it exactly as PeriodParser did. The promotion FACTORED today's
-            // model into a shared home; it did not widen it, and sharing a predicate does not extend
-            // one.
-            //
-            // THE DATE MODEL HAS SINCE BEEN WIDENED (#1060 road 3) AND THREE OF THE FOUR ARE NOW
-            // SUPPRESSED HERE. The month-name POINT form went into DatePatterns.DateRange — and,
-            // because that regex's match value is what ExtractPeriod STORES, into PeriodParser's
-            // point grammar with it, from a month-word home the two types share. The two LINE forms
-            // went into DatePatterns.IsIgnorableTail, deliberately outside the match value. So this
-            // call site suppresses those three through BOTH disjuncts for the point form and through
-            // the DatePatterns disjunct alone for the line forms.
-            //
-            // THE FOURTH, YYYY/MM ("2020/01 – 2024/12"), WAS ADDED, DECLINED (round 5) AND IS NOW
-            // SUPPRESSED THROUGH THE DatePatterns DISJUNCT ALONE (ADR 0136): it collided with the
-            // Swedish läsår notation and a mixed-endpoint form of it regressed a working origin/main
-            // degradation into an unparseable stored value, so the VALUE grammar still declines it
-            // and PeriodParser still refuses it. The LINE grammar reads it, which is why this
-            // disjunct fires and the other does not — pinned in
-            // ReviewTextPeriodLineUnionTests.DescriptionBullets_SuppressesTheSlashDateRow_…, because a
-            // union that started passing through BOTH halves would be a different change wearing
-            // this one's result. The union is otherwise unchanged and is still a union: neither
-            // predicate subsumes the other, and DatePatternsDateOnlyLineTests owns the axis list.
-            //
-            // TWO DEFERRALS, AND THE ORDER WAS LOAD-BEARING — the promotion FIRST, the widening
-            // SECOND. Not a preference, and the argument was about the TWO-LINE layout specifically:
-            // there the date row is Lines[1] and therefore the organisation candidate, so the
-            // segmenter fabricated it into Organization and the equality test above fired on it.
-            // Widening the date model FIRST would have made Organization correctly null, stopped
-            // that test firing, and — without this union already in place — released the line into
-            // ExperienceBullets. That would have traded a fabricated employer for a criterion citing
-            // the user's date row as prose: two CLAUDE.md §5 CV-engine classes, not a fix. With the
-            // union here first, the widening extended a real suppression instead of removing an
-            // accidental one, which is what happened.
-            //
-            // THE QUALIFIER WAS LOAD-BEARING TOO, and it was measured rather than assumed. On the
-            // THREE-LINE "Title / Company / Dates" layout the employer is real, nothing fabricates
-            // the date row, and neither half of this union modelled those four forms — so the row
-            // REACHED the bullet scorer, and A1/A2/A6 scored and cited it. Saying "those four forms
-            // are suppressed today" without the layout qualifier would have been a claim sized
-            // against one layout and read as a claim about the class. That hole is now closed and
-            // pinned at both altitudes: the bullet unit in
-            // ReviewTextPeriodLineUnionTests.DescriptionBullets_ShouldNowSuppressTheDateRow_…, and the
-            // verdicts in DateModelWideningReviewSideTests (senior-cto-advisor bind 2026-08-02 §2,
-            // qualified by test-writer's measurement the same day, closed by road 3).
-
-            yield return line;
-        }
-    }
+    internal static IEnumerable<string> DescriptionBullets(ReviewableExperience experience) =>
+        experience.TextIsDescriptionOnly
+            ? experience.Text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0)
+            : EntryDescription.Lines(experience.Text, experience.Organization);
 
     /// <summary>
     /// The staging-shaped overload the improve engine's <c>WeakVerbTransform</c> scores by
-    /// (#534 — the improve flow stays <c>ParsedResume</c>-scoped until PR-7). Delegates to
-    /// the unified-view logic above so the bullet unit stays ONE definition (#487).
+    /// (#534 — the improve flow stays <c>ParsedResume</c>-scoped until PR-7). Maps the entry as the
+    /// review does, so the bullet unit stays ONE definition (#487).
     /// </summary>
     internal static IEnumerable<string> DescriptionBullets(ParsedExperience experience) =>
-        DescriptionBullets(new ReviewableExperience(
-            experience.Title, experience.Organization, experience.Period,
-            null, null, experience.RawText, TextIsDescriptionOnly: false));
+        DescriptionBullets(ReviewableExperience.FromParsed(experience));
 
     /// <summary>Profile + each experience's description lines joined, for whole-CV prose scans
     /// (lowercased on demand). Both arms scan the same text: the staging block's header, period and

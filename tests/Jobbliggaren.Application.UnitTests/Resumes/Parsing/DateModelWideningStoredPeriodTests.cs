@@ -354,7 +354,7 @@ public class DateModelWideningStoredPeriodTests
     [Fact]
     public void ALoneMonthPointLine_IsNowSuppressedFromTheBullets_WhichIsTheDirectionThatIsAllowed()
     {
-        // (S3) obligation 5(a) — the union at ReviewText.DescriptionBullets is
+        // (S3) obligation 5(a) — the union at EntryDescription.Lines (the review's bullets) is
         // `PeriodParser.TryParse(line, …) || DatePatterns.IsDateOnlyLine(line)`, so widening the LEFT
         // disjunct widens suppression. That is the permitted direction: suppression may grow, never
         // narrow. A line that is nothing but "maj 2020" is not a description bullet.
